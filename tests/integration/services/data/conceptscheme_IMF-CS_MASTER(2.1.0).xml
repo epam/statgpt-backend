@@ -1,0 +1,264 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<mes:Structure xmlns:mes="http://www.sdmx.org/resources/sdmxml/schemas/v2_1/message" xmlns:str="http://www.sdmx.org/resources/sdmxml/schemas/v2_1/structure" xmlns:com="http://www.sdmx.org/resources/sdmxml/schemas/v2_1/common" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xml="http://www.w3.org/XML/1998/namespace" xsi:schemaLocation="http://www.sdmx.org/resources/sdmxml/schemas/v2_1/message ../../schemas/SDMXMessage.xsd">
+  <mes:Header>
+    <mes:ID>IDREF9638</mes:ID>
+    <mes:Test>false</mes:Test>
+    <mes:Prepared>2025-07-29T09:38:46.027962981Z</mes:Prepared>
+    <mes:Sender id="unknown"/>
+  </mes:Header>
+  <mes:Structures>
+    <str:Concepts>
+      <str:ConceptScheme urn="urn:sdmx:org.sdmx.infomodel.conceptscheme.ConceptScheme=IMF:CS_MASTER(2.1.0)" agencyID="IMF" id="CS_MASTER" version="2.1.0" isFinal="true" isExternalReference="false" isPartial="false">
+        <com:Annotations>
+          <com:Annotation id="origin"/>
+          <com:Annotation id="isFinal"/>
+          <com:Annotation id="lastUpdatedAt"/>
+        </com:Annotations>
+        <com:Name xml:lang="en">Master Metadata Concepts</com:Name>
+        <com:Description xml:lang="en">Standardized definitions for common data elements used across multiple datasets. These elements include attributes like identification and provenance, access controls, methodology and other general descriptive characteristics.</com:Description>
+        <str:Concept id="DOI" urn="urn:sdmx:org.sdmx.infomodel.conceptscheme.Concept=IMF:CS_MASTER(2.1.0).DOI">
+          <com:Name xml:lang="en">DOI</com:Name>
+          <com:Description xml:lang="en">A public identifier (unique alphanumeric string) assigned to a digital object, typically a publication or dataset, to provide a persistent link to its location on the internet.Users use it for citing the resource. </com:Description>
+          <str:CoreRepresentation>
+            <str:TextFormat textType="String"/>
+          </str:CoreRepresentation>
+        </str:Concept>
+        <str:Concept id="SERIES_NAME" urn="urn:sdmx:org.sdmx.infomodel.conceptscheme.Concept=IMF:CS_MASTER(2.1.0).SERIES_NAME">
+          <com:Name xml:lang="en">Series Name</com:Name>
+          <com:Description xml:lang="en">A  label  given to a specific series. This name helps to distinguish it from other series data and provides context for what the data represents.</com:Description>
+          <str:CoreRepresentation>
+            <str:TextFormat textType="String"/>
+          </str:CoreRepresentation>
+        </str:Concept>
+        <str:Concept id="AUTHOR" urn="urn:sdmx:org.sdmx.infomodel.conceptscheme.Concept=IMF:CS_MASTER(2.1.0).AUTHOR">
+          <com:Name xml:lang="en">Author</com:Name>
+          <com:Description xml:lang="en">The person or organization responsible for resource’s substantive and intellectual content.</com:Description>
+          <str:CoreRepresentation>
+            <str:TextFormat textType="String"/>
+          </str:CoreRepresentation>
+        </str:Concept>
+        <str:Concept id="PUBLISHER" urn="urn:sdmx:org.sdmx.infomodel.conceptscheme.Concept=IMF:CS_MASTER(2.1.0).PUBLISHER">
+          <com:Name xml:lang="en">Publisher</com:Name>
+          <com:Description xml:lang="en">The organization or institution responsible for making a resource available to the public or a specific audience. For datasets, the publisher is responsible for preparing and releasing the dataset for public or private use. This includes ensuring the dataset's quality, accuracy, and accessibility.</com:Description>
+          <str:CoreRepresentation>
+            <str:Enumeration>
+              <Ref agencyID="IMF" id="CL_ORGANIZATION" version="2.1.0" package="codelist" class="Codelist"/>
+            </str:Enumeration>
+          </str:CoreRepresentation>
+        </str:Concept>
+        <str:Concept id="DEPARTMENT" urn="urn:sdmx:org.sdmx.infomodel.conceptscheme.Concept=IMF:CS_MASTER(2.1.0).DEPARTMENT">
+          <com:Name xml:lang="en">Department</com:Name>
+          <com:Description xml:lang="en">The specific division or unit within an organization (e.g., the IMF) that is ultimately accountable for the creation, maintenance, and dissemination of a resource.</com:Description>
+          <str:CoreRepresentation>
+            <str:Enumeration>
+              <Ref agencyID="IMF" id="CL_DEPARTMENT" version="1.0.2" package="codelist" class="Codelist"/>
+            </str:Enumeration>
+          </str:CoreRepresentation>
+        </str:Concept>
+        <str:Concept id="PUBLICATION_DATE" urn="urn:sdmx:org.sdmx.infomodel.conceptscheme.Concept=IMF:CS_MASTER(2.1.0).PUBLICATION_DATE">
+          <com:Name xml:lang="en">Publication Date</com:Name>
+          <com:Description xml:lang="en">The date when a resource was formally issued or made available to the public or a specific audience. This applies to datasets that have major releases, but the data may have minor updates throughout the year. In most cases where the data is regularly updated, the publication date is the same as the update date.</com:Description>
+          <str:CoreRepresentation>
+            <str:TextFormat textType="DateTime"/>
+          </str:CoreRepresentation>
+        </str:Concept>
+        <str:Concept id="UPDATE_DATE" urn="urn:sdmx:org.sdmx.infomodel.conceptscheme.Concept=IMF:CS_MASTER(2.1.0).UPDATE_DATE">
+          <com:Name xml:lang="en">Update Date</com:Name>
+          <com:Description xml:lang="en">The most recent date on which a resource was modified or updated, including changes to data or metadata.  For a dataset, the update date is the time when the data within a dataset was last modified, or the metadata was modified.</com:Description>
+          <str:CoreRepresentation>
+            <str:TextFormat textType="DateTime"/>
+          </str:CoreRepresentation>
+        </str:Concept>
+        <str:Concept id="SOURCE" urn="urn:sdmx:org.sdmx.infomodel.conceptscheme.Concept=IMF:CS_MASTER(2.1.0).SOURCE">
+          <com:Name xml:lang="en">Source Organization</com:Name>
+          <com:Description xml:lang="en">The entity responsible for producing or collecting the original data used in a resource. This could be a government agency, a research institution, a private company, or any other entity that generates data. When citing or referencing information, it is important to identify the source organization to ensure credibility and accuracy.</com:Description>
+          <str:CoreRepresentation>
+            <str:Enumeration>
+              <Ref agencyID="IMF" id="CL_ORGANIZATION" version="2.1.0" package="codelist" class="Codelist"/>
+            </str:Enumeration>
+          </str:CoreRepresentation>
+        </str:Concept>
+        <str:Concept id="SHORT_SOURCE_CITATION" urn="urn:sdmx:org.sdmx.infomodel.conceptscheme.Concept=IMF:CS_MASTER(2.1.0).SHORT_SOURCE_CITATION">
+          <com:Name xml:lang="en">Short Source Citation</com:Name>
+          <com:Description xml:lang="en">A brief reference to the source of data or information used in a resource, typically including the author, title, and year of publication.</com:Description>
+          <str:CoreRepresentation>
+            <str:TextFormat textType="String"/>
+          </str:CoreRepresentation>
+        </str:Concept>
+        <str:Concept id="FULL_SOURCE_CITATION" urn="urn:sdmx:org.sdmx.infomodel.conceptscheme.Concept=IMF:CS_MASTER(2.1.0).FULL_SOURCE_CITATION">
+          <com:Name xml:lang="en">Full Source Citation </com:Name>
+          <com:Description xml:lang="en">A complete reference to the source of data or information used in a resource, providing all necessary details to locate and verify the original source.</com:Description>
+          <str:CoreRepresentation>
+            <str:TextFormat textType="String"/>
+          </str:CoreRepresentation>
+        </str:Concept>
+        <str:Concept id="SUGGESTED_CITATION" urn="urn:sdmx:org.sdmx.infomodel.conceptscheme.Concept=IMF:CS_MASTER(2.1.0).SUGGESTED_CITATION">
+          <com:Name xml:lang="en">Suggested Citation </com:Name>
+          <com:Description xml:lang="en">A recommended format for citing a resource in academic or professional works, ensuring proper attribution and acknowledgement of the source.</com:Description>
+          <str:CoreRepresentation>
+            <str:TextFormat textType="String"/>
+          </str:CoreRepresentation>
+        </str:Concept>
+        <str:Concept id="FULL_DESCRIPTION" urn="urn:sdmx:org.sdmx.infomodel.conceptscheme.Concept=IMF:CS_MASTER(2.1.0).FULL_DESCRIPTION">
+          <com:Name xml:lang="en">Full Description</com:Name>
+          <com:Description xml:lang="en">A comprehensive description of the dataset, encompassing its content, scope, underlying concepts, coverage, classifications, and statistical techniques employed in its creation and analysis. This may include references to detailed methodological documents or papers that provide further elaboration on these aspects.</com:Description>
+          <str:CoreRepresentation>
+            <str:TextFormat textType="String"/>
+          </str:CoreRepresentation>
+        </str:Concept>
+        <str:Concept id="TOPIC" urn="urn:sdmx:org.sdmx.infomodel.conceptscheme.Concept=IMF:CS_MASTER(2.1.0).TOPIC">
+          <com:Name xml:lang="en">Topic</com:Name>
+          <com:Description xml:lang="en">A topic of the resource. A high-level categorization of the resource's subject matter, indicating the main area or domain to which the data pertains.</com:Description>
+          <str:CoreRepresentation>
+            <str:Enumeration>
+              <Ref agencyID="IMF" id="CL_TOPIC" version="2.2.0" package="codelist" class="Codelist"/>
+            </str:Enumeration>
+          </str:CoreRepresentation>
+        </str:Concept>
+        <str:Concept id="TOPIC_DATASET" urn="urn:sdmx:org.sdmx.infomodel.conceptscheme.Concept=IMF:CS_MASTER(2.1.0).TOPIC_DATASET">
+          <com:Name xml:lang="en">Topic Dataset</com:Name>
+          <com:Description xml:lang="en">A topic of the dataset.  A high-level categorization of the dataset's subject matter, indicating the main area or domain to which the data pertains.</com:Description>
+          <str:CoreRepresentation>
+            <str:Enumeration>
+              <Ref agencyID="IMF" id="CL_TOPIC" version="2.2.0" package="codelist" class="Codelist"/>
+            </str:Enumeration>
+          </str:CoreRepresentation>
+        </str:Concept>
+        <str:Concept id="KEYWORDS" urn="urn:sdmx:org.sdmx.infomodel.conceptscheme.Concept=IMF:CS_MASTER(2.1.0).KEYWORDS">
+          <com:Name xml:lang="en">Keywords</com:Name>
+          <com:Description xml:lang="en">A set of words or phrases that describe the content and subject matter of a resource.</com:Description>
+          <str:CoreRepresentation>
+            <str:TextFormat textType="String"/>
+          </str:CoreRepresentation>
+        </str:Concept>
+        <str:Concept id="KEYWORDS_DATASET" urn="urn:sdmx:org.sdmx.infomodel.conceptscheme.Concept=IMF:CS_MASTER(2.1.0).KEYWORDS_DATASET">
+          <com:Name xml:lang="en">Keywords Dataset</com:Name>
+          <com:Description xml:lang="en">A set of words or phrases that describe the content and subject matter of a dataset.</com:Description>
+          <str:CoreRepresentation>
+            <str:TextFormat textType="String"/>
+          </str:CoreRepresentation>
+        </str:Concept>
+        <str:Concept id="KEY_INDICATOR" urn="urn:sdmx:org.sdmx.infomodel.conceptscheme.Concept=IMF:CS_MASTER(2.1.0).KEY_INDICATOR">
+          <com:Name xml:lang="en">Key Indicator</com:Name>
+          <com:Description xml:lang="en">A flag or indicator that identifies a data element or indicator as being of particular importance or significance for a specific analysis or purpose.</com:Description>
+          <str:CoreRepresentation>
+            <str:TextFormat textType="Boolean"/>
+          </str:CoreRepresentation>
+        </str:Concept>
+        <str:Concept id="LANGUAGE" urn="urn:sdmx:org.sdmx.infomodel.conceptscheme.Concept=IMF:CS_MASTER(2.1.0).LANGUAGE">
+          <com:Name xml:lang="en">Language</com:Name>
+          <com:Description xml:lang="en">It refers to the language of the intellectual content of the resource. It can be applied to any type of resource, including documents, datasets, images, audio recordings, etc.</com:Description>
+          <str:CoreRepresentation>
+            <str:Enumeration>
+              <Ref agencyID="IMF" id="CL_LANGUAGE" version="1.1.0" package="codelist" class="Codelist"/>
+            </str:Enumeration>
+          </str:CoreRepresentation>
+        </str:Concept>
+        <str:Concept id="TEMPORAL_COVERAGE" urn="urn:sdmx:org.sdmx.infomodel.conceptscheme.Concept=IMF:CS_MASTER(2.1.0).TEMPORAL_COVERAGE">
+          <com:Name xml:lang="en">Temporal Coverage</com:Name>
+          <com:Description xml:lang="en">This field represents the temporal coverage of the data, expressed using the ISO 8601 standard. The data spans the time interval from 1997 to 2009 (inclusive), indicated as 1997/2009.</com:Description>
+          <str:CoreRepresentation>
+            <str:TextFormat textType="String"/>
+          </str:CoreRepresentation>
+        </str:Concept>
+        <str:Concept id="FREQUENCY_COVERAGE" urn="urn:sdmx:org.sdmx.infomodel.conceptscheme.Concept=IMF:CS_MASTER(2.1.0).FREQUENCY_COVERAGE">
+          <com:Name xml:lang="en">Frequency Coverage</com:Name>
+          <com:Description xml:lang="en">Frequency Coverage in a dataset like annual or monthly refers to the range of time periods for which data is available. </com:Description>
+          <str:CoreRepresentation>
+            <str:Enumeration>
+              <Ref agencyID="IMF" id="CL_FREQ" version="1.0.3" package="codelist" class="Codelist"/>
+            </str:Enumeration>
+          </str:CoreRepresentation>
+        </str:Concept>
+        <str:Concept id="GEOGRAPHICAL_COVERAGE" urn="urn:sdmx:org.sdmx.infomodel.conceptscheme.Concept=IMF:CS_MASTER(2.1.0).GEOGRAPHICAL_COVERAGE">
+          <com:Name xml:lang="en">Geographical Coverage</com:Name>
+          <com:Description xml:lang="en">This field specifies the spatial extent of the data, detailing the geographic areas or regions included in the dataset. It may be represented by countries, continents, coordinates, or specific boundaries such as cities, regions, or global coverage.</com:Description>
+          <str:CoreRepresentation>
+            <str:TextFormat textType="String"/>
+          </str:CoreRepresentation>
+        </str:Concept>
+        <str:Concept id="METHODOLOGY" urn="urn:sdmx:org.sdmx.infomodel.conceptscheme.Concept=IMF:CS_MASTER(2.1.0).METHODOLOGY">
+          <com:Name xml:lang="en">Methodology</com:Name>
+          <com:Description xml:lang="en">Reference to the conceptual statistical framework and underlying statistical methodology  used for the dataset (e.g. country specific).</com:Description>
+          <str:CoreRepresentation>
+            <str:Enumeration>
+              <Ref agencyID="IMF" id="CL_METHODOLOGY" version="2.5.0" package="codelist" class="Codelist"/>
+            </str:Enumeration>
+          </str:CoreRepresentation>
+        </str:Concept>
+        <str:Concept id="METHODOLOGY_NOTES" urn="urn:sdmx:org.sdmx.infomodel.conceptscheme.Concept=IMF:CS_MASTER(2.1.0).METHODOLOGY_NOTES">
+          <com:Name xml:lang="en">Methodology Notes</com:Name>
+          <com:Description xml:lang="en">Additional details or explanations regarding the methodology used for a specific dataset or indicator. These notes outline the conceptual frameworks and statistical methods used to collect, process, and analyze the data, and can vary in level of detail depending on the data's complexity. For example: a) At the country level, methodology notes describe the specific methods used by each country to calculate particular indicators. b) At the time series level, methodology notes provide a detailed explanation of how an indicator is generated for a specific country.</com:Description>
+          <str:CoreRepresentation>
+            <str:TextFormat textType="String"/>
+          </str:CoreRepresentation>
+        </str:Concept>
+        <str:Concept id="CONTACT_POINT" urn="urn:sdmx:org.sdmx.infomodel.conceptscheme.Concept=IMF:CS_MASTER(2.1.0).CONTACT_POINT">
+          <com:Name xml:lang="en">Contact Point</com:Name>
+          <com:Description xml:lang="en">The primary individual or group responsible for handling inquiries and providing information about a resource. For datasets published on the IMF data portal, the point of contact shown to public users is standardized as a common help email address.</com:Description>
+          <str:CoreRepresentation>
+            <str:TextFormat textType="String"/>
+          </str:CoreRepresentation>
+        </str:Concept>
+        <str:Concept id="SECURITY_CLASSIFICATION" urn="urn:sdmx:org.sdmx.infomodel.conceptscheme.Concept=IMF:CS_MASTER(2.1.0).SECURITY_CLASSIFICATION">
+          <com:Name xml:lang="en">Security Classification</com:Name>
+          <com:Description xml:lang="en">A data classification assigned to data based on its sensitivity, value, and the potential impact of unauthorized access, disclosure, alteration, or destruction, resulting in the assignment of a tag that designates the data's sensitivity level.  This attribute is assigned at lower levels of data when a dataset contains a mix of data access levels, with some series designated as public and others as confidential.</com:Description>
+          <str:CoreRepresentation>
+            <str:Enumeration>
+              <Ref agencyID="IMF" id="CL_SEC_CLASSIFICATION" version="1.0.1" package="codelist" class="Codelist"/>
+            </str:Enumeration>
+          </str:CoreRepresentation>
+        </str:Concept>
+        <str:Concept id="ACCESS_SHARING_LEVEL" urn="urn:sdmx:org.sdmx.infomodel.conceptscheme.Concept=IMF:CS_MASTER(2.1.0).ACCESS_SHARING_LEVEL">
+          <com:Annotations>
+            <com:Annotation id="indexed">
+              <com:AnnotationType>INDEX_CONCEPTS</com:AnnotationType>
+            </com:Annotation>
+          </com:Annotations>
+          <com:Name xml:lang="en">Access and Sharing Level</com:Name>
+          <com:Description xml:lang="en">A classification that specifies the extent to which a resource can be shared with others, including restrictions on access, use, and distribution.  It specifies who can access the data (e.g., public, specific groups, authorized personnel) and what actions they can take with it. The appropriate sharing level depends on the sensitivity and intended use of the data, ranging from open access for public data to restricted access for confidential information. This attribute is assigned at lower levels of data when a dataset contains a mix of data access levels, with some series designated as public and others as restricted.</com:Description>
+          <str:CoreRepresentation>
+            <str:Enumeration>
+              <Ref agencyID="IMF" id="CL_ACCESS_SHARING_LEVEL" version="1.0.2" package="codelist" class="Codelist"/>
+            </str:Enumeration>
+          </str:CoreRepresentation>
+        </str:Concept>
+        <str:Concept id="ACCESS_SHARING_NOTES" urn="urn:sdmx:org.sdmx.infomodel.conceptscheme.Concept=IMF:CS_MASTER(2.1.0).ACCESS_SHARING_NOTES">
+          <com:Name xml:lang="en">Access and Sharing Notes</com:Name>
+          <com:Description xml:lang="en">Additional notes involves documenting any нюances or complexities beyond the standard access and sharing levels.</com:Description>
+          <str:CoreRepresentation>
+            <str:TextFormat textType="String"/>
+          </str:CoreRepresentation>
+        </str:Concept>
+        <str:Concept id="ACCESS_INSTRUCTIONS" urn="urn:sdmx:org.sdmx.infomodel.conceptscheme.Concept=IMF:CS_MASTER(2.1.0).ACCESS_INSTRUCTIONS">
+          <com:Name xml:lang="en">Access Instructions</com:Name>
+          <com:Description xml:lang="en">Detailed guidance on how to obtain or access a resource, particularly relevant for datasets. </com:Description>
+          <str:CoreRepresentation>
+            <str:TextFormat textType="String"/>
+          </str:CoreRepresentation>
+        </str:Concept>
+        <str:Concept id="USAGE_RIGHTS_NOTES" urn="urn:sdmx:org.sdmx.infomodel.conceptscheme.Concept=IMF:CS_MASTER(2.1.0).USAGE_RIGHTS_NOTES">
+          <com:Name xml:lang="en">Usage Rights Notes</com:Name>
+          <com:Description xml:lang="en">Additional notes or explanations regarding the licensing terms for the source data used in a dataset.</com:Description>
+          <str:CoreRepresentation>
+            <str:TextFormat textType="String"/>
+          </str:CoreRepresentation>
+        </str:Concept>
+        <str:Concept id="LICENSE" urn="urn:sdmx:org.sdmx.infomodel.conceptscheme.Concept=IMF:CS_MASTER(2.1.0).LICENSE">
+          <com:Name xml:lang="en">License</com:Name>
+          <com:Description xml:lang="en">Information on the licence for distribution /  legal agreement that defines the terms under which a resource can be used, shared, or distributed.</com:Description>
+          <str:CoreRepresentation>
+            <str:TextFormat textType="String"/>
+          </str:CoreRepresentation>
+        </str:Concept>
+        <str:Concept id="URL" urn="urn:sdmx:org.sdmx.infomodel.conceptscheme.Concept=IMF:CS_MASTER(2.1.0).URL">
+          <com:Name xml:lang="en">URL</com:Name>
+          <com:Description xml:lang="en">Direct link to the dataset on the external source's platform.</com:Description>
+          <str:CoreRepresentation>
+            <str:TextFormat textType="String"/>
+          </str:CoreRepresentation>
+        </str:Concept>
+      </str:ConceptScheme>
+    </str:Concepts>
+  </mes:Structures>
+</mes:Structure>

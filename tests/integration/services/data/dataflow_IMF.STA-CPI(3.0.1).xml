@@ -1,0 +1,621 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<mes:Structure xmlns:mes="http://www.sdmx.org/resources/sdmxml/schemas/v2_1/message" xmlns:str="http://www.sdmx.org/resources/sdmxml/schemas/v2_1/structure" xmlns:com="http://www.sdmx.org/resources/sdmxml/schemas/v2_1/common" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xml="http://www.w3.org/XML/1998/namespace" xsi:schemaLocation="http://www.sdmx.org/resources/sdmxml/schemas/v2_1/message ../../schemas/SDMXMessage.xsd">
+  <mes:Header>
+    <mes:ID>IDREF6879</mes:ID>
+    <mes:Test>false</mes:Test>
+    <mes:Prepared>2025-07-29T10:31:40.927431714Z</mes:Prepared>
+    <mes:Sender id="unknown"/>
+  </mes:Header>
+  <mes:Structures>
+    <str:Dataflows>
+      <str:Dataflow urn="urn:sdmx:org.sdmx.infomodel.datastructure.Dataflow=IMF.STA:CPI(3.0.1)" agencyID="IMF.STA" id="CPI" version="3.0.1" isFinal="true" isExternalReference="false">
+        <com:Annotations>
+          <com:Annotation id="@IMF">
+            <com:AnnotationTitle>H_CPI_BY_COMPONENT</com:AnnotationTitle>
+            <com:AnnotationType>DATAFLOW_PRESENTATION</com:AnnotationType>
+            <com:AnnotationText xml:lang="en">presentation_title=Consumer Price Index (CPI) by Component; presentation_description=The CPI is a measure of the average change in prices of goods and services consumed by households over a period of time. The data is presented in a table, with each country's CPI broken down by component. The components include food and beverages, housing, transportation, apparel, recreation, education and communication, medical care, and other goods and services.</com:AnnotationText>
+          </com:Annotation>
+          <com:Annotation id="dataEngineSettings"/>
+          <com:Annotation id="origin"/>
+          <com:Annotation id="DataEngine">
+            <com:AnnotationTitle>timeseries_v2</com:AnnotationTitle>
+          </com:Annotation>
+          <com:Annotation id="dataflowFamily"/>
+          <com:Annotation id="isFinal"/>
+          <com:Annotation id="lastUpdatedAt"/>
+        </com:Annotations>
+        <com:Name xml:lang="en">Consumer Price Index (CPI)</com:Name>
+        <com:Description xml:lang="en">The Consumer Price Index (CPI) dataset includes the national consumer price indexes by economy. In addition to the all items, headline index, detailed indexes by Division (e.g. Food and Non-alcoholic beverages, Clothing, etc.), their associated weights, and contributions to national annual inflation are published where available. In addition to the national CPIs, the CPI dataset includes the Harmonised Indices of Consumer Prices (HICPs) compiled by Eurostat for Europe. Consumer price indexes measure the relative changes over time in the prices of goods and services purchased by households, which households use directly, or indirectly, to satisfy their own needs and wants.</com:Description>
+        <str:Structure>
+          <Ref agencyID="IMF.STA" id="DSD_CPI" version="3.0.0" package="datastructure" class="DataStructure"/>
+        </str:Structure>
+      </str:Dataflow>
+    </str:Dataflows>
+    <str:DataStructures>
+      <str:DataStructure urn="urn:sdmx:org.sdmx.infomodel.datastructure.DataStructure=IMF.STA:DSD_CPI(3.0.0)" agencyID="IMF.STA" id="DSD_CPI" version="3.0.0" isFinal="true" isExternalReference="false">
+        <com:Annotations>
+          <com:Annotation id="origin"/>
+          <com:Annotation id="isFinal"/>
+          <com:Annotation id="lastUpdatedAt"/>
+        </com:Annotations>
+        <com:Name xml:lang="en">Consumer Price Index (CPI)</com:Name>
+        <str:DataStructureComponents>
+          <str:DimensionList id="DimensionDescriptor">
+            <str:Dimension id="COUNTRY" urn="urn:sdmx:org.sdmx.infomodel.datastructure.Dimension=IMF.STA:DSD_CPI(3.0.0).COUNTRY" position="0">
+              <str:ConceptIdentity>
+                <Ref maintainableParentID="CS_MASTER_DATA" maintainableParentVersion="1.0.0" agencyID="IMF" id="COUNTRY" package="conceptscheme" class="Concept"/>
+              </str:ConceptIdentity>
+            </str:Dimension>
+            <str:Dimension id="INDEX_TYPE" urn="urn:sdmx:org.sdmx.infomodel.datastructure.Dimension=IMF.STA:DSD_CPI(3.0.0).INDEX_TYPE" position="1">
+              <str:ConceptIdentity>
+                <Ref maintainableParentID="CS_MASTER_DOMAIN" maintainableParentVersion="1.0.0" agencyID="IMF" id="INDEX_TYPE" package="conceptscheme" class="Concept"/>
+              </str:ConceptIdentity>
+            </str:Dimension>
+            <str:Dimension id="COICOP_1999" urn="urn:sdmx:org.sdmx.infomodel.datastructure.Dimension=IMF.STA:DSD_CPI(3.0.0).COICOP_1999" position="2">
+              <str:ConceptIdentity>
+                <Ref maintainableParentID="CS_MASTER_DOMAIN" maintainableParentVersion="1.0.0" agencyID="IMF" id="COICOP_1999" package="conceptscheme" class="Concept"/>
+              </str:ConceptIdentity>
+            </str:Dimension>
+            <str:Dimension id="TYPE_OF_TRANSFORMATION" urn="urn:sdmx:org.sdmx.infomodel.datastructure.Dimension=IMF.STA:DSD_CPI(3.0.0).TYPE_OF_TRANSFORMATION" position="3">
+              <str:ConceptIdentity>
+                <Ref maintainableParentID="CS_CPI" maintainableParentVersion="3.0.0" agencyID="IMF.STA" id="TYPE_OF_TRANSFORMATION" package="conceptscheme" class="Concept"/>
+              </str:ConceptIdentity>
+            </str:Dimension>
+            <str:Dimension id="FREQUENCY" urn="urn:sdmx:org.sdmx.infomodel.datastructure.Dimension=IMF.STA:DSD_CPI(3.0.0).FREQUENCY" position="4">
+              <str:ConceptIdentity>
+                <Ref maintainableParentID="CS_MASTER_SYSTEM" maintainableParentVersion="1.0.2" agencyID="IMF" id="FREQ" package="conceptscheme" class="Concept"/>
+              </str:ConceptIdentity>
+              <str:ConceptRole>
+                <Ref maintainableParentID="SDMX_CONCEPT_ROLES" maintainableParentVersion="1.0" agencyID="SDMX" id="FREQ" package="conceptscheme" class="Concept"/>
+              </str:ConceptRole>
+            </str:Dimension>
+            <str:TimeDimension id="TIME_PERIOD" urn="urn:sdmx:org.sdmx.infomodel.datastructure.TimeDimension=IMF.STA:DSD_CPI(3.0.0).TIME_PERIOD">
+              <str:ConceptIdentity>
+                <Ref maintainableParentID="CS_MASTER_SYSTEM" maintainableParentVersion="1.0.2" agencyID="IMF" id="TIME_PERIOD" package="conceptscheme" class="Concept"/>
+              </str:ConceptIdentity>
+              <str:LocalRepresentation>
+                <str:TextFormat textType="ObservationalTimePeriod"/>
+              </str:LocalRepresentation>
+            </str:TimeDimension>
+          </str:DimensionList>
+          <str:Group id="TYPE_OF_TRANSFORMATION">
+            <str:GroupDimension>
+              <str:DimensionReference>
+                <Ref id="TYPE_OF_TRANSFORMATION"/>
+              </str:DimensionReference>
+            </str:GroupDimension>
+          </str:Group>
+          <str:Group id="INDEX_TYPE__COICOP_1999__TYPE_OF_TRANSFORMATION">
+            <str:GroupDimension>
+              <str:DimensionReference>
+                <Ref id="INDEX_TYPE"/>
+              </str:DimensionReference>
+            </str:GroupDimension>
+            <str:GroupDimension>
+              <str:DimensionReference>
+                <Ref id="COICOP_1999"/>
+              </str:DimensionReference>
+            </str:GroupDimension>
+            <str:GroupDimension>
+              <str:DimensionReference>
+                <Ref id="TYPE_OF_TRANSFORMATION"/>
+              </str:DimensionReference>
+            </str:GroupDimension>
+          </str:Group>
+          <str:AttributeList id="AttributeDescriptor">
+            <str:Attribute id="SCALE" urn="urn:sdmx:org.sdmx.infomodel.datastructure.DataAttribute=IMF.STA:DSD_CPI(3.0.0).SCALE" assignmentStatus="Conditional">
+              <str:ConceptIdentity>
+                <Ref maintainableParentID="CS_MASTER_SYSTEM" maintainableParentVersion="1.0.2" agencyID="IMF" id="SCALE" package="conceptscheme" class="Concept"/>
+              </str:ConceptIdentity>
+              <str:AttributeRelationship>
+                <str:Dimension>
+                  <Ref id="COUNTRY"/>
+                </str:Dimension>
+                <str:Dimension>
+                  <Ref id="INDEX_TYPE"/>
+                </str:Dimension>
+                <str:Dimension>
+                  <Ref id="COICOP_1999"/>
+                </str:Dimension>
+                <str:Dimension>
+                  <Ref id="TYPE_OF_TRANSFORMATION"/>
+                </str:Dimension>
+                <str:Dimension>
+                  <Ref id="FREQUENCY"/>
+                </str:Dimension>
+              </str:AttributeRelationship>
+            </str:Attribute>
+            <str:Attribute id="PRECISION" urn="urn:sdmx:org.sdmx.infomodel.datastructure.DataAttribute=IMF.STA:DSD_CPI(3.0.0).PRECISION" assignmentStatus="Conditional">
+              <str:ConceptIdentity>
+                <Ref maintainableParentID="CS_MASTER_SYSTEM" maintainableParentVersion="1.0.2" agencyID="IMF" id="PRECISION" package="conceptscheme" class="Concept"/>
+              </str:ConceptIdentity>
+              <str:AttributeRelationship>
+                <str:PrimaryMeasure>
+                  <Ref id="OBS_VALUE"/>
+                </str:PrimaryMeasure>
+              </str:AttributeRelationship>
+            </str:Attribute>
+            <str:Attribute id="DECIMALS_DISPLAYED" urn="urn:sdmx:org.sdmx.infomodel.datastructure.DataAttribute=IMF.STA:DSD_CPI(3.0.0).DECIMALS_DISPLAYED" assignmentStatus="Conditional">
+              <str:ConceptIdentity>
+                <Ref maintainableParentID="CS_MASTER_SYSTEM" maintainableParentVersion="1.0.2" agencyID="IMF" id="DECIMALS_DISPLAYED" package="conceptscheme" class="Concept"/>
+              </str:ConceptIdentity>
+              <str:AttributeRelationship>
+                <str:Dimension>
+                  <Ref id="COUNTRY"/>
+                </str:Dimension>
+                <str:Dimension>
+                  <Ref id="INDEX_TYPE"/>
+                </str:Dimension>
+                <str:Dimension>
+                  <Ref id="COICOP_1999"/>
+                </str:Dimension>
+                <str:Dimension>
+                  <Ref id="TYPE_OF_TRANSFORMATION"/>
+                </str:Dimension>
+                <str:Dimension>
+                  <Ref id="FREQUENCY"/>
+                </str:Dimension>
+              </str:AttributeRelationship>
+            </str:Attribute>
+            <str:Attribute id="REPORTING_PERIOD_TYPE" urn="urn:sdmx:org.sdmx.infomodel.datastructure.DataAttribute=IMF.STA:DSD_CPI(3.0.0).REPORTING_PERIOD_TYPE" assignmentStatus="Conditional">
+              <str:ConceptIdentity>
+                <Ref maintainableParentID="CS_MASTER_DATA" maintainableParentVersion="1.0.0" agencyID="IMF" id="REPORTING_PERIOD_TYPE" package="conceptscheme" class="Concept"/>
+              </str:ConceptIdentity>
+              <str:AttributeRelationship>
+                <str:Dimension>
+                  <Ref id="TYPE_OF_TRANSFORMATION"/>
+                </str:Dimension>
+              </str:AttributeRelationship>
+            </str:Attribute>
+            <str:Attribute id="TRANSFORMATION" urn="urn:sdmx:org.sdmx.infomodel.datastructure.DataAttribute=IMF.STA:DSD_CPI(3.0.0).TRANSFORMATION" assignmentStatus="Conditional">
+              <str:ConceptIdentity>
+                <Ref maintainableParentID="CS_MASTER_DATA" maintainableParentVersion="1.0.0" agencyID="IMF" id="TRANSFORMATION" package="conceptscheme" class="Concept"/>
+              </str:ConceptIdentity>
+              <str:AttributeRelationship>
+                <str:Dimension>
+                  <Ref id="TYPE_OF_TRANSFORMATION"/>
+                </str:Dimension>
+              </str:AttributeRelationship>
+            </str:Attribute>
+            <str:Attribute id="UNIT" urn="urn:sdmx:org.sdmx.infomodel.datastructure.DataAttribute=IMF.STA:DSD_CPI(3.0.0).UNIT" assignmentStatus="Conditional">
+              <str:ConceptIdentity>
+                <Ref maintainableParentID="CS_MASTER_DATA" maintainableParentVersion="1.0.0" agencyID="IMF" id="UNIT" package="conceptscheme" class="Concept"/>
+              </str:ConceptIdentity>
+              <str:AttributeRelationship>
+                <str:Dimension>
+                  <Ref id="TYPE_OF_TRANSFORMATION"/>
+                </str:Dimension>
+              </str:AttributeRelationship>
+            </str:Attribute>
+            <str:Attribute id="DERIVATION_TYPE" urn="urn:sdmx:org.sdmx.infomodel.datastructure.DataAttribute=IMF.STA:DSD_CPI(3.0.0).DERIVATION_TYPE" assignmentStatus="Conditional">
+              <str:ConceptIdentity>
+                <Ref maintainableParentID="CS_MASTER_DATA" maintainableParentVersion="1.0.0" agencyID="IMF" id="DERIVATION_TYPE" package="conceptscheme" class="Concept"/>
+              </str:ConceptIdentity>
+              <str:AttributeRelationship>
+                <str:PrimaryMeasure>
+                  <Ref id="OBS_VALUE"/>
+                </str:PrimaryMeasure>
+              </str:AttributeRelationship>
+            </str:Attribute>
+            <str:Attribute id="OVERLAP" urn="urn:sdmx:org.sdmx.infomodel.datastructure.DataAttribute=IMF.STA:DSD_CPI(3.0.0).OVERLAP" assignmentStatus="Conditional">
+              <str:ConceptIdentity>
+                <Ref maintainableParentID="CS_MASTER_DATA" maintainableParentVersion="1.0.0" agencyID="IMF" id="OVERLAP" package="conceptscheme" class="Concept"/>
+              </str:ConceptIdentity>
+              <str:AttributeRelationship>
+                <str:Dimension>
+                  <Ref id="COUNTRY"/>
+                </str:Dimension>
+                <str:Dimension>
+                  <Ref id="INDEX_TYPE"/>
+                </str:Dimension>
+                <str:Dimension>
+                  <Ref id="COICOP_1999"/>
+                </str:Dimension>
+                <str:Dimension>
+                  <Ref id="TYPE_OF_TRANSFORMATION"/>
+                </str:Dimension>
+                <str:Dimension>
+                  <Ref id="FREQUENCY"/>
+                </str:Dimension>
+              </str:AttributeRelationship>
+            </str:Attribute>
+            <str:Attribute id="REFERENCE_PERIOD" urn="urn:sdmx:org.sdmx.infomodel.datastructure.DataAttribute=IMF.STA:DSD_CPI(3.0.0).REFERENCE_PERIOD" assignmentStatus="Conditional">
+              <str:ConceptIdentity>
+                <Ref maintainableParentID="CS_MASTER_DATA" maintainableParentVersion="1.0.0" agencyID="IMF" id="REFERENCE_PERIOD" package="conceptscheme" class="Concept"/>
+              </str:ConceptIdentity>
+              <str:AttributeRelationship>
+                <str:PrimaryMeasure>
+                  <Ref id="OBS_VALUE"/>
+                </str:PrimaryMeasure>
+              </str:AttributeRelationship>
+            </str:Attribute>
+            <str:Attribute id="COMMON_REFERENCE_PERIOD" urn="urn:sdmx:org.sdmx.infomodel.datastructure.DataAttribute=IMF.STA:DSD_CPI(3.0.0).COMMON_REFERENCE_PERIOD" assignmentStatus="Conditional">
+              <str:ConceptIdentity>
+                <Ref maintainableParentID="CS_MASTER" maintainableParentVersion="1.0.0" agencyID="IMF.STA" id="COMMON_REFERENCE_PERIOD" package="conceptscheme" class="Concept"/>
+              </str:ConceptIdentity>
+              <str:AttributeRelationship>
+                <str:Dimension>
+                  <Ref id="COUNTRY"/>
+                </str:Dimension>
+                <str:Dimension>
+                  <Ref id="INDEX_TYPE"/>
+                </str:Dimension>
+                <str:Dimension>
+                  <Ref id="COICOP_1999"/>
+                </str:Dimension>
+                <str:Dimension>
+                  <Ref id="TYPE_OF_TRANSFORMATION"/>
+                </str:Dimension>
+                <str:Dimension>
+                  <Ref id="FREQUENCY"/>
+                </str:Dimension>
+              </str:AttributeRelationship>
+            </str:Attribute>
+            <str:Attribute id="STATUS" urn="urn:sdmx:org.sdmx.infomodel.datastructure.DataAttribute=IMF.STA:DSD_CPI(3.0.0).STATUS" assignmentStatus="Conditional">
+              <str:ConceptIdentity>
+                <Ref maintainableParentID="CS_MASTER" maintainableParentVersion="1.0.0" agencyID="IMF.STA" id="STATUS" package="conceptscheme" class="Concept"/>
+              </str:ConceptIdentity>
+              <str:AttributeRelationship>
+                <str:PrimaryMeasure>
+                  <Ref id="OBS_VALUE"/>
+                </str:PrimaryMeasure>
+              </str:AttributeRelationship>
+            </str:Attribute>
+            <str:Attribute id="IFS_FLAG" urn="urn:sdmx:org.sdmx.infomodel.datastructure.DataAttribute=IMF.STA:DSD_CPI(3.0.0).IFS_FLAG" assignmentStatus="Conditional">
+              <str:ConceptIdentity>
+                <Ref maintainableParentID="CS_MASTER" maintainableParentVersion="1.0.0" agencyID="IMF.STA" id="IFS_FLAG" package="conceptscheme" class="Concept"/>
+              </str:ConceptIdentity>
+              <str:AttributeRelationship>
+                <str:Dimension>
+                  <Ref id="COUNTRY"/>
+                </str:Dimension>
+                <str:Dimension>
+                  <Ref id="INDEX_TYPE"/>
+                </str:Dimension>
+                <str:Dimension>
+                  <Ref id="COICOP_1999"/>
+                </str:Dimension>
+                <str:Dimension>
+                  <Ref id="TYPE_OF_TRANSFORMATION"/>
+                </str:Dimension>
+                <str:Dimension>
+                  <Ref id="FREQUENCY"/>
+                </str:Dimension>
+              </str:AttributeRelationship>
+            </str:Attribute>
+            <str:Attribute id="DOI" urn="urn:sdmx:org.sdmx.infomodel.datastructure.DataAttribute=IMF.STA:DSD_CPI(3.0.0).DOI" assignmentStatus="Conditional">
+              <str:ConceptIdentity>
+                <Ref maintainableParentID="CS_MASTER" maintainableParentVersion="2.1.0" agencyID="IMF" id="DOI" package="conceptscheme" class="Concept"/>
+              </str:ConceptIdentity>
+              <str:AttributeRelationship>
+                <str:None/>
+              </str:AttributeRelationship>
+            </str:Attribute>
+            <str:Attribute id="FULL_DESCRIPTION" urn="urn:sdmx:org.sdmx.infomodel.datastructure.DataAttribute=IMF.STA:DSD_CPI(3.0.0).FULL_DESCRIPTION" assignmentStatus="Conditional">
+              <str:ConceptIdentity>
+                <Ref maintainableParentID="CS_MASTER" maintainableParentVersion="2.1.0" agencyID="IMF" id="FULL_DESCRIPTION" package="conceptscheme" class="Concept"/>
+              </str:ConceptIdentity>
+              <str:AttributeRelationship>
+                <str:None/>
+              </str:AttributeRelationship>
+            </str:Attribute>
+            <str:Attribute id="AUTHOR" urn="urn:sdmx:org.sdmx.infomodel.datastructure.DataAttribute=IMF.STA:DSD_CPI(3.0.0).AUTHOR" assignmentStatus="Conditional">
+              <str:ConceptIdentity>
+                <Ref maintainableParentID="CS_MASTER" maintainableParentVersion="2.1.0" agencyID="IMF" id="AUTHOR" package="conceptscheme" class="Concept"/>
+              </str:ConceptIdentity>
+              <str:AttributeRelationship>
+                <str:None/>
+              </str:AttributeRelationship>
+            </str:Attribute>
+            <str:Attribute id="PUBLISHER" urn="urn:sdmx:org.sdmx.infomodel.datastructure.DataAttribute=IMF.STA:DSD_CPI(3.0.0).PUBLISHER" assignmentStatus="Conditional">
+              <str:ConceptIdentity>
+                <Ref maintainableParentID="CS_MASTER" maintainableParentVersion="2.1.0" agencyID="IMF" id="PUBLISHER" package="conceptscheme" class="Concept"/>
+              </str:ConceptIdentity>
+              <str:LocalRepresentation>
+                <str:TextFormat textType="String"/>
+              </str:LocalRepresentation>
+              <str:AttributeRelationship>
+                <str:None/>
+              </str:AttributeRelationship>
+            </str:Attribute>
+            <str:Attribute id="DEPARTMENT" urn="urn:sdmx:org.sdmx.infomodel.datastructure.DataAttribute=IMF.STA:DSD_CPI(3.0.0).DEPARTMENT" assignmentStatus="Conditional">
+              <str:ConceptIdentity>
+                <Ref maintainableParentID="CS_MASTER" maintainableParentVersion="2.1.0" agencyID="IMF" id="DEPARTMENT" package="conceptscheme" class="Concept"/>
+              </str:ConceptIdentity>
+              <str:LocalRepresentation>
+                <str:TextFormat textType="String"/>
+              </str:LocalRepresentation>
+              <str:AttributeRelationship>
+                <str:None/>
+              </str:AttributeRelationship>
+            </str:Attribute>
+            <str:Attribute id="CONTACT_POINT" urn="urn:sdmx:org.sdmx.infomodel.datastructure.DataAttribute=IMF.STA:DSD_CPI(3.0.0).CONTACT_POINT" assignmentStatus="Conditional">
+              <str:ConceptIdentity>
+                <Ref maintainableParentID="CS_MASTER" maintainableParentVersion="2.1.0" agencyID="IMF" id="CONTACT_POINT" package="conceptscheme" class="Concept"/>
+              </str:ConceptIdentity>
+              <str:AttributeRelationship>
+                <str:None/>
+              </str:AttributeRelationship>
+            </str:Attribute>
+            <str:Attribute id="TOPIC" urn="urn:sdmx:org.sdmx.infomodel.datastructure.DataAttribute=IMF.STA:DSD_CPI(3.0.0).TOPIC" assignmentStatus="Conditional">
+              <str:ConceptIdentity>
+                <Ref maintainableParentID="CS_MASTER" maintainableParentVersion="2.1.0" agencyID="IMF" id="TOPIC" package="conceptscheme" class="Concept"/>
+              </str:ConceptIdentity>
+              <str:LocalRepresentation>
+                <str:TextFormat textType="String"/>
+              </str:LocalRepresentation>
+              <str:AttributeRelationship>
+                <str:Dimension>
+                  <Ref id="INDEX_TYPE"/>
+                </str:Dimension>
+                <str:Dimension>
+                  <Ref id="COICOP_1999"/>
+                </str:Dimension>
+                <str:Dimension>
+                  <Ref id="TYPE_OF_TRANSFORMATION"/>
+                </str:Dimension>
+              </str:AttributeRelationship>
+            </str:Attribute>
+            <str:Attribute id="TOPIC_DATASET" urn="urn:sdmx:org.sdmx.infomodel.datastructure.DataAttribute=IMF.STA:DSD_CPI(3.0.0).TOPIC_DATASET" assignmentStatus="Conditional">
+              <str:ConceptIdentity>
+                <Ref maintainableParentID="CS_MASTER" maintainableParentVersion="2.1.0" agencyID="IMF" id="TOPIC_DATASET" package="conceptscheme" class="Concept"/>
+              </str:ConceptIdentity>
+              <str:LocalRepresentation>
+                <str:TextFormat textType="String"/>
+              </str:LocalRepresentation>
+              <str:AttributeRelationship>
+                <str:None/>
+              </str:AttributeRelationship>
+            </str:Attribute>
+            <str:Attribute id="KEYWORDS" urn="urn:sdmx:org.sdmx.infomodel.datastructure.DataAttribute=IMF.STA:DSD_CPI(3.0.0).KEYWORDS" assignmentStatus="Conditional">
+              <str:ConceptIdentity>
+                <Ref maintainableParentID="CS_MASTER" maintainableParentVersion="2.1.0" agencyID="IMF" id="KEYWORDS" package="conceptscheme" class="Concept"/>
+              </str:ConceptIdentity>
+              <str:LocalRepresentation>
+                <str:TextFormat textType="String"/>
+              </str:LocalRepresentation>
+              <str:AttributeRelationship>
+                <str:Dimension>
+                  <Ref id="INDEX_TYPE"/>
+                </str:Dimension>
+                <str:Dimension>
+                  <Ref id="COICOP_1999"/>
+                </str:Dimension>
+                <str:Dimension>
+                  <Ref id="TYPE_OF_TRANSFORMATION"/>
+                </str:Dimension>
+              </str:AttributeRelationship>
+            </str:Attribute>
+            <str:Attribute id="KEYWORDS_DATASET" urn="urn:sdmx:org.sdmx.infomodel.datastructure.DataAttribute=IMF.STA:DSD_CPI(3.0.0).KEYWORDS_DATASET" assignmentStatus="Conditional">
+              <str:ConceptIdentity>
+                <Ref maintainableParentID="CS_MASTER" maintainableParentVersion="2.1.0" agencyID="IMF" id="KEYWORDS_DATASET" package="conceptscheme" class="Concept"/>
+              </str:ConceptIdentity>
+              <str:LocalRepresentation>
+                <str:TextFormat textType="String"/>
+              </str:LocalRepresentation>
+              <str:AttributeRelationship>
+                <str:None/>
+              </str:AttributeRelationship>
+            </str:Attribute>
+            <str:Attribute id="LANGUAGE" urn="urn:sdmx:org.sdmx.infomodel.datastructure.DataAttribute=IMF.STA:DSD_CPI(3.0.0).LANGUAGE" assignmentStatus="Conditional">
+              <str:ConceptIdentity>
+                <Ref maintainableParentID="CS_MASTER" maintainableParentVersion="2.1.0" agencyID="IMF" id="LANGUAGE" package="conceptscheme" class="Concept"/>
+              </str:ConceptIdentity>
+              <str:LocalRepresentation>
+                <str:TextFormat textType="String"/>
+              </str:LocalRepresentation>
+              <str:AttributeRelationship>
+                <str:None/>
+              </str:AttributeRelationship>
+            </str:Attribute>
+            <str:Attribute id="PUBLICATION_DATE" urn="urn:sdmx:org.sdmx.infomodel.datastructure.DataAttribute=IMF.STA:DSD_CPI(3.0.0).PUBLICATION_DATE" assignmentStatus="Conditional">
+              <str:ConceptIdentity>
+                <Ref maintainableParentID="CS_MASTER" maintainableParentVersion="2.1.0" agencyID="IMF" id="PUBLICATION_DATE" package="conceptscheme" class="Concept"/>
+              </str:ConceptIdentity>
+              <str:AttributeRelationship>
+                <str:None/>
+              </str:AttributeRelationship>
+            </str:Attribute>
+            <str:Attribute id="UPDATE_DATE" urn="urn:sdmx:org.sdmx.infomodel.datastructure.DataAttribute=IMF.STA:DSD_CPI(3.0.0).UPDATE_DATE" assignmentStatus="Conditional">
+              <str:ConceptIdentity>
+                <Ref maintainableParentID="CS_MASTER" maintainableParentVersion="2.1.0" agencyID="IMF" id="UPDATE_DATE" package="conceptscheme" class="Concept"/>
+              </str:ConceptIdentity>
+              <str:AttributeRelationship>
+                <str:None/>
+              </str:AttributeRelationship>
+            </str:Attribute>
+            <str:Attribute id="METHODOLOGY" urn="urn:sdmx:org.sdmx.infomodel.datastructure.DataAttribute=IMF.STA:DSD_CPI(3.0.0).METHODOLOGY" assignmentStatus="Conditional">
+              <str:ConceptIdentity>
+                <Ref maintainableParentID="CS_MASTER" maintainableParentVersion="2.1.0" agencyID="IMF" id="METHODOLOGY" package="conceptscheme" class="Concept"/>
+              </str:ConceptIdentity>
+              <str:LocalRepresentation>
+                <str:TextFormat textType="String"/>
+              </str:LocalRepresentation>
+              <str:AttributeRelationship>
+                <str:Dimension>
+                  <Ref id="COUNTRY"/>
+                </str:Dimension>
+                <str:Dimension>
+                  <Ref id="INDEX_TYPE"/>
+                </str:Dimension>
+                <str:Dimension>
+                  <Ref id="COICOP_1999"/>
+                </str:Dimension>
+                <str:Dimension>
+                  <Ref id="TYPE_OF_TRANSFORMATION"/>
+                </str:Dimension>
+                <str:Dimension>
+                  <Ref id="FREQUENCY"/>
+                </str:Dimension>
+              </str:AttributeRelationship>
+            </str:Attribute>
+            <str:Attribute id="METHODOLOGY_NOTES" urn="urn:sdmx:org.sdmx.infomodel.datastructure.DataAttribute=IMF.STA:DSD_CPI(3.0.0).METHODOLOGY_NOTES" assignmentStatus="Conditional">
+              <str:ConceptIdentity>
+                <Ref maintainableParentID="CS_MASTER" maintainableParentVersion="2.1.0" agencyID="IMF" id="METHODOLOGY_NOTES" package="conceptscheme" class="Concept"/>
+              </str:ConceptIdentity>
+              <str:AttributeRelationship>
+                <str:None/>
+              </str:AttributeRelationship>
+            </str:Attribute>
+            <str:Attribute id="ACCESS_SHARING_LEVEL" urn="urn:sdmx:org.sdmx.infomodel.datastructure.DataAttribute=IMF.STA:DSD_CPI(3.0.0).ACCESS_SHARING_LEVEL" assignmentStatus="Conditional">
+              <str:ConceptIdentity>
+                <Ref maintainableParentID="CS_MASTER" maintainableParentVersion="2.1.0" agencyID="IMF" id="ACCESS_SHARING_LEVEL" package="conceptscheme" class="Concept"/>
+              </str:ConceptIdentity>
+              <str:LocalRepresentation>
+                <str:TextFormat textType="String"/>
+              </str:LocalRepresentation>
+              <str:AttributeRelationship>
+                <str:Dimension>
+                  <Ref id="COUNTRY"/>
+                </str:Dimension>
+                <str:Dimension>
+                  <Ref id="INDEX_TYPE"/>
+                </str:Dimension>
+                <str:Dimension>
+                  <Ref id="COICOP_1999"/>
+                </str:Dimension>
+                <str:Dimension>
+                  <Ref id="TYPE_OF_TRANSFORMATION"/>
+                </str:Dimension>
+                <str:Dimension>
+                  <Ref id="FREQUENCY"/>
+                </str:Dimension>
+              </str:AttributeRelationship>
+            </str:Attribute>
+            <str:Attribute id="ACCESS_SHARING_NOTES" urn="urn:sdmx:org.sdmx.infomodel.datastructure.DataAttribute=IMF.STA:DSD_CPI(3.0.0).ACCESS_SHARING_NOTES" assignmentStatus="Conditional">
+              <str:ConceptIdentity>
+                <Ref maintainableParentID="CS_MASTER" maintainableParentVersion="2.1.0" agencyID="IMF" id="ACCESS_SHARING_NOTES" package="conceptscheme" class="Concept"/>
+              </str:ConceptIdentity>
+              <str:AttributeRelationship>
+                <str:Dimension>
+                  <Ref id="COUNTRY"/>
+                </str:Dimension>
+                <str:Dimension>
+                  <Ref id="INDEX_TYPE"/>
+                </str:Dimension>
+                <str:Dimension>
+                  <Ref id="COICOP_1999"/>
+                </str:Dimension>
+                <str:Dimension>
+                  <Ref id="TYPE_OF_TRANSFORMATION"/>
+                </str:Dimension>
+                <str:Dimension>
+                  <Ref id="FREQUENCY"/>
+                </str:Dimension>
+              </str:AttributeRelationship>
+            </str:Attribute>
+            <str:Attribute id="SECURITY_CLASSIFICATION" urn="urn:sdmx:org.sdmx.infomodel.datastructure.DataAttribute=IMF.STA:DSD_CPI(3.0.0).SECURITY_CLASSIFICATION" assignmentStatus="Conditional">
+              <str:ConceptIdentity>
+                <Ref maintainableParentID="CS_MASTER" maintainableParentVersion="2.1.0" agencyID="IMF" id="SECURITY_CLASSIFICATION" package="conceptscheme" class="Concept"/>
+              </str:ConceptIdentity>
+              <str:LocalRepresentation>
+                <str:TextFormat textType="String"/>
+              </str:LocalRepresentation>
+              <str:AttributeRelationship>
+                <str:Dimension>
+                  <Ref id="COUNTRY"/>
+                </str:Dimension>
+                <str:Dimension>
+                  <Ref id="INDEX_TYPE"/>
+                </str:Dimension>
+                <str:Dimension>
+                  <Ref id="COICOP_1999"/>
+                </str:Dimension>
+                <str:Dimension>
+                  <Ref id="TYPE_OF_TRANSFORMATION"/>
+                </str:Dimension>
+                <str:Dimension>
+                  <Ref id="FREQUENCY"/>
+                </str:Dimension>
+              </str:AttributeRelationship>
+            </str:Attribute>
+            <str:Attribute id="SOURCE" urn="urn:sdmx:org.sdmx.infomodel.datastructure.DataAttribute=IMF.STA:DSD_CPI(3.0.0).SOURCE" assignmentStatus="Conditional">
+              <str:ConceptIdentity>
+                <Ref maintainableParentID="CS_MASTER" maintainableParentVersion="2.1.0" agencyID="IMF" id="SOURCE" package="conceptscheme" class="Concept"/>
+              </str:ConceptIdentity>
+              <str:LocalRepresentation>
+                <str:TextFormat textType="String"/>
+              </str:LocalRepresentation>
+              <str:AttributeRelationship>
+                <str:PrimaryMeasure>
+                  <Ref id="OBS_VALUE"/>
+                </str:PrimaryMeasure>
+              </str:AttributeRelationship>
+            </str:Attribute>
+            <str:Attribute id="SHORT_SOURCE_CITATION" urn="urn:sdmx:org.sdmx.infomodel.datastructure.DataAttribute=IMF.STA:DSD_CPI(3.0.0).SHORT_SOURCE_CITATION" assignmentStatus="Conditional">
+              <str:ConceptIdentity>
+                <Ref maintainableParentID="CS_MASTER" maintainableParentVersion="2.1.0" agencyID="IMF" id="SHORT_SOURCE_CITATION" package="conceptscheme" class="Concept"/>
+              </str:ConceptIdentity>
+              <str:AttributeRelationship>
+                <str:None/>
+              </str:AttributeRelationship>
+            </str:Attribute>
+            <str:Attribute id="FULL_SOURCE_CITATION" urn="urn:sdmx:org.sdmx.infomodel.datastructure.DataAttribute=IMF.STA:DSD_CPI(3.0.0).FULL_SOURCE_CITATION" assignmentStatus="Conditional">
+              <str:ConceptIdentity>
+                <Ref maintainableParentID="CS_MASTER" maintainableParentVersion="2.1.0" agencyID="IMF" id="FULL_SOURCE_CITATION" package="conceptscheme" class="Concept"/>
+              </str:ConceptIdentity>
+              <str:AttributeRelationship>
+                <str:None/>
+              </str:AttributeRelationship>
+            </str:Attribute>
+            <str:Attribute id="LICENSE" urn="urn:sdmx:org.sdmx.infomodel.datastructure.DataAttribute=IMF.STA:DSD_CPI(3.0.0).LICENSE" assignmentStatus="Conditional">
+              <str:ConceptIdentity>
+                <Ref maintainableParentID="CS_MASTER" maintainableParentVersion="2.1.0" agencyID="IMF" id="LICENSE" package="conceptscheme" class="Concept"/>
+              </str:ConceptIdentity>
+              <str:AttributeRelationship>
+                <str:None/>
+              </str:AttributeRelationship>
+            </str:Attribute>
+            <str:Attribute id="SUGGESTED_CITATION" urn="urn:sdmx:org.sdmx.infomodel.datastructure.DataAttribute=IMF.STA:DSD_CPI(3.0.0).SUGGESTED_CITATION" assignmentStatus="Conditional">
+              <str:ConceptIdentity>
+                <Ref maintainableParentID="CS_MASTER" maintainableParentVersion="2.1.0" agencyID="IMF" id="SUGGESTED_CITATION" package="conceptscheme" class="Concept"/>
+              </str:ConceptIdentity>
+              <str:AttributeRelationship>
+                <str:None/>
+              </str:AttributeRelationship>
+            </str:Attribute>
+            <str:Attribute id="KEY_INDICATOR" urn="urn:sdmx:org.sdmx.infomodel.datastructure.DataAttribute=IMF.STA:DSD_CPI(3.0.0).KEY_INDICATOR" assignmentStatus="Conditional">
+              <str:ConceptIdentity>
+                <Ref maintainableParentID="CS_MASTER" maintainableParentVersion="2.1.0" agencyID="IMF" id="KEY_INDICATOR" package="conceptscheme" class="Concept"/>
+              </str:ConceptIdentity>
+              <str:AttributeRelationship>
+                <str:Dimension>
+                  <Ref id="INDEX_TYPE"/>
+                </str:Dimension>
+                <str:Dimension>
+                  <Ref id="COICOP_1999"/>
+                </str:Dimension>
+                <str:Dimension>
+                  <Ref id="TYPE_OF_TRANSFORMATION"/>
+                </str:Dimension>
+              </str:AttributeRelationship>
+            </str:Attribute>
+            <str:Attribute id="SERIES_NAME" urn="urn:sdmx:org.sdmx.infomodel.datastructure.DataAttribute=IMF.STA:DSD_CPI(3.0.0).SERIES_NAME" assignmentStatus="Conditional">
+              <str:ConceptIdentity>
+                <Ref maintainableParentID="CS_MASTER" maintainableParentVersion="2.1.0" agencyID="IMF" id="SERIES_NAME" package="conceptscheme" class="Concept"/>
+              </str:ConceptIdentity>
+              <str:AttributeRelationship>
+                <str:Dimension>
+                  <Ref id="INDEX_TYPE"/>
+                </str:Dimension>
+                <str:Dimension>
+                  <Ref id="COICOP_1999"/>
+                </str:Dimension>
+                <str:Dimension>
+                  <Ref id="TYPE_OF_TRANSFORMATION"/>
+                </str:Dimension>
+              </str:AttributeRelationship>
+            </str:Attribute>
+          </str:AttributeList>
+          <str:MeasureList id="MeasureDescriptor">
+            <str:PrimaryMeasure id="OBS_VALUE" urn="urn:sdmx:org.sdmx.infomodel.datastructure.PrimaryMeasure=IMF.STA:DSD_CPI(3.0.0).OBS_VALUE">
+              <str:ConceptIdentity>
+                <Ref maintainableParentID="CS_MASTER_SYSTEM" maintainableParentVersion="1.0.2" agencyID="IMF" id="OBS_VALUE" package="conceptscheme" class="Concept"/>
+              </str:ConceptIdentity>
+            </str:PrimaryMeasure>
+          </str:MeasureList>
+        </str:DataStructureComponents>
+      </str:DataStructure>
+    </str:DataStructures>
+  </mes:Structures>
+</mes:Structure>

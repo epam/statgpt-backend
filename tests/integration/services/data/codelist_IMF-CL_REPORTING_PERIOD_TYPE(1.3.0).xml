@@ -1,0 +1,47 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<mes:Structure xmlns:mes="http://www.sdmx.org/resources/sdmxml/schemas/v2_1/message" xmlns:str="http://www.sdmx.org/resources/sdmxml/schemas/v2_1/structure" xmlns:com="http://www.sdmx.org/resources/sdmxml/schemas/v2_1/common" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xml="http://www.w3.org/XML/1998/namespace" xsi:schemaLocation="http://www.sdmx.org/resources/sdmxml/schemas/v2_1/message ../../schemas/SDMXMessage.xsd">
+  <mes:Header>
+    <mes:ID>IDREF2893</mes:ID>
+    <mes:Test>false</mes:Test>
+    <mes:Prepared>2025-07-29T10:03:46.346381586Z</mes:Prepared>
+    <mes:Sender id="unknown"/>
+  </mes:Header>
+  <mes:Structures>
+    <str:Codelists>
+      <str:Codelist urn="urn:sdmx:org.sdmx.infomodel.codelist.Codelist=IMF:CL_REPORTING_PERIOD_TYPE(1.3.0)" agencyID="IMF" id="CL_REPORTING_PERIOD_TYPE" version="1.3.0" isFinal="true" isExternalReference="false" isPartial="false">
+        <com:Annotations>
+          <com:Annotation id="origin"/>
+          <com:Annotation id="isFinal"/>
+          <com:Annotation id="lastUpdatedAt"/>
+        </com:Annotations>
+        <com:Name xml:lang="en">REPORTING_PERIOD_TYPE</com:Name>
+        <com:Description xml:lang="en">It is used to identify and distinguish between different types of time periods in economic and financial reporting.  The specific start and end dates for a fiscal year (FY) can vary depending on the country, organization, or industry.
+When reporting data using this codelist, it is essential to specify the exact start and end dates of the fiscal year being referenced.</com:Description>
+        <str:Code id="CY" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_REPORTING_PERIOD_TYPE(1.3.0).CY">
+          <com:Name xml:lang="en">Calendar year</com:Name>
+          <com:Description xml:lang="en">A 12-month period starting on January 1st and ending on December 31st.</com:Description>
+        </str:Code>
+        <str:Code id="FY" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_REPORTING_PERIOD_TYPE(1.3.0).FY">
+          <com:Name xml:lang="en">Fiscal year</com:Name>
+          <com:Description xml:lang="en">A 12-month period that a company or government uses for accounting purposes. The fiscal year may or may not align with the calendar year. For example, a company's fiscal year could start on July 1st and end on June 30th of the following year.</com:Description>
+        </str:Code>
+        <str:Code id="BY" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_REPORTING_PERIOD_TYPE(1.3.0).BY">
+          <com:Name xml:lang="en">Base year</com:Name>
+          <com:Description xml:lang="en">The Base Year is a specific year chosen as a reference point for constructing an index or comparing data over time.</com:Description>
+        </str:Code>
+        <str:Code id="SRP" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_REPORTING_PERIOD_TYPE(1.3.0).SRP">
+          <com:Name xml:lang="en">Standard reference period (SRP)</com:Name>
+          <com:Description xml:lang="en">Standard Reference Period (SRP) is a consistent timeframe used for comparing data over time.</com:Description>
+        </str:Code>
+        <str:Code id="SPR_2010" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_REPORTING_PERIOD_TYPE(1.3.0).SPR_2010">
+          <com:Name xml:lang="en">To delete</com:Name>
+          <com:Description xml:lang="en">To delete</com:Description>
+        </str:Code>
+        <str:Code id="SRP_2010" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_REPORTING_PERIOD_TYPE(1.3.0).SRP_2010">
+          <com:Name xml:lang="en">Standard reference period (2010=100)</com:Name>
+          <com:Description xml:lang="en">Standard Reference Period (SRP) is a consistent timeframe used for comparing data over time.  This series is references to 2010=100.</com:Description>
+        </str:Code>
+      </str:Codelist>
+    </str:Codelists>
+  </mes:Structures>
+</mes:Structure>

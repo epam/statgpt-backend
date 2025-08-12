@@ -1,0 +1,166 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<mes:Structure xmlns:mes="http://www.sdmx.org/resources/sdmxml/schemas/v2_1/message" xmlns:str="http://www.sdmx.org/resources/sdmxml/schemas/v2_1/structure" xmlns:com="http://www.sdmx.org/resources/sdmxml/schemas/v2_1/common" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xml="http://www.w3.org/XML/1998/namespace" xsi:schemaLocation="http://www.sdmx.org/resources/sdmxml/schemas/v2_1/message ../../schemas/SDMXMessage.xsd">
+  <mes:Header>
+    <mes:ID>IDREF3772</mes:ID>
+    <mes:Test>false</mes:Test>
+    <mes:Prepared>2025-07-29T10:06:16.058643241Z</mes:Prepared>
+    <mes:Sender id="unknown"/>
+  </mes:Header>
+  <mes:Structures>
+    <str:Codelists>
+      <str:Codelist urn="urn:sdmx:org.sdmx.infomodel.codelist.Codelist=IMF:CL_ACCESS_SHARING_LEVEL(1.0.2)" agencyID="IMF" id="CL_ACCESS_SHARING_LEVEL" version="1.0.2" isFinal="true" isExternalReference="false" isPartial="false">
+        <com:Annotations>
+          <com:Annotation id="origin"/>
+          <com:Annotation id="isFinal"/>
+          <com:Annotation id="lastUpdatedAt"/>
+        </com:Annotations>
+        <com:Name xml:lang="en">Access and Sharing Level</com:Name>
+        <com:Description xml:lang="en">This codelist defines the allowable levels of access and sharing for a particular data resource, specifying who can view, use, or distribute the data and under what conditions.</com:Description>
+        <str:Code id="AUTHORIZED_IMF_STAFF" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_ACCESS_SHARING_LEVEL(1.0.2).AUTHORIZED_IMF_STAFF">
+          <com:Name xml:lang="ar">موظفو صندوق النقد الدولي المعتمدون</com:Name>
+          <com:Name xml:lang="ru">Уполномоченный персонал МВФ</com:Name>
+          <com:Name xml:lang="pt">Funcionários autorizados do FMI</com:Name>
+          <com:Name xml:lang="ja">許可されたIMF職員</com:Name>
+          <com:Name xml:lang="en">Authorized IMF staff</com:Name>
+          <com:Name xml:lang="fr">Personnel autorisé du FMI</com:Name>
+          <com:Name xml:lang="es">Personal autorizado del FMI</com:Name>
+          <com:Name xml:lang="zh">授权的国际货币基金组织工作人员</com:Name>
+          <com:Description xml:lang="ar">شارك هذه البيانات فقط مع موظفي صندوق النقد الدولي المعتمدين الذين لديهم حاجة مشروعة لها. بالنسبة للبيانات الحساسة، قد يلزم الحصول على إذن كتابي من مُنشئ البيانات أو موافقة المدير.</com:Description>
+          <com:Description xml:lang="ru">Предоставляйте эти данные только уполномоченным сотрудникам МВФ, которым они необходимы по долгу службы. Для конфиденциальных данных может потребоваться письменное разрешение создателя данных или утверждение руководителя.</com:Description>
+          <com:Description xml:lang="pt">Compartilhe estes dados apenas com funcionários autorizados do FMI que tenham uma necessidade legítima para tal. Para dados sensíveis, pode ser necessária uma permissão por escrito do criador dos dados ou a aprovação do gestor.</com:Description>
+          <com:Description xml:lang="ja">このデータは、正当な必要性を持つ許可されたIMF職員とのみ共有してください。機密データの場合、データ作成者からの書面による許可または管理者の承認が必要になる場合があります。</com:Description>
+          <com:Description xml:lang="en">Share this data only with authorized IMF staff who have a need to know. For sensitive data, written permission from the data creator or manager approval may be required.</com:Description>
+          <com:Description xml:lang="fr">Partagez ces données uniquement avec les membres du personnel autorisés du FMI qui en ont un besoin légitime. Pour les données sensibles, une autorisation écrite du créateur des données ou l'approbation du responsable peut être requise.</com:Description>
+          <com:Description xml:lang="es">Comparta estos datos solo con el personal autorizado del FMI que tenga una necesidad legítima de ellos. Para datos confidenciales, puede requerirse permiso por escrito del creador de los datos o la aprobación del gerente.</com:Description>
+          <com:Description xml:lang="zh">仅与有合法需求的授权国际货币基金组织工作人员共享此数据。 对于敏感数据，可能需要数据创建者或经理的书面许可。</com:Description>
+        </str:Code>
+        <str:Code id="ALL_IMF_STAFF" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_ACCESS_SHARING_LEVEL(1.0.2).ALL_IMF_STAFF">
+          <com:Name xml:lang="ar">جميع موظفي صندوق النقد الدولي</com:Name>
+          <com:Name xml:lang="ru">Все сотрудники МВФ</com:Name>
+          <com:Name xml:lang="pt">Todos os funcionários do FMI</com:Name>
+          <com:Name xml:lang="ja">IMF職員全員</com:Name>
+          <com:Name xml:lang="en">All IMF staff</com:Name>
+          <com:Name xml:lang="fr">Tout le personnel du FMI</com:Name>
+          <com:Name xml:lang="es">Todo el personal del FMI</com:Name>
+          <com:Name xml:lang="zh">所有国际货币基金组织工作人员</com:Name>
+          <com:Description xml:lang="ar">شارك هذه البيانات داخل صندوق النقد الدولي، باستثناء مجلس الإدارة.</com:Description>
+          <com:Description xml:lang="ru">Делитесь этими данными внутри МВФ, исключая Совет директоров.</com:Description>
+          <com:Description xml:lang="pt">Compartilhe estes dados dentro do FMI, excluindo o Conselho de Administração.</com:Description>
+          <com:Description xml:lang="ja">このデータは、理事会を除くIMF内で共有してください。</com:Description>
+          <com:Description xml:lang="en">Share this data within the IMF, excluding the OED staff members.</com:Description>
+          <com:Description xml:lang="fr">Partagez ces données au sein du FMI, à l'exclusion du Conseil d'administration.</com:Description>
+          <com:Description xml:lang="es">Comparta estos datos dentro del FMI, excluyendo a la Junta Directiva.</com:Description>
+          <com:Description xml:lang="zh">在国际货币基金组织内部共享此数据，但不包括董事会。</com:Description>
+        </str:Code>
+        <str:Code id="PUBLIC_OPEN" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_ACCESS_SHARING_LEVEL(1.0.2).PUBLIC_OPEN">
+          <com:Name xml:lang="ar">الجمهور (غير مقيد)</com:Name>
+          <com:Name xml:lang="ru">Общественность (без ограничений)</com:Name>
+          <com:Name xml:lang="pt">Público (sem restrições)</com:Name>
+          <com:Name xml:lang="ja">一般公開（無制限）</com:Name>
+          <com:Name xml:lang="en">Public (Unrestricted)</com:Name>
+          <com:Name xml:lang="fr">Public (sans restriction)</com:Name>
+          <com:Name xml:lang="es">Público (sin restricciones)</com:Name>
+          <com:Name xml:lang="zh">公众（无限制）</com:Name>
+          <com:Description xml:lang="ar">شارك هذه البيانات مع الجمهور دون قيود.</com:Description>
+          <com:Description xml:lang="ru">Поделитесь этими данными с общественностью без ограничений.</com:Description>
+          <com:Description xml:lang="pt">Compartilhe estes dados com o público sem restrições.</com:Description>
+          <com:Description xml:lang="ja">このデータを制限なく一般に公開してください。</com:Description>
+          <com:Description xml:lang="en">Share this data with the public without restrictions.</com:Description>
+          <com:Description xml:lang="fr">Partagez ces données avec le public sans restriction.</com:Description>
+          <com:Description xml:lang="es">Comparta estos datos con el público sin restricciones.</com:Description>
+          <com:Description xml:lang="zh">与公众共享此数据，不受任何限制。</com:Description>
+        </str:Code>
+        <str:Code id="PUBLIC_AGREEMENT_REQUIRED" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_ACCESS_SHARING_LEVEL(1.0.2).PUBLIC_AGREEMENT_REQUIRED">
+          <com:Name xml:lang="ar">الجمهور (الشروط والأحكام)</com:Name>
+          <com:Name xml:lang="ru">Общественность (условия и положения)</com:Name>
+          <com:Name xml:lang="pt">Público (termos e condições)</com:Name>
+          <com:Name xml:lang="ja">一般公開（利用規約）</com:Name>
+          <com:Name xml:lang="en">Public (Terms &amp; Conditions)</com:Name>
+          <com:Name xml:lang="fr">Public (Conditions générales)</com:Name>
+          <com:Name xml:lang="es">Público (términos y condiciones)</com:Name>
+          <com:Name xml:lang="zh">公众（条款和条件）</com:Name>
+          <com:Description xml:lang="ar">شارك هذه البيانات مع الجمهور عند موافقتهم على الشروط والأحكام لعرض البيانات وتنزيلها.</com:Description>
+          <com:Description xml:lang="ru">Поделитесь этими данными с общественностью после того, как они согласятся с условиями просмотра и загрузки данных.</com:Description>
+          <com:Description xml:lang="pt">Compartilhe estes dados com o público mediante a sua concordância com os termos e condições para visualizar e descarregar os dados.</com:Description>
+          <com:Description xml:lang="ja">このデータは、データの閲覧およびダウンロードに関する利用規約に同意した上で、一般に公開してください。</com:Description>
+          <com:Description xml:lang="en">Share this data with the public upon their agreement to the terms and conditions for viewing and downloading the data.</com:Description>
+          <com:Description xml:lang="fr">Partagez ces données avec le public après qu'il a accepté les conditions générales de visualisation et de téléchargement des données.</com:Description>
+          <com:Description xml:lang="es">Comparta estos datos con el público una vez que acepten los términos y condiciones para ver y descargar los datos.</com:Description>
+          <com:Description xml:lang="zh">在公众同意查看和下载数据的条款和条件后，与他们共享此数据。</com:Description>
+        </str:Code>
+        <str:Code id="PUBLIC_SIGNIN_REQUIRED" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_ACCESS_SHARING_LEVEL(1.0.2).PUBLIC_SIGNIN_REQUIRED">
+          <com:Name xml:lang="ar">الجمهور (المسجل)</com:Name>
+          <com:Name xml:lang="ru">Общественность (зарегистрированная)</com:Name>
+          <com:Name xml:lang="pt">Público (registado)</com:Name>
+          <com:Name xml:lang="ja">一般公開（登録済み）</com:Name>
+          <com:Name xml:lang="en">Public (Registered)</com:Name>
+          <com:Name xml:lang="fr">Public (Enregistré)</com:Name>
+          <com:Name xml:lang="es">Público (registrado)</com:Name>
+          <com:Name xml:lang="zh">公众（注册）</com:Name>
+          <com:Description xml:lang="ar">شارك هذه البيانات مع الجمهور عند التسجيل وتسجيل الدخول لعرض البيانات وتنزيلها.</com:Description>
+          <com:Description xml:lang="ru">Делитесь этими данными с общественностью после регистрации и входа в систему для просмотра и загрузки данных.</com:Description>
+          <com:Description xml:lang="pt">Compartilhe estes dados com o público mediante registo e início de sessão para visualizar e descarregar os dados.</com:Description>
+          <com:Description xml:lang="ja">このデータは、データの閲覧およびダウンロードのための登録およびサインイン後に、一般に公開してください。</com:Description>
+          <com:Description xml:lang="en">Share this data with the public upon registration and sign-in for viewing and downloading the data.</com:Description>
+          <com:Description xml:lang="fr">Partagez ces données avec le public après son inscription et sa connexion pour la visualisation et le téléchargement des données.</com:Description>
+          <com:Description xml:lang="es">Comparta estos datos con el público tras el registro e inicio de sesión para ver y descargar los datos.</com:Description>
+          <com:Description xml:lang="zh">在公众注册并登录以查看和下载数据后，与他们共享此数据。</com:Description>
+        </str:Code>
+        <str:Code id="AUTHORIZED_BOARD" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_ACCESS_SHARING_LEVEL(1.0.2).AUTHORIZED_BOARD">
+          <com:Name xml:lang="ar">مجلس الإدارة المعتمد</com:Name>
+          <com:Name xml:lang="ru">Уполномоченный совет директоров</com:Name>
+          <com:Name xml:lang="pt">Conselho de Administração autorizado</com:Name>
+          <com:Name xml:lang="ja">許可された理事会</com:Name>
+          <com:Name xml:lang="en">Authorized Board</com:Name>
+          <com:Name xml:lang="fr">Conseil d'administration autorisé</com:Name>
+          <com:Name xml:lang="es">Junta Directiva autorizada</com:Name>
+          <com:Name xml:lang="zh">授权董事会</com:Name>
+          <com:Description xml:lang="ar">شارك هذه البيانات فقط مع أعضاء مجلس الإدارة المعتمدين الذين لديهم حاجة مشروعة لها. بالنسبة للبيانات الحساسة، قد يلزم الحصول على إذن كتابي من مُنشئ البيانات أو موافقة المدير.</com:Description>
+          <com:Description xml:lang="ru">Предоставляйте эти данные только уполномоченным членам Совета директоров, которым они необходимы по долгу службы. Для конфиденциальных данных может потребоваться письменное разрешение создателя данных или утверждение руководителя.</com:Description>
+          <com:Description xml:lang="pt">Compartilhe estes dados apenas com membros autorizados do Conselho de Administração que tenham uma necessidade legítima para tal. Para dados sensíveis, pode ser necessária uma permissão por escrito do criador dos dados ou a aprovação do gestor.</com:Description>
+          <com:Description xml:lang="ja">このデータは、正当な必要性を持つ許可された理事会メンバーとのみ共有してください。機密データの場合、データ作成者からの書面による許可または管理者の承認が必要になる場合があります。</com:Description>
+          <com:Description xml:lang="en">Share this data only with authorized OED staff members who have a need to know. For sensitive data, written permission from the data creator or manager approval may be required.</com:Description>
+          <com:Description xml:lang="fr">Partagez ces données uniquement avec les membres autorisés du Conseil d'administration qui en ont un besoin légitime. Pour les données sensibles, une autorisation écrite du créateur des données ou l'approbation du responsable peut être requise.</com:Description>
+          <com:Description xml:lang="es">Comparta estos datos solo con los miembros autorizados de la Junta Directiva que tengan una necesidad legítima de ellos. Para datos confidenciales, puede requerirse permiso por escrito del creador de los datos o la aprobación del gerente.</com:Description>
+          <com:Description xml:lang="zh">仅与有合法需求的授权董事会成员共享此数据。 对于敏感数据，可能需要数据创建者或经理的书面许可。</com:Description>
+        </str:Code>
+        <str:Code id="AUTHORIZED_PARTNERS" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_ACCESS_SHARING_LEVEL(1.0.2).AUTHORIZED_PARTNERS">
+          <com:Name xml:lang="ar">شركاء معتمدون</com:Name>
+          <com:Name xml:lang="ru">Уполномоченные партнеры</com:Name>
+          <com:Name xml:lang="pt">Parceiros autorizados</com:Name>
+          <com:Name xml:lang="ja">許可されたパートナー</com:Name>
+          <com:Name xml:lang="en">Authorized partners</com:Name>
+          <com:Name xml:lang="fr">Partenaires autorisés</com:Name>
+          <com:Name xml:lang="es">Socios autorizados</com:Name>
+          <com:Name xml:lang="zh">授权合作伙伴</com:Name>
+          <com:Description xml:lang="ar">شارك هذه البيانات فقط مع الشركاء الخارجيين المعتمدين الذين لديهم حاجة مشروعة لها. بالنسبة للبيانات الحساسة، قد يلزم الحصول على إذن كتابي من مُنشئ البيانات أو موافقة المدير.</com:Description>
+          <com:Description xml:lang="ru">Предоставляйте эти данные только уполномоченным внешним партнерам, которым они необходимы по долгу службы. Для конфиденциальных данных может потребоваться письменное разрешение создателя данных или утверждение руководителя.</com:Description>
+          <com:Description xml:lang="pt">Compartilhe estes dados apenas com parceiros externos autorizados que tenham uma necessidade legítima para tal. Para dados sensíveis, pode ser necessária uma permissão por escrito do criador dos dados ou a aprovação do gestor.</com:Description>
+          <com:Description xml:lang="ja">このデータは、正当な必要性を持つ許可された外部パートナーとのみ共有してください。機密データの場合、データ作成者からの書面による許可または管理者の承認が必要になる場合があります。</com:Description>
+          <com:Description xml:lang="en">Share this data only with authorized external partners who have a need to know. For sensitive data, written permission from the data creator or manager approval may be required.</com:Description>
+          <com:Description xml:lang="fr">Partagez ces données uniquement avec les partenaires externes autorisés qui en ont un besoin légitime. Pour les données sensibles, une autorisation écrite du créateur des données ou l'approbation du responsable peut être requise.</com:Description>
+          <com:Description xml:lang="es">Comparta estos datos solo con socios externos autorizados que tengan una necesidad legítima de ellos. Para datos confidenciales, puede requerirse permiso por escrito del creador de los datos o la aprobación del gerente.</com:Description>
+          <com:Description xml:lang="zh">仅与有合法需求的授权外部合作伙伴共享此数据。 对于敏感数据，可能需要数据创建者或经理的书面许可。</com:Description>
+        </str:Code>
+        <str:Code id="BOARD" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_ACCESS_SHARING_LEVEL(1.0.2).BOARD">
+          <com:Name xml:lang="ar">مجلس الإدارة</com:Name>
+          <com:Name xml:lang="ru">Совет директоров</com:Name>
+          <com:Name xml:lang="pt">Conselho de Administração</com:Name>
+          <com:Name xml:lang="ja">理事会</com:Name>
+          <com:Name xml:lang="en">Board</com:Name>
+          <com:Name xml:lang="fr">Conseil d'administration</com:Name>
+          <com:Name xml:lang="es">Junta Directiva</com:Name>
+          <com:Name xml:lang="zh">董事会</com:Name>
+          <com:Description xml:lang="ar">شارك هذه البيانات مع مجلس الإدارة.</com:Description>
+          <com:Description xml:lang="ru">Поделитесь этими данными с Советом директоров.</com:Description>
+          <com:Description xml:lang="pt">Compartilhe estes dados com o Conselho de Administração.</com:Description>
+          <com:Description xml:lang="ja">このデータを理事会と共有してください。</com:Description>
+          <com:Description xml:lang="en">Share this data with the OED staff members.</com:Description>
+          <com:Description xml:lang="fr">Partagez ces données avec le Conseil d'administration.</com:Description>
+          <com:Description xml:lang="es">Comparta estos datos con la Junta Directiva.</com:Description>
+          <com:Description xml:lang="zh">与董事会共享此数据。</com:Description>
+        </str:Code>
+      </str:Codelist>
+    </str:Codelists>
+  </mes:Structures>
+</mes:Structure>

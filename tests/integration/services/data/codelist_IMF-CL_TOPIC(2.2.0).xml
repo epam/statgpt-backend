@@ -1,0 +1,1487 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<mes:Structure xmlns:mes="http://www.sdmx.org/resources/sdmxml/schemas/v2_1/message" xmlns:str="http://www.sdmx.org/resources/sdmxml/schemas/v2_1/structure" xmlns:com="http://www.sdmx.org/resources/sdmxml/schemas/v2_1/common" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xml="http://www.w3.org/XML/1998/namespace" xsi:schemaLocation="http://www.sdmx.org/resources/sdmxml/schemas/v2_1/message ../../schemas/SDMXMessage.xsd">
+  <mes:Header>
+    <mes:ID>IDREF6345</mes:ID>
+    <mes:Test>false</mes:Test>
+    <mes:Prepared>2025-07-29T09:46:25.447742358Z</mes:Prepared>
+    <mes:Sender id="unknown"/>
+  </mes:Header>
+  <mes:Structures>
+    <str:Codelists>
+      <str:Codelist urn="urn:sdmx:org.sdmx.infomodel.codelist.Codelist=IMF:CL_TOPIC(2.2.0)" agencyID="IMF" id="CL_TOPIC" version="2.2.0" isFinal="true" isExternalReference="false" isPartial="false">
+        <com:Annotations>
+          <com:Annotation id="origin"/>
+          <com:Annotation id="isFinal"/>
+          <com:Annotation id="lastUpdatedAt"/>
+        </com:Annotations>
+        <com:Name xml:lang="en">Topic</com:Name>
+        <com:Description xml:lang="en">This codelist provides a high-level categorization of the resource's subject matter, indicating the main area or domain to which the data pertains.</com:Description>
+        <str:Code id="DEM" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_TOPIC(2.2.0).DEM">
+          <com:Name xml:lang="ar">الديموغرافية والاجتماعية</com:Name>
+          <com:Name xml:lang="ru">Демографические и социальные</com:Name>
+          <com:Name xml:lang="ja">人口統計・社会</com:Name>
+          <com:Name xml:lang="en">Demographic and social</com:Name>
+          <com:Name xml:lang="fr">Démographique et social</com:Name>
+          <com:Name xml:lang="es">Demográfico y social</com:Name>
+          <com:Name xml:lang="zh">人口与社会</com:Name>
+          <com:Description xml:lang="en">Population demographics, social indicators, and labor market statistics.</com:Description>
+        </str:Code>
+        <str:Code id="J20" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_TOPIC(2.2.0).J20">
+          <com:Name xml:lang="ar">أسواق العمل</com:Name>
+          <com:Name xml:lang="ru">Рынки труда</com:Name>
+          <com:Name xml:lang="ja">労働市場</com:Name>
+          <com:Name xml:lang="en">Labor markets</com:Name>
+          <com:Name xml:lang="fr">Marchés du travail</com:Name>
+          <com:Name xml:lang="es">Mercados laborales</com:Name>
+          <com:Name xml:lang="zh">劳动力市场</com:Name>
+          <com:Description xml:lang="en">The labor market, encompassing employment, unemployment, labor force participation, wages, and other labor-related indicators.</com:Description>
+          <str:Parent>
+            <Ref id="DEM"/>
+          </str:Parent>
+        </str:Code>
+        <str:Code id="J21" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_TOPIC(2.2.0).J21">
+          <com:Name xml:lang="ar">القوى العاملة</com:Name>
+          <com:Name xml:lang="ru">Рабочая сила</com:Name>
+          <com:Name xml:lang="ja">労働力</com:Name>
+          <com:Name xml:lang="en">Labor force</com:Name>
+          <com:Name xml:lang="fr">Population active</com:Name>
+          <com:Name xml:lang="es">Población activa</com:Name>
+          <com:Name xml:lang="zh">劳动力</com:Name>
+          <com:Description xml:lang="en">The total number of people employed and unemployed who are willing and able to work. This provides insights into the size and composition of the workforce and is used to analyze labor market trends and calculate unemployment rates.</com:Description>
+          <str:Parent>
+            <Ref id="J20"/>
+          </str:Parent>
+        </str:Code>
+        <str:Code id="J64" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_TOPIC(2.2.0).J64">
+          <com:Name xml:lang="ar">البطالة</com:Name>
+          <com:Name xml:lang="ru">Безработица</com:Name>
+          <com:Name xml:lang="ja">失業</com:Name>
+          <com:Name xml:lang="en">Unemployment</com:Name>
+          <com:Name xml:lang="fr">Chômage</com:Name>
+          <com:Name xml:lang="es">Desempleo</com:Name>
+          <com:Name xml:lang="zh">失业</com:Name>
+          <com:Description xml:lang="en">The number of people who are actively seeking employment but cannot find a job. This is used to calculate the unemployment rate, a key indicator of economic performance and social well-being.</com:Description>
+          <str:Parent>
+            <Ref id="J20"/>
+          </str:Parent>
+        </str:Code>
+        <str:Code id="E24" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_TOPIC(2.2.0).E24">
+          <com:Name xml:lang="ar">العمالة</com:Name>
+          <com:Name xml:lang="ru">Занятость</com:Name>
+          <com:Name xml:lang="ja">雇用</com:Name>
+          <com:Name xml:lang="en">Employment</com:Name>
+          <com:Name xml:lang="fr">Emploi</com:Name>
+          <com:Name xml:lang="es">Empleo</com:Name>
+          <com:Name xml:lang="zh">就业</com:Name>
+          <com:Description xml:lang="en">The number of people currently employed, including information on the types of jobs, industries, and occupations.</com:Description>
+          <str:Parent>
+            <Ref id="J20"/>
+          </str:Parent>
+        </str:Code>
+        <str:Code id="J30" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_TOPIC(2.2.0).J30">
+          <com:Name xml:lang="ar">الأجور</com:Name>
+          <com:Name xml:lang="ru">Заработная плата</com:Name>
+          <com:Name xml:lang="ja">賃金</com:Name>
+          <com:Name xml:lang="en">Wages</com:Name>
+          <com:Name xml:lang="fr">Salaires</com:Name>
+          <com:Name xml:lang="es">Salarios</com:Name>
+          <com:Name xml:lang="zh">工资</com:Name>
+          <com:Description xml:lang="en">The earnings of employees, including hourly wages, salaries, and other forms of compensation. This is used to analyze income inequality, measure labor costs, and assess the standard of living.</com:Description>
+          <str:Parent>
+            <Ref id="J20"/>
+          </str:Parent>
+        </str:Code>
+        <str:Code id="J10" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_TOPIC(2.2.0).J10">
+          <com:Name xml:lang="ar">السكان والتركيبة السكانية</com:Name>
+          <com:Name xml:lang="ru">Население и демография</com:Name>
+          <com:Name xml:lang="ja">人口と人口統計</com:Name>
+          <com:Name xml:lang="en">Population and demographics</com:Name>
+          <com:Name xml:lang="fr">Population et données démographiques</com:Name>
+          <com:Name xml:lang="es">Población y demografía</com:Name>
+          <com:Name xml:lang="zh">人口与人口统计学</com:Name>
+          <com:Description xml:lang="en">The size, structure, and distribution of a population.</com:Description>
+          <str:Parent>
+            <Ref id="DEM"/>
+          </str:Parent>
+        </str:Code>
+        <str:Code id="J10_P" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_TOPIC(2.2.0).J10_P">
+          <com:Name xml:lang="ar">عدد السكان</com:Name>
+          <com:Name xml:lang="ru">Население</com:Name>
+          <com:Name xml:lang="ja">人口</com:Name>
+          <com:Name xml:lang="en">Population</com:Name>
+          <com:Name xml:lang="fr">Population</com:Name>
+          <com:Name xml:lang="es">Población</com:Name>
+          <com:Name xml:lang="zh">人口</com:Name>
+          <com:Description xml:lang="en">The total number of people residing in a specific geographic area, such as a country, region, or city. This is essential for demographic analysis, resource allocation, and policy planning.</com:Description>
+          <str:Parent>
+            <Ref id="J10"/>
+          </str:Parent>
+        </str:Code>
+        <str:Code id="J11" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_TOPIC(2.2.0).J11">
+          <com:Name xml:lang="ar">التغير الديموغرافي</com:Name>
+          <com:Name xml:lang="ru">Демографические изменения</com:Name>
+          <com:Name xml:lang="ja">人口動態変化</com:Name>
+          <com:Name xml:lang="en">Demographic change</com:Name>
+          <com:Name xml:lang="fr">Changement démographique</com:Name>
+          <com:Name xml:lang="es">Cambio demográfico</com:Name>
+          <com:Name xml:lang="zh">人口变化</com:Name>
+          <com:Description xml:lang="en">The changes in the size, composition, and distribution of a population over time. This includes information on birth rates, death rates, age structure, migration patterns, and other demographic factors.</com:Description>
+          <str:Parent>
+            <Ref id="J10"/>
+          </str:Parent>
+        </str:Code>
+        <str:Code id="F22" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_TOPIC(2.2.0).F22">
+          <com:Name xml:lang="ar">الهجرة</com:Name>
+          <com:Name xml:lang="ru">Миграция</com:Name>
+          <com:Name xml:lang="ja">移住</com:Name>
+          <com:Name xml:lang="en">Migration</com:Name>
+          <com:Name xml:lang="fr">Migration</com:Name>
+          <com:Name xml:lang="es">Migración</com:Name>
+          <com:Name xml:lang="zh">迁移</com:Name>
+          <com:Description xml:lang="en">The movement of people across geographical boundaries, including both internal and international migration.</com:Description>
+          <str:Parent>
+            <Ref id="J10"/>
+          </str:Parent>
+        </str:Code>
+        <str:Code id="I20" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_TOPIC(2.2.0).I20">
+          <com:Name xml:lang="ar">التعليم</com:Name>
+          <com:Name xml:lang="ru">Образование</com:Name>
+          <com:Name xml:lang="ja">教育</com:Name>
+          <com:Name xml:lang="en">Education</com:Name>
+          <com:Name xml:lang="fr">Éducation</com:Name>
+          <com:Name xml:lang="es">Educación</com:Name>
+          <com:Name xml:lang="zh">教育</com:Name>
+          <com:Description xml:lang="en">Education, encompassing enrollment rates, educational attainment, literacy levels, and educational expenditures.</com:Description>
+          <str:Parent>
+            <Ref id="DEM"/>
+          </str:Parent>
+        </str:Code>
+        <str:Code id="I10" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_TOPIC(2.2.0).I10">
+          <com:Name xml:lang="ar">الصحة</com:Name>
+          <com:Name xml:lang="ru">Здравоохранение</com:Name>
+          <com:Name xml:lang="ja">健康</com:Name>
+          <com:Name xml:lang="en">Health</com:Name>
+          <com:Name xml:lang="fr">Santé</com:Name>
+          <com:Name xml:lang="es">Salud</com:Name>
+          <com:Name xml:lang="zh">健康</com:Name>
+          <com:Description xml:lang="en">The health of a population.</com:Description>
+          <str:Parent>
+            <Ref id="DEM"/>
+          </str:Parent>
+        </str:Code>
+        <str:Code id="J16" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_TOPIC(2.2.0).J16">
+          <com:Name xml:lang="ar">الإدماج والمساواة بين الجنسين</com:Name>
+          <com:Name xml:lang="ru">Инклюзивность и гендер</com:Name>
+          <com:Name xml:lang="ja">包容性とジェンダー</com:Name>
+          <com:Name xml:lang="en">Inclusion and gender</com:Name>
+          <com:Name xml:lang="fr">Inclusion et genre</com:Name>
+          <com:Name xml:lang="es">Inclusión y género</com:Name>
+          <com:Name xml:lang="zh">包容性和性别</com:Name>
+          <com:Description xml:lang="en">Gender, encompassing measures of equality, diversity, and social participation across different demographic groups.</com:Description>
+          <str:Parent>
+            <Ref id="DEM"/>
+          </str:Parent>
+        </str:Code>
+        <str:Code id="J16_W" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_TOPIC(2.2.0).J16_W">
+          <com:Name xml:lang="ar">النساء</com:Name>
+          <com:Name xml:lang="ru">Женщины</com:Name>
+          <com:Name xml:lang="ja">女性</com:Name>
+          <com:Name xml:lang="en">Women</com:Name>
+          <com:Name xml:lang="fr">Femmes</com:Name>
+          <com:Name xml:lang="es">Mujeres</com:Name>
+          <com:Name xml:lang="zh">女性</com:Name>
+          <com:Description xml:lang="en">The social, economic, and political status of women, including indicators of gender equality, labor force participation, education, health, and political representation.</com:Description>
+          <str:Parent>
+            <Ref id="J16"/>
+          </str:Parent>
+        </str:Code>
+        <str:Code id="G30_SME" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_TOPIC(2.2.0).G30_SME">
+          <com:Name xml:lang="ar">تمويل الشركات الصغيرة والمتوسطة</com:Name>
+          <com:Name xml:lang="ru">Финансирование МСП</com:Name>
+          <com:Name xml:lang="ja">中小企業金融</com:Name>
+          <com:Name xml:lang="en">SME finance</com:Name>
+          <com:Name xml:lang="fr">Financement des PME</com:Name>
+          <com:Name xml:lang="es">Financiación de PYME</com:Name>
+          <com:Name xml:lang="zh">中小企业融资</com:Name>
+          <com:Description xml:lang="en">The financing of small and medium-sized enterprises (SMEs), including information on loan volumes, interest rates, and access to credit.</com:Description>
+          <str:Parent>
+            <Ref id="J16"/>
+          </str:Parent>
+        </str:Code>
+        <str:Code id="O30" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_TOPIC(2.2.0).O30">
+          <com:Name xml:lang="ar">التكنولوجيا</com:Name>
+          <com:Name xml:lang="ru">Технологии</com:Name>
+          <com:Name xml:lang="ja">テクノロジー</com:Name>
+          <com:Name xml:lang="en">Technology</com:Name>
+          <com:Name xml:lang="fr">Technologie</com:Name>
+          <com:Name xml:lang="es">Tecnología</com:Name>
+          <com:Name xml:lang="zh">科技</com:Name>
+          <com:Description xml:lang="en">Technological innovation, adoption, and impact.</com:Description>
+          <str:Parent>
+            <Ref id="DEM"/>
+          </str:Parent>
+        </str:Code>
+        <str:Code id="E42" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_TOPIC(2.2.0).E42">
+          <com:Name xml:lang="ar">التكنولوجيا المالية</com:Name>
+          <com:Name xml:lang="ru">Финтех</com:Name>
+          <com:Name xml:lang="ja">フィンテック</com:Name>
+          <com:Name xml:lang="en">Fintech</com:Name>
+          <com:Name xml:lang="fr">Fintech</com:Name>
+          <com:Name xml:lang="es">Fintech</com:Name>
+          <com:Name xml:lang="zh">金融科技</com:Name>
+          <com:Description xml:lang="en">Financial technology innovations, including digital payments, peer-to-peer lending, robo-advisors, and blockchain-based solutions.</com:Description>
+          <str:Parent>
+            <Ref id="O30"/>
+          </str:Parent>
+        </str:Code>
+        <str:Code id="CLM" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_TOPIC(2.2.0).CLM">
+          <com:Name xml:lang="ar">البيئة والمناخ</com:Name>
+          <com:Name xml:lang="ru">Окружающая среда и климат</com:Name>
+          <com:Name xml:lang="ja">環境と気候</com:Name>
+          <com:Name xml:lang="en">Environment and climate</com:Name>
+          <com:Name xml:lang="fr">Environnement et climat</com:Name>
+          <com:Name xml:lang="es">Medio ambiente y clima</com:Name>
+          <com:Name xml:lang="zh">环境与气候</com:Name>
+          <com:Description xml:lang="en">Environmental conditions, climate change, and natural resource use.</com:Description>
+        </str:Code>
+        <str:Code id="Q54" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_TOPIC(2.2.0).Q54">
+          <com:Name xml:lang="ar">المناخ</com:Name>
+          <com:Name xml:lang="ru">Климат</com:Name>
+          <com:Name xml:lang="ja">気候</com:Name>
+          <com:Name xml:lang="en">Climate</com:Name>
+          <com:Name xml:lang="fr">Climat</com:Name>
+          <com:Name xml:lang="es">Clima</com:Name>
+          <com:Name xml:lang="zh">气候</com:Name>
+          <com:Description xml:lang="en">Climate patterns, trends, and impacts.</com:Description>
+          <str:Parent>
+            <Ref id="CLM"/>
+          </str:Parent>
+        </str:Code>
+        <str:Code id="Q54_CC" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_TOPIC(2.2.0).Q54_CC">
+          <com:Name xml:lang="ar">تغير المناخ</com:Name>
+          <com:Name xml:lang="ru">Изменение климата</com:Name>
+          <com:Name xml:lang="ja">気候変動</com:Name>
+          <com:Name xml:lang="en">Climate change</com:Name>
+          <com:Name xml:lang="fr">Changement climatique</com:Name>
+          <com:Name xml:lang="es">Cambio climático</com:Name>
+          <com:Name xml:lang="zh">气候变化</com:Name>
+          <com:Description xml:lang="en">Observed changes in temperature, precipitation, sea level, and other climate variables, as well as projections of future climate change under different scenarios.</com:Description>
+          <str:Parent>
+            <Ref id="Q54"/>
+          </str:Parent>
+        </str:Code>
+        <str:Code id="Q54_ND" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_TOPIC(2.2.0).Q54_ND">
+          <com:Name xml:lang="ar">الكوارث الطبيعية</com:Name>
+          <com:Name xml:lang="ru">Стихийные бедствия</com:Name>
+          <com:Name xml:lang="ja">自然災害</com:Name>
+          <com:Name xml:lang="en">Natural disasters</com:Name>
+          <com:Name xml:lang="fr">Catastrophes naturelles</com:Name>
+          <com:Name xml:lang="es">Desastres naturales</com:Name>
+          <com:Name xml:lang="zh">自然灾害</com:Name>
+          <com:Description xml:lang="en">The occurrence, frequency, intensity, and impact of natural disasters, such as earthquakes, floods, droughts, storms, and wildfires.</com:Description>
+          <str:Parent>
+            <Ref id="Q54"/>
+          </str:Parent>
+        </str:Code>
+        <str:Code id="Q54_CCA" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_TOPIC(2.2.0).Q54_CCA">
+          <com:Name xml:lang="ar">التكيف مع تغير المناخ</com:Name>
+          <com:Name xml:lang="ru">Адаптация к изменению климата</com:Name>
+          <com:Name xml:lang="ja">気候変動適応</com:Name>
+          <com:Name xml:lang="en">Climate change adaptation</com:Name>
+          <com:Name xml:lang="fr">Adaptation au changement climatique</com:Name>
+          <com:Name xml:lang="es">Adaptación al cambio climático</com:Name>
+          <com:Name xml:lang="zh">气候变化适应</com:Name>
+          <com:Description xml:lang="en">The strategies, measures, and investments aimed at reducing the vulnerability of natural and human systems to the impacts of climate change. This includes information on infrastructure resilience, early warning systems, and agricultural practices.</com:Description>
+          <str:Parent>
+            <Ref id="Q54"/>
+          </str:Parent>
+        </str:Code>
+        <str:Code id="Q58" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_TOPIC(2.2.0).Q58">
+          <com:Name xml:lang="ar">التخفيف من آثار تغير المناخ</com:Name>
+          <com:Name xml:lang="ru">Смягчение последствий изменения климата</com:Name>
+          <com:Name xml:lang="ja">気候変動緩和</com:Name>
+          <com:Name xml:lang="en">Climate change mitigation</com:Name>
+          <com:Name xml:lang="fr">Atténuation du changement climatique</com:Name>
+          <com:Name xml:lang="es">Mitigación del cambio climático</com:Name>
+          <com:Name xml:lang="zh">气候变化减缓</com:Name>
+          <com:Description xml:lang="en">The actions taken to reduce greenhouse gas emissions and enhance carbon sinks, such as transitioning to renewable energy, improving energy efficiency, and promoting sustainable land use practices.</com:Description>
+          <str:Parent>
+            <Ref id="Q54"/>
+          </str:Parent>
+        </str:Code>
+        <str:Code id="Q50" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_TOPIC(2.2.0).Q50">
+          <com:Name xml:lang="ar">التمويل المناخي</com:Name>
+          <com:Name xml:lang="ru">Финансирование борьбы с изменением климата</com:Name>
+          <com:Name xml:lang="ja">気候ファイナンス</com:Name>
+          <com:Name xml:lang="en">Climate finance</com:Name>
+          <com:Name xml:lang="fr">Financement climatique</com:Name>
+          <com:Name xml:lang="es">Financiación climática</com:Name>
+          <com:Name xml:lang="zh">气候融资</com:Name>
+          <com:Description xml:lang="en">The financial flows channeled towards climate change mitigation and adaptation projects and programs, including both public and private investments, as well as international climate finance mechanisms.</com:Description>
+          <str:Parent>
+            <Ref id="Q54"/>
+          </str:Parent>
+        </str:Code>
+        <str:Code id="Q54_CR" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_TOPIC(2.2.0).Q54_CR">
+          <com:Name xml:lang="ar">مخاطر المناخ</com:Name>
+          <com:Name xml:lang="ru">Климатические риски</com:Name>
+          <com:Name xml:lang="ja">気候リスク</com:Name>
+          <com:Name xml:lang="en">Climate risks</com:Name>
+          <com:Name xml:lang="fr">Risques climatiques</com:Name>
+          <com:Name xml:lang="es">Riesgos climáticos</com:Name>
+          <com:Name xml:lang="zh">气候风险</com:Name>
+          <com:Description xml:lang="en">The potential adverse consequences of climate change for various sectors and systems, including physical risks (e.g., extreme weather events, sea-level rise), transition risks (e.g., policy changes, technological shifts), and liability risks (e.g., legal claims, reputational damage).</com:Description>
+          <str:Parent>
+            <Ref id="Q54"/>
+          </str:Parent>
+        </str:Code>
+        <str:Code id="Q54_GGE" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_TOPIC(2.2.0).Q54_GGE">
+          <com:Name xml:lang="ar">انبعاثات غازات الاحتباس الحراري</com:Name>
+          <com:Name xml:lang="ru">Выбросы парниковых газов</com:Name>
+          <com:Name xml:lang="ja">温室効果ガス排出量</com:Name>
+          <com:Name xml:lang="en">Greenhouse gas emissions</com:Name>
+          <com:Name xml:lang="fr">Émissions de gaz à effet de serre</com:Name>
+          <com:Name xml:lang="es">Emisiones de gases de efecto invernadero</com:Name>
+          <com:Name xml:lang="zh">温室气体排放</com:Name>
+          <com:Description xml:lang="en">The amount of greenhouse gases, such as carbon dioxide, methane, and nitrous oxide, released into the atmosphere from various sources, including energy production, industry, agriculture, and transportation.</com:Description>
+          <str:Parent>
+            <Ref id="Q54"/>
+          </str:Parent>
+        </str:Code>
+        <str:Code id="Q54_W" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_TOPIC(2.2.0).Q54_W">
+          <com:Name xml:lang="en">Climate and weather</com:Name>
+          <com:Description xml:lang="en">The long-term patterns and average conditions of temperature, humidity, precipitation, wind, etc. in a specific region (climate), as well as the day-to-day state of the atmosphere (weather).</com:Description>
+          <str:Parent>
+            <Ref id="Q54"/>
+          </str:Parent>
+        </str:Code>
+        <str:Code id="Q54_LCE" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_TOPIC(2.2.0).Q54_LCE">
+          <com:Name xml:lang="en">Transition to a low carbon economy</com:Name>
+          <com:Description xml:lang="en">The global shift away from economic activities that rely heavily on fossil fuels (like coal, oil, and natural gas) and towards systems that generate minimal greenhouse gas emissions. This includes data on renewable energy adoption, energy efficiency improvements, and sustainable technology development.</com:Description>
+          <str:Parent>
+            <Ref id="Q54"/>
+          </str:Parent>
+        </str:Code>
+        <str:Code id="Q57" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_TOPIC(2.2.0).Q57">
+          <com:Name xml:lang="en">Physical and transition risk indicators</com:Name>
+          <com:Description xml:lang="en">Physical and transition risks related to climate change. Physical risks refer to the potential impact of climate change on physical assets, while transition risks are related to the shift to a low-carbon economy and include factors such as policy changes and technological innovations.</com:Description>
+          <str:Parent>
+            <Ref id="Q54"/>
+          </str:Parent>
+        </str:Code>
+        <str:Code id="Q56" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_TOPIC(2.2.0).Q56">
+          <com:Name xml:lang="ar">البيئة</com:Name>
+          <com:Name xml:lang="ru">Окружающая среда</com:Name>
+          <com:Name xml:lang="ja">環境</com:Name>
+          <com:Name xml:lang="en">Environment</com:Name>
+          <com:Name xml:lang="fr">Environnement</com:Name>
+          <com:Name xml:lang="es">Medio ambiente</com:Name>
+          <com:Name xml:lang="zh">环境</com:Name>
+          <com:Description xml:lang="en">The natural environment and its interactions with human activities.</com:Description>
+          <str:Parent>
+            <Ref id="CLM"/>
+          </str:Parent>
+        </str:Code>
+        <str:Code id="ECP" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_TOPIC(2.2.0).ECP">
+          <com:Name xml:lang="ar">الاقتصاد والأسعار</com:Name>
+          <com:Name xml:lang="ru">Экономика и цены</com:Name>
+          <com:Name xml:lang="ja">経済と物価</com:Name>
+          <com:Name xml:lang="en">Economy and prices</com:Name>
+          <com:Name xml:lang="fr">Économie et prix</com:Name>
+          <com:Name xml:lang="es">Economía y precios</com:Name>
+          <com:Name xml:lang="zh">经济和价格</com:Name>
+          <com:Description xml:lang="en">Economic activity, prices, and national accounts.</com:Description>
+        </str:Code>
+        <str:Code id="E10" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_TOPIC(2.2.0).E10">
+          <com:Name xml:lang="ar">الحسابات القومية</com:Name>
+          <com:Name xml:lang="ru">Национальные счета</com:Name>
+          <com:Name xml:lang="ja">国民経済計算</com:Name>
+          <com:Name xml:lang="en">National accounts</com:Name>
+          <com:Name xml:lang="fr">Comptes nationaux</com:Name>
+          <com:Name xml:lang="es">Cuentas nacionales</com:Name>
+          <com:Name xml:lang="zh">国民账户</com:Name>
+          <com:Description xml:lang="en">Describes and measures the economic activity of a country or region. It provides a comprehensive overview of the economy's structure, performance, and interactions between different sectors. This data is compiled within a standardized framework, the System of National Accounts (SNA).</com:Description>
+          <str:Parent>
+            <Ref id="ECP"/>
+          </str:Parent>
+        </str:Code>
+        <str:Code id="E10_GDP" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_TOPIC(2.2.0).E10_GDP">
+          <com:Name xml:lang="ar">الناتج المحلي الإجمالي (GDP)</com:Name>
+          <com:Name xml:lang="ru">Валовой внутренний продукт (ВВП)</com:Name>
+          <com:Name xml:lang="ja">国内総生産 (GDP)</com:Name>
+          <com:Name xml:lang="en">Gross domestic product (GDP)</com:Name>
+          <com:Name xml:lang="fr">Produit intérieur brut (PIB)</com:Name>
+          <com:Name xml:lang="es">Producto interno bruto (PIB)</com:Name>
+          <com:Name xml:lang="zh">国内生产总值 (GDP)</com:Name>
+          <com:Description xml:lang="en">The total value of goods and services produced within a country's borders over a specific period.</com:Description>
+          <str:Parent>
+            <Ref id="E10"/>
+          </str:Parent>
+        </str:Code>
+        <str:Code id="E01" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_TOPIC(2.2.0).E01">
+          <com:Name xml:lang="ar">الدخل القومي</com:Name>
+          <com:Name xml:lang="ru">Национальный доход</com:Name>
+          <com:Name xml:lang="ja">国民所得</com:Name>
+          <com:Name xml:lang="en">National income</com:Name>
+          <com:Name xml:lang="fr">Revenu national</com:Name>
+          <com:Name xml:lang="es">Ingreso nacional</com:Name>
+          <com:Name xml:lang="zh">国民收入</com:Name>
+          <com:Description xml:lang="en">The total income earned by a country's residents, including wages, profits, rents, and interest.</com:Description>
+          <str:Parent>
+            <Ref id="E10"/>
+          </str:Parent>
+        </str:Code>
+        <str:Code id="E10_SA" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_TOPIC(2.2.0).E10_SA">
+          <com:Name xml:lang="ar">حسابات القطاعات</com:Name>
+          <com:Name xml:lang="ru">Секторные счета</com:Name>
+          <com:Name xml:lang="ja">セクター別勘定</com:Name>
+          <com:Name xml:lang="en">Sector accounts</com:Name>
+          <com:Name xml:lang="fr">Comptes sectoriels</com:Name>
+          <com:Name xml:lang="es">Cuentas sectoriales</com:Name>
+          <com:Name xml:lang="zh">部门账户</com:Name>
+          <com:Description xml:lang="en">The economic activity of specific sectors within the economy, such as agriculture, manufacturing, construction, and services.</com:Description>
+          <str:Parent>
+            <Ref id="E10"/>
+          </str:Parent>
+        </str:Code>
+        <str:Code id="E23" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_TOPIC(2.2.0).E23">
+          <com:Name xml:lang="ar">الإنتاج الصناعي</com:Name>
+          <com:Name xml:lang="ru">Промышленное производство</com:Name>
+          <com:Name xml:lang="ja">工業生産</com:Name>
+          <com:Name xml:lang="en">Industrial production</com:Name>
+          <com:Name xml:lang="fr">Production industrielle</com:Name>
+          <com:Name xml:lang="es">Producción industrial</com:Name>
+          <com:Name xml:lang="zh">工业生产</com:Name>
+          <com:Description xml:lang="en">The output of industrial establishments, including manufacturing, mining, and utilities. This is used to track industrial activity, assess productivity, and monitor economic cycles.</com:Description>
+          <str:Parent>
+            <Ref id="E10"/>
+          </str:Parent>
+        </str:Code>
+        <str:Code id="E31" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_TOPIC(2.2.0).E31">
+          <com:Name xml:lang="ar">الأسعار</com:Name>
+          <com:Name xml:lang="ru">Цены</com:Name>
+          <com:Name xml:lang="ja">価格</com:Name>
+          <com:Name xml:lang="en">Prices</com:Name>
+          <com:Name xml:lang="fr">Prix</com:Name>
+          <com:Name xml:lang="es">Precios</com:Name>
+          <com:Name xml:lang="zh">价格</com:Name>
+          <com:Description xml:lang="en">Statistical information that captures the monetary values at which goods, services, assets, or other items are bought, sold, or exchanged in a market. This can encompass various aspects of prices.</com:Description>
+          <str:Parent>
+            <Ref id="ECP"/>
+          </str:Parent>
+        </str:Code>
+        <str:Code id="E31_CP" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_TOPIC(2.2.0).E31_CP">
+          <com:Name xml:lang="ar">أسعار المستهلك</com:Name>
+          <com:Name xml:lang="ru">Потребительские цены</com:Name>
+          <com:Name xml:lang="ja">消費者物価</com:Name>
+          <com:Name xml:lang="en">Consumer prices</com:Name>
+          <com:Name xml:lang="fr">Prix à la consommation</com:Name>
+          <com:Name xml:lang="es">Precios al consumidor</com:Name>
+          <com:Name xml:lang="zh">消费者价格</com:Name>
+          <com:Description xml:lang="en">The average change over time in the prices paid by consumers for a basket of goods and services.</com:Description>
+          <str:Parent>
+            <Ref id="E31"/>
+          </str:Parent>
+        </str:Code>
+        <str:Code id="E31_PP" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_TOPIC(2.2.0).E31_PP">
+          <com:Name xml:lang="ar">أسعار المنتجين</com:Name>
+          <com:Name xml:lang="ru">Цены производителей</com:Name>
+          <com:Name xml:lang="ja">生産者物価</com:Name>
+          <com:Name xml:lang="en">Producer prices</com:Name>
+          <com:Name xml:lang="fr">Prix à la production</com:Name>
+          <com:Name xml:lang="es">Precios al productor</com:Name>
+          <com:Name xml:lang="zh">生产者价格</com:Name>
+          <com:Description xml:lang="en">The average change over time in the selling prices received by domestic producers for their output.</com:Description>
+          <str:Parent>
+            <Ref id="E31"/>
+          </str:Parent>
+        </str:Code>
+        <str:Code id="R30" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_TOPIC(2.2.0).R30">
+          <com:Name xml:lang="ar">أسعار العقارات</com:Name>
+          <com:Name xml:lang="ru">Цены на недвижимость</com:Name>
+          <com:Name xml:lang="ja">不動産価格</com:Name>
+          <com:Name xml:lang="en">Real estate prices</com:Name>
+          <com:Name xml:lang="fr">Prix de l'immobilier</com:Name>
+          <com:Name xml:lang="es">Precios inmobiliarios</com:Name>
+          <com:Name xml:lang="zh">房地产价格</com:Name>
+          <com:Description xml:lang="en">The prices of houses, apartments, land, and other real estate properties.</com:Description>
+          <str:Parent>
+            <Ref id="E31"/>
+          </str:Parent>
+        </str:Code>
+        <str:Code id="Q02" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_TOPIC(2.2.0).Q02">
+          <com:Name xml:lang="ar">أسعار السلع الأساسية</com:Name>
+          <com:Name xml:lang="ru">Цены на товары</com:Name>
+          <com:Name xml:lang="ja">商品価格</com:Name>
+          <com:Name xml:lang="en">Commodity prices</com:Name>
+          <com:Name xml:lang="fr">Prix des matières premières</com:Name>
+          <com:Name xml:lang="es">Precios de las materias primas</com:Name>
+          <com:Name xml:lang="zh">商品价格</com:Name>
+          <com:Description xml:lang="en">The prices of raw materials and primary agricultural products, such as oil, gas, metals, grains, and livestock.</com:Description>
+          <str:Parent>
+            <Ref id="E31"/>
+          </str:Parent>
+        </str:Code>
+        <str:Code id="E31_EPI" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_TOPIC(2.2.0).E31_EPI">
+          <com:Name xml:lang="ar">مؤشرات أسعار التصدير</com:Name>
+          <com:Name xml:lang="ru">Индексы экспортных цен</com:Name>
+          <com:Name xml:lang="ja">輸出価格指数</com:Name>
+          <com:Name xml:lang="en">Export price indexes</com:Name>
+          <com:Name xml:lang="fr">Indices des prix à l'exportation</com:Name>
+          <com:Name xml:lang="es">Índices de precios de exportación</com:Name>
+          <com:Name xml:lang="zh">出口价格指数</com:Name>
+          <com:Description xml:lang="en">The average change in prices of goods and services exported by a country.</com:Description>
+          <str:Parent>
+            <Ref id="E31"/>
+          </str:Parent>
+        </str:Code>
+        <str:Code id="E31_PPI" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_TOPIC(2.2.0).E31_PPI">
+          <com:Name xml:lang="ar">مؤشرات أسعار المنتجين (PPI)</com:Name>
+          <com:Name xml:lang="ru">Индексы цен производителей (PPI)</com:Name>
+          <com:Name xml:lang="ja">生産者物価指数 (PPI)</com:Name>
+          <com:Name xml:lang="en">Producer price indexes (PPI)</com:Name>
+          <com:Name xml:lang="fr">Indices des prix à la production (IPP)</com:Name>
+          <com:Name xml:lang="es">Índices de precios de producción (IPP)</com:Name>
+          <com:Name xml:lang="zh">生产者价格指数 (PPI)</com:Name>
+          <com:Description xml:lang="en">The average change in prices received by domestic producers for their output.</com:Description>
+          <str:Parent>
+            <Ref id="E31"/>
+          </str:Parent>
+        </str:Code>
+        <str:Code id="E31_IPI" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_TOPIC(2.2.0).E31_IPI">
+          <com:Name xml:lang="ar">مؤشرات أسعار الاستيراد</com:Name>
+          <com:Name xml:lang="ru">Индексы импортных цен</com:Name>
+          <com:Name xml:lang="ja">輸入価格指数</com:Name>
+          <com:Name xml:lang="en">Import price indexes</com:Name>
+          <com:Name xml:lang="fr">Indices des prix à l'importation</com:Name>
+          <com:Name xml:lang="es">Índices de precios de importación</com:Name>
+          <com:Name xml:lang="zh">进口价格指数</com:Name>
+          <com:Description xml:lang="en">The average change in prices of goods and services imported by a country.</com:Description>
+          <str:Parent>
+            <Ref id="E31"/>
+          </str:Parent>
+        </str:Code>
+        <str:Code id="E31_WPI" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_TOPIC(2.2.0).E31_WPI">
+          <com:Name xml:lang="ar">مؤشرات أسعار الجملة</com:Name>
+          <com:Name xml:lang="ru">Индексы оптовых цен</com:Name>
+          <com:Name xml:lang="ja">卸売物価指数</com:Name>
+          <com:Name xml:lang="en">Wholesale price indexes</com:Name>
+          <com:Name xml:lang="fr">Indices des prix de gros</com:Name>
+          <com:Name xml:lang="es">Índices de precios al por mayor</com:Name>
+          <com:Name xml:lang="zh">批发价格指数</com:Name>
+          <com:Description xml:lang="en">The average change in prices of goods sold in bulk by wholesalers to retailers.</com:Description>
+          <str:Parent>
+            <Ref id="E31"/>
+          </str:Parent>
+        </str:Code>
+        <str:Code id="F10" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_TOPIC(2.2.0).F10">
+          <com:Name xml:lang="ar">التجارة الدولية</com:Name>
+          <com:Name xml:lang="ru">Международная торговля</com:Name>
+          <com:Name xml:lang="ja">国際貿易</com:Name>
+          <com:Name xml:lang="en">International trade</com:Name>
+          <com:Name xml:lang="fr">Commerce international</com:Name>
+          <com:Name xml:lang="es">Comercio internacional</com:Name>
+          <com:Name xml:lang="zh">国际贸易</com:Name>
+          <com:Description xml:lang="en">The exchange of goods and services between countries.</com:Description>
+          <str:Parent>
+            <Ref id="ECP"/>
+          </str:Parent>
+        </str:Code>
+        <str:Code id="F14" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_TOPIC(2.2.0).F14">
+          <com:Name xml:lang="ar">تجارة الخدمات</com:Name>
+          <com:Name xml:lang="ru">Торговля услугами</com:Name>
+          <com:Name xml:lang="ja">サービス貿易</com:Name>
+          <com:Name xml:lang="en">Trade in services</com:Name>
+          <com:Name xml:lang="fr">Commerce de services</com:Name>
+          <com:Name xml:lang="es">Comercio de servicios</com:Name>
+          <com:Name xml:lang="zh">服务贸易</com:Name>
+          <com:Description xml:lang="en">The value of intangible services (e.g., tourism, transportation, financial services) exchanged between countries.</com:Description>
+          <str:Parent>
+            <Ref id="F10"/>
+          </str:Parent>
+        </str:Code>
+        <str:Code id="L81" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_TOPIC(2.2.0).L81">
+          <com:Name xml:lang="ar">تجارة البضائع</com:Name>
+          <com:Name xml:lang="ru">Торговля товарами</com:Name>
+          <com:Name xml:lang="ja">財貿易</com:Name>
+          <com:Name xml:lang="en">Trade in goods</com:Name>
+          <com:Name xml:lang="fr">Commerce de marchandises</com:Name>
+          <com:Name xml:lang="es">Comercio de bienes</com:Name>
+          <com:Name xml:lang="zh">货物贸易</com:Name>
+          <com:Description xml:lang="en">The value and volume of physical goods (e.g., merchandise, commodities) that are exported and imported.</com:Description>
+          <str:Parent>
+            <Ref id="F10"/>
+          </str:Parent>
+        </str:Code>
+        <str:Code id="F10_E" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_TOPIC(2.2.0).F10_E">
+          <com:Name xml:lang="ar">الصادرات</com:Name>
+          <com:Name xml:lang="ru">Экспорт</com:Name>
+          <com:Name xml:lang="ja">輸出</com:Name>
+          <com:Name xml:lang="en">Exports</com:Name>
+          <com:Name xml:lang="fr">Exportations</com:Name>
+          <com:Name xml:lang="es">Exportaciones</com:Name>
+          <com:Name xml:lang="zh">出口</com:Name>
+          <com:Description xml:lang="en">The value and volume of goods and services sold to other countries.</com:Description>
+          <str:Parent>
+            <Ref id="F10"/>
+          </str:Parent>
+        </str:Code>
+        <str:Code id="F10_I" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_TOPIC(2.2.0).F10_I">
+          <com:Name xml:lang="ar">الواردات</com:Name>
+          <com:Name xml:lang="ru">Импорт</com:Name>
+          <com:Name xml:lang="ja">輸入</com:Name>
+          <com:Name xml:lang="en">Imports</com:Name>
+          <com:Name xml:lang="fr">Importations</com:Name>
+          <com:Name xml:lang="es">Importaciones</com:Name>
+          <com:Name xml:lang="zh">进口</com:Name>
+          <com:Description xml:lang="en">The value and volume of goods and services purchased from other countries.</com:Description>
+          <str:Parent>
+            <Ref id="F10"/>
+          </str:Parent>
+        </str:Code>
+        <str:Code id="E23_P" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_TOPIC(2.2.0).E23_P">
+          <com:Name xml:lang="ar">الإنتاج</com:Name>
+          <com:Name xml:lang="ru">Производство</com:Name>
+          <com:Name xml:lang="ja">生産</com:Name>
+          <com:Name xml:lang="en">Production</com:Name>
+          <com:Name xml:lang="fr">Production</com:Name>
+          <com:Name xml:lang="es">Producción</com:Name>
+          <com:Name xml:lang="zh">生产</com:Name>
+          <com:Description xml:lang="en">The output of goods and services in various sectors of the economy.</com:Description>
+          <str:Parent>
+            <Ref id="ECP"/>
+          </str:Parent>
+        </str:Code>
+        <str:Code id="L83" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_TOPIC(2.2.0).L83">
+          <com:Name xml:lang="ar">السياحة</com:Name>
+          <com:Name xml:lang="ru">Туризм</com:Name>
+          <com:Name xml:lang="ja">観光</com:Name>
+          <com:Name xml:lang="en">Tourism</com:Name>
+          <com:Name xml:lang="fr">Tourisme</com:Name>
+          <com:Name xml:lang="es">Turismo</com:Name>
+          <com:Name xml:lang="zh">旅游</com:Name>
+          <com:Description xml:lang="en">The number of tourists visiting a country and their spending.</com:Description>
+          <str:Parent>
+            <Ref id="ECP"/>
+          </str:Parent>
+        </str:Code>
+        <str:Code id="F00" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_TOPIC(2.2.0).F00">
+          <com:Name xml:lang="ar">القطاع الخارجي</com:Name>
+          <com:Name xml:lang="ru">Внешний сектор</com:Name>
+          <com:Name xml:lang="ja">対外セクター</com:Name>
+          <com:Name xml:lang="en">External sector</com:Name>
+          <com:Name xml:lang="fr">Secteur extérieur</com:Name>
+          <com:Name xml:lang="es">Sector externo</com:Name>
+          <com:Name xml:lang="zh">对外部门</com:Name>
+          <com:Description xml:lang="en">International trade, balance of payments, and external debt.</com:Description>
+        </str:Code>
+        <str:Code id="F32" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_TOPIC(2.2.0).F32">
+          <com:Name xml:lang="ar">ميزان المدفوعات</com:Name>
+          <com:Name xml:lang="ru">Платежный баланс</com:Name>
+          <com:Name xml:lang="ja">国際収支</com:Name>
+          <com:Name xml:lang="en">Balance of payments</com:Name>
+          <com:Name xml:lang="fr">Balance des paiements</com:Name>
+          <com:Name xml:lang="es">Balanza de pagos</com:Name>
+          <com:Name xml:lang="zh">国际收支</com:Name>
+          <com:Description xml:lang="en">The recording of all economic transactions between residents of a country and the rest of the world over a specific period, usually a year. This includes transactions related to goods, services, income, and financial assets.</com:Description>
+          <str:Parent>
+            <Ref id="F00"/>
+          </str:Parent>
+        </str:Code>
+        <str:Code id="F32_CA" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_TOPIC(2.2.0).F32_CA">
+          <com:Name xml:lang="ar">الحساب الجاري</com:Name>
+          <com:Name xml:lang="ru">Текущий счет</com:Name>
+          <com:Name xml:lang="ja">経常収支</com:Name>
+          <com:Name xml:lang="en">Current account</com:Name>
+          <com:Name xml:lang="fr">Compte courant</com:Name>
+          <com:Name xml:lang="es">Cuenta corriente</com:Name>
+          <com:Name xml:lang="zh">经常账户</com:Name>
+          <com:Description xml:lang="en">A country's transactions with the rest of the world, including the balance of trade in goods and services, net income from abroad, and net current transfers.</com:Description>
+          <str:Parent>
+            <Ref id="F32"/>
+          </str:Parent>
+        </str:Code>
+        <str:Code id="F32_CAPA" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_TOPIC(2.2.0).F32_CAPA">
+          <com:Name xml:lang="ar">حساب رأس المال</com:Name>
+          <com:Name xml:lang="ru">Счет движения капитала</com:Name>
+          <com:Name xml:lang="ja">資本勘定</com:Name>
+          <com:Name xml:lang="en">Capital account</com:Name>
+          <com:Name xml:lang="fr">Compte de capital</com:Name>
+          <com:Name xml:lang="es">Cuenta de capital</com:Name>
+          <com:Name xml:lang="zh">资本账户</com:Name>
+          <com:Description xml:lang="en">A country's transactions related to capital transfers and the acquisition and disposal of non-produced, non-financial assets.</com:Description>
+          <str:Parent>
+            <Ref id="F32"/>
+          </str:Parent>
+        </str:Code>
+        <str:Code id="F32_FA" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_TOPIC(2.2.0).F32_FA">
+          <com:Name xml:lang="ar">الحساب المالي</com:Name>
+          <com:Name xml:lang="ru">Финансовый счет</com:Name>
+          <com:Name xml:lang="ja">金融勘定</com:Name>
+          <com:Name xml:lang="en">Financial account</com:Name>
+          <com:Name xml:lang="fr">Compte financier</com:Name>
+          <com:Name xml:lang="es">Cuenta financiera</com:Name>
+          <com:Name xml:lang="zh">金融账户</com:Name>
+          <com:Description xml:lang="en">A country's transactions related to financial assets and liabilities, including direct investment, portfolio investment, and other investments.</com:Description>
+          <str:Parent>
+            <Ref id="F32"/>
+          </str:Parent>
+        </str:Code>
+        <str:Code id="F32_FPI" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_TOPIC(2.2.0).F32_FPI">
+          <com:Name xml:lang="ar">الاستثمار الأجنبي في المحافظ</com:Name>
+          <com:Name xml:lang="ru">Иностранные портфельные инвестиции (FPI)</com:Name>
+          <com:Name xml:lang="ja">外国証券投資 (FPI)</com:Name>
+          <com:Name xml:lang="en">Foreign portfolio investment (FPI)</com:Name>
+          <com:Name xml:lang="fr">Investissement de portefeuille étranger</com:Name>
+          <com:Name xml:lang="es">Inversión de cartera extranjera</com:Name>
+          <com:Name xml:lang="zh">外国证券投资 (FPI)</com:Name>
+          <com:Description xml:lang="en">Cross-border investments in financial assets, such as stocks, bonds, and other securities, where investors do not have a controlling stake in the underlying companies.</com:Description>
+          <str:Parent>
+            <Ref id="F32"/>
+          </str:Parent>
+        </str:Code>
+        <str:Code id="F21" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_TOPIC(2.2.0).F21">
+          <com:Name xml:lang="ar">الاستثمار الأجنبي المباشر (FDI)</com:Name>
+          <com:Name xml:lang="ru">Прямые иностранные инвестиции (FDI)</com:Name>
+          <com:Name xml:lang="ja">海外直接投資 (FDI)</com:Name>
+          <com:Name xml:lang="en">Foreign direct investment (FDI)</com:Name>
+          <com:Name xml:lang="fr">Investissement direct étranger (IDE)</com:Name>
+          <com:Name xml:lang="es">Inversión extranjera directa (IED)</com:Name>
+          <com:Name xml:lang="zh">外商直接投资 (FDI)</com:Name>
+          <com:Description xml:lang="en">Cross-border investments in which an investor establishes a lasting interest in an enterprise operating in another country. This includes data on mergers and acquisitions, greenfield investments, and the establishment of subsidiaries or branches.</com:Description>
+          <str:Parent>
+            <Ref id="F32"/>
+          </str:Parent>
+        </str:Code>
+        <str:Code id="F21_EP" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_TOPIC(2.2.0).F21_EP">
+          <com:Name xml:lang="ar">المركز الخارجي</com:Name>
+          <com:Name xml:lang="ru">Внешнее положение</com:Name>
+          <com:Name xml:lang="ja">対外ポジション</com:Name>
+          <com:Name xml:lang="en">External position</com:Name>
+          <com:Name xml:lang="fr">Position extérieure</com:Name>
+          <com:Name xml:lang="es">Posición externa</com:Name>
+          <com:Name xml:lang="zh">对外头寸</com:Name>
+          <com:Description xml:lang="en">A country's overall financial position with respect to the rest of the world at a specific point in time. It combines data from the balance of payments and international investment position (IIP) to provide a snapshot of a country's external assets, liabilities, and net worth.</com:Description>
+          <str:Parent>
+            <Ref id="F00"/>
+          </str:Parent>
+        </str:Code>
+        <str:Code id="F21_IIP" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_TOPIC(2.2.0).F21_IIP">
+          <com:Name xml:lang="ar">مركز الاستثمار الدولي (IIP)</com:Name>
+          <com:Name xml:lang="ru">Международная инвестиционная позиция (IIP)</com:Name>
+          <com:Name xml:lang="ja">国際投資ポジション (IIP)</com:Name>
+          <com:Name xml:lang="en">International investment position (IIP)</com:Name>
+          <com:Name xml:lang="fr">Position extérieure globale (PEG)</com:Name>
+          <com:Name xml:lang="es">Posición de inversión internacional (PII)</com:Name>
+          <com:Name xml:lang="zh">国际投资头寸 (IIP)</com:Name>
+          <com:Description xml:lang="en">A country's stock of external financial assets and liabilities at a specific point in time, including direct investment, portfolio investment, other investments, and reserve assets.</com:Description>
+          <str:Parent>
+            <Ref id="F21_EP"/>
+          </str:Parent>
+        </str:Code>
+        <str:Code id="F34" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_TOPIC(2.2.0).F34">
+          <com:Name xml:lang="ar">الدين الخارجي</com:Name>
+          <com:Name xml:lang="ru">Внешний долг</com:Name>
+          <com:Name xml:lang="ja">対外債務</com:Name>
+          <com:Name xml:lang="en">External debt</com:Name>
+          <com:Name xml:lang="fr">Dette extérieure</com:Name>
+          <com:Name xml:lang="es">Deuda externa</com:Name>
+          <com:Name xml:lang="zh">外债</com:Name>
+          <com:Description xml:lang="en">The total amount of money owed by a country's government, businesses, and individuals to foreign creditors.</com:Description>
+          <str:Parent>
+            <Ref id="F00"/>
+          </str:Parent>
+        </str:Code>
+        <str:Code id="H00" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_TOPIC(2.2.0).H00">
+          <com:Name xml:lang="ar">القطاع المالي</com:Name>
+          <com:Name xml:lang="ru">Фискальный сектор</com:Name>
+          <com:Name xml:lang="ja">財政セクター</com:Name>
+          <com:Name xml:lang="en">Fiscal sector</com:Name>
+          <com:Name xml:lang="fr">Secteur budgétaire</com:Name>
+          <com:Name xml:lang="es">Sector fiscal</com:Name>
+          <com:Name xml:lang="zh">财政部门</com:Name>
+          <com:Description xml:lang="en">Government revenue, expenditure, and debt.</com:Description>
+        </str:Code>
+        <str:Code id="H20" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_TOPIC(2.2.0).H20">
+          <com:Name xml:lang="ar">إدارة الإيرادات</com:Name>
+          <com:Name xml:lang="ru">Налоговое администрирование</com:Name>
+          <com:Name xml:lang="ja">歳入管理</com:Name>
+          <com:Name xml:lang="en">Revenue administration</com:Name>
+          <com:Name xml:lang="fr">Administration des recettes</com:Name>
+          <com:Name xml:lang="es">Administración tributaria</com:Name>
+          <com:Name xml:lang="zh">税收管理</com:Name>
+          <com:Description xml:lang="en">The collection of government revenue, primarily through taxes, fees, and other levies.</com:Description>
+          <str:Parent>
+            <Ref id="H00"/>
+          </str:Parent>
+        </str:Code>
+        <str:Code id="H50" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_TOPIC(2.2.0).H50">
+          <com:Name xml:lang="ar">الإنفاق</com:Name>
+          <com:Name xml:lang="ru">Расходы</com:Name>
+          <com:Name xml:lang="ja">歳出</com:Name>
+          <com:Name xml:lang="en">Expenditure</com:Name>
+          <com:Name xml:lang="fr">Dépenses</com:Name>
+          <com:Name xml:lang="es">Gastos</com:Name>
+          <com:Name xml:lang="zh">支出</com:Name>
+          <com:Description xml:lang="en">Government spending on goods, services, and transfer payments, including details on budget allocations, actual expenditures, and program outcomes.</com:Description>
+          <str:Parent>
+            <Ref id="H00"/>
+          </str:Parent>
+        </str:Code>
+        <str:Code id="H63" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_TOPIC(2.2.0).H63">
+          <com:Name xml:lang="ar">الدين العام</com:Name>
+          <com:Name xml:lang="ru">Государственный долг</com:Name>
+          <com:Name xml:lang="ja">公的債務</com:Name>
+          <com:Name xml:lang="en">Public debt</com:Name>
+          <com:Name xml:lang="fr">Dette publique</com:Name>
+          <com:Name xml:lang="es">Deuda pública</com:Name>
+          <com:Name xml:lang="zh">公共债务</com:Name>
+          <com:Description xml:lang="en">The total outstanding debt owed by a government, encompassing both domestic and external debt, as well as information on the types of debt instruments, interest rates, maturity profiles, and debt-to-GDP ratios.</com:Description>
+          <str:Parent>
+            <Ref id="H00"/>
+          </str:Parent>
+        </str:Code>
+        <str:Code id="G00" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_TOPIC(2.2.0).G00">
+          <com:Name xml:lang="ar">القطاع المالي والنقدي</com:Name>
+          <com:Name xml:lang="ru">Финансовый и денежный сектор</com:Name>
+          <com:Name xml:lang="ja">金融・金融セクター</com:Name>
+          <com:Name xml:lang="en">Financial and monetary sector</com:Name>
+          <com:Name xml:lang="fr">Secteur financier et monétaire</com:Name>
+          <com:Name xml:lang="es">Sector financiero y monetario</com:Name>
+          <com:Name xml:lang="zh">金融和货币部门</com:Name>
+          <com:Description xml:lang="en">Financial institutions, monetary aggregates, and interest rates.</com:Description>
+        </str:Code>
+        <str:Code id="F31" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_TOPIC(2.2.0).F31">
+          <com:Name xml:lang="ar">صرف العملات الأجنبية</com:Name>
+          <com:Name xml:lang="ru">Валютный обмен</com:Name>
+          <com:Name xml:lang="ja">外国為替</com:Name>
+          <com:Name xml:lang="en">Foreign exchange</com:Name>
+          <com:Name xml:lang="fr">Change étranger</com:Name>
+          <com:Name xml:lang="es">Divisas</com:Name>
+          <com:Name xml:lang="zh">外汇</com:Name>
+          <com:Description xml:lang="en">The exchange rates between different currencies, including spot rates, forward rates, and exchange rate regimes, as well as information on foreign exchange reserves, capital flows, and international trade.</com:Description>
+          <str:Parent>
+            <Ref id="G00"/>
+          </str:Parent>
+        </str:Code>
+        <str:Code id="E52_IR" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_TOPIC(2.2.0).E52_IR">
+          <com:Name xml:lang="ar">الاحتياطيات الدولية</com:Name>
+          <com:Name xml:lang="ru">Международные резервы</com:Name>
+          <com:Name xml:lang="ja">外貨準備</com:Name>
+          <com:Name xml:lang="en">International reserves</com:Name>
+          <com:Name xml:lang="fr">Réserves internationales</com:Name>
+          <com:Name xml:lang="es">Reservas internacionales</com:Name>
+          <com:Name xml:lang="zh">国际储备</com:Name>
+          <com:Description xml:lang="en">A country's holdings of external assets, such as foreign currencies, gold, and Special Drawing Rights (SDRs), held by the central bank to meet external financial obligations and stabilize exchange rates.</com:Description>
+          <str:Parent>
+            <Ref id="F31"/>
+          </str:Parent>
+        </str:Code>
+        <str:Code id="F31_ER" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_TOPIC(2.2.0).F31_ER">
+          <com:Name xml:lang="ar">أسعار الصرف</com:Name>
+          <com:Name xml:lang="ru">Обменные курсы</com:Name>
+          <com:Name xml:lang="ja">為替レート</com:Name>
+          <com:Name xml:lang="en">Exchange rates</com:Name>
+          <com:Name xml:lang="fr">Taux de change</com:Name>
+          <com:Name xml:lang="es">Tipos de cambio</com:Name>
+          <com:Name xml:lang="zh">汇率</com:Name>
+          <com:Description xml:lang="en">The price of one currency in terms of another, reflecting the value of a currency relative to other currencies. This includes spot exchange rates, forward rates, and exchange rate regimes.</com:Description>
+          <str:Parent>
+            <Ref id="F31"/>
+          </str:Parent>
+        </str:Code>
+        <str:Code id="E58" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_TOPIC(2.2.0).E58">
+          <com:Name xml:lang="ar">البنوك المركزية</com:Name>
+          <com:Name xml:lang="ru">Центральные банки</com:Name>
+          <com:Name xml:lang="ja">中央銀行</com:Name>
+          <com:Name xml:lang="en">Central banks</com:Name>
+          <com:Name xml:lang="fr">Banques centrales</com:Name>
+          <com:Name xml:lang="es">Bancos centrales</com:Name>
+          <com:Name xml:lang="zh">中央银行</com:Name>
+          <com:Description xml:lang="en">The activities of central banks, such as monetary policy decisions, interest rate setting, open market operations, reserve management, and financial stability measures.</com:Description>
+          <str:Parent>
+            <Ref id="G00"/>
+          </str:Parent>
+        </str:Code>
+        <str:Code id="G21" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_TOPIC(2.2.0).G21">
+          <com:Name xml:lang="ar">الخدمات المصرفية</com:Name>
+          <com:Name xml:lang="ru">Банковское дело</com:Name>
+          <com:Name xml:lang="ja">銀行業務</com:Name>
+          <com:Name xml:lang="en">Banking</com:Name>
+          <com:Name xml:lang="fr">Services bancaires</com:Name>
+          <com:Name xml:lang="es">Banca</com:Name>
+          <com:Name xml:lang="zh">银行业</com:Name>
+          <com:Description xml:lang="en">The activities and performance of the banking sector, including assets, liabilities, capital, deposits, loans, and profitability. This is used to monitor the health and stability of the banking system.</com:Description>
+          <str:Parent>
+            <Ref id="E58"/>
+          </str:Parent>
+        </str:Code>
+        <str:Code id="E58_CBBS" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_TOPIC(2.2.0).E58_CBBS">
+          <com:Name xml:lang="ar">الميزانية العمومية للبنك المركزي</com:Name>
+          <com:Name xml:lang="ru">Баланс центрального банка</com:Name>
+          <com:Name xml:lang="ja">中央銀行のバランスシート</com:Name>
+          <com:Name xml:lang="en">Central bank balance sheet</com:Name>
+          <com:Name xml:lang="fr">Bilan de la banque centrale</com:Name>
+          <com:Name xml:lang="es">Balance de la banca central</com:Name>
+          <com:Name xml:lang="zh">中央银行资产负债表</com:Name>
+          <com:Description xml:lang="en">The assets and liabilities of the central bank, including foreign reserves, government securities, and loans to commercial banks. This provides insights into the central bank's monetary policy operations and its role in the economy.</com:Description>
+          <str:Parent>
+            <Ref id="E58"/>
+          </str:Parent>
+        </str:Code>
+        <str:Code id="E58_CBC" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_TOPIC(2.2.0).E58_CBC">
+          <com:Name xml:lang="ar">ائتمان البنك المركزي</com:Name>
+          <com:Name xml:lang="ru">Кредит центрального банка</com:Name>
+          <com:Name xml:lang="ja">中央銀行信用</com:Name>
+          <com:Name xml:lang="en">Central bank credit</com:Name>
+          <com:Name xml:lang="fr">Crédit de la banque centrale</com:Name>
+          <com:Name xml:lang="es">Crédito de la banca central</com:Name>
+          <com:Name xml:lang="zh">中央银行信贷</com:Name>
+          <com:Description xml:lang="en">The credit extended by the central bank to the banking sector and the government, including discount window lending, repurchase agreements, and emergency lending facilities.</com:Description>
+          <str:Parent>
+            <Ref id="E58"/>
+          </str:Parent>
+        </str:Code>
+        <str:Code id="G10" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_TOPIC(2.2.0).G10">
+          <com:Name xml:lang="ar">الأسواق المالية والخدمات والأدوات المالية</com:Name>
+          <com:Name xml:lang="ru">Финансовые рынки, услуги и инструменты</com:Name>
+          <com:Name xml:lang="ja">金融市場、サービス、および金融商品</com:Name>
+          <com:Name xml:lang="en">Financial markets, services and instruments</com:Name>
+          <com:Name xml:lang="fr">Marchés, services et instruments financiers</com:Name>
+          <com:Name xml:lang="es">Mercados, servicios e instrumentos financieros</com:Name>
+          <com:Name xml:lang="zh">金融市场、服务和工具</com:Name>
+          <com:Description xml:lang="en">The trading and pricing of financial assets, such as stocks, bonds, derivatives, and currencies, as well as information on financial institutions, market infrastructure, and regulatory frameworks.</com:Description>
+          <str:Parent>
+            <Ref id="G00"/>
+          </str:Parent>
+        </str:Code>
+        <str:Code id="G23" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_TOPIC(2.2.0).G23">
+          <com:Name xml:lang="ar">الأدوات المالية</com:Name>
+          <com:Name xml:lang="ru">Финансовые инструменты</com:Name>
+          <com:Name xml:lang="ja">金融商品</com:Name>
+          <com:Name xml:lang="en">Financial instruments</com:Name>
+          <com:Name xml:lang="fr">Instruments financiers</com:Name>
+          <com:Name xml:lang="es">Instrumentos financieros</com:Name>
+          <com:Name xml:lang="zh">金融工具</com:Name>
+          <com:Description xml:lang="en">Various financial instruments, such as stocks, bonds, derivatives, and other securities, including their issuance, trading volumes, prices, and returns.</com:Description>
+          <str:Parent>
+            <Ref id="G10"/>
+          </str:Parent>
+        </str:Code>
+        <str:Code id="G21_L" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_TOPIC(2.2.0).G21_L">
+          <com:Name xml:lang="ar">القروض</com:Name>
+          <com:Name xml:lang="ru">Кредиты</com:Name>
+          <com:Name xml:lang="ja">ローン</com:Name>
+          <com:Name xml:lang="en">Loans</com:Name>
+          <com:Name xml:lang="fr">Prêts</com:Name>
+          <com:Name xml:lang="es">Préstamos</com:Name>
+          <com:Name xml:lang="zh">贷款</com:Name>
+          <com:Description xml:lang="en">The amount of credit extended by financial institutions to households and businesses, including information on loan types, interest rates, maturity profiles, and credit quality.</com:Description>
+          <str:Parent>
+            <Ref id="G10"/>
+          </str:Parent>
+        </str:Code>
+        <str:Code id="G22" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_TOPIC(2.2.0).G22">
+          <com:Name xml:lang="ar">التأمين</com:Name>
+          <com:Name xml:lang="ru">Страхование</com:Name>
+          <com:Name xml:lang="ja">保険</com:Name>
+          <com:Name xml:lang="en">Insurance</com:Name>
+          <com:Name xml:lang="fr">Assurance</com:Name>
+          <com:Name xml:lang="es">Seguros</com:Name>
+          <com:Name xml:lang="zh">保险</com:Name>
+          <com:Description xml:lang="en">The insurance sector, including premiums, claims, assets, liabilities, and profitability of insurance companies.</com:Description>
+          <str:Parent>
+            <Ref id="G10"/>
+          </str:Parent>
+        </str:Code>
+        <str:Code id="E43" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_TOPIC(2.2.0).E43">
+          <com:Name xml:lang="ar">أسعار الفائدة</com:Name>
+          <com:Name xml:lang="ru">Процентные ставки</com:Name>
+          <com:Name xml:lang="ja">金利</com:Name>
+          <com:Name xml:lang="en">Interest rates</com:Name>
+          <com:Name xml:lang="fr">Taux d'intérêt</com:Name>
+          <com:Name xml:lang="es">Tasas de interés</com:Name>
+          <com:Name xml:lang="zh">利率</com:Name>
+          <com:Description xml:lang="en">The cost of borrowing and the return on savings, typically expressed as a percentage of the principal amount. This includes data on various interest rate benchmarks, such as the policy rate set by the central bank, interbank rates, and lending rates for different types of borrowers.</com:Description>
+          <str:Parent>
+            <Ref id="G10"/>
+          </str:Parent>
+        </str:Code>
+        <str:Code id="G10_FA" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_TOPIC(2.2.0).G10_FA">
+          <com:Name xml:lang="ar">الوصول إلى التمويل</com:Name>
+          <com:Name xml:lang="ru">Финансовый доступ</com:Name>
+          <com:Name xml:lang="ja">金融アクセス</com:Name>
+          <com:Name xml:lang="en">Financial access</com:Name>
+          <com:Name xml:lang="fr">Accès financier</com:Name>
+          <com:Name xml:lang="es">Acceso financiero</com:Name>
+          <com:Name xml:lang="zh">金融服务</com:Name>
+          <com:Description xml:lang="en">The availability and affordability of financial services, such as bank accounts, credit, insurance, and payment systems, for individuals and businesses.</com:Description>
+          <str:Parent>
+            <Ref id="G10"/>
+          </str:Parent>
+        </str:Code>
+        <str:Code id="G18" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_TOPIC(2.2.0).G18">
+          <com:Name xml:lang="ar">استقرار القطاع المالي</com:Name>
+          <com:Name xml:lang="ru">Стабильность финансового сектора</com:Name>
+          <com:Name xml:lang="ja">金融セクターの安定性</com:Name>
+          <com:Name xml:lang="en">Financial sector stability</com:Name>
+          <com:Name xml:lang="fr">Stabilité du secteur financier</com:Name>
+          <com:Name xml:lang="es">Estabilidad del sector financiero</com:Name>
+          <com:Name xml:lang="zh">金融部门稳定性</com:Name>
+          <com:Description xml:lang="en">The resilience of the financial system to shocks and its ability to withstand financial stress, including indicators of asset quality, capital adequacy, liquidity, profitability, and risk management practices of financial institutions.</com:Description>
+          <str:Parent>
+            <Ref id="G00"/>
+          </str:Parent>
+        </str:Code>
+        <str:Code id="G18_FSA" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_TOPIC(2.2.0).G18_FSA">
+          <com:Name xml:lang="ar">تقييم الاستقرار المالي</com:Name>
+          <com:Name xml:lang="ru">Оценка финансовой стабильности</com:Name>
+          <com:Name xml:lang="ja">金融安定性評価</com:Name>
+          <com:Name xml:lang="en">Financial stability assessment</com:Name>
+          <com:Name xml:lang="fr">Évaluation de la stabilité financière</com:Name>
+          <com:Name xml:lang="es">Evaluación de la estabilidad financiera</com:Name>
+          <com:Name xml:lang="zh">金融稳定评估</com:Name>
+          <com:Description xml:lang="en">The evaluation of the resilience of the financial system to shocks and its ability to withstand financial stress. This includes indicators of asset quality, capital adequacy, liquidity, profitability, and risk management practices of financial institutions.</com:Description>
+          <str:Parent>
+            <Ref id="G18"/>
+          </str:Parent>
+        </str:Code>
+        <str:Code id="G33" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_TOPIC(2.2.0).G33">
+          <com:Name xml:lang="ar">الملاءة المالية</com:Name>
+          <com:Name xml:lang="ru">Платежеспособность</com:Name>
+          <com:Name xml:lang="ja">支払能力</com:Name>
+          <com:Name xml:lang="en">Solvency</com:Name>
+          <com:Name xml:lang="fr">Solvabilité</com:Name>
+          <com:Name xml:lang="es">Solvencia</com:Name>
+          <com:Name xml:lang="zh">偿付能力</com:Name>
+          <com:Description xml:lang="en">The ability of a financial institution or a government to meet its long-term financial obligations, including the payment of interest and principal on debt.</com:Description>
+          <str:Parent>
+            <Ref id="G18"/>
+          </str:Parent>
+        </str:Code>
+        <str:Code id="G28" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_TOPIC(2.2.0).G28">
+          <com:Name xml:lang="ar">اختبارات تحمل الضغوط</com:Name>
+          <com:Name xml:lang="ru">Стресс-тестирование</com:Name>
+          <com:Name xml:lang="ja">ストレステスト</com:Name>
+          <com:Name xml:lang="en">Stress testing</com:Name>
+          <com:Name xml:lang="fr">Tests de résistance</com:Name>
+          <com:Name xml:lang="es">Pruebas de resistencia</com:Name>
+          <com:Name xml:lang="zh">压力测试</com:Name>
+          <com:Description xml:lang="en">The simulation of adverse economic scenarios to assess the resilience of financial institutions and the broader financial system to potential shocks.</com:Description>
+          <str:Parent>
+            <Ref id="G18"/>
+          </str:Parent>
+        </str:Code>
+        <str:Code id="G18_SR" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_TOPIC(2.2.0).G18_SR">
+          <com:Name xml:lang="ar">المخاطر الجهازية</com:Name>
+          <com:Name xml:lang="ru">Системный риск</com:Name>
+          <com:Name xml:lang="ja">システミック・リスク</com:Name>
+          <com:Name xml:lang="en">Systemic risk</com:Name>
+          <com:Name xml:lang="fr">Risque systémique</com:Name>
+          <com:Name xml:lang="es">Riesgo sistémico</com:Name>
+          <com:Name xml:lang="zh">系统性风险</com:Name>
+          <com:Description xml:lang="en">The risk of a widespread disruption to the financial system that could have severe consequences for the broader economy. This includes indicators of interconnectedness, leverage, and concentration in the financial system.</com:Description>
+          <str:Parent>
+            <Ref id="G18"/>
+          </str:Parent>
+        </str:Code>
+        <str:Code id="G18_FSR" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_TOPIC(2.2.0).G18_FSR">
+          <com:Name xml:lang="ar">مخاطر القطاع المالي</com:Name>
+          <com:Name xml:lang="ru">Риск финансового сектора</com:Name>
+          <com:Name xml:lang="ja">金融セクターリスク</com:Name>
+          <com:Name xml:lang="en">Financial sector risk</com:Name>
+          <com:Name xml:lang="fr">Risque du secteur financier</com:Name>
+          <com:Name xml:lang="es">Riesgo del sector financiero</com:Name>
+          <com:Name xml:lang="zh">金融部门风险</com:Name>
+          <com:Description xml:lang="en">The specific risks faced by different types of financial institutions, such as credit risk, market risk, operational risk, and liquidity risk.</com:Description>
+          <str:Parent>
+            <Ref id="G18"/>
+          </str:Parent>
+        </str:Code>
+        <str:Code id="G10_S" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_TOPIC(2.2.0).G10_S">
+          <com:Name xml:lang="ar">الأوراق المالية</com:Name>
+          <com:Name xml:lang="ru">Ценные бумаги</com:Name>
+          <com:Name xml:lang="ja">証券</com:Name>
+          <com:Name xml:lang="en">Securities</com:Name>
+          <com:Name xml:lang="fr">Titres financiers</com:Name>
+          <com:Name xml:lang="es">Valores</com:Name>
+          <com:Name xml:lang="zh">证券</com:Name>
+          <com:Description xml:lang="en">Financial instruments that represent ownership in a company (stocks) or debt obligations (bonds). This includes information on issuance, trading volumes, prices, and returns.</com:Description>
+          <str:Parent>
+            <Ref id="G18"/>
+          </str:Parent>
+        </str:Code>
+        <str:Code id="G21_D" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_TOPIC(2.2.0).G21_D">
+          <com:Name xml:lang="ar">الودائع</com:Name>
+          <com:Name xml:lang="ru">Депозиты</com:Name>
+          <com:Name xml:lang="ja">預金</com:Name>
+          <com:Name xml:lang="en">Deposits</com:Name>
+          <com:Name xml:lang="fr">Dépôts</com:Name>
+          <com:Name xml:lang="es">Depósitos</com:Name>
+          <com:Name xml:lang="zh">存款</com:Name>
+          <com:Description xml:lang="en">The funds held by individuals and businesses in bank accounts, including demand deposits, time deposits, and savings accounts.</com:Description>
+          <str:Parent>
+            <Ref id="G18"/>
+          </str:Parent>
+        </str:Code>
+        <str:Code id="G23_FD" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_TOPIC(2.2.0).G23_FD">
+          <com:Name xml:lang="ar">المشتقات المالية</com:Name>
+          <com:Name xml:lang="ru">Финансовые деривативы</com:Name>
+          <com:Name xml:lang="ja">金融派生商品</com:Name>
+          <com:Name xml:lang="en">Financial derivatives</com:Name>
+          <com:Name xml:lang="fr">Produits dérivés financiers</com:Name>
+          <com:Name xml:lang="es">Derivados financieros</com:Name>
+          <com:Name xml:lang="zh">金融衍生品</com:Name>
+          <com:Description xml:lang="en">Financial contracts whose value is derived from an underlying asset, such as stocks, bonds, commodities, or currencies.</com:Description>
+          <str:Parent>
+            <Ref id="G18"/>
+          </str:Parent>
+        </str:Code>
+        <str:Code id="G20" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_TOPIC(2.2.0).G20">
+          <com:Name xml:lang="ar">المؤسسات المالية</com:Name>
+          <com:Name xml:lang="ru">Финансовые учреждения</com:Name>
+          <com:Name xml:lang="ja">金融機関</com:Name>
+          <com:Name xml:lang="en">Financial institutions</com:Name>
+          <com:Name xml:lang="fr">Institutions financières</com:Name>
+          <com:Name xml:lang="es">Instituciones financieras</com:Name>
+          <com:Name xml:lang="zh">金融机构</com:Name>
+          <com:Description xml:lang="en">The financial activities and performance of banks, insurance companies, pension funds, investment funds, and other financial intermediaries, including balance sheets, income statements, and risk exposures.</com:Description>
+          <str:Parent>
+            <Ref id="G00"/>
+          </str:Parent>
+        </str:Code>
+        <str:Code id="G21_CB" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_TOPIC(2.2.0).G21_CB">
+          <com:Name xml:lang="ar">البنوك التجارية</com:Name>
+          <com:Name xml:lang="ru">Коммерческие банки</com:Name>
+          <com:Name xml:lang="ja">商業銀行</com:Name>
+          <com:Name xml:lang="en">Commercial banks</com:Name>
+          <com:Name xml:lang="fr">Banques commerciales</com:Name>
+          <com:Name xml:lang="es">Bancos comerciales</com:Name>
+          <com:Name xml:lang="zh">商业银行</com:Name>
+          <com:Description xml:lang="en">The financial activities and performance of commercial banks, which are the primary providers of credit and deposit services to households and businesses. This includes balance sheets, income statements, and risk exposures.</com:Description>
+          <str:Parent>
+            <Ref id="G20"/>
+          </str:Parent>
+        </str:Code>
+        <str:Code id="G23_NFI" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_TOPIC(2.2.0).G23_NFI">
+          <com:Name xml:lang="ar">المؤسسات المالية غير المصرفية</com:Name>
+          <com:Name xml:lang="ru">Небанковские финансовые учреждения</com:Name>
+          <com:Name xml:lang="ja">ノンバンク金融機関</com:Name>
+          <com:Name xml:lang="en">Nonbank financial institutions</com:Name>
+          <com:Name xml:lang="fr">Institutions financières non bancaires</com:Name>
+          <com:Name xml:lang="es">Instituciones financieras no bancarias</com:Name>
+          <com:Name xml:lang="zh">非银行金融机构</com:Name>
+          <com:Description xml:lang="en">The activities and performance of financial institutions that are not banks, such as insurance companies, pension funds, investment funds, and other financial intermediaries.</com:Description>
+          <str:Parent>
+            <Ref id="G20"/>
+          </str:Parent>
+        </str:Code>
+        <str:Code id="E52" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_TOPIC(2.2.0).E52">
+          <com:Name xml:lang="ar">السياسة النقدية</com:Name>
+          <com:Name xml:lang="ru">Монетарная политика</com:Name>
+          <com:Name xml:lang="ja">金融政策</com:Name>
+          <com:Name xml:lang="en">Monetary policy</com:Name>
+          <com:Name xml:lang="fr">Politique monétaire</com:Name>
+          <com:Name xml:lang="es">Política monetaria</com:Name>
+          <com:Name xml:lang="zh">货币政策</com:Name>
+          <com:Description xml:lang="en">The actions taken by central banks to influence the availability and cost of money in the economy, such as interest rate changes, quantitative easing, and other monetary policy tools.</com:Description>
+          <str:Parent>
+            <Ref id="G00"/>
+          </str:Parent>
+        </str:Code>
+        <str:Code id="E52_RR" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_TOPIC(2.2.0).E52_RR">
+          <com:Name xml:lang="ar">متطلبات الاحتياطي</com:Name>
+          <com:Name xml:lang="ru">Требования к резервам</com:Name>
+          <com:Name xml:lang="ja">預金準備率</com:Name>
+          <com:Name xml:lang="en">Reserve requirements</com:Name>
+          <com:Name xml:lang="fr">Réserves obligatoires</com:Name>
+          <com:Name xml:lang="es">Requisitos de reserva</com:Name>
+          <com:Name xml:lang="zh">法定存款准备金</com:Name>
+          <com:Description xml:lang="en">The minimum amount of reserves that banks are required to hold against their deposits, as mandated by the central bank.</com:Description>
+          <str:Parent>
+            <Ref id="E52"/>
+          </str:Parent>
+        </str:Code>
+        <str:Code id="E51" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_TOPIC(2.2.0).E51">
+          <com:Name xml:lang="ar">النقود</com:Name>
+          <com:Name xml:lang="ru">Деньги</com:Name>
+          <com:Name xml:lang="ja">マネー</com:Name>
+          <com:Name xml:lang="en">Money</com:Name>
+          <com:Name xml:lang="fr">Monnaie</com:Name>
+          <com:Name xml:lang="es">Dinero</com:Name>
+          <com:Name xml:lang="zh">货币</com:Name>
+          <com:Description xml:lang="en">The various forms of money in circulation, including currency, demand deposits, and other liquid assets.</com:Description>
+          <str:Parent>
+            <Ref id="E52"/>
+          </str:Parent>
+        </str:Code>
+        <str:Code id="E50" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_TOPIC(2.2.0).E50">
+          <com:Name xml:lang="ar">المجاميع النقدية</com:Name>
+          <com:Name xml:lang="ru">Денежные агрегаты</com:Name>
+          <com:Name xml:lang="ja">マネタリー・アグリゲーツ</com:Name>
+          <com:Name xml:lang="en">Monetary aggregates</com:Name>
+          <com:Name xml:lang="fr">Agrégats monétaires</com:Name>
+          <com:Name xml:lang="es">Agregados monetarios</com:Name>
+          <com:Name xml:lang="zh">货币总量</com:Name>
+          <com:Description xml:lang="en">The total stock of money in circulation, including currency in circulation, demand deposits, and other liquid assets. Monetary aggregates are used as indicators of economic activity and to gauge the impact of monetary policy.</com:Description>
+          <str:Parent>
+            <Ref id="E52"/>
+          </str:Parent>
+        </str:Code>
+        <str:Code id="E50_MB" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_TOPIC(2.2.0).E50_MB">
+          <com:Name xml:lang="ar">القاعدة النقدية</com:Name>
+          <com:Name xml:lang="ru">Денежная база</com:Name>
+          <com:Name xml:lang="ja">マネタリーベース</com:Name>
+          <com:Name xml:lang="en">Monetary base</com:Name>
+          <com:Name xml:lang="fr">Base monétaire</com:Name>
+          <com:Name xml:lang="es">Base monetaria</com:Name>
+          <com:Name xml:lang="zh">货币基础</com:Name>
+          <com:Description xml:lang="en">The total amount of currency in circulation and reserves held by commercial banks at the central bank. The monetary base is a key component of the money supply and is directly controlled by the central bank.</com:Description>
+          <str:Parent>
+            <Ref id="E52"/>
+          </str:Parent>
+        </str:Code>
+        <str:Code id="E50_CA" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_TOPIC(2.2.0).E50_CA">
+          <com:Name xml:lang="ar">إجماليات الائتمان</com:Name>
+          <com:Name xml:lang="ru">Кредитные агрегаты</com:Name>
+          <com:Name xml:lang="ja">信用総量</com:Name>
+          <com:Name xml:lang="en">Credit aggregates</com:Name>
+          <com:Name xml:lang="fr">Agrégats de crédit</com:Name>
+          <com:Name xml:lang="es">Agregados crediticios</com:Name>
+          <com:Name xml:lang="zh">信贷总量</com:Name>
+          <com:Description xml:lang="en">The total amount of credit outstanding in the economy, including loans to households, businesses, and the government.</com:Description>
+          <str:Parent>
+            <Ref id="E52"/>
+          </str:Parent>
+        </str:Code>
+        <str:Code id="E44" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_TOPIC(2.2.0).E44">
+          <com:Name xml:lang="ar">التحليل المالي الكلي</com:Name>
+          <com:Name xml:lang="ru">Макрофинансовый анализ</com:Name>
+          <com:Name xml:lang="ja">マクロ金融分析</com:Name>
+          <com:Name xml:lang="en">Macrofinancial analysis</com:Name>
+          <com:Name xml:lang="fr">Analyse macrofinancière</com:Name>
+          <com:Name xml:lang="es">Análisis macrofinanciero</com:Name>
+          <com:Name xml:lang="zh">宏观金融分析</com:Name>
+          <com:Description xml:lang="en">The assessment of the overall health and stability of a country's financial system, including its interactions with the broader economy. This encompasses indicators of credit growth, asset prices, capital flows, and other financial variables that can affect economic stability.</com:Description>
+          <str:Parent>
+            <Ref id="G00"/>
+          </str:Parent>
+        </str:Code>
+        <str:Code id="E32" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_TOPIC(2.2.0).E32">
+          <com:Name xml:lang="ar">الدورات المالية</com:Name>
+          <com:Name xml:lang="ru">Финансовые циклы</com:Name>
+          <com:Name xml:lang="ja">金融サイクル</com:Name>
+          <com:Name xml:lang="en">Financial cycles</com:Name>
+          <com:Name xml:lang="fr">Cycles financiers</com:Name>
+          <com:Name xml:lang="es">Ciclos financieros</com:Name>
+          <com:Name xml:lang="zh">金融周期</com:Name>
+          <com:Description xml:lang="en">The fluctuations in financial variables over time, such as credit growth, asset prices, and leverage.</com:Description>
+          <str:Parent>
+            <Ref id="E44"/>
+          </str:Parent>
+        </str:Code>
+        <str:Code id="E44_ML" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_TOPIC(2.2.0).E44_ML">
+          <com:Name xml:lang="ar">الروابط المالية الكلية</com:Name>
+          <com:Name xml:lang="ru">Макрофинансовые связи</com:Name>
+          <com:Name xml:lang="ja">マクロ金融リンケージ</com:Name>
+          <com:Name xml:lang="en">Macrofinancial linkages</com:Name>
+          <com:Name xml:lang="fr">Liens macrofinanciers</com:Name>
+          <com:Name xml:lang="es">Vínculos macrofinancieros</com:Name>
+          <com:Name xml:lang="zh">宏观金融联系</com:Name>
+          <com:Description xml:lang="en">The interconnections between the financial sector and the broader economy, including the transmission channels through which financial shocks can affect economic activity and vice versa.</com:Description>
+          <str:Parent>
+            <Ref id="E44"/>
+          </str:Parent>
+        </str:Code>
+        <str:Code id="E44_MP" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_TOPIC(2.2.0).E44_MP">
+          <com:Name xml:lang="ar">السياسة الاحترازية الكلية</com:Name>
+          <com:Name xml:lang="ru">Макропруденциальная политика</com:Name>
+          <com:Name xml:lang="ja">マクロプルーデンス政策</com:Name>
+          <com:Name xml:lang="en">Macroprudential policy</com:Name>
+          <com:Name xml:lang="fr">Politique macroprudentielle</com:Name>
+          <com:Name xml:lang="es">Política macroprudencial</com:Name>
+          <com:Name xml:lang="zh">宏观审慎政策</com:Name>
+          <com:Description xml:lang="en">Policies and regulations designed to mitigate systemic risks in the financial system, such as capital requirements, leverage ratios, and borrower-based measures.</com:Description>
+          <str:Parent>
+            <Ref id="G00"/>
+          </str:Parent>
+        </str:Code>
+        <str:Code id="E44_MPI" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_TOPIC(2.2.0).E44_MPI">
+          <com:Name xml:lang="ar">أدوات السياسة الاحترازية الكلية</com:Name>
+          <com:Name xml:lang="ru">Макропруденциальные инструменты политики</com:Name>
+          <com:Name xml:lang="ja">マクロプルーデンス政策手段</com:Name>
+          <com:Name xml:lang="en">Macroprudential policy instruments</com:Name>
+          <com:Name xml:lang="fr">Instruments de politique macroprudentielle</com:Name>
+          <com:Name xml:lang="es">Instrumentos de política macroprudencial</com:Name>
+          <com:Name xml:lang="zh">宏观审慎政策工具</com:Name>
+          <com:Description xml:lang="en">The specific tools used by policymakers to mitigate systemic risks in the financial system, such as capital buffers, leverage ratios, and borrower-based measures.</com:Description>
+          <str:Parent>
+            <Ref id="E44_MP"/>
+          </str:Parent>
+        </str:Code>
+        <str:Code id="E44_MA" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_TOPIC(2.2.0).E44_MA">
+          <com:Name xml:lang="ar">التحليل الاحترازي الكلي</com:Name>
+          <com:Name xml:lang="ru">Макропруденциальный анализ</com:Name>
+          <com:Name xml:lang="ja">マクロプルーデンス分析</com:Name>
+          <com:Name xml:lang="en">Macroprudential analysis</com:Name>
+          <com:Name xml:lang="fr">Analyse macroprudentielle</com:Name>
+          <com:Name xml:lang="es">Análisis macroprudencial</com:Name>
+          <com:Name xml:lang="zh">宏观审慎分析</com:Name>
+          <com:Description xml:lang="en">The assessment of systemic risks and vulnerabilities in the financial system, using both quantitative and qualitative methods.</com:Description>
+          <str:Parent>
+            <Ref id="E44_MP"/>
+          </str:Parent>
+        </str:Code>
+        <str:Code id="G10_FSR" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_TOPIC(2.2.0).G10_FSR">
+          <com:Name xml:lang="ar">الرقابة والتنظيم الماليين</com:Name>
+          <com:Name xml:lang="ru">Финансовый надзор и регулирование</com:Name>
+          <com:Name xml:lang="ja">金融監督と規制</com:Name>
+          <com:Name xml:lang="en">Financial supervision and regulation</com:Name>
+          <com:Name xml:lang="fr">Supervision et réglementation financières</com:Name>
+          <com:Name xml:lang="es">Supervisión y regulación financieras</com:Name>
+          <com:Name xml:lang="zh">金融监管</com:Name>
+          <com:Description xml:lang="en">The oversight and enforcement activities of regulatory bodies overseeing financial institutions and markets. This includes information on regulatory frameworks, supervisory practices, and enforcement actions.</com:Description>
+          <str:Parent>
+            <Ref id="G00"/>
+          </str:Parent>
+        </str:Code>
+        <str:Code id="G28_BR" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_TOPIC(2.2.0).G28_BR">
+          <com:Name xml:lang="ar">تنظيم البنوك</com:Name>
+          <com:Name xml:lang="ru">Банковское регулирование</com:Name>
+          <com:Name xml:lang="ja">銀行規制</com:Name>
+          <com:Name xml:lang="en">Bank regulation</com:Name>
+          <com:Name xml:lang="fr">Réglementation bancaire</com:Name>
+          <com:Name xml:lang="es">Regulación bancaria</com:Name>
+          <com:Name xml:lang="zh">银行监管</com:Name>
+          <com:Description xml:lang="en">The rules and regulations governing the operations of banks, including capital requirements, liquidity requirements, and risk management standards.</com:Description>
+          <str:Parent>
+            <Ref id="G10_FSR"/>
+          </str:Parent>
+        </str:Code>
+        <str:Code id="G32" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_TOPIC(2.2.0).G32">
+          <com:Name xml:lang="ar">إدارة مخاطر البنوك</com:Name>
+          <com:Name xml:lang="ru">Управление банковскими рисками</com:Name>
+          <com:Name xml:lang="ja">銀行リスク管理</com:Name>
+          <com:Name xml:lang="en">Bank risk management</com:Name>
+          <com:Name xml:lang="fr">Gestion des risques bancaires</com:Name>
+          <com:Name xml:lang="es">Gestión de riesgos bancarios</com:Name>
+          <com:Name xml:lang="zh">银行风险管理</com:Name>
+          <com:Description xml:lang="en">The practices and procedures used by banks to identify, assess, and mitigate risks, such as credit risk, market risk, operational risk, and liquidity risk.</com:Description>
+          <str:Parent>
+            <Ref id="G10_FSR"/>
+          </str:Parent>
+        </str:Code>
+        <str:Code id="G18_NFIS" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_TOPIC(2.2.0).G18_NFIS">
+          <com:Name xml:lang="ar">الإشراف على المؤسسات المالية غير المصرفية</com:Name>
+          <com:Name xml:lang="ru">Надзор за небанковскими финансовыми учреждениями</com:Name>
+          <com:Name xml:lang="ja">ノンバンク金融機関監督</com:Name>
+          <com:Name xml:lang="en">Nonbank financial institution supervision</com:Name>
+          <com:Name xml:lang="fr">Supervision des institutions financières non bancaires</com:Name>
+          <com:Name xml:lang="es">Supervisión de instituciones financieras no bancarias</com:Name>
+          <com:Name xml:lang="zh">非银行金融机构监管</com:Name>
+          <com:Description xml:lang="en">The oversight and regulation of nonbank financial institutions, such as insurance companies, pension funds, and investment funds.</com:Description>
+          <str:Parent>
+            <Ref id="G10_FSR"/>
+          </str:Parent>
+        </str:Code>
+        <str:Code id="G15" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_TOPIC(2.2.0).G15">
+          <com:Name xml:lang="ar">إدارة الأصول والخصوم</com:Name>
+          <com:Name xml:lang="ru">Управление активами и пассивами (ALM)</com:Name>
+          <com:Name xml:lang="ja">資産負債管理</com:Name>
+          <com:Name xml:lang="en">Asset and liability management (ALM)</com:Name>
+          <com:Name xml:lang="fr">Gestion actif-passif</com:Name>
+          <com:Name xml:lang="es">Gestión de activos y pasivos</com:Name>
+          <com:Name xml:lang="zh">资产负债管理</com:Name>
+          <com:Description xml:lang="en">The strategies and practices employed by financial institutions to manage their assets and liabilities, including interest rate risk, liquidity risk, and credit risk. This is used to assess the effectiveness of ALM in maintaining financial soundness.</com:Description>
+          <str:Parent>
+            <Ref id="G00"/>
+          </str:Parent>
+        </str:Code>
+        <str:Code id="G11" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_TOPIC(2.2.0).G11">
+          <com:Name xml:lang="ar">مقاييس مخاطر الخصوم</com:Name>
+          <com:Name xml:lang="ru">Меры риска обязательств</com:Name>
+          <com:Name xml:lang="ja">負債リスク指標</com:Name>
+          <com:Name xml:lang="en">Liability risk measures</com:Name>
+          <com:Name xml:lang="fr">Mesures du risque de passif</com:Name>
+          <com:Name xml:lang="es">Medidas de riesgo de pasivo</com:Name>
+          <com:Name xml:lang="zh">负债风险度量</com:Name>
+          <com:Description xml:lang="en">Various measures used to assess the riskiness of an institution's liabilities, such as the maturity mismatch between assets and liabilities, the volatility of funding sources, and the potential for runs on deposits.</com:Description>
+          <str:Parent>
+            <Ref id="G15"/>
+          </str:Parent>
+        </str:Code>
+        <str:Code id="EFA" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_TOPIC(2.2.0).EFA">
+          <com:Name xml:lang="ar">التوقعات والتحليلات الاقتصادية</com:Name>
+          <com:Name xml:lang="ru">Экономические прогнозы и анализ</com:Name>
+          <com:Name xml:lang="ja">経済予測と分析</com:Name>
+          <com:Name xml:lang="en">Economic forecasts and analysis</com:Name>
+          <com:Name xml:lang="fr">Prévisions et analyses économiques</com:Name>
+          <com:Name xml:lang="es">Previsiones y análisis económicos</com:Name>
+          <com:Name xml:lang="zh">经济预测与分析</com:Name>
+          <com:Description xml:lang="en">Economic forecasts, policy analysis, and other economic research.</com:Description>
+        </str:Code>
+        <str:Code id="C53" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_TOPIC(2.2.0).C53">
+          <com:Name xml:lang="ar">التنبؤ الاقتصادي</com:Name>
+          <com:Name xml:lang="ru">Экономическое прогнозирование</com:Name>
+          <com:Name xml:lang="ja">経済予測</com:Name>
+          <com:Name xml:lang="en">Economic forecasting</com:Name>
+          <com:Name xml:lang="fr">Prévisions économiques</com:Name>
+          <com:Name xml:lang="es">Previsiones económicas</com:Name>
+          <com:Name xml:lang="zh">经济预测</com:Name>
+          <com:Description xml:lang="en">Economic forecasts for various countries and regions.</com:Description>
+          <str:Parent>
+            <Ref id="EFA"/>
+          </str:Parent>
+        </str:Code>
+        <str:Code id="FAC" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_TOPIC(2.2.0).FAC">
+          <com:Name xml:lang="ar">حسابات الصندوق</com:Name>
+          <com:Name xml:lang="ru">Счета фонда</com:Name>
+          <com:Name xml:lang="ja">基金勘定</com:Name>
+          <com:Name xml:lang="en">Fund accounts</com:Name>
+          <com:Name xml:lang="fr">Comptes de fonds</com:Name>
+          <com:Name xml:lang="es">Cuentas de fondos</com:Name>
+          <com:Name xml:lang="zh">基金账户</com:Name>
+          <com:Description xml:lang="en">The IMF's financial accounts and resources.</com:Description>
+        </str:Code>
+        <str:Code id="FAC_A" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_TOPIC(2.2.0).FAC_A">
+          <com:Name xml:lang="ar">البيانات المالية لصندوق النقد الدولي</com:Name>
+          <com:Name xml:lang="ru">Финансовые данные МВФ</com:Name>
+          <com:Name xml:lang="ja">IMF金融データ</com:Name>
+          <com:Name xml:lang="en">IMF Financial data</com:Name>
+          <com:Name xml:lang="fr">Données financières du FMI</com:Name>
+          <com:Name xml:lang="es">Datos financieros del FMI</com:Name>
+          <com:Name xml:lang="zh">国际货币基金组织金融数据</com:Name>
+          <com:Description xml:lang="en">The IMF's financial operations and lending activities.</com:Description>
+          <str:Parent>
+            <Ref id="FAC"/>
+          </str:Parent>
+        </str:Code>
+        <str:Code id="FAC_B" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_TOPIC(2.2.0).FAC_B">
+          <com:Name xml:lang="ar">تقارير مراقبة صندوق النقد الدولي</com:Name>
+          <com:Name xml:lang="ru">Отчеты МВФ о мониторинге</com:Name>
+          <com:Name xml:lang="ja">IMFサーベイランスレポート</com:Name>
+          <com:Name xml:lang="en">IMF Surveillance reports</com:Name>
+          <com:Name xml:lang="fr">Rapports de surveillance du FMI</com:Name>
+          <com:Name xml:lang="es">Informes de vigilancia del FMI</com:Name>
+          <com:Name xml:lang="zh">国际货币基金组织监督报告</com:Name>
+          <com:Description xml:lang="en">Reports on the IMF's surveillance of member countries' economic and financial policies.</com:Description>
+          <str:Parent>
+            <Ref id="FAC"/>
+          </str:Parent>
+        </str:Code>
+        <str:Code id="WP" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_TOPIC(2.2.0).WP">
+          <com:Name xml:lang="en">Working papers datasets</com:Name>
+          <com:Description xml:lang="en">Datasets relating to working papers, which are typically preliminary research papers that present new findings, methodologies, or analysis for academic or policy-related discussion.</com:Description>
+        </str:Code>
+        <str:Code id="IFS" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_TOPIC(2.2.0).IFS">
+          <com:Name xml:lang="en">International Financial Statistics (IFS)</com:Name>
+          <com:Description xml:lang="en">Datasets underlying the International Financial Statistics, one of the Fund’s principal statistical compilations. Available since 1948, it has broad geographic and conceptual coverage. </com:Description>
+        </str:Code>
+        <str:Code id="WEO" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_TOPIC(2.2.0).WEO">
+          <com:Name xml:lang="en">World Economic Outlook (WEO)</com:Name>
+          <com:Description xml:lang="en">Datasets related to the World Economic Outlook and Regional Economic Outlooks</com:Description>
+        </str:Code>
+      </str:Codelist>
+    </str:Codelists>
+  </mes:Structures>
+</mes:Structure>

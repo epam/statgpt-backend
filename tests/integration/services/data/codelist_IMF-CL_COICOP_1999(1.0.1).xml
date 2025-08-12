@@ -1,0 +1,82 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<mes:Structure xmlns:mes="http://www.sdmx.org/resources/sdmxml/schemas/v2_1/message" xmlns:str="http://www.sdmx.org/resources/sdmxml/schemas/v2_1/structure" xmlns:com="http://www.sdmx.org/resources/sdmxml/schemas/v2_1/common" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xml="http://www.w3.org/XML/1998/namespace" xsi:schemaLocation="http://www.sdmx.org/resources/sdmxml/schemas/v2_1/message ../../schemas/SDMXMessage.xsd">
+  <mes:Header>
+    <mes:ID>IDREF8510</mes:ID>
+    <mes:Test>false</mes:Test>
+    <mes:Prepared>2025-07-29T09:58:25.545417931Z</mes:Prepared>
+    <mes:Sender id="unknown"/>
+  </mes:Header>
+  <mes:Structures>
+    <str:Codelists>
+      <str:Codelist urn="urn:sdmx:org.sdmx.infomodel.codelist.Codelist=IMF:CL_COICOP_1999(1.0.1)" agencyID="IMF" id="CL_COICOP_1999" version="1.0.1" isFinal="true" isExternalReference="false" isPartial="false">
+        <com:Annotations>
+          <com:Annotation id="origin"/>
+          <com:Annotation id="isFinal"/>
+          <com:Annotation id="lastUpdatedAt"/>
+        </com:Annotations>
+        <com:Name xml:lang="en">COICOP 1999</com:Name>
+        <com:Description xml:lang="en">This codelist represents a standardized classification system developed by the United Nations Statistics Division to categorize household consumption expenditures by purpose. It includes 14 divisions, 47 groups, and 117 classes.</com:Description>
+        <str:Code id="CP01" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COICOP_1999(1.0.1).CP01">
+          <com:Name xml:lang="en">Food and non-alcoholic beverages</com:Name>
+          <com:Description xml:lang="en">Food and non-alcholoic beverages consumer price index is produced using prices related to food items and non-alcoholic beverages such as fresh produce, packaged foods, and beverages excluding alcoholic drinks, aggregated by their respective consumer expenditure weights.</com:Description>
+        </str:Code>
+        <str:Code id="CP02" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COICOP_1999(1.0.1).CP02">
+          <com:Name xml:lang="en">Alcoholic beverages, tobacco and narcotics</com:Name>
+          <com:Description xml:lang="en">Alcoholic beverages, tobacco and narcotics consumer price index is produced using prices related to items such as beer, wine, spirits, cigarettes, tobacco products, and illicit drugs, aggregated by their respective consumer expenditure weights.</com:Description>
+        </str:Code>
+        <str:Code id="CP03" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COICOP_1999(1.0.1).CP03">
+          <com:Name xml:lang="en">Clothing and footwear</com:Name>
+          <com:Description xml:lang="en">Clothing and footwear consumer price index is produced using prices related to items such as apparel, footwear, accessories, and related products, aggregated by their respective consumer expenditure weights.</com:Description>
+        </str:Code>
+        <str:Code id="CP04" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COICOP_1999(1.0.1).CP04">
+          <com:Name xml:lang="en">Housing, water, electricity, gas and other fuels</com:Name>
+          <com:Description xml:lang="en">Housing, water, electricity, gas and other fuels consumer price index is produced using prices related to items such as housing-related services, including rent or mortgage payments, utilities such as water, electricity, gas, and other fuels, aggregated by their respective consumer expenditure weights.</com:Description>
+        </str:Code>
+        <str:Code id="CP05" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COICOP_1999(1.0.1).CP05">
+          <com:Name xml:lang="en">Furnishings, household equipment and routine household maintenance</com:Name>
+          <com:Description xml:lang="en">Furnishings, household equipment and routine household maintenance consumer price index is produced using prices related to items such as furniture, appliances, household supplies, and maintenance services, aggregated by their respective consumer expenditure weights.</com:Description>
+        </str:Code>
+        <str:Code id="CP06" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COICOP_1999(1.0.1).CP06">
+          <com:Name xml:lang="en">Health</com:Name>
+          <com:Description xml:lang="en">Health consumer price index is produced using prices related to items such as health-related products, including medical services, pharmaceuticals, healthcare products, and health insurance premiums, aggregated by their respective consumer expenditure weights.</com:Description>
+        </str:Code>
+        <str:Code id="CP07" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COICOP_1999(1.0.1).CP07">
+          <com:Name xml:lang="en">Transport</com:Name>
+          <com:Description xml:lang="en">Transport consumer price index is produced using prices related to items such as transportation-related services, including vehicle purchases, fuel, public transportation fares, vehicle maintenance, and transportation services, aggregated by their respective consumer expenditure weights.</com:Description>
+        </str:Code>
+        <str:Code id="CP08" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COICOP_1999(1.0.1).CP08">
+          <com:Name xml:lang="en">Communication</com:Name>
+          <com:Description xml:lang="en">Communication consumer price index is produced using prices related to items such as communication-related services, including telephone services, internet subscriptions, postal services, and communication equipment, aggregated by their respective consumer expenditure weights.</com:Description>
+        </str:Code>
+        <str:Code id="CP09" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COICOP_1999(1.0.1).CP09">
+          <com:Name xml:lang="en">Recreation and culture</com:Name>
+          <com:Description xml:lang="en">Recreation and culture consumer price index is produced using prices related to items such as recreational and cultural activities, including leisure pursuits, entertainment, hobbies, cultural events, and recreational goods and services, aggregated by their respective consumer expenditure weights.</com:Description>
+        </str:Code>
+        <str:Code id="CP10" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COICOP_1999(1.0.1).CP10">
+          <com:Name xml:lang="en">Education</com:Name>
+          <com:Description xml:lang="en">Education consumer price index is produced using prices related to items such as educational services, including tuition fees, school supplies, educational materials, and educational services, aggregated by their respective consumer expenditure weights.</com:Description>
+        </str:Code>
+        <str:Code id="CP11" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COICOP_1999(1.0.1).CP11">
+          <com:Name xml:lang="en">Restaurants and hotels</com:Name>
+          <com:Description xml:lang="en">Restaurants and hotels consumer price index is produced using prices related to items such as dining out at restaurants and expenditures on accommodation and related services provided by hotels and lodging establishments, aggregated by their respective consumer expenditure weights.</com:Description>
+        </str:Code>
+        <str:Code id="CP12" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COICOP_1999(1.0.1).CP12">
+          <com:Name xml:lang="en">Miscellaneous goods and services</com:Name>
+          <com:Description xml:lang="en">Miscellaneous goods and services consumer price index is produced using prices related to items such as a diverse range of products, including personal care products, personal services, insurance premiums, financial services, and other miscellaneous products, aggregated by their respective consumer expenditure weights.</com:Description>
+        </str:Code>
+        <str:Code id="CP13" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COICOP_1999(1.0.1).CP13">
+          <com:Name xml:lang="en">Individual consumption expenditure of non-profit institutions serving households (NPISHs)</com:Name>
+          <com:Description xml:lang="en">Individual consumption expenditure of non-profit institutions serving households (NPISHs) consumer price index is produced using prices related to items such as payments of consumers to non-profit institutions serving households (NPISHs) for individual consumption, aggregated by their respective consumer expenditure weights.</com:Description>
+        </str:Code>
+        <str:Code id="CP14" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COICOP_1999(1.0.1).CP14">
+          <com:Name xml:lang="en">Individual consumption expenditure of general government</com:Name>
+          <com:Description xml:lang="en">Individual consumption expenditure of general government consumer price index is produced using prices related to items such as payments by consumers to general government for individual consumption, aggregated by their respective consumer expenditure weights.</com:Description>
+        </str:Code>
+        <str:Code id="_T" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COICOP_1999(1.0.1)._T">
+          <com:Name xml:lang="en">All Items </com:Name>
+          <com:Description xml:lang="en">All items in the context of the consumer price index indicates that the index includes prices for all items included in the consumer price index basket.  This includes prices related to food, beverages, clothing, housing, health, transport, communications, recreation, education, restaurants and hotels and other miscellanoues goods and services.</com:Description>
+        </str:Code>
+      </str:Codelist>
+    </str:Codelists>
+  </mes:Structures>
+</mes:Structure>

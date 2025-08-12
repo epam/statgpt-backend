@@ -1,0 +1,643 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<mes:Structure xmlns:mes="http://www.sdmx.org/resources/sdmxml/schemas/v2_1/message" xmlns:str="http://www.sdmx.org/resources/sdmxml/schemas/v2_1/structure" xmlns:com="http://www.sdmx.org/resources/sdmxml/schemas/v2_1/common" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xml="http://www.w3.org/XML/1998/namespace" xsi:schemaLocation="http://www.sdmx.org/resources/sdmxml/schemas/v2_1/message ../../schemas/SDMXMessage.xsd">
+  <mes:Header>
+    <mes:ID>IDREF1900</mes:ID>
+    <mes:Test>false</mes:Test>
+    <mes:Prepared>2025-07-29T10:01:58.579135975Z</mes:Prepared>
+    <mes:Sender id="unknown"/>
+  </mes:Header>
+  <mes:Structures>
+    <str:Codelists>
+      <str:Codelist urn="urn:sdmx:org.sdmx.infomodel.codelist.Codelist=IMF:CL_LANGUAGE(1.1.0)" agencyID="IMF" id="CL_LANGUAGE" version="1.1.0" isFinal="true" isExternalReference="false" isPartial="false">
+        <com:Annotations>
+          <com:Annotation id="origin"/>
+          <com:Annotation id="isFinal"/>
+          <com:Annotation id="lastUpdatedAt"/>
+        </com:Annotations>
+        <com:Name xml:lang="en">Language</com:Name>
+        <com:Description xml:lang="en">This codelist identifies the natural languages in which a data resource is available or presented, using standardized codes based on the ISO 639-1 standard.</com:Description>
+        <str:Code id="AF" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_LANGUAGE(1.1.0).AF">
+          <com:Name xml:lang="en">Afrikaans</com:Name>
+        </str:Code>
+        <str:Code id="AM" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_LANGUAGE(1.1.0).AM">
+          <com:Name xml:lang="ar">الأمهرية</com:Name>
+          <com:Name xml:lang="ru">Амхарский</com:Name>
+          <com:Name xml:lang="ja">アムハラ語</com:Name>
+          <com:Name xml:lang="en">Amharic</com:Name>
+          <com:Name xml:lang="fr">Amharique</com:Name>
+          <com:Name xml:lang="es">Amhárico</com:Name>
+          <com:Name xml:lang="zh">阿姆哈拉语</com:Name>
+        </str:Code>
+        <str:Code id="AR" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_LANGUAGE(1.1.0).AR">
+          <com:Name xml:lang="ar">العربية</com:Name>
+          <com:Name xml:lang="ru">Арабский</com:Name>
+          <com:Name xml:lang="ja">アラビア語</com:Name>
+          <com:Name xml:lang="en">Arabic</com:Name>
+          <com:Name xml:lang="fr">Arabe</com:Name>
+          <com:Name xml:lang="es">Árabe</com:Name>
+          <com:Name xml:lang="zh">阿拉伯语</com:Name>
+        </str:Code>
+        <str:Code id="AY" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_LANGUAGE(1.1.0).AY">
+          <com:Name xml:lang="en">Aymara</com:Name>
+        </str:Code>
+        <str:Code id="AZ" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_LANGUAGE(1.1.0).AZ">
+          <com:Name xml:lang="en">Azerbaijani</com:Name>
+        </str:Code>
+        <str:Code id="BE" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_LANGUAGE(1.1.0).BE">
+          <com:Name xml:lang="en">Belarusian</com:Name>
+        </str:Code>
+        <str:Code id="BG" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_LANGUAGE(1.1.0).BG">
+          <com:Name xml:lang="en">Bulgarian</com:Name>
+        </str:Code>
+        <str:Code id="BI" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_LANGUAGE(1.1.0).BI">
+          <com:Name xml:lang="en">Bislama</com:Name>
+        </str:Code>
+        <str:Code id="BN" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_LANGUAGE(1.1.0).BN">
+          <com:Name xml:lang="en">Bengali</com:Name>
+        </str:Code>
+        <str:Code id="BS" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_LANGUAGE(1.1.0).BS">
+          <com:Name xml:lang="en">Bosnian</com:Name>
+        </str:Code>
+        <str:Code id="CA" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_LANGUAGE(1.1.0).CA">
+          <com:Name xml:lang="en">Catalan</com:Name>
+        </str:Code>
+        <str:Code id="CS" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_LANGUAGE(1.1.0).CS">
+          <com:Name xml:lang="ar">التشيكية</com:Name>
+          <com:Name xml:lang="ru">Чешский</com:Name>
+          <com:Name xml:lang="ja">チェコ語</com:Name>
+          <com:Name xml:lang="en">Czech</com:Name>
+          <com:Name xml:lang="fr">Tchèque</com:Name>
+          <com:Name xml:lang="es">Checo</com:Name>
+          <com:Name xml:lang="zh">捷克语</com:Name>
+        </str:Code>
+        <str:Code id="CY" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_LANGUAGE(1.1.0).CY">
+          <com:Name xml:lang="en">Welsh</com:Name>
+        </str:Code>
+        <str:Code id="DA" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_LANGUAGE(1.1.0).DA">
+          <com:Name xml:lang="ar">دانماركية</com:Name>
+          <com:Name xml:lang="ru">Датский</com:Name>
+          <com:Name xml:lang="ja">デンマーク語</com:Name>
+          <com:Name xml:lang="en">Danish</com:Name>
+          <com:Name xml:lang="fr">Danois</com:Name>
+          <com:Name xml:lang="es">Danés</com:Name>
+          <com:Name xml:lang="zh">丹麦语</com:Name>
+        </str:Code>
+        <str:Code id="DE" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_LANGUAGE(1.1.0).DE">
+          <com:Name xml:lang="ar">الألمانية</com:Name>
+          <com:Name xml:lang="ru">Немецкий</com:Name>
+          <com:Name xml:lang="ja">ドイツ語</com:Name>
+          <com:Name xml:lang="en">German</com:Name>
+          <com:Name xml:lang="fr">Allemand</com:Name>
+          <com:Name xml:lang="es">Alemán</com:Name>
+          <com:Name xml:lang="zh">德语</com:Name>
+        </str:Code>
+        <str:Code id="DZ" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_LANGUAGE(1.1.0).DZ">
+          <com:Name xml:lang="en">Dzongkha</com:Name>
+        </str:Code>
+        <str:Code id="EL" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_LANGUAGE(1.1.0).EL">
+          <com:Name xml:lang="en">Greek, Modern (1453-)</com:Name>
+        </str:Code>
+        <str:Code id="EN" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_LANGUAGE(1.1.0).EN">
+          <com:Name xml:lang="ar">الإنجليزية</com:Name>
+          <com:Name xml:lang="ru">Английский</com:Name>
+          <com:Name xml:lang="ja">英語</com:Name>
+          <com:Name xml:lang="en">English</com:Name>
+          <com:Name xml:lang="fr">Anglais</com:Name>
+          <com:Name xml:lang="es">Inglés</com:Name>
+          <com:Name xml:lang="zh">英语</com:Name>
+        </str:Code>
+        <str:Code id="ES" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_LANGUAGE(1.1.0).ES">
+          <com:Name xml:lang="ar">الإسبانية</com:Name>
+          <com:Name xml:lang="ru">Испанский</com:Name>
+          <com:Name xml:lang="ja">スペイン語</com:Name>
+          <com:Name xml:lang="en">Spanish</com:Name>
+          <com:Name xml:lang="fr">Espagnol</com:Name>
+          <com:Name xml:lang="es">Español</com:Name>
+          <com:Name xml:lang="zh">西班牙语</com:Name>
+        </str:Code>
+        <str:Code id="ET" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_LANGUAGE(1.1.0).ET">
+          <com:Name xml:lang="ar">إستونية</com:Name>
+          <com:Name xml:lang="ru">Эстонский</com:Name>
+          <com:Name xml:lang="ja">エストニア語</com:Name>
+          <com:Name xml:lang="en">Estonian</com:Name>
+          <com:Name xml:lang="fr">Estonien</com:Name>
+          <com:Name xml:lang="es">Estonio</com:Name>
+          <com:Name xml:lang="zh">爱沙尼亚语</com:Name>
+        </str:Code>
+        <str:Code id="FA" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_LANGUAGE(1.1.0).FA">
+          <com:Name xml:lang="ar">فارسية</com:Name>
+          <com:Name xml:lang="ru">Персидский</com:Name>
+          <com:Name xml:lang="ja">ペルシア語</com:Name>
+          <com:Name xml:lang="en">Persian (Farsi)</com:Name>
+          <com:Name xml:lang="fr">Persan</com:Name>
+          <com:Name xml:lang="es">Persa (Farsi)</com:Name>
+          <com:Name xml:lang="zh">波斯语</com:Name>
+        </str:Code>
+        <str:Code id="FI" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_LANGUAGE(1.1.0).FI">
+          <com:Name xml:lang="en">Finnish</com:Name>
+        </str:Code>
+        <str:Code id="FO" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_LANGUAGE(1.1.0).FO">
+          <com:Name xml:lang="ar">الفاروية</com:Name>
+          <com:Name xml:lang="ru">Фарерский</com:Name>
+          <com:Name xml:lang="ja">フェロー語</com:Name>
+          <com:Name xml:lang="en">Faroese</com:Name>
+          <com:Name xml:lang="fr">Féroïen</com:Name>
+          <com:Name xml:lang="es">Feroés</com:Name>
+          <com:Name xml:lang="zh">法罗语</com:Name>
+        </str:Code>
+        <str:Code id="FR" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_LANGUAGE(1.1.0).FR">
+          <com:Name xml:lang="ar">فرنسية</com:Name>
+          <com:Name xml:lang="ru">Французский</com:Name>
+          <com:Name xml:lang="ja">フランス語</com:Name>
+          <com:Name xml:lang="en">French</com:Name>
+          <com:Name xml:lang="fr">Français</com:Name>
+          <com:Name xml:lang="es">Francés</com:Name>
+          <com:Name xml:lang="zh">法语</com:Name>
+        </str:Code>
+        <str:Code id="GA" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_LANGUAGE(1.1.0).GA">
+          <com:Name xml:lang="ar">الأيرلندية</com:Name>
+          <com:Name xml:lang="ru">Ирландский</com:Name>
+          <com:Name xml:lang="ja">アイルランド語</com:Name>
+          <com:Name xml:lang="en">Irish</com:Name>
+          <com:Name xml:lang="fr">Irlandais</com:Name>
+          <com:Name xml:lang="es">Irlandés</com:Name>
+          <com:Name xml:lang="zh">爱尔兰语</com:Name>
+        </str:Code>
+        <str:Code id="GN" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_LANGUAGE(1.1.0).GN">
+          <com:Name xml:lang="en">Guarani</com:Name>
+        </str:Code>
+        <str:Code id="HE" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_LANGUAGE(1.1.0).HE">
+          <com:Name xml:lang="ar">العبرية</com:Name>
+          <com:Name xml:lang="ru">Иврит</com:Name>
+          <com:Name xml:lang="ja">ヘブライ語</com:Name>
+          <com:Name xml:lang="en">Hebrew</com:Name>
+          <com:Name xml:lang="fr">Hébreu</com:Name>
+          <com:Name xml:lang="es">Hebreo</com:Name>
+          <com:Name xml:lang="zh">希伯来语</com:Name>
+        </str:Code>
+        <str:Code id="HI" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_LANGUAGE(1.1.0).HI">
+          <com:Name xml:lang="ar">हिन्दी</com:Name>
+          <com:Name xml:lang="ru">Хинди</com:Name>
+          <com:Name xml:lang="ja">ヒンディー語</com:Name>
+          <com:Name xml:lang="en">Hindi</com:Name>
+          <com:Name xml:lang="fr">Hindi</com:Name>
+          <com:Name xml:lang="es">Hindi</com:Name>
+          <com:Name xml:lang="zh">印地语</com:Name>
+        </str:Code>
+        <str:Code id="HR" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_LANGUAGE(1.1.0).HR">
+          <com:Name xml:lang="ar">كرواتية</com:Name>
+          <com:Name xml:lang="ru">Хорватский</com:Name>
+          <com:Name xml:lang="ja">クロアチア語</com:Name>
+          <com:Name xml:lang="en">Croatian</com:Name>
+          <com:Name xml:lang="fr">Croate</com:Name>
+          <com:Name xml:lang="es">Croata</com:Name>
+          <com:Name xml:lang="zh">克罗地亚语</com:Name>
+        </str:Code>
+        <str:Code id="HT" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_LANGUAGE(1.1.0).HT">
+          <com:Name xml:lang="ar">Kreyòl ayisyen</com:Name>
+          <com:Name xml:lang="ru">Гаитянский креольский</com:Name>
+          <com:Name xml:lang="ja">ハイチクレオール語</com:Name>
+          <com:Name xml:lang="en">Haitian Creole</com:Name>
+          <com:Name xml:lang="fr">Créole haïtien</com:Name>
+          <com:Name xml:lang="es">Criollo haitiano</com:Name>
+          <com:Name xml:lang="zh">海地克里奥尔语</com:Name>
+        </str:Code>
+        <str:Code id="HU" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_LANGUAGE(1.1.0).HU">
+          <com:Name xml:lang="ar">المجرية</com:Name>
+          <com:Name xml:lang="ru">Венгерский</com:Name>
+          <com:Name xml:lang="ja">ハンガリー語</com:Name>
+          <com:Name xml:lang="en">Hungarian</com:Name>
+          <com:Name xml:lang="fr">Hongrois</com:Name>
+          <com:Name xml:lang="es">Húngaro</com:Name>
+          <com:Name xml:lang="zh">匈牙利语</com:Name>
+        </str:Code>
+        <str:Code id="HY" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_LANGUAGE(1.1.0).HY">
+          <com:Name xml:lang="en">Armenian</com:Name>
+        </str:Code>
+        <str:Code id="ID" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_LANGUAGE(1.1.0).ID">
+          <com:Name xml:lang="ar">الأندونيسية</com:Name>
+          <com:Name xml:lang="ru">Индонезийский</com:Name>
+          <com:Name xml:lang="ja">インドネシア語</com:Name>
+          <com:Name xml:lang="en">Indonesian</com:Name>
+          <com:Name xml:lang="fr">Indonésien</com:Name>
+          <com:Name xml:lang="es">Indonesio</com:Name>
+          <com:Name xml:lang="zh">印尼语</com:Name>
+        </str:Code>
+        <str:Code id="IS" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_LANGUAGE(1.1.0).IS">
+          <com:Name xml:lang="ar">الأيسلندية</com:Name>
+          <com:Name xml:lang="ru">Исландский</com:Name>
+          <com:Name xml:lang="ja">アイスランド語</com:Name>
+          <com:Name xml:lang="en">Icelandic</com:Name>
+          <com:Name xml:lang="fr">Islandais</com:Name>
+          <com:Name xml:lang="es">Islandés</com:Name>
+          <com:Name xml:lang="zh">冰岛语</com:Name>
+        </str:Code>
+        <str:Code id="IT" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_LANGUAGE(1.1.0).IT">
+          <com:Name xml:lang="ar">الإيطالية</com:Name>
+          <com:Name xml:lang="ru">Итальянский</com:Name>
+          <com:Name xml:lang="ja">イタリア語</com:Name>
+          <com:Name xml:lang="en">Italian</com:Name>
+          <com:Name xml:lang="fr">Italien</com:Name>
+          <com:Name xml:lang="es">Italiano</com:Name>
+          <com:Name xml:lang="zh">意大利语</com:Name>
+        </str:Code>
+        <str:Code id="JA" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_LANGUAGE(1.1.0).JA">
+          <com:Name xml:lang="ar">اليابانية</com:Name>
+          <com:Name xml:lang="ru">Японский</com:Name>
+          <com:Name xml:lang="ja">日本語</com:Name>
+          <com:Name xml:lang="en">Japanese</com:Name>
+          <com:Name xml:lang="fr">Japonais</com:Name>
+          <com:Name xml:lang="es">Japonés</com:Name>
+          <com:Name xml:lang="zh">日语</com:Name>
+        </str:Code>
+        <str:Code id="KA" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_LANGUAGE(1.1.0).KA">
+          <com:Name xml:lang="ar">الجورجية</com:Name>
+          <com:Name xml:lang="ru">Грузинский</com:Name>
+          <com:Name xml:lang="ja">グルジア語</com:Name>
+          <com:Name xml:lang="en">Georgian</com:Name>
+          <com:Name xml:lang="fr">Géorgien</com:Name>
+          <com:Name xml:lang="es">Georgiano</com:Name>
+          <com:Name xml:lang="zh">格鲁吉亚语</com:Name>
+        </str:Code>
+        <str:Code id="KK" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_LANGUAGE(1.1.0).KK">
+          <com:Name xml:lang="ar">қазақ тілі</com:Name>
+          <com:Name xml:lang="ru">Казахский</com:Name>
+          <com:Name xml:lang="ja">カザフ語</com:Name>
+          <com:Name xml:lang="en">Kazakh</com:Name>
+          <com:Name xml:lang="fr">Kazakh</com:Name>
+          <com:Name xml:lang="es">Kazajo</com:Name>
+          <com:Name xml:lang="zh">哈萨克语</com:Name>
+        </str:Code>
+        <str:Code id="KM" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_LANGUAGE(1.1.0).KM">
+          <com:Name xml:lang="en">Central Khmer</com:Name>
+        </str:Code>
+        <str:Code id="KO" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_LANGUAGE(1.1.0).KO">
+          <com:Name xml:lang="ar">한국어</com:Name>
+          <com:Name xml:lang="ru">Корейский</com:Name>
+          <com:Name xml:lang="ja">韓国語</com:Name>
+          <com:Name xml:lang="en">Korean</com:Name>
+          <com:Name xml:lang="fr">Coréen</com:Name>
+          <com:Name xml:lang="es">Coreano</com:Name>
+          <com:Name xml:lang="zh">韩语</com:Name>
+        </str:Code>
+        <str:Code id="KY" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_LANGUAGE(1.1.0).KY">
+          <com:Name xml:lang="ar">Кыргыз тили</com:Name>
+          <com:Name xml:lang="ru">Киргизский</com:Name>
+          <com:Name xml:lang="ja">キルギス語</com:Name>
+          <com:Name xml:lang="en">Kyrgyz</com:Name>
+          <com:Name xml:lang="fr">Kirghiz</com:Name>
+          <com:Name xml:lang="es">Kirguís</com:Name>
+          <com:Name xml:lang="zh">吉尔吉斯语</com:Name>
+        </str:Code>
+        <str:Code id="LA" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_LANGUAGE(1.1.0).LA">
+          <com:Name xml:lang="en">Latin</com:Name>
+        </str:Code>
+        <str:Code id="LB" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_LANGUAGE(1.1.0).LB">
+          <com:Name xml:lang="ar">Lëtzebuergesch</com:Name>
+          <com:Name xml:lang="ru">Люксембургский</com:Name>
+          <com:Name xml:lang="ja">ルクセンブルク語</com:Name>
+          <com:Name xml:lang="en">Luxembourgish</com:Name>
+          <com:Name xml:lang="fr">Luxembourgeois</com:Name>
+          <com:Name xml:lang="es">Luxemburgués</com:Name>
+          <com:Name xml:lang="zh">卢森堡语</com:Name>
+        </str:Code>
+        <str:Code id="LO" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_LANGUAGE(1.1.0).LO">
+          <com:Name xml:lang="ar">ພາສາລາວ</com:Name>
+          <com:Name xml:lang="ru">Лаосский</com:Name>
+          <com:Name xml:lang="ja">ラオス語</com:Name>
+          <com:Name xml:lang="en">Lao</com:Name>
+          <com:Name xml:lang="fr">Laotien</com:Name>
+          <com:Name xml:lang="es">Laosiano</com:Name>
+          <com:Name xml:lang="zh">老挝语</com:Name>
+        </str:Code>
+        <str:Code id="LT" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_LANGUAGE(1.1.0).LT">
+          <com:Name xml:lang="ar">Lietuvių kalba</com:Name>
+          <com:Name xml:lang="ru">Литовский</com:Name>
+          <com:Name xml:lang="ja">リトアニア語</com:Name>
+          <com:Name xml:lang="en">Lithuanian</com:Name>
+          <com:Name xml:lang="fr">Lituanien</com:Name>
+          <com:Name xml:lang="es">Lituano</com:Name>
+          <com:Name xml:lang="zh">立陶宛语</com:Name>
+        </str:Code>
+        <str:Code id="LV" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_LANGUAGE(1.1.0).LV">
+          <com:Name xml:lang="ar">Latviešu valoda</com:Name>
+          <com:Name xml:lang="ru">Латышский</com:Name>
+          <com:Name xml:lang="ja">ラトビア語</com:Name>
+          <com:Name xml:lang="en">Latvian</com:Name>
+          <com:Name xml:lang="fr">Letton</com:Name>
+          <com:Name xml:lang="es">Letón</com:Name>
+          <com:Name xml:lang="zh">拉脱维亚语</com:Name>
+        </str:Code>
+        <str:Code id="MG" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_LANGUAGE(1.1.0).MG">
+          <com:Name xml:lang="ar">Malagasy</com:Name>
+          <com:Name xml:lang="ru">Малагасийский</com:Name>
+          <com:Name xml:lang="ja">マダガスカル語</com:Name>
+          <com:Name xml:lang="en">Malagasy</com:Name>
+          <com:Name xml:lang="fr">Malgache</com:Name>
+          <com:Name xml:lang="es">Malgache</com:Name>
+          <com:Name xml:lang="zh">马达加斯加语</com:Name>
+        </str:Code>
+        <str:Code id="MH" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_LANGUAGE(1.1.0).MH">
+          <com:Name xml:lang="en">Marshallese</com:Name>
+        </str:Code>
+        <str:Code id="MI" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_LANGUAGE(1.1.0).MI">
+          <com:Name xml:lang="en">Maori</com:Name>
+        </str:Code>
+        <str:Code id="MK" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_LANGUAGE(1.1.0).MK">
+          <com:Name xml:lang="ar">Македонски јазик</com:Name>
+          <com:Name xml:lang="ru">Македонский</com:Name>
+          <com:Name xml:lang="ja">マケドニア語</com:Name>
+          <com:Name xml:lang="en">Macedonian</com:Name>
+          <com:Name xml:lang="fr">Macédonien</com:Name>
+          <com:Name xml:lang="es">Macedonio</com:Name>
+          <com:Name xml:lang="zh">马其顿语</com:Name>
+        </str:Code>
+        <str:Code id="MN" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_LANGUAGE(1.1.0).MN">
+          <com:Name xml:lang="ar">منغولية</com:Name>
+          <com:Name xml:lang="ru">Монгольский</com:Name>
+          <com:Name xml:lang="ja">モンゴル語</com:Name>
+          <com:Name xml:lang="en">Mongolian</com:Name>
+          <com:Name xml:lang="fr">Mongol</com:Name>
+          <com:Name xml:lang="es">Mongol</com:Name>
+          <com:Name xml:lang="zh">蒙古语</com:Name>
+        </str:Code>
+        <str:Code id="MS" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_LANGUAGE(1.1.0).MS">
+          <com:Name xml:lang="ar">ملايو</com:Name>
+          <com:Name xml:lang="ru">Малайский</com:Name>
+          <com:Name xml:lang="ja">マレー語</com:Name>
+          <com:Name xml:lang="en">Malay</com:Name>
+          <com:Name xml:lang="fr">Malais</com:Name>
+          <com:Name xml:lang="es">Malayo</com:Name>
+          <com:Name xml:lang="zh">马来语</com:Name>
+        </str:Code>
+        <str:Code id="MT" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_LANGUAGE(1.1.0).MT">
+          <com:Name xml:lang="ar">مالطية</com:Name>
+          <com:Name xml:lang="ru">Мальтийский</com:Name>
+          <com:Name xml:lang="ja">マルタ語</com:Name>
+          <com:Name xml:lang="en">Maltese</com:Name>
+          <com:Name xml:lang="fr">Maltais</com:Name>
+          <com:Name xml:lang="es">Maltés</com:Name>
+          <com:Name xml:lang="zh">马耳他语</com:Name>
+        </str:Code>
+        <str:Code id="MY" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_LANGUAGE(1.1.0).MY">
+          <com:Name xml:lang="ar">البورمية</com:Name>
+          <com:Name xml:lang="ru">Бирманский</com:Name>
+          <com:Name xml:lang="ja">ビルマ語</com:Name>
+          <com:Name xml:lang="en">Burmese</com:Name>
+          <com:Name xml:lang="fr">Birman</com:Name>
+          <com:Name xml:lang="es">Birmano</com:Name>
+          <com:Name xml:lang="zh">缅甸语</com:Name>
+        </str:Code>
+        <str:Code id="NA" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_LANGUAGE(1.1.0).NA">
+          <com:Name xml:lang="ar">ناورونية</com:Name>
+          <com:Name xml:lang="ru">Науруанский</com:Name>
+          <com:Name xml:lang="ja">ナウル語</com:Name>
+          <com:Name xml:lang="en">Nauruan</com:Name>
+          <com:Name xml:lang="fr">Nauruan</com:Name>
+          <com:Name xml:lang="es">Nauruano</com:Name>
+          <com:Name xml:lang="zh">瑙鲁语</com:Name>
+        </str:Code>
+        <str:Code id="NB" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_LANGUAGE(1.1.0).NB">
+          <com:Name xml:lang="en">Bokmål, Norwegian</com:Name>
+        </str:Code>
+        <str:Code id="NE" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_LANGUAGE(1.1.0).NE">
+          <com:Name xml:lang="ar">نيبالية</com:Name>
+          <com:Name xml:lang="ru">Непальский</com:Name>
+          <com:Name xml:lang="ja">ネパール語</com:Name>
+          <com:Name xml:lang="en">Nepali</com:Name>
+          <com:Name xml:lang="fr">Népalais</com:Name>
+          <com:Name xml:lang="es">Nepalés</com:Name>
+          <com:Name xml:lang="zh">尼泊尔语</com:Name>
+        </str:Code>
+        <str:Code id="NL" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_LANGUAGE(1.1.0).NL">
+          <com:Name xml:lang="ar">هولندية</com:Name>
+          <com:Name xml:lang="ru">Голландский</com:Name>
+          <com:Name xml:lang="ja">オランダ語</com:Name>
+          <com:Name xml:lang="en">Dutch</com:Name>
+          <com:Name xml:lang="fr">Néerlandais</com:Name>
+          <com:Name xml:lang="es">Neerlandés</com:Name>
+          <com:Name xml:lang="zh">荷兰语</com:Name>
+        </str:Code>
+        <str:Code id="NO" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_LANGUAGE(1.1.0).NO">
+          <com:Name xml:lang="ar">نرويجية</com:Name>
+          <com:Name xml:lang="ru">Норвежский</com:Name>
+          <com:Name xml:lang="ja">ノルウェー語</com:Name>
+          <com:Name xml:lang="en">Norwegian</com:Name>
+          <com:Name xml:lang="fr">Norvégien</com:Name>
+          <com:Name xml:lang="es">Noruego</com:Name>
+          <com:Name xml:lang="zh">挪威语</com:Name>
+        </str:Code>
+        <str:Code id="NY" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_LANGUAGE(1.1.0).NY">
+          <com:Name xml:lang="en">Chichewa</com:Name>
+        </str:Code>
+        <str:Code id="PL" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_LANGUAGE(1.1.0).PL">
+          <com:Name xml:lang="ar">بولندية</com:Name>
+          <com:Name xml:lang="ru">Польский</com:Name>
+          <com:Name xml:lang="ja">ポーランド語</com:Name>
+          <com:Name xml:lang="en">Polish</com:Name>
+          <com:Name xml:lang="fr">Polonais</com:Name>
+          <com:Name xml:lang="es">Polaco</com:Name>
+          <com:Name xml:lang="zh">波兰语</com:Name>
+        </str:Code>
+        <str:Code id="PS" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_LANGUAGE(1.1.0).PS">
+          <com:Name xml:lang="en">Pashto</com:Name>
+        </str:Code>
+        <str:Code id="PT" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_LANGUAGE(1.1.0).PT">
+          <com:Name xml:lang="ar">برتغالية</com:Name>
+          <com:Name xml:lang="ru">Португальский</com:Name>
+          <com:Name xml:lang="ja">ポルトガル語</com:Name>
+          <com:Name xml:lang="en">Portuguese</com:Name>
+          <com:Name xml:lang="fr">Portugais</com:Name>
+          <com:Name xml:lang="es">Portugués</com:Name>
+          <com:Name xml:lang="zh">葡萄牙语</com:Name>
+        </str:Code>
+        <str:Code id="QU" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_LANGUAGE(1.1.0).QU">
+          <com:Name xml:lang="en">Quechua</com:Name>
+        </str:Code>
+        <str:Code id="RM" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_LANGUAGE(1.1.0).RM">
+          <com:Name xml:lang="en">Romansh</com:Name>
+        </str:Code>
+        <str:Code id="RN" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_LANGUAGE(1.1.0).RN">
+          <com:Name xml:lang="en">Rundi</com:Name>
+        </str:Code>
+        <str:Code id="RO" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_LANGUAGE(1.1.0).RO">
+          <com:Name xml:lang="ar">رومانية</com:Name>
+          <com:Name xml:lang="ru">Румынский</com:Name>
+          <com:Name xml:lang="ja">ルーマニア語</com:Name>
+          <com:Name xml:lang="en">Romanian</com:Name>
+          <com:Name xml:lang="fr">Roumain</com:Name>
+          <com:Name xml:lang="es">Rumano</com:Name>
+          <com:Name xml:lang="zh">罗马尼亚语</com:Name>
+        </str:Code>
+        <str:Code id="RU" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_LANGUAGE(1.1.0).RU">
+          <com:Name xml:lang="ar">الروسية</com:Name>
+          <com:Name xml:lang="ru">Русский</com:Name>
+          <com:Name xml:lang="ja">ロシア語</com:Name>
+          <com:Name xml:lang="en">Russian</com:Name>
+          <com:Name xml:lang="fr">Russe</com:Name>
+          <com:Name xml:lang="es">Ruso</com:Name>
+          <com:Name xml:lang="zh">俄语</com:Name>
+        </str:Code>
+        <str:Code id="RW" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_LANGUAGE(1.1.0).RW">
+          <com:Name xml:lang="en">Kinyarwanda</com:Name>
+        </str:Code>
+        <str:Code id="SK" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_LANGUAGE(1.1.0).SK">
+          <com:Name xml:lang="ar">سلوفاكية</com:Name>
+          <com:Name xml:lang="ru">Словацкий</com:Name>
+          <com:Name xml:lang="ja">スロバキア語</com:Name>
+          <com:Name xml:lang="en">Slovak</com:Name>
+          <com:Name xml:lang="fr">Slovaque</com:Name>
+          <com:Name xml:lang="es">Eslovaco</com:Name>
+          <com:Name xml:lang="zh">斯洛伐克语</com:Name>
+        </str:Code>
+        <str:Code id="SL" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_LANGUAGE(1.1.0).SL">
+          <com:Name xml:lang="ar">سلوفينية</com:Name>
+          <com:Name xml:lang="ru">Словенский</com:Name>
+          <com:Name xml:lang="ja">スロベニア語</com:Name>
+          <com:Name xml:lang="en">Slovene</com:Name>
+          <com:Name xml:lang="fr">Slovène</com:Name>
+          <com:Name xml:lang="es">Esloveno</com:Name>
+          <com:Name xml:lang="zh">斯洛文尼亚语</com:Name>
+        </str:Code>
+        <str:Code id="SM" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_LANGUAGE(1.1.0).SM">
+          <com:Name xml:lang="en">Samoan</com:Name>
+        </str:Code>
+        <str:Code id="SO" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_LANGUAGE(1.1.0).SO">
+          <com:Name xml:lang="en">Somali</com:Name>
+        </str:Code>
+        <str:Code id="SQ" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_LANGUAGE(1.1.0).SQ">
+          <com:Name xml:lang="ar">ألبانية</com:Name>
+          <com:Name xml:lang="ru">Албанский</com:Name>
+          <com:Name xml:lang="ja">アルバニア語</com:Name>
+          <com:Name xml:lang="en">Albanian</com:Name>
+          <com:Name xml:lang="fr">Albanais</com:Name>
+          <com:Name xml:lang="es">Albanés</com:Name>
+          <com:Name xml:lang="zh">阿尔巴尼亚语</com:Name>
+        </str:Code>
+        <str:Code id="SR" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_LANGUAGE(1.1.0).SR">
+          <com:Name xml:lang="ar">صربية</com:Name>
+          <com:Name xml:lang="ru">Сербский</com:Name>
+          <com:Name xml:lang="ja">セルビア語</com:Name>
+          <com:Name xml:lang="en">Serbian</com:Name>
+          <com:Name xml:lang="fr">Serbe</com:Name>
+          <com:Name xml:lang="es">Serbio</com:Name>
+          <com:Name xml:lang="zh">塞尔维亚语</com:Name>
+        </str:Code>
+        <str:Code id="SU" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_LANGUAGE(1.1.0).SU">
+          <com:Name xml:lang="en">Sundanese</com:Name>
+        </str:Code>
+        <str:Code id="SV" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_LANGUAGE(1.1.0).SV">
+          <com:Name xml:lang="ar">سويدية</com:Name>
+          <com:Name xml:lang="ru">Шведский</com:Name>
+          <com:Name xml:lang="ja">スウェーデン語</com:Name>
+          <com:Name xml:lang="en">Swedish</com:Name>
+          <com:Name xml:lang="fr">Suédois</com:Name>
+          <com:Name xml:lang="es">Sueco</com:Name>
+          <com:Name xml:lang="zh">瑞典语</com:Name>
+        </str:Code>
+        <str:Code id="SW" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_LANGUAGE(1.1.0).SW">
+          <com:Name xml:lang="en">Swahili</com:Name>
+        </str:Code>
+        <str:Code id="TA" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_LANGUAGE(1.1.0).TA">
+          <com:Name xml:lang="en">Tamil</com:Name>
+        </str:Code>
+        <str:Code id="TG" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_LANGUAGE(1.1.0).TG">
+          <com:Name xml:lang="ar">طاجيكية</com:Name>
+          <com:Name xml:lang="ru">Таджикский</com:Name>
+          <com:Name xml:lang="ja">タジク語</com:Name>
+          <com:Name xml:lang="en">Tajik</com:Name>
+          <com:Name xml:lang="fr">Tadjik</com:Name>
+          <com:Name xml:lang="es">Tayiko</com:Name>
+          <com:Name xml:lang="zh">塔吉克语</com:Name>
+        </str:Code>
+        <str:Code id="TH" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_LANGUAGE(1.1.0).TH">
+          <com:Name xml:lang="ar">تايلاندية</com:Name>
+          <com:Name xml:lang="ru">Тайский</com:Name>
+          <com:Name xml:lang="ja">タイ語</com:Name>
+          <com:Name xml:lang="en">Thai</com:Name>
+          <com:Name xml:lang="fr">Thaï</com:Name>
+          <com:Name xml:lang="es">Tailandés</com:Name>
+          <com:Name xml:lang="zh">泰语</com:Name>
+        </str:Code>
+        <str:Code id="TI" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_LANGUAGE(1.1.0).TI">
+          <com:Name xml:lang="en">Tigrinya</com:Name>
+        </str:Code>
+        <str:Code id="TK" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_LANGUAGE(1.1.0).TK">
+          <com:Name xml:lang="ar">تركمانية</com:Name>
+          <com:Name xml:lang="ru">Туркменский</com:Name>
+          <com:Name xml:lang="ja">トルクメン語</com:Name>
+          <com:Name xml:lang="en">Turkmen</com:Name>
+          <com:Name xml:lang="fr">Turkmène</com:Name>
+          <com:Name xml:lang="es">Turcomano</com:Name>
+          <com:Name xml:lang="zh">土库曼语</com:Name>
+        </str:Code>
+        <str:Code id="TO" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_LANGUAGE(1.1.0).TO">
+          <com:Name xml:lang="en">Tonga (Tonga Islands)</com:Name>
+        </str:Code>
+        <str:Code id="TR" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_LANGUAGE(1.1.0).TR">
+          <com:Name xml:lang="ar">تركية</com:Name>
+          <com:Name xml:lang="ru">Турецкий</com:Name>
+          <com:Name xml:lang="ja">トルコ語</com:Name>
+          <com:Name xml:lang="en">Turkish</com:Name>
+          <com:Name xml:lang="fr">Turc</com:Name>
+          <com:Name xml:lang="es">Turco</com:Name>
+          <com:Name xml:lang="zh">土耳其语</com:Name>
+        </str:Code>
+        <str:Code id="UK" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_LANGUAGE(1.1.0).UK">
+          <com:Name xml:lang="ar">الأوكرانية</com:Name>
+          <com:Name xml:lang="ru">Украинский</com:Name>
+          <com:Name xml:lang="ja">ウクライナ語</com:Name>
+          <com:Name xml:lang="en">Ukrainian</com:Name>
+          <com:Name xml:lang="fr">Ukrainien</com:Name>
+          <com:Name xml:lang="es">Ucraniano</com:Name>
+          <com:Name xml:lang="zh">乌克兰语</com:Name>
+        </str:Code>
+        <str:Code id="UR" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_LANGUAGE(1.1.0).UR">
+          <com:Name xml:lang="ar">أردية</com:Name>
+          <com:Name xml:lang="ru">Урду</com:Name>
+          <com:Name xml:lang="ja">ウルドゥー語</com:Name>
+          <com:Name xml:lang="en">Urdu</com:Name>
+          <com:Name xml:lang="fr">Urdu</com:Name>
+          <com:Name xml:lang="es">Urdu</com:Name>
+          <com:Name xml:lang="zh">乌尔都语</com:Name>
+        </str:Code>
+        <str:Code id="UZ" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_LANGUAGE(1.1.0).UZ">
+          <com:Name xml:lang="ar">أوزبكية</com:Name>
+          <com:Name xml:lang="ru">Узбекский</com:Name>
+          <com:Name xml:lang="ja">ウズベク語</com:Name>
+          <com:Name xml:lang="en">Uzbek</com:Name>
+          <com:Name xml:lang="fr">Ouzbek</com:Name>
+          <com:Name xml:lang="es">Uzbeko</com:Name>
+          <com:Name xml:lang="zh">乌兹别克语</com:Name>
+        </str:Code>
+        <str:Code id="VI" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_LANGUAGE(1.1.0).VI">
+          <com:Name xml:lang="ar">فيتنامية</com:Name>
+          <com:Name xml:lang="ru">Вьетнамский</com:Name>
+          <com:Name xml:lang="ja">ベトナム語</com:Name>
+          <com:Name xml:lang="en">Vietnamese</com:Name>
+          <com:Name xml:lang="fr">Vietnamien</com:Name>
+          <com:Name xml:lang="es">Vietnamita</com:Name>
+          <com:Name xml:lang="zh">越南语</com:Name>
+        </str:Code>
+        <str:Code id="WO" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_LANGUAGE(1.1.0).WO">
+          <com:Name xml:lang="en">Wolof</com:Name>
+        </str:Code>
+        <str:Code id="YI" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_LANGUAGE(1.1.0).YI">
+          <com:Name xml:lang="en">Yiddish</com:Name>
+        </str:Code>
+        <str:Code id="ZH" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_LANGUAGE(1.1.0).ZH">
+          <com:Name xml:lang="ar">صينية</com:Name>
+          <com:Name xml:lang="ru">Китайский</com:Name>
+          <com:Name xml:lang="ja">中国語</com:Name>
+          <com:Name xml:lang="en">Chinese</com:Name>
+          <com:Name xml:lang="fr">Chinois</com:Name>
+          <com:Name xml:lang="es">Chino</com:Name>
+          <com:Name xml:lang="zh">中文</com:Name>
+        </str:Code>
+        <str:Code id="ZU" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_LANGUAGE(1.1.0).ZU">
+          <com:Name xml:lang="en">Zulu</com:Name>
+        </str:Code>
+      </str:Codelist>
+    </str:Codelists>
+  </mes:Structures>
+</mes:Structure>
