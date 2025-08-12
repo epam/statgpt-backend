@@ -1,0 +1,581 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<mes:Structure xmlns:mes="http://www.sdmx.org/resources/sdmxml/schemas/v2_1/message" xmlns:str="http://www.sdmx.org/resources/sdmxml/schemas/v2_1/structure" xmlns:com="http://www.sdmx.org/resources/sdmxml/schemas/v2_1/common" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xml="http://www.w3.org/XML/1998/namespace" xsi:schemaLocation="http://www.sdmx.org/resources/sdmxml/schemas/v2_1/message ../../schemas/SDMXMessage.xsd">
+  <mes:Header>
+    <mes:ID>IDREF1810</mes:ID>
+    <mes:Test>false</mes:Test>
+    <mes:Prepared>2025-07-29T09:54:16.830376136Z</mes:Prepared>
+    <mes:Sender id="unknown"/>
+  </mes:Header>
+  <mes:Structures>
+    <str:Codelists>
+      <str:Codelist urn="urn:sdmx:org.sdmx.infomodel.codelist.Codelist=IMF:CL_UNIT_MULT(1.0.2)" agencyID="IMF" id="CL_UNIT_MULT" version="1.0.2" isFinal="true" isExternalReference="false" isPartial="false">
+        <com:Annotations>
+          <com:Annotation id="dataEngineSettings"/>
+          <com:Annotation id="origin"/>
+          <com:Annotation id="isFinal"/>
+          <com:Annotation id="lastUpdatedAt"/>
+        </com:Annotations>
+        <com:Name xml:lang="en">Unit Multiplier</com:Name>
+        <com:Description xml:lang="en">This code list provides code values for indicating the magnitude in the units of measurement. More information about this code list and SDMX code lists in general (e.g. list of generic codes for expressing general concepts like "Total", "Unknown", etc.; syntaxes for the creation of further codes; general guidelines for the creation of SDMX code lists) can be found at this address: https://sdmx.org/?page_id=4345.</com:Description>
+        <str:Code id="0" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT_MULT(1.0.2).0">
+          <com:Name xml:lang="ar">الوحدات</com:Name>
+          <com:Name xml:lang="ru">Единицы</com:Name>
+          <com:Name xml:lang="pt">Unidades</com:Name>
+          <com:Name xml:lang="ja">一</com:Name>
+          <com:Name xml:lang="en">Units</com:Name>
+          <com:Name xml:lang="fr">Unités</com:Name>
+          <com:Name xml:lang="es">Unidades</com:Name>
+          <com:Name xml:lang="zh">个</com:Name>
+          <com:Description xml:lang="ar">يُعبر عنها بالترميز العلمي بوصفها 10 أس صفر (10^صفر)</com:Description>
+          <com:Description xml:lang="ru">В математических терминах представляется как десять в нулевой степени (10^0)</com:Description>
+          <com:Description xml:lang="pt">Representado em notação científica como dez elevado à potência de zero (10^0)</com:Description>
+          <com:Description xml:lang="ja">科学的表記では、10の0乗 (10^0)と表記</com:Description>
+          <com:Description xml:lang="en">In scientific notation, expressed as ten raised to the power of zero (10^0)</com:Description>
+          <com:Description xml:lang="fr">En notation scientifique, exprimé comme dix élevé à la puissance zéro (10^0)</com:Description>
+          <com:Description xml:lang="es">En notación científica, expresado como diez a la potencia de cero (10^0)</com:Description>
+          <com:Description xml:lang="zh">在科学记数法中，表示为10的零次方（10^0）</com:Description>
+        </str:Code>
+        <str:Code id="1" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT_MULT(1.0.2).1">
+          <com:Name xml:lang="ar">العشرات</com:Name>
+          <com:Name xml:lang="ru">Десятки</com:Name>
+          <com:Name xml:lang="pt">Dezenas</com:Name>
+          <com:Name xml:lang="ja">十</com:Name>
+          <com:Name xml:lang="en">Tens</com:Name>
+          <com:Name xml:lang="fr">Dizaines</com:Name>
+          <com:Name xml:lang="es">Decenas</com:Name>
+          <com:Name xml:lang="zh">十</com:Name>
+          <com:Description xml:lang="ar">يُعبر عنها بالترميز العلمي بوصفها 10 أس 1 (10^1)</com:Description>
+          <com:Description xml:lang="ru">В математических терминах представляется как десять в первой степени (10^1)</com:Description>
+          <com:Description xml:lang="pt">Representado em notação científica como dez elevado à potência de um (10^1)</com:Description>
+          <com:Description xml:lang="ja">科学的表記では、10の1乗 (10^1)と表記</com:Description>
+          <com:Description xml:lang="en">In scientific notation, expressed as ten raised to the power of one (10^1)</com:Description>
+          <com:Description xml:lang="fr">En notation scientifique, exprimé comme dix élevé à la puissance un (10^1)</com:Description>
+          <com:Description xml:lang="es">En notación científica, expresado como diez a la potencia de uno (10^1)</com:Description>
+          <com:Description xml:lang="zh">在科学记数法中，表示为10的1次方（10^1）</com:Description>
+        </str:Code>
+        <str:Code id="2" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT_MULT(1.0.2).2">
+          <com:Name xml:lang="ar">المئات</com:Name>
+          <com:Name xml:lang="ru">Сотни</com:Name>
+          <com:Name xml:lang="pt">Centenas</com:Name>
+          <com:Name xml:lang="ja">百</com:Name>
+          <com:Name xml:lang="en">Hundreds</com:Name>
+          <com:Name xml:lang="fr">Centaines</com:Name>
+          <com:Name xml:lang="es">Centenas</com:Name>
+          <com:Name xml:lang="zh">百</com:Name>
+          <com:Description xml:lang="ar">يُعبر عنها بالترميز العلمي بوصفها 10 أس 2 (10^2)</com:Description>
+          <com:Description xml:lang="ru">В математических терминах представляется как десять во второй степени (10^2)</com:Description>
+          <com:Description xml:lang="pt">Representado em notação científica como dez elevado à potência de dois (10^2)</com:Description>
+          <com:Description xml:lang="ja">科学的表記では、10の2乗 (10^2)と表記</com:Description>
+          <com:Description xml:lang="en">In scientific notation, expressed as ten raised to the power of two (10^2)</com:Description>
+          <com:Description xml:lang="fr">En notation scientifique, exprimé comme dix élevé à la puissance deux (10^2)</com:Description>
+          <com:Description xml:lang="es">En notación científica, expresado como diez a la potencia de dos (10^2)</com:Description>
+          <com:Description xml:lang="zh">在科学记数法中，表示为10的2次方（10^2）</com:Description>
+        </str:Code>
+        <str:Code id="3" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT_MULT(1.0.2).3">
+          <com:Name xml:lang="ar">الآلاف</com:Name>
+          <com:Name xml:lang="ru">Тысячи</com:Name>
+          <com:Name xml:lang="pt">Milhares</com:Name>
+          <com:Name xml:lang="ja">千</com:Name>
+          <com:Name xml:lang="en">Thousands</com:Name>
+          <com:Name xml:lang="fr">Milliers</com:Name>
+          <com:Name xml:lang="es">Miles</com:Name>
+          <com:Name xml:lang="zh">千</com:Name>
+          <com:Description xml:lang="ar">يُعبر عنها بالترميز العلمي بوصفها 10 أس 3 (10^3)</com:Description>
+          <com:Description xml:lang="ru">В математических терминах представляется как десять в третьей степени (10^3)</com:Description>
+          <com:Description xml:lang="pt">Representado em notação científica como dez elevado à potência de três (10^3)</com:Description>
+          <com:Description xml:lang="ja">科学的表記では、10の3乗 (10^3)と表記</com:Description>
+          <com:Description xml:lang="en">In scientific notation, expressed as ten raised to the power of three (10^3)</com:Description>
+          <com:Description xml:lang="fr">En notation scientifique, exprimé comme dix élevé à la puissance trois (10^3)</com:Description>
+          <com:Description xml:lang="es">En notación científica, expresado como diez a la potencia de tres (10^3)</com:Description>
+          <com:Description xml:lang="zh">在科学记数法中，表示为10的3次方（10^3）</com:Description>
+        </str:Code>
+        <str:Code id="4" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT_MULT(1.0.2).4">
+          <com:Name xml:lang="ar">عشرات الآلاف </com:Name>
+          <com:Name xml:lang="ru">Десятки тысяч</com:Name>
+          <com:Name xml:lang="pt">Dezenas de milhares</com:Name>
+          <com:Name xml:lang="ja">万</com:Name>
+          <com:Name xml:lang="en">Tens of thousands</com:Name>
+          <com:Name xml:lang="fr">Dizaines de milliers</com:Name>
+          <com:Name xml:lang="es">Decenas de miles</com:Name>
+          <com:Name xml:lang="zh">万</com:Name>
+          <com:Description xml:lang="ar">يُعبر عنها بالترميز العلمي بوصفها 10 أس 4 (10^4)</com:Description>
+          <com:Description xml:lang="ru">В математических терминах представляется как десять в четвертой степени (10^4)</com:Description>
+          <com:Description xml:lang="pt">Representado em notação científica como dez elevado à potência de quatro (10^4)</com:Description>
+          <com:Description xml:lang="ja">科学的表記では、10の4乗 (10^4)と表記</com:Description>
+          <com:Description xml:lang="en">In scientific notation, expressed as ten raised to the power of four (10^4)</com:Description>
+          <com:Description xml:lang="fr">En notation scientifique, exprimé comme dix élevé à la puissance quatre (10^4)</com:Description>
+          <com:Description xml:lang="es">En notación científica, expresado como diez a la potencia de cuatro (10^4)</com:Description>
+          <com:Description xml:lang="zh">在科学记数法中，表示为10的4次方（10^4）</com:Description>
+        </str:Code>
+        <str:Code id="5" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT_MULT(1.0.2).5">
+          <com:Name xml:lang="ar">مئات الآلاف</com:Name>
+          <com:Name xml:lang="ru">Сотни тысяч</com:Name>
+          <com:Name xml:lang="pt">Centenas de milhares</com:Name>
+          <com:Name xml:lang="ja">十万</com:Name>
+          <com:Name xml:lang="en">Hundreds of thousands</com:Name>
+          <com:Name xml:lang="fr">Centaines de milliers</com:Name>
+          <com:Name xml:lang="es">Centenas de miles</com:Name>
+          <com:Name xml:lang="zh">十万</com:Name>
+          <com:Description xml:lang="ar">يُعبر عنها بالترميز العلمي بوصفها 10 أس 5 (10^5)</com:Description>
+          <com:Description xml:lang="ru">В математических терминах представляется как десять в пятой степени (10^5)</com:Description>
+          <com:Description xml:lang="pt">Representado em notação científica como dez elevado à potência de cinco (10^5)</com:Description>
+          <com:Description xml:lang="ja">科学的表記では、10の5乗 (10^5)と表記</com:Description>
+          <com:Description xml:lang="en">In scientific notation, expressed as ten raised to the power of five(10^5)</com:Description>
+          <com:Description xml:lang="fr">En notation scientifique, exprimé comme dix élevé à la puissance cinq (10^5)</com:Description>
+          <com:Description xml:lang="es">En notación científica, expresado como diez a la potencia de cinco (10^5)</com:Description>
+          <com:Description xml:lang="zh">在科学记数法中，表示为10的5次方（10^5）</com:Description>
+        </str:Code>
+        <str:Code id="6" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT_MULT(1.0.2).6">
+          <com:Name xml:lang="ar">الملايين</com:Name>
+          <com:Name xml:lang="ru">Миллионы</com:Name>
+          <com:Name xml:lang="pt">Milhões</com:Name>
+          <com:Name xml:lang="ja">百万</com:Name>
+          <com:Name xml:lang="en">Millions</com:Name>
+          <com:Name xml:lang="fr">Millions</com:Name>
+          <com:Name xml:lang="es">Millones</com:Name>
+          <com:Name xml:lang="zh">百万</com:Name>
+          <com:Description xml:lang="ar">يُعبر عنها بالترميز العلمي بوصفها 10 أس 6 (10^6)</com:Description>
+          <com:Description xml:lang="ru">В математических терминах представляется как десять в шестой степени (10^6)</com:Description>
+          <com:Description xml:lang="pt">Representado em notação científica como dez elevado à potência de seis (10^6)</com:Description>
+          <com:Description xml:lang="ja">科学的表記では、10の6乗 (10^6)と表記</com:Description>
+          <com:Description xml:lang="en">In scientific notation, expressed as ten raised to the power of six (10^6)</com:Description>
+          <com:Description xml:lang="fr">En notation scientifique, exprimé comme dix élevé à la puissance six (10^6)</com:Description>
+          <com:Description xml:lang="es">En notación científica, expresado como diez a la potencia de seis (10^6)</com:Description>
+          <com:Description xml:lang="zh">在科学记数法中，表示为10的6次方（10^6）</com:Description>
+        </str:Code>
+        <str:Code id="7" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT_MULT(1.0.2).7">
+          <com:Name xml:lang="ar">عشرات الملايين</com:Name>
+          <com:Name xml:lang="ru">Десятки миллионов</com:Name>
+          <com:Name xml:lang="pt">Dezenas de milhões</com:Name>
+          <com:Name xml:lang="ja">千万</com:Name>
+          <com:Name xml:lang="en">Tens of millions</com:Name>
+          <com:Name xml:lang="fr">Dizaines de millions</com:Name>
+          <com:Name xml:lang="es">Decenas de millones</com:Name>
+          <com:Name xml:lang="zh">千万</com:Name>
+          <com:Description xml:lang="ar">يُعبر عنها بالترميز العلمي بوصفها 10 أس 7 (10^7)</com:Description>
+          <com:Description xml:lang="ru">В математических терминах представляется как десять в седьмой степени (10^7)</com:Description>
+          <com:Description xml:lang="pt">Representado em notação científica como dez elevado à potência de sete (10^7)</com:Description>
+          <com:Description xml:lang="ja">科学的表記では、10の7乗 (10^7)と表記</com:Description>
+          <com:Description xml:lang="en">In scientific notation, expressed as ten raised to the power of seven (10^7)</com:Description>
+          <com:Description xml:lang="fr">En notation scientifique, exprimé comme dix élevé à la puissance sept (10^7)</com:Description>
+          <com:Description xml:lang="es">En notación científica, expresado como diez a la potencia de siete (10^7)</com:Description>
+          <com:Description xml:lang="zh">在科学记数法中，表示为10的7次方（10^7）</com:Description>
+        </str:Code>
+        <str:Code id="8" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT_MULT(1.0.2).8">
+          <com:Name xml:lang="ar">مئات الملايين</com:Name>
+          <com:Name xml:lang="ru">Сотни миллионов</com:Name>
+          <com:Name xml:lang="pt">Centenas de milhões</com:Name>
+          <com:Name xml:lang="ja">億</com:Name>
+          <com:Name xml:lang="en">Hundreds of millions</com:Name>
+          <com:Name xml:lang="fr">Centaines de millions</com:Name>
+          <com:Name xml:lang="es">Cientos de millones</com:Name>
+          <com:Name xml:lang="zh">亿</com:Name>
+          <com:Description xml:lang="ar">يُعبر عنها بالترميز العلمي بوصفها 10 أس 8 (10^8)</com:Description>
+          <com:Description xml:lang="ru">В математических терминах представляется как десять в восьмой степени (10^8)</com:Description>
+          <com:Description xml:lang="pt">Representado em notação científica como dez elevado à potência de oito (10^8)</com:Description>
+          <com:Description xml:lang="ja">科学的表記では、10の8乗 (10^8)と表記</com:Description>
+          <com:Description xml:lang="en">In scientific notation, expressed as ten raised to the power of eight (10^8)</com:Description>
+          <com:Description xml:lang="fr">En notation scientifique, exprimé comme dix élevé à la puissance huit (10^8)</com:Description>
+          <com:Description xml:lang="es">En notación científica, expresado como diez a la potencia de ocho (10^8)</com:Description>
+          <com:Description xml:lang="zh">在科学记数法中，表示为10的8次方（10^8）</com:Description>
+        </str:Code>
+        <str:Code id="9" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT_MULT(1.0.2).9">
+          <com:Name xml:lang="ar">المليارات</com:Name>
+          <com:Name xml:lang="ru">Миллиарды</com:Name>
+          <com:Name xml:lang="pt">Milhares de milhões</com:Name>
+          <com:Name xml:lang="ja">十億</com:Name>
+          <com:Name xml:lang="en">Billions</com:Name>
+          <com:Name xml:lang="fr">Milliards</com:Name>
+          <com:Name xml:lang="es">Miles de millones</com:Name>
+          <com:Name xml:lang="zh">十亿</com:Name>
+          <com:Description xml:lang="ar">يُعبر عنها بالترميز العلمي بوصفها 10 أس 9 (10^9)</com:Description>
+          <com:Description xml:lang="ru">В математических терминах представляется как десять в девятой степени (10^9)</com:Description>
+          <com:Description xml:lang="pt">Representado em notação científica como dez elevado à potência de nove (10^9)</com:Description>
+          <com:Description xml:lang="ja">科学的表記では、10の9乗 (10^9)と表記</com:Description>
+          <com:Description xml:lang="en">In scientific notation, expressed as ten raised to the power of nine (10^9)</com:Description>
+          <com:Description xml:lang="fr">En notation scientifique, exprimé comme dix élevé à la puissance neuf (10^9)</com:Description>
+          <com:Description xml:lang="es">En notación científica, expresado como diez a la potencia de nueve (10^9)</com:Description>
+          <com:Description xml:lang="zh">在科学记数法中，表示为10的9次方（10^9）</com:Description>
+        </str:Code>
+        <str:Code id="-1" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT_MULT(1.0.2).-1">
+          <com:Name xml:lang="ar">العُشر</com:Name>
+          <com:Name xml:lang="ru">Десятые доли</com:Name>
+          <com:Name xml:lang="pt">Décimas</com:Name>
+          <com:Name xml:lang="ja">十分の一</com:Name>
+          <com:Name xml:lang="en">Tenths</com:Name>
+          <com:Name xml:lang="fr">Dixièmes</com:Name>
+          <com:Name xml:lang="es">Décimas</com:Name>
+          <com:Name xml:lang="zh">十分之一</com:Name>
+          <com:Description xml:lang="ar">يُعبر عنه بالترميز العلمي بوصفه 10 أس سالب 1 (10^-1)</com:Description>
+          <com:Description xml:lang="ru">В математических терминах представляется как десять в минус первой степени (10^-1)</com:Description>
+          <com:Description xml:lang="pt">Representado em notação científica como dez elevado à potência de menos um (10^-1)</com:Description>
+          <com:Description xml:lang="ja">科学的表記では、10の-1乗 (10^-1)と表記</com:Description>
+          <com:Description xml:lang="en">In scientific notation, expressed as ten raised to the power of minus one (10^-1)</com:Description>
+          <com:Description xml:lang="fr">En notation scientifique, exprimé comme dix élevé à la puissance moins un (10^-1)</com:Description>
+          <com:Description xml:lang="es">En notación científica, expresado como diez a la potencia de menos uno (10^-1)</com:Description>
+          <com:Description xml:lang="zh">在科学记数法中，表示为10的-1次方（10^-1）</com:Description>
+        </str:Code>
+        <str:Code id="-2" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT_MULT(1.0.2).-2">
+          <com:Name xml:lang="ar">الجزء من المائة</com:Name>
+          <com:Name xml:lang="ru">Сотые доли</com:Name>
+          <com:Name xml:lang="pt">Centésimas</com:Name>
+          <com:Name xml:lang="ja">百分の一</com:Name>
+          <com:Name xml:lang="en">Hundredths</com:Name>
+          <com:Name xml:lang="fr">Centièmes</com:Name>
+          <com:Name xml:lang="es">Centésimas</com:Name>
+          <com:Name xml:lang="zh">百分之一</com:Name>
+          <com:Description xml:lang="ar">يُعبر عنه بالترميز العلمي بوصفه 10 أس سالب 2 (10^-2)</com:Description>
+          <com:Description xml:lang="ru">В математических терминах представляется как десять в минус второй степени (10^-2)</com:Description>
+          <com:Description xml:lang="pt">Representado em notação científica como dez elevado à potência de menos dois (10^-2)</com:Description>
+          <com:Description xml:lang="ja">科学的表記では、10の-2乗 (10^-2)と表記</com:Description>
+          <com:Description xml:lang="en">In scientific notation, expressed as ten raised to the power of minus two (10^-2)</com:Description>
+          <com:Description xml:lang="fr">En notation scientifique, exprimé comme dix élevé à la puissance moins deux (10^-2)</com:Description>
+          <com:Description xml:lang="es">En notación científica, expresado como diez a la potencia de menos dos (10^-2)</com:Description>
+          <com:Description xml:lang="zh">在科学记数法中，表示为10的-2次方（10^-2）</com:Description>
+        </str:Code>
+        <str:Code id="-3" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT_MULT(1.0.2).-3">
+          <com:Name xml:lang="ar">الجزء من الألف</com:Name>
+          <com:Name xml:lang="ru">Тысячные доли</com:Name>
+          <com:Name xml:lang="pt">Milésimas</com:Name>
+          <com:Name xml:lang="ja">千分の一</com:Name>
+          <com:Name xml:lang="en">Thousandths</com:Name>
+          <com:Name xml:lang="fr">Millièmes</com:Name>
+          <com:Name xml:lang="es">Milésimas</com:Name>
+          <com:Name xml:lang="zh">千分之一</com:Name>
+          <com:Description xml:lang="ar">يُعبر عنه بالترميز العلمي بوصفه 10 أس سالب 3 (10^-3)</com:Description>
+          <com:Description xml:lang="ru">В математических терминах представляется как десять в минус третьей степени (10^-3)</com:Description>
+          <com:Description xml:lang="pt">Representado em notação científica como dez elevado à potência de menos três (10^-3)</com:Description>
+          <com:Description xml:lang="ja">科学的表記では、10の-3乗 (10^-3)と表記</com:Description>
+          <com:Description xml:lang="en">In scientific notation, expressed as ten raised to the power of minus three (10^-3)</com:Description>
+          <com:Description xml:lang="fr">En notation scientifique, exprimé comme dix élevé à la puissance moins trois (10^-3)</com:Description>
+          <com:Description xml:lang="es">En notación científica, expresado como diez a la potencia de menos tres (10^-3)</com:Description>
+          <com:Description xml:lang="zh">在科学记数法中，表示为10的-3次方（10^-3）</com:Description>
+        </str:Code>
+        <str:Code id="-4" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT_MULT(1.0.2).-4">
+          <com:Name xml:lang="ar">الجزء من العشرة آلاف</com:Name>
+          <com:Name xml:lang="ru">Десятитысячные доли</com:Name>
+          <com:Name xml:lang="pt">Décimas de milésima</com:Name>
+          <com:Name xml:lang="ja">万分の一</com:Name>
+          <com:Name xml:lang="en">Ten-thousandths</com:Name>
+          <com:Name xml:lang="fr">Dix-millièmes</com:Name>
+          <com:Name xml:lang="es">Diezmilésimas</com:Name>
+          <com:Name xml:lang="zh">万分之一</com:Name>
+          <com:Description xml:lang="ar">يُعبر عنه بالترميز العلمي بوصفه 10 أس سالب 4 (10^-4)</com:Description>
+          <com:Description xml:lang="ru">В математических терминах представляется как десять в минус четвертой степени (10^-4)</com:Description>
+          <com:Description xml:lang="pt">Representado em notação científica como dez elevado à potência de menos quatro (10^-4)</com:Description>
+          <com:Description xml:lang="ja">科学的表記では、10の-4乗 (10^-4)と表記</com:Description>
+          <com:Description xml:lang="en">In scientific notation, expressed as ten raised to the power of minus four (10^-4)</com:Description>
+          <com:Description xml:lang="fr">En notation scientifique, exprimé comme dix élevé à la puissance moins quatre (10^-4)</com:Description>
+          <com:Description xml:lang="es">En notación científica, expresado como diez a la potencia de menos cuatro (10^-4)</com:Description>
+          <com:Description xml:lang="zh">在科学记数法中，表示为10的-4次方（10^-4）</com:Description>
+        </str:Code>
+        <str:Code id="-5" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT_MULT(1.0.2).-5">
+          <com:Name xml:lang="ar">الجزء من المائة ألف</com:Name>
+          <com:Name xml:lang="ru">Стотысячные доли</com:Name>
+          <com:Name xml:lang="pt">Centésimas de milésima</com:Name>
+          <com:Name xml:lang="ja">十万分の一</com:Name>
+          <com:Name xml:lang="en">Hundred-thousandths</com:Name>
+          <com:Name xml:lang="fr">Cent-millièmes</com:Name>
+          <com:Name xml:lang="es">Cienmilésimas</com:Name>
+          <com:Name xml:lang="zh">十万分之一</com:Name>
+          <com:Description xml:lang="ar">يُعبر عنه بالترميز العلمي بوصفه 10 أس سالب 5 (10^-5)</com:Description>
+          <com:Description xml:lang="ru">В математических терминах представляется как десять в минус пятой степени (10^-5)</com:Description>
+          <com:Description xml:lang="pt">Representado em notação científica como dez elevado à potência de menos cinco (10^-5)</com:Description>
+          <com:Description xml:lang="ja">科学的表記では、10の-5乗 (10^-5)と表記</com:Description>
+          <com:Description xml:lang="en">In scientific notation, expressed as ten raised to the power of minus five (10^-5)</com:Description>
+          <com:Description xml:lang="fr">En notation scientifique, exprimé comme dix élevé à la puissance moins cinq (10^-5)</com:Description>
+          <com:Description xml:lang="es">En notación científica, expresado como diez a la potencia de menos cinco (10^-5)</com:Description>
+          <com:Description xml:lang="zh">在科学记数法中，表示为10的-5次方（10^-5）</com:Description>
+        </str:Code>
+        <str:Code id="-6" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT_MULT(1.0.2).-6">
+          <com:Name xml:lang="ar">الجزء من المليون</com:Name>
+          <com:Name xml:lang="ru">Миллионные доли</com:Name>
+          <com:Name xml:lang="pt">Milionésimas</com:Name>
+          <com:Name xml:lang="ja">百万分の一</com:Name>
+          <com:Name xml:lang="en">Millionths</com:Name>
+          <com:Name xml:lang="fr">Millionièmes</com:Name>
+          <com:Name xml:lang="es">Millonésimas</com:Name>
+          <com:Name xml:lang="zh">百万分之一</com:Name>
+          <com:Description xml:lang="ar">يُعبر عنه بالترميز العلمي بوصفه 10 أس سالب 6 (10^-6)</com:Description>
+          <com:Description xml:lang="ru">В математических терминах представляется как десять в минус шестой степени (10^-6)</com:Description>
+          <com:Description xml:lang="pt">Representado em notação científica como dez elevado à potência de menos seis (10^-6)</com:Description>
+          <com:Description xml:lang="ja">科学的表記では、10の-6乗 (10^-6)と表記</com:Description>
+          <com:Description xml:lang="en">In scientific notation, expressed as ten raised to the power of minus six (10^-6)</com:Description>
+          <com:Description xml:lang="fr">En notation scientifique, exprimé comme dix élevé à la puissance moins six (10^-6)</com:Description>
+          <com:Description xml:lang="es">En notación científica, expresado como diez a la potencia de menos seis (10^-6)</com:Description>
+          <com:Description xml:lang="zh">在科学记数法中，表示为10的-6次方（10^-6）</com:Description>
+        </str:Code>
+        <str:Code id="-7" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT_MULT(1.0.2).-7">
+          <com:Name xml:lang="ar">الجزء من العشرة ملايين</com:Name>
+          <com:Name xml:lang="ru">Десятимиллионные доли</com:Name>
+          <com:Name xml:lang="pt">Décimas de milionésima</com:Name>
+          <com:Name xml:lang="ja">千万分の一</com:Name>
+          <com:Name xml:lang="en">Ten-millionths</com:Name>
+          <com:Name xml:lang="fr">Dix millionièmes</com:Name>
+          <com:Name xml:lang="es">Diezmillonésimas</com:Name>
+          <com:Name xml:lang="zh">千万分之一</com:Name>
+          <com:Description xml:lang="ar">يُعبر عنه بالترميز العلمي بوصفه 10 أس سالب 7 (10^-7)</com:Description>
+          <com:Description xml:lang="ru">В математических терминах представляется как десять в минус седьмой степени (10^-7)</com:Description>
+          <com:Description xml:lang="pt">Representado em notação científica como dez elevado à potência de menos sete (10^-7)</com:Description>
+          <com:Description xml:lang="ja">科学的表記では、10の-7乗 (10^-7)と表記</com:Description>
+          <com:Description xml:lang="en">In scientific notation, expressed as ten raised to the power of minus seven (10^-7)</com:Description>
+          <com:Description xml:lang="fr">En notation scientifique, exprimé comme dix élevé à la puissance moins sept (10^-7)</com:Description>
+          <com:Description xml:lang="es">En notación científica, expresado como diez a la potencia de menos siete (10^-7)</com:Description>
+          <com:Description xml:lang="zh">在科学记数法中，表示为10的-7次方（10^-7）</com:Description>
+        </str:Code>
+        <str:Code id="-8" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT_MULT(1.0.2).-8">
+          <com:Name xml:lang="ar">الجزء من المائة مليون</com:Name>
+          <com:Name xml:lang="ru">Стомиллионные доли</com:Name>
+          <com:Name xml:lang="pt">Centésimas de milionésima</com:Name>
+          <com:Name xml:lang="ja">億分の一</com:Name>
+          <com:Name xml:lang="en">Hundred-millionths</com:Name>
+          <com:Name xml:lang="fr">Cent-millionièmes</com:Name>
+          <com:Name xml:lang="es">Cienmillonésimas</com:Name>
+          <com:Name xml:lang="zh">亿分之一</com:Name>
+          <com:Description xml:lang="ar">يُعبر عنه بالترميز العلمي بوصفه 10 أس سالب 8 (10^-8)</com:Description>
+          <com:Description xml:lang="ru">В математических терминах представляется как десять в минус восьмой степени (10^-8)</com:Description>
+          <com:Description xml:lang="pt">Representado em notação científica como dez elevado à potência de menos oito (10^-8)</com:Description>
+          <com:Description xml:lang="ja">科学的表記では、10の-8乗 (10^-8)と表記</com:Description>
+          <com:Description xml:lang="en">In scientific notation, expressed as ten raised to the power of minus eight (10^-8)</com:Description>
+          <com:Description xml:lang="fr">En notation scientifique, exprimé comme dix élevé à la puissance moins huit (10^-8)</com:Description>
+          <com:Description xml:lang="es">En notación científica, expresado como diez a la potencia de menos ocho (10^-8)</com:Description>
+          <com:Description xml:lang="zh">在科学记数法中，表示为10的-8次方（10^-8）</com:Description>
+        </str:Code>
+        <str:Code id="-9" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT_MULT(1.0.2).-9">
+          <com:Name xml:lang="ar">الجزء من المليار</com:Name>
+          <com:Name xml:lang="ru">Миллиардные доли</com:Name>
+          <com:Name xml:lang="pt">Milésimas de milionésima</com:Name>
+          <com:Name xml:lang="ja">十億分の一</com:Name>
+          <com:Name xml:lang="en">Billionths</com:Name>
+          <com:Name xml:lang="fr">Milliardièmes</com:Name>
+          <com:Name xml:lang="es">Milmillonésimas</com:Name>
+          <com:Name xml:lang="zh">十亿分之一</com:Name>
+          <com:Description xml:lang="ar">يُعبر عنه بالترميز العلمي بوصفه 10 أس سالب 9 (10^-9)</com:Description>
+          <com:Description xml:lang="ru">В математических терминах представляется как десять в минус девятой степени (10^-9)</com:Description>
+          <com:Description xml:lang="pt">Representado em notação científica como dez elevado à potência de menos nove (10^-9)</com:Description>
+          <com:Description xml:lang="ja">科学的表記では、10の-9乗 (10^-9)と表記</com:Description>
+          <com:Description xml:lang="en">In scientific notation, expressed as ten raised to the power of minus nine (10^-9)</com:Description>
+          <com:Description xml:lang="fr">En notation scientifique, exprimé comme dix élevé à la puissance moins neuf (10^-9)</com:Description>
+          <com:Description xml:lang="es">En notación científica, expresado como diez a la potencia de menos nueve (10^-9)</com:Description>
+          <com:Description xml:lang="zh">在科学记数法中，表示为10的-9次方（10^-9）</com:Description>
+        </str:Code>
+        <str:Code id="10" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT_MULT(1.0.2).10">
+          <com:Name xml:lang="ar">عشرات المليارات</com:Name>
+          <com:Name xml:lang="ru">Десятки миллиардов</com:Name>
+          <com:Name xml:lang="pt">Dezenas de milhares de milhões</com:Name>
+          <com:Name xml:lang="ja">百億</com:Name>
+          <com:Name xml:lang="en">Tens of billions</com:Name>
+          <com:Name xml:lang="fr">Dizaines de milliards</com:Name>
+          <com:Name xml:lang="es">Decenas de miles de millones</com:Name>
+          <com:Name xml:lang="zh">百亿</com:Name>
+          <com:Description xml:lang="ar">يُعبر عنها بالترميز العلمي بوصفها 10 أس 10 (10^10)</com:Description>
+          <com:Description xml:lang="ru">В математических терминах представляется как десять в десятой степени (10^10)</com:Description>
+          <com:Description xml:lang="pt">Representado em notação científica como dez elevado à potência de dez (10^10)</com:Description>
+          <com:Description xml:lang="ja">科学的表記では、10の10乗 (10^10)と表記</com:Description>
+          <com:Description xml:lang="en">In scientific notation, expressed as ten raised to the power of ten (10^10)</com:Description>
+          <com:Description xml:lang="fr">En notation scientifique, exprimé comme dix élevé à la puissance dix (10^10)</com:Description>
+          <com:Description xml:lang="es">En notación científica, expresado como diez a la potencia de diez (10^10)</com:Description>
+          <com:Description xml:lang="zh">在科学记数法中，表示为10的10次方（10^10）</com:Description>
+        </str:Code>
+        <str:Code id="11" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT_MULT(1.0.2).11">
+          <com:Name xml:lang="ar">مئات المليارات</com:Name>
+          <com:Name xml:lang="ru">Сотни миллиардов</com:Name>
+          <com:Name xml:lang="pt">Centenas de milhares de milhões</com:Name>
+          <com:Name xml:lang="ja">千億</com:Name>
+          <com:Name xml:lang="en">Hundreds of billions</com:Name>
+          <com:Name xml:lang="fr">Centaines de milliards</com:Name>
+          <com:Name xml:lang="es">Centenas de miles de millones</com:Name>
+          <com:Name xml:lang="zh">千亿</com:Name>
+          <com:Description xml:lang="ar">يُعبر عنها بالترميز العلمي بوصفها 10 أس 11 (10^11)</com:Description>
+          <com:Description xml:lang="ru">В математических терминах представляется как десять в одиннадцатой степени (10^11)</com:Description>
+          <com:Description xml:lang="pt">Representado em notação científica como dez elevado à potência de onze (10^11)</com:Description>
+          <com:Description xml:lang="ja">科学的表記では、10の11乗 (10^11)と表記</com:Description>
+          <com:Description xml:lang="en">In scientific notation, expressed as ten raised to the power of eleven (10^11)</com:Description>
+          <com:Description xml:lang="fr">En notation scientifique, exprimé comme dix élevé à la puissance onze (10^11)</com:Description>
+          <com:Description xml:lang="es">En notación científica, expresado como diez a la potencia de once (10^11)</com:Description>
+          <com:Description xml:lang="zh">在科学记数法中，表示为10的11次方（10^11）</com:Description>
+        </str:Code>
+        <str:Code id="12" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT_MULT(1.0.2).12">
+          <com:Name xml:lang="ar">التريليونات</com:Name>
+          <com:Name xml:lang="ru">Триллионы</com:Name>
+          <com:Name xml:lang="pt">Biliões</com:Name>
+          <com:Name xml:lang="ja">兆</com:Name>
+          <com:Name xml:lang="en">Trillions</com:Name>
+          <com:Name xml:lang="fr">Milliers de milliards</com:Name>
+          <com:Name xml:lang="es">Billones</com:Name>
+          <com:Name xml:lang="zh">万亿</com:Name>
+          <com:Description xml:lang="ar">يُعبر عنها بالترميز العلمي بوصفها 10 أس 12 (10^12)</com:Description>
+          <com:Description xml:lang="ru">В математических терминах представляется как десять в двенадцатой степени (10^12)</com:Description>
+          <com:Description xml:lang="pt">Representado em notação científica como dez elevado à potência de doze (10^12)</com:Description>
+          <com:Description xml:lang="ja">科学的表記では、10の12乗 (10^12)と表記</com:Description>
+          <com:Description xml:lang="en">In scientific notation, expressed as ten raised to the power of twelve (10^12)</com:Description>
+          <com:Description xml:lang="fr">En notation scientifique, exprimé comme dix élevé à la puissance douze (10^12)</com:Description>
+          <com:Description xml:lang="es">En notación científica, expresado como diez a la potencia de doce (10^12)</com:Description>
+          <com:Description xml:lang="zh">在科学记数法中，表示为10的12次方（10^12）</com:Description>
+        </str:Code>
+        <str:Code id="13" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT_MULT(1.0.2).13">
+          <com:Name xml:lang="ar">عشرات التريليونات</com:Name>
+          <com:Name xml:lang="ru">Десятки триллионов</com:Name>
+          <com:Name xml:lang="pt">Dezenas de biliões</com:Name>
+          <com:Name xml:lang="ja">十兆</com:Name>
+          <com:Name xml:lang="en">Tens of trillions</com:Name>
+          <com:Name xml:lang="fr">Dizaines de milliers de milliards</com:Name>
+          <com:Name xml:lang="es">Decenas de billones</com:Name>
+          <com:Name xml:lang="zh">十万亿</com:Name>
+          <com:Description xml:lang="ar">يُعبر عنها بالترميز العلمي بوصفها 10 أس 13 (10^13)</com:Description>
+          <com:Description xml:lang="ru">В математических терминах представляется как десять в тринадцатой степени (10^13)</com:Description>
+          <com:Description xml:lang="pt">Representado em notação científica como dez elevado à potência de treze (10^13)</com:Description>
+          <com:Description xml:lang="ja">科学的表記では、10の13乗 (10^13)と表記</com:Description>
+          <com:Description xml:lang="en">In scientific notation, expressed as ten raised to the power of thirteen (10^13)</com:Description>
+          <com:Description xml:lang="fr">En notation scientifique, exprimé comme dix élevé à la puissance treize (10^13)</com:Description>
+          <com:Description xml:lang="es">En notación científica, expresado como diez a la potencia de trece (10^13)</com:Description>
+          <com:Description xml:lang="zh">在科学记数法中，表示为10的13次方（10^13）</com:Description>
+        </str:Code>
+        <str:Code id="14" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT_MULT(1.0.2).14">
+          <com:Name xml:lang="ar">مئات التريليونات</com:Name>
+          <com:Name xml:lang="ru">Сотни триллионов</com:Name>
+          <com:Name xml:lang="pt">Centenas de biliões</com:Name>
+          <com:Name xml:lang="ja">百兆</com:Name>
+          <com:Name xml:lang="en">Hundreds of trillions</com:Name>
+          <com:Name xml:lang="fr">Centaines de milliards de dollars</com:Name>
+          <com:Name xml:lang="es">Centenas de billones</com:Name>
+          <com:Name xml:lang="zh">百万亿</com:Name>
+          <com:Description xml:lang="ar">يُعبر عنها بالترميز العلمي بوصفها 10 أس 14 (10^14)</com:Description>
+          <com:Description xml:lang="ru">В математических терминах представляется как десять в четырнадцатой степени (10^14)</com:Description>
+          <com:Description xml:lang="pt">Representado em notação científica como dez elevado à potência de catorze (10^14)</com:Description>
+          <com:Description xml:lang="ja">科学的表記では、10の14乗 (10^14)と表記</com:Description>
+          <com:Description xml:lang="en">In scientific notation, expressed as ten raised to the power of fourteen (10^14)</com:Description>
+          <com:Description xml:lang="fr">En notation scientifique, exprimé comme dix élevé à la puissance quatorze (10^14)</com:Description>
+          <com:Description xml:lang="es">En notación científica, expresado como diez a la potencia de catorce (10^14)</com:Description>
+          <com:Description xml:lang="zh">在科学记数法中，表示为10的14次方（10^14）</com:Description>
+        </str:Code>
+        <str:Code id="15" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT_MULT(1.0.2).15">
+          <com:Name xml:lang="ar">الكوادريليونات </com:Name>
+          <com:Name xml:lang="ru">Квадриллионы</com:Name>
+          <com:Name xml:lang="pt">Milhares de biliões</com:Name>
+          <com:Name xml:lang="ja">千兆</com:Name>
+          <com:Name xml:lang="en">Quadrillions</com:Name>
+          <com:Name xml:lang="fr">Quadrillions</com:Name>
+          <com:Name xml:lang="es">Miles de billones</com:Name>
+          <com:Name xml:lang="zh">千万亿</com:Name>
+          <com:Description xml:lang="ar">يُعبر عنها بالترميز العلمي بوصفها 10 أس 15 (10^15)</com:Description>
+          <com:Description xml:lang="ru">В математических терминах представляется как десять в пятнадцатой степени (10^15)</com:Description>
+          <com:Description xml:lang="pt">Representado em notação científica como dez elevado à potência de quinze (10^15)</com:Description>
+          <com:Description xml:lang="ja">科学的表記では、10の15乗 (10^15)と表記</com:Description>
+          <com:Description xml:lang="en">In scientific notation, expressed as ten raised to the power of fifteen (10^15)</com:Description>
+          <com:Description xml:lang="fr">En notation scientifique, exprimé comme dix élevé à la puissance quinze (10^15)</com:Description>
+          <com:Description xml:lang="es">En notación científica, expresado como diez a la potencia de quince (10^15)</com:Description>
+          <com:Description xml:lang="zh">在科学记数法中，表示为10的15次方（10^15）</com:Description>
+        </str:Code>
+        <str:Code id="-10" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT_MULT(1.0.2).-10">
+          <com:Name xml:lang="ar">الجزء من العشرة مليارات</com:Name>
+          <com:Name xml:lang="ru">Десятимиллиардные доли</com:Name>
+          <com:Name xml:lang="pt">Décimas de milésima de milionésima</com:Name>
+          <com:Name xml:lang="ja">百億分の一</com:Name>
+          <com:Name xml:lang="en">Ten-billionths</com:Name>
+          <com:Name xml:lang="fr">Dix-milliardièmes</com:Name>
+          <com:Name xml:lang="es">Diezmilmillonésimas</com:Name>
+          <com:Name xml:lang="zh">百亿分之一</com:Name>
+          <com:Description xml:lang="ar">يُعبر عنه بالترميز العلمي بوصفه 10 أس سالب 10 (10^-10)</com:Description>
+          <com:Description xml:lang="ru">В математических терминах представляется как десять в минус десятой степени (10^-10)</com:Description>
+          <com:Description xml:lang="pt">Representado em notação científica como dez elevado à potência de menos dez (10^-10)</com:Description>
+          <com:Description xml:lang="ja">科学的表記では、10の-10乗 (10^-10)と表記</com:Description>
+          <com:Description xml:lang="en">In scientific notation, expressed as ten raised to the power of minus ten (10^-10)</com:Description>
+          <com:Description xml:lang="fr">En notation scientifique, exprimé comme dix élevé à la puissance moins dix (10^-10)</com:Description>
+          <com:Description xml:lang="es">En notación científica, expresado como diez a la potencia de menos diez (10^-10)</com:Description>
+          <com:Description xml:lang="zh">在科学记数法中，表示为10的-10次方（10^-10）</com:Description>
+        </str:Code>
+        <str:Code id="-11" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT_MULT(1.0.2).-11">
+          <com:Name xml:lang="ar">الجزء من المائة مليار</com:Name>
+          <com:Name xml:lang="ru">Стомиллиардные доли</com:Name>
+          <com:Name xml:lang="pt">Centésimas de milésima de milionésima</com:Name>
+          <com:Name xml:lang="ja">千億分の一</com:Name>
+          <com:Name xml:lang="en">Hundred-billionths</com:Name>
+          <com:Name xml:lang="fr">Cent-milliardièmes</com:Name>
+          <com:Name xml:lang="es">Cienmilmillonésimas</com:Name>
+          <com:Name xml:lang="zh">千亿分之一</com:Name>
+          <com:Description xml:lang="ar">يُعبر عنه بالترميز العلمي بوصفه 10 أس سالب 11 (10^-11)</com:Description>
+          <com:Description xml:lang="ru">В математических терминах представляется как десять в минус одиннадцатой степени (10^-11)</com:Description>
+          <com:Description xml:lang="pt">Representado em notação científica como dez elevado à potência de menos onze (10^-11)</com:Description>
+          <com:Description xml:lang="ja">科学的表記では、10の-11乗 (10^-11)と表記</com:Description>
+          <com:Description xml:lang="en">In scientific notation, expressed as ten raised to the power of minus eleven (10^-11)</com:Description>
+          <com:Description xml:lang="fr">En notation scientifique, exprimé comme dix élevé à la puissance moins onze (10^-11)</com:Description>
+          <com:Description xml:lang="es">En notación científica, expresado como diez a la potencia de menos once (10^-11)</com:Description>
+          <com:Description xml:lang="zh">在科学记数法中，表示为10的-11次方（10^-11）</com:Description>
+        </str:Code>
+        <str:Code id="-12" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT_MULT(1.0.2).-12">
+          <com:Name xml:lang="ar">الجزء من التريليون</com:Name>
+          <com:Name xml:lang="ru">Триллионные доли</com:Name>
+          <com:Name xml:lang="pt">Bilionésimas</com:Name>
+          <com:Name xml:lang="ja">兆分の一</com:Name>
+          <com:Name xml:lang="en">Trillionths</com:Name>
+          <com:Name xml:lang="fr">Trillionièmes</com:Name>
+          <com:Name xml:lang="es">Billonésimas</com:Name>
+          <com:Name xml:lang="zh">万亿分之一</com:Name>
+          <com:Description xml:lang="ar">يُعبر عنه بالترميز العلمي بوصفه 10 أس سالب 12 (10^-12)</com:Description>
+          <com:Description xml:lang="ru">В математических терминах представляется как десять в минус двенадцатой степени (10^-12)</com:Description>
+          <com:Description xml:lang="pt">Representado em notação científica como dez elevado à potência de menos doze (10^-12)</com:Description>
+          <com:Description xml:lang="ja">科学的表記では、10の-12乗 (10^-12)と表記</com:Description>
+          <com:Description xml:lang="en">In scientific notation, expressed as ten raised to the power of minus twelve (10^-12)</com:Description>
+          <com:Description xml:lang="fr">En notation scientifique, exprimé comme dix élevé à la puissance moins douze (10^-12)</com:Description>
+          <com:Description xml:lang="es">En notación científica, expresado como diez a la potencia de menos doce (10^-12)</com:Description>
+          <com:Description xml:lang="zh">在科学记数法中，表示为10的-12次方（10^-12）</com:Description>
+        </str:Code>
+        <str:Code id="-13" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT_MULT(1.0.2).-13">
+          <com:Name xml:lang="ar">الجزء من العشرة تريليونات</com:Name>
+          <com:Name xml:lang="ru">Десятитриллионные доли</com:Name>
+          <com:Name xml:lang="pt">Décimas de bilionésima</com:Name>
+          <com:Name xml:lang="ja">十兆分の一</com:Name>
+          <com:Name xml:lang="en">Ten-trillionths</com:Name>
+          <com:Name xml:lang="fr">Dix-trillionièmes</com:Name>
+          <com:Name xml:lang="es">Diezbillonésimas</com:Name>
+          <com:Name xml:lang="zh">十万亿分之一</com:Name>
+          <com:Description xml:lang="ar">يُعبر عنه بالترميز العلمي بوصفه 10 أس سالب 13 (10^-13)</com:Description>
+          <com:Description xml:lang="ru">В математических терминах представляется как десять в минус тринадцатой степени (10^-13)</com:Description>
+          <com:Description xml:lang="pt">Representado em notação científica como dez elevado à potência de menos treze (10^-13)</com:Description>
+          <com:Description xml:lang="ja">科学的表記では、10の-13乗 (10^-13)と表記</com:Description>
+          <com:Description xml:lang="en">In scientific notation, expressed as ten raised to the power of minus thirteen (10^-13)</com:Description>
+          <com:Description xml:lang="fr">En notation scientifique, exprimé comme dix élevé à la puissance moins treize (10^-13)</com:Description>
+          <com:Description xml:lang="es">En notación científica, expresado como diez a la potencia de menos trece (10^-13)</com:Description>
+          <com:Description xml:lang="zh">在科学记数法中，表示为10的-13次方（10^-13）</com:Description>
+        </str:Code>
+        <str:Code id="-14" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT_MULT(1.0.2).-14">
+          <com:Name xml:lang="ar">الجزء من المائة تريليون</com:Name>
+          <com:Name xml:lang="ru">Стотриллионные доли</com:Name>
+          <com:Name xml:lang="pt">Centésimas de bilionésima</com:Name>
+          <com:Name xml:lang="ja">百兆分の一</com:Name>
+          <com:Name xml:lang="en">Hundred-trillionths</com:Name>
+          <com:Name xml:lang="fr">Cent-trillionième</com:Name>
+          <com:Name xml:lang="es">Cienbillonésimas</com:Name>
+          <com:Name xml:lang="zh">百万亿分之一</com:Name>
+          <com:Description xml:lang="ar">يُعبر عنه بالترميز العلمي بوصفه 10 أس سالب 14 (10^-14)</com:Description>
+          <com:Description xml:lang="ru">В математических терминах представляется как десять в минус четырнадцатой степени (10^-14)</com:Description>
+          <com:Description xml:lang="pt">Representado em notação científica como dez elevado à potência de menos catorze (10^-14)</com:Description>
+          <com:Description xml:lang="ja">科学的表記では、10の-14乗 (10^-14)と表記</com:Description>
+          <com:Description xml:lang="en">In scientific notation, expressed as ten raised to the power of minus fourteen (10^-14)</com:Description>
+          <com:Description xml:lang="fr">En notation scientifique, exprimé comme dix élevé à la puissance moins quatorze (10^-14)</com:Description>
+          <com:Description xml:lang="es">En notación científica, expresado como diez a la potencia de menos catorce (10^-14)</com:Description>
+          <com:Description xml:lang="zh">在科学记数法中，表示为10的-14次方（10^-14）</com:Description>
+        </str:Code>
+        <str:Code id="-15" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT_MULT(1.0.2).-15">
+          <com:Name xml:lang="ar">الجزء من الكوادريليون</com:Name>
+          <com:Name xml:lang="ru">Квадриллионные доли</com:Name>
+          <com:Name xml:lang="pt">Milésimas de bilionésima</com:Name>
+          <com:Name xml:lang="ja">千兆分の一</com:Name>
+          <com:Name xml:lang="en">Quadrillionths</com:Name>
+          <com:Name xml:lang="fr">Quadrillionièmes</com:Name>
+          <com:Name xml:lang="es">Milbillonésimas</com:Name>
+          <com:Name xml:lang="zh">千万亿分之一</com:Name>
+          <com:Description xml:lang="ar">يُعبر عنه بالترميز العلمي بوصفه 10 أس سالب 15 (10^-15)</com:Description>
+          <com:Description xml:lang="ru">В математических терминах представляется как десять в минус пятнадцатой степени (10^-15)</com:Description>
+          <com:Description xml:lang="pt">Representado em notação científica como dez elevado à potência de menos quinze (10^-15)</com:Description>
+          <com:Description xml:lang="ja">科学的表記では、10の-15乗 (10^-15)と表記</com:Description>
+          <com:Description xml:lang="en">In scientific notation, expressed as ten raised to the power of minus fifteen (10^-15)</com:Description>
+          <com:Description xml:lang="fr">En notation scientifique, exprimé comme dix élevé à la puissance moins quinze (10^-15)</com:Description>
+          <com:Description xml:lang="es">En notación científica, expresado como diez a la potencia de menos once (10^-15)</com:Description>
+          <com:Description xml:lang="zh">在科学记数法中，表示为10的-15次方（10^-15）</com:Description>
+        </str:Code>
+      </str:Codelist>
+    </str:Codelists>
+  </mes:Structures>
+</mes:Structure>

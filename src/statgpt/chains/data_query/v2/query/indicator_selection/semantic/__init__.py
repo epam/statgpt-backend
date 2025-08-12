@@ -1,0 +1,4 @@
+from .indicators_semantic_v1 import IndicatorSelectionSemanticV1ChainFactory
+from .indicators_semantic_v2 import IndicatorSelectionSemanticV2ChainFactory
+from .indicators_semantic_v3 import IndicatorSelectionSemanticV3ChainFactory
+from .indicators_semantic_v4 import IndicatorSelectionSemanticV4ChainFactory

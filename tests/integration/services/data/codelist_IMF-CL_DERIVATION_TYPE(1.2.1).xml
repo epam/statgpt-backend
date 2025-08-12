@@ -1,0 +1,70 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<mes:Structure xmlns:mes="http://www.sdmx.org/resources/sdmxml/schemas/v2_1/message" xmlns:str="http://www.sdmx.org/resources/sdmxml/schemas/v2_1/structure" xmlns:com="http://www.sdmx.org/resources/sdmxml/schemas/v2_1/common" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xml="http://www.w3.org/XML/1998/namespace" xsi:schemaLocation="http://www.sdmx.org/resources/sdmxml/schemas/v2_1/message ../../schemas/SDMXMessage.xsd">
+  <mes:Header>
+    <mes:ID>IDREF9404</mes:ID>
+    <mes:Test>false</mes:Test>
+    <mes:Prepared>2025-07-29T10:07:13.978103835Z</mes:Prepared>
+    <mes:Sender id="unknown"/>
+  </mes:Header>
+  <mes:Structures>
+    <str:Codelists>
+      <str:Codelist urn="urn:sdmx:org.sdmx.infomodel.codelist.Codelist=IMF:CL_DERIVATION_TYPE(1.2.1)" agencyID="IMF" id="CL_DERIVATION_TYPE" version="1.2.1" isFinal="true" isExternalReference="false" isPartial="false">
+        <com:Annotations>
+          <com:Annotation id="origin"/>
+          <com:Annotation id="isFinal"/>
+          <com:Annotation id="lastUpdatedAt"/>
+        </com:Annotations>
+        <com:Name xml:lang="en">Derivation Type </com:Name>
+        <com:Description xml:lang="en">This codelist identifies the specific method used to derive a new data element or indicator from source data, such as raw data, IMF staff calculations, IMF staff estimates, or IMF staff projections.</com:Description>
+        <str:Code id="SEME" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_DERIVATION_TYPE(1.2.1).SEME">
+          <com:Name xml:lang="en">Staff estimates using group mean imputation methods</com:Name>
+          <com:Description xml:lang="en">Staff estimates using group mean imputation methods.</com:Description>
+        </str:Code>
+        <str:Code id="SEHI" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_DERIVATION_TYPE(1.2.1).SEHI">
+          <com:Name xml:lang="en">Staff estimates using historical imputation methods</com:Name>
+          <com:Description xml:lang="en">Staff estimates using historical imputation methods.</com:Description>
+        </str:Code>
+        <str:Code id="R" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_DERIVATION_TYPE(1.2.1).R">
+          <com:Name xml:lang="en">Raw data (no derivation)</com:Name>
+          <com:Description xml:lang="en">Non-transformed data (also called original data) refers to data in its original form, before any mathematical or statistical operations have been applied to change its values or distribution.</com:Description>
+        </str:Code>
+        <str:Code id="SC" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_DERIVATION_TYPE(1.2.1).SC">
+          <com:Name xml:lang="en">IMF Staff calculations (derived value)</com:Name>
+          <com:Description xml:lang="en">Data that results from direct calculations or transformations performed on raw data by IMF staff. These calculations are usually straightforward and transparent, with the published numbers easily traceable back to the source data.</com:Description>
+        </str:Code>
+        <str:Code id="SCC" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_DERIVATION_TYPE(1.2.1).SCC">
+          <com:Name xml:lang="en">IMF Staff calculations (derived from counterpart data)</com:Name>
+          <com:Description xml:lang="en">Data resulting from direct application of counterpart data by IMF staff to the official information reported by other countries.</com:Description>
+        </str:Code>
+        <str:Code id="SE" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_DERIVATION_TYPE(1.2.1).SE">
+          <com:Name xml:lang="en">IMF Staff estimates</com:Name>
+          <com:Description xml:lang="en">Data derived through calculations or transformations on available source data, where some necessary information might be missing. In these cases, IMF staff uses estimates to fill in the gaps and produce the published numbers.</com:Description>
+        </str:Code>
+        <str:Code id="SP" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_DERIVATION_TYPE(1.2.1).SP">
+          <com:Name xml:lang="en">IMF Staff projections</com:Name>
+          <com:Description xml:lang="en">Forecasts of future values for a time series, constructed using various techniques such as statistical modeling, trend analysis, and expert judgment. These projections are based on historical data, current economic conditions, and other relevant factors.</com:Description>
+        </str:Code>
+        <str:Code id="M" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_DERIVATION_TYPE(1.2.1).M">
+          <com:Name xml:lang="en">Mixed-type data</com:Name>
+          <com:Description xml:lang="en">Data that combines both raw and derived data. This could occur when some components of a dataset are directly reported while others are calculated or estimated.</com:Description>
+        </str:Code>
+        <str:Code id="O" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_DERIVATION_TYPE(1.2.1).O">
+          <com:Name xml:lang="en">Reported official data</com:Name>
+          <com:Description xml:lang="en">Official data reported to the IMF by country authorities without any modifications or adjustments made by IMF staff.</com:Description>
+        </str:Code>
+        <str:Code id="OU" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_DERIVATION_TYPE(1.2.1).OU">
+          <com:Name xml:lang="en">Reported official data converted to US dollar</com:Name>
+          <com:Description xml:lang="en">Official data reported to the IMF by country authorities in a country's domestic currency, which IMF staff then converts to US dollars using appropriate exchange rates.</com:Description>
+        </str:Code>
+        <str:Code id="FA" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_DERIVATION_TYPE(1.2.1).FA">
+          <com:Name xml:lang="en">Adjusted using Fund records</com:Name>
+          <com:Description xml:lang="en">Official data reported to the IMF by country authorities that has that have been adjusted using internal IMF records.</com:Description>
+        </str:Code>
+        <str:Code id="TPD" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_DERIVATION_TYPE(1.2.1).TPD">
+          <com:Name xml:lang="en">Third party data</com:Name>
+          <com:Description xml:lang="en">Third party data.</com:Description>
+        </str:Code>
+      </str:Codelist>
+    </str:Codelists>
+  </mes:Structures>
+</mes:Structure>

@@ -1,0 +1,1958 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<mes:Structure xmlns:mes="http://www.sdmx.org/resources/sdmxml/schemas/v2_1/message" xmlns:str="http://www.sdmx.org/resources/sdmxml/schemas/v2_1/structure" xmlns:com="http://www.sdmx.org/resources/sdmxml/schemas/v2_1/common" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xml="http://www.w3.org/XML/1998/namespace" xsi:schemaLocation="http://www.sdmx.org/resources/sdmxml/schemas/v2_1/message ../../schemas/SDMXMessage.xsd">
+  <mes:Header>
+    <mes:ID>IDREF1611</mes:ID>
+    <mes:Test>false</mes:Test>
+    <mes:Prepared>2025-07-29T09:53:05.737389205Z</mes:Prepared>
+    <mes:Sender id="unknown"/>
+  </mes:Header>
+  <mes:Structures>
+    <str:Codelists>
+      <str:Codelist urn="urn:sdmx:org.sdmx.infomodel.codelist.Codelist=IMF:CL_UNIT(2.8.0)" agencyID="IMF" id="CL_UNIT" version="2.8.0" isFinal="true" isExternalReference="false" isPartial="false">
+        <com:Annotations>
+          <com:Annotation id="isFinal"/>
+          <com:Annotation id="origin"/>
+          <com:Annotation id="lastUpdatedAt"/>
+        </com:Annotations>
+        <com:Name xml:lang="en">Unit of Measure</com:Name>
+        <com:Description xml:lang="en">This codelist represents the standard unit used to quantify a particular data element or indicator. It encompasses various units, including currency, physical units, percentages, and other standardized measures.</com:Description>
+        <str:Code id="1000HA" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).1000HA">
+          <com:Name xml:lang="en">1000 hectares</com:Name>
+          <com:Description xml:lang="en">A unit of area equal to 1,000 hectares (10,000,000 square meters).</com:Description>
+        </str:Code>
+        <str:Code id="BBL" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).BBL">
+          <com:Name xml:lang="en">Barrel</com:Name>
+          <com:Description xml:lang="en">Unit of volume for crude oil and other petroleum products. Equal to 42 US gallons.</com:Description>
+        </str:Code>
+        <str:Code id="BBL_DY" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).BBL_DY">
+          <com:Name xml:lang="en">Barrels per day</com:Name>
+          <com:Description xml:lang="en">Unit of measurement used in the oil and gas industry to describe the rate of production or consumption of petroleum products.</com:Description>
+        </str:Code>
+        <str:Code id="BP" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).BP">
+          <com:Name xml:lang="en">Basis points</com:Name>
+          <com:Description xml:lang="en">Basis points refers to hundredths of 1 percentage point.</com:Description>
+        </str:Code>
+        <str:Code id="CAR" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).CAR">
+          <com:Name xml:lang="en">Carat</com:Name>
+          <com:Description xml:lang="en">The carat is a unit of mass equal to 200 mg, used for measuring gemstones and pearls. Also used to indicate the proportion of gold in an alloy out of 24 parts (e.g., 18K gold is 18/24 parts gold).</com:Description>
+        </str:Code>
+        <str:Code id="CM" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).CM">
+          <com:Name xml:lang="en">Centimeter</com:Name>
+          <com:Description xml:lang="en">A unit of length in the metric system, equal to one hundredth of a meter.</com:Description>
+        </str:Code>
+        <str:Code id="CBM" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).CBM">
+          <com:Name xml:lang="en">Cubic meter</com:Name>
+          <com:Description xml:lang="en">A unit of volume equal to a cube one meter long on each side.</com:Description>
+        </str:Code>
+        <str:Code id="DY" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).DY">
+          <com:Name xml:lang="en">Days</com:Name>
+          <com:Description xml:lang="en">A period of twenty-four hours as a unit of time.</com:Description>
+        </str:Code>
+        <str:Code id="DC" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).DC">
+          <com:Name xml:lang="en">Degrees celsius</com:Name>
+          <com:Description xml:lang="en">The degree Celsius (symbol: °C) can refer to a specific point on the Celsius temperature scale or to a difference or range between two temperatures.</com:Description>
+        </str:Code>
+        <str:Code id="GAL" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).GAL">
+          <com:Name xml:lang="en">Gallon</com:Name>
+          <com:Description xml:lang="en">A unit of liquid capacity equal to 3.79 liters.</com:Description>
+        </str:Code>
+        <str:Code id="GWH" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).GWH">
+          <com:Name xml:lang="en">Gigawatt hours</com:Name>
+          <com:Description xml:lang="en">Gigawatt hours (GWh) is a unit of energy representing one billion watt hours.</com:Description>
+        </str:Code>
+        <str:Code id="HA" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).HA">
+          <com:Name xml:lang="en">Hectare</com:Name>
+          <com:Description xml:lang="en">A unit of area equal to 10,000 square meters.</com:Description>
+        </str:Code>
+        <str:Code id="HR" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).HR">
+          <com:Name xml:lang="en">Hours</com:Name>
+          <com:Description xml:lang="en">A period of time equal to a twenty-fourth part of a day and night.</com:Description>
+        </str:Code>
+        <str:Code id="USD_IX" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).USD_IX">
+          <com:Name xml:lang="en">US Dollar Index</com:Name>
+          <com:Description xml:lang="en">A value expressed in US dollars that is derived from an index computation.</com:Description>
+        </str:Code>
+        <str:Code id="IX" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).IX">
+          <com:Name xml:lang="en">Index</com:Name>
+          <com:Description xml:lang="en">A statistical measure that expresses the relative change in a variable in the current period compared to the index reference period.</com:Description>
+        </str:Code>
+        <str:Code id="KG" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).KG">
+          <com:Name xml:lang="en">Kilogram</com:Name>
+          <com:Description xml:lang="en">The base unit of mass in the International System of Units (SI).</com:Description>
+        </str:Code>
+        <str:Code id="KM" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).KM">
+          <com:Name xml:lang="en">Kilometer</com:Name>
+          <com:Description xml:lang="en">A unit of length in the metric system, equal to one thousand meters.</com:Description>
+        </str:Code>
+        <str:Code id="KTCO2E" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).KTCO2E">
+          <com:Name xml:lang="en">Kiloton of CO₂ equivalent</com:Name>
+          <com:Description xml:lang="en">Measurement of carbon dioxide equivalent emissions.</com:Description>
+        </str:Code>
+        <str:Code id="KWH" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).KWH">
+          <com:Name xml:lang="en">Kilowatt hour</com:Name>
+          <com:Description xml:lang="en">A unit of energy equal to one kilowatt of power expended for one hour.</com:Description>
+        </str:Code>
+        <str:Code id="LT" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).LT">
+          <com:Name xml:lang="en">Liter</com:Name>
+          <com:Description xml:lang="en">A metric unit of capacity, equal to 1,000 cubic centimeters.</com:Description>
+        </str:Code>
+        <str:Code id="LTN" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).LTN">
+          <com:Name xml:lang="en">Long ton</com:Name>
+          <com:Description xml:lang="en">A unit of weight equal to 2,240 pounds (1,016.0 kg).</com:Description>
+        </str:Code>
+        <str:Code id="MD" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).MD">
+          <com:Name xml:lang="en">Magnitude (dimensionless)</com:Name>
+          <com:Description xml:lang="en">A general unit for quantities without specific dimensions, often used for indices, ratios, or proportions.</com:Description>
+        </str:Code>
+        <str:Code id="MW" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).MW">
+          <com:Name xml:lang="en">Megawatt</com:Name>
+          <com:Description xml:lang="en">A unit of power equal to one million watts.</com:Description>
+        </str:Code>
+        <str:Code id="M" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).M">
+          <com:Name xml:lang="en">Meter</com:Name>
+          <com:Description xml:lang="en">The base unit of length in the International System of Units (SI).</com:Description>
+        </str:Code>
+        <str:Code id="TN" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).TN">
+          <com:Name xml:lang="en">Metric ton</com:Name>
+          <com:Description xml:lang="en">A unit of weight equal to 1,000 kilograms (2,204.6 pounds).</com:Description>
+        </str:Code>
+        <str:Code id="MTCO2" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).MTCO2">
+          <com:Name xml:lang="en">Metric ton of CO₂</com:Name>
+          <com:Description xml:lang="en">Measurement of carbon dioxide emissions.</com:Description>
+        </str:Code>
+        <str:Code id="MTCO2E" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).MTCO2E">
+          <com:Name xml:lang="en">Metric ton of CO₂ equivalent</com:Name>
+          <com:Description xml:lang="en">A metric measure used to compare the emissions from various greenhouse gases on the basis of their global-warming potential. 1</com:Description>
+        </str:Code>
+        <str:Code id="MM" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).MM">
+          <com:Name xml:lang="en">Millimeter</com:Name>
+          <com:Description xml:lang="en">A unit of length in the metric system, equal to one thousandth of a meter.</com:Description>
+        </str:Code>
+        <str:Code id="MTN" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).MTN">
+          <com:Name xml:lang="en">Millions of metric tonnes</com:Name>
+          <com:Description xml:lang="en">A unit of weight equal to one million metric tons.</com:Description>
+        </str:Code>
+        <str:Code id="MH" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).MH">
+          <com:Name xml:lang="en">Months</com:Name>
+          <com:Description xml:lang="en">Each of the twelve named periods into which a year is divided.</com:Description>
+        </str:Code>
+        <str:Code id="NUM" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).NUM">
+          <com:Name xml:lang="en">Number</com:Name>
+          <com:Description xml:lang="en">A mathematical object used to count, measure, and label.</com:Description>
+        </str:Code>
+        <str:Code id="PPM" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).PPM">
+          <com:Name xml:lang="en">Parts per million</com:Name>
+          <com:Description xml:lang="en">A measure of concentration, indicating one part per million of a substance in a solution.</com:Description>
+        </str:Code>
+        <str:Code id="PUSD" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).PUSD">
+          <com:Name xml:lang="en">Per US dollar</com:Name>
+          <com:Description xml:lang="en">Indicates a rate or quantity relative to one US dollar.</com:Description>
+        </str:Code>
+        <str:Code id="PT" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).PT">
+          <com:Name xml:lang="en">Percent</com:Name>
+          <com:Description xml:lang="en">A ratio expressed as a fraction of 100.</com:Description>
+        </str:Code>
+        <str:Code id="PD" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).PD">
+          <com:Name xml:lang="en">Percentage points</com:Name>
+          <com:Description xml:lang="en">The difference between two percentages.</com:Description>
+        </str:Code>
+        <str:Code id="PE" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).PE">
+          <com:Name xml:lang="en">Persons</com:Name>
+          <com:Description xml:lang="en">Individuals.</com:Description>
+        </str:Code>
+        <str:Code id="LB" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).LB">
+          <com:Name xml:lang="en">Pound</com:Name>
+          <com:Description xml:lang="en">A unit of weight equal to 16 ounces (0.4536 kg).</com:Description>
+        </str:Code>
+        <str:Code id="STN" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).STN">
+          <com:Name xml:lang="en">Short ton</com:Name>
+          <com:Description xml:lang="en">A unit of weight equal to 2,000 pounds (907.18 kg).</com:Description>
+        </str:Code>
+        <str:Code id="KM2" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).KM2">
+          <com:Name xml:lang="en">Square kilometer</com:Name>
+          <com:Description xml:lang="en">A unit of area equal to a square that is one kilometer long on each side.</com:Description>
+        </str:Code>
+        <str:Code id="M2" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).M2">
+          <com:Name xml:lang="en">Square meter</com:Name>
+          <com:Description xml:lang="en">The unit of area in the International System of Units (SI).</com:Description>
+        </str:Code>
+        <str:Code id="MCF" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).MCF">
+          <com:Name xml:lang="en">Thousand cubic feet</com:Name>
+          <com:Description xml:lang="en">A unit of volume equal to one thousand cubic feet of gas.</com:Description>
+        </str:Code>
+        <str:Code id="TCM" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).TCM">
+          <com:Name xml:lang="en">Thousand cubic meters</com:Name>
+          <com:Description xml:lang="en">A unit of volume equal to one thousand cubic meters.</com:Description>
+        </str:Code>
+        <str:Code id="TOU_N" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).TOU_N">
+          <com:Name xml:lang="en">Number of tourist nights</com:Name>
+          <com:Description xml:lang="en">The number of nights spent by tourists at a destination.</com:Description>
+        </str:Code>
+        <str:Code id="VI" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).VI">
+          <com:Name xml:lang="en">Visitors</com:Name>
+          <com:Description xml:lang="en">People visiting a person, place, or event.</com:Description>
+        </str:Code>
+        <str:Code id="FTO" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).FTO">
+          <com:Name xml:lang="en">Fine troy ounces</com:Name>
+          <com:Description xml:lang="en">Measurement of volume in millions of troy ounces of precious metals.</com:Description>
+        </str:Code>
+        <str:Code id="FTOGB" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).FTOGB">
+          <com:Name xml:lang="en">Fine troy ounces of gold bullion</com:Name>
+          <com:Description xml:lang="en">Volume measurement specifically for gold bullion in millions of troy ounces.</com:Description>
+        </str:Code>
+        <str:Code id="FTOUG" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).FTOUG">
+          <com:Name xml:lang="en">Fine troy ounces of unallocated gold holdings</com:Name>
+          <com:Description xml:lang="en">Volume measurement for unallocated gold holdings in millions of troy ounces. Unallocated gold accounts are held by individuals or institutions with a claim on a certain amount of gold, but not on specific bars or coins.</com:Description>
+        </str:Code>
+        <str:Code id="WK" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).WK">
+          <com:Name xml:lang="en">Weeks</com:Name>
+          <com:Description xml:lang="en">A period of seven days.</com:Description>
+        </str:Code>
+        <str:Code id="YR" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).YR">
+          <com:Name xml:lang="en">Years</com:Name>
+          <com:Description xml:lang="en">A period of 12 months or 365 (or 366) days.</com:Description>
+        </str:Code>
+        <str:Code id="CO2PUP1" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).CO2PUP1">
+          <com:Name xml:lang="en">CO₂ emissions per unit of output</com:Name>
+          <com:Description xml:lang="en">A measure of the amount of carbon dioxide emissions produced per unit of economic output.</com:Description>
+        </str:Code>
+        <str:Code id="EURPK" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).EURPK">
+          <com:Name xml:lang="en">Euro per kilogram</com:Name>
+          <com:Description xml:lang="en">Price or cost in Euros per kilogram.</com:Description>
+        </str:Code>
+        <str:Code id="USC_GAL" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).USC_GAL">
+          <com:Name xml:lang="en">US cents per gallon</com:Name>
+          <com:Description xml:lang="en">Price or cost in US cents per gallon.</com:Description>
+        </str:Code>
+        <str:Code id="USCPL" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).USCPL">
+          <com:Name xml:lang="en">US cents per kilogram</com:Name>
+          <com:Description xml:lang="en">Price or cost in US cents per kilogram.</com:Description>
+        </str:Code>
+        <str:Code id="USCPP" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).USCPP">
+          <com:Name xml:lang="en">US cents per pound</com:Name>
+          <com:Description xml:lang="en">Price or cost in US cents per pound.</com:Description>
+        </str:Code>
+        <str:Code id="USD_BBL" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).USD_BBL">
+          <com:Name xml:lang="en">US dollars per barrel</com:Name>
+          <com:Description xml:lang="en">Price or cost in US dollars per barrel.</com:Description>
+        </str:Code>
+        <str:Code id="USD_BUSH" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).USD_BUSH">
+          <com:Name xml:lang="en">US dollars per bushel</com:Name>
+          <com:Description xml:lang="en">Price or cost in US dollars per bushel.</com:Description>
+        </str:Code>
+        <str:Code id="USD_OZG" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).USD_OZG">
+          <com:Name xml:lang="en">US dollars per ounce of gold</com:Name>
+          <com:Description xml:lang="en">The price of gold in US dollars per ounce.</com:Description>
+        </str:Code>
+        <str:Code id="USD_PCM" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).USD_PCM">
+          <com:Name xml:lang="en">US dollars per cubic meter</com:Name>
+          <com:Description xml:lang="en">Price or cost in US dollars per cubic meter.</com:Description>
+        </str:Code>
+        <str:Code id="USD_PTO" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).USD_PTO">
+          <com:Name xml:lang="en">US dollars per troy ounce of gold</com:Name>
+          <com:Description xml:lang="en">Price or cost in US dollars per troy ounce of gold.</com:Description>
+        </str:Code>
+        <str:Code id="USDBTU" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).USDBTU">
+          <com:Name xml:lang="en">US dollars per million metric British thermal units of gas</com:Name>
+          <com:Description xml:lang="en">Price in US dollars per million British thermal units of gas.</com:Description>
+        </str:Code>
+        <str:Code id="USDPK" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).USDPK">
+          <com:Name xml:lang="en">US dollars per kilogram</com:Name>
+          <com:Description xml:lang="en">Price or cost in US dollars per kilogram.</com:Description>
+        </str:Code>
+        <str:Code id="USDPMT" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).USDPMT">
+          <com:Name xml:lang="en">US dollars per metric tonne</com:Name>
+          <com:Description xml:lang="en">Price or cost in US dollars per metric tonne.</com:Description>
+        </str:Code>
+        <str:Code id="USDPP" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).USDPP">
+          <com:Name xml:lang="en">US dollars per pound</com:Name>
+          <com:Description xml:lang="en">Price or cost in US dollars per pound.</com:Description>
+        </str:Code>
+        <str:Code id="XDR_OZG" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).XDR_OZG">
+          <com:Name xml:lang="en">SDRs per ounce of gold</com:Name>
+          <com:Description xml:lang="en">The price of gold in Special Drawing Rights (SDRs) per ounce.</com:Description>
+        </str:Code>
+        <str:Code id="USDCWT" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).USDCWT">
+          <com:Name xml:lang="en">US dollars per hundredweight (cwt)</com:Name>
+          <com:Description xml:lang="en">US dollar per hundredweight (cwt).</com:Description>
+        </str:Code>
+        <str:Code id="EUR_BBL" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).EUR_BBL">
+          <com:Name xml:lang="en">Euro per barrel</com:Name>
+          <com:Description xml:lang="en">Price or cost in Euros per barrel.</com:Description>
+        </str:Code>
+        <str:Code id="USD_STN" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).USD_STN">
+          <com:Name xml:lang="en">US dollars per short ton</com:Name>
+          <com:Description xml:lang="en">Price of cost in US dollar per short ton (a unit of weight equal to 2,000 pounds or 907.18kg).</com:Description>
+        </str:Code>
+        <str:Code id="INR_KG" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).INR_KG">
+          <com:Name xml:lang="en">INR per 100 kgs</com:Name>
+          <com:Description xml:lang="en">INR per 100 kgs.</com:Description>
+        </str:Code>
+        <str:Code id="S70PKG" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).S70PKG">
+          <com:Name xml:lang="en">70 shrimp spot price per kilogram</com:Name>
+          <com:Description xml:lang="en">Price or cost in 70 shrimp spot price per kilogram.</com:Description>
+        </str:Code>
+        <str:Code id="PEIX" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).PEIX">
+          <com:Name xml:lang="en">Persons for countries / Index for country groups</com:Name>
+          <com:Description xml:lang="en">Persons for countries / Index for country groups.</com:Description>
+        </str:Code>
+        <str:Code id="NUMIX" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).NUMIX">
+          <com:Name xml:lang="en">Number for countries / Index for country groups</com:Name>
+          <com:Description xml:lang="en">Number for countries / Index for country groups.</com:Description>
+        </str:Code>
+        <str:Code id="USCCWT" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).USCCWT">
+          <com:Name xml:lang="en">US cents per hundredweight (cwt)</com:Name>
+          <com:Description xml:lang="en">US cents per hundredweight (cwt).</com:Description>
+        </str:Code>
+        <str:Code id="MIL_BBLE" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).MIL_BBLE">
+          <com:Name xml:lang="en">Millions of barrels per day equivalent</com:Name>
+          <com:Description xml:lang="en">Millions of barrels per day equivalent.</com:Description>
+        </str:Code>
+        <str:Code id="MIL_BBL" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).MIL_BBL">
+          <com:Name xml:lang="en">Millions of barrels per day</com:Name>
+          <com:Description xml:lang="en">Millions of barrels per day.</com:Description>
+        </str:Code>
+        <str:Code id="_Z" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0)._Z">
+          <com:Name xml:lang="en">Not applicable</com:Name>
+        </str:Code>
+        <str:Code id="INRPK" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).INRPK">
+          <com:Name xml:lang="en">INR/100 Kgs</com:Name>
+          <com:Description xml:lang="en">INR/100 Kgs</com:Description>
+        </str:Code>
+        <str:Code id="REC" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).REC">
+          <com:Name xml:lang="en">Rare earth carbonate REO 42-45 Dom</com:Name>
+          <com:Description xml:lang="en">Specific rare earth carbonate material with a defined range of Rare Earth Oxide (REO) content.</com:Description>
+        </str:Code>
+        <str:Code id="CP992" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).CP992">
+          <com:Name xml:lang="en">99.2%, Coarse particle</com:Name>
+          <com:Description xml:lang="en">This refers to a material with a specific particle size distribution where 99.2% of the particles are larger than a certain size threshold, indicating a coarse or granular material. The exact size threshold would depend on the context and the specific material being described.</com:Description>
+        </str:Code>
+        <str:Code id="BG99" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).BG99">
+          <com:Name xml:lang="en">99%, Battery Grade</com:Name>
+          <com:Description xml:lang="en">This refers to a material or substance that has a purity level of 99% and is suitable for use in batteries. The term "Battery Grade" indicates that the material meets the specific quality and performance requirements for battery applications, such as electrochemical stability, high energy density, and long cycle life.</com:Description>
+        </str:Code>
+        <str:Code id="CIF_NWE" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).CIF_NWE">
+          <com:Name xml:lang="en">Cost, insurance, and freight Northwest Europe (CIF NWE)</com:Name>
+          <com:Description xml:lang="en">CIF NWE (Cost, Insurance, and Freight Northwest Europe) is a pricing term used in the oil and petroleum industry. It indicates that the seller is responsible for the costs, insurance, and freight of delivering the product to a port in Northwest Europe. sumes responsibility for the goods once they are loaded onto the ship at the port of origin. NEW likely refers to a specific geographic region or port, but without further context, it's difficult to be certain.</com:Description>
+        </str:Code>
+        <str:Code id="USD_ST" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).USD_ST">
+          <com:Name xml:lang="en">USD/ST</com:Name>
+          <com:Description xml:lang="en">USD/ST</com:Description>
+        </str:Code>
+        <str:Code id="MNS" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).MNS">
+          <com:Name xml:lang="en">Minutes</com:Name>
+          <com:Description xml:lang="en">Minutes</com:Description>
+        </str:Code>
+        <str:Code id="XDC_TCO2" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).XDC_TCO2">
+          <com:Name xml:lang="en">National currency per tonne of CO2</com:Name>
+          <com:Description xml:lang="en">National currency per tonne of CO2</com:Description>
+        </str:Code>
+        <str:Code id="XDC_TCO2E" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).XDC_TCO2E">
+          <com:Name xml:lang="en">National currency per tonne of CO2-equivalent</com:Name>
+          <com:Description xml:lang="en">National currency per tonne of CO2-equivalent</com:Description>
+        </str:Code>
+        <str:Code id="EUR_TCO2" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).EUR_TCO2">
+          <com:Name xml:lang="en">Euros per tonne of CO2</com:Name>
+          <com:Description xml:lang="en">Euros per tonne of CO2</com:Description>
+        </str:Code>
+        <str:Code id="KT_CO2" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).KT_CO2">
+          <com:Name xml:lang="en">Kilotonnes of CO2</com:Name>
+          <com:Description xml:lang="en">Kilotonnes of CO2</com:Description>
+        </str:Code>
+        <str:Code id="EUR_TCO2E" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).EUR_TCO2E">
+          <com:Name xml:lang="en">Euros per tonne of CO2-equivalent</com:Name>
+          <com:Description xml:lang="en">Euros per tonne of CO2-equivalent</com:Description>
+        </str:Code>
+        <str:Code id="KT_CO2E" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).KT_CO2E">
+          <com:Name xml:lang="en">Kilotonnes of CO2-equivalent</com:Name>
+          <com:Description xml:lang="en">Kilotonnes of CO2-equivalent</com:Description>
+        </str:Code>
+        <str:Code id="USD_TCO2" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).USD_TCO2">
+          <com:Name xml:lang="en">USD per tonne of CO2</com:Name>
+          <com:Description xml:lang="en">USD per tonne of CO2</com:Description>
+        </str:Code>
+        <str:Code id="USD_TCO2E" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).USD_TCO2E">
+          <com:Name xml:lang="en">USD per tonne of CO2-equivalent</com:Name>
+          <com:Description xml:lang="en">USD per tonne of CO2-equivalent</com:Description>
+        </str:Code>
+        <str:Code id="AFN" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).AFN">
+          <com:Name xml:lang="ar">أفغاني أفغاني</com:Name>
+          <com:Name xml:lang="ru">Афганский афгани</com:Name>
+          <com:Name xml:lang="ja">アフガニ・アフガニ</com:Name>
+          <com:Name xml:lang="en">Afghan afghani</com:Name>
+          <com:Name xml:lang="fr">Afghani</com:Name>
+          <com:Name xml:lang="es">Afgani afgano</com:Name>
+          <com:Name xml:lang="zh">阿富汗尼</com:Name>
+        </str:Code>
+        <str:Code id="ALL" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).ALL">
+          <com:Name xml:lang="ar">ليك ألباني</com:Name>
+          <com:Name xml:lang="ru">Албанский лек</com:Name>
+          <com:Name xml:lang="ja">アルバニア レク</com:Name>
+          <com:Name xml:lang="en">Albanian lek</com:Name>
+          <com:Name xml:lang="fr">Lek albanais</com:Name>
+          <com:Name xml:lang="es">Lek albanés</com:Name>
+          <com:Name xml:lang="zh">阿尔巴尼亚列克</com:Name>
+        </str:Code>
+        <str:Code id="DZD" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).DZD">
+          <com:Name xml:lang="ar">دينار جزائري</com:Name>
+          <com:Name xml:lang="ru">Алжирский динар</com:Name>
+          <com:Name xml:lang="ja">アルジェリア・ディナール</com:Name>
+          <com:Name xml:lang="en">Algerian dinar</com:Name>
+          <com:Name xml:lang="fr">Dinar algérien</com:Name>
+          <com:Name xml:lang="es">Dinar argelino</com:Name>
+          <com:Name xml:lang="zh">阿尔及利亚第纳尔</com:Name>
+        </str:Code>
+        <str:Code id="AOR" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).AOR">
+          <com:Name xml:lang="ar">كوانزا أنغولي</com:Name>
+          <com:Name xml:lang="ru">Ангольская кванза</com:Name>
+          <com:Name xml:lang="ja">アンゴラ クワンザ</com:Name>
+          <com:Name xml:lang="en">Angolan kwanza</com:Name>
+          <com:Name xml:lang="fr">Kwanza angolais</com:Name>
+          <com:Name xml:lang="es">Kwanza angoleño</com:Name>
+          <com:Name xml:lang="zh">安哥拉宽扎</com:Name>
+        </str:Code>
+        <str:Code id="ARS" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).ARS">
+          <com:Name xml:lang="ar">بيزو أرجنتيني</com:Name>
+          <com:Name xml:lang="ru">Аргентинское песо</com:Name>
+          <com:Name xml:lang="ja">アルゼンチン・ペソ</com:Name>
+          <com:Name xml:lang="en">Argentine peso</com:Name>
+          <com:Name xml:lang="fr">Peso argentin</com:Name>
+          <com:Name xml:lang="es">Peso argentino</com:Name>
+          <com:Name xml:lang="zh">阿根廷比索</com:Name>
+        </str:Code>
+        <str:Code id="AMD" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).AMD">
+          <com:Name xml:lang="ar">درام أرميني</com:Name>
+          <com:Name xml:lang="ru">Армянский драм</com:Name>
+          <com:Name xml:lang="ja">アルメニア・ドラム</com:Name>
+          <com:Name xml:lang="en">Armenian dram</com:Name>
+          <com:Name xml:lang="fr">Dram arménien</com:Name>
+          <com:Name xml:lang="es">Dram armenio</com:Name>
+          <com:Name xml:lang="zh">亚美尼亚德拉姆</com:Name>
+        </str:Code>
+        <str:Code id="AWG" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).AWG">
+          <com:Name xml:lang="ar">فلورن أروبي</com:Name>
+          <com:Name xml:lang="ru">Арубанский флорин</com:Name>
+          <com:Name xml:lang="ja">アルバ・フロリン</com:Name>
+          <com:Name xml:lang="en">Aruban florin</com:Name>
+          <com:Name xml:lang="fr">Florin arubais</com:Name>
+          <com:Name xml:lang="es">Florín arubeño</com:Name>
+          <com:Name xml:lang="zh">阿鲁巴弗罗林</com:Name>
+        </str:Code>
+        <str:Code id="AUD" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).AUD">
+          <com:Name xml:lang="ar">دولار أسترالي</com:Name>
+          <com:Name xml:lang="ru">Австралийский доллар</com:Name>
+          <com:Name xml:lang="ja">オーストラリア・ドル</com:Name>
+          <com:Name xml:lang="en">Australian dollar</com:Name>
+          <com:Name xml:lang="fr">Dollar australien</com:Name>
+          <com:Name xml:lang="es">Dólar australiano</com:Name>
+          <com:Name xml:lang="zh">澳大利亚元</com:Name>
+        </str:Code>
+        <str:Code id="AZN" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).AZN">
+          <com:Name xml:lang="ar">مانات أذربيجاني</com:Name>
+          <com:Name xml:lang="ru">Азербайджанский манат</com:Name>
+          <com:Name xml:lang="ja">アゼルバイジャン・マナト</com:Name>
+          <com:Name xml:lang="en">Azerbaijani manat</com:Name>
+          <com:Name xml:lang="fr">Manat azerbaïdjanais</com:Name>
+          <com:Name xml:lang="es">Manat azerbaiyano</com:Name>
+          <com:Name xml:lang="zh">阿塞拜疆马纳特</com:Name>
+        </str:Code>
+        <str:Code id="BSD" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).BSD">
+          <com:Name xml:lang="ar">دولار باهامي</com:Name>
+          <com:Name xml:lang="ru">Багамский доллар</com:Name>
+          <com:Name xml:lang="ja">バハマ・ドル</com:Name>
+          <com:Name xml:lang="en">Bahamian dollar</com:Name>
+          <com:Name xml:lang="fr">Dollar bahaméen</com:Name>
+          <com:Name xml:lang="es">Dólar bahameño</com:Name>
+          <com:Name xml:lang="zh">巴哈马元</com:Name>
+        </str:Code>
+        <str:Code id="BHD" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).BHD">
+          <com:Name xml:lang="ar">دينار بحريني</com:Name>
+          <com:Name xml:lang="ru">Бахрейнский динар</com:Name>
+          <com:Name xml:lang="ja">バーレーン・ディナール</com:Name>
+          <com:Name xml:lang="en">Bahraini dinar</com:Name>
+          <com:Name xml:lang="fr">Dinar bahreïni</com:Name>
+          <com:Name xml:lang="es">Dinar bareiní</com:Name>
+          <com:Name xml:lang="zh">巴林第纳尔</com:Name>
+        </str:Code>
+        <str:Code id="BDT" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).BDT">
+          <com:Name xml:lang="ar">تاكا بنغلاديشي</com:Name>
+          <com:Name xml:lang="ru">Бангладешская така</com:Name>
+          <com:Name xml:lang="ja">バングラデシュ・タカ</com:Name>
+          <com:Name xml:lang="en">Bangladeshi taka</com:Name>
+          <com:Name xml:lang="fr">Taka bangladais</com:Name>
+          <com:Name xml:lang="es">Taka bangladesí</com:Name>
+          <com:Name xml:lang="zh">孟加拉塔卡</com:Name>
+        </str:Code>
+        <str:Code id="BBD" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).BBD">
+          <com:Name xml:lang="ar">دولار بربادوسي</com:Name>
+          <com:Name xml:lang="ru">Барбадосский доллар</com:Name>
+          <com:Name xml:lang="ja">バルバドス・ドル</com:Name>
+          <com:Name xml:lang="en">Barbadian dollar</com:Name>
+          <com:Name xml:lang="fr">Dollar barbadien</com:Name>
+          <com:Name xml:lang="es">Dólar barbadense</com:Name>
+          <com:Name xml:lang="zh">巴巴多斯元</com:Name>
+        </str:Code>
+        <str:Code id="BYN" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).BYN">
+          <com:Name xml:lang="ar">روبل بلاروسي</com:Name>
+          <com:Name xml:lang="ru">Белорусский рубль</com:Name>
+          <com:Name xml:lang="ja">ベラルーシ・ルーブル</com:Name>
+          <com:Name xml:lang="en">Belarusian ruble</com:Name>
+          <com:Name xml:lang="fr">Rouble biélorusse</com:Name>
+          <com:Name xml:lang="es">Rublo bielorruso</com:Name>
+          <com:Name xml:lang="zh">白俄罗斯卢布</com:Name>
+        </str:Code>
+        <str:Code id="BZD" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).BZD">
+          <com:Name xml:lang="ar">دولار بليزي</com:Name>
+          <com:Name xml:lang="ru">Белизский доллар</com:Name>
+          <com:Name xml:lang="ja">ベリーズ・ドル</com:Name>
+          <com:Name xml:lang="en">Belize dollar</com:Name>
+          <com:Name xml:lang="fr">Dollar bélizéen</com:Name>
+          <com:Name xml:lang="es">Dólar beliceño</com:Name>
+          <com:Name xml:lang="zh">伯利兹元</com:Name>
+        </str:Code>
+        <str:Code id="BMD" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).BMD">
+          <com:Name xml:lang="ar">دولار برمودي</com:Name>
+          <com:Name xml:lang="ru">Бермудский доллар</com:Name>
+          <com:Name xml:lang="ja">バミューダ・ドル</com:Name>
+          <com:Name xml:lang="en">Bermudian dollar</com:Name>
+          <com:Name xml:lang="fr">Dollar bermudien</com:Name>
+          <com:Name xml:lang="es">Dólar bermudeño</com:Name>
+          <com:Name xml:lang="zh">百慕大元</com:Name>
+        </str:Code>
+        <str:Code id="BTN" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).BTN">
+          <com:Name xml:lang="ar">نغولترم بوتاني</com:Name>
+          <com:Name xml:lang="ru">Бутанский нгултрум</com:Name>
+          <com:Name xml:lang="ja">ブータン・ニュルタム</com:Name>
+          <com:Name xml:lang="en">Bhutanese ngultrum</com:Name>
+          <com:Name xml:lang="fr">Ngultrum bhoutanais</com:Name>
+          <com:Name xml:lang="es">Ngultrum butanés</com:Name>
+          <com:Name xml:lang="zh">不丹努尔特鲁姆</com:Name>
+        </str:Code>
+        <str:Code id="BOB" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).BOB">
+          <com:Name xml:lang="ar">بوليفيانو</com:Name>
+          <com:Name xml:lang="ru">Боливиано</com:Name>
+          <com:Name xml:lang="ja">ボリビアーノ</com:Name>
+          <com:Name xml:lang="en">Boliviano</com:Name>
+          <com:Name xml:lang="fr">Boliviano</com:Name>
+          <com:Name xml:lang="es">Boliviano</com:Name>
+          <com:Name xml:lang="zh">玻利维亚诺</com:Name>
+        </str:Code>
+        <str:Code id="BWP" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).BWP">
+          <com:Name xml:lang="ar">بولا بوتسواني</com:Name>
+          <com:Name xml:lang="ru">Ботсванская пула</com:Name>
+          <com:Name xml:lang="ja">ボツワナ・プラ</com:Name>
+          <com:Name xml:lang="en">Botswana pula</com:Name>
+          <com:Name xml:lang="fr">Pula botswanais</com:Name>
+          <com:Name xml:lang="es">Pula botsuano</com:Name>
+          <com:Name xml:lang="zh">博茨瓦纳普拉</com:Name>
+        </str:Code>
+        <str:Code id="BRL" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).BRL">
+          <com:Name xml:lang="ar">ريال برازيلي</com:Name>
+          <com:Name xml:lang="ru">Бразильский реал</com:Name>
+          <com:Name xml:lang="ja">ブラジル・レアル</com:Name>
+          <com:Name xml:lang="en">Brazilian real</com:Name>
+          <com:Name xml:lang="fr">Réal brésilien</com:Name>
+          <com:Name xml:lang="es">Real brasileño</com:Name>
+          <com:Name xml:lang="zh">巴西雷亚尔</com:Name>
+        </str:Code>
+        <str:Code id="GBP" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).GBP">
+          <com:Name xml:lang="ar">جنيه إسترليني</com:Name>
+          <com:Name xml:lang="ru">Фунт стерлингов</com:Name>
+          <com:Name xml:lang="ja">スターリング・ポンド</com:Name>
+          <com:Name xml:lang="en">Pound sterling</com:Name>
+          <com:Name xml:lang="fr">Livre sterling</com:Name>
+          <com:Name xml:lang="es">Libra esterlina</com:Name>
+          <com:Name xml:lang="zh">英镑</com:Name>
+        </str:Code>
+        <str:Code id="BND" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).BND">
+          <com:Name xml:lang="ar">دولار بروناي</com:Name>
+          <com:Name xml:lang="ru">Брунейский доллар</com:Name>
+          <com:Name xml:lang="ja">ブルネイ・ドル</com:Name>
+          <com:Name xml:lang="en">Brunei dollar</com:Name>
+          <com:Name xml:lang="fr">Dollar brunéien</com:Name>
+          <com:Name xml:lang="es">Dólar bruneano</com:Name>
+          <com:Name xml:lang="zh">文莱元</com:Name>
+        </str:Code>
+        <str:Code id="BGN" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).BGN">
+          <com:Name xml:lang="ar">ليف بلغاري</com:Name>
+          <com:Name xml:lang="ru">Болгарский лев</com:Name>
+          <com:Name xml:lang="ja">ブルガリア・レフ</com:Name>
+          <com:Name xml:lang="en">Bulgarian lev</com:Name>
+          <com:Name xml:lang="fr">Lev bulgare</com:Name>
+          <com:Name xml:lang="es">Lev búlgaro</com:Name>
+          <com:Name xml:lang="zh">保加利亚列弗</com:Name>
+        </str:Code>
+        <str:Code id="BIF" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).BIF">
+          <com:Name xml:lang="ar">فرنك بوروندي</com:Name>
+          <com:Name xml:lang="ru">Бурундийский франк</com:Name>
+          <com:Name xml:lang="ja">ブルンジ・フラン</com:Name>
+          <com:Name xml:lang="en">Burundian franc</com:Name>
+          <com:Name xml:lang="fr">Franc burundais</com:Name>
+          <com:Name xml:lang="es">Franco burundés</com:Name>
+          <com:Name xml:lang="zh">布隆迪法郎</com:Name>
+        </str:Code>
+        <str:Code id="CVE" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).CVE">
+          <com:Name xml:lang="ar">إيسكودو الرأس الأخضر</com:Name>
+          <com:Name xml:lang="ru">Escudo caboverdiano</com:Name>
+          <com:Name xml:lang="ja">カーボベルデ・エスクード</com:Name>
+          <com:Name xml:lang="en">Cape Verdean escudo</com:Name>
+          <com:Name xml:lang="fr">Escudo cap-verdien</com:Name>
+          <com:Name xml:lang="zh">佛得角埃斯库多</com:Name>
+        </str:Code>
+        <str:Code id="KHR" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).KHR">
+          <com:Name xml:lang="ar">ريال كمبودي</com:Name>
+          <com:Name xml:lang="ru">Камбоджийский риель</com:Name>
+          <com:Name xml:lang="ja">カンボジア・リエル</com:Name>
+          <com:Name xml:lang="en">Cambodian riel</com:Name>
+          <com:Name xml:lang="fr">Riel cambodgien</com:Name>
+          <com:Name xml:lang="es">Riel camboyano</com:Name>
+          <com:Name xml:lang="zh">柬埔寨瑞尔</com:Name>
+        </str:Code>
+        <str:Code id="CAD" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).CAD">
+          <com:Name xml:lang="ar">دولار كندي</com:Name>
+          <com:Name xml:lang="ru">Канадский доллар</com:Name>
+          <com:Name xml:lang="ja">カナダ・ドル</com:Name>
+          <com:Name xml:lang="en">Canadian dollar</com:Name>
+          <com:Name xml:lang="fr">Dollar canadien</com:Name>
+          <com:Name xml:lang="es">Dólar canadiense</com:Name>
+          <com:Name xml:lang="zh">加拿大元</com:Name>
+        </str:Code>
+        <str:Code id="KYD" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).KYD">
+          <com:Name xml:lang="ar">دولار جزر كايمان</com:Name>
+          <com:Name xml:lang="ru">Доллар Каймановых островов</com:Name>
+          <com:Name xml:lang="ja">ケイマン諸島ドル</com:Name>
+          <com:Name xml:lang="en">Cayman Islands dollar</com:Name>
+          <com:Name xml:lang="fr">Dollar des îles Caïmans</com:Name>
+          <com:Name xml:lang="es">Dólar de las Islas Caimán</com:Name>
+          <com:Name xml:lang="zh">开曼群岛元</com:Name>
+        </str:Code>
+        <str:Code id="XOF" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).XOF">
+          <com:Name xml:lang="ar">فرنك CFA BCEAO</com:Name>
+          <com:Name xml:lang="ru">Франк КФА BCEAO</com:Name>
+          <com:Name xml:lang="ja">CFAフラン（BCEAO）</com:Name>
+          <com:Name xml:lang="en">CFA franc BCEAO</com:Name>
+          <com:Name xml:lang="fr">Franc CFA (BCEAO)</com:Name>
+          <com:Name xml:lang="es">Franco CFA (BCEAO)</com:Name>
+          <com:Name xml:lang="zh">西非法郎（BCEAO）</com:Name>
+        </str:Code>
+        <str:Code id="XAF" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).XAF">
+          <com:Name xml:lang="ar">فرنك CFA BEAC</com:Name>
+          <com:Name xml:lang="ru">Франк КФА BEAC</com:Name>
+          <com:Name xml:lang="ja">CFAフラン（BEAC）</com:Name>
+          <com:Name xml:lang="en">CFA franc BEAC</com:Name>
+          <com:Name xml:lang="fr">Franc CFA (BEAC)</com:Name>
+          <com:Name xml:lang="es">Franco CFA (BEAC)</com:Name>
+          <com:Name xml:lang="zh">中非法郎（BEAC）</com:Name>
+        </str:Code>
+        <str:Code id="XPF" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).XPF">
+          <com:Name xml:lang="ar">فرنك CFP</com:Name>
+          <com:Name xml:lang="ru">Франк КФП</com:Name>
+          <com:Name xml:lang="ja">CFPフラン</com:Name>
+          <com:Name xml:lang="en">CFP franc</com:Name>
+          <com:Name xml:lang="fr">Franc CFP</com:Name>
+          <com:Name xml:lang="es">Franco CFP</com:Name>
+          <com:Name xml:lang="zh">太平洋法郎</com:Name>
+        </str:Code>
+        <str:Code id="CLP" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).CLP">
+          <com:Name xml:lang="ar">بيزو تشيلي</com:Name>
+          <com:Name xml:lang="ru">Чилийское песо</com:Name>
+          <com:Name xml:lang="ja">チリ・ペソ</com:Name>
+          <com:Name xml:lang="en">Chilean peso</com:Name>
+          <com:Name xml:lang="fr">Peso chilien</com:Name>
+          <com:Name xml:lang="es">Peso chileno</com:Name>
+          <com:Name xml:lang="zh">智利比索</com:Name>
+        </str:Code>
+        <str:Code id="CNY" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).CNY">
+          <com:Name xml:lang="ar">يوان صيني / رنمينبي صيني</com:Name>
+          <com:Name xml:lang="ru">Китайский юань</com:Name>
+          <com:Name xml:lang="ja">人民元</com:Name>
+          <com:Name xml:lang="en">Yuan renminbi</com:Name>
+          <com:Name xml:lang="fr">Yuan renminbi chinois</com:Name>
+          <com:Name xml:lang="es">Yuan chino</com:Name>
+          <com:Name xml:lang="zh">人民币</com:Name>
+        </str:Code>
+        <str:Code id="COP" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).COP">
+          <com:Name xml:lang="ar">بيزو كولومبي</com:Name>
+          <com:Name xml:lang="ru">Колумбийское песо</com:Name>
+          <com:Name xml:lang="ja">コロンビア・ペソ</com:Name>
+          <com:Name xml:lang="en">Colombian peso</com:Name>
+          <com:Name xml:lang="fr">Peso colombien</com:Name>
+          <com:Name xml:lang="es">Peso colombiano</com:Name>
+          <com:Name xml:lang="zh">哥伦比亚比索</com:Name>
+        </str:Code>
+        <str:Code id="KMF" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).KMF">
+          <com:Name xml:lang="ar">فرنك قمري</com:Name>
+          <com:Name xml:lang="ru">Коморский франк</com:Name>
+          <com:Name xml:lang="ja">コモロ・フラン</com:Name>
+          <com:Name xml:lang="en">Comorian franc</com:Name>
+          <com:Name xml:lang="fr">Franc comorien</com:Name>
+          <com:Name xml:lang="es">Franco comorano</com:Name>
+          <com:Name xml:lang="zh">科摩罗法郎</com:Name>
+        </str:Code>
+        <str:Code id="CDF" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).CDF">
+          <com:Name xml:lang="ar">فرنك كونغولي</com:Name>
+          <com:Name xml:lang="ru">Конголезский франк</com:Name>
+          <com:Name xml:lang="ja">コンゴ・フラン</com:Name>
+          <com:Name xml:lang="en">Congolese franc</com:Name>
+          <com:Name xml:lang="fr">Franc congolais</com:Name>
+          <com:Name xml:lang="es">Franco congoleño</com:Name>
+          <com:Name xml:lang="zh">刚果法郎</com:Name>
+        </str:Code>
+        <str:Code id="CRC" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).CRC">
+          <com:Name xml:lang="ar">كولون كوستاريكي</com:Name>
+          <com:Name xml:lang="ru">Коста-риканский колон</com:Name>
+          <com:Name xml:lang="ja">コスタリカ・コロン</com:Name>
+          <com:Name xml:lang="en">Costa Rican colón</com:Name>
+          <com:Name xml:lang="fr">Colón costaricien</com:Name>
+          <com:Name xml:lang="es">Colón costarricense</com:Name>
+          <com:Name xml:lang="zh">哥斯达黎加科朗</com:Name>
+        </str:Code>
+        <str:Code id="HRK" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).HRK">
+          <com:Name xml:lang="ar">كونا كرواتية</com:Name>
+          <com:Name xml:lang="ru">Хорватская куна</com:Name>
+          <com:Name xml:lang="ja">クロアチア・クーナ</com:Name>
+          <com:Name xml:lang="en">Croatian kuna</com:Name>
+          <com:Name xml:lang="fr">Kuna croate</com:Name>
+          <com:Name xml:lang="es">Kuna croata</com:Name>
+          <com:Name xml:lang="zh">克罗地亚库纳</com:Name>
+        </str:Code>
+        <str:Code id="CUP" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).CUP">
+          <com:Name xml:lang="ar">بيزو كوبي</com:Name>
+          <com:Name xml:lang="ru">Кубинское песо</com:Name>
+          <com:Name xml:lang="ja">كوبا・ペソ</com:Name>
+          <com:Name xml:lang="en">Cuban peso</com:Name>
+          <com:Name xml:lang="fr">Peso cubain</com:Name>
+          <com:Name xml:lang="es">Peso cubano</com:Name>
+          <com:Name xml:lang="zh">古巴比索</com:Name>
+        </str:Code>
+        <str:Code id="CZK" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).CZK">
+          <com:Name xml:lang="ar">كورونا تشيكية</com:Name>
+          <com:Name xml:lang="ru">Чешская крона</com:Name>
+          <com:Name xml:lang="ja">チェコ・コルナ</com:Name>
+          <com:Name xml:lang="en">Czech koruna</com:Name>
+          <com:Name xml:lang="fr">Couronne tchèque</com:Name>
+          <com:Name xml:lang="es">Corona checa</com:Name>
+          <com:Name xml:lang="zh">捷克克朗</com:Name>
+        </str:Code>
+        <str:Code id="DKK" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).DKK">
+          <com:Name xml:lang="ar">كرونة دانماركية</com:Name>
+          <com:Name xml:lang="ru">Датская крона</com:Name>
+          <com:Name xml:lang="ja">デンマーク・クローネ</com:Name>
+          <com:Name xml:lang="en">Danish krone</com:Name>
+          <com:Name xml:lang="fr">Couronne danoise</com:Name>
+          <com:Name xml:lang="es">Corona danesa</com:Name>
+          <com:Name xml:lang="zh">丹麦克朗</com:Name>
+        </str:Code>
+        <str:Code id="DJF" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).DJF">
+          <com:Name xml:lang="ar">فرنك جيبوتي</com:Name>
+          <com:Name xml:lang="ru">Джибутийский франк</com:Name>
+          <com:Name xml:lang="ja">ジブチ・フラン</com:Name>
+          <com:Name xml:lang="en">Djiboutian franc</com:Name>
+          <com:Name xml:lang="fr">Franc djiboutien</com:Name>
+          <com:Name xml:lang="es">Franco yibutiano</com:Name>
+          <com:Name xml:lang="zh">吉布提法郎</com:Name>
+        </str:Code>
+        <str:Code id="DOP" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).DOP">
+          <com:Name xml:lang="ar">بيزو دومينيكاني</com:Name>
+          <com:Name xml:lang="ru">Доминиканский песо</com:Name>
+          <com:Name xml:lang="ja">ドミニカ・ペソ</com:Name>
+          <com:Name xml:lang="en">Dominican peso</com:Name>
+          <com:Name xml:lang="fr">Peso dominicain</com:Name>
+          <com:Name xml:lang="es">Peso dominicano</com:Name>
+          <com:Name xml:lang="zh">多米尼加比索</com:Name>
+        </str:Code>
+        <str:Code id="XCD" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).XCD">
+          <com:Name xml:lang="ar">دولار شرق الكاريبي</com:Name>
+          <com:Name xml:lang="ru">Восточно-карибский доллар</com:Name>
+          <com:Name xml:lang="ja">東カリブ・ドル</com:Name>
+          <com:Name xml:lang="en">East Caribbean dollar</com:Name>
+          <com:Name xml:lang="fr">Dollar des Caraïbes orientales</com:Name>
+          <com:Name xml:lang="es">Dólar del Caribe Oriental</com:Name>
+          <com:Name xml:lang="zh">东加勒比元</com:Name>
+        </str:Code>
+        <str:Code id="EGP" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).EGP">
+          <com:Name xml:lang="ar">جنيه مصري</com:Name>
+          <com:Name xml:lang="ru">Египетский фунт</com:Name>
+          <com:Name xml:lang="ja">エジプト・ポンド</com:Name>
+          <com:Name xml:lang="en">Egyptian pound</com:Name>
+          <com:Name xml:lang="fr">Livre égyptienne</com:Name>
+          <com:Name xml:lang="es">Libra egipcia</com:Name>
+          <com:Name xml:lang="zh">埃及镑</com:Name>
+        </str:Code>
+        <str:Code id="SVC" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).SVC">
+          <com:Name xml:lang="ar">كولون سلفادوري</com:Name>
+          <com:Name xml:lang="ru">Сальвадорский колон</com:Name>
+          <com:Name xml:lang="ja">サルバドル・コロン</com:Name>
+          <com:Name xml:lang="en">Salvadoran colón</com:Name>
+          <com:Name xml:lang="fr">Colón salvadorien</com:Name>
+          <com:Name xml:lang="es">Colón salvadoreño</com:Name>
+          <com:Name xml:lang="zh">萨尔瓦多科朗</com:Name>
+        </str:Code>
+        <str:Code id="ERN" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).ERN">
+          <com:Name xml:lang="ar">ناكفا إريترية</com:Name>
+          <com:Name xml:lang="ru">Эритрейская накфа</com:Name>
+          <com:Name xml:lang="ja">エリトリア・ナクファ</com:Name>
+          <com:Name xml:lang="en">Eritrean nakfa</com:Name>
+          <com:Name xml:lang="fr">Nakfa érythréen</com:Name>
+          <com:Name xml:lang="es">Nakfa eritreo</com:Name>
+          <com:Name xml:lang="zh">厄立特里亚纳克法</com:Name>
+        </str:Code>
+        <str:Code id="EEK" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).EEK">
+          <com:Name xml:lang="ar">كرون إستوني</com:Name>
+          <com:Name xml:lang="ru">Эстонская крона</com:Name>
+          <com:Name xml:lang="ja">エストニア・クローン</com:Name>
+          <com:Name xml:lang="en">Estonian kroon</com:Name>
+          <com:Name xml:lang="fr">Couronne estonienne</com:Name>
+          <com:Name xml:lang="es">Corona estonia</com:Name>
+          <com:Name xml:lang="zh">爱沙尼亚克朗</com:Name>
+          <com:Description xml:lang="en">1992-2011</com:Description>
+        </str:Code>
+        <str:Code id="ETB" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).ETB">
+          <com:Name xml:lang="ar">بير إثيوبي</com:Name>
+          <com:Name xml:lang="ru">Эфиопский быр</com:Name>
+          <com:Name xml:lang="ja">エチオピア・ブル</com:Name>
+          <com:Name xml:lang="en">Ethiopian birr</com:Name>
+          <com:Name xml:lang="fr">Birr éthiopien</com:Name>
+          <com:Name xml:lang="es">Birr etíope</com:Name>
+          <com:Name xml:lang="zh">埃塞俄比亚比尔</com:Name>
+        </str:Code>
+        <str:Code id="EUR" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).EUR">
+          <com:Name xml:lang="ar">يورو</com:Name>
+          <com:Name xml:lang="ru">Евро</com:Name>
+          <com:Name xml:lang="ja">ユーロ</com:Name>
+          <com:Name xml:lang="en">Euro</com:Name>
+          <com:Name xml:lang="fr">Euro</com:Name>
+          <com:Name xml:lang="es">Euro</com:Name>
+          <com:Name xml:lang="zh">欧元</com:Name>
+        </str:Code>
+        <str:Code id="FKP" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).FKP">
+          <com:Name xml:lang="ar">جنيه جزر فوكلاند</com:Name>
+          <com:Name xml:lang="ru">Фунт Фолклендских островов</com:Name>
+          <com:Name xml:lang="ja">フォークランド諸島ポンド</com:Name>
+          <com:Name xml:lang="en">Falkland Islands pound</com:Name>
+          <com:Name xml:lang="fr">Livre des îles Falkland</com:Name>
+          <com:Name xml:lang="es">Libra de las Islas Malvinas</com:Name>
+          <com:Name xml:lang="zh">福克兰群岛镑</com:Name>
+        </str:Code>
+        <str:Code id="FJD" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).FJD">
+          <com:Name xml:lang="ar">دولار فيجي</com:Name>
+          <com:Name xml:lang="ru">Фиджийский доллар</com:Name>
+          <com:Name xml:lang="ja">フィジー・ドル</com:Name>
+          <com:Name xml:lang="en">Fijian dollar</com:Name>
+          <com:Name xml:lang="fr">Dollar fidjien</com:Name>
+          <com:Name xml:lang="es">Dólar fiyiano</com:Name>
+          <com:Name xml:lang="zh">斐济元</com:Name>
+        </str:Code>
+        <str:Code id="GMD" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).GMD">
+          <com:Name xml:lang="ar">دالاسي غامبي</com:Name>
+          <com:Name xml:lang="ru">Гамбийский даласи</com:Name>
+          <com:Name xml:lang="ja">ガンビア・ダラシ</com:Name>
+          <com:Name xml:lang="en">Gambian dalasi</com:Name>
+          <com:Name xml:lang="fr">Dalasi gambien</com:Name>
+          <com:Name xml:lang="es">Dalasi gambiano</com:Name>
+          <com:Name xml:lang="zh">冈比亚达拉西</com:Name>
+        </str:Code>
+        <str:Code id="GEL" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).GEL">
+          <com:Name xml:lang="ar">لاري جورجي</com:Name>
+          <com:Name xml:lang="ru">Грузинский лари</com:Name>
+          <com:Name xml:lang="ja">ラリ</com:Name>
+          <com:Name xml:lang="en">Georgian lari</com:Name>
+          <com:Name xml:lang="fr">Lari géorgien</com:Name>
+          <com:Name xml:lang="es">Lari georgiano</com:Name>
+          <com:Name xml:lang="zh">格鲁吉亚拉里</com:Name>
+        </str:Code>
+        <str:Code id="GHS" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).GHS">
+          <com:Name xml:lang="ar">سيدي غاني</com:Name>
+          <com:Name xml:lang="ru">Ганский седи</com:Name>
+          <com:Name xml:lang="ja">ガーナ・セディ</com:Name>
+          <com:Name xml:lang="en">Ghanaian cedi</com:Name>
+          <com:Name xml:lang="fr">Cédi ghanéen</com:Name>
+          <com:Name xml:lang="es">Cedi ghanés</com:Name>
+          <com:Name xml:lang="zh">加纳塞地</com:Name>
+        </str:Code>
+        <str:Code id="GIP" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).GIP">
+          <com:Name xml:lang="ar">جنيه جبل طارق</com:Name>
+          <com:Name xml:lang="ru">Гибралтарский фунт</com:Name>
+          <com:Name xml:lang="ja">ジブラルタル・ポンド</com:Name>
+          <com:Name xml:lang="en">Gibraltar pound</com:Name>
+          <com:Name xml:lang="fr">Livre de Gibraltar</com:Name>
+          <com:Name xml:lang="es">Libra de Gibraltar</com:Name>
+          <com:Name xml:lang="zh">直布罗陀镑</com:Name>
+        </str:Code>
+        <str:Code id="XAU" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).XAU">
+          <com:Name xml:lang="ar">أونصة ذهب</com:Name>
+          <com:Name xml:lang="ru">Золото (унция)</com:Name>
+          <com:Name xml:lang="ja">金 (オンス)</com:Name>
+          <com:Name xml:lang="en">Gold (ounce)</com:Name>
+          <com:Name xml:lang="fr">Once d'or</com:Name>
+          <com:Name xml:lang="es">Oro (onza)</com:Name>
+          <com:Name xml:lang="zh">黄金 (盎司)</com:Name>
+        </str:Code>
+        <str:Code id="XFO" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).XFO">
+          <com:Name xml:lang="ar">فرنك ذهبي</com:Name>
+          <com:Name xml:lang="ru">Золотой франк</com:Name>
+          <com:Name xml:lang="ja">金フラン</com:Name>
+          <com:Name xml:lang="en">Gold franc</com:Name>
+          <com:Name xml:lang="fr">Franc or</com:Name>
+          <com:Name xml:lang="es">Franco oro</com:Name>
+          <com:Name xml:lang="zh">黄金法郎</com:Name>
+        </str:Code>
+        <str:Code id="GTQ" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).GTQ">
+          <com:Name xml:lang="ar">كويتزال غواتيمالي</com:Name>
+          <com:Name xml:lang="ru">Гватемальский кетсаль</com:Name>
+          <com:Name xml:lang="ja">グアテマラ・ケツァール</com:Name>
+          <com:Name xml:lang="en">Guatemalan quetzal</com:Name>
+          <com:Name xml:lang="fr">Quetzal guatémaltèque</com:Name>
+          <com:Name xml:lang="es">Quetzal guatemalteco</com:Name>
+          <com:Name xml:lang="zh">危地马拉格查尔</com:Name>
+        </str:Code>
+        <str:Code id="GNF" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).GNF">
+          <com:Name xml:lang="ar">فرنك غيني</com:Name>
+          <com:Name xml:lang="ru">Гвинейский франк</com:Name>
+          <com:Name xml:lang="ja">ギニア・フラン</com:Name>
+          <com:Name xml:lang="en">Guinean franc</com:Name>
+          <com:Name xml:lang="fr">Franc guinéen</com:Name>
+          <com:Name xml:lang="es">Franco guineano</com:Name>
+          <com:Name xml:lang="zh">几内亚法郎</com:Name>
+        </str:Code>
+        <str:Code id="GYD" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).GYD">
+          <com:Name xml:lang="ar">دولار غياني</com:Name>
+          <com:Name xml:lang="ru">Гайанский доллар</com:Name>
+          <com:Name xml:lang="ja">ガイアナ・ドル</com:Name>
+          <com:Name xml:lang="en">Guyanese dollar</com:Name>
+          <com:Name xml:lang="fr">Dollar guyanien</com:Name>
+          <com:Name xml:lang="es">Dólar guyanés</com:Name>
+          <com:Name xml:lang="zh">圭亚那元</com:Name>
+        </str:Code>
+        <str:Code id="HTG" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).HTG">
+          <com:Name xml:lang="ar">جوردة هايتي</com:Name>
+          <com:Name xml:lang="ru">Гаитянский гурд</com:Name>
+          <com:Name xml:lang="ja">ハイチ・グールド</com:Name>
+          <com:Name xml:lang="en">Haitian gourde</com:Name>
+          <com:Name xml:lang="fr">Gourde haïtienne</com:Name>
+          <com:Name xml:lang="es">Gourde haitiano</com:Name>
+          <com:Name xml:lang="zh">海地古德</com:Name>
+        </str:Code>
+        <str:Code id="HNL" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).HNL">
+          <com:Name xml:lang="ar">لمبيرة هندوراسية</com:Name>
+          <com:Name xml:lang="ru">Гондурасская лемпира</com:Name>
+          <com:Name xml:lang="ja">ホンジュラス・レンピラ</com:Name>
+          <com:Name xml:lang="en">Honduran lempira</com:Name>
+          <com:Name xml:lang="fr">Lempira hondurien</com:Name>
+          <com:Name xml:lang="es">Lempira hondureño</com:Name>
+          <com:Name xml:lang="zh">洪都拉斯伦皮拉</com:Name>
+        </str:Code>
+        <str:Code id="HKD" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).HKD">
+          <com:Name xml:lang="ar">دولار هونغ كونغ</com:Name>
+          <com:Name xml:lang="ru">Гонконгский доллар</com:Name>
+          <com:Name xml:lang="ja">香港ドル</com:Name>
+          <com:Name xml:lang="en">Hong Kong dollar</com:Name>
+          <com:Name xml:lang="fr">Dollar de Hong Kong</com:Name>
+          <com:Name xml:lang="es">Dólar de Hong Kong</com:Name>
+          <com:Name xml:lang="zh">港元</com:Name>
+        </str:Code>
+        <str:Code id="HUF" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).HUF">
+          <com:Name xml:lang="ar">فورنت مجري</com:Name>
+          <com:Name xml:lang="ru">Венгерский форинт</com:Name>
+          <com:Name xml:lang="ja">ハンガリー・フォリント</com:Name>
+          <com:Name xml:lang="en">Hungarian forint</com:Name>
+          <com:Name xml:lang="fr">Forint hongrois</com:Name>
+          <com:Name xml:lang="es">Forinto húngaro</com:Name>
+          <com:Name xml:lang="zh">匈牙利福林</com:Name>
+        </str:Code>
+        <str:Code id="ISK" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).ISK">
+          <com:Name xml:lang="ar">كرونة آيسلندية</com:Name>
+          <com:Name xml:lang="ru">Исландская крона</com:Name>
+          <com:Name xml:lang="ja">アイスランド・クローナ</com:Name>
+          <com:Name xml:lang="en">Icelandic króna</com:Name>
+          <com:Name xml:lang="fr">Couronne islandaise</com:Name>
+          <com:Name xml:lang="es">Corona islandesa</com:Name>
+          <com:Name xml:lang="zh">冰岛克朗</com:Name>
+        </str:Code>
+        <str:Code id="XDR" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).XDR">
+          <com:Name xml:lang="ar">حقوق السحب الخاصة لصندوق النقد الدولي</com:Name>
+          <com:Name xml:lang="ru">Специальные права заимствования</com:Name>
+          <com:Name xml:lang="ja">IMF特別引出権</com:Name>
+          <com:Name xml:lang="en">SDR</com:Name>
+          <com:Name xml:lang="fr">Droits de tirage spéciaux</com:Name>
+          <com:Name xml:lang="es">Derechos especiales de giro (DEG)</com:Name>
+          <com:Name xml:lang="zh">特别提款权</com:Name>
+        </str:Code>
+        <str:Code id="INR" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).INR">
+          <com:Name xml:lang="ar">روبية هندية</com:Name>
+          <com:Name xml:lang="ru">Индийская рупия</com:Name>
+          <com:Name xml:lang="ja">インド・ルピー</com:Name>
+          <com:Name xml:lang="en">Indian rupee</com:Name>
+          <com:Name xml:lang="fr">Roupie indienne</com:Name>
+          <com:Name xml:lang="es">Rupia india</com:Name>
+          <com:Name xml:lang="zh">印度卢比</com:Name>
+        </str:Code>
+        <str:Code id="IDR" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).IDR">
+          <com:Name xml:lang="ar">روبية إندونيسية</com:Name>
+          <com:Name xml:lang="ru">Индонезийская рупия</com:Name>
+          <com:Name xml:lang="ja">インドネシア・ルピア</com:Name>
+          <com:Name xml:lang="en">Indonesian rupiah</com:Name>
+          <com:Name xml:lang="fr">Roupie indonésienne</com:Name>
+          <com:Name xml:lang="es">Rupia indonesia</com:Name>
+          <com:Name xml:lang="zh">印度尼西亚盾</com:Name>
+        </str:Code>
+        <str:Code id="IRR" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).IRR">
+          <com:Name xml:lang="ar">ريال إيراني</com:Name>
+          <com:Name xml:lang="ru">Иранский риал</com:Name>
+          <com:Name xml:lang="ja">イラン・リアル</com:Name>
+          <com:Name xml:lang="en">Iranian rial</com:Name>
+          <com:Name xml:lang="fr">Rial iranien</com:Name>
+          <com:Name xml:lang="es">Rial iraní</com:Name>
+          <com:Name xml:lang="zh">伊朗里亚尔</com:Name>
+        </str:Code>
+        <str:Code id="IQD" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).IQD">
+          <com:Name xml:lang="ar">دينار عراقي</com:Name>
+          <com:Name xml:lang="ru">Иракский динар</com:Name>
+          <com:Name xml:lang="ja">イラク・ディナール</com:Name>
+          <com:Name xml:lang="en">Iraqi dinar </com:Name>
+          <com:Name xml:lang="fr">Dinar irakien</com:Name>
+          <com:Name xml:lang="es">Dinar iraquí</com:Name>
+          <com:Name xml:lang="zh">伊拉克第纳尔</com:Name>
+        </str:Code>
+        <str:Code id="ILS" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).ILS">
+          <com:Name xml:lang="ar">شيكل إسرائيلي جديد</com:Name>
+          <com:Name xml:lang="ru">Новый израильский шекель</com:Name>
+          <com:Name xml:lang="ja">新シェケル</com:Name>
+          <com:Name xml:lang="en">Israeli new shekel</com:Name>
+          <com:Name xml:lang="fr">Shekel israélien</com:Name>
+          <com:Name xml:lang="es">Nuevo shéquel israelí</com:Name>
+          <com:Name xml:lang="zh">以色列新谢克尔</com:Name>
+        </str:Code>
+        <str:Code id="JMD" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).JMD">
+          <com:Name xml:lang="ar">دولار جامايكي</com:Name>
+          <com:Name xml:lang="ru">Ямайский доллар</com:Name>
+          <com:Name xml:lang="ja">ジャマイカ・ドル</com:Name>
+          <com:Name xml:lang="en">Jamaican dollar</com:Name>
+          <com:Name xml:lang="fr">Dollar jamaïcain</com:Name>
+          <com:Name xml:lang="es">Dólar jamaicano</com:Name>
+          <com:Name xml:lang="zh">牙买加元</com:Name>
+        </str:Code>
+        <str:Code id="JPY" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).JPY">
+          <com:Name xml:lang="ar">ين ياباني</com:Name>
+          <com:Name xml:lang="ru">Японская иена</com:Name>
+          <com:Name xml:lang="ja">円</com:Name>
+          <com:Name xml:lang="en">Japanese yen</com:Name>
+          <com:Name xml:lang="fr">Yen japonais</com:Name>
+          <com:Name xml:lang="es">Yen japonés</com:Name>
+          <com:Name xml:lang="zh">日元</com:Name>
+        </str:Code>
+        <str:Code id="JOD" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).JOD">
+          <com:Name xml:lang="ar">دينار أردني</com:Name>
+          <com:Name xml:lang="ru">Иорданский динар</com:Name>
+          <com:Name xml:lang="ja">ヨルダン・ディナール</com:Name>
+          <com:Name xml:lang="en">Jordanian dinar</com:Name>
+          <com:Name xml:lang="fr">Dinar jordanien</com:Name>
+          <com:Name xml:lang="es">Dinar jordano</com:Name>
+          <com:Name xml:lang="zh">约旦第纳尔</com:Name>
+        </str:Code>
+        <str:Code id="KZT" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).KZT">
+          <com:Name xml:lang="ar">تينغ كازاخستاني</com:Name>
+          <com:Name xml:lang="ru">Казахстанский тенге</com:Name>
+          <com:Name xml:lang="ja">カザフスタン・テンゲ</com:Name>
+          <com:Name xml:lang="en">Kazakhstani tenge</com:Name>
+          <com:Name xml:lang="fr">Tengué kazakhstanais</com:Name>
+          <com:Name xml:lang="es">Tenge kazajo</com:Name>
+          <com:Name xml:lang="zh">哈萨克斯坦坚戈</com:Name>
+        </str:Code>
+        <str:Code id="KES" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).KES">
+          <com:Name xml:lang="ar">شلن كيني</com:Name>
+          <com:Name xml:lang="ru">Кенийский шиллинг</com:Name>
+          <com:Name xml:lang="ja">ケニア・シリング</com:Name>
+          <com:Name xml:lang="en">Kenyan shilling</com:Name>
+          <com:Name xml:lang="fr">Shilling kényan</com:Name>
+          <com:Name xml:lang="es">Chelín keniano</com:Name>
+          <com:Name xml:lang="zh">肯尼亚先令</com:Name>
+        </str:Code>
+        <str:Code id="KWD" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).KWD">
+          <com:Name xml:lang="ar">دينار كويتي</com:Name>
+          <com:Name xml:lang="ru">Кувейтский динар</com:Name>
+          <com:Name xml:lang="ja">クウェート・ディナール</com:Name>
+          <com:Name xml:lang="en">Kuwaiti dinar</com:Name>
+          <com:Name xml:lang="fr">Dinar koweïtien</com:Name>
+          <com:Name xml:lang="es">Dinar kuwaití</com:Name>
+          <com:Name xml:lang="zh">科威特第纳尔</com:Name>
+        </str:Code>
+        <str:Code id="KGS" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).KGS">
+          <com:Name xml:lang="ar">سوم قيرغيزستاني</com:Name>
+          <com:Name xml:lang="ru">Киргизский сом</com:Name>
+          <com:Name xml:lang="ja">キルギス・ソム</com:Name>
+          <com:Name xml:lang="en">Kyrgyzstani som</com:Name>
+          <com:Name xml:lang="fr">Som kirghize</com:Name>
+          <com:Name xml:lang="es">Som kirguís</com:Name>
+          <com:Name xml:lang="zh">吉尔吉斯斯坦索姆</com:Name>
+        </str:Code>
+        <str:Code id="LAK" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).LAK">
+          <com:Name xml:lang="ar">كيب لاوسي</com:Name>
+          <com:Name xml:lang="ru">Лаосский кип</com:Name>
+          <com:Name xml:lang="ja">ラオス・キープ</com:Name>
+          <com:Name xml:lang="en">Lao kip</com:Name>
+          <com:Name xml:lang="fr">Kip laotien</com:Name>
+          <com:Name xml:lang="es">Kip laosiano</com:Name>
+          <com:Name xml:lang="zh">老挝基普</com:Name>
+        </str:Code>
+        <str:Code id="LVL" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).LVL">
+          <com:Name xml:lang="ar">لاتس لاتفي</com:Name>
+          <com:Name xml:lang="ru">Латвийский лат</com:Name>
+          <com:Name xml:lang="ja">ラトビア・ラッツ</com:Name>
+          <com:Name xml:lang="en">Latvian lats</com:Name>
+          <com:Name xml:lang="fr">Lats letton</com:Name>
+          <com:Name xml:lang="es">Lats letón</com:Name>
+          <com:Name xml:lang="zh">拉脱维亚拉特</com:Name>
+        </str:Code>
+        <str:Code id="LBP" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).LBP">
+          <com:Name xml:lang="ar">ليرة لبنانية</com:Name>
+          <com:Name xml:lang="ru">Ливанский фунт</com:Name>
+          <com:Name xml:lang="ja">レバノン・ポンド</com:Name>
+          <com:Name xml:lang="en">Lebanese pound</com:Name>
+          <com:Name xml:lang="fr">Livre libanaise</com:Name>
+          <com:Name xml:lang="es">Libra libanesa</com:Name>
+          <com:Name xml:lang="zh">黎巴嫩镑</com:Name>
+        </str:Code>
+        <str:Code id="LSL" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).LSL">
+          <com:Name xml:lang="ar">لوتي ليسوتو</com:Name>
+          <com:Name xml:lang="ru">Лоти</com:Name>
+          <com:Name xml:lang="ja">ロティ</com:Name>
+          <com:Name xml:lang="en">Lesotho loti</com:Name>
+          <com:Name xml:lang="fr">Loti</com:Name>
+          <com:Name xml:lang="es">Loti</com:Name>
+          <com:Name xml:lang="zh">莱索托洛蒂</com:Name>
+        </str:Code>
+        <str:Code id="LRD" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).LRD">
+          <com:Name xml:lang="ar">دولار ليبيري</com:Name>
+          <com:Name xml:lang="ru">Либерийский доллар</com:Name>
+          <com:Name xml:lang="ja">リベリア・ドル</com:Name>
+          <com:Name xml:lang="en">Liberian dollar</com:Name>
+          <com:Name xml:lang="fr">Dollar libérien</com:Name>
+          <com:Name xml:lang="es">Dólar liberiano</com:Name>
+          <com:Name xml:lang="zh">利比里亚元</com:Name>
+        </str:Code>
+        <str:Code id="LYD" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).LYD">
+          <com:Name xml:lang="ar">دينار ليبي</com:Name>
+          <com:Name xml:lang="ru">Ливийский динар</com:Name>
+          <com:Name xml:lang="ja">リビア・ディナール</com:Name>
+          <com:Name xml:lang="en">Libyan dinar</com:Name>
+          <com:Name xml:lang="fr">Dinar libyen</com:Name>
+          <com:Name xml:lang="es">Dinar libio</com:Name>
+          <com:Name xml:lang="zh">利比亚第纳尔</com:Name>
+        </str:Code>
+        <str:Code id="LTL" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).LTL">
+          <com:Name xml:lang="ar">ليتاس ليتواني</com:Name>
+          <com:Name xml:lang="ru">Литовский лит</com:Name>
+          <com:Name xml:lang="ja">リトアニア・リタス</com:Name>
+          <com:Name xml:lang="en">Lithuanian litas</com:Name>
+          <com:Name xml:lang="fr">Litas lituanien</com:Name>
+          <com:Name xml:lang="es">Litas lituano</com:Name>
+          <com:Name xml:lang="zh">立陶宛立特</com:Name>
+        </str:Code>
+        <str:Code id="MOP" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).MOP">
+          <com:Name xml:lang="ar">باتاكا ماكاوية</com:Name>
+          <com:Name xml:lang="ru">Патака</com:Name>
+          <com:Name xml:lang="ja">パタカ</com:Name>
+          <com:Name xml:lang="en">Macanese pataca</com:Name>
+          <com:Name xml:lang="fr">Pataca</com:Name>
+          <com:Name xml:lang="es">Pataca</com:Name>
+          <com:Name xml:lang="zh">澳门元</com:Name>
+        </str:Code>
+        <str:Code id="MKD" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).MKD">
+          <com:Name xml:lang="ar">دينار مقدوني</com:Name>
+          <com:Name xml:lang="ru">Македонский денар</com:Name>
+          <com:Name xml:lang="ja">マケドニア・デナール</com:Name>
+          <com:Name xml:lang="en">Macedonian denar</com:Name>
+          <com:Name xml:lang="fr">Denar macédonien</com:Name>
+          <com:Name xml:lang="es">Denar macedonio</com:Name>
+          <com:Name xml:lang="zh">马其顿代纳尔</com:Name>
+        </str:Code>
+        <str:Code id="MGA" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).MGA">
+          <com:Name xml:lang="ar">أرياري مدغشقري</com:Name>
+          <com:Name xml:lang="ru">Малагасийский ариари</com:Name>
+          <com:Name xml:lang="ja">マダガスカル・アリアリ</com:Name>
+          <com:Name xml:lang="en">Malagasy ariary</com:Name>
+          <com:Name xml:lang="fr">Ariary malgache</com:Name>
+          <com:Name xml:lang="es">Ariary malgache</com:Name>
+          <com:Name xml:lang="zh">马达加斯加阿里亚里</com:Name>
+        </str:Code>
+        <str:Code id="MWK" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).MWK">
+          <com:Name xml:lang="ar">كواشا ملاوية</com:Name>
+          <com:Name xml:lang="ru">Малавийская квача</com:Name>
+          <com:Name xml:lang="ja">マラウイ・クワチャ</com:Name>
+          <com:Name xml:lang="en">Malawian kwacha</com:Name>
+          <com:Name xml:lang="fr">Kwacha malawien</com:Name>
+          <com:Name xml:lang="es">Kwacha malauí</com:Name>
+          <com:Name xml:lang="zh">马拉维克瓦查</com:Name>
+        </str:Code>
+        <str:Code id="MYR" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).MYR">
+          <com:Name xml:lang="ar">رينغيت ماليزي</com:Name>
+          <com:Name xml:lang="ru">Малайзийский ринггит</com:Name>
+          <com:Name xml:lang="ja">マレーシア・リンギット</com:Name>
+          <com:Name xml:lang="en">Malaysian ringgit</com:Name>
+          <com:Name xml:lang="fr">Ringgit malaisien</com:Name>
+          <com:Name xml:lang="es">Ringgit malayo</com:Name>
+          <com:Name xml:lang="zh">马来西亚林吉特</com:Name>
+        </str:Code>
+        <str:Code id="MVR" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).MVR">
+          <com:Name xml:lang="ar">روفيا مالديفية</com:Name>
+          <com:Name xml:lang="ru">Мальдивская руфия</com:Name>
+          <com:Name xml:lang="ja">ルフィヤ</com:Name>
+          <com:Name xml:lang="en">Maldivian rufiyaa</com:Name>
+          <com:Name xml:lang="fr">Rufiyaa</com:Name>
+          <com:Name xml:lang="es">Rupia maldiva</com:Name>
+          <com:Name xml:lang="zh">马尔代夫卢菲亚</com:Name>
+        </str:Code>
+        <str:Code id="MRO" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).MRO">
+          <com:Name xml:lang="ar">أوقية موريتانية</com:Name>
+          <com:Name xml:lang="ru">Мавританская угия</com:Name>
+          <com:Name xml:lang="ja">ウギア</com:Name>
+          <com:Name xml:lang="en">Mauritanian ouguiya</com:Name>
+          <com:Name xml:lang="fr">Ouguiya mauritanien</com:Name>
+          <com:Name xml:lang="es">Uguiya mauritano</com:Name>
+          <com:Name xml:lang="zh">毛里塔尼亚乌吉亚</com:Name>
+        </str:Code>
+        <str:Code id="MUR" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).MUR">
+          <com:Name xml:lang="ar">روبية موريشيوسية</com:Name>
+          <com:Name xml:lang="ru">Маврикийская рупия</com:Name>
+          <com:Name xml:lang="ja">モーリシャス・ルピー</com:Name>
+          <com:Name xml:lang="en">Mauritian rupee</com:Name>
+          <com:Name xml:lang="fr">Roupie mauricienne</com:Name>
+          <com:Name xml:lang="es">Rupia mauriciana</com:Name>
+          <com:Name xml:lang="zh">毛里求斯卢比</com:Name>
+        </str:Code>
+        <str:Code id="MXN" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).MXN">
+          <com:Name xml:lang="ar">بيزو مكسيكي</com:Name>
+          <com:Name xml:lang="ru">Мексиканское песо</com:Name>
+          <com:Name xml:lang="ja">メキシコ・ペソ</com:Name>
+          <com:Name xml:lang="en">Mexican peso</com:Name>
+          <com:Name xml:lang="fr">Peso mexicain</com:Name>
+          <com:Name xml:lang="es">Peso mexicano</com:Name>
+          <com:Name xml:lang="zh">墨西哥比索</com:Name>
+        </str:Code>
+        <str:Code id="MDL" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).MDL">
+          <com:Name xml:lang="ar">ليو مولدوفي</com:Name>
+          <com:Name xml:lang="ru">Молдавский лей</com:Name>
+          <com:Name xml:lang="ja">モルドバ・レウ</com:Name>
+          <com:Name xml:lang="en">Moldovan leu</com:Name>
+          <com:Name xml:lang="fr">Leu moldave</com:Name>
+          <com:Name xml:lang="es">Leu moldavo</com:Name>
+          <com:Name xml:lang="zh">摩尔多瓦列伊</com:Name>
+        </str:Code>
+        <str:Code id="MNT" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).MNT">
+          <com:Name xml:lang="ar">توغروغ منغولي</com:Name>
+          <com:Name xml:lang="ru">Монгольский тугрик</com:Name>
+          <com:Name xml:lang="ja">モンゴル・トゥグルグ</com:Name>
+          <com:Name xml:lang="en">Mongolian tögrög  </com:Name>
+          <com:Name xml:lang="fr">Tögrög mongol</com:Name>
+          <com:Name xml:lang="es">Tugrik mongol</com:Name>
+          <com:Name xml:lang="zh">蒙古图格里克</com:Name>
+        </str:Code>
+        <str:Code id="MAD" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).MAD">
+          <com:Name xml:lang="ar">درهم مغربي</com:Name>
+          <com:Name xml:lang="ru">Марокканский дирхам</com:Name>
+          <com:Name xml:lang="ja">モロッコ・ディルハム</com:Name>
+          <com:Name xml:lang="en">Moroccan dirham</com:Name>
+          <com:Name xml:lang="fr">Dirham marocain</com:Name>
+          <com:Name xml:lang="es">Dirham marroquí</com:Name>
+          <com:Name xml:lang="zh">摩洛哥迪拉姆</com:Name>
+        </str:Code>
+        <str:Code id="MZN" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).MZN">
+          <com:Name xml:lang="ar">ميتيكال موزمبيقي</com:Name>
+          <com:Name xml:lang="ru">Мозамбикский метикал</com:Name>
+          <com:Name xml:lang="ja">モザンビーク・メティカル</com:Name>
+          <com:Name xml:lang="en">Mozambican metical</com:Name>
+          <com:Name xml:lang="fr">Metical mozambicain</com:Name>
+          <com:Name xml:lang="es">Metical mozambiqueño</com:Name>
+          <com:Name xml:lang="zh">莫桑比克梅蒂卡尔</com:Name>
+        </str:Code>
+        <str:Code id="MMK" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).MMK">
+          <com:Name xml:lang="ar">كيات ميانماري</com:Name>
+          <com:Name xml:lang="ru">Мьянманский кьят</com:Name>
+          <com:Name xml:lang="ja">チャット</com:Name>
+          <com:Name xml:lang="en">Myanmar kyat</com:Name>
+          <com:Name xml:lang="fr">Kyat</com:Name>
+          <com:Name xml:lang="es">Kyat birmano</com:Name>
+          <com:Name xml:lang="zh">缅甸元</com:Name>
+        </str:Code>
+        <str:Code id="NAD" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).NAD">
+          <com:Name xml:lang="ar">دولار ناميبي</com:Name>
+          <com:Name xml:lang="ru">Намибийский доллар</com:Name>
+          <com:Name xml:lang="ja">ナミビア・ドル</com:Name>
+          <com:Name xml:lang="en">Namibian dollar</com:Name>
+          <com:Name xml:lang="fr">Dollar namibien</com:Name>
+          <com:Name xml:lang="es">Dólar namibio</com:Name>
+          <com:Name xml:lang="zh">纳米比亚元</com:Name>
+        </str:Code>
+        <str:Code id="NPR" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).NPR">
+          <com:Name xml:lang="ar">روبية نيبالية</com:Name>
+          <com:Name xml:lang="ru">Непальская рупия</com:Name>
+          <com:Name xml:lang="ja">ネパール・ルピー</com:Name>
+          <com:Name xml:lang="en">Nepalese rupee</com:Name>
+          <com:Name xml:lang="fr">Roupie népalaise</com:Name>
+          <com:Name xml:lang="es">Rupia nepalí</com:Name>
+          <com:Name xml:lang="zh">尼泊尔卢比</com:Name>
+        </str:Code>
+        <str:Code id="ANG" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).ANG">
+          <com:Name xml:lang="ar">غيلدر هولندي</com:Name>
+          <com:Name xml:lang="ru">Нидерландский антильский гульден</com:Name>
+          <com:Name xml:lang="ja">アンティル・ギルダー</com:Name>
+          <com:Name xml:lang="en">Netherlands Antillean guilder</com:Name>
+          <com:Name xml:lang="fr">Florin antillais</com:Name>
+          <com:Name xml:lang="es">Florín antillano holandés</com:Name>
+          <com:Name xml:lang="zh">荷属安的列斯盾</com:Name>
+        </str:Code>
+        <str:Code id="NZD" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).NZD">
+          <com:Name xml:lang="ar">دولار نيوزيلندي</com:Name>
+          <com:Name xml:lang="ru">Новозеландский доллар</com:Name>
+          <com:Name xml:lang="ja">ニュージーランド・ドル</com:Name>
+          <com:Name xml:lang="en">New Zealand dollar</com:Name>
+          <com:Name xml:lang="fr">Dollar néo-zélandais</com:Name>
+          <com:Name xml:lang="es">Dólar neozelandés</com:Name>
+          <com:Name xml:lang="zh">新西兰元</com:Name>
+        </str:Code>
+        <str:Code id="NIO" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).NIO">
+          <com:Name xml:lang="ar">كوردوبا أورو نيكاراغوا</com:Name>
+          <com:Name xml:lang="ru">Никарагуанская кордоба оро</com:Name>
+          <com:Name xml:lang="ja">ニカラグア・コルドバ・オロ</com:Name>
+          <com:Name xml:lang="en">Córdoba oro</com:Name>
+          <com:Name xml:lang="fr">Córdoba oro nicaraguayen</com:Name>
+          <com:Name xml:lang="es">Córdoba oro nicaragüense</com:Name>
+          <com:Name xml:lang="zh">尼加拉瓜科多巴金</com:Name>
+        </str:Code>
+        <str:Code id="NGN" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).NGN">
+          <com:Name xml:lang="ar">نايرا نيجيري</com:Name>
+          <com:Name xml:lang="ru">Нигерийская найра</com:Name>
+          <com:Name xml:lang="ja">ナイラ</com:Name>
+          <com:Name xml:lang="en">Nigerian naira</com:Name>
+          <com:Name xml:lang="fr">Naira</com:Name>
+          <com:Name xml:lang="es">Naira nigeriano</com:Name>
+          <com:Name xml:lang="zh">尼日利亚奈拉</com:Name>
+        </str:Code>
+        <str:Code id="KPW" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).KPW">
+          <com:Name xml:lang="ar">وون كوري شمالي</com:Name>
+          <com:Name xml:lang="ru">Северокорейская вона</com:Name>
+          <com:Name xml:lang="ja">北朝鮮ウォン</com:Name>
+          <com:Name xml:lang="en">North Korean won</com:Name>
+          <com:Name xml:lang="fr">Won nord-coréen</com:Name>
+          <com:Name xml:lang="es">Won norcoreano</com:Name>
+          <com:Name xml:lang="zh">朝鲜圆</com:Name>
+        </str:Code>
+        <str:Code id="NOK" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).NOK">
+          <com:Name xml:lang="ar">كرونة نرويجية</com:Name>
+          <com:Name xml:lang="ru">Норвежская крона</com:Name>
+          <com:Name xml:lang="ja">ノルウェー・クローネ</com:Name>
+          <com:Name xml:lang="en">Norwegian krone</com:Name>
+          <com:Name xml:lang="fr">Couronne norvégienne</com:Name>
+          <com:Name xml:lang="es">Corona noruega</com:Name>
+          <com:Name xml:lang="zh">挪威克朗</com:Name>
+        </str:Code>
+        <str:Code id="OMR" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).OMR">
+          <com:Name xml:lang="ar">ريال عماني</com:Name>
+          <com:Name xml:lang="ru">Оманский риал</com:Name>
+          <com:Name xml:lang="ja">オマーン・リアル</com:Name>
+          <com:Name xml:lang="en">Omani rial</com:Name>
+          <com:Name xml:lang="fr">Rial omanais</com:Name>
+          <com:Name xml:lang="es">Rial omaní</com:Name>
+          <com:Name xml:lang="zh">阿曼里亚尔</com:Name>
+        </str:Code>
+        <str:Code id="PKR" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).PKR">
+          <com:Name xml:lang="ar">روبية باكستانية</com:Name>
+          <com:Name xml:lang="ru">Пакистанская рупия</com:Name>
+          <com:Name xml:lang="ja">パキスタン・ルピー</com:Name>
+          <com:Name xml:lang="en">Pakistani rupee</com:Name>
+          <com:Name xml:lang="fr">Roupie pakistanaise</com:Name>
+          <com:Name xml:lang="es">Rupia pakistaní</com:Name>
+          <com:Name xml:lang="zh">巴基斯坦卢比</com:Name>
+        </str:Code>
+        <str:Code id="XPD" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).XPD">
+          <com:Name xml:lang="ar">أونصة بلاديوم</com:Name>
+          <com:Name xml:lang="ru">Палладий (унция)</com:Name>
+          <com:Name xml:lang="ja">パラジウム (オンス)</com:Name>
+          <com:Name xml:lang="en">Palladium (ounce)</com:Name>
+          <com:Name xml:lang="fr">Once de palladium</com:Name>
+          <com:Name xml:lang="es">Paladio (onza)</com:Name>
+          <com:Name xml:lang="zh">钯 (盎司)</com:Name>
+        </str:Code>
+        <str:Code id="PAB" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).PAB">
+          <com:Name xml:lang="ar">بالبوا بنمي</com:Name>
+          <com:Name xml:lang="ru">Панамский бальбоа</com:Name>
+          <com:Name xml:lang="ja">パナマ・バルボア</com:Name>
+          <com:Name xml:lang="en">Panamanian balboa</com:Name>
+          <com:Name xml:lang="fr">Balboa panaméen</com:Name>
+          <com:Name xml:lang="es">Balboa panameño</com:Name>
+          <com:Name xml:lang="zh">巴拿马巴波亚</com:Name>
+        </str:Code>
+        <str:Code id="PGK" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).PGK">
+          <com:Name xml:lang="ar">كينا بابوا غينيا الجديدة</com:Name>
+          <com:Name xml:lang="ru">Кина</com:Name>
+          <com:Name xml:lang="ja">キナ</com:Name>
+          <com:Name xml:lang="en">Papua New Guinean kina</com:Name>
+          <com:Name xml:lang="fr">Kina</com:Name>
+          <com:Name xml:lang="es">Kina</com:Name>
+          <com:Name xml:lang="zh">巴布亚新几内亚基那</com:Name>
+        </str:Code>
+        <str:Code id="PYG" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).PYG">
+          <com:Name xml:lang="ar">غواراني باراغواي</com:Name>
+          <com:Name xml:lang="ru">Парагвайский гуарани</com:Name>
+          <com:Name xml:lang="ja">グアラニー</com:Name>
+          <com:Name xml:lang="en">Paraguayan guaraní</com:Name>
+          <com:Name xml:lang="fr">Guarani</com:Name>
+          <com:Name xml:lang="es">Guaraní paraguayo</com:Name>
+          <com:Name xml:lang="zh">巴拉圭瓜拉尼</com:Name>
+        </str:Code>
+        <str:Code id="PEN" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).PEN">
+          <com:Name xml:lang="ar">سول بيروفي</com:Name>
+          <com:Name xml:lang="ru">Перуанский соль</com:Name>
+          <com:Name xml:lang="ja">ペルー・ソル</com:Name>
+          <com:Name xml:lang="en">Peruvian sol</com:Name>
+          <com:Name xml:lang="fr">Sol péruvien</com:Name>
+          <com:Name xml:lang="es">Sol peruano</com:Name>
+          <com:Name xml:lang="zh">秘鲁索尔</com:Name>
+        </str:Code>
+        <str:Code id="PHP" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).PHP">
+          <com:Name xml:lang="ar">بيزو فلبيني</com:Name>
+          <com:Name xml:lang="ru">Филиппинское песо</com:Name>
+          <com:Name xml:lang="ja">フィリピン・ペソ</com:Name>
+          <com:Name xml:lang="en">Philippine peso</com:Name>
+          <com:Name xml:lang="fr">Peso philippin</com:Name>
+          <com:Name xml:lang="es">Peso filipino</com:Name>
+          <com:Name xml:lang="zh">菲律宾比索</com:Name>
+        </str:Code>
+        <str:Code id="XPT" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).XPT">
+          <com:Name xml:lang="ar">أونصة بلاتين</com:Name>
+          <com:Name xml:lang="ru">Платина (унция)</com:Name>
+          <com:Name xml:lang="ja">プラチナ (オンス)</com:Name>
+          <com:Name xml:lang="en">Platinum (ounce)</com:Name>
+          <com:Name xml:lang="fr">Once de platine</com:Name>
+          <com:Name xml:lang="es">Platino (onza)</com:Name>
+          <com:Name xml:lang="zh">铂 (盎司)</com:Name>
+        </str:Code>
+        <str:Code id="PLN" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).PLN">
+          <com:Name xml:lang="ar">زلوتي بولندي</com:Name>
+          <com:Name xml:lang="ru">Польский злотый</com:Name>
+          <com:Name xml:lang="ja">ズウォティ</com:Name>
+          <com:Name xml:lang="en">Polish złoty</com:Name>
+          <com:Name xml:lang="fr">Złoty</com:Name>
+          <com:Name xml:lang="es">Złoty polaco</com:Name>
+          <com:Name xml:lang="zh">波兰兹罗提</com:Name>
+        </str:Code>
+        <str:Code id="QAR" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).QAR">
+          <com:Name xml:lang="ar">ريال قطري</com:Name>
+          <com:Name xml:lang="ru">Катарский риал</com:Name>
+          <com:Name xml:lang="ja">カタール・リヤル</com:Name>
+          <com:Name xml:lang="en">Qatari riyal</com:Name>
+          <com:Name xml:lang="fr">Riyal qatari</com:Name>
+          <com:Name xml:lang="es">Riyal catarí</com:Name>
+          <com:Name xml:lang="zh">卡塔尔里亚尔</com:Name>
+        </str:Code>
+        <str:Code id="RON" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).RON">
+          <com:Name xml:lang="ar">ليو روماني</com:Name>
+          <com:Name xml:lang="ru">Румынский лей</com:Name>
+          <com:Name xml:lang="ja">ルーマニア・レウ</com:Name>
+          <com:Name xml:lang="en">Romanian leu</com:Name>
+          <com:Name xml:lang="fr">Leu roumain</com:Name>
+          <com:Name xml:lang="es">Leu rumano</com:Name>
+          <com:Name xml:lang="zh">罗马尼亚列伊</com:Name>
+        </str:Code>
+        <str:Code id="RUB" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).RUB">
+          <com:Name xml:lang="ar">روبل روسي</com:Name>
+          <com:Name xml:lang="ru">Российский рубль</com:Name>
+          <com:Name xml:lang="ja">ロシア・ルーブル</com:Name>
+          <com:Name xml:lang="en">Russian ruble</com:Name>
+          <com:Name xml:lang="fr">Rouble russe</com:Name>
+          <com:Name xml:lang="es">Rublo ruso</com:Name>
+          <com:Name xml:lang="zh">俄罗斯卢布</com:Name>
+        </str:Code>
+        <str:Code id="RWF" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).RWF">
+          <com:Name xml:lang="ar">فرنك رواندي</com:Name>
+          <com:Name xml:lang="ru">Руандийский франк</com:Name>
+          <com:Name xml:lang="ja">ルワンダ・フラン</com:Name>
+          <com:Name xml:lang="en">Rwandan franc</com:Name>
+          <com:Name xml:lang="fr">Franc rwandais</com:Name>
+          <com:Name xml:lang="es">Franco ruandés</com:Name>
+          <com:Name xml:lang="zh">卢旺达法郎</com:Name>
+        </str:Code>
+        <str:Code id="SHP" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).SHP">
+          <com:Name xml:lang="ar">جنيه سانت هيلانة</com:Name>
+          <com:Name xml:lang="ru">Фунт острова Святой Елены</com:Name>
+          <com:Name xml:lang="ja">セントヘレナ・ポンド</com:Name>
+          <com:Name xml:lang="en">Saint Helena pound</com:Name>
+          <com:Name xml:lang="fr">Livre de Sainte-Hélène</com:Name>
+          <com:Name xml:lang="es">Libra de Santa Helena</com:Name>
+          <com:Name xml:lang="zh">圣赫勒拿镑</com:Name>
+        </str:Code>
+        <str:Code id="WST" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).WST">
+          <com:Name xml:lang="ar">تالا ساموي</com:Name>
+          <com:Name xml:lang="ru">Самоанская тала</com:Name>
+          <com:Name xml:lang="ja">タラ</com:Name>
+          <com:Name xml:lang="en">Samoan tālā</com:Name>
+          <com:Name xml:lang="fr">Tala</com:Name>
+          <com:Name xml:lang="es">Tala samoano</com:Name>
+          <com:Name xml:lang="zh">萨摩亚塔拉</com:Name>
+        </str:Code>
+        <str:Code id="STD" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).STD">
+          <com:Name xml:lang="ar">دوبرا ساو تومي وبرينسيب</com:Name>
+          <com:Name xml:lang="ru">Добра</com:Name>
+          <com:Name xml:lang="ja">ドブラ</com:Name>
+          <com:Name xml:lang="en">São Tomé and Príncipe dobra</com:Name>
+          <com:Name xml:lang="fr">Dobra</com:Name>
+          <com:Name xml:lang="es">Dobra</com:Name>
+          <com:Name xml:lang="zh">圣多美和普林西比多布拉</com:Name>
+        </str:Code>
+        <str:Code id="SAR" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).SAR">
+          <com:Name xml:lang="ar">ريال سعودي</com:Name>
+          <com:Name xml:lang="ru">Саудовский риял</com:Name>
+          <com:Name xml:lang="ja">サウジアラビア・リヤル</com:Name>
+          <com:Name xml:lang="en">Saudi riyal</com:Name>
+          <com:Name xml:lang="fr">Riyal saoudien</com:Name>
+          <com:Name xml:lang="es">Riyal saudí</com:Name>
+          <com:Name xml:lang="zh">沙特里亚尔</com:Name>
+        </str:Code>
+        <str:Code id="RSD" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).RSD">
+          <com:Name xml:lang="ar">دينار صربي</com:Name>
+          <com:Name xml:lang="ru">Сербский динар</com:Name>
+          <com:Name xml:lang="ja">セルビア・ディナール</com:Name>
+          <com:Name xml:lang="en">Serbian dinar</com:Name>
+          <com:Name xml:lang="fr">Dinar serbe</com:Name>
+          <com:Name xml:lang="es">Dinar serbio</com:Name>
+          <com:Name xml:lang="zh">塞尔维亚第纳尔</com:Name>
+        </str:Code>
+        <str:Code id="SCR" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).SCR">
+          <com:Name xml:lang="ar">روبية سيشيلية</com:Name>
+          <com:Name xml:lang="ru">Сейшельская рупия</com:Name>
+          <com:Name xml:lang="ja">セーシェル・ルピー</com:Name>
+          <com:Name xml:lang="en">Seychellois rupee</com:Name>
+          <com:Name xml:lang="fr">Roupie seychelloise</com:Name>
+          <com:Name xml:lang="es">Rupia seychellense</com:Name>
+          <com:Name xml:lang="zh">塞舌尔卢比</com:Name>
+        </str:Code>
+        <str:Code id="SLL" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).SLL">
+          <com:Name xml:lang="ar">ليون سيراليوني</com:Name>
+          <com:Name xml:lang="ru">Сьерра-леонский леоне</com:Name>
+          <com:Name xml:lang="ja">レオネ</com:Name>
+          <com:Name xml:lang="en">Sierra Leonean leone</com:Name>
+          <com:Name xml:lang="fr">Leone</com:Name>
+          <com:Name xml:lang="es">Leone de Sierra Leona</com:Name>
+          <com:Name xml:lang="zh">塞拉利昂利昂</com:Name>
+        </str:Code>
+        <str:Code id="XAG" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).XAG">
+          <com:Name xml:lang="ar">أونصة فضة</com:Name>
+          <com:Name xml:lang="ru">Серебро (унция)</com:Name>
+          <com:Name xml:lang="ja">銀 (オンス)</com:Name>
+          <com:Name xml:lang="en">Silver (ounce)</com:Name>
+          <com:Name xml:lang="fr">Once d'argent</com:Name>
+          <com:Name xml:lang="es">Plata (onza)</com:Name>
+          <com:Name xml:lang="zh">白银 (盎司)</com:Name>
+        </str:Code>
+        <str:Code id="SGD" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).SGD">
+          <com:Name xml:lang="ar">دولار سنغافوري</com:Name>
+          <com:Name xml:lang="ru">Сингапурский доллар</com:Name>
+          <com:Name xml:lang="ja">シンガポール・ドル</com:Name>
+          <com:Name xml:lang="en">Singapore dollar</com:Name>
+          <com:Name xml:lang="fr">Dollar de Singapour</com:Name>
+          <com:Name xml:lang="es">Dólar singapurense</com:Name>
+          <com:Name xml:lang="zh">新加坡元</com:Name>
+        </str:Code>
+        <str:Code id="SBD" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).SBD">
+          <com:Name xml:lang="ar">دولار جزر سليمان</com:Name>
+          <com:Name xml:lang="ru">Доллар Соломоновых Островов</com:Name>
+          <com:Name xml:lang="ja">ソロモン諸島ドル</com:Name>
+          <com:Name xml:lang="en">Solomon Islands dollar</com:Name>
+          <com:Name xml:lang="fr">Dollar des îles Salomon</com:Name>
+          <com:Name xml:lang="es">Dólar de las Islas Salomón</com:Name>
+          <com:Name xml:lang="zh">所罗门群岛元</com:Name>
+        </str:Code>
+        <str:Code id="SOS" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).SOS">
+          <com:Name xml:lang="ar">شلن صومالي</com:Name>
+          <com:Name xml:lang="ru">Сомалийский шиллинг</com:Name>
+          <com:Name xml:lang="ja">ソマリア・シリング</com:Name>
+          <com:Name xml:lang="en">Somali shilling</com:Name>
+          <com:Name xml:lang="fr">Shilling somalien</com:Name>
+          <com:Name xml:lang="es">Chelín somalí</com:Name>
+          <com:Name xml:lang="zh">索马里先令</com:Name>
+        </str:Code>
+        <str:Code id="ZAR" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).ZAR">
+          <com:Name xml:lang="ar">راند جنوب أفريقي</com:Name>
+          <com:Name xml:lang="ru">Южноафриканский рэнд</com:Name>
+          <com:Name xml:lang="ja">ランド</com:Name>
+          <com:Name xml:lang="en">South African rand</com:Name>
+          <com:Name xml:lang="fr">Rand</com:Name>
+          <com:Name xml:lang="es">Rand sudafricano</com:Name>
+          <com:Name xml:lang="zh">南非兰特</com:Name>
+        </str:Code>
+        <str:Code id="KRW" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).KRW">
+          <com:Name xml:lang="ar">وون كوري جنوبي</com:Name>
+          <com:Name xml:lang="ru">Южнокорейская вона</com:Name>
+          <com:Name xml:lang="ja">韓国ウォン</com:Name>
+          <com:Name xml:lang="en">South Korean won</com:Name>
+          <com:Name xml:lang="fr">Won sud-coréen</com:Name>
+          <com:Name xml:lang="es">Won surcoreano</com:Name>
+          <com:Name xml:lang="zh">韩元</com:Name>
+        </str:Code>
+        <str:Code id="SDG" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).SDG">
+          <com:Name xml:lang="ar">جنيه جنوب سوداني</com:Name>
+          <com:Name xml:lang="ru">Южносуданский фунт</com:Name>
+          <com:Name xml:lang="ja">南スーダン・ポンド</com:Name>
+          <com:Name xml:lang="en">Sudanese pound</com:Name>
+          <com:Name xml:lang="fr">Livre sud-soudanaise</com:Name>
+          <com:Name xml:lang="es">Libra sursudanesa</com:Name>
+          <com:Name xml:lang="zh">南苏丹镑</com:Name>
+        </str:Code>
+        <str:Code id="LKR" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).LKR">
+          <com:Name xml:lang="ar">روبية سريلانكية</com:Name>
+          <com:Name xml:lang="ru">Шри-ланкийская рупия</com:Name>
+          <com:Name xml:lang="ja">スリランカ・ルピー</com:Name>
+          <com:Name xml:lang="en">Sri Lankan rupee</com:Name>
+          <com:Name xml:lang="fr">Roupie srilankaise</com:Name>
+          <com:Name xml:lang="es">Rupia esrilanquesa</com:Name>
+          <com:Name xml:lang="zh">斯里兰卡卢比</com:Name>
+        </str:Code>
+        <str:Code id="SRD" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).SRD">
+          <com:Name xml:lang="ar">دولار سورينامي</com:Name>
+          <com:Name xml:lang="ru">Суринамский доллар</com:Name>
+          <com:Name xml:lang="ja">スリナム・ドル</com:Name>
+          <com:Name xml:lang="en">Surinamese dollar</com:Name>
+          <com:Name xml:lang="fr">Dollar surinamais</com:Name>
+          <com:Name xml:lang="es">Dólar surinamés</com:Name>
+          <com:Name xml:lang="zh">苏里南元</com:Name>
+        </str:Code>
+        <str:Code id="SZL" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).SZL">
+          <com:Name xml:lang="ar">ليلانجيني سوازيلندي</com:Name>
+          <com:Name xml:lang="ru">Лилангени</com:Name>
+          <com:Name xml:lang="ja">リランゲニ</com:Name>
+          <com:Name xml:lang="en">Swazi lilangeni</com:Name>
+          <com:Name xml:lang="fr">Lilangeni</com:Name>
+          <com:Name xml:lang="es">Lilangeni</com:Name>
+          <com:Name xml:lang="zh">斯威士兰里兰吉尼</com:Name>
+        </str:Code>
+        <str:Code id="SEK" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).SEK">
+          <com:Name xml:lang="ar">كرونة سويدية</com:Name>
+          <com:Name xml:lang="ru">Шведская крона</com:Name>
+          <com:Name xml:lang="ja">スウェーデン・クローナ</com:Name>
+          <com:Name xml:lang="en">Swedish krona</com:Name>
+          <com:Name xml:lang="fr">Couronne suédoise</com:Name>
+          <com:Name xml:lang="es">Corona sueca</com:Name>
+          <com:Name xml:lang="zh">瑞典克朗</com:Name>
+        </str:Code>
+        <str:Code id="CHF" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).CHF">
+          <com:Name xml:lang="ar">فرنك سويسري</com:Name>
+          <com:Name xml:lang="ru">Швейцарский франк</com:Name>
+          <com:Name xml:lang="ja">スイス・フラン</com:Name>
+          <com:Name xml:lang="en">Swiss franc</com:Name>
+          <com:Name xml:lang="fr">Franc suisse</com:Name>
+          <com:Name xml:lang="es">Franco suizo</com:Name>
+          <com:Name xml:lang="zh">瑞士法郎</com:Name>
+        </str:Code>
+        <str:Code id="SYP" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).SYP">
+          <com:Name xml:lang="ar">ليرة سورية</com:Name>
+          <com:Name xml:lang="ru">Сирийский фунт</com:Name>
+          <com:Name xml:lang="ja">シリア・ポンド</com:Name>
+          <com:Name xml:lang="en">Syrian pound</com:Name>
+          <com:Name xml:lang="fr">Livre syrienne</com:Name>
+          <com:Name xml:lang="es">Libra siria</com:Name>
+          <com:Name xml:lang="zh">叙利亚镑</com:Name>
+        </str:Code>
+        <str:Code id="TWD" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).TWD">
+          <com:Name xml:lang="ar">دولار تايواني جديد</com:Name>
+          <com:Name xml:lang="ru">Новый тайваньский доллар</com:Name>
+          <com:Name xml:lang="ja">新台湾ドル</com:Name>
+          <com:Name xml:lang="en">New Taiwan dollar</com:Name>
+          <com:Name xml:lang="fr">Nouveau dollar de Taïwan</com:Name>
+          <com:Name xml:lang="es">Nuevo dólar taiwanés</com:Name>
+          <com:Name xml:lang="zh">新台币</com:Name>
+        </str:Code>
+        <str:Code id="TJS" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).TJS">
+          <com:Name xml:lang="ar">سوموني طاجيكستاني</com:Name>
+          <com:Name xml:lang="ru">Таджикский сомони</com:Name>
+          <com:Name xml:lang="ja">ソモニ</com:Name>
+          <com:Name xml:lang="en">Tajikistani somoni</com:Name>
+          <com:Name xml:lang="fr">Somoni</com:Name>
+          <com:Name xml:lang="es">Somoni tayiko</com:Name>
+          <com:Name xml:lang="zh">塔吉克斯坦索莫尼</com:Name>
+        </str:Code>
+        <str:Code id="TZS" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).TZS">
+          <com:Name xml:lang="ar">شلن تنزاني</com:Name>
+          <com:Name xml:lang="ru">Танзанийский шиллинг</com:Name>
+          <com:Name xml:lang="ja">タンザニア・シリング</com:Name>
+          <com:Name xml:lang="en">Tanzanian shilling</com:Name>
+          <com:Name xml:lang="fr">Shilling tanzanien</com:Name>
+          <com:Name xml:lang="es">Chelín tanzano</com:Name>
+          <com:Name xml:lang="zh">坦桑尼亚先令</com:Name>
+        </str:Code>
+        <str:Code id="THB" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).THB">
+          <com:Name xml:lang="ar">بات تايلندي</com:Name>
+          <com:Name xml:lang="ru">Тайский бат</com:Name>
+          <com:Name xml:lang="ja">バーツ</com:Name>
+          <com:Name xml:lang="en">Thai baht</com:Name>
+          <com:Name xml:lang="fr">Baht</com:Name>
+          <com:Name xml:lang="es">Baht tailandés</com:Name>
+          <com:Name xml:lang="zh">泰铢</com:Name>
+        </str:Code>
+        <str:Code id="TOP" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).TOP">
+          <com:Name xml:lang="ar">بانغا تونغا</com:Name>
+          <com:Name xml:lang="ru">Тонганская паанга</com:Name>
+          <com:Name xml:lang="ja">パアンガ</com:Name>
+          <com:Name xml:lang="en">Tongan paʻanga</com:Name>
+          <com:Name xml:lang="fr">Paʻanga</com:Name>
+          <com:Name xml:lang="es">Paʻanga tongano</com:Name>
+          <com:Name xml:lang="zh">汤加潘加</com:Name>
+        </str:Code>
+        <str:Code id="TTD" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).TTD">
+          <com:Name xml:lang="ar">دولار ترينيداد وتوباغو</com:Name>
+          <com:Name xml:lang="ru">Доллар Тринидада и Тобаго</com:Name>
+          <com:Name xml:lang="ja">トリニダード・トバゴ・ドル</com:Name>
+          <com:Name xml:lang="en">Trinidad and Tobago dollar</com:Name>
+          <com:Name xml:lang="fr">Dollar de Trinité-et-Tobago</com:Name>
+          <com:Name xml:lang="es">Dólar de Trinidad y Tobago</com:Name>
+          <com:Name xml:lang="zh">特立尼达和多巴哥元</com:Name>
+        </str:Code>
+        <str:Code id="TND" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).TND">
+          <com:Name xml:lang="ar">دينار تونسي</com:Name>
+          <com:Name xml:lang="ru">Тунисский динар</com:Name>
+          <com:Name xml:lang="ja">チュニジア・ディナール</com:Name>
+          <com:Name xml:lang="en">Tunisian dinar</com:Name>
+          <com:Name xml:lang="fr">Dinar tunisien</com:Name>
+          <com:Name xml:lang="es">Dinar tunecino</com:Name>
+          <com:Name xml:lang="zh">突尼斯第纳尔</com:Name>
+        </str:Code>
+        <str:Code id="TRY" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).TRY">
+          <com:Name xml:lang="ar">ليرة تركية</com:Name>
+          <com:Name xml:lang="ru">Турецкая лира</com:Name>
+          <com:Name xml:lang="ja">トルコ・リラ</com:Name>
+          <com:Name xml:lang="en">Turkish lira</com:Name>
+          <com:Name xml:lang="fr">Livre turque</com:Name>
+          <com:Name xml:lang="es">Lira turca</com:Name>
+          <com:Name xml:lang="zh">土耳其里拉</com:Name>
+        </str:Code>
+        <str:Code id="TMT" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).TMT">
+          <com:Name xml:lang="ar">منات تركمانستاني جديد</com:Name>
+          <com:Name xml:lang="ru">Новый туркменский манат</com:Name>
+          <com:Name xml:lang="ja">トルクメニスタン・マナト</com:Name>
+          <com:Name xml:lang="en">Turkmenistan new manat</com:Name>
+          <com:Name xml:lang="fr">Nouveau manat turkmène</com:Name>
+          <com:Name xml:lang="es">Nuevo manat turcomano</com:Name>
+          <com:Name xml:lang="zh">土库曼斯坦新马纳特</com:Name>
+        </str:Code>
+        <str:Code id="AED" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).AED">
+          <com:Name xml:lang="ar">درهم إماراتي</com:Name>
+          <com:Name xml:lang="ru">Дирхам ОАЭ</com:Name>
+          <com:Name xml:lang="ja">UAEディルハム</com:Name>
+          <com:Name xml:lang="en">UAE dirham</com:Name>
+          <com:Name xml:lang="fr">Dirham des Émirats arabes unis</com:Name>
+          <com:Name xml:lang="es">Dirham de los Emiratos Árabes Unidos</com:Name>
+          <com:Name xml:lang="zh">阿联酋迪拉姆</com:Name>
+        </str:Code>
+        <str:Code id="UGX" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).UGX">
+          <com:Name xml:lang="ar">شلن أوغندي</com:Name>
+          <com:Name xml:lang="ru">Угандийский шиллинг</com:Name>
+          <com:Name xml:lang="ja">ウガンダ・シリング</com:Name>
+          <com:Name xml:lang="en">Ugandan shilling</com:Name>
+          <com:Name xml:lang="fr">Shilling ougandais</com:Name>
+          <com:Name xml:lang="es">Chelín ugandés</com:Name>
+          <com:Name xml:lang="zh">乌干达先令</com:Name>
+        </str:Code>
+        <str:Code id="XFU" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).XFU">
+          <com:Name xml:lang="ar">فرنك UIC</com:Name>
+          <com:Name xml:lang="ru">UIC франк</com:Name>
+          <com:Name xml:lang="ja">UICフラン</com:Name>
+          <com:Name xml:lang="en">UIC franc</com:Name>
+          <com:Name xml:lang="fr">Franc UIC</com:Name>
+          <com:Name xml:lang="es">Franco UIC</com:Name>
+          <com:Name xml:lang="zh">UIC法郎</com:Name>
+        </str:Code>
+        <str:Code id="UAH" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).UAH">
+          <com:Name xml:lang="ar">هريفنيا أوكرانية</com:Name>
+          <com:Name xml:lang="ru">Украинская гривна</com:Name>
+          <com:Name xml:lang="ja">フリヴニャ</com:Name>
+          <com:Name xml:lang="en">Ukrainian hryvnia</com:Name>
+          <com:Name xml:lang="fr">Hryvnia</com:Name>
+          <com:Name xml:lang="es">Grivna ucraniana</com:Name>
+          <com:Name xml:lang="zh">乌克兰格里夫纳</com:Name>
+        </str:Code>
+        <str:Code id="UYU" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).UYU">
+          <com:Name xml:lang="ar">بيزو أوروغواياني</com:Name>
+          <com:Name xml:lang="ru">Уругвайское песо</com:Name>
+          <com:Name xml:lang="ja">ウルグアイ・ペソ</com:Name>
+          <com:Name xml:lang="en">Uruguayan peso</com:Name>
+          <com:Name xml:lang="fr">Peso uruguayen</com:Name>
+          <com:Name xml:lang="es">Peso uruguayo</com:Name>
+          <com:Name xml:lang="zh">乌拉圭比索</com:Name>
+        </str:Code>
+        <str:Code id="USD" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).USD">
+          <com:Name xml:lang="ar">دولار أمريكي</com:Name>
+          <com:Name xml:lang="ru">Доллар США</com:Name>
+          <com:Name xml:lang="ja">米ドル</com:Name>
+          <com:Name xml:lang="en">US dollar</com:Name>
+          <com:Name xml:lang="fr">Dollar américain</com:Name>
+          <com:Name xml:lang="es">Dólar estadounidense</com:Name>
+          <com:Name xml:lang="zh">美元</com:Name>
+        </str:Code>
+        <str:Code id="UZS" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).UZS">
+          <com:Name xml:lang="ar">سوم أوزبكستاني</com:Name>
+          <com:Name xml:lang="ru">Узбекский сум</com:Name>
+          <com:Name xml:lang="ja">ウズベキスタン・スム</com:Name>
+          <com:Name xml:lang="en">Uzbekistani soʻm</com:Name>
+          <com:Name xml:lang="fr">Soum ouzbek</com:Name>
+          <com:Name xml:lang="es">Som uzbeko</com:Name>
+          <com:Name xml:lang="zh">乌兹别克斯坦索姆</com:Name>
+        </str:Code>
+        <str:Code id="VUV" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).VUV">
+          <com:Name xml:lang="ar">فاتو فانواتو</com:Name>
+          <com:Name xml:lang="ru">Вату</com:Name>
+          <com:Name xml:lang="ja">バツ</com:Name>
+          <com:Name xml:lang="en">Vanuatu vatu</com:Name>
+          <com:Name xml:lang="fr">Vatu</com:Name>
+          <com:Name xml:lang="es">Vatu</com:Name>
+          <com:Name xml:lang="zh">瓦努阿图瓦图</com:Name>
+        </str:Code>
+        <str:Code id="VEF" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).VEF">
+          <com:Name xml:lang="ar">بوليفار فنزويلي</com:Name>
+          <com:Name xml:lang="ru">Венесуэльский боливар (старый)</com:Name>
+          <com:Name xml:lang="ja">ベネズエラ・ボリバル (旧)</com:Name>
+          <com:Name xml:lang="en">Venezuelan bolívar fuerte</com:Name>
+          <com:Name xml:lang="fr">Bolívar vénézuélien</com:Name>
+          <com:Name xml:lang="es">Bolívar venezolano (antiguo)</com:Name>
+          <com:Name xml:lang="zh">委内瑞拉玻利瓦尔soverano (旧)</com:Name>
+          <com:Description xml:lang="en">2008-2018</com:Description>
+        </str:Code>
+        <str:Code id="VED" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).VED">
+          <com:Name xml:lang="ar">بوليفار رقمي فنزويلي</com:Name>
+          <com:Name xml:lang="ru">Венесуэльский боливар цифровой (новый)</com:Name>
+          <com:Name xml:lang="ja">ベネズエラ・ボリバル・デジタル (新)</com:Name>
+          <com:Name xml:lang="en">Bolívar digital</com:Name>
+          <com:Name xml:lang="fr">Bolívar Digital</com:Name>
+          <com:Name xml:lang="es">Bolívar Digital venezolano (nuevo)</com:Name>
+          <com:Name xml:lang="zh">玻利瓦尔数码</com:Name>
+          <com:Description xml:lang="en">As of October 1, 2021</com:Description>
+        </str:Code>
+        <str:Code id="VND" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).VND">
+          <com:Name xml:lang="ar">دونغ فيتنامي</com:Name>
+          <com:Name xml:lang="ru">Вьетнамский донг</com:Name>
+          <com:Name xml:lang="ja">ベトナム・ドン</com:Name>
+          <com:Name xml:lang="en">Vietnamese đồng</com:Name>
+          <com:Name xml:lang="fr">Dong vietnamien</com:Name>
+          <com:Name xml:lang="es">Dong vietnamita</com:Name>
+          <com:Name xml:lang="zh">越南盾</com:Name>
+        </str:Code>
+        <str:Code id="YER" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).YER">
+          <com:Name xml:lang="ar">ريال يمني</com:Name>
+          <com:Name xml:lang="ru">Йеменский риал</com:Name>
+          <com:Name xml:lang="ja">イエメン・リアル</com:Name>
+          <com:Name xml:lang="en">Yemeni rial</com:Name>
+          <com:Name xml:lang="fr">Rial yéménite</com:Name>
+          <com:Name xml:lang="es">Rial yemení</com:Name>
+          <com:Name xml:lang="zh">也门里亚尔</com:Name>
+        </str:Code>
+        <str:Code id="ZMK" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).ZMK">
+          <com:Name xml:lang="ar">كواشا زامبي</com:Name>
+          <com:Name xml:lang="ru">Замбийская квача (старая)</com:Name>
+          <com:Name xml:lang="ja">ザンビア・クワチャ (旧)</com:Name>
+          <com:Name xml:lang="en">Zambian kwacha</com:Name>
+          <com:Name xml:lang="fr">Kwacha zambien (ancien)</com:Name>
+          <com:Name xml:lang="es">Kwacha zambiano (antiguo)</com:Name>
+          <com:Name xml:lang="zh">赞比亚克瓦查 (旧)</com:Name>
+          <com:Description xml:lang="en">1968-2013</com:Description>
+        </str:Code>
+        <str:Code id="ZMW" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).ZMW">
+          <com:Name xml:lang="ar">كواشا زامبي</com:Name>
+          <com:Name xml:lang="ru">Замбийская квача</com:Name>
+          <com:Name xml:lang="ja">ザンビア・クワチャ</com:Name>
+          <com:Name xml:lang="en">Zambian Kwacha</com:Name>
+          <com:Name xml:lang="fr">Kwacha zambien</com:Name>
+          <com:Name xml:lang="es">Kwacha zambiano</com:Name>
+          <com:Name xml:lang="zh">赞比亚克瓦查</com:Name>
+        </str:Code>
+        <str:Code id="ZWL" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).ZWL">
+          <com:Name xml:lang="ar">دولار زيمبابوي</com:Name>
+          <com:Name xml:lang="ru">Зимбабвийский доллар (старый)</com:Name>
+          <com:Name xml:lang="ja">짐바ブエ・ドル (旧)</com:Name>
+          <com:Name xml:lang="en">Zimbabwean dollar</com:Name>
+          <com:Name xml:lang="fr">Dollar zimbabwéen (ancien)</com:Name>
+          <com:Name xml:lang="es">Dólar zimbabuense (antiguo)</com:Name>
+          <com:Name xml:lang="zh">津巴布韦元 (旧)</com:Name>
+          <com:Description xml:lang="en">1980-2009</com:Description>
+        </str:Code>
+        <str:Code id="ZWG" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).ZWG">
+          <com:Name xml:lang="ar">ذهب زيمبابوي</com:Name>
+          <com:Name xml:lang="ru">Зимбабвийский золотой (ZiG)</com:Name>
+          <com:Name xml:lang="ja">짐바브웨 ゴールド (ZiG)</com:Name>
+          <com:Name xml:lang="en">Zimbabwe Gold (ZiG)</com:Name>
+          <com:Name xml:lang="fr">Zimbabwe Gold (ZiG)</com:Name>
+          <com:Name xml:lang="es">Oro de Zimbabue (ZiG)</com:Name>
+          <com:Name xml:lang="zh">짐바브웨 골드 (ZiG)</com:Name>
+        </str:Code>
+        <str:Code id="DEM" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).DEM">
+          <com:Name xml:lang="ar">مارك ألماني</com:Name>
+          <com:Name xml:lang="ru">Немецкая марка</com:Name>
+          <com:Name xml:lang="ja">ドイツマルク</com:Name>
+          <com:Name xml:lang="en">Deutsche mark</com:Name>
+          <com:Name xml:lang="fr">Deutsche Mark</com:Name>
+          <com:Name xml:lang="es">Marco alemán</com:Name>
+          <com:Name xml:lang="zh">德国马克</com:Name>
+          <com:Description xml:lang="en">Former official currency of West Germany.</com:Description>
+        </str:Code>
+        <str:Code id="NLG" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).NLG">
+          <com:Name xml:lang="ar">غيلدر هولندي</com:Name>
+          <com:Name xml:lang="ru">Голландский гульден</com:Name>
+          <com:Name xml:lang="ja">ギルダー</com:Name>
+          <com:Name xml:lang="en">Dutch guilder</com:Name>
+          <com:Name xml:lang="fr">Florin néerlandais</com:Name>
+          <com:Name xml:lang="es">Florín neerlandés</com:Name>
+          <com:Name xml:lang="zh">荷兰盾</com:Name>
+          <com:Description xml:lang="en">Former official currency of Netherlands.</com:Description>
+        </str:Code>
+        <str:Code id="ECU" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).ECU">
+          <com:Name xml:lang="ar">وحدة النقد الأوروبية</com:Name>
+          <com:Name xml:lang="ru">Европейская валютная единица</com:Name>
+          <com:Name xml:lang="ja">欧州通貨単位 (ECU)</com:Name>
+          <com:Name xml:lang="en">ECU</com:Name>
+          <com:Name xml:lang="fr">Unité monétaire européenne</com:Name>
+          <com:Name xml:lang="es">Unidad Monetaria Europea (ECU)</com:Name>
+          <com:Name xml:lang="zh">欧洲货币单位</com:Name>
+          <com:Description xml:lang="en">The European Currency Unit (ECU) was a basket of European currencies used as the unit of account of the European Monetary System (EMS) from 1979 to 1998, prior to the introduction of the euro in 1999. The ECU was a composite currency, meaning its value was derived from a weighted average of the currencies of the participating countries. </com:Description>
+        </str:Code>
+        <str:Code id="FRF" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).FRF">
+          <com:Name xml:lang="ar">فرنك فرنسي</com:Name>
+          <com:Name xml:lang="ru">Французский франк</com:Name>
+          <com:Name xml:lang="ja">フランス・フラン</com:Name>
+          <com:Name xml:lang="en">French franc</com:Name>
+          <com:Name xml:lang="fr">Franc français</com:Name>
+          <com:Name xml:lang="es">Franco francés</com:Name>
+          <com:Name xml:lang="zh">法郎</com:Name>
+          <com:Description xml:lang="en">Former official currency of France. </com:Description>
+        </str:Code>
+        <str:Code id="XDC" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).XDC">
+          <com:Name xml:lang="ar">عملة محلية</com:Name>
+          <com:Name xml:lang="ru">Национальная валюта</com:Name>
+          <com:Name xml:lang="ja">自国通貨</com:Name>
+          <com:Name xml:lang="en">Domestic currency</com:Name>
+          <com:Name xml:lang="fr">Devise nationale</com:Name>
+          <com:Name xml:lang="es">Moneda nacional</com:Name>
+          <com:Name xml:lang="zh">本国货币</com:Name>
+          <com:Description xml:lang="en">Currency issued by the country of origin, used internally. Used to specify what Unit of Measure the country used to provide data to the IMF. </com:Description>
+        </str:Code>
+        <str:Code id="FC" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).FC">
+          <com:Name xml:lang="en">Foreign Currency</com:Name>
+          <com:Description xml:lang="en">Currency used in a country other than one's own.</com:Description>
+        </str:Code>
+        <str:Code id="_T" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0)._T">
+          <com:Name xml:lang="en">All currencies</com:Name>
+          <com:Description xml:lang="en">Total of All Currencies, e.g. sum of all denominated currencies.</com:Description>
+        </str:Code>
+        <str:Code id="XDRB" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).XDRB">
+          <com:Name xml:lang="en">Currencies in SDR basket</com:Name>
+          <com:Description xml:lang="en">Currencies in SDR basket.</com:Description>
+        </str:Code>
+        <str:Code id="XXDR" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).XXDR">
+          <com:Name xml:lang="en">Currencies not in SDR basket</com:Name>
+          <com:Description xml:lang="en">Currencies not in SDR basket.</com:Description>
+        </str:Code>
+        <str:Code id="VES" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_UNIT(2.8.0).VES">
+          <com:Name xml:lang="en">Venezuelan bolívar soberano</com:Name>
+          <com:Description xml:lang="en">2018-2021</com:Description>
+        </str:Code>
+      </str:Codelist>
+    </str:Codelists>
+  </mes:Structures>
+</mes:Structure>

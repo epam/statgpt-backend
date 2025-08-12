@@ -1,0 +1,41 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<mes:Structure xmlns:mes="http://www.sdmx.org/resources/sdmxml/schemas/v2_1/message" xmlns:str="http://www.sdmx.org/resources/sdmxml/schemas/v2_1/structure" xmlns:com="http://www.sdmx.org/resources/sdmxml/schemas/v2_1/common" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xml="http://www.w3.org/XML/1998/namespace" xsi:schemaLocation="http://www.sdmx.org/resources/sdmxml/schemas/v2_1/message ../../schemas/SDMXMessage.xsd">
+  <mes:Header>
+    <mes:ID>IDREF1475</mes:ID>
+    <mes:Test>false</mes:Test>
+    <mes:Prepared>2025-07-29T09:43:10.787201050Z</mes:Prepared>
+    <mes:Sender id="unknown"/>
+  </mes:Header>
+  <mes:Structures>
+    <str:Concepts>
+      <str:ConceptScheme urn="urn:sdmx:org.sdmx.infomodel.conceptscheme.ConceptScheme=IMF.STA:CS_MASTER(1.0.0)" agencyID="IMF.STA" id="CS_MASTER" version="1.0.0" isFinal="true" isExternalReference="false" isPartial="false">
+        <com:Annotations>
+          <com:Annotation id="origin"/>
+          <com:Annotation id="isFinal"/>
+          <com:Annotation id="lastUpdatedAt"/>
+        </com:Annotations>
+        <com:Name xml:lang="en">STA: Master Concepts</com:Name>
+        <com:Description xml:lang="en">A standardized set of concepts and definitions that classify and describe the data elements used within STA.</com:Description>
+        <str:Concept id="STATUS" urn="urn:sdmx:org.sdmx.infomodel.conceptscheme.Concept=IMF.STA:CS_MASTER(1.0.0).STATUS">
+          <com:Name xml:lang="en">Status</com:Name>
+          <str:CoreRepresentation>
+            <str:TextFormat textType="String"/>
+          </str:CoreRepresentation>
+        </str:Concept>
+        <str:Concept id="COMMON_REFERENCE_PERIOD" urn="urn:sdmx:org.sdmx.infomodel.conceptscheme.Concept=IMF.STA:CS_MASTER(1.0.0).COMMON_REFERENCE_PERIOD">
+          <com:Name xml:lang="en">Common Reference Period</com:Name>
+          <str:CoreRepresentation>
+            <str:TextFormat textType="String"/>
+          </str:CoreRepresentation>
+        </str:Concept>
+        <str:Concept id="IFS_FLAG" urn="urn:sdmx:org.sdmx.infomodel.conceptscheme.Concept=IMF.STA:CS_MASTER(1.0.0).IFS_FLAG">
+          <com:Name xml:lang="en">IFS flag</com:Name>
+          <com:Description xml:lang="en">A key indicator flag is used to identify and mark indicators that were part of the IFS data product. </com:Description>
+          <str:CoreRepresentation>
+            <str:TextFormat textType="Boolean"/>
+          </str:CoreRepresentation>
+        </str:Concept>
+      </str:ConceptScheme>
+    </str:Concepts>
+  </mes:Structures>
+</mes:Structure>

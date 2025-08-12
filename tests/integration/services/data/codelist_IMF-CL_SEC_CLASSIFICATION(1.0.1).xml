@@ -1,0 +1,46 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<mes:Structure xmlns:mes="http://www.sdmx.org/resources/sdmxml/schemas/v2_1/message" xmlns:str="http://www.sdmx.org/resources/sdmxml/schemas/v2_1/structure" xmlns:com="http://www.sdmx.org/resources/sdmxml/schemas/v2_1/common" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xml="http://www.w3.org/XML/1998/namespace" xsi:schemaLocation="http://www.sdmx.org/resources/sdmxml/schemas/v2_1/message ../../schemas/SDMXMessage.xsd">
+  <mes:Header>
+    <mes:ID>IDREF3337</mes:ID>
+    <mes:Test>false</mes:Test>
+    <mes:Prepared>2025-07-29T10:10:19.265838159Z</mes:Prepared>
+    <mes:Sender id="unknown"/>
+  </mes:Header>
+  <mes:Structures>
+    <str:Codelists>
+      <str:Codelist urn="urn:sdmx:org.sdmx.infomodel.codelist.Codelist=IMF:CL_SEC_CLASSIFICATION(1.0.1)" agencyID="IMF" id="CL_SEC_CLASSIFICATION" version="1.0.1" isFinal="true" isExternalReference="false" isPartial="false">
+        <com:Annotations>
+          <com:Annotation id="origin"/>
+          <com:Annotation id="isFinal"/>
+          <com:Annotation id="lastUpdatedAt"/>
+        </com:Annotations>
+        <com:Name xml:lang="en">Security Classification</com:Name>
+        <com:Description xml:lang="en">This codelist designates the level of sensitivity or confidentiality associated with data, dictating the protective measures required for its handling, storage, and transmission.</com:Description>
+        <str:Code id="PUB" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_SEC_CLASSIFICATION(1.0.1).PUB">
+          <com:Name xml:lang="en">Public or Unrestricted</com:Name>
+          <com:Description xml:lang="en">Information that has been published in full by the Fund and has been approved to be made available inside and outside the Fund without restriction is “Public” or “Unclassified.”</com:Description>
+        </str:Code>
+        <str:Code id="FOU" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_SEC_CLASSIFICATION(1.0.1).FOU">
+          <com:Name xml:lang="en">For official use only</com:Name>
+          <com:Description xml:lang="en">Information that is intended for all staff, without restriction, and in some cases, may be shared with national officials or other authorized individuals or institutions must be classified “For Official Use Only.” This may be information not authorized for public use but to which staff members may have access without demonstrating a particular direct interest in the matter in question. Such information must be marked accordingly when necessary to avoid being mistaken for unclassified information.</com:Description>
+        </str:Code>
+        <str:Code id="C" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_SEC_CLASSIFICATION(1.0.1).C">
+          <com:Name xml:lang="en">Confidential</com:Name>
+          <com:Description xml:lang="en">Information that is sensitive and to which access needs to be confined to those with a need to know about the matter in question must be classified “Confidential.” Given the desirability of broad dissemination of information within the Fund and of simplicity in the design of information handling systems, this classification should be used sparingly.</com:Description>
+        </str:Code>
+        <str:Code id="SC" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_SEC_CLASSIFICATION(1.0.1).SC">
+          <com:Name xml:lang="en">Strictly Confidential</com:Name>
+          <com:Description xml:lang="en">Information to which access is to be limited to those having a strict need to know and which would not be adequately protected by the Confidential classification shall be classified “Strictly Confidential.” The classification “Strictly Confidential” should be used only exceptionally for information of the highest sensitivity. For example, Crown Jewels information must be classified as Strictly Confidential.</com:Description>
+        </str:Code>
+        <str:Code id="PC" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_SEC_CLASSIFICATION(1.0.1).PC">
+          <com:Name xml:lang="en">Personal and Confidential</com:Name>
+          <com:Description xml:lang="en">Information that is both "Personal" and "Confidential."  Information that is sensitive and to which access needs to be confined to those with a need to know about the matter in question must be classified “Confidential.” Given the desirability of broad dissemination of information within the Fund and of simplicity in the design of information handling systems, this classification should be used sparingly.</com:Description>
+        </str:Code>
+        <str:Code id="PSC" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_SEC_CLASSIFICATION(1.0.1).PSC">
+          <com:Name xml:lang="en">Personal and Strictly Confidential</com:Name>
+          <com:Description xml:lang="en">Information that is both "Personal" and "Strictly Confidential."  Information to which access is to be limited to those having a strict need to know and which would not be adequately protected by the Confidential classification shall be classified “Strictly Confidential.” The classification “Strictly Confidential” should be used only exceptionally for information of the highest sensitivity. </com:Description>
+        </str:Code>
+      </str:Codelist>
+    </str:Codelists>
+  </mes:Structures>
+</mes:Structure>

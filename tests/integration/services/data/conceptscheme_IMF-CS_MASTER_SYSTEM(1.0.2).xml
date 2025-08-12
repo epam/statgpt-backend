@@ -1,0 +1,114 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<mes:Structure xmlns:mes="http://www.sdmx.org/resources/sdmxml/schemas/v2_1/message" xmlns:str="http://www.sdmx.org/resources/sdmxml/schemas/v2_1/structure" xmlns:com="http://www.sdmx.org/resources/sdmxml/schemas/v2_1/common" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xml="http://www.w3.org/XML/1998/namespace" xsi:schemaLocation="http://www.sdmx.org/resources/sdmxml/schemas/v2_1/message ../../schemas/SDMXMessage.xsd">
+  <mes:Header>
+    <mes:ID>IDREF2998</mes:ID>
+    <mes:Test>false</mes:Test>
+    <mes:Prepared>2025-07-29T07:54:23.224284284Z</mes:Prepared>
+    <mes:Sender id="unknown"/>
+  </mes:Header>
+  <mes:Structures>
+    <str:Concepts>
+      <str:ConceptScheme urn="urn:sdmx:org.sdmx.infomodel.conceptscheme.ConceptScheme=IMF:CS_MASTER_SYSTEM(1.0.2)" agencyID="IMF" id="CS_MASTER_SYSTEM" version="1.0.2" isFinal="true" isExternalReference="false" isPartial="false">
+        <com:Annotations>
+          <com:Annotation id="dataEngineSettings"/>
+          <com:Annotation id="origin"/>
+          <com:Annotation id="isFinal"/>
+          <com:Annotation id="lastUpdatedAt"/>
+        </com:Annotations>
+        <com:Name xml:lang="en">CS_MASTER_SYSTEM</com:Name>
+        <str:Concept id="FREQ" urn="urn:sdmx:org.sdmx.infomodel.conceptscheme.Concept=IMF:CS_MASTER_SYSTEM(1.0.2).FREQ">
+          <com:Name xml:lang="ar">معدل التواتر</com:Name>
+          <com:Name xml:lang="ru">Периодичность</com:Name>
+          <com:Name xml:lang="pt">Frequência</com:Name>
+          <com:Name xml:lang="ja">頻度</com:Name>
+          <com:Name xml:lang="en">Frequency</com:Name>
+          <com:Name xml:lang="fr">Fréquence</com:Name>
+          <com:Name xml:lang="es">Frecuencia</com:Name>
+          <com:Name xml:lang="zh">频率</com:Name>
+          <str:CoreRepresentation>
+            <str:Enumeration>
+              <Ref agencyID="IMF" id="CL_FREQ" version="1.0.3" package="codelist" class="Codelist"/>
+            </str:Enumeration>
+          </str:CoreRepresentation>
+        </str:Concept>
+        <str:Concept id="SCALE" urn="urn:sdmx:org.sdmx.infomodel.conceptscheme.Concept=IMF:CS_MASTER_SYSTEM(1.0.2).SCALE">
+          <com:Name xml:lang="ar">عدد الخانات العشرية</com:Name>
+          <com:Name xml:lang="ru">Масштаб</com:Name>
+          <com:Name xml:lang="pt">Escala</com:Name>
+          <com:Name xml:lang="ja">尺度</com:Name>
+          <com:Name xml:lang="en">Scale</com:Name>
+          <com:Name xml:lang="fr">Échelle</com:Name>
+          <com:Name xml:lang="es">Escala</com:Name>
+          <com:Name xml:lang="zh">规模</com:Name>
+          <str:CoreRepresentation>
+            <str:Enumeration>
+              <Ref agencyID="IMF" id="CL_UNIT_MULT" version="1.0.2" package="codelist" class="Codelist"/>
+            </str:Enumeration>
+          </str:CoreRepresentation>
+        </str:Concept>
+        <str:Concept id="PRECISION" urn="urn:sdmx:org.sdmx.infomodel.conceptscheme.Concept=IMF:CS_MASTER_SYSTEM(1.0.2).PRECISION">
+          <com:Name xml:lang="ar">عدد الخانات الصحيحة والعشرية</com:Name>
+          <com:Name xml:lang="ru">Точность</com:Name>
+          <com:Name xml:lang="pt">Precisão</com:Name>
+          <com:Name xml:lang="ja">精度</com:Name>
+          <com:Name xml:lang="en">Precision</com:Name>
+          <com:Name xml:lang="fr">Précision</com:Name>
+          <com:Name xml:lang="es">Precisión</com:Name>
+          <com:Name xml:lang="zh">精度</com:Name>
+          <str:CoreRepresentation>
+            <str:Enumeration>
+              <Ref agencyID="IMF" id="CL_UNIT_MULT" version="1.0.2" package="codelist" class="Codelist"/>
+            </str:Enumeration>
+          </str:CoreRepresentation>
+        </str:Concept>
+        <str:Concept id="DECIMALS_DISPLAYED" urn="urn:sdmx:org.sdmx.infomodel.conceptscheme.Concept=IMF:CS_MASTER_SYSTEM(1.0.2).DECIMALS_DISPLAYED">
+          <com:Name xml:lang="ar">الأعداد العشرية الموضحة</com:Name>
+          <com:Name xml:lang="ru">Количество отображаемых десятичных знаков</com:Name>
+          <com:Name xml:lang="pt">Decimais visíveis</com:Name>
+          <com:Name xml:lang="ja">小数点表示</com:Name>
+          <com:Name xml:lang="en">Decimals Displayed</com:Name>
+          <com:Name xml:lang="fr">Décimales affichées</com:Name>
+          <com:Name xml:lang="es">Decimales visibles</com:Name>
+          <com:Name xml:lang="zh">显示的小数位数</com:Name>
+          <str:CoreRepresentation>
+            <str:Enumeration>
+              <Ref agencyID="IMF" id="CL_DECIMALS" version="1.0.2" package="codelist" class="Codelist"/>
+            </str:Enumeration>
+          </str:CoreRepresentation>
+        </str:Concept>
+        <str:Concept id="OBS_VALUE" urn="urn:sdmx:org.sdmx.infomodel.conceptscheme.Concept=IMF:CS_MASTER_SYSTEM(1.0.2).OBS_VALUE">
+          <com:Name xml:lang="ar">قيمة المشاهدات</com:Name>
+          <com:Name xml:lang="ru">Значение наблюдения</com:Name>
+          <com:Name xml:lang="pt">Valor de observação</com:Name>
+          <com:Name xml:lang="ja">観測値</com:Name>
+          <com:Name xml:lang="en">Observation value</com:Name>
+          <com:Name xml:lang="fr">Valeur d’observation</com:Name>
+          <com:Name xml:lang="es">Valor de observación</com:Name>
+          <com:Name xml:lang="zh">观测值</com:Name>
+          <str:CoreRepresentation>
+            <str:TextFormat textType="Decimal"/>
+          </str:CoreRepresentation>
+        </str:Concept>
+        <str:Concept id="TIME_PERIOD" urn="urn:sdmx:org.sdmx.infomodel.conceptscheme.Concept=IMF:CS_MASTER_SYSTEM(1.0.2).TIME_PERIOD">
+          <com:Annotations>
+            <com:Annotation id="indexed">
+              <com:AnnotationTitle></com:AnnotationTitle>
+              <com:AnnotationType>INDEX_CONCEPTS</com:AnnotationType>
+            </com:Annotation>
+          </com:Annotations>
+          <com:Name xml:lang="ar">الفترة الزمنية</com:Name>
+          <com:Name xml:lang="ru">Период времени</com:Name>
+          <com:Name xml:lang="pt">Período</com:Name>
+          <com:Name xml:lang="ja">期間</com:Name>
+          <com:Name xml:lang="en">Time Period</com:Name>
+          <com:Name xml:lang="fr">Période couverte</com:Name>
+          <com:Name xml:lang="es">Período de tiempo</com:Name>
+          <com:Name xml:lang="zh">时间段</com:Name>
+          <str:CoreRepresentation>
+            <str:TextFormat textType="ObservationalTimePeriod"/>
+          </str:CoreRepresentation>
+        </str:Concept>
+      </str:ConceptScheme>
+    </str:Concepts>
+  </mes:Structures>
+</mes:Structure>

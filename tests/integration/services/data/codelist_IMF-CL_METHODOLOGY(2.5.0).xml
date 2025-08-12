@@ -1,0 +1,295 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<mes:Structure xmlns:mes="http://www.sdmx.org/resources/sdmxml/schemas/v2_1/message" xmlns:str="http://www.sdmx.org/resources/sdmxml/schemas/v2_1/structure" xmlns:com="http://www.sdmx.org/resources/sdmxml/schemas/v2_1/common" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xml="http://www.w3.org/XML/1998/namespace" xsi:schemaLocation="http://www.sdmx.org/resources/sdmxml/schemas/v2_1/message ../../schemas/SDMXMessage.xsd">
+  <mes:Header>
+    <mes:ID>IDREF8354</mes:ID>
+    <mes:Test>false</mes:Test>
+    <mes:Prepared>2025-07-29T09:47:50.669859006Z</mes:Prepared>
+    <mes:Sender id="unknown"/>
+  </mes:Header>
+  <mes:Structures>
+    <str:Codelists>
+      <str:Codelist urn="urn:sdmx:org.sdmx.infomodel.codelist.Codelist=IMF:CL_METHODOLOGY(2.5.0)" agencyID="IMF" id="CL_METHODOLOGY" version="2.5.0" isFinal="true" isExternalReference="false" isPartial="false">
+        <com:Annotations>
+          <com:Annotation id="origin"/>
+          <com:Annotation id="isFinal"/>
+          <com:Annotation id="lastUpdatedAt"/>
+        </com:Annotations>
+        <com:Name xml:lang="en">Methodology</com:Name>
+        <com:Description xml:lang="en">This codelist identifies the specific statistical methodologies and conceptual frameworks used in the collection, processing, analysis, and presentation of data within a dataset.</com:Description>
+        <str:Code id="BPM" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_METHODOLOGY(2.5.0).BPM">
+          <com:Name xml:lang="en">Balance of Payments Statistics (BOP) Statistics</com:Name>
+          <com:Description xml:lang="en">A statistical framework for recording and classifying international transactions.</com:Description>
+        </str:Code>
+        <str:Code id="BPM6" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_METHODOLOGY(2.5.0).BPM6">
+          <com:Name xml:lang="en">Balance of Payments and International Investment Position Manual, Sixth Edition (BPM6)</com:Name>
+          <com:Description xml:lang="en">Updated in 2009, BPM6 incorporates changes in the global economy like globalization and financial innovation. It provides a more integrated approach to balance of payments and international investment position statistics.</com:Description>
+        </str:Code>
+        <str:Code id="BPM6MI" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_METHODOLOGY(2.5.0).BPM6MI">
+          <com:Name xml:lang="en">Balance of Payments and International Investment Position Manual 6th Edition (BPM6): Memorandum Items</com:Name>
+          <com:Description xml:lang="en">Refers to additional items in BPM6 that provide supplementary information.</com:Description>
+        </str:Code>
+        <str:Code id="BPM6SC" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_METHODOLOGY(2.5.0).BPM6SC">
+          <com:Name xml:lang="en">Balance of Payments and International Investment Position Manual 6th Edition (BPM6): Standard Component</com:Name>
+          <com:Description xml:lang="en">Refers to the core components of the BPM6 framework.</com:Description>
+        </str:Code>
+        <str:Code id="BPM6SI" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_METHODOLOGY(2.5.0).BPM6SI">
+          <com:Name xml:lang="en">Balance of Payments and International Investment Position Manual 6th Edition (BPM6): Supplementary Items</com:Name>
+          <com:Description xml:lang="en">Refers to additional items in BPM6 that provide supplementary information.</com:Description>
+        </str:Code>
+        <str:Code id="IIP" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_METHODOLOGY(2.5.0).IIP">
+          <com:Name xml:lang="en">International Investment Position (IIP)</com:Name>
+          <com:Description xml:lang="en">Statistics that measure a country's stock of foreign assets and liabilities.</com:Description>
+        </str:Code>
+        <str:Code id="IIPSC" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_METHODOLOGY(2.5.0).IIPSC">
+          <com:Name xml:lang="en">International Investment Position (IIP): Standard Component</com:Name>
+          <com:Description xml:lang="en">Refers to the core components of the IIP framework.</com:Description>
+        </str:Code>
+        <str:Code id="IIPSI" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_METHODOLOGY(2.5.0).IIPSI">
+          <com:Name xml:lang="en">International Investment Position (IIP): Supplementary Items</com:Name>
+          <com:Description xml:lang="en">Refers to additional items in the IIP framework that provide supplementary information.</com:Description>
+        </str:Code>
+        <str:Code id="BPM5" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_METHODOLOGY(2.5.0).BPM5">
+          <com:Name xml:lang="en">Balance of Payments and International Investment Position Manual, Fifth Edition (BPM5)</com:Name>
+          <com:Description xml:lang="en">A comprehensive guide to compiling balance of payments and international investment position statistics, published in 1993. It provides a framework for recording and classifying international transactions.</com:Description>
+        </str:Code>
+        <str:Code id="CPC21" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_METHODOLOGY(2.5.0).CPC21">
+          <com:Name xml:lang="en">Central Product Classification (CPC)</com:Name>
+          <com:Description xml:lang="en">https://unstats.un.org/unsd/classifications/unsdclassifications/cpcv21.pdf</com:Description>
+        </str:Code>
+        <str:Code id="BEC" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_METHODOLOGY(2.5.0).BEC">
+          <com:Name xml:lang="en">Classification by Broad Economic Categories (BEC)</com:Name>
+          <com:Description xml:lang="en">https://unstats.un.org/unsd/trade/classifications/bec.asp</com:Description>
+        </str:Code>
+        <str:Code id="CPI" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_METHODOLOGY(2.5.0).CPI">
+          <com:Name xml:lang="en">Consumer Price Statistics</com:Name>
+          <com:Description xml:lang="en">A statistical method for measuring changes in the prices of consumer goods and services.</com:Description>
+        </str:Code>
+        <str:Code id="CP99" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_METHODOLOGY(2.5.0).CP99">
+          <com:Name xml:lang="en">COICOP 1999</com:Name>
+          <com:Description xml:lang="en">Classification of Individual Consumption According to Purpose (COICOP) 1999; https://unstats.un.org/unsd/classifications/Econ/Download/In%20Text/CPCprov_english.pdf</com:Description>
+        </str:Code>
+        <str:Code id="CP18" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_METHODOLOGY(2.5.0).CP18">
+          <com:Name xml:lang="en">COICOP 2018</com:Name>
+          <com:Description xml:lang="en">Classification of Individual Consumption According to Purpose (COICOP) 2018; https://unstats.un.org/unsd/classifications/unsdclassifications/COICOP_2018_-_pre-edited_white_cover_version_-_2018-12-26.pdf</com:Description>
+        </str:Code>
+        <str:Code id="COM" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_METHODOLOGY(2.5.0).COM">
+          <com:Name xml:lang="en">Commodity Statistics</com:Name>
+          <com:Description xml:lang="en">StatistA statistical framework for collecting and analyzing data on the production, trade, and consumption of commodities.</com:Description>
+        </str:Code>
+        <str:Code id="CDIS15" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_METHODOLOGY(2.5.0).CDIS15">
+          <com:Name xml:lang="en">Coordinated Direct Investment Survey Guide 2015 (CDIS 2015)</com:Name>
+          <com:Description xml:lang="en">Provides guidance on conducting surveys of foreign direct investment, covering data collection, processing, and analysis.</com:Description>
+        </str:Code>
+        <str:Code id="CPIS17" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_METHODOLOGY(2.5.0).CPIS17">
+          <com:Name xml:lang="en">Coordinated Portfolio Investment Survey Guide 2017 (CPIS 2017)</com:Name>
+          <com:Description xml:lang="en">Provides guidance on conducting surveys of portfolio investment, covering data collection, processing, and analysis.</com:Description>
+        </str:Code>
+        <str:Code id="ESA95" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_METHODOLOGY(2.5.0).ESA95">
+          <com:Name xml:lang="en">European System of Accounts 1995 (ESA 1995)</com:Name>
+          <com:Description xml:lang="en">The European Union's version of the System of National Accounts, providing a framework for macroeconomic accounting within the EU.</com:Description>
+        </str:Code>
+        <str:Code id="ESA10" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_METHODOLOGY(2.5.0).ESA10">
+          <com:Name xml:lang="en">European System of Accounts 2010 (ESA 2010)</com:Name>
+          <com:Description xml:lang="en">An update to ESA 1995, aligning with SNA 2008 and incorporating changes in the European economy.</com:Description>
+        </str:Code>
+        <str:Code id="ER" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_METHODOLOGY(2.5.0).ER">
+          <com:Name xml:lang="en">Exchange Rate (ER)</com:Name>
+          <com:Description xml:lang="en">Statistical methods for determining and analyzing the price of one currency in terms of another currency.</com:Description>
+        </str:Code>
+        <str:Code id="FAS19" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_METHODOLOGY(2.5.0).FAS19">
+          <com:Name xml:lang="en">Financial Access Survey Guidelines and Manual 2019 (FAS 2019)</com:Name>
+          <com:Description xml:lang="en">Provides guidance on measuring financial access and inclusion, covering access to financial institutions and usage of financial products.</com:Description>
+        </str:Code>
+        <str:Code id="FSI19" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_METHODOLOGY(2.5.0).FSI19">
+          <com:Name xml:lang="en">Financial Soundness Indicators Compilation Guide 2019 (FSI 2019)</com:Name>
+          <com:Description xml:lang="en">Offers guidance on compiling financial soundness indicators, which assess the stability and resilience of financial systems.</com:Description>
+        </str:Code>
+        <str:Code id="FA" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_METHODOLOGY(2.5.0).FA">
+          <com:Name xml:lang="en">Fund Accounts (FA)</com:Name>
+          <com:Description xml:lang="en">A statistical framework for recording and reporting the financial activities of international financial institutions like the IMF.</com:Description>
+        </str:Code>
+        <str:Code id="GFS" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_METHODOLOGY(2.5.0).GFS">
+          <com:Name xml:lang="en">Government Finance Statistics (GFS)</com:Name>
+          <com:Description xml:lang="en">A statistical framework for collecting and presenting data on government revenue, expenditure, and debt.</com:Description>
+        </str:Code>
+        <str:Code id="GFSM14" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_METHODOLOGY(2.5.0).GFSM14">
+          <com:Name xml:lang="en">Government Finance Statistics Manual 2014 (GFSM 2014)</com:Name>
+          <com:Description xml:lang="en">This edition builds on GFSM 2001, with updates to reflect changes in public sector accounting standards and practices. It also includes new guidance on public corporations and natural resource wealth.</com:Description>
+        </str:Code>
+        <str:Code id="GFSM01" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_METHODOLOGY(2.5.0).GFSM01">
+          <com:Name xml:lang="en">Government Finance Statistics Manual 2001 (GFSM 2001)</com:Name>
+          <com:Description xml:lang="en">A guide for compiling government finance statistics, focusing on the accrual accounting approach. It covers revenue, expense, assets, and liabilities of government units.</com:Description>
+        </str:Code>
+        <str:Code id="GFSM86" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_METHODOLOGY(2.5.0).GFSM86">
+          <com:Name xml:lang="en">Government Finance Statistics Manual 1986 (GFSM 1986)</com:Name>
+          <com:Description xml:lang="en">An earlier framework for compiling government finance statistics.</com:Description>
+        </str:Code>
+        <str:Code id="H5" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_METHODOLOGY(2.5.0).H5">
+          <com:Name xml:lang="en">Harmonized Commodity Description and Coding Systems (HS), Rev. 5</com:Name>
+          <com:Description xml:lang="en">https://unstats.un.org/unsd/tradekb/Knowledgebase/50018/Harmonized-Commodity-Description-and-Coding-Systems-HS</com:Description>
+        </str:Code>
+        <str:Code id="IPCC" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_METHODOLOGY(2.5.0).IPCC">
+          <com:Name xml:lang="en">Intergovernmental Panel on Climate Change (IPCC)</com:Name>
+          <com:Description xml:lang="en">Statistical and scientific methods used by the IPCC to assess climate change.</com:Description>
+        </str:Code>
+        <str:Code id="ICSE93" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_METHODOLOGY(2.5.0).ICSE93">
+          <com:Name xml:lang="en">International Classification of Status in Employment 1993 (ICSE 1993)</com:Name>
+          <com:Description xml:lang="en">http://www.ilo.org/global/statistics-and-databases/statistics-overview-and-topics/status-in-employment/current-guidelines/lang--en/index.htm</com:Description>
+        </str:Code>
+        <str:Code id="ILO" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_METHODOLOGY(2.5.0).ILO">
+          <com:Name xml:lang="en">International Labor Organization (ILO)</com:Name>
+          <com:Description xml:lang="en">Statistical standards and guidelines related to labor issues, developed by the International Labor Organization.</com:Description>
+        </str:Code>
+        <str:Code id="IMTS" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_METHODOLOGY(2.5.0).IMTS">
+          <com:Name xml:lang="en">International Merchandise Trade Statistics (IMTS)</com:Name>
+          <com:Description xml:lang="en">A statistical framework for measuring the flow of goods across international borders.</com:Description>
+        </str:Code>
+        <str:Code id="IMTS10" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_METHODOLOGY(2.5.0).IMTS10">
+          <com:Name xml:lang="en">International Merchandise Trade Statistics: Concepts and Definitions 2010 (IMTS 2010)</com:Name>
+          <com:Description xml:lang="en">Provides a framework for compiling international merchandise trade statistics, covering concepts, definitions, and classifications.</com:Description>
+        </str:Code>
+        <str:Code id="IRSTS08" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_METHODOLOGY(2.5.0).IRSTS08">
+          <com:Name xml:lang="en">International Recommendations for Tourism Statistics 2008 (IRTS 2008)</com:Name>
+          <com:Description xml:lang="en">https://unstats.un.org/unsd/tradekb/Knowledgebase/50551/IRTS-2008</com:Description>
+        </str:Code>
+        <str:Code id="IRFCL13" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_METHODOLOGY(2.5.0).IRFCL13">
+          <com:Name xml:lang="en">International Reserves and Foreign Currency Liquidity: Guidelines for a Data Template 2013 (IRFCL 2013)</com:Name>
+          <com:Description xml:lang="en">Offers guidelines for compiling data on international reserves and foreign currency liquidity, focusing on data consistency and transparency.</com:Description>
+        </str:Code>
+        <str:Code id="ISCED11" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_METHODOLOGY(2.5.0).ISCED11">
+          <com:Name xml:lang="en">International Standard Classification of Education 2011 (ISCED 2011)</com:Name>
+          <com:Description xml:lang="en">http://www.uis.unesco.org/Education/Pages/international-standard-classification-of-education.aspx</com:Description>
+        </str:Code>
+        <str:Code id="ISIC" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_METHODOLOGY(2.5.0).ISIC">
+          <com:Name xml:lang="en">International Standard Industrial Classification (ISIC)</com:Name>
+          <com:Description xml:lang="en">A standard classification system used in statistical analysis to categorize economic activities.</com:Description>
+        </str:Code>
+        <str:Code id="ISIC3" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_METHODOLOGY(2.5.0).ISIC3">
+          <com:Name xml:lang="en">International Standard Industrial Classification of All Economic Activities, Rev. 3 (ISIC Rev. 3)</com:Name>
+          <com:Description xml:lang="en">https://unstats.un.org/unsd/classifications/Econ/ISIC.cshtml</com:Description>
+        </str:Code>
+        <str:Code id="ISIC31" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_METHODOLOGY(2.5.0).ISIC31">
+          <com:Name xml:lang="en">International Standard Industrial Classification of All Economic Activities, Rev. 3.1 (ISIC Rev. 3.1) 2004</com:Name>
+          <com:Description xml:lang="en">https://unstats.un.org/unsd/classifications/Econ/ISIC.cshtml</com:Description>
+        </str:Code>
+        <str:Code id="ISIC4" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_METHODOLOGY(2.5.0).ISIC4">
+          <com:Name xml:lang="en">International Standard Industrial Classification of All Economic Activities, Rev. 4 (ISIC Rev. 4) 2008</com:Name>
+          <com:Description xml:lang="en">https://unstats.un.org/unsd/classifications/Econ/ISIC.cshtml</com:Description>
+        </str:Code>
+        <str:Code id="MFS" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_METHODOLOGY(2.5.0).MFS">
+          <com:Name xml:lang="en">Monetary and Financial Statistics (MFS)</com:Name>
+          <com:Description xml:lang="en">A statistical framework for collecting and analyzing data on money supply, credit, and financial institutions.</com:Description>
+        </str:Code>
+        <str:Code id="MFS16" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_METHODOLOGY(2.5.0).MFS16">
+          <com:Name xml:lang="en">Monetary and Financial Statistics Manual and Compilation Guide 2016 (MFS 2016)</com:Name>
+          <com:Description xml:lang="en">Provides a framework for compiling monetary and financial statistics, covering financial institutions, instruments, and markets. It aims to promote consistency and cross-country comparability.</com:Description>
+        </str:Code>
+        <str:Code id="MFS16CEAWR" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_METHODOLOGY(2.5.0).MFS16CEAWR">
+          <com:Name xml:lang="en">Monetary and Financial Statistics Manual and Compilation Guide 2016 (MFS 2016), Concepts Based on Euro Area Wide Residency</com:Name>
+          <com:Description xml:lang="en">A version of MFS16 adapted for the specific circumstances of the Euro Area.</com:Description>
+        </str:Code>
+        <str:Code id="SNA" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_METHODOLOGY(2.5.0).SNA">
+          <com:Name xml:lang="en">National Accounts Statistics (SNA)</com:Name>
+          <com:Description xml:lang="en">A statistical framework for macroeconomic accounting, providing a consistent system for measuring economic activity.</com:Description>
+        </str:Code>
+        <str:Code id="SNA93" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_METHODOLOGY(2.5.0).SNA93">
+          <com:Name xml:lang="en">System of National Accounts 1993 (SNA 1993)</com:Name>
+          <com:Description xml:lang="en">A comprehensive framework for macroeconomic accounting, providing a consistent system for measuring economic activity. It covers production, income, consumption, and capital formation.</com:Description>
+        </str:Code>
+        <str:Code id="SNA08" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_METHODOLOGY(2.5.0).SNA08">
+          <com:Name xml:lang="en">System of National Accounts 2008 (SNA 2008)</com:Name>
+          <com:Description xml:lang="en">An update to SNA 1993, incorporating changes in economic activity and measurement. It includes new guidance on financial services, globalization, and the environment.</com:Description>
+        </str:Code>
+        <str:Code id="BMD4" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_METHODOLOGY(2.5.0).BMD4">
+          <com:Name xml:lang="en">OECD Benchmark Definition of Foreign Direct Investment (BMD4)</com:Name>
+          <com:Description xml:lang="en">The OECD's definition of foreign direct investment, providing guidance on measuring and classifying FDI.</com:Description>
+        </str:Code>
+        <str:Code id="PR" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_METHODOLOGY(2.5.0).PR">
+          <com:Name xml:lang="en">Per National Definition</com:Name>
+          <com:Description xml:lang="en">Indicates that the definition or methodology is determined by each country's own standards.</com:Description>
+        </str:Code>
+        <str:Code id="POP" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_METHODOLOGY(2.5.0).POP">
+          <com:Name xml:lang="en">Population Statistics</com:Name>
+          <com:Description xml:lang="en">Statistical methods for collecting and analyzing data on the size, distribution, and characteristics of populations.</com:Description>
+        </str:Code>
+        <str:Code id="QA" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_METHODOLOGY(2.5.0).QA">
+          <com:Name xml:lang="en">Quality Assurance (QA)</com:Name>
+          <com:Description xml:lang="en">Statistical standards and procedures used to ensure the quality of data and statistics.</com:Description>
+        </str:Code>
+        <str:Code id="SITC2" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_METHODOLOGY(2.5.0).SITC2">
+          <com:Name xml:lang="en">Standard International Trade Classification, Rev. 2 (SITC Rev. 2) 1975</com:Name>
+          <com:Description xml:lang="en">https://unstats.un.org/unsd/classifications/Family/Detail/1070</com:Description>
+        </str:Code>
+        <str:Code id="SITC4" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_METHODOLOGY(2.5.0).SITC4">
+          <com:Name xml:lang="en">Standard International Trade Classification, Rev. 4 (SITC Rev. 4) 2007</com:Name>
+          <com:Description xml:lang="en">https://unstats.un.org/unsd/publications/catalogue?selectID=104</com:Description>
+        </str:Code>
+        <str:Code id="NACE2" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_METHODOLOGY(2.5.0).NACE2">
+          <com:Name xml:lang="en">Statistical Classification of Economic Activities in the European Community, Rev. 2 (NACE Rev. 2) 2008</com:Name>
+          <com:Description xml:lang="en">https://ec.europa.eu/eurostat/documents/3859598/5902521/KS-RA-07-015-EN.PDF
+https://ec.europa.eu/eurostat/ramon/nomenclatures/index.cfm?TargetUrl=LST_NOM_DTL&amp;StrNom=NACE_REV2&amp;StrLanguageCode=EN</com:Description>
+        </str:Code>
+        <str:Code id="CPA" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_METHODOLOGY(2.5.0).CPA">
+          <com:Name xml:lang="en">Statistical classification of products by activity 2008 (CPA 2008)</com:Name>
+          <com:Description xml:lang="en">https://ec.europa.eu/eurostat/ramon/nomenclatures/index.cfm?TargetUrl=LST_NOM_DTL&amp;StrNom=CPA_2008&amp;StrLanguageCode=EN&amp;IntPcKey=&amp;StrLayoutCode=HIERARCHIC</com:Description>
+        </str:Code>
+        <str:Code id="PPI" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_METHODOLOGY(2.5.0).PPI">
+          <com:Name xml:lang="en">Producer Price Index Manual: Theory and Practice</com:Name>
+          <com:Description xml:lang="en">https://www.imf.org/en/Publications/Manuals-Guides/Issues/2016/12/30/Producer-Price-Index-Manual-Theory-and-Practice-16966</com:Description>
+        </str:Code>
+        <str:Code id="MFS00" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_METHODOLOGY(2.5.0).MFS00">
+          <com:Name xml:lang="en">Monetary and Financial Statistics Manual and Compilation Guide 2000 (MFS 2000)</com:Name>
+          <com:Description xml:lang="en">An earlier version of the MGS manual, providing similar guidance for compiling monetary and financial statistics.</com:Description>
+        </str:Code>
+        <str:Code id="IRIIP" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_METHODOLOGY(2.5.0).IRIIP">
+          <com:Name xml:lang="en">International Recommendations for the Index of Industrial Production 2010</com:Name>
+          <com:Description xml:lang="en">A global guideline for countries to uniformly measure and report industrial output changes (Index of Industrial Production - IIP), ensuring international data comparability.</com:Description>
+        </str:Code>
+        <str:Code id="MFSNSR" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_METHODOLOGY(2.5.0).MFSNSR">
+          <com:Name xml:lang="en">Monetary and Financial Statistics non-standard reporting</com:Name>
+          <com:Description xml:lang="en">The Monetary and Financial Statistics (MFS) nonstandard dataset is compiled using country-specific methodologies and terminology, rather than the standard methodology outlined in different versions of Monetary and Financial Statistics Manual. </com:Description>
+        </str:Code>
+        <str:Code id="EIPIM09" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_METHODOLOGY(2.5.0).EIPIM09">
+          <com:Name xml:lang="en">Export and Import Price Index Manual: Theory and Practice 2009</com:Name>
+          <com:Description xml:lang="en">This manual provides guidance on how to construct a price index for exports and imports. It is relevant to statistical agencies involved in the compilation of export and import price indexes. This 2009 edition updates the 1999 edition and incorporates recent methodological advances.  https://www.imf.org/-/media/files/data/manuals-guides/eipim_2009_book.ashx</com:Description>
+        </str:Code>
+        <str:Code id="MFS08" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_METHODOLOGY(2.5.0).MFS08">
+          <com:Name xml:lang="en">Monetary and Financial Statistics Compilation Guide 2008</com:Name>
+          <com:Description xml:lang="en">This guide provides a framework for compiling monetary and financial statistics, offering practical advice and examples to statistical compilers. It is designed to assist countries in producing high-quality monetary and financial statistics that are comparable internationally.  https://www.imf.org/-/media/Files/Data/manuals-guides/mfs-guide-2008.ashx</com:Description>
+        </str:Code>
+        <str:Code id="AGMBSI84" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_METHODOLOGY(2.5.0).AGMBSI84">
+          <com:Name xml:lang="en">A Guide to Money and Banking Statistics in IFS 1984</com:Name>
+          <com:Description xml:lang="en">This guide explains the methodology and concepts used in compiling money and banking statistics for the International Financial Statistics (IFS). It is relevant to users and compilers of these statistics, providing context for the data presented in the IFS.</com:Description>
+        </str:Code>
+        <str:Code id="IMTS98" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_METHODOLOGY(2.5.0).IMTS98">
+          <com:Name xml:lang="en">International Merchandise Trade Statistics 1998 (IMTS 1998)</com:Name>
+          <com:Description xml:lang="en">This manual provides a framework of concepts and definitions for the compilation of international merchandise trade statistics. It is relevant to national statistical authorities involved in collecting, compiling, and disseminating trade data, promoting international comparability.</com:Description>
+        </str:Code>
+        <str:Code id="BPM4" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_METHODOLOGY(2.5.0).BPM4">
+          <com:Name xml:lang="en">Balance of Payments Manual, fourth edition (BPM4)</com:Name>
+          <com:Description xml:lang="en">This manual sets forth the conceptual framework for the compilation of balance of payments statistics. It provides guidelines for statistical agencies to ensure consistency and comparability of balance of payments data across countries.</com:Description>
+        </str:Code>
+        <str:Code id="EDS13" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_METHODOLOGY(2.5.0).EDS13">
+          <com:Name xml:lang="en">External Debt Statistics Guide 2013 (EDS 2013)</com:Name>
+          <com:Description xml:lang="en">This guide provides comprehensive methodological guidance for the compilation, dissemination, and use of external debt statistics. It is relevant to compilers in national statistical agencies, central banks, and ministries of finance, as well as to users of external debt data. https://www.imf.org/-/media/Files/Data/manuals-guides/eds_guide2013.ashx</com:Description>
+        </str:Code>
+        <str:Code id="EDS03" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_METHODOLOGY(2.5.0).EDS03">
+          <com:Name xml:lang="en">External Debt Statistics Guide 2003 (EDS 2003)</com:Name>
+          <com:Description xml:lang="en">This guide provides methodological guidance for the compilation, dissemination, and use of external debt statistics. It was a predecessor to the 2013 edition, offering a framework for data collection and presentation relevant to the period. https://www.imf.org/-/media/Files/Data/manuals-guides/eds_guide2003.ashx</com:Description>
+        </str:Code>
+        <str:Code id="CPI04" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_METHODOLOGY(2.5.0).CPI04">
+          <com:Name xml:lang="en">Consumer Price Index Manual 2004 (CPI 2004)</com:Name>
+          <com:Description xml:lang="en">This manual provides guidelines for statistical offices and other agencies responsible for constructing Consumer Price Indexes (CPIs), explaining methods, underlying economic and statistical concepts, and principles. https://www.elibrary.imf.org/display/book/9789221136996/9789221136996.xml</com:Description>
+        </str:Code>
+        <str:Code id="PPI04" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_METHODOLOGY(2.5.0).PPI04">
+          <com:Name xml:lang="en">Producer Price Index Manual 2004 (PPI 2004)</com:Name>
+          <com:Description xml:lang="en">This manual provides clear, up-to-date guidance on the concepts, uses, methods, and economic theory of the Producer Price Index (PPI), including information on classifications, sources, compilation techniques, and analytical uses. It supersedes previous international guidance on PPIs.  https://www.elibrary.imf.org/display/book/9781589063044/9781589063044.xml</com:Description>
+        </str:Code>
+        <str:Code id="CPI20" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_METHODOLOGY(2.5.0).CPI20">
+          <com:Name xml:lang="en">Consumer Price Index Manual 2020 (CPI 2020)</com:Name>
+          <com:Description xml:lang="en">This manual, an update of the 2004 CPI Manual, provides comprehensive information and explanations on compiling a consumer price index (CPI). Its primary purpose is to assist countries in producing CPIs that reflect internationally recommended methods and practices.  https://www.elibrary.imf.org/display/book/9781484354841/9781484354841.xml</com:Description>
+        </str:Code>
+      </str:Codelist>
+    </str:Codelists>
+  </mes:Structures>
+</mes:Structure>
