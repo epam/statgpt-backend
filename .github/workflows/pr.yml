@@ -1,0 +1,71 @@
+name: PR Workflow
+
+on:
+  pull_request:
+    # TODO: Remove main after renaming main to development
+    branches: [main, development, release-*]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    uses: epam/ai-dial-ci/.github/workflows/python_docker_test.yml@2.4.1
+    secrets: inherit
+    with:
+      bypass-checks: false
+      style-checks-enabled: true
+      style-checks-bypassed: false
+      code-checks-enabled: true
+      code-checks-bypassed: false
+      ort-enabled: true
+      ort-bypassed: false
+      ort-version: "latest"
+      python-version: "3.11"
+      poetry-version: "2.1.1"
+      runs-on: '["ubuntu-24.04"]'
+
+  docker_build:
+    runs-on: ubuntu-24.04
+    strategy:
+      matrix:
+        include:
+          - image-name: "epam/statgpt-chat-backend"
+            dockerfile: "docker/Dockerfile.chat"
+          - image-name: "epam/statgpt-admin-backend"
+            dockerfile: "docker/Dockerfile.admin"
+
+    steps:
+      - name: Maximize build space
+        uses: AdityaGarg8/remove-unwanted-software@90e01b21170618765a73370fcc3abbd1684a7793 # v5
+        if: false # Maximize build space by removing unwanted software if set to true
+        with:
+          remove-android: "true"
+          remove-dotnet: "true"
+          remove-haskell: "true"
+          remove-codeql: "true"
+          remove-docker-images: "true"
+          remove-cached-tools: "true"
+          remove-large-packages: "true"
+
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          lfs: true
+
+      # Workaround: Copy the specific Dockerfile to root as "Dockerfile" (the build_docker action does not support multiple images)
+      - name: Prepare Dockerfile
+        run: |
+          cp ${{ matrix.dockerfile }} ./Dockerfile
+
+      - uses: epam/ai-dial-ci/actions/build_docker@2.4.1
+        with:
+          image-name: ghcr.io/${{ matrix.image-name }}
+          image-tag: test
+          push-enabled: false
+          trivy-enabled: true
+          bypass-checks: false
+          trivy-severity: "CRITICAL,HIGH"
+          trivy-severity-for-sarif: "CRITICAL,HIGH"
+          trivy-limit-severities-for-sarif: true
+          platforms: "linux/amd64"
