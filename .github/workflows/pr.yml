@@ -9,37 +9,67 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
   cancel-in-progress: true
 
+env:
+  # Test Job
+  BYPASS_CHECKS: "false"
+  STYLE_CHECKS_ENABLED: "true"
+  STYLE_CHECKS_BYPASSED: "false"
+  CODE_CHECKS_ENABLED: "true"
+  CODE_CHECKS_BYPASSED: "false"
+  ORT_ENABLED: "true"
+  ORT_BYPASSED: "false"
+  ORT_VERSION: "latest"
+  PYTHON_VERSION: "3.11"
+  POETRY_VERSION: "2.1.1"
+  RUNS_ON: '["ubuntu-24.04"]'
+
+  # Docker Build Job
+  CHAT_BACKEND_IMAGE: "epam/statgpt-chat-backend"
+  CHAT_BACKEND_DOCKERFILE: "docker/Dockerfile.chat"
+  ADMIN_BACKEND_IMAGE: "epam/statgpt-admin-backend"
+  ADMIN_BACKEND_DOCKERFILE: "docker/Dockerfile.admin"
+  PUSH_ENABLED: "false"
+  TRIVY_ENABLED: "true"
+  TRIVY_BYPASSED: "false"
+  TRIVY_SEVERITY: "CRITICAL,HIGH"
+  TRIVY_SEVERITY_FOR_SARIF: "CRITICAL,HIGH"
+  TRIVY_LIMIT_SEVERITIES_FOR_SARIF: "true"
+  MAXIMIZE_BUILD_SPACE: "false"
+  PLATFORMS: "linux/amd64"
+  IMAGE_TAG: "test"
+  REGISTRY: "ghcr.io"
+
 jobs:
   test:
     uses: ./.github/workflows/test.yml
     secrets: inherit
     with:
-      bypass-checks: false
-      style-checks-enabled: true
-      style-checks-bypassed: false
-      code-checks-enabled: true
-      code-checks-bypassed: false
-      ort-enabled: true
-      ort-bypassed: false
-      ort-version: "latest"
-      python-version: "3.11"
-      poetry-version: "2.1.1"
-      runs-on: '["ubuntu-24.04"]'
+      bypass-checks: ${{ fromJSON(env.BYPASS_CHECKS) }}
+      style-checks-enabled: ${{ fromJSON(env.STYLE_CHECKS_ENABLED) }}
+      style-checks-bypassed: ${{ fromJSON(env.STYLE_CHECKS_BYPASSED) }}
+      code-checks-enabled: ${{ fromJSON(env.CODE_CHECKS_ENABLED) }}
+      code-checks-bypassed: ${{ fromJSON(env.CODE_CHECKS_BYPASSED) }}
+      ort-enabled: ${{ fromJSON(env.ORT_ENABLED) }}
+      ort-bypassed: ${{ fromJSON(env.ORT_BYPASSED) }}
+      ort-version: ${{ env.ORT_VERSION }}
+      python-version: ${{ env.PYTHON_VERSION }}
+      poetry-version: ${{ env.POETRY_VERSION }}
+      runs-on: ${{ env.RUNS_ON }}
 
   docker_build:
-    runs-on: ubuntu-24.04
+    runs-on: ${{ fromJSON(env.RUNS_ON)[0] }}
     strategy:
       matrix:
         include:
-          - image-name: "epam/statgpt-chat-backend"
-            dockerfile: "docker/Dockerfile.chat"
-          - image-name: "epam/statgpt-admin-backend"
-            dockerfile: "docker/Dockerfile.admin"
+          - image-name: ${{ env.CHAT_BACKEND_IMAGE }}
+            dockerfile: ${{ env.CHAT_BACKEND_DOCKERFILE }}
+          - image-name: ${{ env.ADMIN_BACKEND_IMAGE }}
+            dockerfile: ${{ env.ADMIN_BACKEND_DOCKERFILE }}
 
     steps:
       - name: Maximize build space
         uses: AdityaGarg8/remove-unwanted-software@90e01b21170618765a73370fcc3abbd1684a7793 # v5
-        if: false # Maximize build space by removing unwanted software if set to true
+        if: ${{ fromJSON(env.MAXIMIZE_BUILD_SPACE) }}
         with:
           remove-android: "true"
           remove-dotnet: "true"
@@ -60,12 +90,12 @@ jobs:
 
       - uses: epam/ai-dial-ci/actions/build_docker@2.4.1
         with:
-          image-name: ghcr.io/${{ matrix.image-name }}
-          image-tag: test
-          push-enabled: false
-          trivy-enabled: true
-          bypass-checks: false
-          trivy-severity: "CRITICAL,HIGH"
-          trivy-severity-for-sarif: "CRITICAL,HIGH"
-          trivy-limit-severities-for-sarif: true
-          platforms: "linux/amd64"
+          image-name: ${{ env.REGISTRY }}/${{ matrix.image-name }}
+          image-tag: ${{ env.IMAGE_TAG }}
+          push-enabled: ${{ fromJSON(env.PUSH_ENABLED) }}
+          trivy-enabled: ${{ fromJSON(env.TRIVY_ENABLED) }}
+          bypass-checks: ${{ fromJSON(env.TRIVY_BYPASSED) }}
+          trivy-severity: ${{ env.TRIVY_SEVERITY }}
+          trivy-severity-for-sarif: ${{ env.TRIVY_SEVERITY_FOR_SARIF }}
+          trivy-limit-severities-for-sarif: ${{ fromJSON(env.TRIVY_LIMIT_SEVERITIES_FOR_SARIF) }}
+          platforms: ${{ env.PLATFORMS }}

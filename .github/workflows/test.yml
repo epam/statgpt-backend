@@ -1,4 +1,4 @@
-name: Python Docker Tests
+name: Tests
 
 on:
   workflow_call:
@@ -42,7 +42,7 @@ on:
       poetry-version:
         type: string
         description: "Poetry version to use"
-        default: "latest"
+        default: "2.1.1"
       runs-on:
         type: string
         description: "Overrides jobs runs-on settings (json-encoded list)"
@@ -50,12 +50,19 @@ on:
         required: false
 
 env:
+  # Database
+  PGVECTOR_IMAGE: pgvector/pgvector:pg14
   TEST_DATABASE_HOST: localhost
   TEST_DATABASE_PORT: 5432
   TEST_DATABASE: test_db
   PGVECTOR_USER: postgres
   PGVECTOR_PASSWORD: postgres
+
+  # Elastic
+  ELASTICSEARCH_IMAGE: docker.elastic.co/elasticsearch/elasticsearch:8.14.0
   ELASTIC_CONNECTION_STRING: http://localhost:9200
+
+  # Python
   PIP_CACHE_DIR: "${{ github.workspace }}/.cache/pip"
   VENV_DIR: "${{ github.workspace }}/.venv"
 
@@ -88,7 +95,7 @@ jobs:
 
     services:
       vectordb:
-        image: pgvector/pgvector:pg14
+        image: ${{ env.PGVECTOR_IMAGE }}
         env:
           POSTGRES_DB: ${{ env.TEST_DATABASE }}
           POSTGRES_USER: ${{ env.PGVECTOR_USER }}
@@ -103,7 +110,7 @@ jobs:
           --health-retries 5
 
       elasticsearch:
-        image: docker.elastic.co/elasticsearch/elasticsearch:8.14.0
+        image: ${{ env.ELASTICSEARCH_IMAGE }}
         env:
           xpack.security.enabled: false
           xpack.security.enrollment.enabled: false
