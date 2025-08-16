@@ -10,7 +10,7 @@ concurrency:
 
 jobs:
   test:
-    uses: epam/ai-dial-ci/.github/workflows/python_docker_test.yml@2.4.1
+    uses: ./.github/workflows/test.yml
     secrets: inherit
     with:
       bypass-checks: false
