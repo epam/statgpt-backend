@@ -51,7 +51,6 @@ on:
 
 env:
   # Database
-  PGVECTOR_IMAGE: pgvector/pgvector:pg14
   TEST_DATABASE_HOST: localhost
   TEST_DATABASE_PORT: 5432
   TEST_DATABASE: test_db
@@ -59,7 +58,6 @@ env:
   PGVECTOR_PASSWORD: postgres
 
   # Elastic
-  ELASTICSEARCH_IMAGE: docker.elastic.co/elasticsearch/elasticsearch:8.14.0
   ELASTIC_CONNECTION_STRING: http://localhost:9200
 
   # Python
@@ -95,7 +93,7 @@ jobs:
 
     services:
       vectordb:
-        image: ${{ env.PGVECTOR_IMAGE }}
+        image: pgvector/pgvector:pg14
         env:
           POSTGRES_DB: ${{ env.TEST_DATABASE }}
           POSTGRES_USER: ${{ env.PGVECTOR_USER }}
@@ -110,7 +108,7 @@ jobs:
           --health-retries 5
 
       elasticsearch:
-        image: ${{ env.ELASTICSEARCH_IMAGE }}
+        image: docker.elastic.co/elasticsearch/elasticsearch:8.14.0
         env:
           xpack.security.enabled: false
           xpack.security.enrollment.enabled: false
