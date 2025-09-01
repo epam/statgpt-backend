@@ -1,0 +1,192 @@
+name: Tests
+
+on:
+  workflow_call:
+    inputs:
+      bypass-checks:
+        type: boolean
+        default: false
+        description: Do not fail pipeline if checks failed
+      style-checks-enabled:
+        type: boolean
+        default: true
+        description: Enable style_checks
+      style-checks-bypassed:
+        type: boolean
+        default: false
+        description: Do not fail pipeline if style_checks failed
+      code-checks-enabled:
+        type: boolean
+        default: true
+        description: Enable code_checks
+      code-checks-bypassed:
+        type: boolean
+        default: false
+        description: Do not fail pipeline if code_checks failed
+      ort-enabled:
+        type: boolean
+        default: true
+        description: Enable ORT scanning
+      ort-bypassed:
+        type: boolean
+        default: false
+        description: Do not fail pipeline if ORT scan failed
+      ort-version:
+        type: string
+        default: "latest"
+        description: ORT version to use
+      python-version:
+        type: string
+        default: "3.11"
+        description: Python version to use
+      poetry-version:
+        type: string
+        description: "Poetry version to use"
+        default: "2.1.1"
+      runs-on:
+        type: string
+        description: "Overrides jobs runs-on settings (json-encoded list)"
+        default: '["ubuntu-24.04"]'
+        required: false
+
+env:
+  # Database
+  TEST_DATABASE_HOST: localhost
+  TEST_DATABASE_PORT: 5432
+  TEST_DATABASE: test_db
+  PGVECTOR_USER: postgres
+  PGVECTOR_PASSWORD: postgres
+
+  # Elastic
+  ELASTIC_CONNECTION_STRING: http://localhost:9200
+
+  # Python
+  PIP_CACHE_DIR: "${{ github.workspace }}/.cache/pip"
+  VENV_DIR: "${{ github.workspace }}/.venv"
+
+jobs:
+  style_checks:
+    if: ${{ inputs.style-checks-enabled }}
+    runs-on: ${{ fromJSON(inputs.runs-on) }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          lfs: true
+
+      - uses: epam/ai-dial-ci/actions/python_prepare@2.4.1
+        with:
+          python-version: ${{ inputs.python-version }}
+          poetry-version: ${{ inputs.poetry-version }}
+
+      - name: Create reports directory
+        run: mkdir -p reports
+
+      - name: Run style checks
+        continue-on-error: ${{ inputs.bypass-checks || inputs.style-checks-bypassed }}
+        shell: bash
+        run: |
+          make lint
+
+  code_checks:
+    if: ${{ inputs.code-checks-enabled }}
+    runs-on: ${{ fromJSON(inputs.runs-on) }}
+
+    services:
+      vectordb:
+        image: pgvector/pgvector:pg14
+        env:
+          POSTGRES_DB: ${{ env.TEST_DATABASE }}
+          POSTGRES_USER: ${{ env.PGVECTOR_USER }}
+          POSTGRES_PASSWORD: ${{ env.PGVECTOR_PASSWORD }}
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      elasticsearch:
+        image: docker.elastic.co/elasticsearch/elasticsearch:8.14.0
+        env:
+          xpack.security.enabled: false
+          xpack.security.enrollment.enabled: false
+          discovery.type: single-node
+          node.name: es-node-01
+          ES_JAVA_OPTS: "-Xms512m -Xmx512m"
+        ports:
+          - 9200:9200
+        options: >-
+          --health-cmd "curl -s http://localhost:9200/_cluster/health | grep -q '\"status\":\"green\"'"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          lfs: true
+
+      - uses: epam/ai-dial-ci/actions/python_prepare@2.4.1
+        with:
+          python-version: ${{ inputs.python-version }}
+          poetry-version: ${{ inputs.poetry-version }}
+
+      - name: Create reports directory
+        run: mkdir -p reports
+
+      - name: Wait for services to be ready
+        run: |
+          # Wait for PostgreSQL
+          until pg_isready -h localhost -p 5432 -U ${{ env.PGVECTOR_USER }}; do
+            echo "Waiting for PostgreSQL..."
+            sleep 2
+          done
+
+          # Wait for Elasticsearch
+          until curl -s http://localhost:9200/_cluster/health | grep -q '"status":"green"'; do
+            echo "Waiting for Elasticsearch..."
+            sleep 2
+          done
+
+          echo "All services are ready!"
+
+      - name: Run code checks (tests)
+        continue-on-error: ${{ inputs.bypass-checks || inputs.code-checks-bypassed }}
+        shell: bash
+        env:
+          TEST_DATABASE_HOST: ${{ env.TEST_DATABASE_HOST }}
+          TEST_DATABASE_PORT: ${{ env.TEST_DATABASE_PORT }}
+          TEST_DATABASE: ${{ env.TEST_DATABASE }}
+          PGVECTOR_USER: ${{ env.PGVECTOR_USER }}
+          PGVECTOR_PASSWORD: ${{ env.PGVECTOR_PASSWORD }}
+          ELASTIC_CONNECTION_STRING: ${{ env.ELASTIC_CONNECTION_STRING }}
+        run: |
+          make test
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-results
+          path: reports/tests-*.xml
+          retention-days: 30
+
+  ort:
+    if: ${{ inputs.ort-enabled }}
+    runs-on: ${{ fromJSON(inputs.runs-on) }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          lfs: true
+
+      - uses: oss-review-toolkit/ort-ci-github-action@9acdf1e56f1b42972b12274ae56c35bf70a5f65b # v1.0.1
+        env:
+          CONTINUE_ON_ERROR: ${{ inputs.bypass-checks || inputs.ort-bypassed }} # Hack to use the input below as a boolean
+        with:
+          image: "ghcr.io/oss-review-toolkit/ort:${{ inputs.ort-version }}"
+          allow-dynamic-versions: "true"
+          fail-on: "violations"
+          ort-cli-args: "-P ort.forceOverwrite=true --stacktrace -P ort.analyzer.enabledPackageManagers=Poetry"
+        continue-on-error: ${{ fromJSON(env.CONTINUE_ON_ERROR) }}
