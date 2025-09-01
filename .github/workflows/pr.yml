@@ -2,8 +2,7 @@ name: PR Workflow
 
 on:
   pull_request:
-    # TODO: Remove main after renaming main to development
-    branches: [main, development, release-*]
+    branches: [development, release-*]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
