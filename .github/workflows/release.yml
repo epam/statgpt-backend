@@ -40,7 +40,7 @@ jobs:
     runs-on: ubuntu-24.04
     needs: [test, calculate_version]
     permissions:
-      contents: write
+      contents: read
       packages: write
       security-events: write
     strategy:
@@ -67,7 +67,7 @@ jobs:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           lfs: true
-          token: ${{ secrets.ACTIONS_BOT_TOKEN }}
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set version in pyproject.toml for Docker build
         run: |
@@ -90,7 +90,7 @@ jobs:
           trivy-limit-severities-for-sarif: true
           platforms: "linux/amd64"
           ghcr-username: ${{ github.actor }}
-          ghcr-password: ${{ secrets.ACTIONS_BOT_TOKEN }}
+          ghcr-password: ${{ secrets.GITHUB_TOKEN }}
           dockerhub-username: ${{ secrets.DOCKERHUB_LOGIN }}
           dockerhub-password: ${{ secrets.DOCKERHUB_TOKEN }}
           image-extra-aliases: |
@@ -108,7 +108,7 @@ jobs:
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
-          token: ${{ secrets.ACTIONS_BOT_TOKEN }}
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set version in pyproject.toml for release
         run: |
