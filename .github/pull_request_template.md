@@ -13,4 +13,4 @@
 
 - [ ] Title of the pull request follows [Conventional Commits specification](https://www.conventionalcommits.org/en/v1.0.0/)
 
-By submitting this pull request, I confirm that my contribution is made under the terms of the Apache 2.0 license.
+By submitting this pull request, I confirm that my contribution is made under the terms of the MIT license.
