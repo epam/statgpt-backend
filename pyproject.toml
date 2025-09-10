@@ -1,5 +1,5 @@
 [project]
-name = "ttyd-backend"
+name = "statgpt"
 version = "1.0.4"
 description = "Talk-To-Your-Data Backend Framework & Applications"
 readme = "README.md"
@@ -7,7 +7,7 @@ requires-python = "^3.11"
 dependencies = [
     'langchain (>=0.3.4,<0.4.0)',
     'langchain-openai (>=0.2.3,<0.3.0)',
-    'langchain-community (>=0.3.3,<0.4.0)',
+    'langchain-community (>=0.3.27,<0.4.0)',
     'openai (>=1.52.0,<2.0.0)',
     'azure-identity (>=1.17.1,<2.0.0)',
     'aidial-sdk[telemetry] (>=0.22.1,<0.23.0)',
@@ -138,7 +138,8 @@ flake8 = "^7.1.2"
 autoflake = "^2.3.1"
 pyright = "^1.1.394"
 freezegun = "^1.5.1"
-aidial-rag-eval = ">=0.2.0,<0.3.0"
+# Temporarily disabled: requires numpy <2.0.0, conflicts with langchain-community >=0.3.27 (needs numpy >=2.1.0)
+# aidial-rag-eval = ">=0.2.0,<0.3.0"
 # jinja2 is required for the aidial-rag-eval package, since it uses langchain with Jinja2 templates, which are optional for langchain
 jinja2 = "^3.1.6"
 
