@@ -1,4 +1,4 @@
-from abc import ABC, abstractmethod
+from abc import abstractmethod
 from collections.abc import MutableMapping
 from typing import Annotated, Any, Generic, TypeVar
 
@@ -58,7 +58,7 @@ class ToolArgs(BaseModel):
 ToolConfigType = TypeVar('ToolConfigType', bound=BaseToolConfig)
 
 
-class StatGptTool(BaseTool, Generic[ToolConfigType], ABC):
+class StatGptTool(BaseTool, Generic[ToolConfigType]):
     response_format: str = "content_and_artifact"
 
     def __init_subclass__(cls, **kwargs):

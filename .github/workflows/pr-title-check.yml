@@ -7,10 +7,6 @@ on:
       - edited
       - reopened
 
-permissions:
-  contents: read
-  pull-requests: write
-
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
   cancel-in-progress: true
@@ -19,4 +15,4 @@ jobs:
   pr-title-check:
     uses: epam/ai-dial-ci/.github/workflows/pr-title-check.yml@2.4.1
     secrets:
-      ACTIONS_BOT_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      ACTIONS_BOT_TOKEN: ${{ secrets.ACTIONS_BOT_TOKEN }}
