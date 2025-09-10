@@ -64,12 +64,13 @@ jobs:
           remove-cached-tools: "true"
           remove-large-packages: "true"
 
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         with:
           lfs: true
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.ACTIONS_BOT_TOKEN }}
 
       - name: Set version in pyproject.toml for Docker build
+        shell: bash
         run: |
           sed -i "s/^version = .*/version = \"${{ needs.calculate_version.outputs.next-version-without-hyphens }}\"/g" pyproject.toml
 
@@ -78,7 +79,7 @@ jobs:
         run: |
           cp ${{ matrix.dockerfile }} ./Dockerfile
 
-      - uses: epam/ai-dial-ci/actions/build_docker@2.4.1
+      - uses: ./.github/actions/build_docker
         with:
           image-name: ${{ matrix.image-name }}
           image-tag: ${{ needs.calculate_version.outputs.next-version }}
@@ -90,7 +91,7 @@ jobs:
           trivy-limit-severities-for-sarif: true
           platforms: "linux/amd64"
           ghcr-username: ${{ github.actor }}
-          ghcr-password: ${{ secrets.GITHUB_TOKEN }}
+          ghcr-password: ${{ secrets.ACTIONS_BOT_TOKEN }}
           dockerhub-username: ${{ secrets.DOCKERHUB_LOGIN }}
           dockerhub-password: ${{ secrets.DOCKERHUB_TOKEN }}
           image-extra-aliases: |
@@ -106,11 +107,12 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.ACTIONS_BOT_TOKEN }}
 
       - name: Set version in pyproject.toml for release
+        shell: bash
         run: |
           sed -i "s/^version = .*/version = \"${{ needs.calculate_version.outputs.next-version-without-hyphens }}\"/g" pyproject.toml
 
@@ -121,7 +123,9 @@ jobs:
       - uses: epam/ai-dial-ci/actions/publish_tag_release@2.4.1
         with:
           tag-version: ${{ needs.calculate_version.outputs.next-version }}
-          changelog-file: "/tmp/my_changelog"
+          changelog-file: "/tmp/my_changelog" # Comes from generate_release_notes step
           extra-commit-command: |
+            git config --global user.name "statgpt-actions"
+            git config --global user.email "231008922+statgpt-actions@users.noreply.github.com"
             git add pyproject.toml
             git commit -m '[skip ci] Update version' || true
