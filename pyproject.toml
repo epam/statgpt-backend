@@ -1,5 +1,5 @@
 [project]
-name = "ttyd-backend"
+name = "statgpt"
 version = "1.0.4"
 description = "Talk-To-Your-Data Backend Framework & Applications"
 readme = "README.md"
