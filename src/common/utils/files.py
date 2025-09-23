@@ -118,18 +118,22 @@ def read_yaml(fp: Path | str, encoding="utf-8"):
     return data
 
 
+def write_yaml_to_stream(data, stream=None, indent=2, width=10000, **kwargs):
+    return yaml.safe_dump(
+        data,
+        stream,
+        indent=indent,
+        width=width,
+        allow_unicode=True,
+        sort_keys=False,
+        default_flow_style=False,
+        **kwargs,
+    )
+
+
 def write_yaml(data, fp: Path | str, mode="w", encoding="utf-8", indent=2, width=10000, **kwargs):
     with open(fp, mode=mode, encoding=encoding) as fout:
-        yaml.safe_dump(
-            data,
-            fout,
-            indent=indent,
-            width=width,
-            allow_unicode=True,
-            sort_keys=False,
-            default_flow_style=False,
-            **kwargs,
-        )
+        _ = write_yaml_to_stream(data=data, stream=fout, indent=indent, width=width, **kwargs)
 
 
 def write_bytes(data, fp, mode="wb"):

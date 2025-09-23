@@ -1,3 +1,4 @@
+import asyncio
 from collections.abc import Iterable
 
 from langchain_core.documents import Document
@@ -6,10 +7,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.schema import CreateTable
 from sqlalchemy.sql import text
 
-from common import models
 from common.config import multiline_logger as logger
-from common.config.database import PG_VECTOR_STORE_BATCH_SIZE
+from common.services.base import DbServiceBase
+from common.settings.database import postgres_settings
 from common.utils import batched
+from common.utils.timer import debug_timer
 from common.vectorstore.base import VectorStore
 from common.vectorstore.document import EmbeddedDocument
 from common.vectorstore.embeddings import EmbeddingModel
@@ -17,7 +19,7 @@ from common.vectorstore.embeddings import EmbeddingModel
 from .models import BaseDatasetDocumentMapping, BaseDocument, BaseModel, CollectionName, ModelsStore
 
 
-class PgVectorStore(VectorStore):
+class PgVectorStore(VectorStore, DbServiceBase):
     def __init__(
         self,
         collection_name: str,
@@ -25,13 +27,14 @@ class PgVectorStore(VectorStore):
         datasource: str | None = None,
         *,
         session: AsyncSession,
+        session_lock: asyncio.Lock | None = None,
         **kwargs,
     ):
-        super().__init__(collection_name, embedding_model, datasource, **kwargs)
-        self._session = session
+        VectorStore.__init__(self, collection_name, embedding_model, datasource, **kwargs)
+        DbServiceBase.__init__(self, session, session_lock)
+        self._lock = asyncio.Lock()
 
         self._table_name: str | None = None
-        self._mapping_table_name: str | None = None
 
     async def _find_collection(
         self, collection_name: str, datasource: str | None, embedding_name
@@ -41,7 +44,7 @@ class PgVectorStore(VectorStore):
             CollectionName.datasource == datasource,
             CollectionName.embedding_model_name == embedding_name,
         )
-        async with models.get_session_contex_manager() as session:
+        async with self._lock_session() as session:
             q_res = await session.execute(query)
         return q_res.scalar_one_or_none()
 
@@ -70,7 +73,12 @@ class PgVectorStore(VectorStore):
         return await self._add_collection(collection_name, datasource, embedding_name)
 
     async def _get_table_name(self) -> str:
-        if self._table_name is None:
+        if self._table_name is not None:
+            return self._table_name
+        # prevent concurrent calls to this method from making multiple queries
+        async with self._lock:
+            if self._table_name is not None:
+                return self._table_name
             collection_name = await self._get_collection_name_or_create(
                 self._collection_name, self._datasource, self._embedding_model.name
             )
@@ -78,9 +86,13 @@ class PgVectorStore(VectorStore):
         return self._table_name
 
     async def _get_document_model(self) -> type[BaseDocument]:
-        return ModelsStore.get_document_model(
-            await self._get_table_name(), self._embedding_model.embedding_length
-        )
+        with debug_timer("_get_document_model.table_name"):
+            table_name = await self._get_table_name()
+        with debug_timer("_get_document_model.model"):
+            model = ModelsStore.get_document_model(
+                table_name, self._embedding_model.embedding_length
+            )
+        return model
 
     async def _get_mapping_table_name(self) -> str:
         return f"{await self._get_table_name()}_mapping"
@@ -91,7 +103,7 @@ class PgVectorStore(VectorStore):
     async def _check_if_table_exists(self, table_name: str) -> bool:
         """Returns True if the table exists."""
 
-        async with models.get_session_contex_manager() as session:
+        async with self._lock_session() as session:
             result = await session.scalar(
                 text(
                     "SELECT EXISTS(SELECT * FROM information_schema.tables WHERE table_name=:table_name)"
@@ -141,7 +153,7 @@ class PgVectorStore(VectorStore):
         await self._create_table_if_not_exist(document_model)
 
         batch: list[EmbeddedDocument]
-        for batch in batched(documents, PG_VECTOR_STORE_BATCH_SIZE):
+        for batch in batched(documents, postgres_settings.batch_size):
             items = [
                 document_model(
                     document=doc.page_content,
@@ -183,7 +195,7 @@ class PgVectorStore(VectorStore):
 
         res = []
 
-        for batch in batched(documents, PG_VECTOR_STORE_BATCH_SIZE):
+        for batch in batched(documents, postgres_settings.batch_size):
             embeddings = await self._embedding_model.model.aembed_documents(
                 [doc.page_content for doc in batch]
             )
@@ -216,7 +228,7 @@ class PgVectorStore(VectorStore):
             mapping_model(dataset_id=dataset_id, document_id=doc_id) for doc_id in document_ids
         ]
 
-        for batch in batched(items, PG_VECTOR_STORE_BATCH_SIZE):
+        for batch in batched(items, postgres_settings.batch_size):
             self._session.add_all(batch)
             await self._session.commit()
             logger.info(f"Added {len(batch)} document mappings for dataset(id={dataset_id})")
@@ -263,16 +275,13 @@ class PgVectorStore(VectorStore):
         model = await self._get_document_model()
         embedding = (await self._embedding_model.model.aembed_documents([query]))[0]
 
-        # inner product is the same as cosine distance for normalized vectors.
-        # OpenAI docs say that computing inner product is faster than cosine distance.
-        # However, I didn't notice much difference
-        # (however, I didn't measure it thoroughly,
-        # only with couple of runs using time.time()).
-        # So, let's use explicit cosine distance.
-        distance = model.embeddings.cosine_distance(embedding)
+        if self._embedding_model.is_normalized_to_one:
+            distance = model.embeddings.max_inner_product(embedding)
+        else:
+            distance = model.embeddings.cosine_distance(embedding)
         sql_query = select(model).order_by(distance).limit(k)
 
-        async with models.get_session_contex_manager() as session:
+        async with self._lock_session() as session:
             res = await session.scalars(sql_query)
         return [item.to_document() for item in res.all()]
 
@@ -286,16 +295,14 @@ class PgVectorStore(VectorStore):
         model = await self._get_document_model()
         embedding = (await self._embedding_model.model.aembed_documents([query]))[0]
 
-        # inner product is the same as cosine distance for normalized vectors.
-        # OpenAI docs say that computing inner product is faster than cosine distance.
-        # However, I didn't notice much difference
-        # (however, I didn't measure it thoroughly,
-        # only with couple of runs using time.time()).
-        # So, let's use explicit cosine distance.
-        distance = model.embeddings.cosine_distance(embedding)
+        if self._embedding_model.is_normalized_to_one:
+            distance = model.embeddings.max_inner_product(embedding)
+        else:
+            distance = model.embeddings.cosine_distance(embedding)
+
         sql_query = select(model, distance).order_by(distance).limit(k)
 
-        async with models.get_session_contex_manager() as session:
+        async with self._lock_session() as session:
             res = await session.execute(sql_query)
         # `1 - cosine distance` gives cosine similarity score.
         # NOTE: for other distances, formula to get similarity score is different.
@@ -303,30 +310,52 @@ class PgVectorStore(VectorStore):
         return [(item.to_document(), 1 - distance) for item, distance in res.all()]
 
     async def search_with_similarity_score_and_dataset_id(
-        self, query: str, k: int = 10, dataset_ids: set[int] | None = None
+        self,
+        query: str,
+        k: int = 10,
+        dataset_ids: set[int] | None = None,
+        metadata_filters: dict[str, set] | None = None,
     ) -> list[tuple[Document, float, int]]:
         """
         For a given query, get its nearest neighbors with similarity scores along with the dataset ids it belongs to.
         """
-        model = await self._get_document_model()
-        mapping_model = await self._get_mapping_model()
-        embedding = (await self._embedding_model.model.aembed_documents([query]))[0]
-        distance = model.embeddings.cosine_distance(embedding)
+        with debug_timer("vector_store._get_document_model"):
+            model = await self._get_document_model()
 
-        sql_query = select(model, distance, mapping_model.dataset_id).join(
-            mapping_model, mapping_model.document_id == model.id
-        )
-        if dataset_ids:
-            sql_query = sql_query.where(mapping_model.dataset_id.in_(dataset_ids))
-        sql_query = sql_query.order_by(distance).limit(k)
-        async with models.get_session_contex_manager() as session:
-            res = await session.execute(sql_query)
+        with debug_timer("vector_store._get_mapping_model"):
+            mapping_model = await self._get_mapping_model()
 
-        doc_models = [(item, dist, ds_id) for item, dist, ds_id in res.all()]
-        # `1 - cosine distance` gives cosine similarity score.
-        # NOTE: for other distances, formula to get similarity score is different.
-        # see notes for similar functions above.
-        return [(item.to_document(), 1 - dist, ds_id) for item, dist, ds_id in doc_models]
+        with debug_timer("vector_store.prepare_embeddings"):
+            embedding = (await self._embedding_model.model.aembed_documents([query]))[0]
+
+        with debug_timer("vector_store.prepare_sql_query"):
+
+            if self._embedding_model.is_normalized_to_one:
+                distance = model.embeddings.max_inner_product(embedding)
+            else:
+                distance = model.embeddings.cosine_distance(embedding)
+
+            sql_query = select(model, distance, mapping_model.dataset_id).join(
+                mapping_model, mapping_model.document_id == model.id
+            )
+            if dataset_ids:
+                sql_query = sql_query.where(mapping_model.dataset_id.in_(dataset_ids))
+            if metadata_filters:
+                for field, values in metadata_filters.items():
+                    sql_query = sql_query.where(model.details[field].astext.in_(values))
+            sql_query = sql_query.order_by(distance).limit(k)
+
+        with debug_timer("vector_store.search.sql"):
+            async with self._lock_session() as session:
+                res = await session.execute(sql_query)
+
+        with debug_timer("vector_store.search.process"):
+            doc_models = [(item, dist, ds_id) for item, dist, ds_id in res.all()]
+            # `1 - cosine distance` gives cosine similarity score.
+            # NOTE: for other distances, formula to get similarity score is different.
+            # see notes for similar functions above.
+            result = [(item.to_document(), 1 - dist, ds_id) for item, dist, ds_id in doc_models]
+        return result
 
     async def get_documents(
         self,
@@ -352,14 +381,14 @@ class PgVectorStore(VectorStore):
 
         query = query.limit(limit).offset(offset)
 
-        async with models.get_session_contex_manager() as session:
+        async with self._lock_session() as session:
             res = await session.scalars(query)
         return [item.to_document(include_embeddings) for item in res.all()]
 
     async def get_dataset_ids_by_documents_ids(self, ids: Iterable[int]) -> list[int]:
         model = await self._get_mapping_model()
 
-        async with models.get_session_contex_manager() as session:
+        async with self._lock_session() as session:
             res = await session.scalars(
                 select(model.dataset_id).distinct().where(model.document_id.in_(ids))
             )
@@ -368,7 +397,7 @@ class PgVectorStore(VectorStore):
     async def get_document_ids_by_dataset_id(self, dataset_id: int) -> list[int]:
         model = await self._get_mapping_model()
 
-        async with models.get_session_contex_manager() as session:
+        async with self._lock_session() as session:
             res = await session.scalars(
                 select(model.document_id).where(model.dataset_id == dataset_id)
             )

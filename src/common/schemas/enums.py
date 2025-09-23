@@ -16,6 +16,8 @@ class JobType(StrEnum):
 
 class ToolTypes(StrEnum):
     AVAILABLE_DATASETS = "AVAILABLE_DATASETS"
+    DATASETS_METADATA = "DATASETS_METADATA"
+    DATASET_STRUCTURE = "DATASET_STRUCTURE"
     AVAILABLE_PUBLICATIONS = "AVAILABLE_PUBLICATIONS"
     AVAILABLE_TERMS = "AVAILABLE_TERMS"
     DATA_QUERY = "DATA_QUERY"
@@ -54,3 +56,17 @@ class IndicatorSelectionVersion(StrEnum):
     semantic_v2 = "semantic_v2"
     semantic_v3 = "semantic_v3"
     semantic_v4 = "semantic_v4"
+
+
+class SpecialDimensionsProcessorType(StrEnum):
+    LHCL = "large_hierarchical_codelist"
+
+
+class AvailableDatasetsVersion(StrEnum):
+    short = "short"
+    full = "full"
+
+
+class LocaleEnum(StrEnum):
+    EN = "en"
+    UK = "uk"

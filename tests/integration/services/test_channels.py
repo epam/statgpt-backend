@@ -5,7 +5,7 @@ from sqlalchemy.exc import NoResultFound
 from admin_portal.auth.auth_context import SystemUserAuthContext
 from admin_portal.services import AdminPortalChannelService as ChannelService
 from common import schemas
-from common.config import EmbeddingsConfig
+from common.config import LangChainConfig
 from common.schemas.data_query_tool import DataQueryPrompts
 
 # ~~~~~ Channel Tests ~~~~~
@@ -56,7 +56,7 @@ async def test_add_channel(session, clear_channels):
             ),
             named_entity_types=["Test entity"],
         ),
-        llm_model=EmbeddingsConfig.DEFAULT_MODEL,
+        llm_model=LangChainConfig.DEFAULT_EMBEDDINGS_MODEL.value,
     )
 
     res = await channel_service.create_channel(channel)
@@ -64,7 +64,7 @@ async def test_add_channel(session, clear_channels):
     assert res.title == "test_title"
     assert res.description == "test_description"
     assert res.deployment_id == "test_deployment_id"
-    assert res.llm_model == EmbeddingsConfig.DEFAULT_MODEL
+    assert res.llm_model == LangChainConfig.DEFAULT_EMBEDDINGS_MODEL.value
     assert res.details.named_entity_types == ["Test entity"]
 
     assert res.details.available_datasets is None
@@ -119,7 +119,7 @@ async def test_add_channel_with_v2_versions(
                 ),
             ),
         ),
-        llm_model=EmbeddingsConfig.DEFAULT_MODEL,
+        llm_model=LangChainConfig.DEFAULT_EMBEDDINGS_MODEL.value,
     )
 
     res = await channel_service.create_channel(channel)
@@ -145,7 +145,7 @@ async def test_channel_service_get_list(session, clear_channels):
         schemas.ChannelBase(
             title='test_title_1',
             deployment_id='test_deployment_id_1',
-            llm_model=EmbeddingsConfig.DEFAULT_MODEL,
+            llm_model=LangChainConfig.DEFAULT_EMBEDDINGS_MODEL.value,
             details=schemas.ChannelConfig(
                 supreme_agent=schemas.SupremeAgentConfig(
                     name="Test",
@@ -161,7 +161,7 @@ async def test_channel_service_get_list(session, clear_channels):
         schemas.ChannelBase(
             title='test_title_2',
             deployment_id='test_deployment_id_2',
-            llm_model=EmbeddingsConfig.DEFAULT_MODEL,
+            llm_model=LangChainConfig.DEFAULT_EMBEDDINGS_MODEL.value,
             details=schemas.ChannelConfig(
                 supreme_agent=schemas.SupremeAgentConfig(
                     name="Test",
@@ -196,7 +196,7 @@ async def test_update_channel(session, clear_channels):
                 language_instructions=["Test instruction"],
             ),
         ),
-        llm_model=EmbeddingsConfig.DEFAULT_MODEL,
+        llm_model=LangChainConfig.DEFAULT_EMBEDDINGS_MODEL.value,
     )
 
     res = await channel_service.create_channel(channel)
@@ -209,7 +209,7 @@ async def test_update_channel(session, clear_channels):
         schemas.ChannelUpdate(
             title='new_title',
             description='New description.',
-            llm_model=EmbeddingsConfig.DEFAULT_MODEL,
+            llm_model=LangChainConfig.DEFAULT_EMBEDDINGS_MODEL.value,
             details=schemas.ChannelConfig(
                 supreme_agent=schemas.SupremeAgentConfig(
                     name="Test",
@@ -235,7 +235,7 @@ async def test_update_channel(session, clear_channels):
     assert res2.title == "new_title"
     assert res2.description == "New description."
     assert res2.deployment_id == "test_deployment_id_2"
-    assert res2.llm_model == EmbeddingsConfig.DEFAULT_MODEL
+    assert res2.llm_model == LangChainConfig.DEFAULT_EMBEDDINGS_MODEL.value
 
     assert res2.details.data_query.details.version == schemas.DataQueryVersion.v2
     assert res2.details.data_query.details.indexer_version == schemas.IndexerVersion.hybrid
@@ -262,7 +262,7 @@ async def test_delete_channel(session, clear_channels):
         schemas.ChannelBase(
             title='test_title_3',
             deployment_id='test_deployment_id_3',
-            llm_model=EmbeddingsConfig.DEFAULT_MODEL,
+            llm_model=LangChainConfig.DEFAULT_EMBEDDINGS_MODEL.value,
             details=schemas.ChannelConfig(
                 supreme_agent=schemas.SupremeAgentConfig(
                     name="Test",

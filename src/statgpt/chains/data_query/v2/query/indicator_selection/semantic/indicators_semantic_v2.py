@@ -3,12 +3,15 @@ from copy import deepcopy
 from langchain_core.runnables import Runnable, RunnablePassthrough
 
 from common.config import logger
-from common.data.base import DimensionQuery, QueryOperator
+from common.data.base import DataSetAvailabilityQuery, DimensionQuery, QueryOperator
 from common.data.sdmx.common.indicator import ComplexIndicatorComponentDetails
 from common.schemas import DataQueryDetails
+from statgpt.chains.data_query.v2.query import utils as query_utils
 from statgpt.chains.data_query.v2.query.indicator_selection.base import (
     SemanticIndicatorSelectionBase,
 )
+from statgpt.chains.parameters import ChainParameters
+from statgpt.config import StateVarsConfig
 from statgpt.schemas.query_builder import (
     ChainState,
     DatasetAvailabilityQueriesType,
@@ -17,6 +20,7 @@ from statgpt.schemas.query_builder import (
     RetrievalStagesResults,
 )
 from statgpt.services import ScoredIndicatorCandidate
+from statgpt.utils.dial_stages import optional_timed_stage
 
 from .packed_indicators_selection import PackedIndicatorsSelectionV1ChainFactory
 
@@ -37,7 +41,10 @@ class IndicatorSelectionSemanticV2ChainFactory(SemanticIndicatorSelectionBase):
         self._vector_search_top_k = vector_search_top_k  # TODO: move to config
 
     def get_indicator_selection_chain_factory(self):
-        return PackedIndicatorsSelectionV1ChainFactory(candidates_key=self._candidates_key)
+        return PackedIndicatorsSelectionV1ChainFactory(
+            candidates_key=self._candidates_key,
+            llm_model_config=self._config.llm_models.indicators_selection_model_config,
+        )
 
     async def _get_indicator_candidates_from_normalized_query(
         self, inputs: dict
@@ -110,8 +117,41 @@ class IndicatorSelectionSemanticV2ChainFactory(SemanticIndicatorSelectionBase):
 
         return result
 
+    @staticmethod
+    async def _convert_llm_indicator_queries(inputs: dict) -> DatasetAvailabilityQueriesType:
+        llm_response: DatasetDimQueries = inputs['llm_indicator_queries']
+        return {
+            dataset_id: DataSetAvailabilityQuery.from_dimension_queries_list(
+                [
+                    DimensionQuery(
+                        values=dim_values, operator=QueryOperator.IN, dimension_id=dimension_id
+                    )
+                    for dimension_id, dim_values in dimension_queries.items()
+                ]
+            )
+            for dataset_id, dimension_queries in llm_response.queries.items()
+        }
+
+    @staticmethod
+    async def _show_indicator_queries_stage(inputs: dict) -> dict:
+        indicator_queries: DatasetAvailabilityQueriesType = inputs['llm_indicator_queries']
+        state = ChainParameters.get_state(inputs)
+        show_debug_stages = state.get(StateVarsConfig.SHOW_DEBUG_STAGES, False)
+        with optional_timed_stage(
+            choice=ChainParameters.get_choice(inputs),
+            name="[DEBUG] Indicator Queries",
+            enabled=show_debug_stages,
+        ) as stage:
+            await query_utils.populate_queries_stage(
+                stage=stage,
+                queries=indicator_queries,
+                auth_context=ChainParameters.get_auth_context(inputs),
+                datasets_dict=ChainParameters.get_datasets_dict(inputs),
+            )
+        return inputs
+
     @classmethod
-    def _add_llm_indicator_queries_to_strong_queries(
+    async def _add_llm_indicator_queries_to_strong_queries(
         cls, inputs: dict
     ) -> DatasetAvailabilityQueriesType:
         """
@@ -124,36 +164,17 @@ class IndicatorSelectionSemanticV2ChainFactory(SemanticIndicatorSelectionBase):
         - such combinations must be filtered out later by availability queries.
         - no filtration by availability is done here.
         """
+        indicator_queries: DatasetAvailabilityQueriesType = inputs['llm_indicator_queries']
+        combined_queries = deepcopy(inputs["strong_queries"])
 
-        chain_state = ChainState(**inputs)
-        llm_response: DatasetDimQueries = inputs['llm_indicator_queries']
-
-        combined_queries = deepcopy(chain_state.strong_queries)
-
-        for dataset_id, dim_queries in llm_response.queries.items():
+        for dataset_id, dim_queries in indicator_queries.items():
             if dataset_id not in combined_queries:
-                # NOTE: here we filter indicator candidates!
-                #
-                # NOTE: we could ensure "strong_queries" and "strong_availability"
-                # contain same list of datasets (probably it's true already).
-                # In this case we wouldn't need this filter here.
-                #
-                # there are 2 scenarios:
-                # 1. dataset was filtered out,
-                #    for example by user query on some other dimension like "country".
-                #    in this case, we should skip this dataset indeed.
-                # 2. there were no filters in strong queries at all.
-                #    in this case we should add this indicator to create a strong query.
-                #    BUG: it looks like a bug in this case
-                #    TODO: fix bug for case 2.
+                # the dataset was removed in nonindicator chain for a reason.
+                # don't add indicator query for this dataset.
                 continue
 
-            for dimension_id, dim_values in dim_queries.items():
-                combined_queries[dataset_id].add_dimension_query(
-                    DimensionQuery(
-                        values=dim_values, operator=QueryOperator.IN, dimension_id=dimension_id
-                    )
-                )
+            for dim_query in dim_queries.dimensions_queries:
+                combined_queries[dataset_id].add_dimension_query(dim_query)
 
         return combined_queries
 
@@ -189,6 +210,8 @@ class IndicatorSelectionSemanticV2ChainFactory(SemanticIndicatorSelectionBase):
                 }
             )
             | RunnablePassthrough.assign(llm_indicator_queries=indicator_selection_chain)
+            | RunnablePassthrough.assign(llm_indicator_queries=self._convert_llm_indicator_queries)
+            | self._show_indicator_queries_stage
             | RunnablePassthrough.assign(
                 strong_queries=self._add_llm_indicator_queries_to_strong_queries
             )

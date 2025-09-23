@@ -35,7 +35,7 @@ class BaseIndicator(BaseEntity, ABC):
     def query_id(self) -> str:
         return self.entity_id
 
-    def to_document(self) -> Document:
+    def to_document(self, additional_metadata: dict[str, t.Any] | None = None) -> Document:
         return Document(
             page_content=self.get_document_content(),
             metadata=self.get_document_metadata(),

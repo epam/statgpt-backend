@@ -5,14 +5,16 @@ from collections.abc import Generator
 
 from langchain_core.documents import Document
 
-from common.config import LLMModelsConfig
 from common.config.logging import logger
 from common.data.base import DimensionQuery, QueryOperator
-from common.indexer.cache import Cache
 from common.prompts import IndexerPrompts
+from common.settings.hybrid_index import HybridIndexSettings
+from common.utils import Cache, async_utils
 from common.utils.elastic import ElasticIndex, SearchResult
 from common.utils.models import get_chat_model
 from common.vectorstore import VectorStore
+
+_CACHE: Cache[dict] = Cache(ttl=15 * 60)  # 15 min
 
 
 class Search:
@@ -36,13 +38,13 @@ class Search:
         async def search(self, stage, query: str, availability, max_output: int):
             plan = await self.query_planner(stage, query, availability, max_output)
 
-            result = []
+            result: list = []
             reasoning = "\n        relevance score: 1 - 3 (1 - lowest, 3 - highest)\n"
             candidates = await self._hybrid_candidates(
                 plan['query'], availability, plan['max_output'], plan['alpha']
             )
             batches, indexed = self._prepare_for_relevance(candidates)
-            dataset_max_score = {}
+            dataset_max_score: dict[str, float] = {}
             if stage:
                 stage.append_content(reasoning)
             for items in batches:
@@ -133,7 +135,9 @@ class Search:
             lex_max_score = result.hits.max_score
 
             for hit in result.hits.hits:
-                norm_score = self._lex_teor_min_max(hit.score, lex_max_score)
+                norm_score = (
+                    self._lex_teor_min_max(hit.score, lex_max_score) if lex_max_score else 0
+                )
                 self._result_to_dict(hit.source, norm_score, lex_indexed, "LEX ")
 
             return lex_indexed
@@ -300,20 +304,20 @@ class Search:
 
             for _id, data in hybrid_sorted:
                 score: float = data['score']
-                metadata: dict = data['metadata']
+                meta: dict = data['metadata']
 
-                logger.info(f"HYBRID {score:0.3f}    {metadata['name']}")
+                logger.info(f"HYBRID {score:0.3f}    {meta['name']}")
 
-                dataset_id = str(metadata['dataset_id'])
+                dataset_id = str(meta['dataset_id'])
                 if len(dataset_dict[dataset_id]) >= max_output - len(dataset_dict):
                     continue
 
-                primary = metadata['primary_normalized']
+                primary = meta['primary_normalized']
                 found = False
                 for primaries_record in dataset_dict[dataset_id]:
                     if primaries_record['primary'] == primary:
                         if primaries_record['indicators'][0]['id'] != _id:
-                            primaries_record['indicators'].append({"id": _id, "metadata": metadata})
+                            primaries_record['indicators'].append({"id": _id, "metadata": meta})
                         found = True
                         break
 
@@ -323,7 +327,7 @@ class Search:
                 if not found and should_create_new_primary:
                     primary_dict.add(primary)
                     dataset_dict[dataset_id].append(
-                        {'primary': primary, 'indicators': [{"id": _id, "metadata": metadata}]}
+                        {'primary': primary, 'indicators': [{"id": _id, "metadata": meta}]}
                     )
             return dataset_dict
 
@@ -565,16 +569,15 @@ class Search:
         matching_index: ElasticIndex,
         indicators_index: ElasticIndex,
         vectorstore: VectorStore,
-        cache: Cache,
     ):
+        settings = HybridIndexSettings()
         self._llm = get_chat_model(
             api_key=models_api_key,
-            model=LLMModelsConfig.GPT_4_1_2025_04_14,
+            model_config=settings.searcher_model_config,
         )
         self._matching_index = matching_index
         self._indicators_index = indicators_index
         self._vectorstore = vectorstore
-        self._cache = cache
 
         self._normalize_chain = (
             IndexerPrompts.get_search_normalize_prompts()
@@ -673,12 +676,10 @@ class Search:
             stage.append_content(f"\n1. {query}\n")
 
         tokenized = await self._tokenize(query)
-        cached, ttl = self._cache.get(tokenized)
+        cached = _CACHE.get(tokenized)
         if cached:
             if stage:
-                stage.append_content(
-                    f"\n    > [cache] using cached result, ttl: {int(ttl)} sec\n\n"
-                )
+                stage.append_content("\n    > [cache] using cached result\n\n")
                 stage.append_content(cached['reasoning'])
             return cached['result']
 
@@ -689,7 +690,7 @@ class Search:
         search_result = self._best_of(matching_result)
 
         if len(search_result) > 0:
-            self._cache.put(tokenized, {'result': search_result, 'reasoning': reasoning})
+            _CACHE.set(tokenized, {'result': search_result, 'reasoning': reasoning})
         return search_result
 
     async def search(
@@ -727,14 +728,18 @@ class Search:
         elapsed = time.perf_counter() - pc0
         logger.info(f"[search], {queries=}, ({elapsed:0.3f})")
 
-        result = {}
-        pc0 = time.perf_counter()
-        for query in queries:
+        async def _run_query(query):
             search_result = await self._search_by_query(stage, query, availability, self.MAX_OUTPUT)
             self._log_search_result(query, search_result)
+            return search_result
+
+        _CACHE.cleanup()
+        tasks = [_run_query(query) for query in queries]
+        partial_results = await async_utils.gather_with_concurrency(20, *tasks)
+
+        result: dict = {}
+        for search_result in partial_results:
             self._merge_partial(result, search_result)
-            elapsed = time.perf_counter() - pc0
-            logger.info(f"[search], {query=}, ({elapsed:0.3f})")
 
         self._log_search_result(", ".join(queries), result)
         dq_result = self._merge_dimensions(result)
@@ -828,9 +833,16 @@ class Search:
             query, highlight_field, availability, max_output
         )
 
-        candidates = set()
-        good_candidates = set()
+        candidates: set[str] = set()
+        good_candidates: set[str] = set()
+        skipped = 0
         for hit in search_result.hits.hits:
+            if hit.highlight is None:
+                # TODO: review this and fix if possible
+                logger.warning("No highlight found for hit, skipping.")
+                skipped += 1
+                continue
+
             highlight = hit.highlight[highlight_field][0]
             primary = hit.source[highlight_field]
             primary_tokenized = await self._tokenize(primary)
@@ -856,11 +868,20 @@ class Search:
                     running = []
             await self._assess_candidate(candidates, good_candidates, primary_tokenized, running)
 
+        if skipped > 0:
+            logger.warning(
+                f"Skipped {skipped} of {len(search_result.hits.hits)} hits due to missing highlights."
+            )
+
         good_candidates = await self._remove_duplicates(good_candidates)
         candidates = await self._cleanup_candidates(good_candidates, candidates)
 
         total = search_result.hits.total.value
-        primaries = len(search_result.aggregations['primary']['buckets'])
+        primaries = (
+            len(search_result.aggregations['primary']['buckets'])
+            if search_result.aggregations
+            else 0
+        )
         return primaries, total, candidates, good_candidates
 
     async def _assess_candidate(self, candidates, good_candidates, primary_tokenized, running):

@@ -9,7 +9,7 @@ from admin_portal.services import AdminPortalDataSetService as DataSetService
 from admin_portal.services import AdminPortalDataSourceService as DataSourceService
 from admin_portal.services.dataset import reload_indicators_in_background_task
 from common import schemas
-from common.config import EmbeddingsConfig
+from common.config import LangChainConfig
 from common.data.base import DatasetCitation, IndexerConfig
 from common.data.base.dataset import IndexerIndicatorConfig
 
@@ -45,7 +45,7 @@ async def get_channel(
         schemas.ChannelBase(
             title='test_title_1',
             deployment_id='test_deployment_id_1',
-            llm_model=EmbeddingsConfig.DEFAULT_MODEL,
+            llm_model=LangChainConfig.DEFAULT_EMBEDDINGS_MODEL.value,
             details=schemas.ChannelConfig(
                 supreme_agent=schemas.SupremeAgentConfig(
                     name="Test",

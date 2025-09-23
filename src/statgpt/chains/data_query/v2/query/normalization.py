@@ -2,7 +2,9 @@ from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.runnables import Runnable
 
-from common.config import DialConfig, LLMModelsConfig
+from common.config import logger
+from common.schemas import LLMModelConfig
+from common.settings.dial import dial_settings
 from common.utils.models import get_chat_model
 from statgpt.chains.parameters import ChainParameters
 
@@ -13,15 +15,13 @@ class NormalizationChain:
 
     def __init__(
         self,
+        llm_model_config: LLMModelConfig,
         system_prompt: str,
         llm_api_base: str | None = None,
-        llm_model_name: str | None = None,
-        llm_temperature: float = 0.0,
     ):
         self._system_prompt = system_prompt
-        self._llm_api_base = llm_api_base or DialConfig.get_url()
-        self._llm_model_name = llm_model_name or LLMModelsConfig.GPT_4_TURBO_2024_04_09
-        self._llm_temperature = llm_temperature
+        self._llm_api_base = llm_api_base or dial_settings.url
+        self._llm_model_config = llm_model_config
 
     @classmethod
     def get_normalization_input(cls, inputs: dict) -> str:
@@ -50,11 +50,12 @@ class NormalizationChain:
             prompt_template
             | get_chat_model(
                 api_key=auth_context.api_key,
-                model=self._llm_model_name,
-                temperature=self._llm_temperature,
                 azure_endpoint=self._llm_api_base,
+                model_config=self._llm_model_config,
             )
             | StrOutputParser()
         )
-
+        logger.info(
+            f"{self.__class__.__name__} using LLM model: {self._llm_model_config.deployment.deployment_id}"
+        )
         return chain

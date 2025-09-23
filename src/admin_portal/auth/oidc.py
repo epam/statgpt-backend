@@ -3,8 +3,9 @@ from dataclasses import dataclass
 
 import jwt
 import requests
+from aidial_sdk.exceptions import InvalidRequestError
 
-from admin_portal.config.oidc_auth import OidcAuthConfig
+from admin_portal.settings.oidc_auth import oidc_auth_settings
 
 
 @dataclass
@@ -23,8 +24,11 @@ class TokenPayload:
 
     @property
     def username(self):
-        username = self._payload.get(OidcAuthConfig.USERNAME_CLAIM, None)
-        assert username, f"Username claim {OidcAuthConfig.USERNAME_CLAIM} not found in token"
+        username = self._payload.get(oidc_auth_settings.oidc_username_claim, None)
+        if not username:
+            raise InvalidRequestError(
+                f"Username claim {oidc_auth_settings.oidc_username_claim} not found in token"
+            )
         return username
 
 
@@ -36,7 +40,7 @@ class Jwks:
         self._pyjwk_client: jwt.PyJWKClient | None = None
 
     def _fetch_oidc_config(self) -> dict:
-        response = requests.get(self.openid_configuration_endpoint)
+        response = requests.get(self.openid_configuration_endpoint, timeout=20)  # ToDo: make async
         response.raise_for_status()
         oidc_config = response.json()
         return oidc_config
@@ -127,17 +131,40 @@ class TokenValidator(TokenPayloadValidator):
             validator.validate(token_payload)
 
     @classmethod
-    def from_config(cls, config: type[OidcAuthConfig]) -> "TokenValidator":
-        if config.ADMIN_ROLES_VALUES is None:
+    def from_config(cls) -> "TokenValidator":
+        if (
+            oidc_auth_settings.admin_roles_values is None
+            or oidc_auth_settings.admin_roles_values.strip() == ""
+        ):
             raise ValueError("ADMIN_ROLES_VALUES must be set in OidcAuthConfig")
-        admin_roles_values = config.ADMIN_ROLES_VALUES.split(",")
-        validators = []
-        role_validator = AdminGroupsClaimValidator(config.ADMIN_ROLES_CLAIM, admin_roles_values)
+        if (
+            oidc_auth_settings.admin_roles_claim is None
+            or oidc_auth_settings.admin_roles_claim.strip() == ""
+        ):
+            raise ValueError("ADMIN_ROLES_CLAIM must be set in OidcAuthConfig")
+        admin_roles_values: list[str] = oidc_auth_settings.admin_roles_values.split(",")
+        admin_roles_claim: str = oidc_auth_settings.admin_roles_claim
+        validators: list[TokenPayloadValidator] = []
+        role_validator = AdminGroupsClaimValidator(admin_roles_claim, admin_roles_values)
         validators.append(role_validator)
-        if config.ADMIN_SCOPE_CLAIM_VALIDATION_ENABLED:
-            scope_validator = ScopeClaimValidator(
-                config.ADMIN_SCOPE_CLAIM, config.ADMIN_SCOPE_VALUE
-            )
+        if oidc_auth_settings.admin_scope_claim_validation_enabled:
+            if (
+                oidc_auth_settings.admin_scope_value is None
+                or oidc_auth_settings.admin_scope_value.strip() == ""
+            ):
+                raise ValueError(
+                    "ADMIN_SCOPE_VALUE must be set in OidcAuthConfig if ADMIN_SCOPE_CLAIM_VALIDATION_ENABLED is True"
+                )
+            if (
+                oidc_auth_settings.admin_scope_claim is None
+                or oidc_auth_settings.admin_scope_claim.strip() == ""
+            ):
+                raise ValueError(
+                    "ADMIN_SCOPE_CLAIM must be set in OidcAuthConfig if ADMIN_SCOPE_CLAIM_VALIDATION_ENABLED is True"
+                )
+            admin_scope_claim: str = oidc_auth_settings.admin_scope_claim
+            admin_scope_value: str = oidc_auth_settings.admin_scope_value
+            scope_validator = ScopeClaimValidator(admin_scope_claim, admin_scope_value)
             validators.append(scope_validator)
         return cls(validators=validators)
 
@@ -166,9 +193,9 @@ class JwtTokenVerifier:
         return TokenPayload(data)
 
     @classmethod
-    def create(cls, config):
+    def create(cls):
         return cls(
-            Jwks(config.CONFIGURATION_ENDPOINT),
-            issuer=config.ISSUER,
-            audience=config.CLIENT_ID,
+            Jwks(oidc_auth_settings.oidc_configuration_endpoint),
+            issuer=oidc_auth_settings.oidc_issuer,
+            audience=oidc_auth_settings.oidc_client_id,
         )

@@ -1,40 +1,22 @@
 from pydantic import BaseModel, Field
 
-from common.config import LangChainConfig, LLMModelsConfig
-
 from .base import BaseYamlModel, DbDefaultBase
+from .enums import LocaleEnum
+from .model_config import LLMModelConfig
 from .tools import (
     AvailableDatasetsTool,
     AvailablePublicationsTool,
     AvailableTermsTool,
     BaseToolConfig,
     DataQueryTool,
+    DatasetsMetadataTool,
+    DatasetStructureTool,
     FileRagTool,
     PlainContentTool,
     TermDefinitionsTool,
     WebSearchAgentTool,
     WebSearchTool,
 )
-
-
-class ModelConfig(BaseYamlModel):
-    deployment_name: str = Field(
-        default=LLMModelsConfig.GPT_4_O_2024_08_06,
-        description="The deployment of the model in DIAL",
-    )
-    temperature: float = Field(
-        default=LangChainConfig.DEFAULT_TEMPERATURE,
-        description=(
-            "The temperature of the model. 0.0 means deterministic output, higher values mean more"
-            " randomness."
-        ),
-    )
-    seed: int | None = Field(
-        default=LangChainConfig.DEFAULT_SEED,
-        description=(
-            "The seed of the model. If set, the model will produce the same output for the same input."
-        ),
-    )
 
 
 class SupremeAgentConfig(BaseYamlModel):
@@ -53,8 +35,8 @@ class SupremeAgentConfig(BaseYamlModel):
             "The maximum number of tool calling iterations the chatbot can perform in a single response."
         ),
     )
-    llm_model: ModelConfig = Field(
-        default_factory=ModelConfig,
+    llm_model_config: LLMModelConfig = Field(
+        default_factory=LLMModelConfig,
         description="LLM model configuration for the supreme agent",
     )
 
@@ -69,6 +51,33 @@ class OutOfScopeConfig(BaseYamlModel):
             " not engage with or provide information about."
         ),
         default=None,
+    )
+    use_general_topics_blacklist: bool = Field(
+        default=True,
+        description=(
+            "Whether to use the general topics blacklist from NotSupportedScenariosPrompts."
+            " It contains common out-of-scope topics like harmful content, prompt engineering, etc."
+            " If false, only custom_instructions will be used."
+        ),
+    )
+    start_new_conversation_message: str = Field(
+        default=(
+            "Threshold of out-of-scope messages in conversation history exceeded. Please start a new chat if you'd like "
+            "to discuss topics related to the official statistics."
+        ),
+        description=(
+            "The message sent to the user when the chatbot detects the user is trying to"
+            " discuss out-of-scope topics continuously."
+        ),
+    )
+    start_new_conversation_messages_threshold: int = Field(
+        default=3,
+        description=(
+            "The limit to number of out-of-scope messages in conversation history to not trigger the"
+            " start_new_conversation_message. If the number of out-of-scope messages exceeds this"
+            " threshold, the start_new_conversation_message will be sent to the user. If set to -1, the"
+            " feature is disabled."
+        ),
     )
 
 
@@ -102,6 +111,7 @@ class ConversationStartersConfig(BaseYamlModel):
 
 
 class ChannelConfig(BaseYamlModel):
+    locale: LocaleEnum = Field(default=LocaleEnum.EN, description="The locale of the channel")
     conversation_starters: ConversationStartersConfig | None = Field(
         default=None, description="The conversation starters configuration"
     )
@@ -120,6 +130,8 @@ class ChannelConfig(BaseYamlModel):
 
     # ~~~ Tools: ~~~
     available_datasets: AvailableDatasetsTool | None = Field(None)
+    datasets_metadata: DatasetsMetadataTool | None = Field(None)
+    dataset_structure: DatasetStructureTool | None = Field(None)
     available_publications: AvailablePublicationsTool | None = Field(None)
     available_terms: AvailableTermsTool | None = Field(None)
     data_query: DataQueryTool | None = Field(default=None)
@@ -133,6 +145,8 @@ class ChannelConfig(BaseYamlModel):
     def tool_fields(self) -> list[str]:
         return [
             'available_datasets',
+            'datasets_metadata',
+            'dataset_structure',
             'available_publications',
             'available_terms',
             'data_query',

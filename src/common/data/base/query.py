@@ -12,14 +12,17 @@ class Query(BaseModel):
     )
     operator: QueryOperator = Field(description="The operator to use for filtering")
 
+    @property
+    def is_all_selected(self) -> bool:
+        return self.operator == QueryOperator.ALL
+
+    def is_empty(self):
+        return not (bool(self.values) or self.is_all_selected)
+
 
 class DimensionQuery(Query):
     dimension_id: str = Field(description="The ID of the dimension")
     is_default: bool = Field(default=False, description="Whether the query is the default one")
-
-    @property
-    def is_all_selected(self) -> bool:
-        return self.operator == QueryOperator.ALL
 
     @model_validator(mode='after')
     def _check_flags(self):
@@ -33,6 +36,9 @@ class DimensionQuery(Query):
     @classmethod
     def from_query(cls, query: Query, dimension_id: str) -> "DimensionQuery":
         return cls(values=query.values, operator=query.operator, dimension_id=dimension_id)
+
+    def to_query(self) -> Query:
+        return Query(values=self.values, operator=self.operator)
 
     @classmethod
     def from_default_query(cls, query: Query, dimension_id: str) -> "DimensionQuery":
@@ -54,9 +60,23 @@ class DataSetQuery(BaseModel):
 
 
 class DataSetAvailabilityQuery(BaseModel):
+    # NOTE: this class is more generic than availability queries only - rename?
     dimensions_queries_dict: t.Dict[str, Query] = Field(
         description="The queries for dimensions", default_factory=dict
     )
+
+    @classmethod
+    def from_dimension_queries_list(
+        cls, queries: list[DimensionQuery]
+    ) -> "DataSetAvailabilityQuery":
+        dims = [q.dimension_id for q in queries]
+        if len(dims) != len(set(dims)):
+            raise ValueError(f"Duplicate dimension IDs in queries list: {dims}")
+        return cls(
+            dimensions_queries_dict={
+                dim_query.dimension_id: dim_query.to_query() for dim_query in queries
+            }
+        )
 
     @property
     def dimensions_queries(self) -> list[DimensionQuery]:
@@ -74,7 +94,7 @@ class DataSetAvailabilityQuery(BaseModel):
     def is_empty(self) -> bool:
         """True if there are no non-empty dimension queries"""
         for query in self.dimensions_queries_dict.values():
-            if query.values:
+            if not query.is_empty():
                 return False
         return True
 

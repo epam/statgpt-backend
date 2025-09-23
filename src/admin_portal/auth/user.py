@@ -5,10 +5,12 @@ from fastapi.security import OAuth2PasswordBearer
 from jwt import InvalidTokenError
 
 from admin_portal.auth.oidc import JwtTokenVerifier, TokenValidationError, TokenValidator
-from admin_portal.config.oidc_auth import OidcAuthConfig
+from admin_portal.settings.oidc_auth import oidc_auth_settings
 from common.config import logger
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token", auto_error=OidcAuthConfig.ENABLED)
+oauth2_scheme = OAuth2PasswordBearer(
+    tokenUrl="token", auto_error=oidc_auth_settings.oidc_auth_enabled
+)
 
 
 @dataclass
@@ -18,11 +20,11 @@ class User:
 
 async def require_jwt_auth(token: str = Depends(oauth2_scheme)) -> User:
 
-    if OidcAuthConfig.ENABLED:
+    if oidc_auth_settings.oidc_auth_enabled:
         try:
-            payload = JwtTokenVerifier.create(OidcAuthConfig).verify(token)
+            payload = JwtTokenVerifier.create().verify(token)
             try:
-                TokenValidator.from_config(OidcAuthConfig).validate(payload.raw)
+                TokenValidator.from_config().validate(payload.raw)
             except TokenValidationError as e:
                 logger.info(f"Unauthorized token: {str(e)}")
                 raise HTTPException(status_code=403, detail=str(e))

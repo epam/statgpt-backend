@@ -1,13 +1,17 @@
-import asyncio
-
 from sdmx.message import StructureMessage
 from sdmx.model.v21 import DataStructureDefinition
+
+from common.settings.dataflow_loader import DataflowLoaderSettings
+from common.utils import async_utils
 
 from .schemas import ConceptIdentity, StructureMessage21, Urn
 from .sdmx_client import AsyncSdmxClient
 
 
 class DataflowLoader:
+
+    _SETTINGS = DataflowLoaderSettings()
+
     def __init__(self, client: AsyncSdmxClient):
         self._client: AsyncSdmxClient = client
 
@@ -59,7 +63,9 @@ class DataflowLoader:
             )
             for code_list in code_lists
         ]
-        return await asyncio.gather(*tasks)
+        return await async_utils.gather_with_concurrency(
+            self._SETTINGS.code_list_concurrency_limit, *tasks
+        )
 
     def _get_code_lists(self, dataflow_msg: StructureMessage21, urn: Urn) -> set[Urn]:
         dsd: DataStructureDefinition = dataflow_msg.dataflow[urn].structure
@@ -87,7 +93,9 @@ class DataflowLoader:
             )
             for concept_scheme in schemas
         ]
-        return await asyncio.gather(*tasks)
+        return await async_utils.gather_with_concurrency(
+            self._SETTINGS.concept_scheme_concurrency_limit, *tasks
+        )
 
     @staticmethod
     def _get_concepts_from(dsd: DataStructureDefinition) -> list[ConceptIdentity]:

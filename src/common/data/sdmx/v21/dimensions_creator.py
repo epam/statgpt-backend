@@ -200,7 +200,7 @@ class DimensionsCreator:
                 f"{facet.value_type=} is unavailable. must be one of {allowed_facet_dtypes=}"
             )
 
-        logger.info(f"Creating SdmxTimeDimension for {dimension=}")
+        logger.debug(f"Creating SdmxTimeDimension for {dimension=}")
         result_dimension = SdmxTimeDimension(dimension, name, description, time_dimension=True)
         return result_dimension
 

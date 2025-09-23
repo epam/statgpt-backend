@@ -3,12 +3,13 @@ import functools
 from collections.abc import Awaitable, Callable
 from typing import ParamSpec, TypeVar
 
-from admin_portal.config import MAX_BACKGROUND_TASKS
+from admin_portal.settings.background_tasks import BackgroundTasksSettings
 
 Param = ParamSpec("Param")
 RetType = TypeVar("RetType")
 
-MAX_BACKGROUND_TASKS_SEMAPHORE = asyncio.Semaphore(MAX_BACKGROUND_TASKS)
+_SETTINGS = BackgroundTasksSettings()
+_MAX_BACKGROUND_TASKS_SEMAPHORE = asyncio.Semaphore(_SETTINGS.max_concurrent)
 
 
 def background_task(
@@ -18,7 +19,7 @@ def background_task(
 
     @functools.wraps(func)
     async def wrapper(*args: Param.args, **kwargs: Param.kwargs) -> RetType:
-        async with MAX_BACKGROUND_TASKS_SEMAPHORE:
+        async with _MAX_BACKGROUND_TASKS_SEMAPHORE:
             return await func(*args, **kwargs)
 
     return wrapper

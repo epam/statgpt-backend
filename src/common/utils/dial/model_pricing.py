@@ -1,15 +1,12 @@
-from datetime import datetime, timedelta
-from typing import ClassVar
-
 from pydantic import ValidationError
 
 from common.auth.auth_context import AuthContext
-from common.config import DialConfig
 from common.config import multiline_logger as logger
 from common.schemas.dial import Pricing
-from common.utils import DialCore
+from common.settings.dial import dial_settings
+from common.utils import Cache, DialCore
 
-_CACHE: dict[str, tuple[datetime, Pricing]] = {}
+_CACHE: Cache[Pricing] = Cache(ttl=24 * 3600)  # 24 hours
 
 
 class ModelPricingAuthContext(AuthContext):
@@ -24,30 +21,22 @@ class ModelPricingAuthContext(AuthContext):
 
     @property
     def api_key(self) -> str:
-        return DialConfig.get_api_key().get_secret_value()
+        return dial_settings.api_key.get_secret_value()
 
 
 class ModelPricingGetter:
-    CACHE_EXPIRATION_WINDOW: ClassVar[timedelta] = timedelta(days=1)
 
     def __init__(self, dial_core: DialCore):
         self._dial_core = dial_core
 
     async def get_model_pricing(self, model: str) -> Pricing | None:
-        if pricing := self._get_pricing_from_cache(model):
+        if pricing := _CACHE.get(model):
             return pricing
 
         if pricing := await self._load_pricing(model):
-            _CACHE[model] = (datetime.now(), pricing)
+            _CACHE.set(model, pricing)
             return pricing
 
-        return None
-
-    def _get_pricing_from_cache(self, model: str) -> Pricing | None:
-        if model in _CACHE:
-            last_updated, pricing = _CACHE[model]
-            if datetime.now() - last_updated < self.CACHE_EXPIRATION_WINDOW:
-                return pricing
         return None
 
     async def _load_pricing(self, model: str) -> Pricing | None:

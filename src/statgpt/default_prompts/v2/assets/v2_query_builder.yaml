@@ -245,8 +245,8 @@ namedEntitiesPrompt: >-
 
   5. Do not introduce or add entities that are not present in input.
 
-  6. You have access to history (user messages and your responses) so modify the context entities only if it's needed.
-
+  6. Add FREQUENCY type entities ONLY IF data frequency is EXPLICITLY mentioned in the input.
+  If frequency is not explicitly mentioned, do not add FREQUENCY type entities.
 
   Format your response as JSON: {format_instructions}
 indicatorsSelectionSystemPrompt: >-
@@ -305,6 +305,8 @@ validationSystemPrompt: >-
   - "Counterparty area" usually refers to the geographic region or country
   that is engaged in trade or other activity with the main country.
   Be careful to correctly identify (main) country and counterparty area dimensions.
+
+  - values for "Frequency" dimension (or its synonyms like "FREQ") must ONLY be selected if user query EXPLICITLY specifies data frequency (eg "give me quarterly GDP")
 
   - It's allowed to select nothing if all dimension values are irrelevant.
 

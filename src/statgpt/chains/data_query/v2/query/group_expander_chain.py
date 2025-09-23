@@ -4,11 +4,11 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.runnables import Runnable, RunnableConfig, RunnableLambda, RunnablePassthrough
 from pydantic import BaseModel, Field
 
-from common.config import DialConfig, LLMModelsConfig
 from common.config import multiline_logger as logger
+from common.schemas import LLMModelConfig
+from common.settings.dial import dial_settings
 from common.utils.models import get_chat_model
 from statgpt.chains.parameters import ChainParameters
-from statgpt.utils import HierarchiesLoader
 from statgpt.utils.callbacks import StageCallback
 
 FOUND_GROUP_DESCRIPTION = """\
@@ -52,17 +52,15 @@ class GroupExpanderLLMResponse(BaseModel):
 class GroupExpanderChain:
     def __init__(
         self,
+        llm_model_config: LLMModelConfig,
         system_prompt: str,
         fallback_prompt: str,
         llm_api_base: str | None = None,
-        llm_model_name: str | None = None,
-        llm_temperature: float = 0.0,
     ):
         self._system_prompt = system_prompt
         self._fallback_prompt = fallback_prompt
-        self._llm_api_base = llm_api_base or DialConfig.get_url()
-        self._llm_model_name = llm_model_name or LLMModelsConfig.GPT_4_TURBO_2024_04_09
-        self._llm_temperature = llm_temperature
+        self._llm_api_base = llm_api_base or dial_settings.url
+        self._llm_model_config = llm_model_config
 
     async def _get_country_groups(
         self, hierarchies: dict[str, list[str]] | None = None
@@ -129,9 +127,12 @@ class GroupExpanderChain:
         )
         fallback_model = get_chat_model(
             api_key=auth_context.api_key,
-            model=self._llm_model_name,
-            temperature=self._llm_temperature,
             azure_endpoint=self._llm_api_base,
+            model_config=self._llm_model_config,
+        )
+        logger.info(
+            f"{self.__class__.__name__} (fallback chain) using LLM model: "
+            f"{self._llm_model_config.deployment.deployment_id}"
         )
 
         chain = prompt_template | fallback_model | StrOutputParser()
@@ -152,6 +153,8 @@ class GroupExpanderChain:
                 stage.append_content(f"* {group} ({comment})\n")
 
     async def create_chain(self, inputs: dict) -> Runnable:
+        raise NotImplementedError("GroupExpanderChain is outdated and needs to be reimplemented")
+
         prompt_template = ChatPromptTemplate.from_messages(
             [
                 ("system", self._system_prompt),
@@ -164,12 +167,16 @@ class GroupExpanderChain:
 
         model = get_chat_model(
             api_key=auth_context.api_key,
-            model=self._llm_model_name,
-            temperature=self._llm_temperature,
             azure_endpoint=self._llm_api_base,
+            model_config=self._llm_model_config,
+        )
+        logger.info(
+            f"{self.__class__.__name__} (main chain) using LLM model: "
+            f"{self._llm_model_config.deployment.deployment_id}"
         )
 
-        hierarchies = await HierarchiesLoader.get_hierarchy("country_groups")
+        # hierarchies = await HierarchiesLoader.get_hierarchy("country_groups")
+        hierarchies = {}
         country_groups = await self._get_country_groups(hierarchies)
 
         chain = (

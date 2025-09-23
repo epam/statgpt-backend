@@ -1,11 +1,14 @@
 import re
+from typing import Any
 
 from pydantic import Field
 
+from common.config import LLMModelsEnum
 from common.config import utils as config_utils
 
 from .base import BaseYamlModel
-from .enums import RAGVersion
+from .enums import AvailableDatasetsVersion, RAGVersion
+from .model_config import LLMModelConfig
 
 
 class FakeCall(BaseYamlModel):
@@ -21,7 +24,14 @@ class StageRules(BaseYamlModel):
 
 
 class StagesConfig(BaseYamlModel):
-    tool_call_name: str | None = Field(default=None, description="The stage name of the tool call")
+    tool_call_name: str | None = Field(
+        default=None,
+        description="The stage name of the tool call. Supports {} placeholders for tool args",
+    )
+    tool_result_name: str | None = Field(
+        default=None,
+        description="The stage name of the tool result, supports {} placeholders for tool args",
+    )
     debug_only: bool = Field(
         default=True,
         description=(
@@ -58,6 +68,12 @@ class FileRagDetails(BaseToolDetails):
     version: RAGVersion
 
     # For Dial RAG:
+    deployment_id: str = Field(
+        default="dial-rag-pgvector",
+        description="The DIAL deployment ID to use for the file RAG tool",
+    )
+    metadata_endpoint: str = Field(default="/indexing/documents/metadata")
+    prefilter_llm_model_config: LLMModelConfig = Field(default_factory=LLMModelConfig)
     always_show_stages: bool = Field(
         default=False,
         description=(
@@ -118,6 +134,9 @@ class WebSearchAgentDetails(BaseToolDetails):
     deployment_id: str | None = Field(
         default=None, description="The DIAL deployment_id of the web search agent"
     )
+    configuration: dict[str, Any] | None = Field(
+        default=None, description="The configuration for the web search agent"
+    )
     system_prompt: str | None = Field(
         default=None,
         description="The system prompt for the web search agent.",
@@ -162,4 +181,42 @@ class PlainContentDetails(BaseToolDetails):
 class TermDefinitionsDetails(BaseToolDetails):
     limit: int | None = Field(
         default=None, description="The maximum number of term definitions returned by the tool"
+    )
+
+
+class AvailableDatasetsDetails(BaseToolDetails):
+    version: AvailableDatasetsVersion = Field(
+        default=AvailableDatasetsVersion.short,
+        description="The version of the available datasets tool",
+    )
+
+
+class OneShotToolDetails(BaseToolDetails):
+    system_prompt: str | None = Field(
+        default=None,
+        description="The system prompt for the one-shot tool.",
+    )
+    llm_model_config: LLMModelConfig = Field(
+        default_factory=LLMModelConfig,
+        description="The LLM model configuration for the one-shot tool.",
+    )
+
+
+class DatasetsMetadataLLMConfig(LLMModelConfig):
+    deployment: LLMModelsEnum = LLMModelsEnum.GPT_4_1_2025_04_14
+
+
+class DatasetsMetadataDetails(OneShotToolDetails):
+    llm_model_config: DatasetsMetadataLLMConfig = Field(
+        default_factory=DatasetsMetadataLLMConfig,
+        description="The LLM model configuration for the datasets metadata tool.",
+    )
+
+
+class AvailableTermsDetails(BaseToolDetails):
+    include_domain: bool = Field(
+        default=False, description="Whether to include the domain of each term in the output"
+    )
+    include_source: bool = Field(
+        default=False, description="Whether to include the source of each term in the output"
     )

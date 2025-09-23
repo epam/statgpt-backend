@@ -12,7 +12,6 @@ from statgpt.chains.tools import StatGptTool, ToolArgs
 from statgpt.config import ChainParametersConfig
 from statgpt.schemas import BaseFileRagArtifact
 from statgpt.schemas.file_rags.dial_rag import RagFilterDial
-from statgpt.utils.request_context import RequestContext
 
 from .base import BaseRAGFactory
 from .dial_rag import DialRagAgentFactory
@@ -34,10 +33,12 @@ The query to search an answer for.
 - Keep query concise and to the point, any politeness or greetings should be omitted
 '''
     )
-    target_prefilter: t.Annotated[RagFilterDial | None, InjectedToolArg] = Field(
+    target_prefilter_json: t.Annotated[str | None, InjectedToolArg] = Field(
         default=None,
-        description='ready prefilter to be passed to RAG. '
-        'used in RAG eval to bypass prefilter construction in RAG',
+        description='prefilter to be used in RAG, instead of constructing it from scratch. '
+        'used in RAG eval to avoid dependency on prefilter construction in RAG tool. '
+        'since RagFilterDial is not JSON-serializable, '
+        'it must be passed as a JSON serialized string. ',
     )
 
 
@@ -48,18 +49,19 @@ class FileRagTool(StatGptTool[FileRagToolConfig], tool_type=ToolTypes.FILE_RAG):
         return FileRagArgs
 
     async def _arun(
-        self, inputs: dict, query: str, target_prefilter: RagFilterDial | None = None
+        self, inputs: dict, query: str, target_prefilter_json: str | None = None
     ) -> tuple[str, BaseFileRagArtifact]:
-        target = ChainParameters.get_target(inputs)
-        target.append_name(f": {query}")
-
         version = self._tool_config.details.version
         implementation = _RAG_IMPLEMENTATIONS[version](self._tool_config, self._channel_config)
 
-        auth_context = ChainParameters.get_auth_context(inputs)
-        request_context = RequestContext(api_key=auth_context.api_key, inputs=inputs)
-        chain: Runnable = await implementation.create_chain(request_context)
+        ChainParameters.get_auth_context(inputs)
+        chain: Runnable = await implementation.create_chain()
 
+        target_prefilter = (
+            RagFilterDial.model_validate_json(target_prefilter_json)
+            if target_prefilter_json
+            else None
+        )
         inputs[ChainParametersConfig.QUERY] = query
         inputs[ChainParametersConfig.TARGET_PREFILTER] = target_prefilter
         res: dict = await chain.ainvoke(inputs)

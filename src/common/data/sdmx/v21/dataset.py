@@ -14,19 +14,18 @@ import requests
 import sdmx.model.common
 from dateutil.parser import parse
 from sdmx.message import DataMessage
-from sdmx.model.common import DataAttribute
+from sdmx.model.common import Code
 from sdmx.model.v21 import DataflowDefinition as DataFlow
-from sdmx.model.v21 import DataStructureDefinition
 
 from common.auth.auth_context import AuthContext
 from common.config.logging import multiline_logger as logger
-from common.config.sdmx import SdmxConfig
 from common.data.base import (
     CategoricalDimension,
     DataResponse,
     DataSet,
     DataSetAvailabilityQuery,
     DataSetQuery,
+    Dimension,
     DimensionQuery,
     DimensionType,
     OfflineDataSet,
@@ -45,22 +44,27 @@ from common.data.sdmx.common import (
     SdmxDimension,
 )
 from common.schemas.dataset import Status
+from common.settings.sdmx import sdmx_settings
 from common.utils import escape_invalid_filename_chars
 from common.utils.plotly import PlotlyGraphBuilder, df_2_plotly_grid
 
+from .attribute import Sdmx21Attribute, Sdmx21CodeListAttribute
 from .query import (
+    JsonComponentQuery,
+    JsonQueryMetadata,
+    JsonQueryOperator,
+    JsonQueryWithMetadata,
     SdmxDataSetAvailabilityQuery,
     SdmxDataSetQuery,
     SdmxQueryReadinessStatus,
     TimeDimensionQuery,
 )
-from .utils import convert_keys_to_str
 
 if t.TYPE_CHECKING:
     from common.data.sdmx.v21.datasource import Sdmx21DataSourceHandler
 
 
-class SdmxOfflineDataSet(OfflineDataSet[SdmxDataSetConfig]):
+class SdmxOfflineDataSet(OfflineDataSet[SdmxDataSetConfig, 'Sdmx21DataSourceHandler']):
     @property
     def source_id(self) -> str:
         return self.config.urn
@@ -87,6 +91,10 @@ class Sdmx21DataResponse(DataResponse):
     @cached_property
     def file_name(self) -> str:
         return self.dataset.get_file_name()
+
+    @cached_property
+    def dataset_name(self) -> str:
+        return f"{self.dataset.name} [{self.dataset.source_id}]"
 
     @cached_property
     def dataframe(self) -> pd.DataFrame:
@@ -167,7 +175,7 @@ class Sdmx21DataResponse(DataResponse):
         return self._url
 
     @property
-    def json_query(self) -> dict:
+    def json_query_old(self) -> dict:
         return {
             'urn': self.dataset.short_urn,
             'metadata': self._get_dataset_metadata_as_dict(),
@@ -175,13 +183,19 @@ class Sdmx21DataResponse(DataResponse):
         }
 
     @property
+    def json_query(self) -> dict:
+        return JsonQueryWithMetadata(
+            urn=self.dataset.short_urn,
+            filters=self._to_component_filters(self.sdmx_query),
+            metadata=JsonQueryMetadata(
+                country_dimension=self.dataset.config.country_dimension,
+                indicator_dimensions=self.dataset.config.indicator_dimensions,
+            ),
+        ).model_dump(by_alias=True)
+
+    @property
     def python_code(self) -> str | None:
-        return self._get_python_query(
-            provider=self.dataset.urn.agency_id,
-            resource_id=self.dataset.urn.resource_id,
-            keys=self.sdmx_query.get_key(),
-            params=self.sdmx_query.get_params(),
-        )
+        return self.dataset.get_python_code(self.sdmx_query)
 
     def _enrich_df_with_names(self, df: pd.DataFrame) -> pd.DataFrame:
         df = df.copy(deep=True)
@@ -236,32 +250,62 @@ class Sdmx21DataResponse(DataResponse):
                     "values": f"{sdmx_query.time_dimension_query.start_period},{sdmx_query.time_dimension_query.end_period}",
                 }
             )
-        else:
-            res.extend(
-                {
-                    "componentCode": k,
-                    "operator": "between",
-                    "values": ','.join(v),
-                }
-                for k, v in sdmx_query.datetime_dimensions.items()
-            )
 
         return res
 
     @staticmethod
-    def _get_python_query(provider: str, resource_id: str, keys: dict, params: dict) -> str:
-        return f'''\
-provider = sdmx.Client("{provider}")
-data_msg = provider.data(
-    "{resource_id}",
-    key={keys},
-    params={params}
-)\
-'''
+    def _create_time_dimension_query(
+        time_dimension_query: TimeDimensionQuery | None,
+    ) -> JsonComponentQuery | None:
+        if not time_dimension_query:
+            return None
+
+        if time_dimension_query.start_period and time_dimension_query.end_period:
+            return JsonComponentQuery(
+                component_code=time_dimension_query.time_dimension_id,
+                operator=JsonQueryOperator.BETWEEN,
+                values=[
+                    time_dimension_query.start_period,
+                    time_dimension_query.end_period,
+                ],
+            )
+        elif time_dimension_query.start_period:
+            return JsonComponentQuery(
+                component_code=time_dimension_query.time_dimension_id,
+                operator=JsonQueryOperator.GE,
+                values=[time_dimension_query.start_period],
+            )
+        elif time_dimension_query.end_period:
+            return JsonComponentQuery(
+                component_code=time_dimension_query.time_dimension_id,
+                operator=JsonQueryOperator.LE,
+                values=[time_dimension_query.end_period],
+            )
+        return None
+
+    @classmethod
+    def _to_component_filters(cls, sdmx_query: SdmxDataSetQuery) -> list[JsonComponentQuery]:
+        res = [
+            JsonComponentQuery(
+                component_code=k,
+                operator=JsonQueryOperator.IN,
+                values=v,
+            )
+            for k, v in sdmx_query.categorical_dimensions.items()
+        ]
+
+        time_query = cls._create_time_dimension_query(sdmx_query.time_dimension_query)
+        if time_query:
+            res.append(time_query)
+
+        return res
 
 
-class Sdmx21DataSet(DataSet[SdmxDataSetConfig], BaseNameableArtefact[DataFlow]):
+class Sdmx21DataSet(
+    DataSet[SdmxDataSetConfig, 'Sdmx21DataSourceHandler'], BaseNameableArtefact[DataFlow]
+):
     _dimensions: t.Dict[str, SdmxDimension | VirtualDimension]
+    _attributes: t.Dict[str, Sdmx21Attribute]
     _virtual_dimensions: t.Dict[str, VirtualDimension]
     _indicator_dimensions: t.Dict[str, SdmxCodeListDimension]
     _indicator_dimensions_required_for_query: list[str]
@@ -280,11 +324,10 @@ class Sdmx21DataSet(DataSet[SdmxDataSetConfig], BaseNameableArtefact[DataFlow]):
         dataflow: DataFlow,
         locale: str,
         dimensions: Iterable[SdmxDimension],
-        attributes: Iterable[DataAttribute],
+        attributes: Iterable[Sdmx21Attribute],
     ):
         BaseNameableArtefact.__init__(self, dataflow, locale)
-        DataSet.__init__(self, entity_id, title, config)
-        self._handler = handler
+        DataSet.__init__(self, entity_id, title, config, handler)
 
         self._dimensions = {dimension.entity_id: dimension for dimension in dimensions}
         self._indicator_dimensions = {}
@@ -293,7 +336,7 @@ class Sdmx21DataSet(DataSet[SdmxDataSetConfig], BaseNameableArtefact[DataFlow]):
         self._virtual_dimensions = {}
         self._dim_values_id_2_name = None
 
-        self._attributes: list[sdmx.model.common.DataAttribute] = list(attributes)
+        self._attributes = {attribute.entity_id: attribute for attribute in attributes}
         self._attrib_values_id_2_name = None
 
         if indicator_dimensions := config.indicator_dimensions:
@@ -371,6 +414,13 @@ class Sdmx21DataSet(DataSet[SdmxDataSetConfig], BaseNameableArtefact[DataFlow]):
             return BaseNameableArtefact.name.fget(self)  # type: ignore
         else:
             return DataSet.name.fget(self)  # type: ignore
+
+    @property
+    def default_value_codes(self) -> list[str]:
+        if self.config.default_value_codes is not None:
+            # dataset-level override
+            return self.config.default_value_codes
+        return self._datasource.config.default_value_codes
 
     def _indicators_from_fixed_indicator(self) -> t.Sequence[ComplexIndicator]:
         if self._fixed_indicator is None:
@@ -527,8 +577,8 @@ class Sdmx21DataSet(DataSet[SdmxDataSetConfig], BaseNameableArtefact[DataFlow]):
     async def _get_or_load_indicator_combinations(self, auth_context: AuthContext) -> pd.DataFrame:
         file_name = escape_invalid_filename_chars(f"{self.source_id}.csv")
 
-        if SdmxConfig.CACHE_DIR:
-            dir_name = os.path.join(SdmxConfig.CACHE_DIR, SdmxConfig.INDICATOR_COMBINATIONS_DIR)
+        if cache_dir := sdmx_settings.cache_dir:
+            dir_name = os.path.join(cache_dir, sdmx_settings.indicator_combinations_subdir)
             file_path = os.path.join(str(dir_name), file_name)
 
             if not os.path.exists(file_path):
@@ -608,19 +658,10 @@ class Sdmx21DataSet(DataSet[SdmxDataSetConfig], BaseNameableArtefact[DataFlow]):
         dimension: SdmxDimension,
         result: SdmxDataSetQuery | SdmxDataSetAvailabilityQuery,
     ):
-        if query.operator == QueryOperator.ALL:
+        if query.is_all_selected:
             # if all values are requested, we do not append anything
             return
         result.categorical_dimensions[dimension.entity_id] = query.values
-
-    @staticmethod
-    def _append_datetime_query(
-        query: DimensionQuery,
-        dimension: SdmxDimension,
-        result: SdmxDataSetQuery | SdmxDataSetAvailabilityQuery,
-    ):
-        if query.operator == QueryOperator.EQUALS or query.operator == QueryOperator.BETWEEN:
-            result.datetime_dimensions[dimension.entity_id] = query.values
 
     @staticmethod
     def _append_time_dimension_query(
@@ -675,8 +716,8 @@ class Sdmx21DataSet(DataSet[SdmxDataSetConfig], BaseNameableArtefact[DataFlow]):
             return
         elif dimension.dimension_type == DimensionType.CATEGORY:
             self._append_category_query(query, dimension, result)
-        elif dimension.dimension_type == DimensionType.DATETIME:
-            self._append_datetime_query(query, dimension, result)
+        elif dimension.is_time_dimension:
+            self._append_time_dimension_query(query, result)
 
     def _to_sdmx_query(self, query: DataSetQuery) -> SdmxDataSetQuery:
         result = SdmxDataSetQuery.empty()
@@ -708,8 +749,6 @@ class Sdmx21DataSet(DataSet[SdmxDataSetConfig], BaseNameableArtefact[DataFlow]):
                 continue
             elif dimension.is_time_dimension:
                 self._append_time_dimension_query(dimension_query, result)
-            elif dimension.dimension_type == DimensionType.DATETIME:
-                self._append_datetime_query(dimension_query, dimension, result)
         return result
 
     def _to_sdmx_availability_query(
@@ -727,8 +766,6 @@ class Sdmx21DataSet(DataSet[SdmxDataSetConfig], BaseNameableArtefact[DataFlow]):
 
             if dimension.is_time_dimension:
                 self._append_time_dimension_query(dimension_query, result)
-            elif dimension.dimension_type == DimensionType.DATETIME:
-                self._append_datetime_query(dimension_query, dimension, result)
             if not dimension_query.values:
                 continue
             if dimension.dimension_type == DimensionType.CATEGORY:
@@ -746,18 +783,29 @@ class Sdmx21DataSet(DataSet[SdmxDataSetConfig], BaseNameableArtefact[DataFlow]):
     def dimensions(self) -> t.Sequence[SdmxDimension | VirtualDimension]:
         return list(self._dimensions.values())
 
+    def dimension(self, dimension_id: str) -> SdmxDimension | VirtualDimension:
+        return self._dimensions[dimension_id]
+
+    def attributes(self) -> t.Sequence[Sdmx21Attribute]:
+        return list(self._attributes.values())
+
     def non_virtual_dimensions(self) -> t.Sequence[SdmxDimension]:
         return [dim for dim in self.dimensions() if not isinstance(dim, VirtualDimension)]
 
-    def non_indicator_dimensions(self) -> t.Sequence[SdmxDimension | VirtualDimension]:
-        if self._indicator_dimensions:
-            return [
-                dimension
-                for dimension in self.dimensions()
-                if dimension.entity_id not in self._indicator_dimensions
-            ]
-        else:
-            return self.dimensions()
+    def non_indicator_dimensions(self) -> list[SdmxDimension | VirtualDimension]:
+        special_dimensions = set(sd.dimension_id for sd in self._config.special_dimensions)
+        return [
+            dimension
+            for dimension in self.dimensions()
+            if (dimension.entity_id not in self._indicator_dimensions)
+            and (dimension.entity_id not in special_dimensions)
+        ]
+
+    def special_dimensions(self) -> dict[str, Dimension]:
+        return {
+            special_dimension.processor_id: self._dimensions[special_dimension.dimension_id]
+            for special_dimension in self._config.special_dimensions
+        }
 
     def indicator_dimensions(self) -> t.Sequence[SdmxCodeListDimension]:
         # TODO: does not support fixed indicator
@@ -792,21 +840,16 @@ class Sdmx21DataSet(DataSet[SdmxDataSetConfig], BaseNameableArtefact[DataFlow]):
         return self._dim_values_id_2_name
 
     def get_attrib_values_id_2_name_mapping(self) -> dict[str, dict[str, str]]:
-        if self._attrib_values_id_2_name is None:
-            self._attrib_values_id_2_name = {}
+        if self._attrib_values_id_2_name is not None:
+            return self._attrib_values_id_2_name
 
-            for attrib in self._attributes:
-                if (
-                    attrib.concept_identity is None
-                    or attrib.concept_identity.core_representation is None
-                    or attrib.concept_identity.core_representation.enumerated is None
-                ):
-                    continue
-
-                self._attrib_values_id_2_name[attrib.id] = {
-                    item.id: item.name[self._locale]
-                    for item in attrib.concept_identity.core_representation.enumerated
-                }
+        self._attrib_values_id_2_name = {}
+        for attrib in self.attributes():
+            if not isinstance(attrib, Sdmx21CodeListAttribute):
+                continue
+            self._attrib_values_id_2_name[attrib.entity_id] = {
+                code.query_id: code.name for code in attrib.code_list.codes()
+            }
 
         return self._attrib_values_id_2_name
 
@@ -920,49 +963,19 @@ class Sdmx21DataSet(DataSet[SdmxDataSetConfig], BaseNameableArtefact[DataFlow]):
             url += f"&subscription-key={request_headers['Ocp-Apim-Subscription-Key']}"
         return url
 
-    def _get_portal_url(
-        self,
-        dsd: DataStructureDefinition,
-        key_dict: dict[str, list[str]],
-        sdmx_query: SdmxDataSetQuery,
-    ) -> str:
-        params = {
-            'urn': self._urn.get_short_urn(),
-            'filter': convert_keys_to_str(dsd, key_dict),
-        }
-
-        try:
-            if sdmx_query.time_dimension_query:
-                start_period = sdmx_query.time_dimension_query.start_period
-                end_period = sdmx_query.time_dimension_query.end_period
-            else:
-                values = [
-                    v for v in sdmx_query.datetime_dimensions.get('TIME_PERIOD', [None, None])
-                ]
-                start_period = values[0]
-                end_period = values[1]
-
-            if start_period and end_period:
-                params['startPeriod'] = start_period if '-' in start_period else f"{start_period}-A"
-                params['endPeriod'] = end_period if '-' in end_period else f"{end_period}-A"
-        except Exception as e:
-            logger.exception(e)
-
-        params_str = '&'.join([f'{k}={v}' for k, v in params.items()])
-        return f"{SdmxConfig.PORTAL_URL}?{params_str}"
-
     async def availability_query(
         self, query: DataSetAvailabilityQuery, auth_context: AuthContext
     ) -> DataSetAvailabilityQuery:
         sdmx_availability_query = self._to_sdmx_availability_query(query)
-        client = self._handler.create_sdmx_client(auth_context)
+        client = await self._datasource.create_sdmx_client(auth_context)
         availability_result = await client.availableconstraint(
-            agency_id=self._urn.agency_id,
-            resource_id=self._urn.resource_id,
-            version=self._urn.version,
+            agency_id=self._artefact.maintainer.id,  # type: ignore
+            resource_id=self._artefact.id,
+            version=self._artefact.version,  # type: ignore
             dsd=self._artefact.structure,
             params=sdmx_availability_query.get_params() or None,
             key=sdmx_availability_query.get_key() or None,
+            use_cache=False,
         )
         result = self._availability_result_to_query(availability_result)
         return result
@@ -972,7 +985,7 @@ class Sdmx21DataSet(DataSet[SdmxDataSetConfig], BaseNameableArtefact[DataFlow]):
 
         kwargs = {}
         if self.config.include_attributes:
-            kwargs['attributes'] = 'o'
+            kwargs['attributes'] = "osgd"  # include observation, series, group, dataset attributes
 
         sdmx_pandas = sdmx.to_pandas(data_msg, **kwargs)
         if isinstance(sdmx_pandas, pd.Series):
@@ -995,7 +1008,10 @@ class Sdmx21DataSet(DataSet[SdmxDataSetConfig], BaseNameableArtefact[DataFlow]):
         def _extract_attribute_value(x: t.Any) -> t.Any:
             """Extract attribute values (each cell initially contains the `AttributeValue` class or None)"""
             try:
-                return x.value
+                value = x.value
+                if isinstance(value, Code):
+                    return value.id
+                return value
             except AttributeError:
                 return x
 
@@ -1006,9 +1022,9 @@ class Sdmx21DataSet(DataSet[SdmxDataSetConfig], BaseNameableArtefact[DataFlow]):
         res_df = res_df.set_index(keys=attributes, append=True)
         return res_df
 
-    async def query(
+    async def _query_data(
         self, query: DataSetQuery, auth_context: AuthContext
-    ) -> Sdmx21DataResponse | None:
+    ) -> tuple[SdmxDataSetQuery, DataMessage]:
         status, missing_dimensions = self._evaluate_data_query_status(query)
         if status != SdmxQueryReadinessStatus.READY:
             raise ValueError(
@@ -1016,27 +1032,28 @@ class Sdmx21DataSet(DataSet[SdmxDataSetConfig], BaseNameableArtefact[DataFlow]):
             )
         sdmx_query = self._to_sdmx_query(query)
         logger.info(f"Querying dataset {self.entity_id} with {sdmx_query}")
-        assert sdmx_query.time_dimension_query is not None, "Time dimension query is required"
+        if sdmx_query.time_dimension_query is None:
+            raise ValueError("Time dimension query is required")
 
-        client = self._handler.create_sdmx_client(auth_context)
+        client = await self._datasource.create_sdmx_client(auth_context)
         data_msg: DataMessage = await client.data(
-            agency_id=self._urn.agency_id,
-            resource_id=self._urn.resource_id,
-            version=self._urn.version,
+            agency_id=self._artefact.maintainer.id,  # type: ignore
+            resource_id=self._artefact.id,
+            version=self._artefact.version,  # type: ignore
             key=sdmx_query.get_key(),
             params=sdmx_query.get_params(),
             dsd=self._artefact.structure,
         )
         if not data_msg:
             raise ValueError("No data returned for the query")
+        return sdmx_query, data_msg
 
-        # TODO: refactor code below to make portal URL configurable for each channel
-        if SdmxConfig.PORTAL_URL:
-            url = self._get_portal_url(
-                dsd=data_msg.structure, key_dict=sdmx_query.get_key(), sdmx_query=sdmx_query
-            )
-        else:
-            url = self._get_query_url(data_msg.response)  # type: ignore
+    async def query(
+        self, query: DataSetQuery, auth_context: AuthContext
+    ) -> Sdmx21DataResponse | None:
+        sdmx_query, data_msg = await self._query_data(query, auth_context)
+
+        url = self._get_query_url(data_msg.response)  # type: ignore
 
         sdmx_pandas = self._data_msg_to_dataframe(data_msg)
         if sdmx_pandas.empty:
@@ -1052,3 +1069,35 @@ class Sdmx21DataSet(DataSet[SdmxDataSetConfig], BaseNameableArtefact[DataFlow]):
             sdmx_query=sdmx_query,
             url=url,
         )
+
+    def get_python_code(self, sdmx_query: SdmxDataSetQuery) -> str:
+        if self._datasource.config.sdmx1_source:
+            provider = self._datasource.config.sdmx1_source
+        else:
+            provider = self._artefact.maintainer.id  # type: ignore
+
+        return self._get_python_query(
+            provider=provider,
+            resource_id=self.source_id,
+            keys=sdmx_query.get_key(),
+            params=sdmx_query.get_params(),
+        )
+
+    @staticmethod
+    def _get_python_query(provider: str, resource_id: str, keys: dict, params: dict) -> str:
+        return f'''\
+# Uses the [sdmx1 library](https://pypi.org/project/sdmx1/)
+# Install with:
+# ```bash
+# pip install sdmx1
+# ```
+
+import sdmx
+
+provider = sdmx.Client("{provider}")
+data_msg = provider.data(
+    "{resource_id}",
+    key={keys},
+    params={params}
+)\
+'''

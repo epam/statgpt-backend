@@ -21,6 +21,8 @@ class WebSearchAgentTool(StatGptTool[WebSearchToolConfig], tool_type=ToolTypes.W
             deployment_id=tool_config.details.deployment_id,
             stages_config=tool_config.details.stages_config,
             system_prompt=tool_config.details.system_prompt,
+            stream_content=True,
+            attachments_metadata=False,
         )
         if tool_config.details.urls_only:
             self._response_producer = UrlOnlyResponseProducer(**kwargs)
@@ -34,7 +36,6 @@ class WebSearchAgentTool(StatGptTool[WebSearchToolConfig], tool_type=ToolTypes.W
 
     async def _arun(self, inputs: dict, query: str, **kwargs) -> tuple[str, ToolArtifact]:
         target = ChainParameters.get_target(inputs)
-        target.append_name(f": {query}")
 
         str_response = await self._response_producer.run(inputs=inputs, query=query)
         target.append_content(str_response)

@@ -30,13 +30,18 @@ async def lifespan(app_: FastAPI):
         await DatabaseHealthChecker.check()
 
         # Start data preloading in the background
-        asyncio.create_task(preload_data())
+        asyncio.create_task(preload_data(allow_cached_datasets=False))
 
         yield
         # Clean up
 
 
-app = FastAPI(lifespan=lifespan)
+app = FastAPI(
+    lifespan=lifespan,
+    docs_url="/admin/api/docs",
+    redoc_url="/admin/api/redoc",
+    openapi_url="/admin/api/openapi.json",
+)
 
 app.include_router(router)
 

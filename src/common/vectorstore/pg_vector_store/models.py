@@ -6,7 +6,7 @@ from sqlalchemy.dialects import postgresql
 from sqlalchemy.ext.asyncio import AsyncAttrs
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
-from common.config import VectorStoreMetadataFields
+from common.settings.document import VectorStoreMetadataFields
 from common.utils import DateMixin, IdMixin
 from common.vectorstore.document import EmbeddedDocument
 

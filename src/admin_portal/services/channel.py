@@ -11,12 +11,12 @@ from sqlalchemy.sql.expression import func
 
 import common.models as models
 import common.schemas as schemas
-from admin_portal.config import JobsConfig
+from admin_portal.settings.exim import JobsConfig
 from common import utils
 from common.auth.auth_context import AuthContext
-from common.config import DialConfig
 from common.config import multiline_logger as logger
 from common.services import ChannelSerializer, ChannelService
+from common.settings.dial import dial_settings
 from common.utils import dial_core_factory
 from common.vectorstore import VectorStoreFactory
 
@@ -43,7 +43,7 @@ class AdminPortalChannelService(ChannelService):
     async def _export_dial_file_to_folder(
         dial_file_path: str, folder_path: str, auth_context: AuthContext
     ) -> None:
-        async with dial_core_factory(DialConfig.get_url(), auth_context.api_key) as dial_core:
+        async with dial_core_factory(dial_settings.url, auth_context.api_key) as dial_core:
             content, content_type = await dial_core.get_file_by_path(dial_file_path)
 
         target_file = os.path.join(folder_path, JobsConfig.DIAL_FILES_FOLDER, dial_file_path)
@@ -57,7 +57,7 @@ class AdminPortalChannelService(ChannelService):
         mime_type = guess_type(file_path)[0]
         if not mime_type:
             mime_type = "application/octet-stream"
-        async with dial_core_factory(DialConfig.get_url(), auth_context.api_key) as dial_core:
+        async with dial_core_factory(dial_settings.url, auth_context.api_key) as dial_core:
             await dial_core.put_file(dial_file_path, mime_type, content)
 
     async def _create_channel_model(self, data: schemas.ChannelBase) -> models.Channel:
@@ -112,8 +112,13 @@ class AdminPortalChannelService(ChannelService):
     async def _clear_vector_store(self, channel: models.Channel, auth_context: AuthContext) -> None:
         vector_store_factory = VectorStoreFactory(session=self._session)
 
-        for collection in (channel.indicator_table_name, channel.available_dimensions_table_name):
-            vector_store = vector_store_factory.get_vector_store(
+        collections = [
+            channel.indicator_table_name,
+            channel.available_dimensions_table_name,
+            channel.special_dimensions_table_name,
+        ]
+        for collection in collections:
+            vector_store = await vector_store_factory.get_vector_store(
                 collection_name=collection,
                 auth_context=auth_context,
                 embedding_model_name=channel.llm_model,
@@ -131,7 +136,7 @@ class AdminPortalChannelService(ChannelService):
             and channel_schema.details.plain_content.details.file_path
         ):
             await self._export_dial_file_to_folder(
-                channel_schema.details.plain_content.details.file_path, folder_path
+                channel_schema.details.plain_content.details.file_path, folder_path, auth_context
             )
 
         channel_file = os.path.join(folder_path, JobsConfig.CHANNEL_FILE)
@@ -164,8 +169,8 @@ class AdminPortalChannelService(ChannelService):
                         file_path, dial_file_path, auth_context
                     )
 
-        with zip_file.open(JobsConfig.CHANNEL_FILE) as file:
-            channel_data_json = yaml.safe_load(file.read())
+        with zip_file.open(JobsConfig.CHANNEL_FILE) as channel_file:
+            channel_data_json = yaml.safe_load(channel_file.read())
 
         channel_data = schemas.ChannelBase.model_validate(channel_data_json)
         logger.info(f"Importing channel: {channel_data!r}")

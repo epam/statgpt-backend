@@ -12,10 +12,14 @@ from common.auth.auth_context import AuthContext
 from common.config.utils import replace_env
 from common.schemas.dataset import Status
 
+from .attribute import Attribute
 from .base import BaseEntity, EntityType
 from .dimension import Dimension, VirtualDimension, VirtualDimensionConfig
 from .indicator import BaseIndicator
 from .query import DataSetAvailabilityQuery, DataSetQuery, Query
+
+if t.TYPE_CHECKING:
+    from common.data.base.datasource import DataSourceHandler
 
 
 class DatasetCitation(BaseModel):
@@ -57,6 +61,11 @@ class IndexerConfig(BaseModel):
     model_config = ConfigDict(alias_generator=alias_generators.to_camel, populate_by_name=True)
 
 
+class SpecialDimension(BaseModel):
+    dimension_id: str = Field()
+    processor_id: str = Field()
+
+
 class DataSetConfig(BaseModel, ABC):
     is_official: bool = Field(default=False)
     dimension_default_queries: t.Dict[str, t.List[Query]] = Field(
@@ -65,6 +74,9 @@ class DataSetConfig(BaseModel, ABC):
     )
     citation: DatasetCitation | None = Field(default=None)
     indexer: IndexerConfig | None = Field(default=None)
+    special_dimensions: list[SpecialDimension] = Field(
+        default_factory=list, description="The list of dimensions which require a special handling"
+    )
     virtual_dimensions: t.List[VirtualDimensionConfig] = Field(
         description="The list of virtual dimensions (e.g. Country for datasets by national agencies)",
         default_factory=list,
@@ -86,6 +98,11 @@ class DataResponse(ABC):
     @property
     @abstractmethod
     def file_name(self) -> str:
+        pass
+
+    @property
+    @abstractmethod
+    def dataset_name(self) -> str:
         pass
 
     @property
@@ -130,6 +147,11 @@ class DataResponse(ABC):
 
     @property
     @abstractmethod
+    def json_query_old(self) -> dict | None:
+        """Return the query in JSON format. [Deprecated, use `json_query` instead]"""
+
+    @property
+    @abstractmethod
     def json_query(self) -> dict | None:
         """Return the query in JSON format."""
 
@@ -140,16 +162,25 @@ class DataResponse(ABC):
 
 
 DataSetConfigType = t.TypeVar("DataSetConfigType", bound=DataSetConfig)
+DataSourceHandlerType = t.TypeVar("DataSourceHandlerType", bound='DataSourceHandler')
 
 
-class DataSet(BaseEntity, t.Generic[DataSetConfigType], ABC):
+class DataSet(BaseEntity, t.Generic[DataSetConfigType, DataSourceHandlerType], ABC):
     _config: DataSetConfigType
+    _datasource: DataSourceHandlerType
 
-    def __init__(self, entity_id: str, title: str, config: DataSetConfigType):
+    def __init__(
+        self,
+        entity_id: str,
+        title: str,
+        config: DataSetConfigType,
+        datasource: DataSourceHandlerType,
+    ):
         BaseEntity.__init__(self)
         self._entity_id = entity_id
         self._title = title
         self._config = config
+        self._datasource = datasource
 
     @abstractmethod
     async def updated_at(self, auth_context: AuthContext) -> datetime | None:
@@ -176,8 +207,21 @@ class DataSet(BaseEntity, t.Generic[DataSetConfigType], ABC):
     def status(self) -> Status:
         pass
 
+    @property
+    @abstractmethod
+    def default_value_codes(self) -> list[str]:
+        pass
+
     @abstractmethod
     def dimensions(self) -> t.Sequence[Dimension]:
+        pass
+
+    @abstractmethod
+    def dimension(self, dimension_id: str) -> Dimension:
+        pass
+
+    @abstractmethod
+    def attributes(self) -> t.Sequence[Attribute]:
         pass
 
     def non_virtual_dimensions(self) -> t.Sequence[Dimension]:
@@ -185,6 +229,10 @@ class DataSet(BaseEntity, t.Generic[DataSetConfigType], ABC):
 
     @abstractmethod
     def non_indicator_dimensions(self) -> t.Sequence[Dimension]:
+        pass
+
+    @abstractmethod
+    def special_dimensions(self) -> dict[str, Dimension]:
         pass
 
     @abstractmethod
@@ -210,20 +258,35 @@ class DataSet(BaseEntity, t.Generic[DataSetConfigType], ABC):
         pass
 
 
-class OfflineDataSet(DataSet, t.Generic[DataSetConfigType], ABC):
+class OfflineDataSet(DataSet, t.Generic[DataSetConfigType, DataSourceHandlerType], ABC):
     """Class for cases where dataset loading failed"""
 
     def __init__(
-        self, entity_id: str, title: str, config: DataSetConfigType, status_details: str = ""
+        self,
+        entity_id: str,
+        title: str,
+        config: DataSetConfigType,
+        datasource: DataSourceHandlerType,
+        status_details: str = "",
     ):
-        super().__init__(entity_id, title, config)
+        super().__init__(entity_id, title, config, datasource)
         self._status_details = status_details
 
     @property
     def status(self) -> Status:
         return Status(status='offline', details=self._status_details)
 
+    @property
+    def default_value_codes(self) -> list[str]:
+        return []
+
     def dimensions(self) -> list[Dimension]:
+        return []
+
+    def dimension(self, dimension_id: str) -> Dimension:
+        raise RuntimeError("No dimensions for offline datasets")
+
+    def attributes(self) -> list[Attribute]:
         return []
 
     def dimensions_by_concept_name(self, concept_name) -> list[Dimension]:
@@ -234,6 +297,9 @@ class OfflineDataSet(DataSet, t.Generic[DataSetConfigType], ABC):
 
     def non_indicator_dimensions(self) -> list[Dimension]:
         return []
+
+    def special_dimensions(self) -> dict[str, Dimension]:
+        return {}
 
     def indicator_dimensions(self) -> list[Dimension]:
         return []

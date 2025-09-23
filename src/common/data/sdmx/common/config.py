@@ -1,9 +1,12 @@
+import logging
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, alias_generators
 
 from common.config import utils as config_utils
 from common.data.base import DataSetConfig, DataSourceConfig
+
+_log = logging.getLogger(__name__)
 
 
 class SdmxHeaders(BaseModel):
@@ -58,10 +61,68 @@ class SdmxConfig(BaseModel):
         return config_dict
 
 
+class SdmxRateLimitsConfig(BaseModel):
+
+    structure_requests_concurrency: str | None = Field(
+        default=None, description="The maximum number of concurrent structure requests"
+    )
+    availability_and_data_requests_concurrency: str | None = Field(
+        default=None, description="The maximum number of concurrent availability and data requests"
+    )
+
+    def get_structure_requests_concurrency(self) -> int | None:
+        if self.structure_requests_concurrency is None:
+            return None
+
+        try:
+            limit_str = config_utils.replace_env(self.structure_requests_concurrency)
+            limit = int(limit_str)
+            if limit <= 0:
+                raise ValueError(f"Concurrency limit must be positive, got: {limit}")
+            return limit
+        except (ValueError, TypeError) as e:
+            _log.warning(
+                f"Invalid structure_requests_concurrency '{self.structure_requests_concurrency}': {e}. "
+                f"Returning None (no limit)"
+            )
+            return None
+
+    def get_availability_and_data_requests_concurrency(self) -> int | None:
+        if self.availability_and_data_requests_concurrency is None:
+            return None
+
+        try:
+            limit_str = config_utils.replace_env(self.availability_and_data_requests_concurrency)
+            limit = int(limit_str)
+            if limit <= 0:
+                raise ValueError(f"Concurrency limit must be positive, got: {limit}")
+            return limit
+        except (ValueError, TypeError) as e:
+            _log.warning(
+                f"Invalid availability_and_data_requests_concurrency '{self.availability_and_data_requests_concurrency}': {e}. "
+                f"Returning None (no limit)"
+            )
+            return None
+
+
 class SdmxDataSourceConfig(DataSourceConfig):
     description: str = Field(default="", description="The description of the data source")
     sdmx_config: SdmxConfig = Field(description="The configuration for the SDMX data source")
     locale: str = Field(default="en", description="Locale")
+    default_value_codes: list[str] = Field(
+        default_factory=list,
+        description=(
+            "List of default value codes to use when a dimension is not specified in a query. "
+            "E.g. in SDMX standard codes are `_Z` - Not Applicable/Not Available, `_T` - Total, etc."
+        ),
+    )
+    sdmx1_source: str | None = Field(
+        default=None, description="The name of the sdmx1 source to use in python code (if any)"
+    )
+    rate_limits: SdmxRateLimitsConfig = Field(
+        default_factory=SdmxRateLimitsConfig,
+        description="The rate limits configuration for the SDMX data source",
+    )
 
     def get_id(self) -> str:
         return self.sdmx_config.id
@@ -104,6 +165,15 @@ class SdmxDataSetConfig(DataSetConfig):
     fixed_indicator: FixedItem | None = Field(default=None)
     include_attributes: list[str] | None = Field(
         default=None, description="List of attributes to add to the query results table"
+    )
+    default_value_codes: list[str] | None = Field(
+        default=None,
+        description=(
+            "List of default value codes to use when a dimension is not specified in a query. "
+            "E.g. in SDMX standard codes are `_Z` - Not Applicable/Not Available, `_T` - Total, etc. "
+            "If not set, the default value codes from the data source configuration will be used. "
+            "If set to an empty list, no default value codes will be used."
+        ),
     )
 
     def get_source_id(self) -> str:

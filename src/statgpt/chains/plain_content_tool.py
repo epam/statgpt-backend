@@ -1,8 +1,8 @@
 from common.auth.auth_context import AuthContext
-from common.config import DialConfig
 from common.config.utils import replace_envs
 from common.schemas import PlainContentTool as PlainContentToolConfig
 from common.schemas import ToolTypes
+from common.settings.dial import dial_settings
 from common.utils import MediaTypes
 from common.utils.dial import dial_core_factory
 from statgpt.chains.tools import StatGptTool
@@ -21,7 +21,7 @@ class _PlainContentToolAuthContext(AuthContext):
 
     @property
     def api_key(self) -> str:
-        return DialConfig.get_api_key().get_secret_value()
+        return dial_settings.api_key.get_secret_value()
 
 
 class PlainContentTool(StatGptTool[PlainContentToolConfig], tool_type=ToolTypes.PLAIN_CONTENT):
@@ -32,7 +32,7 @@ class PlainContentTool(StatGptTool[PlainContentToolConfig], tool_type=ToolTypes.
     async def _arun(self, inputs: dict) -> tuple[str, ToolArtifact]:
         # it's assumed that file is stored under app's API key
         async with dial_core_factory(
-            DialConfig.get_url(), _PlainContentToolAuthContext().api_key
+            dial_settings.url, _PlainContentToolAuthContext().api_key
         ) as dial_core:
             content, content_type = await dial_core.get_file_by_path(
                 self._tool_config.details.file_path

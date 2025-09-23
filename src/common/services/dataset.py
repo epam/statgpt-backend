@@ -12,7 +12,10 @@ import common.schemas as schemas
 from common.auth.auth_context import AuthContext
 from common.config import multiline_logger as logger
 from common.data.base import DataSet, DataSourceHandler
+from common.settings.dataflow_loader import DataflowLoaderSettings
+from common.utils import async_utils
 
+from .base import DbServiceBase
 from .data_source import DataSourceSerializer, DataSourceService, DataSourceTypeService
 
 
@@ -56,9 +59,11 @@ class ChannelDataSetSerializer:
         )
 
 
-class DataSetService:
-    def __init__(self, session: AsyncSession) -> None:
-        self._session = session
+class DataSetService(DbServiceBase):
+    _SETTINGS = DataflowLoaderSettings()
+
+    def __init__(self, session: AsyncSession, session_lock: asyncio.Lock | None = None) -> None:
+        super().__init__(session, session_lock)
 
     @staticmethod
     def _apply_filters(
@@ -82,7 +87,8 @@ class DataSetService:
     ) -> int:
         query = select(func.count("*")).select_from(models.DataSet)  # type: ignore
         query = self._apply_filters(query, source_id=source_id, channel_id=channel_id, ids=ids)
-        return (await self._session.execute(query)).scalar_one()
+        async with self._lock_session() as session:
+            return (await session.execute(query)).scalar_one()
 
     async def get_datasets_models(
         self,
@@ -101,7 +107,8 @@ class DataSetService:
 
         query = self._apply_filters(query, source_id=source_id, channel_id=channel_id, ids=ids)
 
-        q_result = await self._session.scalars(query.limit(limit).offset(offset))
+        async with self._lock_session() as session:
+            q_result = await session.scalars(query.limit(limit).offset(offset))
         return [item for item in q_result.all()]
 
     async def get_datasets_schemas(
@@ -113,6 +120,7 @@ class DataSetService:
         channel_id: int | None = None,
         ids: Iterable[int] | None = None,
         allow_offline: bool = False,
+        allow_cached_datasets: bool = False,
     ) -> list[schemas.DataSet]:
         items = await self.get_datasets_models(
             limit=limit,
@@ -135,10 +143,13 @@ class DataSetService:
                     config=item.details,
                     auth_context=auth_context,
                     allow_offline=allow_offline,
+                    allow_cached=allow_cached_datasets,
                 )
             )
 
-        datasets: list[DataSet] = await asyncio.gather(*tasks)
+        datasets: list[DataSet] = await async_utils.gather_with_concurrency(
+            self._SETTINGS.dataset_concurrency_limit, *tasks
+        )
 
         return [
             DataSetSerializer.db_to_schema(item, ds, expand=True)
@@ -146,8 +157,8 @@ class DataSetService:
         ]
 
     async def _get_handler(self, data_source_id: int) -> DataSourceHandler:
-        source_service = DataSourceService(self._session)
-        source_type_service = DataSourceTypeService(self._session)
+        source_service = DataSourceService(self._session, session_lock=self._session_lock)
+        source_type_service = DataSourceTypeService(self._session, session_lock=self._session_lock)
 
         source: models.DataSource = await source_service.get_by_id(data_source_id)
         handler_class = await source_type_service.get_data_source_handler_class_by_id(
@@ -163,9 +174,11 @@ class DataSetService:
         options = None
         if expand:
             options = [selectinload(models.DataSet.source).selectinload(models.DataSource.type)]
-        item: models.DataSet | None = await self._session.get(
-            models.DataSet, item_id, options=options
-        )
+
+        async with self._lock_session() as session:
+            item: models.DataSet | None = await session.get(
+                models.DataSet, item_id, options=options
+            )
         if not item:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -175,7 +188,9 @@ class DataSetService:
 
     async def get_model_by_id(self, item_id: int, expand: bool = False) -> models.DataSet:
         item = await self._get_item_or_raise(item_id, expand=expand)
-        await self._session.refresh(item, attribute_names=["source"])
+
+        async with self._lock_session() as session:
+            await session.refresh(item, attribute_names=["source"])
         return item
 
     async def get_schema_by_id(
@@ -203,24 +218,34 @@ class DataSetService:
         if dataset_id is not None:
             query = query.where(models.ChannelDataset.dataset_id == dataset_id)
 
-        return (await self._session.execute(query)).scalar_one()
+        async with self._lock_session() as session:
+            return (await session.execute(query)).scalar_one()
 
     async def get_channel_dataset_models(
         self, limit: int | None, offset: int, channel_id: int
     ) -> list[models.ChannelDataset]:
         query = select(models.ChannelDataset).where(models.ChannelDataset.channel_id == channel_id)
-        q_result = await self._session.scalars(query.limit(limit).offset(offset))
+        async with self._lock_session() as session:
+            q_result = await session.scalars(query.limit(limit).offset(offset))
         return [item for item in q_result.all()]
 
     async def get_channel_dataset_models_with_ds(
-        self, limit: int | None, offset: int, channel_id: int
+        self,
+        limit: int | None,
+        offset: int,
+        channel_id: int,
+        status: schemas.PreprocessingStatusEnum | None = None,
     ) -> list[models.ChannelDataset]:
         query = (
             select(models.ChannelDataset)
             .where(models.ChannelDataset.channel_id == channel_id)
             .options(joinedload(models.ChannelDataset.dataset))
         )
-        q_result = await self._session.scalars(query.limit(limit).offset(offset))
+        if status is not None:
+            query = query.where(models.ChannelDataset.preprocessing_status == status)
+
+        async with self._lock_session() as session:
+            q_result = await session.scalars(query.limit(limit).offset(offset))
         return [item for item in q_result.all()]
 
     async def get_channel_dataset_schemas(
@@ -249,7 +274,8 @@ class DataSetService:
             .where(models.ChannelDataset.channel_id == channel_id)
             .where(models.ChannelDataset.dataset_id == dataset_id)
         )
-        q_result = await self._session.scalars(query)
+        async with self._lock_session() as session:
+            q_result = await session.scalars(query)
         items = q_result.all()
 
         if not items:

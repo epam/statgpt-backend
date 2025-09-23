@@ -6,8 +6,9 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.runnables import Runnable, RunnableLambda, RunnablePassthrough
 from pydantic import BaseModel, ConfigDict, Field
 
-from common.config import LLMModelsConfig, logger
+from common.config import logger
 from common.data.sdmx.common.indicator import ComplexIndicatorComponentDetails
+from common.schemas import LLMModelConfig
 from statgpt.chains.candidates_selection_batched import (
     BatchedSelectionInnerChainFactory,
     BatchedSelectionOutputBase,
@@ -265,18 +266,13 @@ candidates:
     def __init__(
         self,
         candidates_key: str,
+        llm_model_config: LLMModelConfig,
         llm_api_base: str | None = None,
-        llm_model_name: str | None = None,
-        llm_temperature: float = 0.0,
     ):
-        # override
-        # llm_model_name = LLMModelsConfig.GPT_4_O_2024_08_06
-        llm_model_name = LLMModelsConfig.GPT_4_TURBO_2024_04_09
         super().__init__(
             candidates_key=candidates_key,
+            llm_model_config=llm_model_config,
             llm_api_base=llm_api_base,
-            llm_model_name=llm_model_name,
-            llm_temperature=llm_temperature,
         )
 
         # override, since we don't use parser and format instructions
@@ -433,15 +429,13 @@ class PackedIndicatorsSelectionV3ChainFactory(PackedIndicatorsSelectionV1ChainFa
     def __init__(
         self,
         candidates_key: str,
+        llm_model_config: LLMModelConfig,
         llm_api_base: str | None = None,
-        llm_model_name: str | None = None,
-        llm_temperature: float = 0.0,
     ):
         super().__init__(
             candidates_key=candidates_key,
+            llm_model_config=llm_model_config,
             llm_api_base=llm_api_base,
-            llm_model_name=llm_model_name,
-            llm_temperature=llm_temperature,
         )
 
         # override, since we don't use parser and format instructions
@@ -485,9 +479,8 @@ class PackedIndicatorsSelectionV3ChainFactory(PackedIndicatorsSelectionV1ChainFa
         # create inner chain
         inner_chain_factory = PackedIndicatorsSelectionV3InnerChainFactory(
             candidates_key=self._candidates_key,
+            llm_model_config=self._llm_model_config,
             llm_api_base=self._llm_api_base,
-            llm_model_name=self._llm_model_name,
-            llm_temperature=self._llm_temperature,
         )
 
         # wrap it in batched chain

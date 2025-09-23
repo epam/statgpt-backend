@@ -1,5 +1,5 @@
 from common.auth.auth_context import AuthContext
-from common.config import DialConfig
+from common.settings.dial import dial_settings
 
 
 class SystemUserAuthContext(AuthContext):
@@ -15,4 +15,4 @@ class SystemUserAuthContext(AuthContext):
 
     @property
     def api_key(self) -> str:
-        return DialConfig.get_api_key().get_secret_value()
+        return dial_settings.api_key.get_secret_value()

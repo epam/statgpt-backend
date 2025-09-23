@@ -111,8 +111,6 @@ class WebSearchTool(StatGptTool[WebSearchToolConfig], tool_type=ToolTypes.WEB_SE
     async def _arun(self, inputs: dict, query: str, **kwargs) -> tuple[str, ToolArtifact]:
         target = ChainParameters.get_target(inputs)
 
-        target.append_name(f": {query}")
-
         if error := self._validate_query(query):
             target.append_content(error)
             return error, ToolArtifact(state=ToolMessageState(type=self.tool_type))

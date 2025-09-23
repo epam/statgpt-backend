@@ -70,7 +70,7 @@ async def run_async_migrations() -> None:
     """
 
     async with optional_msi_token_manager_context():
-        engine = await SessionMaker().create_engine()
+        engine = await SessionMaker(SessionMaker.DEFAULT_ENGINE_CONFIG).create_engine()
         async with engine.connect() as connection:
             await connection.run_sync(do_run_migrations)
 

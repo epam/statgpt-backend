@@ -71,7 +71,7 @@ class OpenAiToDialStreamer:
             return self.content
 
         return (
-            f"{self.content}\n\n# Metadata of attached files:\n\n"
+            f"{self.content}\n\n### Metadata of attached files:\n\n"
             f"```json\n{self.attachments_metadata}\n```"
         )
 

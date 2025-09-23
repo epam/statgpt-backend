@@ -10,25 +10,28 @@ import yaml
 from fastapi import BackgroundTasks, HTTPException, status
 from pydantic import ValidationError
 from sqlalchemy import delete
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql.expression import func
 
 import common.models as models
 import common.schemas as schemas
 from admin_portal.auth.auth_context import SystemUserAuthContext
-from admin_portal.config import JobsConfig
+from admin_portal.settings.exim import ExImSettings, JobsConfig
 from common import utils
 from common.auth.auth_context import AuthContext
-from common.config import (
-    DimensionValueDocumentMetadataFields,
-    IndicatorDocumentMetadataFields,
-    VectorStoreMetadataFields,
-)
 from common.config import multiline_logger as logger
 from common.data import base
 from common.data.base.dataset import DataSetConfigType
 from common.indexer import IndexerFactory
 from common.schemas import PreprocessingStatusEnum as StatusEnum
 from common.services import DataSetSerializer, DataSetService
+from common.settings.document import (
+    DimensionValueDocumentMetadataFields,
+    IndicatorDocumentMetadataFields,
+    SpecialDimensionValueDocumentMetadataFields,
+    VectorStoreMetadataFields,
+)
+from common.utils import async_utils
 from common.utils.elastic import ElasticIndex, ElasticSearchFactory, SearchResult
 from common.vectorstore import EmbeddedDocument, VectorStore, VectorStoreFactory
 
@@ -39,6 +42,53 @@ from .data_source import DataSourceTypeService
 
 
 class AdminPortalDataSetService(DataSetService):
+
+    def __init__(self, session: AsyncSession) -> None:
+        super().__init__(session, None)  # No need for session lock in Admin Portal
+
+    _EXIM_SETTINGS = ExImSettings()
+
+    @staticmethod
+    def _get_vector_store_file_name(dataset: schemas.DataSet) -> str:
+        if dataset.data_source is None:
+            raise ValueError("Dataset data_source is not loaded")
+        return utils.escape_invalid_filename_chars(f"{dataset.data_source.title}_{dataset.id_}.csv")
+
+    @staticmethod
+    def _get_elasticsearch_store_file_name(dataset: schemas.DataSet) -> str:
+        return utils.escape_invalid_filename_chars(f"{dataset.title}.jsonl")
+
+    async def _export_single_dataset_vector_store(
+        self,
+        table: str,
+        vector_store: VectorStore,
+        dataset: schemas.DataSet,
+        vector_store_folder: str,
+    ) -> None:
+        logger.info(f"Exporting {table} (dataset: {dataset.title})...")
+        file_name = self._get_vector_store_file_name(dataset)
+        file_path = os.path.join(vector_store_folder, file_name)
+        logger.info(f"Saving to {file_path}")
+
+        with open(file_path, 'w', encoding=JobsConfig.ENCODING, newline='') as csv_file:
+            csv_writer = csv.writer(csv_file)
+            csv_writer.writerow(JobsConfig.CSV_COLUMNS)
+
+            documents = await vector_store.get_documents(
+                dataset_id=dataset.id, include_embeddings=True
+            )
+
+            rows: list[tuple] = []
+            for doc in documents:
+                metadata = {
+                    k: v
+                    for k, v in doc.metadata.items()
+                    if k not in VectorStoreMetadataFields.__ALL__
+                }
+                rows.append((doc.page_content, json.dumps(metadata), doc.embeddings))
+            csv_writer.writerows(rows)
+        logger.info(f"Exported {table} (dataset: {dataset.title})")
+
     async def _export_vector_store_data(
         self,
         channel: models.Channel,
@@ -49,8 +99,13 @@ class AdminPortalDataSetService(DataSetService):
         logger.info("Exporting vector store data...")
         vector_store_factory = VectorStoreFactory(session=self._session)
 
-        for table in [channel.available_dimensions_table_name, channel.indicator_table_name]:
-            vector_store = vector_store_factory.get_vector_store(
+        collections = [
+            channel.available_dimensions_table_name,
+            channel.indicator_table_name,
+            channel.special_dimensions_table_name,
+        ]
+        for table in collections:
+            vector_store = await vector_store_factory.get_vector_store(
                 collection_name=table,
                 auth_context=auth_context,
                 embedding_model_name=channel.llm_model,
@@ -59,48 +114,62 @@ class AdminPortalDataSetService(DataSetService):
             vector_store_folder = os.path.join(res_dir, table.split('_', maxsplit=1)[0])
             os.makedirs(vector_store_folder, exist_ok=True)
 
-            for dataset in datasets:
-                logger.info(f"Exporting {table} (dataset: {dataset.title})...")
-                file_name = utils.escape_invalid_filename_chars(
-                    f"{dataset.data_source.title}_{dataset.title}.csv"
+            tasks = [
+                self._export_single_dataset_vector_store(
+                    table, vector_store, dataset, vector_store_folder
                 )
-                file_path = os.path.join(vector_store_folder, file_name)
-                logger.info(f"Saving to {file_path}")
-
-                with open(file_path, 'w', encoding=JobsConfig.ENCODING, newline='') as csv_file:
-                    csv_writer = csv.writer(csv_file)
-                    csv_writer.writerow(JobsConfig.CSV_COLUMNS)
-
-                    documents = await vector_store.get_documents(
-                        dataset_id=dataset.id, include_embeddings=True
-                    )
-
-                    rows: list[tuple] = []
-                    for doc in documents:
-                        metadata = {
-                            k: v
-                            for k, v in doc.metadata.items()
-                            if k not in VectorStoreMetadataFields.__ALL__
-                        }
-                        rows.append((doc.page_content, json.dumps(metadata), doc.embeddings))
-                    csv_writer.writerows(rows)
-                logger.info(f"Exported {table} (dataset: {dataset.title})")
+                for dataset in datasets
+            ]
+            await async_utils.gather_with_concurrency(
+                self._EXIM_SETTINGS.vector_store_concurrency_limit, *tasks
+            )
         logger.info("Finished exporting vector store data")
+
+    @staticmethod
+    async def _es_get_all(index: ElasticIndex, dataset_id: str) -> SearchResult:
+        query = {"term": {"dataset_id": dataset_id}}
+        # Initial request with scroll enabled
+        res = await index.search(query=query, scroll="2m", size=10000)
+        all_hits = res.hits.hits
+        scroll_id = res.scroll_id
+        while scroll_id is not None:
+            res_scroll = await index.scroll(scroll_id=scroll_id, scroll="2m")
+            hits = res_scroll.hits.hits
+            if not hits:
+                break
+            all_hits.extend(hits)
+            scroll_id = res_scroll.scroll_id
+        res.hits.hits = all_hits
+        return res
+
+    async def _export_single_dataset_elastic_data(
+        self,
+        index: ElasticIndex,
+        dataset: schemas.DataSet,
+        index_folder: str,
+    ) -> None:
+        logger.info(f"Exporting elastic data (dataset: {dataset.title})...")
+        res = await self._es_get_all(index, str(dataset.id))
+        documents = [hit.source for hit in res.hits.hits]
+
+        file_name = self._get_elasticsearch_store_file_name(dataset)
+        file_path = os.path.join(index_folder, file_name)
+
+        for d in documents:
+            # append to jsonl file
+            utils.write_json(
+                obj=d,
+                fp=file_path,
+                mode='a+',
+                encoding=JobsConfig.ENCODING,
+                indent=None,
+                add_newline=True,
+            )
+        logger.info(f"Exported elastic data (dataset: {dataset.title})")
 
     async def _export_elastic_data(
         self, channel: models.Channel, datasets: Iterable[schemas.DataSet], res_dir: str
     ) -> None:
-        async def _es_get_all(index: ElasticIndex, dataset_id: str) -> SearchResult:
-            query = {
-                "term": {"dataset_id": dataset_id},
-            }
-            res = await index.search(query=query, size=10000)
-
-            if res.hits.total.value > 10000:
-                # Our indexes contain less than 10 thousand documents, but added a check just in case
-                raise RuntimeError(f"Too many documents to export: {res.hits.total.value}")
-
-            return res
 
         logger.info("Exporting elastic data...")
 
@@ -116,23 +185,13 @@ class AdminPortalDataSetService(DataSetService):
             index_folder = os.path.join(res_dir, folder)
             os.makedirs(index_folder, exist_ok=True)
 
-            for dataset in datasets:
-                res = await _es_get_all(index, str(dataset.id))
-                documents = [hit.source for hit in res.hits.hits]
-
-                file_name = utils.escape_invalid_filename_chars(f"{dataset.title}.jsonl")
-                file_path = os.path.join(index_folder, file_name)
-
-                for d in documents:
-                    # append to jsonl file
-                    utils.write_json(
-                        obj=d,
-                        fp=file_path,
-                        mode='a+',
-                        encoding=JobsConfig.ENCODING,
-                        indent=None,
-                        add_newline=True,
-                    )
+            tasks = [
+                self._export_single_dataset_elastic_data(index, dataset, index_folder)
+                for dataset in datasets
+            ]
+            await async_utils.gather_with_concurrency(
+                self._EXIM_SETTINGS.elastic_concurrency_limit, *tasks
+            )
         logger.info("Finished exporting elastic data")
 
     async def export_datasets(
@@ -152,6 +211,8 @@ class AdminPortalDataSetService(DataSetService):
         data = []
         for dataset in datasets:
             dataset_json = dataset.model_dump(mode='json', include=JobsConfig.DATASET_FIELDS)
+            if dataset.data_source is None:
+                raise ValueError("Dataset data_source is not loaded")
             dataset_json['dataSource'] = dataset.data_source.title
             data.append(dataset_json)
 
@@ -167,6 +228,10 @@ class AdminPortalDataSetService(DataSetService):
         await DataSourceService.export_data_sources(data_sources.values(), res_dir)
 
         await self._export_vector_store_data(channel, datasets, res_dir, auth_context)
+
+        if channel_config.data_query is None:
+            logger.info("No data query configured, skipping elastic data export")
+            return
 
         indexer_version = channel_config.data_query.details.indexer_version
         logger.info(f"Indexer version: {indexer_version}")
@@ -218,7 +283,7 @@ class AdminPortalDataSetService(DataSetService):
                         logger.info(f"Dataset '{dataset_cfg['title']}' already exists. Skipping.")
                 else:
                     dataset = await self.create_dataset(parsed_dataset, auth_context=auth_context)
-                    dataset.data_source = data_source
+                    dataset.data_source = data_source  # type: ignore
                     logger.info(f"Created dataset {dataset.title}")
 
                 datasets.append(dataset)
@@ -251,8 +316,13 @@ class AdminPortalDataSetService(DataSetService):
         logger.info("Importing vector store data...")
         vector_store_factory = VectorStoreFactory(session=self._session)
 
-        for table in [channel.available_dimensions_table_name, channel.indicator_table_name]:
-            vector_store = vector_store_factory.get_vector_store(
+        collections = [
+            channel.available_dimensions_table_name,
+            channel.indicator_table_name,
+            channel.special_dimensions_table_name,
+        ]
+        for table in collections:
+            vector_store = await vector_store_factory.get_vector_store(
                 collection_name=table,
                 embedding_model_name=channel.llm_model,
                 auth_context=auth_context,
@@ -261,9 +331,7 @@ class AdminPortalDataSetService(DataSetService):
 
             for dataset in datasets:
                 logger.info(f"Importing {table} (dataset: {dataset.title})...")
-                file_name = utils.escape_invalid_filename_chars(
-                    f"{dataset.data_source.title}_{dataset.title}.csv"
-                )
+                file_name = self._get_vector_store_file_name(dataset)
                 file_path = os.path.join(table_folder, file_name)
                 logger.info(f"Opening {file_path}")
 
@@ -320,7 +388,7 @@ class AdminPortalDataSetService(DataSetService):
 
         for folder, index in indexes:
             for dataset in datasets:
-                file_name = utils.escape_invalid_filename_chars(f"{dataset.title}.jsonl")
+                file_name = self._get_elasticsearch_store_file_name(dataset)
                 file_path = os.path.join(folder, file_name)
 
                 if file_path not in zip_file.namelist():
@@ -359,7 +427,7 @@ class AdminPortalDataSetService(DataSetService):
         )
 
         datasets = await self._import_datasets(
-            zip_file, data_sources, update_datasets, auth_context=auth_context
+            zip_file, data_sources, update_datasets, auth_context=auth_context  # type: ignore
         )
         channel_datasets = await self._add_datasets_to_channel(
             channel_id=channel_db.id, datasets=datasets, preprocessing_status=StatusEnum.QUEUED
@@ -367,12 +435,15 @@ class AdminPortalDataSetService(DataSetService):
 
         await self._import_vector_store_tables(zip_file, channel_db, datasets, auth_context)
 
-        indexer_version = channel_config.data_query.details.indexer_version
-        logger.info(f"Indexer version: {indexer_version}")
-        if indexer_version == schemas.IndexerVersion.hybrid:
-            await self._import_elastic_data(zip_file, channel_db, datasets)
+        if channel_config.data_query is None:
+            logger.info("No data query configured, skipping data import")
         else:
-            logger.info("Skipping importing elastic data")
+            indexer_version = channel_config.data_query.details.indexer_version
+            logger.info(f"Indexer version: {indexer_version}")
+            if indexer_version == schemas.IndexerVersion.hybrid:
+                await self._import_elastic_data(zip_file, channel_db, datasets)
+            else:
+                logger.info("Skipping importing elastic data")
 
         for channel_dataset in channel_datasets:
             channel_dataset.preprocessing_status = StatusEnum.COMPLETED
@@ -523,21 +594,25 @@ class AdminPortalDataSetService(DataSetService):
         await self._session.execute(query)
         await self._session.commit()
 
-        await self._clear_indicators(channel, dataset, auth_context=auth_context)
+        await self._clear_vector_stores(channel, dataset, auth_context=auth_context)
 
-    async def _clear_indicators(
+    async def _clear_vector_stores(
         self, channel: models.Channel, dataset: models.DataSet, auth_context: AuthContext
     ):
         vector_store_factory = VectorStoreFactory(session=self._session)
-        vector_store = vector_store_factory.get_vector_store(
-            collection_name=channel.indicator_table_name,
-            auth_context=auth_context,
-            embedding_model_name=channel.llm_model,
-        )
 
-        await vector_store.remove_documents_by_dataset_id(dataset.id)
-
-        # TODO: clear available dimensions as well
+        collections = [
+            channel.indicator_table_name,
+            channel.special_dimensions_table_name,
+            channel.available_dimensions_table_name,
+        ]
+        for collection_name in collections:
+            vector_store = await vector_store_factory.get_vector_store(
+                collection_name=collection_name,
+                auth_context=auth_context,
+                embedding_model_name=channel.llm_model,
+            )
+            await vector_store.remove_documents_by_dataset_id(dataset.id)
 
     async def _update_channel_dataset_status(
         self, item: models.ChannelDataset, new_status: StatusEnum
@@ -688,10 +763,10 @@ class AdminPortalDataSetService(DataSetService):
                 reload_indicators_in_background_task,
                 channel_id=channel.id,
                 dataset_id=db_dataset.id,
-                # do not reindex dimensions if it's already been done
-                reindex_indicators=reindex_indicators and not normalization_required,
+                reindex_indicators=reindex_indicators,
                 harmonize_indicator=True,
-                reindex_dimensions=reindex_dimensions,
+                # do not reindex dimensions if it's already been done
+                reindex_dimensions=reindex_dimensions and not normalization_required,
                 auth_context=auth_context,
                 previous_status=previous_status,
                 max_n_embeddings=max_n_embeddings,
@@ -701,6 +776,8 @@ class AdminPortalDataSetService(DataSetService):
     @staticmethod
     def _is_harmonization_supported(channel: models.Channel) -> bool:
         channel_config = schemas.ChannelConfig.model_validate(channel.details)
+        if channel_config.data_query is None:
+            return False
         indexer_version = channel_config.data_query.details.indexer_version
         return indexer_version == schemas.IndexerVersion.hybrid
 
@@ -736,6 +813,7 @@ class AdminPortalDataSetService(DataSetService):
         harmonize_indicator: bool,
         max_n_embeddings: int | None,
         auth_context: AuthContext,
+        cleanup_indexes: bool,
     ):
         matching_index = await ElasticSearchFactory.get_index(
             channel.matching_index_name, allow_creation=True
@@ -743,6 +821,16 @@ class AdminPortalDataSetService(DataSetService):
         indicators_index = await ElasticSearchFactory.get_index(
             channel.indicators_index_name, allow_creation=True
         )
+
+        if not harmonize_indicator:
+            logger.info("Clearing existing indicators in the matching and indicators indexes")
+            query = {
+                "bool": {
+                    "must": [{"match": {"dataset_id": {"query": dataset.entity_id}}}],
+                }
+            }
+            await matching_index.delete_by_query(query=query)
+            await indicators_index.delete_by_query(query=query)
 
         indexer = IndexerFactory(
             auth_context.api_key, matching_index, indicators_index, vector_store
@@ -759,14 +847,15 @@ class AdminPortalDataSetService(DataSetService):
         vector_store_factory: VectorStoreFactory,
         auth_context: AuthContext,
     ):
-        vector_store = vector_store_factory.get_vector_store(
-            collection_name=channel.available_dimensions_table_name,
+        collection = channel.available_dimensions_table_name
+        vector_store = await vector_store_factory.get_vector_store(
+            collection_name=collection,
             embedding_model_name=channel.llm_model,
             auth_context=auth_context,
         )
 
         if previous_status in [StatusEnum.COMPLETED, StatusEnum.FAILED]:
-            logger.info(f"Clear existing data for the {channel_dataset}")
+            logger.info(f"Clear existing data for the {channel_dataset} in the {collection}")
             await vector_store.remove_documents_by_dataset_id(db_dataset.id)
 
         dimensions = dataset.non_indicator_dimensions()
@@ -782,6 +871,33 @@ class AdminPortalDataSetService(DataSetService):
                 documents.append(document)
         await vector_store.add_documents(documents, dataset_id=db_dataset.id)
 
+        # ~~~~~ Special dimensions ~~~~~
+
+        collection = channel.special_dimensions_table_name
+        vector_store = await vector_store_factory.get_vector_store(
+            collection_name=collection,
+            embedding_model_name=channel.llm_model,
+            auth_context=auth_context,
+        )
+
+        if previous_status in [StatusEnum.COMPLETED, StatusEnum.FAILED]:
+            logger.info(f"Clear existing data for the {channel_dataset} in the {collection}")
+            await vector_store.remove_documents_by_dataset_id(db_dataset.id)
+
+        documents = []
+        for processor_id, dimension in dataset.special_dimensions().items():
+            if not isinstance(dimension, base.CategoricalDimension):
+                continue
+            category_values = dimension.available_values
+            for value in category_values:
+                document = value.to_document()
+                field_name = SpecialDimensionValueDocumentMetadataFields.DATA_SOURCE_ID
+                document.metadata[field_name] = db_dataset.source_id
+                field_name = SpecialDimensionValueDocumentMetadataFields.PROCESSOR_ID
+                document.metadata[field_name] = processor_id
+                documents.append(document)
+        await vector_store.add_documents(documents, dataset_id=db_dataset.id)
+
     async def _index_channel_indicators(
         self,
         channel: models.Channel,
@@ -794,7 +910,7 @@ class AdminPortalDataSetService(DataSetService):
         dataset: base.DataSet,
         auth_context: AuthContext,
     ):
-        vector_store = vector_store_factory.get_vector_store(
+        vector_store = await vector_store_factory.get_vector_store(
             collection_name=channel.indicator_table_name,
             embedding_model_name=channel.llm_model,
             auth_context=auth_context,
@@ -805,11 +921,22 @@ class AdminPortalDataSetService(DataSetService):
             await vector_store.remove_documents_by_dataset_id(db_dataset.id)
 
         channel_config = schemas.ChannelConfig.model_validate(channel.details)
+
+        if channel_config.data_query is None:
+            logger.info(f"No data query found for {channel_dataset}, skipping indexing")
+            return
+
         indexer_version = channel_config.data_query.details.indexer_version
         logger.info(f"Indexer version: {indexer_version}")
         if indexer_version == schemas.IndexerVersion.hybrid:
             await self._run_hybrid_indexer(
-                channel, vector_store, dataset, harmonize_indicator, max_n_embeddings, auth_context
+                channel=channel,
+                vector_store=vector_store,
+                dataset=dataset,
+                harmonize_indicator=harmonize_indicator,
+                max_n_embeddings=max_n_embeddings,
+                auth_context=auth_context,
+                cleanup_indexes=not harmonize_indicator,
             )
         elif indexer_version == schemas.IndexerVersion.semantic:
             await self._run_semantic_indexer(

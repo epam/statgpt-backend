@@ -82,6 +82,10 @@ class CategoricalDimension(Dimension[CategoryType], t.Generic[CategoryType], ABC
         return self.values
 
     @abstractmethod
+    def name_by_query_id(self, query_id: str) -> str | None:
+        pass
+
+    @abstractmethod
     def has_value(self, value: CategoryType) -> bool:
         pass
 
@@ -116,6 +120,11 @@ class VirtualDimension(CategoricalDimension[VirtualDimensionCategory]):
     def has_value(self, value: VirtualDimensionCategory) -> bool:
         return value.entity_id == self._value.entity_id
 
+    def name_by_query_id(self, query_id: str) -> str | None:
+        if query_id == self._value.query_id:
+            return self._value.name
+        return None
+
     @property
     def is_mandatory(self) -> bool:
         return False
@@ -142,43 +151,6 @@ class VirtualDimension(CategoricalDimension[VirtualDimensionCategory]):
     @property
     def alias(self) -> str | None:
         return self._alias
-
-
-class IntegerDimension(Dimension[int], ABC):
-    def __init__(self):
-        super().__init__()
-
-    @property
-    def dimension_type(self) -> DimensionType:
-        return DimensionType.INTEGER
-
-    def available_operators(self) -> t.List[QueryOperator]:
-        return [
-            QueryOperator.EQUALS,
-            QueryOperator.GREATER_THAN,
-            QueryOperator.LESS_THAN,
-            QueryOperator.GREATER_THAN_OR_EQUALS,
-            QueryOperator.LESS_THAN_OR_EQUALS,
-        ]
-
-
-class DecimalDimension(Dimension[float], ABC):
-    def __init__(self):
-        super().__init__()
-
-    @property
-    def dimension_type(self) -> DimensionType:
-        return DimensionType.DECIMAL
-
-    def available_operators(self) -> t.List[QueryOperator]:
-        return [
-            QueryOperator.EQUALS,
-            QueryOperator.NOT_EQUALS,
-            QueryOperator.GREATER_THAN,
-            QueryOperator.LESS_THAN,
-            QueryOperator.GREATER_THAN_OR_EQUALS,
-            QueryOperator.LESS_THAN_OR_EQUALS,
-        ]
 
 
 class DateTimeDimension(Dimension[str], ABC):

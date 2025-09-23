@@ -92,24 +92,24 @@ prefilterSystemPromptDate: >-
     - "what are the main takeaways of the last sigma report?" → start="", end=""
       Ask for the last sigma report. It could be a report posted long time ago, still we need to pull it as the last. Therefore we don't limit the dates in any way
 
-    - "what are the key points of latest Sigma reports?" → start="", end=""
+    - "what are the key points of latest reports?" → start="", end=""
       Specifically asks for the latest reports
 
     - "what are the key points of the last 3 Economic Outlook reports?" → start="", end=""
       Ask for the last 3 Economic Outlook reports. It could be reports posted long time ago.
 
-    - "What are the reasons from Swiss Re for revising its GDP forecast for UK from last quarter" → start="", end=""
+    - "What are the reasons for revising its GDP forecast for UK from last quarter" → start="", end=""
       It's not clear what "last quarter" means, so we use don't set a date limit.
 
-    - "reasons for revising GDP forecast for UK from last quarter according to Swiss Re" → start="", end=""
+    - "reasons for revising GDP forecast for UK from last quarter" → start="", end=""
         Same as previous example, but rephrased.
 
-    - "What is Swiss Re's premium forecast for the the US in year 2025 and what is the rationale for this forecast" → start="", end=""
+    - "What is premium forecast for the the US in year 2025 and what is the rationale for this forecast" → start="", end=""
 
     - "what were the premiums forecast for 2023?" → start="", end="2023-12-31"
       The query asks for the premiums forecast for 2023, so we use end_date set to the end of 2023.
 
-    - "What was Swiss Re's Inflation forecast for Germany in year 2019 and what were the underlying drivers?" → start=", end="2019-12-31"
+    - "What was Inflation forecast for Germany in year 2019 and what were the underlying drivers?" → start=", end="2019-12-31"
       The query asks for the inflation forecast for 2019, so we use end_date set to the end of 2019.
 
 
@@ -178,7 +178,7 @@ prefilterSystemPromptLatest: >-
     - "What were the US premium forecast? Use only publications up to 2024" -> is_latest=true
       The query asks for the US premium forecast so we use latest, 2024 limits the end date of the search.
 
-    - "What was Swiss Re's Inflation forecast for Germany in year 2019 and what were the underlying drivers?" -> is_latest=true
+    - "What was Inflation forecast for Germany in year 2019 and what were the underlying drivers?" -> is_latest=true
       The query asks for the inflation forecast for 2019, so we use latest, 2019 is a forecasted year not a publication date.
 
     - "main insights from 2012" → is_latest=false
@@ -204,14 +204,14 @@ prefilterSystemPromptLatest: >-
     - what are the key points of the last 3 Economic Outlook reports?" -> is_latest=false
       Ask for the last 3 Economic Outlook reports. It could be reports posted long time ago.
 
-    - "What are the reasons from Swiss Re for revising its GDP forecast for UK from last quarter" -> is_latest=true
+    - "What are the reasons for revising its GDP forecast for UK from last quarter" -> is_latest=true
       It's not clear what "last quarter" means, so we use "latest" as the start date.
 
-    - "reasons for revising GDP forecast for UK from last quarter according to Swiss Re" -> is_latest=true
+    - "reasons for revising GDP forecast for UK from last quarter" -> is_latest=true
         Same as previous example, but rephrased.
 
 prefilterSystemPromptPublicationTypes: >-
-    Your task is to help the user to find the right SwissRe publication by narrowing down the search results.
+    Your task is to help the user to find the right publication by narrowing down the search results.
 
     You must fill in a publication type field in the filter object that selects publications.
 
@@ -250,17 +250,17 @@ prefilterSystemPromptLastNPublications: >-
     - "What are the publications on climate change from 2023?" -> {{"last_n_publications": None}}
     - "How did the last report update the forecast for natural catastrophes in 2025?" -> {{"last_n_publications": 1}}
     - "What are the top five factors driving insurance market growth worldwide?" -> {{"last_n_publications": None}}
-    - "What are the reasons for Swiss Re revising the premium forecast from last round" -> {{"last_n_publications": None}}
+    - "What are the reasons for revising the premium forecast from last round" -> {{"last_n_publications": None}}
       last round in this context means last round of forecasts, but we can't get the last round of forecasts by setting last_n_publications
       We can only get the last publication by that, which might not contain forecasts. So we don't limit the number of publications
-    - "What are the reasons for Swiss Re revising the premium forecast" -> {{"last_n_publications": None}}
+    - "What are the reasons for revising the premium forecast" -> {{"last_n_publications": None}}
       no mention of last publications, therefore we don't limit the number of publications
     - "According to previous three reports how big a risk is financial market instability today?" -> {{"last_n_publications": 3}}
     - "what are the underwriting trends according to the most recent short insights publication?" -> {{"last_n_publications": 1}}
     - "what are the main takeaways of the last month from sigma reports?" -> {{"last_n_publications": None}}
     - "How many people lost their lives in natural disasters in last five years" -> {{"last_n_publications": None}}
       Five years is a period, not a number of publications.
-    - "What are the reasons from Swiss Re for revising its GDP forecast for UK from last quarter" -> {{"last_n_publications": None}}
+    - "What are the reasons for revising its GDP forecast for UK from last quarter" -> {{"last_n_publications": None}}
       No mention of last publications, therefore we don't limit the number of publications
-    - "reasons for revising GDP forecast for UK from last quarter according to Swiss Re" -> {{"last_n_publications": None}}
+    - "reasons for revising GDP forecast for UK from last quarter" -> {{"last_n_publications": None}}
         Same as previous example, but rephrased.

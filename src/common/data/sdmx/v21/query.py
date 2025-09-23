@@ -3,8 +3,8 @@ from enum import StrEnum
 
 from pydantic import BaseModel, Field
 
-from common.config import multiline_logger as logger
 from common.data.sdmx.common import UrnParseError, UrnParser
+from common.schemas.base import BaseYamlModel
 
 
 class SdmxQueryReadinessStatus(StrEnum):
@@ -25,19 +25,20 @@ class SdmxDataSetQuery(BaseModel):
     categorical_dimensions: dict[str, list[str]] = Field(
         description="Categorical dimensions queries"
     )
-    datetime_dimensions: dict[str, list[str]] = Field(description="Datetime dimensions queries")
     time_dimension_query: TimeDimensionQuery | None = Field(description="Time dimension query")
     missing_dimensions: list[str] = Field(description="Missing dimensions")
 
     def __contains__(self, item):
-        return item in self.categorical_dimensions or item in self.datetime_dimensions
+        return item in self.categorical_dimensions or (
+            self.time_dimension_query is not None
+            and item == self.time_dimension_query.time_dimension_id
+        )
 
     @classmethod
     def empty(cls):
         return cls(
             status=SdmxQueryReadinessStatus.READY,
             categorical_dimensions={},
-            datetime_dimensions={},
             time_dimension_query=None,
             missing_dimensions=[],
         )
@@ -58,7 +59,9 @@ class SdmxDataSetQuery(BaseModel):
         return key
 
     def get_params(self) -> dict:
-        result = {}
+        result = {
+            "detail": "full",
+        }
         if self.time_dimension_query:
             if self.time_dimension_query.start_period:
                 result['startPeriod'] = self.time_dimension_query.start_period
@@ -75,7 +78,6 @@ class SdmxDataSetQuery(BaseModel):
         merged_query = SdmxDataSetQuery(
             status=SdmxQueryReadinessStatus.READY,
             categorical_dimensions=self._merge_categorical_dimensions(other),
-            datetime_dimensions=self._merge_datetime_dimensions(other),
             time_dimension_query=self._merge_time_dimension_query(other),
             missing_dimensions=self._merge_missing_dimensions(other),
         )
@@ -94,30 +96,6 @@ class SdmxDataSetQuery(BaseModel):
         for dimension_id, values in other.categorical_dimensions.items():
             if dimension_id not in res:
                 res[dimension_id] = values
-
-        return res
-
-    def _merge_datetime_dimensions(self, other: 'SdmxDataSetQuery') -> dict[str, list[str]]:
-        res = {}
-
-        for dimension_id, self_values in self.datetime_dimensions.items():
-            if other_values := other.datetime_dimensions.get(dimension_id):
-                try:
-                    start1, end1 = self_values[0], self_values[1]
-                    start2, end2 = other_values[0], other_values[1]
-                    res[dimension_id] = [min(start1, start2), max(end1, end2)]
-                except Exception:
-                    logger.exception(
-                        f"Failed to merge datetime dimensions for {dimension_id}:"
-                        f" {self_values=} and {other_values=}"
-                    )
-                    res[dimension_id] = self_values
-            else:
-                res[dimension_id] = self_values
-
-        for dimension_id, other_values in other.datetime_dimensions.items():
-            if dimension_id not in res:
-                res[dimension_id] = other_values
 
         return res
 
@@ -176,3 +154,36 @@ class SdmxDataSetAvailabilityQuery(BaseModel):
             if self.time_dimension_query.end_period:
                 result['endPeriod'] = self.time_dimension_query.end_period
         return result
+
+
+class JsonQueryOperator(StrEnum):
+    IN = "in"
+    BETWEEN = "between"
+    GE = "ge"
+    """Greater than or equal"""
+    LE = "le"
+    """Less than or equal"""
+    GT = "gt"
+    """Greater than"""
+    LT = "lt"
+    """Less than"""
+
+
+class JsonComponentQuery(BaseYamlModel):
+    component_code: str = Field(description="The code of the component")
+    operator: JsonQueryOperator = Field(description="The operator of the query")
+    values: list[str] = Field(description="The values of the query")
+
+
+class JsonQueryMetadata(BaseYamlModel):
+    country_dimension: str = Field(description="The country dimension code")
+    indicator_dimensions: list[str] = Field(description="The indicator dimension codes")
+
+
+class JsonQuery(BaseYamlModel):
+    urn: str = Field(description="The urn of the dataset")
+    filters: list[JsonComponentQuery] = Field(description="The list of component queries")
+
+
+class JsonQueryWithMetadata(JsonQuery):
+    metadata: JsonQueryMetadata = Field(description="The metadata of the query")

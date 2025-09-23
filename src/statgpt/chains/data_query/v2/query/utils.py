@@ -1,5 +1,7 @@
+from aidial_sdk.chat_completion import Stage
+
 from common.auth.auth_context import AuthContext
-from common.config import logger
+from common.config import multiline_logger as logger
 from common.data.base import (
     CategoricalDimension,
     DataResponse,
@@ -12,10 +14,13 @@ from common.data.base import (
     Query,
     QueryOperator,
 )
+from common.data.sdmx.common.config import FixedItem
 from common.data.sdmx.v21.dataset import Sdmx21DataSet
-from statgpt.config import DialAppConfig
+from common.schemas.enums import LocaleEnum
 from statgpt.schemas.query_builder import DatasetAvailabilityQueriesType, DatasetDimQueriesType
-from statgpt.utils.dataset_formatter import DatasetFormatter, DatasetFormatterConfig
+from statgpt.services.chat_facade import ScoredDimensionCandidate
+from statgpt.settings.dial_app import dial_app_settings
+from statgpt.utils.formatters import DatasetFormatterConfig, SimpleDatasetFormatter
 
 
 def filter_empty_dataset_availability_queries(queries: DatasetAvailabilityQueriesType):
@@ -108,15 +113,17 @@ class DatasetDimQueriesSimpleDictFormatter:
             prefix = '#' * header_level
             title = f'{prefix} {dataset.name}'
             if print_is_official and dataset.config.is_official:
-                title += f' {DialAppConfig.OFFICIAL_DATASET_LABEL}'
+                title += f' {dial_app_settings.official_dataset_label}'
             lines.append(title)
 
             n_tabs_for_query = 0
             if dataset_citation is True:
                 lines.append(f'* ID: {dataset.source_id}')
                 if dataset.config.citation:
-                    dataset_entry = await DatasetFormatter(
-                        DatasetFormatterConfig.create_citation_only(),
+                    dataset_entry = await SimpleDatasetFormatter(
+                        DatasetFormatterConfig.create_citation_only(
+                            locale=LocaleEnum.EN
+                        ),  # ToDo: refactor as part of data query formatting localization
                         auth_context=self._auth_context,
                     ).format(dataset)
 
@@ -176,7 +183,7 @@ async def format_dataset_queries(
         dataset_entry = f'### {dataset.name}'
 
         if print_is_official and dataset.config.is_official:
-            dataset_entry += f' {DialAppConfig.OFFICIAL_DATASET_LABEL}'
+            dataset_entry += f' {dial_app_settings.official_dataset_label}'
 
         if data_responses:
             response = data_responses.get(dataset_id)
@@ -195,8 +202,10 @@ async def format_dataset_queries(
         dataset_entry += f'\n* ID: {dataset.source_id}'
 
         if citation:
-            formatted_citation = await DatasetFormatter(
-                DatasetFormatterConfig.create_citation_only(),
+            formatted_citation = await SimpleDatasetFormatter(
+                DatasetFormatterConfig.create_citation_only(
+                    locale=LocaleEnum.EN
+                ),  # ToDo: refactor as part of data query formatting localization
                 auth_context=auth_context,
             ).format(dataset)
             dataset_entry += f"\n{formatted_citation}"
@@ -234,8 +243,9 @@ async def format_dataset_queries(
                 continue
 
             if isinstance(dimension, CategoricalDimension):
-                available_values = {v.query_id: v.name for v in dimension.available_values}
-                dataset_entry += '; '.join(f"**{available_values[v]}**" for v in dim_query.values)
+                dataset_entry += '; '.join(
+                    f"**{dimension.name_by_query_id(v)}**" for v in dim_query.values
+                )
             elif isinstance(dimension, DateTimeDimension):
                 dataset_entry += format_datetime_dimension_query(
                     dim_query=dim_query, dimension=dimension
@@ -258,7 +268,6 @@ async def format_dataset_queries(
                 for dimension in missing_dimensions:
                     dataset_entry += f"\n\t* _{dimension.name}_, ID: {dimension.entity_id}"
                     if availability and isinstance(dimension, CategoricalDimension):
-                        values_names = {v.query_id: v.name for v in dimension.available_values}
                         available_values_query = availability.dimensions_queries_dict.get(
                             dimension.entity_id
                         )
@@ -269,9 +278,7 @@ async def format_dataset_queries(
                             )
                             continue
                         sample_values = available_values_query.values[:10]
-                        dataset_entry += (
-                            f", example values: {', '.join(values_names[v] for v in sample_values)}"
-                        )
+                        dataset_entry += f", example values: {', '.join(dimension.name_by_query_id(v) for v in sample_values)}"
 
         if dataset.config.is_official:
             datasets_entries.insert(0, dataset_entry)
@@ -291,8 +298,16 @@ async def format_availability_queries(
     add_citation: bool = True,
 ) -> str:
     # NOTE: there is code duplication with "format_dataset_queries" function
-
-    logger.info(f'formatting following availability queries (dataset_queries): {dataset_queries}')
+    formatter = (
+        SimpleDatasetFormatter(
+            DatasetFormatterConfig.create_citation_only(
+                locale=LocaleEnum.EN
+            ),  # ToDo: refactor as part of data query formatting localization
+            auth_context=auth_context,
+        )
+        if add_citation
+        else None
+    )
 
     datasets_entries = []
     for dataset_id, query in sorted(dataset_queries.items(), key=lambda x: x[0]):
@@ -304,19 +319,17 @@ async def format_availability_queries(
         dataset_entry_lines.append(f'{prefix} {dataset.name}')
         dataset_entry_lines.append(f'* ID: {dataset.source_id}')
 
-        formatter = DatasetFormatter(
-            DatasetFormatterConfig.create_citation_only(), auth_context=auth_context
-        )
-        if add_citation:
+        if formatter:
             dataset_entry_lines.append(await formatter.format(dataset))
 
         dataset_entry_lines.append("* Query:")
 
+        dimensions = dataset.dimensions()
         categorical_dimensions: dict[str, CategoricalDimension] = {
-            d.entity_id: d for d in dataset.dimensions() if isinstance(d, CategoricalDimension)
+            d.entity_id: d for d in dimensions if isinstance(d, CategoricalDimension)
         }
         datetime_dimensions: dict[str, DateTimeDimension] = {
-            d.entity_id: d for d in dataset.dimensions() if isinstance(d, DateTimeDimension)
+            d.entity_id: d for d in dimensions if isinstance(d, DateTimeDimension)
         }
         indicators: set[str] = {d.entity_id for d in dataset.indicator_dimensions()}
 
@@ -325,15 +338,16 @@ async def format_availability_queries(
                 dim_postfix = ''
                 if dimension_id in indicators:
                     dim_postfix = " (Indicator)"
-                available_dim_values = {v.query_id: v.name for v in cat_dimension.available_values}
 
                 dimension_str = f'\t* _{cat_dimension.name}_{dim_postfix}'
                 if add_value_ids is True:
                     values_str_gen = (
-                        f"**[{v}] {available_dim_values[v]}**" for v in dim_query.values
+                        f"**[{v}] {cat_dimension.name_by_query_id(v)}**" for v in dim_query.values
                     )
                 else:
-                    values_str_gen = (f"**{available_dim_values[v]}**" for v in dim_query.values)
+                    values_str_gen = (
+                        f"**{cat_dimension.name_by_query_id(v)}**" for v in dim_query.values
+                    )
 
                 if format_values_as_list:
                     values_concat = '\n\t\t* ' + '\n\t\t* '.join(values_str_gen)
@@ -366,3 +380,89 @@ def format_missing_dimensions(
             dataset_entry += f"\n\t* _{dimension.name}_, ID: {dimension.entity_id}"
         datasets_entries.append(dataset_entry)
     return '\n\n'.join(datasets_entries)
+
+
+async def populate_queries_stage(
+    stage: Stage,
+    queries: DatasetAvailabilityQueriesType,
+    auth_context: AuthContext,
+    datasets_dict: dict[str, DataSet],
+) -> None:
+    if not queries:
+        stage.append_content("No queries")
+        return
+
+    content = await format_availability_queries(
+        auth_context=auth_context,
+        dataset_queries=queries,
+        datasets_dict=datasets_dict,
+        format_values_as_list=True,
+        add_value_ids=True,
+        add_citation=False,
+    )
+    stage.append_content(content)
+
+
+def dimension_candidates_to_queries(
+    candidates: list[ScoredDimensionCandidate],
+    date_time_query: DimensionQuery | None = None,
+    dataset_2_dim_2_all_values_term: dict[str, dict[str, FixedItem]] | None = None,
+    dataset_ids_to_be_present: list[str] | None = None,
+) -> DatasetAvailabilityQueriesType:
+    """
+    dataset_2_dim_2_all_values_term:
+        mapping from dataset_id
+        to mapping from dimension_id to "all_values" FixedItem.
+        dataset_id might map to any number of dimensions,
+        it's not guaranteed that all dimensions are present.
+
+    dataset_ids_to_be_present:
+        used to ensure queries are created for all provided datasets.
+        if None, keep only datasets present in candidates.
+    """
+    # grouped by dataset and dimension
+    candidates_grouped: dict[str, dict[str, set[ScoredDimensionCandidate]]] = {}
+    for c in candidates:
+        candidates_grouped.setdefault(c.dataset_id, {}).setdefault(c.dimension_id, set()).add(c)
+
+    def _dataset_candidates_to_query(
+        ds_candidates: dict[str, set[ScoredDimensionCandidate]], dataset_id: str
+    ) -> DataSetAvailabilityQuery:
+        query = DataSetAvailabilityQuery()
+
+        for dim_id, dim_candidates in ds_candidates.items():
+            candidates_ids = {c.query_id for c in dim_candidates}
+            dim_query = None
+            if dataset_2_dim_2_all_values_term:
+                all_values_term = dataset_2_dim_2_all_values_term.get(dataset_id, {}).get(dim_id)
+                if all_values_term and all_values_term.id in candidates_ids:
+                    # "all_values" is present in candidates - create a special query.
+                    # "all_values" is generally artificial (absent in code lists).
+                    # it's added by us, for example, in selecting non-indicator dimensions.
+                    dim_query = DimensionQuery(
+                        dimension_id=dim_id, values=[], operator=QueryOperator.ALL
+                    )
+            if dim_query is None:
+                dim_query = DimensionQuery(
+                    dimension_id=dim_id,
+                    values=list(candidates_ids),
+                    operator=QueryOperator.IN,
+                )
+            query.add_dimension_query(dim_query)
+
+        if date_time_query:
+            query.add_dimension_query(date_time_query)
+
+        return query
+
+    queries = {
+        ds_id: _dataset_candidates_to_query(ds_candidates, dataset_id=ds_id)
+        for ds_id, ds_candidates in candidates_grouped.items()
+    }
+
+    if dataset_ids_to_be_present:
+        for ds_id in dataset_ids_to_be_present:
+            if ds_id not in queries:
+                queries[ds_id] = _dataset_candidates_to_query({}, dataset_id=ds_id)
+
+    return queries

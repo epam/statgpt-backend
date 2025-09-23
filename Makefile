@@ -1,6 +1,6 @@
 POETRY_PYTHON ?= python3
 SRC_DIRS = src scripts
-MYPY_DIRS = src/common/data
+MYPY_DIRS = src/common src/admin_portal src/statgpt/utils/formatters
 
 -include .env
 export
@@ -11,6 +11,11 @@ init_venv:
 install_dev: init_venv
 	poetry install --with dev
 
+format: install_dev
+	autoflake ${SRC_DIRS}
+	black ${SRC_DIRS}
+	isort ${SRC_DIRS}
+
 lint: install_dev
 	poetry check --lock
 	poetry run flake8 ${SRC_DIRS}
@@ -19,6 +24,18 @@ lint: install_dev
 	poetry run autoflake ${SRC_DIRS} --check
 	# for now we only check data abstractions and services packages
 	poetry run mypy --show-error-codes ${MYPY_DIRS}
+
+install_pre_commit_hooks:
+	pre-commit install
+
+db_migrate:
+	alembic -c src/alembic.ini upgrade head
+
+db_downgrade:
+	alembic -c src/alembic.ini downgrade -1
+
+db_autogenerate:
+	alembic -c src/alembic.ini revision --autogenerate -m "$(MESSAGE)"
 
 test_db_migrate: export PGVECTOR_HOST=$(TEST_DATABASE_HOST)
 test_db_migrate: export PGVECTOR_PORT=$(TEST_DATABASE_PORT)
@@ -43,3 +60,28 @@ test_integration: test_db_migrate
 	poetry run pytest tests/integration --junitxml=reports/tests-int.xml
 
 test: test_unit test_integration
+
+# Localization commands for dataset formatters
+extract_messages:
+	@echo "Extracting translatable strings from formatters..."
+	@cd src/statgpt/utils/formatters && \
+	xgettext -d dataset -o locales/dataset.pot \
+		--language=Python \
+		--keyword=_ \
+		--from-code=UTF-8 \
+		base.py dataset_base.py dataset_simple.py dataset_detailed.py datasets_list_formatter.py citation.py
+
+update_messages:
+	@echo "Updating .po files from template..."
+	@cd src/statgpt/utils/formatters/locales && \
+	msgmerge --update en/LC_MESSAGES/dataset.po dataset.pot && \
+	msgmerge --update uk/LC_MESSAGES/dataset.po dataset.pot
+
+compile_messages:
+	@echo "Compiling .po files to .mo files..."
+	@cd src/statgpt/utils/formatters/locales && \
+	msgfmt -o en/LC_MESSAGES/dataset.mo en/LC_MESSAGES/dataset.po && \
+	msgfmt -o uk/LC_MESSAGES/dataset.mo uk/LC_MESSAGES/dataset.po
+
+# Convenience command to compile messages after changes
+locales: compile_messages

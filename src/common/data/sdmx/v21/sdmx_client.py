@@ -18,6 +18,7 @@ from common.auth.auth_context import AuthContext
 from common.config import multiline_logger as logger
 from common.data.sdmx.common.authorizer import IAuthorizer
 from common.data.sdmx.common.config import SdmxDataSourceConfig
+from common.data.sdmx.v21.ratelimiter import SdmxRateLimiter
 
 
 def init_sdmx(config: SdmxDataSourceConfig):
@@ -32,7 +33,7 @@ class AsyncSdmxClient:
 
     @classmethod
     def from_config(
-        cls, config: SdmxDataSourceConfig, auth_context: AuthContext
+        cls, config: SdmxDataSourceConfig, auth_context: AuthContext, rate_limiter: SdmxRateLimiter
     ) -> "AsyncSdmxClient":
         """Initialize the client from a configuration object."""
 
@@ -40,17 +41,19 @@ class AsyncSdmxClient:
         sync_client = Client(config.get_id())
         httpx_client = cls._create_httpx_client()
 
-        return cls(sync_client, httpx_client, None)
+        return cls(sync_client, httpx_client, None, rate_limiter)
 
     def __init__(
         self,
         sync_client: Client,
         httpx_client: httpx.AsyncClient,
         authorizer: IAuthorizer | None,
+        rate_limiter: SdmxRateLimiter,
     ):
         self._sync_client = sync_client
         self._httpx_client = httpx_client
         self._authorizer = authorizer
+        self._rate_limiter = rate_limiter
 
     async def dataflow(
         self,
@@ -61,7 +64,7 @@ class AsyncSdmxClient:
         params: dict[str, Any],
         use_cache: bool = False,
     ) -> StructureMessage:
-        return await self._get(  # type: ignore[return-value]
+        return await self._get_structure(  # type: ignore[return-value]
             resource_type=Resource.dataflow,
             agency_id=agency_id,
             resource_id=resource_id,
@@ -73,7 +76,7 @@ class AsyncSdmxClient:
     async def conceptscheme(
         self, *, agency_id: str, resource_id: str, version: str, use_cache: bool = False
     ) -> StructureMessage:
-        return await self._get(  # type: ignore[return-value]
+        return await self._get_structure(  # type: ignore[return-value]
             resource_type=Resource.conceptscheme,
             agency_id=agency_id,
             resource_id=resource_id,
@@ -84,7 +87,7 @@ class AsyncSdmxClient:
     async def codelist(
         self, *, agency_id: str, resource_id: str, version: str, use_cache: bool = False
     ) -> StructureMessage:
-        return await self._get(  # type: ignore[return-value]
+        return await self._get_structure(  # type: ignore[return-value]
             resource_type=Resource.codelist,
             agency_id=agency_id,
             resource_id=resource_id,
@@ -101,7 +104,7 @@ class AsyncSdmxClient:
         params: dict[str, str] | None = None,
         use_cache: bool = False,
     ) -> StructureMessage:
-        return await self._get(  # type: ignore[return-value]
+        return await self._get_structure(  # type: ignore[return-value]
             resource_type=Resource.hierarchicalcodelist,
             agency_id=agency_id,
             resource_id=resource_id,
@@ -125,7 +128,7 @@ class AsyncSdmxClient:
             raise ValueError("Please provide a DataStructureDefinition (dsd) when using `key`.")
 
         flow_ref = self._get_flow_ref(resource_id, agency_id, version)
-        return await self._get(  # type: ignore[return-value]
+        return await self._get_availability(  # type: ignore[return-value]
             resource_type=Resource.availableconstraint,
             resource_id=flow_ref,
             use_cache=use_cache,
@@ -146,13 +149,91 @@ class AsyncSdmxClient:
     ) -> DataMessage:
         flow_ref = self._get_flow_ref(resource_id, agency_id, version)
 
-        return await self._get(  # type: ignore[return-value]
+        return await self._get_data(  # type: ignore[return-value]
             resource_type=Resource.data,
             resource_id=flow_ref,
             key=key,
             params=params,
             dsd=dsd,
         )
+
+    async def _get_structure(
+        self,
+        *,
+        resource_type: Resource,
+        resource_id: str,
+        agency_id: str | None = None,
+        version: str | None = None,
+        key: dict[str, list[str]] | None = None,
+        params: dict[str, str] | None = None,
+        dsd: DataStructureDefinition | None = None,
+        use_cache: bool = False,
+        tofile: os.PathLike | IO | None = None,
+    ) -> Message:
+        async with self._rate_limiter.structure_limiter():
+            return await self._get(
+                resource_type=resource_type,
+                resource_id=resource_id,
+                agency_id=agency_id,
+                version=version,
+                key=key,
+                params=params,
+                dsd=dsd,
+                use_cache=use_cache,
+                tofile=tofile,
+            )
+
+    async def _get_availability(
+        self,
+        *,
+        resource_type: Resource,
+        resource_id: str,
+        agency_id: str | None = None,
+        version: str | None = None,
+        key: dict[str, list[str]] | None = None,
+        params: dict[str, str] | None = None,
+        dsd: DataStructureDefinition | None = None,
+        use_cache: bool = False,
+        tofile: os.PathLike | IO | None = None,
+    ) -> Message:
+        async with self._rate_limiter.availability_limiter():
+            return await self._get(
+                resource_type=resource_type,
+                resource_id=resource_id,
+                agency_id=agency_id,
+                version=version,
+                key=key,
+                params=params,
+                dsd=dsd,
+                use_cache=use_cache,
+                tofile=tofile,
+            )
+
+    async def _get_data(
+        self,
+        *,
+        resource_type: Resource,
+        resource_id: str,
+        agency_id: str | None = None,
+        version: str | None = None,
+        key: dict[str, list[str]] | None = None,
+        params: dict[str, str] | None = None,
+        dsd: DataStructureDefinition | None = None,
+        use_cache: bool = False,
+        tofile: os.PathLike | IO | None = None,
+    ) -> Message:
+        async with self._rate_limiter.data_limiter():
+            return await self._get(
+                resource_type=resource_type,
+                resource_id=resource_id,
+                agency_id=agency_id,
+                version=version,
+                key=key,
+                params=params,
+                dsd=dsd,
+                use_cache=use_cache,
+                tofile=tofile,
+            )
 
     async def _get(
         self,
@@ -277,4 +358,4 @@ class AsyncSdmxClient:
     @staticmethod
     def _create_httpx_client(*, headers: dict[str, str] | None = None) -> httpx.AsyncClient:
         """Create an HTTPX client with default settings."""
-        return httpx.AsyncClient(timeout=httpx.Timeout(60.0, connect=15.0), headers=headers)
+        return httpx.AsyncClient(timeout=httpx.Timeout(90.0, connect=45.0), headers=headers)

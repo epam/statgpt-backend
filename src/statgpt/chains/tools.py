@@ -1,4 +1,4 @@
-from abc import abstractmethod
+from abc import ABC, abstractmethod
 from collections.abc import MutableMapping
 from typing import Annotated, Any, Generic, TypeVar
 
@@ -58,7 +58,7 @@ class ToolArgs(BaseModel):
 ToolConfigType = TypeVar('ToolConfigType', bound=BaseToolConfig)
 
 
-class StatGptTool(BaseTool, Generic[ToolConfigType]):
+class StatGptTool(BaseTool, ABC, Generic[ToolConfigType]):
     response_format: str = "content_and_artifact"
 
     def __init_subclass__(cls, **kwargs):
@@ -94,6 +94,15 @@ class StatGptTool(BaseTool, Generic[ToolConfigType]):
 
         tool_name = self.name.replace('_', ' ')
         return f"Calling {tool_name} tool"
+
+    @property
+    def result_stage_name(self) -> str:
+        """Return the stage name of showing the result of this tool."""
+        if name := self._tool_config.details.stages_config.tool_result_name:
+            return name
+
+        tool_name = self.name.replace('_', ' ')
+        return f"Result from {tool_name} tool"
 
     def _run(self, *args: Any, **kwargs: Any) -> Any:
         """This method is implemented to satisfy the BaseTool interface.

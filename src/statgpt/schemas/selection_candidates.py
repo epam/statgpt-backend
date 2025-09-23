@@ -4,7 +4,7 @@ import itertools as it
 import typing as t
 from abc import ABC, abstractmethod
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class LLMSelectionCandidateBase(BaseModel, ABC):
@@ -43,6 +43,8 @@ class BatchedSelectionOutputBase(BaseModel, ABC):
 
 
 class SelectedCandidates(BatchedSelectionOutputBase):
+    model_config = ConfigDict(coerce_numbers_to_str=True)
+
     ids: list[str] = Field(
         description="The IDs of the relevant items. Could be empty if there are no relevant items"
     )

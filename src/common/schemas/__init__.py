@@ -21,12 +21,15 @@ from .glossary_of_terms import (
     GlossaryTermUpdateBulk,
 )
 from .jobs import ClearJobsResult, Job
+from .model_config import EmbeddingsModelConfig, LLMModelConfig
 from .tool_details import FakeCall, StagesConfig
 from .tools import (
     AvailableDatasetsTool,
     AvailablePublicationsTool,
     BaseToolConfig,
     DataQueryTool,
+    DatasetsMetadataTool,
+    DatasetStructureTool,
     FileRagTool,
     PlainContentTool,
     WebSearchAgentTool,

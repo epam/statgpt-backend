@@ -5,9 +5,9 @@ from typing import Any, Iterable
 from langchain_core.documents import Document
 from pydantic import BaseModel
 
-from common.config import IndicatorDocumentMetadataFields
 from common.data.base import BaseIndicator
 from common.data.base.category import DimensionCategory
+from common.settings.document import IndicatorDocumentMetadataFields
 
 from .category import CodeCategory, DimensionCodeCategory
 from .constants import SdmxConstants

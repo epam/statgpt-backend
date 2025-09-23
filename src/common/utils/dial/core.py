@@ -34,6 +34,12 @@ class DialCore:
         response.raise_for_status()
         return response.json()
 
+    async def get_user_info(self) -> dict[str, Any]:
+        """Retrieve information about a user."""
+        response = await self._client.get('/v1/user/info')
+        response.raise_for_status()
+        return response.json()
+
     async def get_models(self) -> dict[str, Any]:
         response = await self._client.get('/openai/models')
         response.raise_for_status()
@@ -106,7 +112,7 @@ class DialCore:
         response.raise_for_status()
 
     async def put_file(
-        self, name: str, mime_type: str, content: BytesIO, *, bucket: str | None = None
+        self, name: str, mime_type: str, content: BytesIO | bytes, *, bucket: str | None = None
     ) -> dict[str, Any]:
         if not bucket:
             bucket = await self.get_bucket()

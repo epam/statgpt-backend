@@ -5,15 +5,19 @@ class EntityType(StrEnum):
     DATA_SOURCE = "DataSource"
     DATA_SET = "DataSet"
     DIMENSION = "Dimension"
+    ATTRIBUTE = "Attribute"
     INDICATOR = "Indicator"
     CATEGORY = "Category"
     OTHER = "Other"
 
 
+class AttributeType(StrEnum):
+    CATEGORY = "category"
+    STRING = "string"
+
+
 class DimensionType(StrEnum):
     CATEGORY = "category"
-    INTEGER = "integer"
-    DECIMAL = "decimal"
     DATETIME = "datetime"
 
 

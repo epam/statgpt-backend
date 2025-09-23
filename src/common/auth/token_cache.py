@@ -1,7 +1,7 @@
 import time
 
 from common.auth.token import TokenResponseI
-from common.config.auth import TOKEN_EXPIRATION_BUFFER
+from common.settings.auth import auth_settings
 
 
 class TokenCache:
@@ -21,7 +21,7 @@ class TokenCache:
     def get_not_expired(self, key) -> TokenResponseI | None:
         token_info = self._cache.get(key)
         if token_info:
-            expires_at = token_info.expires_at - TOKEN_EXPIRATION_BUFFER
+            expires_at = token_info.expires_at - auth_settings.token_expiration_buffer
             if time.time() < expires_at:  # not expired
                 return token_info
         return None

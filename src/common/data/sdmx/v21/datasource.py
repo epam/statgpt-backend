@@ -1,7 +1,6 @@
 import typing as t
 from abc import ABC
 
-from httpx import HTTPStatusError
 from langchain_core.documents import Document
 from sdmx.message import StructureMessage
 from sdmx.model.v21 import DataflowDefinition as Dataflow
@@ -27,6 +26,7 @@ from common.data.sdmx.v21.dataset import Sdmx21DataSet, SdmxOfflineDataSet
 from common.data.sdmx.v21.dimensions_creator import DimensionsCreator
 from common.data.sdmx.v21.sdmx_client import AsyncSdmxClient
 
+from .ratelimiter import SdmxRateLimiterFactory
 from .schemas import Urn
 
 
@@ -64,35 +64,18 @@ class Sdmx21DataSourceHandler(
     def description(self) -> t.Optional[str]:
         return self._config.description
 
-    def create_sdmx_client(self, auth_context: AuthContext) -> AsyncSdmxClient:
-        return AsyncSdmxClient.from_config(self._config, auth_context)
+    async def create_sdmx_client(self, auth_context: AuthContext) -> AsyncSdmxClient:
+        rate_limiter = await SdmxRateLimiterFactory.get(
+            self._config.get_id(), self._config.rate_limits
+        )
+        return AsyncSdmxClient.from_config(self._config, auth_context, rate_limiter)
 
     async def is_dataset_available(self, config: dict, auth_context: AuthContext) -> bool:
-        if auth_context.is_system:
-            return True
-        else:
-            try:
-                urn = self._urn_parser.parse(config["urn"])
-                client = self.create_sdmx_client(auth_context)
-                await client.availableconstraint(
-                    agency_id=urn.agency_id,
-                    resource_id=urn.resource_id,
-                    version=urn.version if urn.version else "latest",
-                    params={"references": "none"},
-                    use_cache=False,
-                )
-                return True
-            except HTTPStatusError as e:
-                # availability endpoint returns 400 with NotFound instead of 403
-                # treat 400 as Forbidden as well
-                if e.response.status_code in [403, 400]:
-                    # 403 means user doesn't have access to dataset
-                    return False
-                else:
-                    raise e
+        # There is no authorization for SDMX datasets, so they are always available
+        return True
 
     async def list_datasets(self, auth_context: AuthContext) -> list[DataSetDescriptor]:
-        client = self.create_sdmx_client(auth_context)
+        client = await self.create_sdmx_client(auth_context)
 
         message: StructureMessage = await client.dataflow(
             agency_id="all", resource_id="all", version="latest", params={}
@@ -122,16 +105,29 @@ class Sdmx21DataSourceHandler(
         config: dict,
         auth_context: AuthContext,
         allow_offline: bool = False,
+        allow_cached: bool = False,
     ) -> Sdmx21DataSet | SdmxOfflineDataSet:
         dataset_config = self.parse_data_set_config(config)
-        _urn = self._urn_parser.parse(dataset_config.urn)
+
+        try:
+            _urn = self._urn_parser.parse(dataset_config.urn)
+        except Exception as e:
+            if allow_offline:
+                msg = f"Failed to parse the URN={dataset_config.urn!r} from the dataset configuration."
+                logger.exception(msg)
+                return SdmxOfflineDataSet(
+                    entity_id, title, dataset_config, self, status_details=msg
+                )
+            else:
+                raise e
+
         urn = Urn(
             agency_id=_urn.agency_id,
             resource_id=_urn.resource_id,
             version=_urn.version if _urn.version else "latest",
         )
 
-        sdmx_client = self.create_sdmx_client(auth_context)
+        sdmx_client = await self.create_sdmx_client(auth_context)
 
         try:
             dataflow_loader = DataflowLoader(sdmx_client)
@@ -140,7 +136,9 @@ class Sdmx21DataSourceHandler(
             if allow_offline:
                 msg = "Failed to load the dataflow or its associated structures."
                 logger.exception(msg)
-                return SdmxOfflineDataSet(entity_id, title, dataset_config, status_details=msg)
+                return SdmxOfflineDataSet(
+                    entity_id, title, dataset_config, self, status_details=msg
+                )
             else:
                 raise e
 
@@ -151,7 +149,9 @@ class Sdmx21DataSourceHandler(
             if allow_offline:
                 msg = "Failed to create dimensions from the loaded structure message."
                 logger.exception(msg)
-                return SdmxOfflineDataSet(entity_id, title, dataset_config, status_details=msg)
+                return SdmxOfflineDataSet(
+                    entity_id, title, dataset_config, self, status_details=msg
+                )
             else:
                 raise e
 
@@ -175,7 +175,9 @@ class Sdmx21DataSourceHandler(
                     " Probably there is a mistake in configuration."
                     " For example, the indicator dimension name is incorrect."
                 )
-                return SdmxOfflineDataSet(entity_id, title, dataset_config, status_details=msg)
+                return SdmxOfflineDataSet(
+                    entity_id, title, dataset_config, self, status_details=msg
+                )
             else:
                 raise e
 

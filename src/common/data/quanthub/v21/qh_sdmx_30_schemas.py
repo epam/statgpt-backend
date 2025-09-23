@@ -141,12 +141,12 @@ class QhAvailabilityResponseBody(BaseModel):
 class QhAnnotation(BaseModel):
 
     # Not sure if `id` is allowed to be None by the SDMX 3.0 standard, but some providers may return it as None.
-    id: str | None = Field()
+    id: str | None = Field(default=None)
 
-    title: str | None = Field()
-    type: str | None = Field()
-    value: str | None = Field()
-    text: str | None = Field()
+    title: str | None = Field(default=None)
+    type: str | None = Field(default=None)
+    value: str | None = Field(default=None)
+    text: str | None = Field(default=None)
 
 
 class QhDataflow(BaseModel):

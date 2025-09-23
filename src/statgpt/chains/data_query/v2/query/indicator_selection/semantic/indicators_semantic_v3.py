@@ -17,4 +17,7 @@ class IndicatorSelectionSemanticV3ChainFactory(IndicatorSelectionSemanticV2Chain
         super().__init__(config, vector_search_top_k=vector_search_top_k)
 
     def get_indicator_selection_chain_factory(self):
-        return PackedIndicatorsSelectionV2ChainFactory(candidates_key=self._candidates_key)
+        return PackedIndicatorsSelectionV2ChainFactory(
+            candidates_key=self._candidates_key,
+            llm_model_config=self._config.llm_models.indicators_selection_model_config,
+        )

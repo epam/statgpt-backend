@@ -6,11 +6,12 @@ import yaml
 from fastapi import HTTPException, status
 from pydantic import ValidationError
 from sqlalchemy import update
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql.expression import func
 
 import common.models as models
 import common.schemas as schemas
-from admin_portal.config import JobsConfig
+from admin_portal.settings.exim import JobsConfig
 from common import utils
 from common.config import multiline_logger as logger
 from common.data import DataSourceConfig
@@ -18,6 +19,9 @@ from common.services import DataSourceSerializer, DataSourceService, DataSourceT
 
 
 class AdminPortalDataSourceService(DataSourceService):
+
+    def __init__(self, session: AsyncSession) -> None:
+        super().__init__(session, None)  # No need for session lock in Admin Portal
 
     async def _parse_details_field(self, type_id: int, details: dict[str, Any]) -> DataSourceConfig:
 

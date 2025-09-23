@@ -1,7 +1,7 @@
 normalize:
   systemPrompt: >
     You are an expert in statistical indicators.
-    As an output provide normalized input together with instruction steps' reasoning as JSON object {{"normalized": "", "reasoning": []}}.
+    As an output provide normalized input together with instruction steps' reasoning as JSON object {{"normalized": "", "reasoning": []}}. 
     Only JSON, no markdown
 
   userPrompt: >
@@ -9,10 +9,10 @@ normalize:
     - resolve all acronyms, keeping original value in round squares if it is not already resolved in input
     - append well-known terms with its well-known acronyms in round squares if it is not present in input
     - normalize usage of percentage: %, percent, percentage - use "percent"
-    - normalize usage of currencies: united states dollars, us$, us dollars - use "dollar".
+    - normalize usage of currencies: united states dollars, us$, us dollars - use "dollar". 
       Note, dollar here was an example only, no need to convert all currencies to "dollar"
 
-    Input:
+    Input:  
     {input}
 
     Examples:
@@ -25,7 +25,7 @@ normalize:
 
 harmonize:
   systemPrompt: >
-    You are semantic search engine over statistical indicators.
+    You are semantic search engine over statistical indicators.  
     As an output provide indicator primary part together with instruction steps' reasoning as JSON object {{"primary": "", "reasoning": []}}.
     Only JSON, no markdown
 
@@ -37,13 +37,13 @@ harmonize:
     - usually indicator name consists of 1 primary part
     - sometimes punctuation like comma or squares is used to separate indicator components. So primary part will ends on a punctuation in this case, potentially last one or just before the last one
     - extract indicator's primary part from the statement
-
+    
     Statement:
-    {statement}
-
-    Indicators:
+    {statement}  
+      
+    Indicators:  
     {indicators}
-
+    
     Examples:
     - if statement is "Lending interest rate (%)" then expected primary is "lending interest rate"
     - if statement is "PPP conversion factor, GDP (LCU per international $)" then expected primary is "PPP conversion factor, GDP"
@@ -53,7 +53,7 @@ search_normalize:
   systemPrompt: >
     You are an expert in statistical indicators.
     As an output provide cleaned input as JSON object {{"cleaned_input"}}.
-    Only JSON, no markdown
+    Only JSON, no markdown    
 
   userPrompt: >
     Instruction steps:
@@ -66,14 +66,14 @@ search_normalize:
     - output result as "cleaned input"
 
     {entities}
-
+    
     {period}
-
+    
     {forbidden}
 
-    Input:
+    Input:  
     {input}
-
+    
     Examples:
     1. if case is described as JSON {{"Input": "Provide the total unemployment data as a percentage of the labor force for Germany for the last 15 years", "Named Entities": ["last 15 years (Time frequency)", "Germany (Country/Reference area)"], "Time Period": "from 2009-08-08 to 2024-08-08"] then expected cleaned input is "total unemployment data as a percent of the labor force"
     2. if case is described as JSON {{"Input": "Get the Gross Domestic Product per capita growth rate for the United Kingdom since Brexit", "Named Entities": ["United Kingdom (Country/Reference area)"], "Time Period": "from 2020-01-31"] then expected cleaned input is "Get Gross Domestic Product per capita growth rate"
@@ -83,28 +83,28 @@ search_normalize:
 
 separate_subjects:
   systemPrompt: >
-    You are an expert in statistical indicators.
+    You are an expert in statistical indicators. 
     As an output provide separate queries as JSON object {{"queries": []}}.
-    Only JSON, no markdown
+    Only JSON, no markdown    
 
   userPrompt: >
     Instruction steps:
     - split the input into separate queries around statistical indicators
     - expected result is the single query containing full input or multiple separate queries
-    - split only, do not remove words except conjunctions like "and"
+    - split only, do not remove words except conjunctions like "and" 
     - punctuation NOT ALWAYS mean separate queries or separate statistical indicators
     {forbidden_step}
-
+    
     {forbidden}
-
-    Input:
+    
+    Input:  
     {input}
-
+    
     Examples:
-    1. if input is "Query the unemployment rate and inflation rate to calculate the Misery Index" then expected output is {{"queries": ["Query the unemployment rate", "inflation rate", "calculate the Misery Index"]}} as "Query" and "to calculate" are separate queries
+    1. if input is "Query the unemployment rate and inflation rate to calculate the Misery Index" then expected output is {{"queries": ["Query the unemployment rate", "inflation rate", "calculate the Misery Index"]}} as "Query" and "to calculate" are separate queries 
     2. if input is "Gross Domestic Product per capita growth rate" then expected output is {{"queries": ["Gross Domestic Product per capita growth rate"]}} as it is the same query around statistical indicator
     3. if input is "exchange rate and current account balance" then expected output is {{"queries": ["exchange rate", "current account balance"]}}
-    4. if input is "unemployment and net government lending/borrowing in percent of Gross Domestic Product (GDP)" then expected output is {{"queries": ["unemployment", "net government lending/borrowing in percent of Gross Domestic Product (GDP)"]}}
+    4. if input is "unemployment and net government lending/borrowing in percent of Gross Domestic Product (GDP)" then expected output is {{"queries": ["unemployment", "net government lending/borrowing in percent of Gross Domestic Product (GDP)"]}} 
     5. if input is "Compare life expectancy at birth, total, and Gross National Income (GNI) in current dollars" then expected output is {{"queries": ["Compare life expectancy at birth, total", "Gross National Income (GNI) in current dollars"]}} as input contains multiple statistical indicators and "total" relates to "life expectancy at birth"
     6. if input is "Gross Domestic Product, per capita" then expected output is {{"queries": ["Gross Domestic Product per capita"]}} as "per capita" is not a separate query
     7. if input is "Unemployment data, estimated by the International Labour Organization" then expected output is {{"queries": [Unemployment data, estimated by the International Labour Organization"]}}
@@ -116,21 +116,21 @@ relevance:
     Only JSON, no markdown
 
   userPrompt: >
-    Instruction steps:
+    Instruction steps:    
      - input consists of separate group of items. Analyze all groups
      - each numbered item describes statistical indicator. Analyze all items
-     - use the number from round brackets for the output reference and all other info as a source for relevance context.
-       All items that have number in a round brackets should be present in output together with score
+     - use the number from round brackets for the output reference and all other info as a source for relevance context. 
+       All items that have number in a round brackets should be present in output together with score 
      - use all parent levels of an item in the relevance context
      - for each input indicator provide relevancy score as 0, 1, 2, 3 to the statement,
        where: 0 - irrelevant, 1 - somewhat relevant, 2 - highly relevant, 3 - extremely relevant
-     - if the input indicator is at least somewhat relevant to the statement then the relevancy score can't be score 0
-     - if the input statement has extra clarification description then it is mandatory to have relevant part in the candidate item to get score 3.
+     - if the input indicator is at least somewhat relevant to the statement then the relevancy score can't be score 0 
+     - if the input statement has extra clarification description then it is mandatory to have relevant part in the candidate item to get score 3. 
        This extra clarification description could be essential to distinguish relevant and extremely relevant items.
        Ignore punctuation like comma or squares in extra clarification
 
     Statement:
     {statement}
-
+      
     Input:
     {items}

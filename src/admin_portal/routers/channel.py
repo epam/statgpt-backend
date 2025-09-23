@@ -11,11 +11,11 @@ import common.models as models
 import common.schemas as schemas
 from admin_portal.auth.auth_context import SystemUserAuthContext
 from admin_portal.auth.user import User, require_jwt_auth
-from admin_portal.config import JobsConfig
 from admin_portal.services import AdminPortalChannelService as ChannelService
 from admin_portal.services import AdminPortalDataSetService as DataSetService
 from admin_portal.services import JobsService
-from common.config import DialConfig
+from admin_portal.settings.exim import JobsConfig
+from common.settings.dial import dial_settings
 
 router = APIRouter(
     prefix="/channels",
@@ -113,6 +113,28 @@ async def import_channel(
     )
 
 
+@router.get('/{channel_id}/jobs')
+async def get_jobs(
+    channel_id: int,
+    limit: int = 100,
+    offset: int = 0,
+    session: AsyncSession = Depends(models.get_session),
+) -> schemas.ListResponse[schemas.Job]:
+    """Get a list of import/export jobs for the specified channel"""
+
+    service = JobsService(session)
+    jobs = await service.get_jobs_schemas(channel_id=channel_id, limit=limit, offset=offset)
+    jobs_count = await service.get_jobs_count(channel_id=channel_id)
+
+    return schemas.ListResponse[schemas.Job](
+        data=jobs,
+        limit=limit,
+        offset=offset,
+        count=len(jobs),
+        total=jobs_count,
+    )
+
+
 @router.get("/jobs/{job_id}")
 async def get_job_by_id(
     job_id: int,
@@ -150,7 +172,7 @@ async def download_job_result_by_id(
     # Code below was copied from the httpx documentation
     # https://www.python-httpx.org/async/#streaming-responses
     client = httpx.AsyncClient(
-        base_url=DialConfig.get_url(),
+        base_url=dial_settings.url,
         headers={'Api-Key': SystemUserAuthContext().api_key},
     )
     req = client.build_request("GET", f"/v1/{job.file}")

@@ -2,17 +2,15 @@ import httpx
 from langchain_openai import AzureChatOpenAI, AzureOpenAIEmbeddings
 from pydantic import SecretStr
 
-from common.config import DialConfig, LangChainConfig
 from common.config.logging import multiline_logger as logger
+from common.schemas import EmbeddingsModelConfig, LLMModelConfig
+from common.settings.dial import dial_settings
 
 
 def get_chat_model(
     api_key: str | SecretStr,
-    model: str = LangChainConfig.DEFAULT_MODEL,
-    temperature: float = LangChainConfig.DEFAULT_TEMPERATURE,
-    azure_endpoint: str = DialConfig.get_url(),
-    api_version: str = LangChainConfig.DEFAULT_API_VERSION,
-    seed: int | None = LangChainConfig.DEFAULT_SEED,
+    model_config: LLMModelConfig,
+    azure_endpoint: str = dial_settings.url,
     **kwargs,
 ) -> AzureChatOpenAI:
     # default params
@@ -20,10 +18,10 @@ def get_chat_model(
         api_key = SecretStr(api_key)
     params = dict(
         azure_endpoint=azure_endpoint,
-        api_version=api_version,
-        azure_deployment=model,
-        temperature=temperature,
-        seed=seed,
+        api_version=model_config.api_version,
+        azure_deployment=model_config.deployment.deployment_id,
+        temperature=model_config.temperature,
+        seed=model_config.seed,
         max_retries=10,
         api_key=api_key,  # since we use SecretStr, it won't be logged
         timeout=httpx.Timeout(60, connect=4),  # timeouts are crucial!
@@ -38,16 +36,16 @@ def get_chat_model(
 
 def get_embeddings_model(
     api_key: str | SecretStr,
-    model: str,
-    api_version: str = LangChainConfig.DEFAULT_API_VERSION,
+    model_config: EmbeddingsModelConfig,
+    azure_endpoint: str = dial_settings.url,
     **kwargs,
 ) -> AzureOpenAIEmbeddings:
     if not isinstance(api_key, SecretStr):
         api_key = SecretStr(api_key)
     params = dict(
-        azure_endpoint=DialConfig.get_url(),
-        azure_deployment=model,
-        api_version=api_version,
+        azure_endpoint=azure_endpoint,
+        azure_deployment=model_config.deployment.value,
+        api_version=model_config.api_version,
         max_retries=10,
         api_key=api_key,  # since we use SecretStr, it won't be logged
     )

@@ -8,7 +8,8 @@ from langchain_core.runnables import RunnableConfig
 
 from common.config import multiline_logger as logger
 from statgpt.chains.parameters import ChainParameters
-from statgpt.config import DialAppConfig, StateVarsConfig
+from statgpt.config import StateVarsConfig
+from statgpt.settings.dial_app import dial_app_settings
 
 
 class StageCallback(AsyncCallbackHandler):
@@ -97,8 +98,13 @@ class StageCallback(AsyncCallbackHandler):
             self._stage.append_content('An error occurred while populating the stage content.')
         finally:
             end_time = datetime.now()
-            took_seconds: str = f" ({(end_time - self._start_time).total_seconds():.2f} s)"
-            if DialAppConfig.SHOW_STAGE_SECONDS:
+            start_str = self._start_time.strftime('%H:%M:%S')
+            end_str = end_time.strftime('%H:%M:%S')
+            took_seconds: str = (
+                f" ({(end_time - self._start_time).total_seconds():.2f} s. "
+                f"start: {start_str}, end: {end_str})"
+            )
+            if dial_app_settings.dial_show_stage_seconds:
                 self._stage.append_name(took_seconds)
             self._stage.close()
 

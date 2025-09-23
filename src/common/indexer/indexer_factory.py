@@ -1,7 +1,6 @@
 from common.utils.elastic import ElasticIndex
 from common.vectorstore import VectorStore
 
-from .cache_factory import CacheFactory
 from .indexer import Indexer
 from .searcher import Search
 
@@ -18,7 +17,6 @@ class IndexerFactory:
         self._matching_index = matching_index
         self._indicators_index = indicators_index
         self._vectorstore = vectorstore
-        self._cache = CacheFactory.get_instance()
 
     def get_indexer(self, normalize: bool, harmonize: bool) -> Indexer:
         return Indexer(
@@ -36,5 +34,4 @@ class IndexerFactory:
             self._matching_index,
             self._indicators_index,
             self._vectorstore,
-            self._cache,
         )

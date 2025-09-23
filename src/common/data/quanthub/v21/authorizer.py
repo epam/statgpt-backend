@@ -24,9 +24,9 @@ from common.auth.grants import (
 from common.auth.msi import CachedMsiAuthorizer
 from common.auth.token_cache import GlobalTokenCache
 from common.config import logger as logger
-from common.config.auth import ClientsSpaChatConfig, TTYDChatConfig
 from common.data.quanthub.config import AuthConfig, AuthGrantType
 from common.data.sdmx.common.authorizer import IAuthorizer
+from common.settings.auth import clients_spa_chat_settings, dial_chat_settings
 
 
 class QuanthubAuthorizer(IAuthorizer):
@@ -80,17 +80,17 @@ class QuanthubAuthorizerFactory:
     @staticmethod
     def _create_dial_user_authorizer(auth_config: AuthConfig) -> DialUserAuthorizerI:
         ttyd_chat_config = OboFlowConfig(
-            client_id=ClientsSpaChatConfig.CLIENT_ID,
-            client_secret=ClientsSpaChatConfig.CLIENT_SECRET,  # type: ignore
-            scope=TTYDChatConfig.SCOPE,
-            oauth2_token_endpoint_url=ClientsSpaChatConfig.OAUTH2_TOKEN_ENDPOINT_URL,
+            client_id=clients_spa_chat_settings.client_id,
+            client_secret=clients_spa_chat_settings.client_secret,
+            scope=dial_chat_settings.scope,
+            oauth2_token_endpoint_url=clients_spa_chat_settings.oauth2_token_endpoint_url,
         )
 
         quanthub_config = OboFlowConfig(
-            client_id=TTYDChatConfig.CLIENT_ID,
-            client_secret=TTYDChatConfig.CLIENT_SECRET,  # type: ignore
+            client_id=dial_chat_settings.client_id,
+            client_secret=dial_chat_settings.client_secret,
             scope=auth_config.obo_flow.get_target_scope(),
-            oauth2_token_endpoint_url=TTYDChatConfig.OAUTH2_TOKEN_ENDPOINT_URL,
+            oauth2_token_endpoint_url=dial_chat_settings.oauth2_token_endpoint_url,
         )
 
         ttyd_chat_obo_flow = OboFlow(ttyd_chat_config)
@@ -110,10 +110,10 @@ class QuanthubAuthorizerFactory:
             ropc_config = RopcGrantConfig(
                 username=auth_config_model.get_ropc_config().system_user_credentials.get_username(),
                 password=auth_config_model.get_ropc_config().system_user_credentials.get_password(),
-                client_id=TTYDChatConfig.CLIENT_ID,
-                client_secret=TTYDChatConfig.CLIENT_SECRET,  # type: ignore
+                client_id=dial_chat_settings.client_id,
+                client_secret=dial_chat_settings.client_secret,
                 scope=auth_config_model.get_ropc_config().get_target_scope(),
-                oauth2_token_endpoint_url=TTYDChatConfig.OAUTH2_TOKEN_ENDPOINT_URL,
+                oauth2_token_endpoint_url=dial_chat_settings.oauth2_token_endpoint_url,
             )
             system_user_grant = RopcGrant(ropc_config)
             return SystemUserTokenRefreshDecorator(
@@ -125,10 +125,10 @@ class QuanthubAuthorizerFactory:
         elif grant_type == AuthGrantType.CLIENT_CREDENTIALS:
             logger.info("Client Credentials grant selected for system user")
             cc_config = ClientCredentialsConfig(
-                client_id=TTYDChatConfig.CLIENT_ID,
-                client_secret=TTYDChatConfig.CLIENT_SECRET,  # type: ignore
+                client_id=dial_chat_settings.client_id,
+                client_secret=dial_chat_settings.client_secret,
                 scope=auth_config_model.get_client_credentials_config().get_target_scope(),
-                oauth2_token_endpoint_url=TTYDChatConfig.OAUTH2_TOKEN_ENDPOINT_URL,
+                oauth2_token_endpoint_url=dial_chat_settings.oauth2_token_endpoint_url,
             )
             return SystemUserTokenRefreshDecorator(
                 SystemUserAuthorizer(ClientCredentialsGrant(cc_config)),

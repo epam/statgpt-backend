@@ -1,15 +1,21 @@
 import asyncio
+import logging
 from copy import deepcopy
 from itertools import groupby
 from operator import attrgetter
 
 from aidial_sdk.chat_completion import Stage
-from langchain_core.runnables import Runnable, RunnableConfig, RunnableLambda, RunnablePassthrough
+from langchain_core.runnables import (
+    Runnable,
+    RunnableConfig,
+    RunnableLambda,
+    RunnableParallel,
+    RunnablePassthrough,
+)
 
 from common.auth.auth_context import AuthContext
 from common.config import multiline_logger as logger
 from common.data.base import (
-    DataSet,
     DataSetAvailabilityQuery,
     DataSetQuery,
     DimensionQuery,
@@ -20,37 +26,45 @@ from common.data.base import (
 from common.data.sdmx.common import DimensionVirtualCodeCategory
 from common.data.sdmx.v21.dataset import Sdmx21DataSet
 from common.schemas import ChannelConfig, DataQueryDetails
-from common.schemas.data_query_tool import DataQueryMessages, DataQueryPrompts
+from common.schemas.data_query_tool import (
+    DataQueryMessages,
+    DataQueryPrompts,
+    SpecialDimensionsProcessor,
+)
+from common.schemas.enums import SpecialDimensionsProcessorType
+from common.utils import async_utils
+from common.utils.timer import debug_timer
 from statgpt.chains import CandidatesSelectionSimpleChainFactory
 from statgpt.chains.data_query.base import BaseDataQueryFactory
 from statgpt.chains.data_query.parameters import DataQueryParameters
 from statgpt.chains.parameters import ChainParameters
+from statgpt.chains.utils import dataset_utils
 from statgpt.default_prompts.v2 import DefaultPrompts
 from statgpt.schemas.query_builder import (
     ChainState,
     DatasetAvailabilityQueriesType,
-    DateTimeQueryResponse,
+    DatasetDimensionTermNameType,
     LLMSelectionDimensionCandidate,
+    MetaStateKeys,
     NamedEntitiesResponse,
     NamedEntity,
     QueryBuilderAgentState,
 )
 from statgpt.services import ScoredDimensionCandidate
 from statgpt.utils.callbacks import StageCallback
-from statgpt.utils.dataset_formatter import DatasetFormatterConfig, DatasetListFormatter
-from statgpt.utils.request_context import RequestContext
+from statgpt.utils.formatters import DatasetFormatterConfig, DatasetsListFormatter
 
-from . import utils as v2_query_utils
+from . import utils as query_utils
 from .data_query import DataQueryChain
 from .datasets_selection import DataSetsSelectionChain
 from .datetime_chain import DateTimeDimensionChain
-from .group_expander_chain import GroupExpanderChain
 from .incomplete_queries import IncompleteQueriesChain
 from .indicator_selection.factory import IndicatorSelectionFactory
 from .multiple_datasets import MultipleDatasetsChain
 from .named_entities import NamedEntitiesChain
 from .nodata import NoDataChain
 from .normalization import NormalizationChain
+from .special_dimensions import LHCLChainFactory, SpecialDimensionChainFactoryBase
 
 
 class QueryBuilderFactoryV2(BaseDataQueryFactory):
@@ -61,25 +75,34 @@ class QueryBuilderFactoryV2(BaseDataQueryFactory):
         messages: DataQueryMessages = self._config.messages
 
         self._datetime_chain = DateTimeDimensionChain(
-            prompts.datetime_prompt or DefaultPrompts.DATETIME_PROMPT
+            llm_model_config=self._config.llm_models.time_period_model_config,
+            system_prompt=prompts.datetime_prompt or DefaultPrompts.DATETIME_PROMPT,
         )
-        self._group_expander_chain = GroupExpanderChain(
-            prompts.group_expander_prompt or DefaultPrompts.GROUP_EXPANDER_PROMPT,
-            prompts.group_expander_fallback_prompt or DefaultPrompts.GROUP_EXPANDER_FALLBACK_PROMPT,
-        )
+        # self._group_expander_chain = GroupExpanderChain(
+        #     llm_model_config=self._config.llm_models.group_expander_model_config,
+        #     system_prompt=prompts.group_expander_prompt or DefaultPrompts.GROUP_EXPANDER_PROMPT,
+        #     fallback_prompt=prompts.group_expander_fallback_prompt
+        #     or DefaultPrompts.GROUP_EXPANDER_FALLBACK_PROMPT,
+        # )
         self._normalization_chain = NormalizationChain(
-            prompts.normalization_prompt or DefaultPrompts.NORMALIZATION_PROMPT
+            llm_model_config=self._config.llm_models.query_normalization_model_config,
+            system_prompt=prompts.normalization_prompt or DefaultPrompts.NORMALIZATION_PROMPT,
         )
         self._named_entities_chain = NamedEntitiesChain(
-            prompts.named_entities_prompt or DefaultPrompts.NAMED_ENTITIES_PROMPT
+            llm_model_config=self._config.llm_models.named_entities_model_config,
+            system_prompt=prompts.named_entities_prompt or DefaultPrompts.NAMED_ENTITIES_PROMPT,
         )
         self._datasets_selection_chain = DataSetsSelectionChain(
-            prompts.dataset_selection_prompt or DefaultPrompts.DATASET_SELECTION_PROMPT
+            llm_model_config=self._config.llm_models.datasets_selection_model_config,
+            system_prompt=prompts.dataset_selection_prompt
+            or DefaultPrompts.DATASET_SELECTION_PROMPT,
         )
         self._dimensions_selection_chain_factory = CandidatesSelectionSimpleChainFactory(
-            prompts.validation_system_prompt or DefaultPrompts.VALIDATION_SYSTEM_PROMPT,
-            prompts.validation_user_prompt or DefaultPrompts.VALIDATION_USER_PROMPT,
-            "dimension_candidates_for_llm_selection",
+            llm_model_config=self._config.llm_models.dimensions_selection_model_config,
+            system_prompt=prompts.validation_system_prompt
+            or DefaultPrompts.VALIDATION_SYSTEM_PROMPT,
+            user_prompt=prompts.validation_user_prompt or DefaultPrompts.VALIDATION_USER_PROMPT,
+            candidates_key="dimension_candidates_for_llm_selection",
         )
 
         self._data_query_chain = DataQueryChain(
@@ -93,15 +116,10 @@ class QueryBuilderFactoryV2(BaseDataQueryFactory):
             agent_only_message=messages.multiple_datasets_agent_only,
         )
         self._incomplete_queries_chain = IncompleteQueriesChain(
-            prompts.incomplete_queries_prompt or DefaultPrompts.INCOMPLETE_QUERIES_PROMPT
+            llm_model_config=self._config.llm_models.incomplete_queries_model_config,
+            system_prompt=prompts.incomplete_queries_prompt
+            or DefaultPrompts.INCOMPLETE_QUERIES_PROMPT,
         )
-
-    @staticmethod
-    async def _get_available_datasets(inputs: dict) -> dict[str, DataSet]:
-        data_service = ChainParameters.get_data_service(inputs)
-        auth_context = ChainParameters.get_auth_context(inputs)
-        datasets = await data_service.list_available_datasets(auth_context)
-        return {ds.entity_id: ds for ds in datasets}
 
     @staticmethod
     def _apply_dataset_selection_response(inputs: dict):
@@ -155,6 +173,7 @@ class QueryBuilderFactoryV2(BaseDataQueryFactory):
             dataset_queries=chain_state.dataset_queries,
             retrieval_results=chain_state.retrieval_results,
             dimension_id_to_name=chain_state.dimension_id_to_name,
+            special_dims_outputs=chain_state.special_dims_outputs,
         )
 
         # cast to dict, since it will be serialized
@@ -168,95 +187,36 @@ class QueryBuilderFactoryV2(BaseDataQueryFactory):
     async def _get_dimension_candidates_from_named_entities(
         cls, inputs: dict
     ) -> list[ScoredDimensionCandidate]:
-        chain_state = ChainState(**inputs)
-        datasets_dict = chain_state.datasets_dict
-        named_entities_response = chain_state.named_entities_response
-        data_service = chain_state.data_service
+        with debug_timer("_get_dimension_candidates_from_named_entities"):
+            chain_state = ChainState(**inputs)
+            datasets_dict = chain_state.datasets_dict
+            named_entities_response = chain_state.named_entities_response
+            data_service = chain_state.data_service
 
-        filtered_named_entities = [
-            ne for ne in named_entities_response.entities if ne.entity_type.lower() != "dataset"
-        ]
-        tasks = []
-        for entity in filtered_named_entities:
-            tasks.append(
-                data_service.search_dimensions_scored(
-                    entity.to_query(),
-                    auth_context=chain_state.auth_context,
-                    k=30,  # TODO: make configurable
-                    datasets=set(datasets_dict.keys()),
+            filtered_named_entities = [
+                ne for ne in named_entities_response.entities if ne.entity_type.lower() != "dataset"
+            ]
+            tasks = []
+            for entity in filtered_named_entities:
+                tasks.append(
+                    data_service.search_dimensions_scored(
+                        entity.to_query(),
+                        auth_context=chain_state.auth_context,
+                        k=30,  # TODO: make configurable
+                        datasets=set(datasets_dict.keys()),
+                    )
                 )
-            )
-        results = await asyncio.gather(*tasks)
+            with debug_timer(f"non_indicator_dimension.candidates_search[{len(tasks)}]"):
+                results = await asyncio.gather(*tasks)
 
-        candidates_all: list[ScoredDimensionCandidate] = []
-        for result in results:
-            candidates_all.extend(result)
+            candidates_all: list[ScoredDimensionCandidate] = []
+            for result in results:
+                candidates_all.extend(result)
 
-        candidates_dedup = list(set(candidates_all))
-        candidates_dedup = sorted(candidates_dedup, key=lambda x: x.score, reverse=True)
+            candidates_dedup = list(set(candidates_all))
+            candidates_dedup = sorted(candidates_dedup, key=lambda x: x.score, reverse=True)
 
         return candidates_dedup
-
-    @classmethod
-    def _nonindicator_candidates_to_availability_queries(
-        cls, inputs: dict
-    ) -> DatasetAvailabilityQueriesType:
-        chain_state = ChainState(**inputs)
-        datasets_dict = chain_state.datasets_dict
-        date_time_query_response = chain_state.date_time_query_response
-        dimension_candidates = chain_state.dimension_candidates
-
-        # gather dataset dimension queries
-        dataset_dimension_queries = {}
-        for candidate in dimension_candidates:
-            dataset_query = dataset_dimension_queries.setdefault(candidate.dataset_id, {})
-
-            dataset = datasets_dict[candidate.dataset_id]
-            dimension_all_values = dataset.config.dimension_all_values
-            dimension_id = candidate.dimension_category.dimension_id
-            all_value = dimension_all_values.get(dimension_id)
-            if all_value is not None and candidate.query_id == all_value.id:
-                dataset_query[dimension_id] = "*"  # all values selected
-            else:
-                dimension_query = dataset_query.setdefault(
-                    candidate.dimension_category.dimension_id, set()
-                )
-                if dimension_query != "*":
-                    # if we already have all values selected, do not add more values
-                    # otherwise, add the candidate query_id to the dimension query
-                    dimension_query.add(candidate.query_id)
-
-        # cast to availability queries
-        result = {
-            dataset_id: cls._to_availability_query(dataset_query, date_time_query_response)
-            for dataset_id, dataset_query in dataset_dimension_queries.items()
-        }
-        # ensure all datasets have queries, even if there are no non-indicator candidates.
-        for dataset_id, dataset in datasets_dict.items():
-            if dataset_id not in result:
-                result[dataset_id] = cls._to_availability_query({}, date_time_query_response)
-
-        return result
-
-    @staticmethod
-    def _to_availability_query(
-        query: dict, date_time_query_response: DateTimeQueryResponse
-    ) -> DataSetAvailabilityQuery:
-        availability_query = DataSetAvailabilityQuery()
-        for dimension_id, value in query.items():
-            if value == "*":
-                dimension_query = DimensionQuery(
-                    dimension_id=dimension_id, values=[], operator=QueryOperator.ALL
-                )
-            else:
-                dimension_query = DimensionQuery(
-                    dimension_id=dimension_id, values=value, operator=QueryOperator.IN
-                )
-            availability_query.add_dimension_query(dimension_query)
-        date_time_query = date_time_query_response.to_query()
-        if date_time_query:
-            availability_query.add_dimension_query(date_time_query)
-        return availability_query
 
     @staticmethod
     async def _get_availability(inputs: dict, queries_key: str) -> DatasetAvailabilityQueriesType:
@@ -265,12 +225,31 @@ class QueryBuilderFactoryV2(BaseDataQueryFactory):
         queries: DatasetAvailabilityQueriesType = inputs[queries_key]
         if len(queries) == 0:
             return {}
+
+        if logger.isEnabledFor(logging.DEBUG):
+            logger.debug(
+                f"Starting availability queries for {len(queries)} datasets from {queries_key}"
+            )
+            # Format queries for detailed logging
+            formatted_queries = await query_utils.format_availability_queries(
+                auth_context,
+                queries,
+                chain_state.datasets_dict,
+                add_value_ids=True,
+                header_level=4,
+                add_citation=False,
+            )
+            logger.debug(f"Availability queries to run:\n{formatted_queries}")
+
         tasks = []
         for dataset_id, query in queries.items():
             dataset = chain_state.datasets_dict[dataset_id]
             tasks.append(dataset.availability_query(query, auth_context))
-        task_results = await asyncio.gather(*tasks)
+
+        logger.debug(f"Running {len(tasks)} availability queries concurrently")
+        task_results = await async_utils.gather_with_concurrency(10, *tasks)
         result = {dataset_id: query for dataset_id, query in zip(queries.keys(), task_results)}
+        logger.debug(f"Completed {len(result)} availability queries")
         return result
 
     async def _get_availability_from_strong_queries(
@@ -356,9 +335,7 @@ class QueryBuilderFactoryV2(BaseDataQueryFactory):
 
             country_query = query.dimensions_queries_dict.get(country_dim.entity_id)
 
-            if country_query and (
-                country_query.operator == QueryOperator.ALL or country_query.values
-            ):
+            if country_query and not country_query.is_empty():
                 at_least_one_country_selected = True
             else:
                 datasets_entity_ids_without_country_query.add(dataset_id)
@@ -402,45 +379,7 @@ class QueryBuilderFactoryV2(BaseDataQueryFactory):
         return queries
 
     @staticmethod
-    def filter_candidates_by_queries(
-        queries: DatasetAvailabilityQueriesType,
-        dimension_candidates: list[ScoredDimensionCandidate],
-    ) -> list[ScoredDimensionCandidate]:
-        # TODO: not used
-
-        result = []
-        for candidate in dimension_candidates:
-            dataset_query = queries.get(candidate.dataset_id)
-            if not dataset_query:
-                continue
-            if (dimension_id := candidate.dimension_category.dimension_id) in dataset_query:
-                dimension_query = dataset_query[dimension_id]
-                if candidate.query_id in dimension_query.values:
-                    result.append(candidate)
-        return result
-
-    @staticmethod
-    def _convert_dimension_candidates_model_for_llm_selection(
-        inputs: dict,
-    ) -> list[LLMSelectionDimensionCandidate]:
-        chain_state = ChainState(**inputs)
-        dimension_candidates = chain_state.dimension_candidates
-        dimension_candidates_for_llm_selection = []
-        for ix, c in enumerate(dimension_candidates):
-            dataset = chain_state.datasets_dict[c.dataset_id]
-            if not isinstance(dataset, Sdmx21DataSet):
-                raise ValueError(
-                    f'Dataset "{dataset.source_id}" is not an instance of InMemorySdmx21DataSet'
-                )
-            c = LLMSelectionDimensionCandidate.from_scored_dimension_candidate(
-                candidate=c, index=ix
-            )
-            dimension_candidates_for_llm_selection.append(c)
-
-        return dimension_candidates_for_llm_selection
-
-    @staticmethod
-    def _append_non_indicator_all_values(
+    def _add_all_values_to_nonindicator_candidates(
         inputs: dict,
     ) -> list[LLMSelectionDimensionCandidate]:
         """
@@ -462,6 +401,7 @@ class QueryBuilderFactoryV2(BaseDataQueryFactory):
                     # skip indicator dimensions
                     continue
                 dimension = dimensions[dim_id]
+                # NOTE: we assume there are no such terms already present in dimension_candidates
                 dimension_candidates.append(
                     LLMSelectionDimensionCandidate(
                         score=1.0,
@@ -477,31 +417,6 @@ class QueryBuilderFactoryV2(BaseDataQueryFactory):
                 )
                 index += 1
         return dimension_candidates
-
-    @staticmethod
-    def _filter_irrelevant_dimension_values_by_llm(inputs: dict) -> list[ScoredDimensionCandidate]:
-        # NOTE: Candidates with same (dimension_id, query_id) may belong to different datasets.
-        # However, duplicates by (dataset, dimension, query_id) are NOT expected.
-        logger.info('_filter_irrelevant_dimension_values_by_llm()')
-        chain_state = ChainState(**inputs)
-        candidates = chain_state.dimension_candidates_for_llm_selection
-
-        selected_ids = chain_state.dimension_values_llm_selection_output.get_selected_ids()
-        selected_ids_expanded = (
-            LLMSelectionDimensionCandidate.propagate_selection_status_to_duplicates(
-                candidates=candidates, selected_ids=selected_ids
-            )
-        )
-        logger.info(f'selected ids ({len(selected_ids)} items): {selected_ids}')
-        logger.info(
-            f'selected ids expanded ({len(selected_ids_expanded)} items): {selected_ids_expanded}'
-        )
-        filtered = [c for c in candidates if c._id in selected_ids_expanded]
-        logger.info(f'selected candidates ({len(filtered)} items): {filtered}')
-
-        filtered_casted = [c.to_scored_dimension_candidate() for c in filtered]
-
-        return filtered_casted
 
     async def _populate_normalization(self, stage: Stage, inputs: dict):
         normalized_query = inputs.get("normalized_query", "")
@@ -525,59 +440,41 @@ class QueryBuilderFactoryV2(BaseDataQueryFactory):
 
     async def _populate_datasets_dict(self, stage: Stage, inputs: dict):
         chain_state = ChainState(**inputs)
-        datasets_dict = chain_state.datasets_dict
-        auth_context = ChainParameters.get_auth_context(inputs)
+        channel_config = chain_state.data_service.channel_config
 
-        content = await DatasetListFormatter(
-            DatasetFormatterConfig.model_validate(
-                dict(
-                    citation=dict(
-                        use_provider=False,
-                        use_last_updated=False,
-                        use_url=False,
-                    ),
-                    use_description=False,
-                )
+        content = await DatasetsListFormatter(
+            DatasetFormatterConfig(
+                locale=channel_config.locale,
+                citation=None,
+                use_description=False,
             ),
-            auth_context,
-        ).format(datasets_dict.values())
+            chain_state.auth_context,
+        ).format(chain_state.datasets_dict.values())
 
         stage.append_content(content)
 
-    async def _populate_queries_stage(self, stage: Stage, inputs: dict, queries_key: str):
-        queries: DatasetAvailabilityQueriesType = inputs.get(queries_key, {})
-        if not queries:
-            stage.append_content("No queries")
-            return
-
-        chain_state = ChainState(**inputs)
-        content = await v2_query_utils.format_availability_queries(
-            auth_context=chain_state.auth_context,
-            dataset_queries=queries,
-            datasets_dict=chain_state.datasets_dict,
-            format_values_as_list=True,
-            add_value_ids=True,
-            add_citation=False,
-        )
-        stage.append_content(content)
-
-    async def _populate_nonindicator_weak_queries_stage(self, stage: Stage, inputs: dict):
-        await self._populate_queries_stage(stage, inputs, "weak_queries_no_indicators")
-
-    async def _populate_strong_queries_stage(self, stage: Stage, inputs: dict):
-        await self._populate_queries_stage(stage, inputs, "strong_queries")
+    @classmethod
+    async def _populate_strong_queries_stage(cls, stage: Stage, inputs: dict):
+        with debug_timer("_populate_strong_queries_stage"):
+            chain_state = ChainState(**inputs)
+            await query_utils.populate_queries_stage(
+                stage=stage,
+                queries=chain_state.strong_queries,
+                auth_context=chain_state.auth_context,
+                datasets_dict=chain_state.datasets_dict,
+            )
 
     def _update_strong_queries_best_attempt_if_possible(self, inputs: dict):
         """
         Here we save a copy of current version of non-empty strong queries to a separate field.
         This field is used as our best attempt to build non-empty strong queries.
-        Generally, we would want to call this function after every update to strong queries.
+        This function should be called before every update to strong queries.
         """
         chain_state = ChainState(**inputs)
         strong_queries = chain_state.strong_queries
         if not strong_queries:
             return inputs
-        strong_filtered = v2_query_utils.filter_empty_dataset_availability_queries(
+        strong_filtered = query_utils.filter_empty_dataset_availability_queries(
             queries=strong_queries
         )
         if strong_filtered:
@@ -591,7 +488,7 @@ class QueryBuilderFactoryV2(BaseDataQueryFactory):
         dataset_queries = chain_state.dataset_queries
 
         if dataset_queries:
-            return await v2_query_utils.format_dataset_queries(
+            return await query_utils.format_dataset_queries(
                 auth_context,
                 dataset_queries,
                 datasets_dict,
@@ -619,7 +516,7 @@ class QueryBuilderFactoryV2(BaseDataQueryFactory):
             if strong_queries_best_attempt:
                 msg += '\n\n### Best Attempt to Build Query'
                 msg += '\n\nHere is the best attempt to build query:'
-                formatted_queries = await v2_query_utils.format_availability_queries(
+                formatted_queries = await query_utils.format_availability_queries(
                     auth_context, strong_queries_best_attempt, datasets_dict, header_level=4
                 )
                 msg += f"\n\n{formatted_queries}"
@@ -635,6 +532,7 @@ class QueryBuilderFactoryV2(BaseDataQueryFactory):
         dim_type: DimensionType,
         dataset_id,
         default_queries,
+        default_value_codes: list[str],
         availability: Query | None,
     ):
         """
@@ -645,7 +543,7 @@ class QueryBuilderFactoryV2(BaseDataQueryFactory):
         if default_queries:
             default_query = default_queries[0]
             if not default_query.values:
-                logger.info(
+                logger.debug(
                     f'No default values for "{dim_id}" dimension ' f'in "{dataset_id}" dataset'
                 )
                 return
@@ -654,7 +552,7 @@ class QueryBuilderFactoryV2(BaseDataQueryFactory):
                 return DimensionQuery.from_default_query(default_query, dim_id)
 
             if availability is None or not availability.values:
-                logger.info(
+                logger.debug(
                     f'No available values extracted for "{dim_id}" dimension '
                     f'in "{dataset_id}" dataset'
                 )
@@ -665,7 +563,7 @@ class QueryBuilderFactoryV2(BaseDataQueryFactory):
             # filter default values by availability
             filtered_defaults = set(default_query.values).intersection(available_values)
             if not filtered_defaults:
-                logger.info(
+                logger.debug(
                     'No default values left after filtering by availability for '
                     f'"{dim_id}" dimension in "{dataset_id}" dataset'
                 )
@@ -678,20 +576,20 @@ class QueryBuilderFactoryV2(BaseDataQueryFactory):
                 is_default=True,
             )
 
-        logger.info(
+        logger.debug(
             f'No default queries for "{dim_id}" dimension in "{dataset_id}" dataset. '
             'Will try to auto-set dimension queries using availability data.'
         )
 
         if dim_type != DimensionType.CATEGORY:
-            logger.info(
+            logger.debug(
                 f'Can\'t auto-set query for "{dim_id}" dimension '
                 f'in "{dataset_id}" dataset, since it\'s not a categorical dimension.'
             )
             return
 
         if availability is None or not availability.values:
-            logger.info(
+            logger.debug(
                 f'No available values extracted for "{dim_id}" dimension '
                 f'in "{dataset_id}" dataset'
             )
@@ -699,11 +597,25 @@ class QueryBuilderFactoryV2(BaseDataQueryFactory):
 
         available_values = availability.values
 
+        available_default_values = set(default_value_codes).intersection(available_values)
+        if available_default_values:
+            logger.debug(
+                f'Auto-setting dimension query for "{dim_id}" dimension '
+                f'in "{dataset_id}" dataset to available default values: '
+                f'{available_default_values}'
+            )
+            return DimensionQuery(
+                values=list(available_default_values),
+                operator=QueryOperator.IN,
+                dimension_id=dim_id,
+                is_default=True,
+            )
+
         # TODO: make k_low and k_high configurable
         k_low = 10
         k_high = 40
         if len(available_values) > k_low:
-            logger.info(
+            logger.debug(
                 f'Too many available values ({len(available_values)}) '
                 f'for "{dim_id}" dimension without default queries '
                 f'in "{dataset_id}" dataset. Can\'t auto-set dimension query. '
@@ -725,7 +637,7 @@ class QueryBuilderFactoryV2(BaseDataQueryFactory):
 
             return
 
-        logger.info(
+        logger.debug(
             f'Auto-setting dimension query for "{dim_id}" dimension '
             f'in "{dataset_id}" dataset to following '
             f'{len(available_values)} available values: {available_values}'
@@ -770,7 +682,7 @@ class QueryBuilderFactoryV2(BaseDataQueryFactory):
         return filtered_queries
 
     def _get_dataset_queries(self, inputs: dict) -> dict[str, DataSetQuery]:
-        """Create final dataset queries. Set missing dimensions if possible."""
+        """Convert strong queries to dataset queries. Set missing dimensions if possible."""
         chain_state = ChainState(**inputs)
         datasets_dict = chain_state.datasets_dict
         strong_queries = chain_state.strong_queries
@@ -778,23 +690,21 @@ class QueryBuilderFactoryV2(BaseDataQueryFactory):
 
         if not strong_queries:
             return {}
-        queries_filtered = v2_query_utils.filter_empty_dataset_availability_queries(
+        strong_queries_nonempty = query_utils.filter_empty_dataset_availability_queries(
             queries=strong_queries
         )
-        if not queries_filtered:
+        if not strong_queries_nonempty:
             return {}
 
         dataset_queries: dict[str, DataSetQuery] = {}
-        for dataset_id, dataset_query in queries_filtered.items():
+        for dataset_id, ds_strong_query in strong_queries_nonempty.items():
             dataset = datasets_dict[dataset_id]
             ds_default_queries = dataset.config.dimension_default_queries
             ds_dimension_queries: dict[str, DimensionQuery] = {
-                d.dimension_id: d for d in dataset_query.dimensions_queries
+                d.dimension_id: d for d in ds_strong_query.dimensions_queries
             }
             is_ds_query_valid = True
-            ds_strong_availability_query = strong_availability.get(
-                dataset_id, DataSetAvailabilityQuery()
-            )
+            ds_strong_availability = strong_availability.get(dataset_id, DataSetAvailabilityQuery())
 
             # now we check if dataset query is valid:
             # whether a query for each dataset dimension is either present, or could be auto-set.
@@ -806,7 +716,7 @@ class QueryBuilderFactoryV2(BaseDataQueryFactory):
                     continue
 
                 default_queries = ds_default_queries.get(dim_id)
-                availability = ds_strong_availability_query.dimensions_queries_dict.get(dim_id)
+                availability = ds_strong_availability.dimensions_queries_dict.get(dim_id)
 
                 if dimension.dimension_type == DimensionType.DATETIME:
                     chain_state = ChainState(**inputs)
@@ -815,7 +725,7 @@ class QueryBuilderFactoryV2(BaseDataQueryFactory):
                         logger.info(
                             f'there is an empty time period filter in dataset "{dataset_id}". '
                             'LLM detected that user specified time period filter to be empty. '
-                            f'keeping empty time filter, not setting default'
+                            'keeping empty time filter, not setting default'
                         )
                         ds_dimension_queries[dim_id] = DimensionQuery(
                             values=['', ''],
@@ -836,6 +746,7 @@ class QueryBuilderFactoryV2(BaseDataQueryFactory):
                     dim_type=dimension.dimension_type,
                     dataset_id=dataset.source_id,
                     default_queries=default_queries,
+                    default_value_codes=dataset.default_value_codes,
                     availability=availability,
                 )
                 if dim_query is not None:
@@ -855,7 +766,7 @@ class QueryBuilderFactoryV2(BaseDataQueryFactory):
 
         return dataset_queries
 
-    def _map_dimension_ids_to_names(self, inputs: dict) -> dict[str, dict[str, dict[str, str]]]:
+    def _map_dimension_ids_to_names(self, inputs: dict) -> DatasetDimensionTermNameType:
         dataset_to_dimension_id_to_name = {}
         chain_state = ChainState(**inputs)
         datasets = chain_state.datasets_dict
@@ -908,7 +819,7 @@ class QueryBuilderFactoryV2(BaseDataQueryFactory):
         else:
             # some dimensions are missing
             incomplete_queries_chain_inputs = dict(
-                formatted_query_with_missing_dimensions=await v2_query_utils.format_dataset_queries(
+                formatted_query_with_missing_dimensions=await query_utils.format_dataset_queries(
                     auth_context=auth_context,
                     dataset_queries=dataset_queries,
                     datasets_dict=chain_state.datasets_dict,
@@ -931,7 +842,7 @@ class QueryBuilderFactoryV2(BaseDataQueryFactory):
         meta_factory = IndicatorSelectionFactory(
             config=self._config,
             models_api_key=auth_context.api_key,
-            vector_store=service._get_indicators_vector_store(auth_context),
+            vector_store=await service._get_indicators_vector_store(auth_context),
             matching_index_name=service.channel.matching_index_name,
             indicators_index_name=service.channel.indicators_index_name,
             list_datasets=list_datasets,
@@ -960,12 +871,12 @@ class QueryBuilderFactoryV2(BaseDataQueryFactory):
 
         chain = (
             RunnablePassthrough.assign(
-                datasets_dict_indexed=self._get_available_datasets,
+                datasets_dict_indexed=dataset_utils.get_available_datasets,
             )
-            # unpack country groups in the user prompt
-            | RunnablePassthrough.assign(
-                query_with_expanded_groups=self._group_expander_chain.create_chain,
-            )
+            # # unpack country groups in the user prompt
+            # | RunnablePassthrough.assign(
+            #     query_with_expanded_groups=self._group_expander_chain.create_chain,
+            # )
             # normalize (summarize) conversation
             | RunnablePassthrough.assign(
                 normalized_query=self._normalization_chain.create_chain,
@@ -1016,82 +927,154 @@ class QueryBuilderFactoryV2(BaseDataQueryFactory):
 
         return chain
 
-    def _create_non_indicator_dimensions_chain(self) -> Runnable:
+    def _create_nonindicators_chain(self) -> Runnable:
+        """Chain for selecting non-indicator dimensions"""
+
+        def _prepare_dimension_candidates_for_llm(
+            inputs: dict,
+        ) -> list[LLMSelectionDimensionCandidate]:
+            chain_state = ChainState(**inputs)
+            dimension_candidates = chain_state.dimension_candidates
+            res = [
+                LLMSelectionDimensionCandidate.from_scored_dimension_candidate(
+                    candidate=c, index=ix
+                )
+                for ix, c in enumerate(dimension_candidates)
+            ]
+            return res
+
+        def _filter_dimension_candidates_by_llm_response(
+            inputs: dict,
+        ) -> list[ScoredDimensionCandidate]:
+            # NOTE: Candidates with same (dimension_id, query_id) may belong to different datasets.
+            # However, duplicates by (dataset, dimension, query_id) are NOT expected.
+            chain_state = ChainState(**inputs)
+            llm_candidates = chain_state.dimension_candidates_for_llm_selection
+
+            selected_ids = chain_state.dimension_values_llm_selection_output.get_selected_ids()
+            selected_ids_expanded = (
+                LLMSelectionDimensionCandidate.propagate_selection_status_to_duplicates(
+                    candidates=llm_candidates, selected_ids=selected_ids
+                )
+            )
+
+            filtered = [c for c in llm_candidates if c._id in selected_ids_expanded]
+            filtered_casted = [c.to_scored_dimension_candidate() for c in filtered]
+
+            return filtered_casted
+
+        async def _populate_nonindicator_weak_queries_stage(stage: Stage, inputs: dict):
+            with debug_timer("_populate_nonindicator_weak_queries_stage"):
+                chain_state = ChainState(**inputs)
+                await query_utils.populate_queries_stage(
+                    stage=stage,
+                    queries=chain_state.weak_queries_nonindicators,
+                    auth_context=chain_state.auth_context,
+                    datasets_dict=chain_state.datasets_dict,
+                )
+
+        def _candidates_to_queries(inputs: dict) -> DatasetAvailabilityQueriesType:
+            with debug_timer("_candidates_to_queries"):
+                chain_state = ChainState(**inputs)
+
+                date_time_query_response = chain_state.date_time_query_response
+                date_time_query = date_time_query_response.to_query()
+
+                dataset_ids = list(chain_state.datasets_dict.keys())
+
+                dataset_2_dim_2_all_values_term = {
+                    ds_id: ds.config.dimension_all_values
+                    for ds_id, ds in chain_state.datasets_dict.items()
+                }
+
+                return query_utils.dimension_candidates_to_queries(
+                    candidates=chain_state.dimension_candidates,
+                    date_time_query=date_time_query,
+                    dataset_2_dim_2_all_values_term=dataset_2_dim_2_all_values_term,
+                    dataset_ids_to_be_present=dataset_ids,
+                )
+
+        def _copy_strong_nonindicators_to_strong_queries(inputs: dict) -> dict:
+            chain_state = ChainState(**inputs)
+            inputs['strong_queries'] = deepcopy(chain_state.strong_queries_nonindicators)
+            return inputs
+
         return (
             # ---------------------------
-            # Select dimension candidates
+            # Retrieve candidate from vector store
             # ---------------------------
             (
                 RunnablePassthrough.assign(
                     dimension_candidates=self._get_dimension_candidates_from_named_entities,
                 )
-                | RunnablePassthrough.assign(
-                    weak_queries_no_indicators=self._nonindicator_candidates_to_availability_queries
-                )
-                # NOTE: there is no reason to filter non-indicator candidates by availability,
-                # since we assume that vector store contains only available values.
+                # NOTE: we display weak queries to show mapping of candidates to their datasets.
+                # candidates, as passed to LLM prompt, will be shown in another stage.
+                | RunnablePassthrough.assign(weak_queries_nonindicators=_candidates_to_queries)
             ).with_config(
                 config=RunnableConfig(
                     callbacks=[
                         StageCallback(
-                            "Weak Queries, without indicators",
-                            self._populate_nonindicator_weak_queries_stage,
+                            "Non-indicator candidates, split by dataset",
+                            _populate_nonindicator_weak_queries_stage,
                             debug_only=True,
                         )
                     ]
                 )
             )
-            # create strong queries by validating by LLM (validation chain)
             | (
                 RunnablePassthrough.assign(
-                    dimension_candidates_for_llm_selection=self._convert_dimension_candidates_model_for_llm_selection
+                    dimension_candidates_for_llm_selection=_prepare_dimension_candidates_for_llm
                 )
                 | RunnablePassthrough.assign(
-                    dimension_candidates_for_llm_selection=self._append_non_indicator_all_values
+                    dimension_candidates_for_llm_selection=self._add_all_values_to_nonindicator_candidates
                 )
+                # run LLM selection
                 | RunnablePassthrough.assign(
                     dimension_values_llm_selection_output=self._dimensions_selection_chain_factory.create_chain()
                 )
                 | RunnablePassthrough.assign(
-                    dimension_candidates=self._filter_irrelevant_dimension_values_by_llm
+                    dimension_candidates=_filter_dimension_candidates_by_llm_response
                 )
-                | RunnablePassthrough.assign(
-                    strong_queries=self._nonindicator_candidates_to_availability_queries
-                )
-                # | RunnablePassthrough.assign(
-                #     strong_queries=self._filter_strong_queries_by_counterparties_presence
-                # )
-                | RunnablePassthrough.assign(
-                    strong_queries=self._filter_strong_queries_by_countries_presence
-                )
-                | RunnablePassthrough.assign(
-                    strong_availability=self._get_availability_from_strong_queries
-                )
+                | RunnablePassthrough.assign(strong_queries_nonindicators=_candidates_to_queries)
+                | _copy_strong_nonindicators_to_strong_queries
                 | self._update_strong_queries_best_attempt_if_possible
             ).with_config(
                 config=RunnableConfig(
                     callbacks=[
                         StageCallback(
-                            "Strong Queries, without indicators",
+                            "Strong Non-Indicators",
                             self._populate_strong_queries_stage,
                             debug_only=True,
                         )
                     ]
                 )
-                # TODO: currentlly we don't filter non-indicator candidates by availability,
-                # which can lead to (near) bug.
-                # For example, there are 0 series in IMF:CPI(3.0.0)
-                # for "Ukraine" and "Harmonized index of consumer prices" Index Type,
-                # however both dimension values are available in the dataset.
-                # In this case, there is no need to run indicators search,
-                # since there are no indicaotrs available.
-                # NOTE: vector store contains only avialable values.
-                # NOTE: thus problem could be only with incompatible combination
-                # of non-indicator dimensions, which seems to be very rare.
+            )
+            | (
+                # RunnablePassthrough.assign(
+                #     strong_queries=self._filter_strong_queries_by_counterparties_presence
+                # )
+                RunnablePassthrough.assign(
+                    strong_queries=self._filter_strong_queries_by_countries_presence
+                )
+                | RunnablePassthrough.assign(
+                    strong_availability=self._get_availability_from_strong_queries
+                )
+                # save queries before any further processing
+                | self._update_strong_queries_best_attempt_if_possible
+            ).with_config(
+                config=RunnableConfig(
+                    callbacks=[
+                        StageCallback(
+                            "Strong Non-Indicators, filtered by named entities",
+                            self._populate_strong_queries_stage,
+                            debug_only=True,
+                        )
+                    ]
+                )
             )
         )
 
-    def _create_indicators_selection_chain(self) -> Runnable:
+    def _create_indicators_chain(self) -> Runnable:
         selecting_indicators_stage_name = "Selecting Indicators"
         selecting_indicators_stage_callback = StageCallback(
             stage_name=selecting_indicators_stage_name,
@@ -1107,15 +1090,15 @@ class QueryBuilderFactoryV2(BaseDataQueryFactory):
             #
             # NOTE: notes on availability queries
             #
-            # NOTE #1: availability:
-            # 1. removes dimension values that do not have valid combinations with other PRESENT dimensions
-            # 2. lists available values for dimensions that are NOT PRESENT in the query
-            # Example:
-            # - dataset: "IMF.RES:WORLD_ECONOMIC_OUTLOOK(5.0.0)"
-            # - availability({'country': [111], 'indicator': ['LP', 'TTPCH']}) -> {'country': [111], 'indicator': ['LP'], 'frequency': ['A']}
-            # - availability({'country': [110, 111], 'indicator': ['LP', 'TTPCH']}) -> {'country': [110, 111], 'indicator': ['LP', 'TTPCH'], 'frequency': ['A']}
-            #
-            # NOTE #2. once we modify query, list of available values may change,
+            # NOTE: availability removes dimension values
+            # that do not have valid combinations with other PRESENT dimensions:
+            #   availability({'country': [US], 'indicator': ['IND_1', 'IND_2']}) ->
+            #   {'country': [US], 'indicator': ['IND_1'], 'frequency': ['A']}
+            # NOTE: availability lists available values for dimensions
+            # that are NOT PRESENT in the query
+            #   availability({'country': [US, FRA], 'indicator': ['IND_1', 'IND_2']}) ->
+            #   {'country': [US, FRA], 'indicator': ['IND_1', 'IND_2'], 'frequency': ['A']}
+            # NOTE: once we modify query, list of available values may change,
             # - data series present: (a1, b1, c1), (a1, b2, c2)
             # - availability({'a': ['a1']}) -> {'a': ['a1'], 'b': ['b1', 'b2'], 'c': ['c1', 'c2']}
             # - availability({'a': ['a1'], 'b': ['b1']}) -> {'a': ['a1'], 'b': ['b1'], 'c': ['c1']}
@@ -1134,7 +1117,7 @@ class QueryBuilderFactoryV2(BaseDataQueryFactory):
                 config=RunnableConfig(
                     callbacks=[
                         StageCallback(
-                            "Strong Queries, with indicators, before post-processing",
+                            "Strong Queries, with indicators",
                             self._populate_strong_queries_stage,
                             debug_only=True,
                         )
@@ -1148,7 +1131,7 @@ class QueryBuilderFactoryV2(BaseDataQueryFactory):
                 config=RunnableConfig(
                     callbacks=[
                         StageCallback(
-                            "Strong Queries, with indicators, filtered by required indicator dimensions",
+                            "Strong Queries, filter by required indicator dimensions",
                             self._populate_strong_queries_stage,
                             debug_only=True,
                         )
@@ -1160,17 +1143,19 @@ class QueryBuilderFactoryV2(BaseDataQueryFactory):
             # match the data we receive by executing the queries.
             | (
                 RunnablePassthrough.assign(
+                    # "strong_availability" will be used later, when building final dataset queries.
+                    # so we cache it here.
                     strong_availability=self._get_availability_from_strong_queries,
-                    strong_queries_before_availability=lambda d: deepcopy(d["strong_queries"]),
                 )
                 | RunnablePassthrough.assign(
                     strong_queries=self._filter_strong_queries_by_strong_availability
                 )
+                | self._update_strong_queries_best_attempt_if_possible
             ).with_config(
                 config=RunnableConfig(
                     callbacks=[
                         StageCallback(
-                            "Final Strong Queries, with indicators, filtered by availability",
+                            "Strong Queries, filter by availability",
                             self._populate_strong_queries_stage,
                             debug_only=True,
                         )
@@ -1179,38 +1164,173 @@ class QueryBuilderFactoryV2(BaseDataQueryFactory):
             )
         )
 
-    def _create_query_with_indicators_chain(self) -> Runnable:
-        stage_name = "Constructing Data Query"
-        constructing_stage_callback = StageCallback(
-            stage_name=stage_name,
-            content_appender=self._populate_dataset_queries,
-            debug_only=self._config.stages_config.is_stage_debug(stage_name),
+    @staticmethod
+    def _get_special_dimension_factories(
+        processor: SpecialDimensionsProcessor,
+    ) -> dict[SpecialDimensionsProcessorType, SpecialDimensionChainFactoryBase]:
+        return {
+            SpecialDimensionsProcessorType.LHCL: LHCLChainFactory(processor=processor),
+        }
+
+    def _create_special_dimension_chain(self) -> Runnable:
+        processors = self._config.special_dimensions_processors
+
+        if len(processors) == 0:
+            logger.info('no special dimension processors are present for data query tool')
+            return RunnableLambda(lambda _: {})
+
+        chains_dict = {}
+        for processor in processors:
+            factory_mapping = self._get_special_dimension_factories(processor=processor)
+            factory = factory_mapping.get(processor.type)
+            if not factory:
+                raise NotImplementedError(
+                    f'Unsupported special dimension processor type: {processor.type}'
+                )
+            chains_dict[processor.id] = factory.create_chain()
+
+        chain = RunnableParallel(chains_dict)
+        logger.info(
+            f'created processors for {len(chains_dict)} following special dimensions: '
+            f'{list(chains_dict.keys())}'
         )
 
+        return chain.with_config(
+            config=RunnableConfig(
+                callbacks=[
+                    StageCallback(
+                        stage_name="Selecting Special Dimensions",
+                        content_appender=None,
+                        debug_only=True,
+                    )
+                ]
+            )
+        )
+
+    def _combine_indicators_and_special_dimensions_chain_outputs(self, inputs: dict) -> dict:
+        state = inputs[MetaStateKeys.CHAIN_STATE]
+        state['special_dims_outputs'] = inputs[MetaStateKeys.SPECIAL_DIMENSIONS_OUTPUTS]
+        return state
+
+    @staticmethod
+    def _add_special_dims_to_strong_queries(inputs: dict) -> DatasetAvailabilityQueriesType:
+        state = ChainState(**inputs)
+        strong_queries = state.strong_queries
+
+        for _, sdim_out in state.special_dims_outputs.items():
+            if sdim_out.no_queries():
+                # no special dim queries at all - do not filter strong queries
+                continue
+
+            for ds_id, ds_strong in strong_queries.items():
+
+                if (ds_sdim_query := sdim_out.dataset_queries.get(ds_id)) is None:
+                    # no special dim query for this dataset - do not update it.
+                    # NOTE: alternatively, we can remove this dataset query completely.
+                    continue
+
+                dim = ds_sdim_query.dimension_id
+                if ds_sdim_query.operator != QueryOperator.IN:
+                    raise ValueError(f'unexpected query operator: {ds_sdim_query.operator}')
+
+                if (strong_dim_query := ds_strong.dimensions_queries_dict.get(dim)) is not None:
+                    # we allow special dimension to be already present in strong queries.
+                    # however, this should not happen (at least in the current code).
+                    # in this case, add any missing terms
+                    missing = set(ds_sdim_query.values).difference(strong_dim_query.values)
+                    if missing:
+                        strong_dim_query.values.extend(missing)
+                else:
+                    ds_strong.add_dimension_query(query=deepcopy(ds_sdim_query))
+
+        return strong_queries
+
+    def _create_nonindicators_ok_chain(self) -> Runnable:
+        construct_data_query_stage_name = "Constructing Data Query"
+
         return (
-            self._create_indicators_selection_chain()
+            # --- select indicator dims and special dims ---
+            RunnableParallel(
+                {
+                    MetaStateKeys.CHAIN_STATE: self._create_indicators_chain(),
+                    MetaStateKeys.SPECIAL_DIMENSIONS_OUTPUTS: self._create_special_dimension_chain(),
+                }
+            )
+            | self._combine_indicators_and_special_dimensions_chain_outputs
+            # --- combine special dim queries with strong queries ---
+            | (
+                RunnablePassthrough.assign(
+                    strong_queries=self._add_special_dims_to_strong_queries
+                ).with_config(
+                    config=RunnableConfig(
+                        callbacks=[
+                            StageCallback(
+                                "Strong Queries, with special dimensions",
+                                self._populate_strong_queries_stage,
+                                debug_only=True,
+                            )
+                        ]
+                    )
+                )
+                | self._update_strong_queries_best_attempt_if_possible
+                # filter by availability
+                | RunnablePassthrough.assign(
+                    strong_availability=self._get_availability_from_strong_queries,
+                )
+                | RunnablePassthrough.assign(
+                    strong_queries=self._filter_strong_queries_by_strong_availability
+                )
+                | self._update_strong_queries_best_attempt_if_possible
+            ).with_config(
+                config=RunnableConfig(
+                    callbacks=[
+                        StageCallback(
+                            "Strong Queries, with special dimensions, filter by availability",
+                            self._populate_strong_queries_stage,
+                            debug_only=True,
+                        )
+                    ]
+                )
+            )
+            # --- create final dataset queries ---
             | (
                 RunnablePassthrough.assign(dataset_queries=self._get_dataset_queries)
                 | RunnablePassthrough.assign(
                     dimension_id_to_name=self._map_dimension_ids_to_names,
                     dataset_queries_formatted_str=self._format_dataset_queries,
                 )
-            ).with_config(config=RunnableConfig(callbacks=[constructing_stage_callback]))
+            ).with_config(
+                config=RunnableConfig(
+                    callbacks=[
+                        StageCallback(
+                            stage_name=construct_data_query_stage_name,
+                            content_appender=self._populate_dataset_queries,
+                            debug_only=self._config.stages_config.is_stage_debug(
+                                construct_data_query_stage_name
+                            ),
+                        )
+                    ]
+                )
+            )
             | self._set_tool_state
             | self._route_based_on_data_query_status
         )
 
-    async def _route_based_on_non_indicator_data_query_status(self, inputs: dict) -> Runnable:
+    async def _route_based_on_nonindicators_status(self, inputs: dict) -> Runnable:
         chain_state = ChainState(**inputs)
         country_entities = chain_state.country_named_entities
-
         strong_queries = chain_state.strong_queries
+
+        # TODO: handle case when strong_queries are empty
+
         # if there are country entities, but no country dimensions values were found, we need to return "no data"
         if len(country_entities) > 0 and len(strong_queries) == 0:
             logger.info(
-                'No country dimension values were found in the query, but country named entities were found. '
+                'No country dimension values were found in the query, '
+                'but country named entities were found. '
                 'Returning "no data" message.'
             )
+
             country_names = [ne.entity for ne in country_entities]
             data_service = chain_state.data_service
             country_named_entity_type = data_service.get_country_named_entity_type()
@@ -1223,20 +1343,21 @@ class QueryBuilderFactoryV2(BaseDataQueryFactory):
                 message = message.format(country_details=country_details)
             except KeyError:
                 pass  # key not found in message, keep the original message
+
             inputs[DataQueryParameters.RESPONSE_FIELD] = message
             target = ChainParameters.get_target(inputs)
             target.append_content(message)
             return RunnableLambda(self._set_tool_state)
         else:
-            return self._create_query_with_indicators_chain()
+            return self._create_nonindicators_ok_chain()
 
-    async def create_chain(self, request_context: RequestContext) -> Runnable:
-        if request_context.inputs is None:
+    async def create_chain(self, inputs: dict | None) -> Runnable:
+        if inputs is None:
             raise ValueError("Request context inputs are required")
-        auth_context = ChainParameters.get_auth_context(request_context.inputs)
+        auth_context = ChainParameters.get_auth_context(inputs)
 
         return (
             self.create_preparation_chain(auth_context)
-            | self._create_non_indicator_dimensions_chain()
-            | self._route_based_on_non_indicator_data_query_status
+            | self._create_nonindicators_chain()
+            | self._route_based_on_nonindicators_status
         )

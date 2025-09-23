@@ -5,15 +5,19 @@ import zipfile
 from typing import cast
 
 from fastapi import HTTPException, status
-from sqlalchemy import delete, func, update
+from sqlalchemy import ColumnElement, delete, func, update
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from admin_portal.config import JobsConfig
+from admin_portal.settings.exim import JobsConfig
 from common import models, schemas, utils
 from common.config import multiline_logger as logger
 from common.services import ChannelService, GlossaryOfTermsService
 
 
 class AdminPortalGlossaryOfTermsService(GlossaryOfTermsService):
+
+    def __init__(self, session: AsyncSession) -> None:
+        super().__init__(session, None)  # No need for session lock in Admin Portal
 
     async def add_term(
         self, channel_id: int, data: schemas.GlossaryTermBase
@@ -130,6 +134,7 @@ class AdminPortalGlossaryOfTermsService(GlossaryOfTermsService):
             # We can implement this feature if needed.
             raise RuntimeError("Only one of term_ids or channel_id must be provided.")
 
+        where_clause: ColumnElement[bool]
         if term_ids is not None:
             where_clause = models.GlossaryTerm.id.in_(term_ids)
         elif channel_id is not None:

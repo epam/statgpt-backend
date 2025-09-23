@@ -11,9 +11,9 @@ from langchain_core.prompts import (
 )
 from langchain_core.runnables import Runnable, RunnablePassthrough
 
-from common.config import LLMModelsConfig
 from common.config import multiline_logger as logger
 from common.data.base import CategoricalDimension, DataSet, DataSetAvailabilityQuery, DataSetQuery
+from common.schemas import LLMModelConfig
 from common.utils import AttachmentsStorage, MediaTypes, attachments_storage_factory
 from common.utils.models import get_chat_model
 from statgpt.chains.data_query.parameters import DataQueryParameters
@@ -24,7 +24,8 @@ class IncompleteQueriesChain:
 
     _system_prompt: str
 
-    def __init__(self, system_prompt: str):
+    def __init__(self, llm_model_config: LLMModelConfig, system_prompt: str):
+        self._llm_model_config = llm_model_config
         self._system_prompt = system_prompt
 
     @classmethod
@@ -103,8 +104,14 @@ class IncompleteQueriesChain:
 
         chain = (
             prompt_template
-            | get_chat_model(api_key, LLMModelsConfig.GPT_4_TURBO_2024_04_09)
+            | get_chat_model(
+                api_key=api_key,
+                model_config=self._llm_model_config,
+            )
             | StrOutputParser()
+        )
+        logger.info(
+            f"{self.__class__.__name__} using LLM model: {self._llm_model_config.deployment.deployment_id}"
         )
         target = ChainParameters.get_target(inputs)
         response_content = ''

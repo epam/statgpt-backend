@@ -51,6 +51,10 @@ class DataSourceHandler(
     def entity_type(self) -> EntityType:
         return EntityType.DATA_SOURCE
 
+    @property
+    def config(self) -> DataSourceConfigType:
+        return self._config
+
     @staticmethod
     @abstractmethod
     def parse_config(d: dict) -> DataSourceConfigType:
@@ -78,6 +82,7 @@ class DataSourceHandler(
         config: dict,
         auth_context: AuthContext,
         allow_offline: bool = False,
+        allow_cached: bool = False,
     ) -> DataSetType:
         pass
 

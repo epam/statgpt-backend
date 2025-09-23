@@ -65,12 +65,10 @@ class Indexer:
         self._is_harmonize = harmonize
 
         normalize_model = get_chat_model(
-            api_key=models_api_key,
-            model=self._settings.normalize_model,
+            api_key=models_api_key, model_config=self._settings.normalize_model_config
         )
         harmonize_model = get_chat_model(
-            api_key=models_api_key,
-            model=self._settings.harmonize_model,
+            api_key=models_api_key, model_config=self._settings.harmonize_model_config
         )
 
         self._normalize_chain = (
@@ -146,7 +144,7 @@ class Indexer:
         unpack = indexer_config.indicator.unpack
         super_primary = indexer_config.indicator.super_primary
 
-        cache = {}
+        cache: dict[str, str] = {}
         matching_items = await self._es_get_all_matching_by(dataset.entity_id)
 
         if max_n_indicators is not None:
@@ -261,20 +259,25 @@ class Indexer:
         dataset: base.DataSet, series_str: str, super_primary: bool
     ) -> str:
         series = json.loads(series_str)
+        _log.debug("getting primary from series: %s", series)
         # ToDo: better understand what exactly that code does
         if super_primary:
-            super_primary = Indexer.__get_primary_from_dimension(dataset, series[0])
+            super_primary_value = Indexer.__get_primary_from_dimension(dataset, series[0])
             primary1 = Indexer.__get_primary_from_dimension(dataset, series[1])
             primary2 = Indexer.__get_primary_from_dimension(dataset, series[2])
-            return f"{super_primary}, {primary1}, {primary2}"
+            return f"{super_primary_value}, {primary1}, {primary2}"
         return Indexer.__get_primary_from_dimension(dataset, series[0])
 
     @staticmethod
     def __get_primary_from_dimension(dataset: base.DataSet, dimension_dict: dict) -> str:
         dimension_id = list(dimension_dict.keys())[0]
-        dimension = dataset._dimensions[dimension_id]
+        dimension = dataset.dimension(dimension_id)
         code = dimension_dict[dimension_id]
-        item = dimension.code_list[code]
+        item = dimension.code_list[code]  # type: ignore[attr-defined]
+        if item is None:
+            raise RuntimeError(
+                f"Cannot find code {code} in dimension {dimension_id} of dataset {dataset.source_id}"
+            )
         return item.name
 
     @classmethod
@@ -349,8 +352,8 @@ class Indexer:
             )
             dimension_queries.append(dimension_query)
 
-            dimension = dataset._dimensions[dimension_id]
-            item = dimension.code_list[code]
+            dimension = dataset.dimension(dimension_id)
+            item = dimension.code_list[code]  # type: ignore[attr-defined]
             name.append(f"{item.name}")
             where.append({dimension.name: item.name})
 
@@ -366,7 +369,10 @@ class Indexer:
         indicator_name = ", ".join(name)
 
         if not description or len(description) == 0:
-            description = f"Present in dataset:\n{indexer_config.description}"
+            indexer_description = (
+                indexer_config.description if indexer_config.description else dataset.description
+            )
+            description = f"Present in dataset:\n{indexer_description}"
         else:
             description = f"Description:\n{description}"
 
@@ -384,7 +390,7 @@ class Indexer:
         lex_max_score = result.hits.max_score
 
         for hit in result.hits.hits:
-            norm_score = self._lex_teor_min_max(hit.score, lex_max_score)
+            norm_score = self._lex_teor_min_max(hit.score, lex_max_score) if lex_max_score else 0
             if hit.id not in lex_indexed:
                 lex_indexed[hit.id] = norm_score
 
@@ -438,7 +444,7 @@ class Indexer:
             dataset_id = str(metadata['dataset_id'])
             dataset_dict[dataset_id].append({"id": _id, "metadata": metadata})
 
-        result = []
+        result: list = []
         i = 0
         while len(result) < max_output:
             no_more_candidates = True

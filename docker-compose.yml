@@ -1,0 +1,19 @@
+services:
+
+  vectordb:
+    hostname: vectordb
+    image: pgvector/pgvector:pg14
+    ports:
+      - "5433:5432"
+    restart: always
+    environment:
+      - POSTGRES_DB=${PGVECTOR_DATABASE}
+      - POSTGRES_USER=${PGVECTOR_USER}
+      - POSTGRES_PASSWORD=${PGVECTOR_PASSWORD}
+      - POSTGRES_HOST_AUTH_METHOD=trust
+    volumes:
+      - ${INIT_SQL_PATH:-./scripts/init.sql}:/docker-entrypoint-initdb.d/init.sql
+      - postgres-data:/var/lib/postgresql/data
+
+volumes:
+  postgres-data:

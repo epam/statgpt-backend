@@ -1,3 +1,4 @@
+import asyncio
 from typing import Iterable
 
 from fastapi import HTTPException, status
@@ -10,6 +11,8 @@ import common.models as models
 import common.schemas as schemas
 from common.config import multiline_logger as logger
 from common.data import DataManager, DataSourceConfig, DataSourceHandler
+
+from .base import DbServiceBase
 
 
 class DataSourceTypeSerializer:
@@ -24,23 +27,26 @@ class DataSourceTypeSerializer:
         )
 
 
-class DataSourceTypeService:
-    def __init__(self, session: AsyncSession) -> None:
-        self._session = session
+class DataSourceTypeService(DbServiceBase):
+    def __init__(self, session: AsyncSession, session_lock: asyncio.Lock | None = None) -> None:
+        super().__init__(session, session_lock)
 
     async def get_count(self) -> int:
         query = select(func.count("*")).select_from(models.DataSourceType)  # type: ignore
-        return (await self._session.execute(query)).scalar_one()
+        async with self._lock_session() as session:
+            return (await session.execute(query)).scalar_one()
 
     async def get_data_source_types(self, limit: int, offset: int) -> list[schemas.DataSourceType]:
         query = select(models.DataSourceType).limit(limit).offset(offset)
 
-        q_result = await self._session.execute(query)
+        async with self._lock_session() as session:
+            q_result = await session.execute(query)
 
         return [DataSourceTypeSerializer.db_to_schema(item) for item in q_result.scalars().all()]
 
     async def _get_item_or_raise(self, item_id: int) -> models.DataSourceType:
-        item: models.DataSourceType | None = await self._session.get(models.DataSourceType, item_id)
+        async with self._lock_session() as session:
+            item: models.DataSourceType | None = await session.get(models.DataSourceType, item_id)
         if not item:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -90,9 +96,9 @@ class DataSourceSerializer:
         )
 
 
-class DataSourceService:
-    def __init__(self, session: AsyncSession) -> None:
-        self._session = session
+class DataSourceService(DbServiceBase):
+    def __init__(self, session: AsyncSession, session_lock: asyncio.Lock | None = None) -> None:
+        super().__init__(session, session_lock)
 
     @staticmethod
     def _apply_filters(query: Select, ids: Iterable[int] | None) -> Select:
@@ -105,7 +111,9 @@ class DataSourceService:
     async def get_data_sources_count(self, ids: Iterable[int] | None = None) -> int:
         query = select(func.count("*")).select_from(models.DataSource)  # type: ignore
         query = self._apply_filters(query, ids)
-        return (await self._session.execute(query)).scalar_one()
+        async with self._lock_session() as session:
+            result = (await session.execute(query)).scalar_one()
+        return result
 
     async def get_data_sources_models(
         self, limit: int | None, offset: int, ids: Iterable[int] | None = None
@@ -114,7 +122,8 @@ class DataSourceService:
         query = select(models.DataSource).options(selectinload(models.DataSource.type))
         query = self._apply_filters(query, ids)
 
-        q_result = await self._session.execute(query.limit(limit).offset(offset))
+        async with self._lock_session() as session:
+            q_result = await session.execute(query.limit(limit).offset(offset))
         return [item for item in q_result.scalars().all()]
 
     async def get_data_sources_schemas(
@@ -127,7 +136,8 @@ class DataSourceService:
         return [DataSourceSerializer.db_to_schema(item) for item in items]
 
     async def _get_item_or_raise(self, item_id: int) -> models.DataSource:
-        item: models.DataSource | None = await self._session.get(models.DataSource, item_id)
+        async with self._lock_session() as session:
+            item: models.DataSource | None = await session.get(models.DataSource, item_id)
         if not item:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -137,7 +147,8 @@ class DataSourceService:
 
     async def get_by_id(self, item_id: int) -> models.DataSource:
         item = await self._get_item_or_raise(item_id)
-        await self._session.refresh(item, attribute_names=["type"])
+        async with self._lock_session() as session:
+            await session.refresh(item, attribute_names=["type"])
         return item
 
     async def get_schema_by_id(self, item_id: int) -> schemas.DataSource:

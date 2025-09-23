@@ -30,6 +30,7 @@ class DataQueryChain:
         datasets_dict = ChainParameters.get_datasets_dict(inputs)
         data_responses = ChainParameters.get_data_responses(inputs)
         dataset_queries = ChainParameters.get_dataset_queries(inputs)
+        configuration = ChainParameters.get_configuration(inputs)
 
         target = ChainParameters.get_target(inputs)
 
@@ -48,6 +49,10 @@ class DataQueryChain:
         # append message to be shown to agent only (not to user) if it's configured
         if self._executed_message_agent_only:
             response_content += f"\n\n{self._executed_message_agent_only}"
+
+        timestamp = configuration.get_current_timestamp()
+        response_content += f"\n[Data Query executed at {timestamp}]"
+
         inputs[DataQueryParameters.RESPONSE_FIELD] = response_content
         return inputs
 

@@ -7,7 +7,7 @@ from common.data.sdmx.common.config import SdmxDataSetConfig, SdmxDataSourceConf
 from common.schemas.base import BaseYamlModel
 
 
-class QuanthabDataSetConfig(SdmxDataSetConfig):
+class QuanthubDataSetConfig(SdmxDataSetConfig):
     """Configuration for a Quanthub SDMX dataset."""
 
     updated_at_annotation: str = Field(default='lastUpdatedAt')
@@ -123,6 +123,13 @@ class QuanthubSdmxDataSourceConfig(SdmxDataSourceConfig):
         default=None,
         description="The SDMX 3.0 URL for availability via POST. If not set, the default availability endpoint will be used.",
     )
+    data_explorer_url: str | None = Field(
+        default=None,
+        description=(
+            "The URL to the Quanthub Data Explorer. If set, it is used for creating URL queries with preset "
+            "facet values, and URLs in data query responses point to the Data Explorer instead of the API."
+        ),
+    )
 
     @property
     def has_api_key_header(self) -> bool:
@@ -139,4 +146,9 @@ class QuanthubSdmxDataSourceConfig(SdmxDataSourceConfig):
     def get_availability_via_post_url(self) -> str | None:
         if self.availability_via_post_url:
             return config_utils.replace_env(self.availability_via_post_url)
+        return None
+
+    def get_data_explorer_url(self) -> str | None:
+        if self.data_explorer_url:
+            return config_utils.replace_env(self.data_explorer_url)
         return None

@@ -65,14 +65,12 @@ class SearchResult(BaseModel):
         description="If true, the request timed out before completion; returned results may be partial or empty."
     )
     hits: Hits = Field(description="Contains returned documents and metadata.")
-
     aggregations: dict | None = Field(
         default=None, description="Contains aggregation results if aggregations were requested."
     )
-
-    # NOTE: Add this field if needed:
-    # scroll_id: str| None = Field(alias="_scroll_id")
-    # shards: dict = Field(alias="_shards")
+    scroll_id: str | None = Field(
+        alias="_scroll_id", default=None, description="Scroll identifier."
+    )
 
     model_config = ConfigDict(populate_by_name=True)
 
@@ -133,11 +131,21 @@ class ElasticIndex:
         )
         return SearchResult.model_validate(result.body)
 
+    async def delete_by_query(self, *, query: dict) -> dict:
+        """Deletes documents that match the query defined in the request."""
+
+        result = await self._client.delete_by_query(index=self.name, query=query)
+        return result.body
+
     async def analyze(self, *, text: str) -> list[Token]:
         """Performs analysis on a text string and returns the resulting tokens."""
 
         result = await self._client.indices.analyze(index=self.name, text=text)
         return [Token.model_validate(token) for token in result["tokens"]]
+
+    async def scroll(self, scroll_id: str, scroll: str) -> SearchResult:
+        result = await self._client.scroll(scroll_id=scroll_id, scroll=scroll)
+        return SearchResult.model_validate(result.body)
 
 
 class ElasticSearchFactory:

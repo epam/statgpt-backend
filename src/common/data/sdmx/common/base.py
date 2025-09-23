@@ -5,42 +5,48 @@ from sdmx.model import common
 
 from common.data.base import BaseEntity
 
-from .urn import Urn, UrnParser
-
 IdentifiableArtefactType = t.TypeVar("IdentifiableArtefactType", bound=common.IdentifiableArtefact)
 NameableArtefactType = t.TypeVar("NameableArtefactType", bound=common.NameableArtefact)
 
 
+def _extract_short_urn(artefact: common.IdentifiableArtefact) -> str:
+    try:
+        if isinstance(artefact, common.Item) and artefact.parent:
+            parent = artefact.parent
+            if parent.id and parent.version and parent.maintainer and parent.maintainer.id:
+                return f"{parent.maintainer.id}:{parent.id}({parent.version}).{artefact.id}"
+            else:
+                return artefact.id
+        elif (
+            isinstance(artefact, common.MaintainableArtefact)
+            and isinstance(artefact, common.VersionableArtefact)
+            and artefact.maintainer
+            and artefact.maintainer.id
+            and artefact.version
+        ):
+            return f"{artefact.maintainer.id}:{artefact.id}({artefact.version})"
+        else:
+            return artefact.id
+    except AttributeError:
+        return artefact.id
+
+
 class BaseIdentifiableArtefact(BaseEntity, t.Generic[IdentifiableArtefactType], ABC):
     _artefact: IdentifiableArtefactType
-    _urn: Urn
+    _short_urn: str
 
     def __init__(self, artefact: IdentifiableArtefactType):
         super().__init__()
         self._artefact = artefact
-        urn_parser = UrnParser.create_default()
-        if isinstance(artefact, common.Item) and artefact.parent and artefact.parent.urn:
-            # NOTE: here, for each code list's item, we parse URN of the parent dataflow.
-            # probably it's better to pass this URN as a param to avoid invoking parsing each time,
-            # however there is no bottleneck right now.
-            self._urn = urn_parser.parse(artefact.parent.urn)
-            self._urn.item_id = artefact.id
-        elif not artefact.urn:
-            self._urn = artefact.id  # type: ignore
-        else:
-            self._urn = urn_parser.parse(artefact.urn)
+        self._short_urn = _extract_short_urn(artefact)
 
     @property
     def source_id(self) -> str:
-        return self._urn.get_urn()
-
-    @property
-    def urn(self) -> Urn:
-        return self._urn
+        return self._artefact.id
 
     @property
     def short_urn(self) -> str:
-        return self._urn.get_short_urn()
+        return self._short_urn
 
 
 class BaseNameableArtefact(
@@ -57,7 +63,7 @@ class BaseNameableArtefact(
 
     @property
     def name(self) -> str:
-        return self._artefact.name[self._locale]
+        return self._artefact.name.localized_default(self._locale)
 
     @property
     def description(self) -> t.Optional[str]:

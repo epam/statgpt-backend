@@ -5,9 +5,9 @@ from sqlalchemy import ForeignKey
 from sqlalchemy.dialects import postgresql
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from common.config import EmbeddingsConfig
 from common.schemas import JobType, PreprocessingStatusEnum
 from common.settings.elastic import ElasticSearchSettings
+from common.settings.langchain import langchain_settings
 from common.utils import DateMixin, IdMixin
 
 from .database import Base
@@ -25,7 +25,7 @@ class Channel(DefaultBase):
     title: Mapped[str]
     description: Mapped[str]
     deployment_id: Mapped[str] = mapped_column(unique=True)
-    llm_model: Mapped[str] = mapped_column(default=EmbeddingsConfig.DEFAULT_MODEL)
+    llm_model: Mapped[str] = mapped_column(default=langchain_settings.default_model.value)
     details: Mapped[dict[str, Any]] = mapped_column(type_=postgresql.JSONB)
 
     # ~~~~~ Relationships ~~~~~
@@ -51,6 +51,10 @@ class Channel(DefaultBase):
     @property
     def available_dimensions_table_name(self) -> str:
         return f"AvailableDimensions_{self.id}"
+
+    @property
+    def special_dimensions_table_name(self) -> str:
+        return f"SpecialDimensions_{self.id}"
 
     @property
     def matching_index_name(self) -> str:

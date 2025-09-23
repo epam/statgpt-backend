@@ -1,9 +1,16 @@
 from pydantic import Field, TypeAdapter, field_validator
+from pydantic_core.core_schema import FieldValidationInfo
 
 from common.config.utils import replace_env
 
-from .base import BaseYamlModel
-from .enums import DataQueryVersion, IndexerVersion, IndicatorSelectionVersion
+from .base import BaseYamlModel, SystemUserPrompt
+from .enums import (
+    DataQueryVersion,
+    IndexerVersion,
+    IndicatorSelectionVersion,
+    SpecialDimensionsProcessorType,
+)
+from .model_config import LLMModelConfig
 from .tool_details import BaseToolDetails
 
 
@@ -56,7 +63,9 @@ class ToolAttachment(BaseYamlModel):
             " The value can be a reference to an environment variable."
         )
     )
-    name: str = Field(description="Attachment name template")
+    name: str | None = Field(
+        default=None, description="Attachment name template, may be None if disabled."
+    )
 
     @field_validator('enabled_str', mode='after')
     @classmethod
@@ -68,13 +77,17 @@ class ToolAttachment(BaseYamlModel):
             raise ValueError(f"Invalid value for enabled_str: {enabled}. Error: {e}")
         return enabled
 
+    @field_validator("name", mode="after")
+    def validate_name(cls, name: str | None, info: FieldValidationInfo) -> str | None:
+        """Validate the `name` field to ensure it is not empty if `enabled` is True."""
+        enabled_str = info.data.get("enabled_str")
+        if enabled_str and bool_from_str(enabled_str) and not name:
+            raise ValueError("Attachment name must be provided if the attachment is enabled.")
+        return name
+
     @property
     def enabled(self) -> bool:
         return bool_from_str(self.enabled_str)
-
-    def __bool__(self) -> bool:
-        """Return True if the attachment is enabled."""
-        return self.enabled
 
 
 class DataQueryAttachments(BaseYamlModel):
@@ -108,6 +121,27 @@ class DataQueryAttachments(BaseYamlModel):
     )
 
 
+class DataQueryLLMModels(BaseYamlModel):
+    datasets_selection_model_config: LLMModelConfig = Field(default_factory=LLMModelConfig)
+    dimensions_selection_model_config: LLMModelConfig = Field(default_factory=LLMModelConfig)
+    indicators_selection_model_config: LLMModelConfig = Field(default_factory=LLMModelConfig)
+    incomplete_queries_model_config: LLMModelConfig = Field(default_factory=LLMModelConfig)
+    group_expander_model_config: LLMModelConfig = Field(default_factory=LLMModelConfig)
+    named_entities_model_config: LLMModelConfig = Field(default_factory=LLMModelConfig)
+    time_period_model_config: LLMModelConfig = Field(default_factory=LLMModelConfig)
+    query_normalization_model_config: LLMModelConfig = Field(default_factory=LLMModelConfig)
+
+
+class SpecialDimensionsProcessor(BaseYamlModel):
+    id: str = Field(description="Unique identifier of the processor.")
+    # alias: str = Field(description="Alias for dimensions.")
+    type: SpecialDimensionsProcessorType = Field()
+    llm_model_config: LLMModelConfig = Field(default_factory=LLMModelConfig)
+    # TODO: top_k is specific to LHCL, move it to LHCL config subclass later
+    top_k: int = Field(description="Number of candidates retrieved from vector search", default=50)
+    prompt: SystemUserPrompt
+
+
 class DataQueryDetails(BaseToolDetails):
 
     version: DataQueryVersion = DataQueryVersion.v2
@@ -118,6 +152,17 @@ class DataQueryDetails(BaseToolDetails):
         default=IndicatorSelectionVersion.semantic_v4,
         description="The version of the indicator selection algorithm",
     )
+    special_dimensions_processors: list[SpecialDimensionsProcessor] = Field(default_factory=list)
+    llm_models: DataQueryLLMModels = Field(default_factory=DataQueryLLMModels)  # type: ignore
     prompts: DataQueryPrompts = Field(default_factory=DataQueryPrompts)  # type: ignore
     messages: DataQueryMessages = Field(default_factory=DataQueryMessages)  # type: ignore
     attachments: DataQueryAttachments = Field(default_factory=DataQueryAttachments)  # type: ignore
+    tool_response_max_cells: int = Field(
+        default=300,
+        description=(
+            "Maximum number of cells to include in the tool response. If the result exceeds this number, "
+            "the data won't be included in the response shown to agent. The user will always see the data in the "
+            "UI table, regardless of this limitation."
+        ),
+        ge=0,
+    )

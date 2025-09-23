@@ -8,7 +8,7 @@ import httpx
 import pandas as pd
 from pydantic import BaseModel, ConfigDict, Field, alias_generators
 
-from common.config import DialConfig
+from common.settings.dial import dial_settings
 from common.utils.media_types import MediaTypes
 
 from .core import DialCore, dial_core_factory
@@ -132,7 +132,7 @@ class AttachmentsStorage:
 
 @asynccontextmanager
 async def attachments_storage_factory(
-    api_key: str, base_url: str = DialConfig.get_url()
+    api_key: str, base_url: str = dial_settings.url
 ) -> AsyncIterator[AttachmentsStorage]:
 
     async with dial_core_factory(base_url=base_url, api_key=api_key) as dial_core:

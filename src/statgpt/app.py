@@ -35,11 +35,11 @@ app = app_factory.create_app()
 
 
 if __name__ == "__main__":
-    from statgpt.config import AppConfig, AppMode
+    from statgpt.settings.application import AppMode, application_settings
 
-    if AppConfig.MODE == AppMode.DIAL:
+    if application_settings.mode == AppMode.DIAL:
         pass
-    elif AppConfig.MODE == AppMode.LOCAL:
+    elif application_settings.mode == AppMode.LOCAL:
         run_dial_app(app)
     else:
-        raise NotImplementedError(f"Unsupported application mode: {AppConfig.MODE}")
+        raise NotImplementedError(f"Unsupported application mode: {application_settings.mode}")

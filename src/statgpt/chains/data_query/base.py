@@ -3,7 +3,6 @@ from abc import ABC, abstractmethod
 from langchain_core.runnables import Runnable
 
 from common.schemas import ChannelConfig, DataQueryDetails
-from statgpt.utils.request_context import RequestContext
 
 
 class BaseDataQueryFactory(ABC):
@@ -13,5 +12,5 @@ class BaseDataQueryFactory(ABC):
         self._channel_config = channel_config
 
     @abstractmethod
-    async def create_chain(self, request_context: RequestContext) -> Runnable:
+    async def create_chain(self, inputs: dict | None) -> Runnable:
         pass

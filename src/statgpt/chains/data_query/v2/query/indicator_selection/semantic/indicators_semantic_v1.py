@@ -1,9 +1,9 @@
-import asyncio
 from copy import deepcopy
 
 from langchain_core.runnables import Runnable, RunnablePassthrough
 
 from common.data.base import DataSetAvailabilityQuery, DimensionQuery, QueryOperator
+from common.utils import async_utils
 from statgpt.chains.data_query.v2.query.indicator_selection.base import (
     SemanticIndicatorSelectionBase,
 )
@@ -61,6 +61,7 @@ class IndicatorSelectionSemanticV1ChainFactory(SemanticIndicatorSelectionBase):
         )
 
         indicators_batch_chain_factory = CandidatesSelectionMappingChainFactory(
+            llm_model_config=self._config.llm_models.indicators_selection_model_config,
             system_prompt=self._get_system_prompt(),
             user_prompt=self._get_validation_user_prompt(),
             candidates_key="indicator_candidates",
@@ -170,7 +171,7 @@ class IndicatorSelectionSemanticV1ChainFactory(SemanticIndicatorSelectionBase):
         # TODO: HACK!!! currently we limit number of indicators to present to user.
         # It's done AFTER LLM selection, meaning that we have already lost the concept
         # of indicators relevance order (LLM does not provide relevancy scores)!
-        # It means, we CAN'T simly take top N indicators,
+        # It means, we CAN'T simply take top N indicators,
         # since they are not sorted by relevance anymore.
         # Once we have clarification questions implemented, we MUST
         # keep ALL selected indicators and remove this hack!!!!!!
@@ -189,7 +190,7 @@ class IndicatorSelectionSemanticV1ChainFactory(SemanticIndicatorSelectionBase):
         for dataset_id, query in queries.items():
             dataset = chain_state.datasets_dict[dataset_id]
             tasks.append(dataset.availability_query(query, auth_context))
-        task_results = await asyncio.gather(*tasks)
+        task_results = await async_utils.gather_with_concurrency(10, *tasks)
         result = {dataset_id: query for dataset_id, query in zip(queries.keys(), task_results)}
         return result
 
@@ -203,14 +204,14 @@ class IndicatorSelectionSemanticV1ChainFactory(SemanticIndicatorSelectionBase):
         strong_queries: dict[str, DataSetAvailabilityQuery] = inputs["strong_queries"]
         res = IndicatorsSearchResult(
             queries=strong_queries,
-            retrieval_results=RetrievalStagesResults(),  # leavy empty
+            retrieval_results=RetrievalStagesResults(),  # leave empty
         )
         return res
 
     def create_chain(self) -> Runnable:
         # NOTE !!!!! the chain below contains several bugs
         # that were fixed in the SemanticV2 chain, for example:
-        # * unexpected in-place modfication of strong_queries
+        # * unexpected in-place modification of strong_queries
         # * incorrect/non-optimal logic to process Complex Indicators
         # * probably something else
 

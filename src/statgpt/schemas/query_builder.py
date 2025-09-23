@@ -4,7 +4,7 @@ import pandas as pd
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from common.auth.auth_context import AuthContext
-from common.config import logger
+from common.config import multiline_logger as logger
 from common.data.base import (
     DataSet,
     DataSetAvailabilityQuery,
@@ -27,9 +27,12 @@ from .selection_candidates import (
 )
 from .tool_states import ToolMessageState
 
-# custom type
+# custom types:
 # dataset -> dimension -> dimension values
 DatasetDimQueriesType: t.TypeAlias = dict[str, dict[str, list[str]]]
+# dataset_id -> dimesnsion_id -> term_id -> term name
+# Example: {"3": {"COUNTRY": {"111": "United States"}}}
+DatasetDimensionTermNameType: t.TypeAlias = dict[str, dict[str, dict[str, str]]]
 # dataset_id -> availability query
 DatasetAvailabilityQueriesType: t.TypeAlias = dict[str, DataSetAvailabilityQuery]
 
@@ -54,7 +57,7 @@ class DatasetDimQueries(BaseModel):
         with at least 1 dimension query
         with at least 1 value.
         """
-        for dataset_id, dim_queries in self.queries.items():
+        for dim_queries in self.queries.values():
             if any(dim_values for dim_values in dim_queries.values()):
                 return True
         return False
@@ -157,6 +160,21 @@ class IndicatorsSearchResult(BaseModel):
     retrieval_results: RetrievalStagesResults
 
 
+class SpecialDimensionChainOutput(BaseModel):
+    processor_id: str = Field(description="SpecialDimensionsProcessor.id")
+    processor_type: str = Field(description="SpecialDimensionsProcessor.type")
+    dataset_queries: dict[str, DimensionQuery] = Field(
+        description="mapping from dataset id to special dimension query"
+    )
+    llm_response: SelectedCandidates
+
+    def no_queries(self):
+        """query wasn't built for any dataset"""
+        return not (self.dataset_queries) or all(
+            q.is_empty() for q in self.dataset_queries.values()
+        )
+
+
 class QueryBuilderAgentState(ToolMessageState):
     """
     Output model to access selected artifacts of a Query Builder Agent.
@@ -186,11 +204,15 @@ class QueryBuilderAgentState(ToolMessageState):
         description='Maps dataset entity id to source id, for all datasets indexed by statgpt',
         default_factory=dict,
     )
+    strong_queries_nonindicators: DatasetAvailabilityQueriesType = Field(
+        description="Strong (filtered by LLM) nonindicator queries",
+        default_factory=dict,
+    )
     weak_queries: DatasetAvailabilityQueriesType = Field(
-        description="The weak (not filtered by LLM) queries to the datasets", default_factory=dict
+        description="Weak (not filtered by LLM) queries to the datasets", default_factory=dict
     )
     strong_queries: DatasetAvailabilityQueriesType = Field(
-        description="The strong (filtered by LLM) queries to the datasets", default_factory=dict
+        description="Strong (filtered by LLM) queries to the datasets", default_factory=dict
     )
     dataset_queries: dict[str, DataSetQuery] = Field(
         description="Queries to the datasets (ready to be sent to source)", default_factory=dict
@@ -199,16 +221,21 @@ class QueryBuilderAgentState(ToolMessageState):
         description='Retrieval stages results, used in evaluations',
         default_factory=RetrievalStagesResults,
     )
-
-    # {dataset_no: {dimension: {dimension_id: dimension_name}}}
-    # Example: {"3": {"COUNTRY": {"111": "United States"}}}
-    dimension_id_to_name: dict[str, dict[str, dict[str, str]]] = Field(
-        description="Mapping of datasets to their respective dimension ids to human-readable dimension names",
+    dimension_id_to_name: DatasetDimensionTermNameType = Field(
+        description="For dataset queries, contains mapping of datasets id "
+        "to their dimension ids to term ids to term names",
+        default_factory=dict,
+    )
+    special_dims_outputs: dict[str, SpecialDimensionChainOutput] = Field(
+        description="mapping from SpecialDimensionsProcessor.id to its chain output",
         default_factory=dict,
     )
 
 
 class LLMSelectionDimensionCandidate(LLMSelectionCandidateBase, ScoredDimensionCandidate):
+
+    # TODO: can separate dedup-propagate logic from concrete dimensions formatting
+
     index: int
     dedup_key: t.ClassVar[tuple[str, ...]] = ('dimension', 'name')
 
@@ -216,79 +243,58 @@ class LLMSelectionDimensionCandidate(LLMSelectionCandidateBase, ScoredDimensionC
     def _id(self) -> str:
         return str(self.index)
 
+    def to_df_row_dict(self) -> dict:
+        res = {
+            'id': self._id.strip(),
+            # TODO: experiment with passing concept name instead of dimension name
+            'dimension': self.dimension_alias_or_name.strip(),
+            # NOTE: use 'system_code' to avoid LLM confusing with 'id'
+            'system_code': self.query_id.strip(),
+            'name': self.name.strip(),
+            'score': self.score,  # used to sort candidates
+        }
+        return res
+
     @staticmethod
     def _candidates_to_df(candidates: list["LLMSelectionDimensionCandidate"]):
-        dicts = []
-        for c in candidates:
-            if c.dimension_category.dimension_alias:
-                dim_name = c.dimension_category.dimension_alias.strip()
-            else:
-                dim_name = c.dimension_category.dimension_name.strip()
-            d = {
-                'id': c._id.strip(),
-                # 'dataset_id': c.dataset_id,  # can be used to debug duplicated candidates
-                # TODO: experiment with passing concept name instead of dimension name
-                'dimension': dim_name,
-                # previously "system_code" was named "internal_id",
-                # however LLM sometimes used internal_ids in its response instead of ids.
-                # so we renamed this field
-                'system_code': c.query_id.strip(),
-                'name': c.name.strip(),
-                'score': c.score,  # used to sort candidates
-            }
-            dicts.append(d)
-        df = pd.DataFrame(dicts)
+        df = pd.DataFrame([c.to_df_row_dict() for c in candidates])
         return df
+
+    @staticmethod
+    def _format_row(row: pd.Series) -> str:
+        # NOTE: explicitly naming properties (id, system_code)
+        # should help to prevent LLM from selecting system code instead of id.
+        return f'- {row["name"]} (id: {row["id"]}, system code: {row["system_code"]})'
+
+    @classmethod
+    def _format_df(cls, _df: pd.DataFrame) -> str:
+        return '\n'.join(_df.apply(cls._format_row, axis=1))
 
     @classmethod
     def candidates_to_llm_string(cls, candidates: list["LLMSelectionDimensionCandidate"]) -> str:
         """
         Convert candidates to string to ingest to LLM prompt.
-        NOTE: we drop duplicates to make it easier for LLM to select ALL relevant items.
-        NOTE: later we will need to propagate selection status to dropped duplicates.
+        NOTE: we drop duplicates to make it easier for LLM to select ALL relevant items. later we'll propagate selection status to dropped duplicates.
         """
         df = cls._candidates_to_df(candidates)
-
-        # # you can debug duplicated candidates using following commands:
-        # df.sort_values(['name', 'dimension']).to_dict(orient='records')
-        # df[df.duplicated(['name', 'dataset_id', 'dimension'], keep=False)].sort_values(['name', 'dataset_id', 'dimension'])
-
         df.drop_duplicates(cls.dedup_key, inplace=True)
         df.sort_values('score', ascending=False, inplace=True)
-        # drop unnecessary columns and ensure columns order
-        df = df[['id', 'dimension', 'system_code', 'name']]
-
-        # old code, converting candidates df to csv table as is
-        # text = statgpt_utils.df_2_table_str(df=df, delimiter='|')
-        # text = text.strip()
-
-        # new code:
-        # - group by dimensions
-        # - explicitly name properties (id, system_code) for each item.
-        #   this should help to prevent LLM from selecting system code instead of id in response.
-
-        def _format_row(row):
-            return f'- {row["name"]} (id: {row["id"]}, system code: {row["system_code"]})'
 
         lines = []
         grouped = df.groupby('dimension', sort=False)
         for ix, (dim_name, df_group) in enumerate(grouped):
-            lines.append(f'## dimension: "{dim_name}"')
-            lines.append('\n')
-            items_formatted = df_group.apply(_format_row, axis=1)
-            df_group_formatted = '\n'.join(items_formatted)
-            lines.append(df_group_formatted)
-            lines.append('\n')
+            lines.append(f'## dimension: "{dim_name}"\n')
+            lines.append(cls._format_df(df_group))
             if ix < len(grouped) - 1:
-                lines.append('\n')
+                lines.append('\n\n')
         text = ''.join(lines)
 
         return text
 
     @classmethod
     def propagate_selection_status_to_duplicates(
-        cls, candidates: list["LLMSelectionDimensionCandidate"], selected_ids: t.Iterable[str]
-    ):
+        cls, candidates: list["LLMSelectionDimensionCandidate"], selected_ids: set[str]
+    ) -> list[str]:
         """
         Return ids of candidates selected by LLM, including dropped duplicates.
 
@@ -311,7 +317,7 @@ class LLMSelectionDimensionCandidate(LLMSelectionCandidateBase, ScoredDimensionC
 
     @classmethod
     def from_scored_dimension_candidate(cls, candidate: ScoredDimensionCandidate, index: int):
-        return LLMSelectionDimensionCandidate(
+        return cls(
             index=index,
             score=candidate.score,
             dataset_id=candidate.dataset_id,
@@ -345,19 +351,25 @@ class ChainState(BaseModel):
     date_time_query_response: DateTimeQueryResponse = DateTimeQueryResponse()
     # all datasets indexed by statgpt
     datasets_dict_indexed: dict[str, DataSet] = {}
-    # selected datasets. do not rename for now, to avoid lots of edits.
+    # selected datasets
     datasets_dict: dict[str, DataSet | Sdmx21DataSet] = {}
     named_entities_response: NamedEntitiesResponse = NamedEntitiesResponse()
     country_named_entities: list[NamedEntity] = []
     dimension_candidates: list[ScoredDimensionCandidate] = []
-    weak_queries: DatasetAvailabilityQueriesType = {}
+
+    weak_queries_nonindicators: DatasetAvailabilityQueriesType = {}
+    strong_queries_nonindicators: DatasetAvailabilityQueriesType = {}
     dimension_candidates_for_llm_selection: list[LLMSelectionDimensionCandidate] = []
     dimension_values_llm_selection_output: SelectedCandidates = None  # type: ignore
 
+    weak_queries: DatasetAvailabilityQueriesType = {}
     strong_queries: DatasetAvailabilityQueriesType = {}
     strong_queries_best_nonempty_attempt: DatasetAvailabilityQueriesType = {}
-
     strong_availability: DatasetAvailabilityQueriesType = {}
+
+    retrieval_results: RetrievalStagesResults = RetrievalStagesResults()
+    special_dims_outputs: dict[str, SpecialDimensionChainOutput] = {}
+    dataset_queries: dict[str, DataSetQuery] = {}  # final data queries
 
     indicators_llm_selection_output: BatchedSelectionOutputBase = None  # type: ignore
 
@@ -369,16 +381,20 @@ class ChainState(BaseModel):
     indicator_candidates_filtered_by_availabiility: list[ScoredIndicatorCandidate] = []
     indicator_candidates_llm_selects: list[ScoredIndicatorCandidate] = []
 
-    retrieval_results: RetrievalStagesResults = RetrievalStagesResults()
-
-    dataset_queries: dict[str, DataSetQuery] = {}  # final data queries
-
-    # {dataset_no: {dimension: {dimension_id: dimension_name}}}
-    # Example: {"3": {"COUNTRY": {"111": "United States"}}}
-    dimension_id_to_name: dict[str, dict[str, dict[str, str]]] = {}
+    dimension_id_to_name: DatasetDimensionTermNameType = {}
     dataset_queries_formatted_str: str = ''
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
+
+
+class MetaStateKeys:
+    """
+    used to combine states of multiple data query subchains.
+    make 1 subchains return main state that is going to be updated by outputs from other subchains.
+    """
+
+    CHAIN_STATE = 'chain_state'  # main state
+    SPECIAL_DIMENSIONS_OUTPUTS = 'special_dims_outputs'
 
 
 class DataSetChoice(BaseModel):

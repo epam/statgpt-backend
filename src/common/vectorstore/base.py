@@ -15,8 +15,6 @@ class VectorStore(ABC):
         datasource: str | None = None,
         **kwargs,
     ) -> None:
-        super().__init__(**kwargs)
-
         self._collection_name = collection_name
         self._datasource = datasource
         self._embedding_model = embedding_model
@@ -39,7 +37,7 @@ class VectorStore(ABC):
 
     @abstractmethod
     async def remove_documents_by_dataset_id(self, dataset_id: int) -> None:
-        """todo: move it to the indicators vector store interface"""
+        """Remove all documents associated with the given dataset id"""
 
     @abstractmethod
     async def search(self, query: str, k: int = 10) -> list[Document]:
@@ -53,9 +51,16 @@ class VectorStore(ABC):
 
     @abstractmethod
     async def search_with_similarity_score_and_dataset_id(
-        self, query: str, k: int = 10, dataset_ids: set[int] | None = None
+        self,
+        query: str,
+        k: int = 10,
+        dataset_ids: set[int] | None = None,
+        metadata_filters: dict[str, set] | None = None,
     ) -> list[tuple[Document, float, int]]:
-        pass
+        """
+        For a given query, get its nearest neighbors with similarity scores along with the dataset ids it belongs to.
+        Optionally filter by dataset ids and metadata fields.
+        """
 
     @abstractmethod
     async def get_documents(

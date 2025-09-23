@@ -1,47 +1,15 @@
-import asyncio
-from contextlib import asynccontextmanager
-
 from aidial_sdk import DIALApp
 from aidial_sdk.telemetry.types import MetricsConfig, TelemetryConfig, TracingConfig
+from fastapi import Depends
 
-from common.config import DialConfig
 from common.config.logging import multiline_logger as logger
-from common.indexer.cache_factory import CacheFactory
-from common.models import DatabaseHealthChecker, optional_msi_token_manager_context
-from common.services.data_preloader import preload_data
-from statgpt.config import DialAppConfig
-from statgpt.utils import HierarchiesLoader
+from statgpt.settings.application import application_settings
+from statgpt.settings.dial_app import dial_app_settings
 
+from .application import StatGPTApp
 from .channel_completion import ChannelCompletion
 from .service_endpoints import router as service_router
-
-
-@asynccontextmanager
-async def lifespan(app: "StatGPTApp"):
-    async with optional_msi_token_manager_context():
-        # Check resources' availability:
-        await DatabaseHealthChecker.check()
-
-        # Load in cache:
-        await HierarchiesLoader.get_hierarchy("country_groups")
-
-        # Start data preloading in the background
-        asyncio.create_task(preload_data())
-
-        CacheFactory.get_instance()
-
-        yield
-        # Clean up
-
-
-class StatGPTApp(DIALApp):
-    def __init__(self, **kwargs):
-        super().__init__(
-            dial_url=DialConfig.get_url(),
-            add_healthcheck=True,
-            lifespan=lifespan,
-            **kwargs,
-        )
+from .session_dependency import store_session_in_request
 
 
 class DialAppFactory:
@@ -49,13 +17,25 @@ class DialAppFactory:
         logger.info("Creating DIAL app")
         app = StatGPTApp(
             telemetry_config=TelemetryConfig(
-                service_name=DialAppConfig.APP_NAME,
+                service_name=dial_app_settings.dial_app_name,
                 tracing=TracingConfig(),
                 metrics=MetricsConfig(),
             ),
         )
 
-        app.add_chat_completion("{deployment_id}", ChannelCompletion())
+        app.add_chat_completion_with_dependencies(
+            "{deployment_id}",
+            ChannelCompletion(),
+            heartbeat_interval=10,
+            chat_completion_dependencies=[Depends(store_session_in_request)],
+            configuration_dependencies=[Depends(store_session_in_request)],
+        )
         app.include_router(service_router)
+
+        # Add memory debug endpoints (only in development)
+        if application_settings.memory_debug:
+            from common.routers.memory_debug import router as memory_debug_router
+
+            app.include_router(memory_debug_router)
 
         return app

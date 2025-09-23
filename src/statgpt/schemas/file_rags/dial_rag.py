@@ -205,6 +205,10 @@ class RagFilterDial(BaseModel):
         description="If specified, search only within top N documents sorted by given fields after applying all filters.",
     )
 
+    # TODO: add validator checking that each FilterSingle has unique publication type.
+    # and if there is a FilterSingle with no publication type filter (global time filter),
+    # then there are no other filters
+
     def __eq__(self, value) -> bool:
         # Validate value
         if value is None:

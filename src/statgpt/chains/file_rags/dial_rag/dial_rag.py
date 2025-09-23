@@ -6,7 +6,6 @@ from openai import APIError
 from openai.types.chat import ChatCompletionUserMessageParam
 
 from common.auth.auth_context import AuthContext
-from common.config import LLMModelsConfig
 from common.config import multiline_logger as logger
 from common.utils import MediaTypes
 from common.utils.models import get_chat_model
@@ -14,11 +13,11 @@ from statgpt.chains.file_rags.base import BaseRAGFactory
 from statgpt.chains.file_rags.dial_rag.metadata_loader import DialRagMetadataLoader
 from statgpt.chains.file_rags.dial_rag.prefilter import PreFilterBuilder
 from statgpt.chains.parameters import ChainParameters
-from statgpt.config import DialRagConfig, StateVarsConfig
+from statgpt.config import StateVarsConfig
 from statgpt.schemas import DialRagArtifact, DialRagState
 from statgpt.schemas.file_rags.dial_rag import DialRagMetadata, PreFilterResponse
+from statgpt.settings.dial_rag import dial_rag_settings
 from statgpt.utils import OpenAiToDialStreamer, openai, replace_dial_url
-from statgpt.utils.request_context import RequestContext
 
 
 class RAGMetadataError(Exception):
@@ -32,8 +31,8 @@ class DialRagAgentFactory(BaseRAGFactory):
     FIELD_PRE_FILTER_DECODER_OF_LATEST = 'prefilter_decoder_of_latest'
 
     def _init_dial_rag_client(self, auth_context: AuthContext):
-        nondefault_dial_rag_pgvector_endpoint = DialRagConfig.DIAL_RAG_PGVECTOR_URL
-        nondefault_dial_rag_pgvector_api_key = DialRagConfig.DIAL_RAG_PGVECTOR_API_KEY
+        nondefault_dial_rag_pgvector_endpoint = dial_rag_settings.pgvector_url
+        nondefault_dial_rag_pgvector_api_key = dial_rag_settings.pgvector_api_key
 
         if nondefault_dial_rag_pgvector_endpoint and nondefault_dial_rag_pgvector_api_key:
             logger.info(
@@ -77,7 +76,10 @@ class DialRagAgentFactory(BaseRAGFactory):
         self, auth_context: AuthContext, query: str
     ) -> tuple[PreFilterResponse, DialRagMetadata]:
         try:
-            metadata_loader = DialRagMetadataLoader.create_for_local_or_remote(auth_context)
+            metadata_loader = DialRagMetadataLoader.create_for_local_or_remote(
+                auth_context=auth_context,
+                metadata_endpoint=self._tool_config.details.metadata_endpoint,
+            )
             metadata_resp = await metadata_loader.load()
             metadata = DialRagMetadata.from_response(metadata_resp)
         except Exception as e:
@@ -85,8 +87,11 @@ class DialRagAgentFactory(BaseRAGFactory):
 
         llm = get_chat_model(
             api_key=auth_context.api_key,
-            model=LLMModelsConfig.GPT_4_1_2025_04_14,
-            temperature=0.0,
+            model_config=self._tool_config.details.prefilter_llm_model_config,
+        )
+        logger.info(
+            f"{self.__class__.__name__} using LLM model: "
+            f"{self._tool_config.details.prefilter_llm_model_config.deployment.deployment_id}"
         )
         decoder_of_latest_mapping = self._tool_config.details.decoder_of_latest
         pre_filter_builder = PreFilterBuilder(
@@ -150,6 +155,8 @@ class DialRagAgentFactory(BaseRAGFactory):
             )
 
     async def _stream_response(self, inputs: dict) -> dict:
+        logger.info(f'{type(self).__name__}._stream_response()')
+
         auth_context = ChainParameters.get_auth_context(inputs)
         target = ChainParameters.get_target(inputs)
         choice = ChainParameters.get_choice(inputs)
@@ -167,6 +174,7 @@ class DialRagAgentFactory(BaseRAGFactory):
             )
             metadata = None  # not used as well
         else:
+            logger.info(f'building prefilter from user query: "{query}"')
             pre_filter_response, metadata = await self._run_prefilter(
                 auth_context=auth_context, query=query, target=target
             )
@@ -201,7 +209,7 @@ class DialRagAgentFactory(BaseRAGFactory):
 
         dial_rag_client = self._init_dial_rag_client(auth_context)
         rag_stream = await dial_rag_client.chat.completions.create(
-            model=DialRagConfig.DIAL_RAG_DEPLOYMENT_ID,
+            model=self._tool_config.details.deployment_id,
             stream=True,
             messages=[ChatCompletionUserMessageParam(role='user', content=query)],
             extra_body=configuration_params,
@@ -210,7 +218,7 @@ class DialRagAgentFactory(BaseRAGFactory):
         dial_streamer = OpenAiToDialStreamer(
             target,
             choice,
-            deployment=DialRagConfig.DIAL_RAG_DEPLOYMENT_ID,
+            deployment=self._tool_config.details.deployment_id,
             stream_content=False,
             show_debug_stages=state.get(StateVarsConfig.SHOW_DEBUG_STAGES, False),
             stages_config=self._tool_config.details.stages_config,
@@ -256,5 +264,5 @@ class DialRagAgentFactory(BaseRAGFactory):
 
         return inputs
 
-    async def create_chain(self, request_context: RequestContext) -> Runnable:
+    async def create_chain(self) -> Runnable:
         return RunnableLambda(self._stream_response) | self._set_tool_state

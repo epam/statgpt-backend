@@ -7,7 +7,9 @@ from sdmx.model.v21 import DataStructureDefinition
 from common.auth.auth_context import AuthContext
 from common.config import multiline_logger as logger
 from common.data.quanthub.config import QuanthubSdmxDataSourceConfig
+from common.data.sdmx.v21.ratelimiter import SdmxRateLimiter
 from common.data.sdmx.v21.sdmx_client import AsyncSdmxClient, init_sdmx
+from common.utils import Cache
 
 from .authorizer import QuanthubAuthorizer, QuanthubAuthorizerFactory
 from .qh_sdmx_30_schemas import (
@@ -25,11 +27,14 @@ class AsyncQuanthubClient(AsyncSdmxClient):
     Contains methods unique to QuantHub, such as fetching dynamic annotations.
     """
 
-    _annotation_cache: dict[str, list[QhAnnotation]] = {}
+    _annotation_cache: Cache[list[QhAnnotation]] = Cache()
 
     @classmethod
     def from_config(  # type: ignore[override]
-        cls, config: QuanthubSdmxDataSourceConfig, auth_context: AuthContext
+        cls,
+        config: QuanthubSdmxDataSourceConfig,
+        auth_context: AuthContext,
+        rate_limiter: SdmxRateLimiter,
     ) -> "AsyncQuanthubClient":
         """Initialize the client from a configuration object."""
 
@@ -55,6 +60,7 @@ class AsyncQuanthubClient(AsyncSdmxClient):
             authorizer=authorizer,
             annotations_url=config.get_annotations_url(),
             availability_via_post_url=config.get_availability_via_post_url(),
+            rate_limiter=rate_limiter,
         )
 
     def __init__(
@@ -64,8 +70,14 @@ class AsyncQuanthubClient(AsyncSdmxClient):
         authorizer: QuanthubAuthorizer | None,
         annotations_url: str | None,
         availability_via_post_url: str | None,
+        rate_limiter: SdmxRateLimiter,
     ):
-        super().__init__(sync_client=sync_client, httpx_client=httpx_client, authorizer=authorizer)
+        super().__init__(
+            sync_client=sync_client,
+            httpx_client=httpx_client,
+            authorizer=authorizer,
+            rate_limiter=rate_limiter,
+        )
         self._annotations_url = annotations_url
         self._availability_via_post_url = availability_via_post_url
 
@@ -109,8 +121,8 @@ class AsyncQuanthubClient(AsyncSdmxClient):
             return []
 
         url = f"{self._annotations_url}/structure/dataflow/{agency_id}/{resource_id}/{version}"
-        if url in self._annotation_cache:
-            return self._annotation_cache[url]
+        if (item := self._annotation_cache.get(url)) is not None:
+            return item
 
         headers = {}
         if self._authorizer is not None:
@@ -121,7 +133,8 @@ class AsyncQuanthubClient(AsyncSdmxClient):
             # "forceDataflowDynamicAnnotations": "true",
         }
 
-        resp = await self._httpx_client.get(url, headers=headers, params=params)
+        async with self._rate_limiter.structure_limiter():
+            resp = await self._httpx_client.get(url, headers=headers, params=params)
         resp.raise_for_status()
 
         response_data = QhDataflowMessage.model_validate(resp.json())
@@ -130,8 +143,8 @@ class AsyncQuanthubClient(AsyncSdmxClient):
             raise ValueError(
                 f"Expected exactly one dataflow in response, got {len(response_data.data.dataflows)}"
             )
-        self._annotation_cache[url] = response_data.data.dataflows[0].annotations
-        return self._annotation_cache[url]
+        self._annotation_cache.set(url, response_data.data.dataflows[0].annotations)
+        return response_data.data.dataflows[0].annotations
 
     async def _qh_available_constraint(
         self,
@@ -167,7 +180,8 @@ class AsyncQuanthubClient(AsyncSdmxClient):
             headers=headers,
             json=req_body_obj.model_dump(mode='json', exclude_none=True, by_alias=True),
         ).prepare()
-        response = await self._perform_request(req)
+        async with self._rate_limiter.availability_limiter():
+            response = await self._perform_request(req)
 
         resp_body_obj = QhAvailabilityResponseBody.model_validate(response.json())
         structure_msg = resp_body_obj.to_sdmx1()

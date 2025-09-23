@@ -1,12 +1,14 @@
 import typing as t
+from datetime import datetime
 
 from aidial_sdk.chat_completion import Choice, Request, Stage
 
 from common.auth.auth_context import AuthContext
 from common.data.base import DataResponse, DataSet, DataSetQuery, DimensionQuery
 from statgpt.config import ChainParametersConfig
+from statgpt.schemas.dial_app_configuration import StatGPTConfiguration
 from statgpt.schemas.file_rags.dial_rag import RagFilterDial
-from statgpt.services import ChannelServiceFacade, VectorStoreIndicator
+from statgpt.services import ChannelServiceFacade
 from statgpt.utils.message_history import History
 
 
@@ -26,6 +28,10 @@ class ChainParameters:
     @staticmethod
     def get_request(data: dict) -> Request:
         return data[ChainParametersConfig.REQUEST]
+
+    @staticmethod
+    def get_configuration(data: dict) -> StatGPTConfiguration:
+        return data[ChainParametersConfig.CONFIGURATION]
 
     @staticmethod
     def get_query(data: dict) -> str:
@@ -56,11 +62,6 @@ class ChainParameters:
         return data[ChainParametersConfig.DATA_SERVICE]
 
     @staticmethod
-    def get_indicators(data: dict) -> list[VectorStoreIndicator]:
-        """Unique indicators selected by Indicator Agent"""
-        return data[ChainParametersConfig.INDICATORS]
-
-    @staticmethod
     def get_indicator_id_2_dataset_ids(data: dict) -> dict[int, list[str]]:
         return data[ChainParametersConfig.INDICATOR_ID_2_DATASET_IDS]
 
@@ -89,6 +90,14 @@ class ChainParameters:
     @staticmethod
     def get_data_responses(data: dict) -> dict[str, DataResponse | None]:
         return data[ChainParametersConfig.DATA_RESPONSES]
+
+    @staticmethod
+    def get_performance_stage(data: dict) -> Stage:
+        return data[ChainParametersConfig.PERFORMANCE_STAGE]
+
+    @staticmethod
+    def get_start_of_request(data: dict) -> datetime:
+        return data[ChainParametersConfig.START_OF_REQUEST]
 
     @staticmethod
     def get_state(data: dict) -> dict[str, t.Any]:

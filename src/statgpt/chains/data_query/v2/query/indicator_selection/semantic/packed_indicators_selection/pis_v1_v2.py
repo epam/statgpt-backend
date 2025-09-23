@@ -2,24 +2,31 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 
-import yaml
 from langchain_core.output_parsers import PydanticOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.runnables import Runnable, RunnableLambda, RunnablePassthrough
 from pydantic import BaseModel, Field, model_validator
 
-from common.config import DialConfig, LLMModelsConfig, logger
+from common import utils
+from common.config import logger
+from common.schemas import LLMModelConfig
+from common.settings.dial import dial_settings
 from common.utils.models import get_chat_model
 from statgpt.chains import ChainFactory
 from statgpt.chains.data_query.v2.query.utils import DatasetDimQueriesSimpleDictFormatter
 from statgpt.chains.parameters import ChainParameters
 from statgpt.config import StateVarsConfig
-from statgpt.schemas.query_builder import ChainState, DatasetDimQueries, DatasetDimQueriesType
+from statgpt.schemas.query_builder import (
+    ChainState,
+    DatasetDimensionTermNameType,
+    DatasetDimQueries,
+    DatasetDimQueriesType,
+)
 from statgpt.services import ScoredIndicatorCandidate
-from statgpt.utils.dataset_formatter import (
+from statgpt.utils.formatters import (
     CitationFormatterConfig,
-    DatasetFormatter,
     DatasetFormatterConfig,
+    SimpleDatasetFormatter,
 )
 
 
@@ -64,7 +71,7 @@ class IndicatorCandidatesLLMFormatter:
     @classmethod
     def get_candidate_details_by_dataset(
         cls, candidates: list[ScoredIndicatorCandidate]
-    ) -> dict[str, dict[str, dict[str, str]]]:
+    ) -> DatasetDimensionTermNameType:
         cand_by_dataset = {}
         for c in candidates:
             cand_by_dataset.setdefault(c.dataset_id, []).append(c)
@@ -97,7 +104,7 @@ class IndicatorCandidatesLLMFormatter:
             dataset_data[dataset_id] = cur_dataset_dimensions
         return dataset_data
 
-    def _data2text(self, candidate_details_by_dataset: dict[str, dict[str, dict[str, str]]]) -> str:
+    def _data2text(self, candidate_details_by_dataset: DatasetDimensionTermNameType) -> str:
         lines = []
         for dataset_id, dimension_data in candidate_details_by_dataset.items():
             dataset_name = self.dataset_id_2_name[dataset_id]
@@ -105,7 +112,7 @@ class IndicatorCandidatesLLMFormatter:
                 f'Dataset id: "{dataset_id}", dataset name: "{dataset_name}". '
                 f'Dimensions (keys are dimension IDs):'
             )
-            cur_text = yaml.safe_dump(dimension_data, sort_keys=False)
+            cur_text = utils.write_yaml_to_stream(dimension_data)
             lines.append(cur_text)
         res = '\n'.join(lines)
         return res
@@ -204,15 +211,14 @@ candidates:
 
             concat = '\n'.join(lines)
 
-            with choice.create_stage('Indicators Relevancy Scores') as stage:
+            with choice.create_stage('[DEBUG] Indicators Relevancy Scores') as stage:
                 stage.append_content(concat)
 
     def __init__(
         self,
         candidates_key: str,
+        llm_model_config: LLMModelConfig,
         llm_api_base: str | None = None,
-        llm_model_name: str | None = None,
-        llm_temperature: float = 0.0,
     ):
         self._llm_response_class = self.LLMResponse
 
@@ -228,9 +234,8 @@ candidates:
         )
 
         self._candidates_key = candidates_key
-        self._llm_api_base = llm_api_base or DialConfig.get_url()
-        self._llm_model_name = llm_model_name or LLMModelsConfig.GPT_4_TURBO_2024_04_09
-        self._llm_temperature = llm_temperature
+        self._llm_api_base = llm_api_base or dial_settings.url
+        self._llm_model_config = llm_model_config
 
     def _get_candidates(self, inputs: dict) -> list[ScoredIndicatorCandidate]:
         return inputs[self._candidates_key]
@@ -280,10 +285,12 @@ candidates:
 
         llm = get_chat_model(
             api_key=auth_context.api_key,
-            model=self._llm_model_name,
-            temperature=self._llm_temperature,
             azure_endpoint=self._llm_api_base,
+            model_config=self._llm_model_config,
         ).with_structured_output(self._llm_response_class, method='json_mode')
+        logger.info(
+            f"{self.__class__.__name__} using LLM model: {self._llm_model_config.deployment.deployment_id}"
+        )
 
         chain = self._create_chain_inner(llm=llm)
 
@@ -478,6 +485,7 @@ it is especially true for dimension values like "all", "total", "all maturities"
 
         async def populate_stage(self, inputs: dict) -> None:
             state = ChainParameters.get_state(inputs)
+            data_service = ChainParameters.get_data_service(inputs)
             if not state.get(StateVarsConfig.SHOW_DEBUG_STAGES):
                 return
 
@@ -533,9 +541,11 @@ it is especially true for dimension values like "all", "total", "all maturities"
                     lines.append(f'\t* ID: {dataset.source_id}')
 
                     # todo: check regression after Formatter refactoring
-                    formatter = DatasetFormatter(
+
+                    formatter = SimpleDatasetFormatter(
                         DatasetFormatterConfig.create_citation_only(
-                            CitationFormatterConfig(n_tabs=1, as_md_list=True)
+                            locale=data_service.channel_config.locale,
+                            citation=CitationFormatterConfig(n_tabs=1, as_md_list=True),
                         ),
                         auth_context=chain_state.auth_context,
                     )
@@ -545,21 +555,19 @@ it is especially true for dimension values like "all", "total", "all maturities"
 
             concat = '\n'.join(lines)
 
-            with choice.create_stage('Indicators Relevancy Scores') as stage:
+            with choice.create_stage('[DEBUG] Indicators Relevancy Scores') as stage:
                 stage.append_content(concat)
 
     def __init__(
         self,
         candidates_key: str,
+        llm_model_config: LLMModelConfig,
         llm_api_base: str | None = None,
-        llm_model_name: str | None = None,
-        llm_temperature: float = 0.0,
     ):
         super().__init__(
             candidates_key=candidates_key,
+            llm_model_config=llm_model_config,
             llm_api_base=llm_api_base,
-            llm_model_name=llm_model_name,
-            llm_temperature=llm_temperature,
         )
 
         # override, since we don't use parser and format instructions

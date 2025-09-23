@@ -16,7 +16,7 @@ from .semantic import (
 
 
 class IndicatorSelectionFactory:
-    SEMANTIC_FACTORIES: dict[IndicatorSelectionVersion, SemanticIndicatorSelectionBase] = {
+    SEMANTIC_FACTORIES: dict[IndicatorSelectionVersion, type[SemanticIndicatorSelectionBase]] = {
         IndicatorSelectionVersion.semantic_v1: IndicatorSelectionSemanticV1ChainFactory,
         IndicatorSelectionVersion.semantic_v2: IndicatorSelectionSemanticV2ChainFactory,
         IndicatorSelectionVersion.semantic_v3: IndicatorSelectionSemanticV3ChainFactory,

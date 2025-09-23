@@ -4,8 +4,11 @@ from .base import BaseYamlModel
 from .data_query_tool import DataQueryDetails
 from .enums import ToolTypes
 from .tool_details import (
+    AvailableDatasetsDetails,
     AvailablePublicationsDetails,
+    AvailableTermsDetails,
     BaseToolDetails,
+    DatasetsMetadataDetails,
     FileRagDetails,
     PlainContentDetails,
     TermDefinitionsDetails,
@@ -35,6 +38,17 @@ class BaseToolConfig(BaseYamlModel):
 
 class AvailableDatasetsTool(BaseToolConfig):
     type: ToolTypes = ToolTypes.AVAILABLE_DATASETS
+    details: AvailableDatasetsDetails = Field(default_factory=AvailableDatasetsDetails)
+
+
+class DatasetsMetadataTool(BaseToolConfig):
+    type: ToolTypes = ToolTypes.DATASETS_METADATA
+    details: DatasetsMetadataDetails = Field(default_factory=DatasetsMetadataDetails)
+
+
+class DatasetStructureTool(BaseToolConfig):
+    type: ToolTypes = ToolTypes.DATASET_STRUCTURE
+    details: BaseToolDetails = Field(default_factory=BaseToolDetails)
 
 
 class DataQueryTool(BaseToolConfig):
@@ -75,7 +89,7 @@ class PlainContentTool(BaseToolConfig):
 
 class AvailableTermsTool(BaseToolConfig):
     type: ToolTypes = ToolTypes.AVAILABLE_TERMS
-    details: BaseToolDetails = Field(default_factory=BaseToolDetails)
+    details: AvailableTermsDetails = Field(default_factory=AvailableTermsDetails)
 
 
 class TermDefinitionsTool(BaseToolConfig):

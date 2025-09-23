@@ -4,7 +4,6 @@ from langchain_core.runnables import Runnable
 
 from common.schemas import ChannelConfig
 from common.schemas import FileRagTool as FileRagToolConfig
-from statgpt.utils.request_context import RequestContext
 
 
 class BaseRAGFactory(ABC):
@@ -23,5 +22,5 @@ class BaseRAGFactory(ABC):
         return [cls.COMMAND]
 
     @abstractmethod
-    async def create_chain(self, request_context: RequestContext) -> Runnable:
+    async def create_chain(self) -> Runnable:
         pass

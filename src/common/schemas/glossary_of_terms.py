@@ -12,7 +12,7 @@ class GlossaryTermBase(BaseYamlModel):
         description="The domain of the term. For example, 'Insurance', 'Economics', 'Statistics', etc."
     )
     source: str = Field(
-        description="The source of the definition. For example, 'IMF', 'Swiss Re', 'World Bank', etc."
+        description="The source of the definition. For example, 'IMF', 'World Bank', etc."
     )
 
 
@@ -31,7 +31,7 @@ class GlossaryTermUpdate(BaseModel):
     )
     source: str | None = Field(
         default=None,
-        description="The source of the definition. For example, 'IMF', 'Swiss Re', 'World Bank', etc.",
+        description="The source of the definition. For example, 'IMF', 'World Bank', etc.",
     )
 
 

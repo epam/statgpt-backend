@@ -16,19 +16,31 @@ class AvailableTermsTool(
         data_service = ChainParameters.get_data_service(inputs)
 
         terms = await data_service.get_available_terms()
-        response = self.terms_to_markdown(terms)
+        formatted_terms = self._terms_to_markdown(terms)
+        response = "# List of available glossary terms:\n" + "\n".join(formatted_terms)
 
         target = ChainParameters.get_target(inputs)
-        target.append_content(response)
+        number_of_terms_to_show = min(10, len(formatted_terms))
+        target.append_content(
+            f"Glossary contains {len(terms)} terms.\n\nFirst {number_of_terms_to_show} terms:\n"
+        )
+        target.append_content("\n".join(formatted_terms[:number_of_terms_to_show]) + "\n")
 
         return response, ToolArtifact(state=ToolMessageState(type=self.tool_type))
 
-    @staticmethod
-    def terms_to_markdown(terms: list[models.GlossaryTerm]) -> str:
-        response = "# List of available glossary terms:\n"
+    def _terms_to_markdown(self, terms: list[models.GlossaryTerm]) -> list[str]:
+        include_domain = self._tool_config.details.include_domain
+        include_source = self._tool_config.details.include_source
+
+        formatted_terms = []
         for term in terms:
-            response += f"- **{term.term}** (domain: '{term.domain}', source: '{term.source}')\n"
-        return response
+            formatted_term = f"- **{term.term}**"
+            if include_domain:
+                formatted_term += f", domain: {term.domain}"
+            if include_source:
+                formatted_term += f", source: {term.source}"
+            formatted_terms.append(formatted_term)
+        return formatted_terms
 
 
 class BaseTermDefinitionsArgs(ToolArgs):
@@ -66,14 +78,14 @@ class TermDefinitionsTool(
         return TermDefinitionsArgs
 
     async def _arun(self, inputs: dict, terms: list[str]) -> tuple[str, ToolArtifact]:
-        target = ChainParameters.get_target(inputs)
-        target.append_name(f": {', '.join(terms)}")
-
         data_service = ChainParameters.get_data_service(inputs)
 
         if self._tool_config.details.limit and len(terms) > self._tool_config.details.limit:
             return (
-                f"The number of requested terms exceeds the limit of {self.config.details.limit}.",
+                f"The number of requested terms exceeds the limit of {self.config.details.limit}. "
+                "Please reduce the number of terms and try again. Also, mind that massive requests "
+                "are not supported (e.g. asking for definitions of all available terms), as this is "
+                "not the intended use case of this tool.",
                 ToolArtifact(state=ToolMessageState(type=self.tool_type)),
             )
 

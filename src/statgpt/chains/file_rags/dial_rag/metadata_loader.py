@@ -5,10 +5,10 @@ import httpx
 from pydantic import SecretStr
 
 from common.auth.auth_context import AuthContext
-from common.config import DialConfig
 from common.config import multiline_logger as logger
-from statgpt.config import DialRagConfig
+from common.settings.dial import dial_settings
 from statgpt.schemas.file_rags.dial_rag import DialRagMetadataResponse
+from statgpt.settings.dial_rag import dial_rag_settings
 
 
 class DialRagMetadataLoader:
@@ -17,17 +17,17 @@ class DialRagMetadataLoader:
         self._dial_rag_metadata_api_key = dial_rag_metadata_api_key
 
     @classmethod
-    def create_for_local_or_remote(cls, auth_context: AuthContext) -> Self:
-        if non_default_url := DialRagConfig.DIAL_RAG_PGVECTOR_URL:
+    def create_for_local_or_remote(cls, auth_context: AuthContext, metadata_endpoint: str) -> Self:
+        if non_default_url := dial_rag_settings.pgvector_url:
             logger.info(f"Using non-default DIAL RAG Metadata url: {non_default_url}")
             base_url = non_default_url
-            key = DialRagConfig.DIAL_RAG_PGVECTOR_API_KEY or SecretStr('')
+            key = dial_rag_settings.pgvector_api_key or SecretStr('')
         else:
-            base_url = DialConfig.get_url()
+            base_url = dial_settings.url
             key = SecretStr(auth_context.api_key)
 
         return cls(
-            dial_rag_metadata_url=urljoin(base_url, DialRagConfig.METADATA_ENDPOINT),
+            dial_rag_metadata_url=urljoin(base_url, metadata_endpoint),
             dial_rag_metadata_api_key=key,
         )
 

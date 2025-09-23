@@ -13,10 +13,10 @@ from sqlalchemy.sql.expression import func
 
 import common.models as models
 import common.schemas as schemas
-from admin_portal.config import JobsConfig
+from admin_portal.settings.exim import JobsConfig
 from common.auth.auth_context import AuthContext
-from common.config import DialConfig
 from common.config import multiline_logger as logger
+from common.settings.dial import dial_settings
 from common.utils import AttachmentResponse, AttachmentsStorage, attachments_storage_factory
 
 from .channel import AdminPortalChannelService as ChannelService
@@ -42,7 +42,7 @@ class JobsService:
             for folder in [JobsConfig.DIAL_EXPORT_FOLDER, JobsConfig.DIAL_IMPORT_FOLDER]:
                 files = await attachments_storage.get_files_in_folder(f"{folder}/")
                 for file in files:
-                    if file.updated_at < to_date_timestamp:
+                    if file.updated_at is not None and file.updated_at < to_date_timestamp:
                         if not dry_run:
                             await attachments_storage.delete_file(file.url)
                         deleted_files.append(file)
@@ -65,13 +65,14 @@ class JobsService:
         return jobs
 
     async def clear_jobs(
-        self, dry_run: bool, to_date: datetime, auth_contex: AuthContext
+        self, dry_run: bool, to_date: datetime, auth_context: AuthContext
     ) -> schemas.ClearJobsResult:
         logger.info(f"Clearing jobs before {to_date}. Dry run: {dry_run}")
 
-        deleted_files, deleted_jobs = [], []
+        deleted_files: list[AttachmentResponse] = []
+        deleted_jobs: list[schemas.Job] = []
         try:
-            await self._delete_dial_files(to_date, deleted_files, dry_run, auth_contex)
+            await self._delete_dial_files(to_date, deleted_files, dry_run, auth_context)
             logger.info(f"Deleted {len(deleted_files)} files from DIAL")
 
             deleted_jobs = [
@@ -94,6 +95,28 @@ class JobsService:
                 status_code=status.HTTP_404_NOT_FOUND, detail=f"Job with id={job_id} not found"
             )
         return job
+
+    async def get_jobs_count(self, channel_id: int) -> int:
+        query = (
+            select(func.count("*"))
+            .select_from(models.Job)
+            .where(models.Job.channel_id == channel_id)
+        )
+        return (await self._session.execute(query)).scalar_one()
+
+    async def get_jobs_schemas(
+        self, channel_id: int, limit: int | None, offset: int
+    ) -> list[schemas.Job]:
+        query = (
+            select(models.Job)
+            .where(models.Job.channel_id == channel_id)
+            .limit(limit)
+            .offset(offset)
+            .order_by(models.Job.updated_at.desc())
+        )
+        q_result = await self._session.execute(query)
+        jobs = [item for item in q_result.scalars().all()]
+        return [schemas.Job.model_validate(item, from_attributes=True) for item in jobs]
 
     async def get_job_schema_by_id(self, job_id: int) -> schemas.Job:
         job = await self.get_job_model_by_id(job_id)
@@ -143,6 +166,8 @@ class JobsService:
         await self._session.commit()
 
         try:
+            if not file.filename or not file.content_type:
+                raise ValueError("File must have a filename and content type")
             file_type = file.filename.split(".")[-1]
             file_name = f"job-{job.id}.{file_type}"
 
@@ -152,7 +177,7 @@ class JobsService:
                 resp = await attachments_storage.put_file(
                     f"{JobsConfig.DIAL_IMPORT_FOLDER}/{file_name}",
                     mime_type=file.content_type,
-                    content=file.file,
+                    content=file.file,  # type: ignore
                 )
                 job.file = resp.url
         except Exception as e:
@@ -179,7 +204,7 @@ class JobsService:
     @staticmethod
     async def _export_data_to_folder(
         channel_id: int, data_dir: str, auth_context: AuthContext
-    ) -> None:
+    ) -> str:
         """Export channel data including datasets and embeddings to the folder."""
 
         async with models.get_session_contex_manager() as session:
@@ -194,6 +219,11 @@ class JobsService:
             dataset_service = DataSetService(session)
             await dataset_service.export_datasets(channel_db, data_dir, auth_context=auth_context)
 
+            export_name = (
+                f"{channel_db.deployment_id}-{datetime.now().strftime('%Y-%m-%dT%H-%M-%S.%f')}"
+            )
+            return export_name
+
     async def export_channel_in_background(self, job_id: int, auth_context: AuthContext) -> None:
         logger.info(f"Exporting channel data to zip file. Job id={job_id}")
         job: models.Job = await self.get_job_model_by_id(job_id)
@@ -205,11 +235,13 @@ class JobsService:
                 data_dir = os.path.join(tmp_dir, "data")
                 os.makedirs(data_dir)
 
-                await self._export_data_to_folder(
+                if not job.channel_id:
+                    raise ValueError("Job must have a channel_id to export data")
+                archive_name = await self._export_data_to_folder(
                     job.channel_id, data_dir, auth_context=auth_context
                 )
 
-                res_file_path = os.path.abspath(os.path.join(tmp_dir, f"job-{job.id}"))
+                res_file_path = os.path.abspath(os.path.join(tmp_dir, archive_name))
                 path = shutil.make_archive(res_file_path, 'zip', data_dir)
 
                 attachments_storage: AttachmentsStorage
@@ -235,7 +267,7 @@ class JobsService:
     ) -> None:
         """TODO: Perhaps this method should be moved in Dial core or attachments module."""
         client = httpx.AsyncClient(
-            base_url=DialConfig.get_url(),
+            base_url=dial_settings.url,
             headers={'Api-Key': auth_context.api_key},
         )
         async with client.stream('GET', f"/v1/{file_url}") as response:
@@ -288,9 +320,14 @@ class JobsService:
             with tempfile.TemporaryDirectory() as tmp_dir:
                 zip_file_path = os.path.join(tmp_dir, "import.zip")
 
+                if not job.file:
+                    raise ValueError("Job must have a file url to import data")
+
                 with open(zip_file_path, "wb") as zip_file:
                     await self.download_zip_file(
-                        file_url=job.file, zip_file=zip_file, auth_context=auth_context
+                        file_url=job.file,
+                        zip_file=zip_file,
+                        auth_context=auth_context,
                     )
 
                 with zipfile.ZipFile(zip_file_path, 'r') as zip_file:

@@ -1,5 +1,6 @@
 import json
 
+from aidial_sdk.chat_completion import Choice
 from langchain_core.prompts import (
     ChatPromptTemplate,
     MessagesPlaceholder,
@@ -14,7 +15,8 @@ from common.utils.models import get_chat_model
 from statgpt.chains.parameters import ChainParameters
 from statgpt.config import ChainParametersConfig, StateVarsConfig
 from statgpt.default_prompts import NotSupportedScenariosPrompts
-from statgpt.utils.dial_tools import optional_stage, timed_stage
+from statgpt.utils.dial_stages import optional_timed_stage
+from statgpt.utils.message_history import History
 
 
 class OutOfScopeCheckerResponse(BaseModel):
@@ -44,6 +46,31 @@ class OutOfScopeChecker:
             {tool.name: tool.out_of_scope_description for tool in self._channel_config.tools}
         )
 
+    @staticmethod
+    def _count_out_of_scope_msgs(history: History) -> int:
+        count: int = 0
+        for msg in history.get_ai_messages():
+            if msg.custom_content and msg.custom_content.state:
+                if msg.custom_content.state.get(StateVarsConfig.OUT_OF_SCOPE, False) is True:
+                    count += 1
+        return count
+
+    @staticmethod
+    def _start_new_conversation(
+        inputs: dict,
+        choice: Choice,
+        out_of_scope_msgs_count: int,
+        start_new_conversation_messages_threshold: int,
+        start_new_conversation_message: str,
+    ) -> dict:
+        choice.append_content(start_new_conversation_message)
+        inputs[ChainParametersConfig.OUT_OF_SCOPE] = True
+        inputs[ChainParametersConfig.OUT_OF_SCOPE_REASONING] = (
+            f"User has {out_of_scope_msgs_count} out-of-scope messages in the conversation history, "
+            f"exceeding the threshold of {start_new_conversation_messages_threshold}."
+        )
+        return inputs
+
     async def _stream_response(self, inputs: dict) -> dict:
         state = ChainParameters.get_state(inputs)
 
@@ -57,6 +84,20 @@ class OutOfScopeChecker:
         choice = ChainParameters.get_choice(inputs)
         history = ChainParameters.get_history(inputs)
 
+        start_new_conversation_messages_threshold = (
+            self._channel_config.out_of_scope.start_new_conversation_messages_threshold
+        )
+        if start_new_conversation_messages_threshold != -1:
+            out_of_scope_msgs_count = self._count_out_of_scope_msgs(history)
+            if out_of_scope_msgs_count > start_new_conversation_messages_threshold:
+                return self._start_new_conversation(
+                    inputs,
+                    choice,
+                    out_of_scope_msgs_count,
+                    start_new_conversation_messages_threshold,
+                    self._channel_config.out_of_scope.start_new_conversation_message,
+                )
+
         language_instructions = format_as_markdown_list(
             self._channel_config.supreme_agent.language_instructions, list_type="ordered"
         )
@@ -68,15 +109,16 @@ class OutOfScopeChecker:
             chat_bot_language_instructions=language_instructions,
         )
 
+        topics_blacklist = []
+        if self._channel_config.out_of_scope.use_general_topics_blacklist:
+            topics_blacklist += NotSupportedScenariosPrompts.GENERAL_TOPICS_BLACKLIST
         if self._channel_config.out_of_scope.custom_instructions:
+            topics_blacklist += self._channel_config.out_of_scope.custom_instructions
+        if topics_blacklist:
             params["custom_instructions"] = (
                 "# The following topics and questions are strictly OUT OF SCOPE:  \n"
-                + format_as_markdown_list(
-                    self._channel_config.out_of_scope.custom_instructions, list_type="ordered"
-                )
+                + format_as_markdown_list(topics_blacklist, list_type="ordered")
             )
-        else:
-            params["custom_instructions"] = ""
 
         prompt_template = ChatPromptTemplate.from_messages(
             [
@@ -87,18 +129,17 @@ class OutOfScopeChecker:
 
         model = get_chat_model(
             api_key=auth_context.api_key,
-            model=self._channel_config.supreme_agent.llm_model.deployment_name,
-            temperature=self._channel_config.supreme_agent.llm_model.temperature,
-            seed=self._channel_config.supreme_agent.llm_model.seed,
+            model_config=self._channel_config.supreme_agent.llm_model_config,
         )
 
         chain = prompt_template | model.with_structured_output(
             OutOfScopeCheckerResponse, method="json_schema"
         )
 
-        show_debug_stages = state.get(StateVarsConfig.SHOW_DEBUG_STAGES)
-        stage_generator = timed_stage(choice=choice, name="[DEBUG] Guardrails: Relevancy")
-        with optional_stage(stage_generator, enabled=show_debug_stages) as stage:
+        show_debug_stages = state.get(StateVarsConfig.SHOW_DEBUG_STAGES, False)
+        with optional_timed_stage(
+            choice, "[DEBUG] Guardrails: Relevancy", enabled=show_debug_stages
+        ) as stage:
             response: OutOfScopeCheckerResponse = await chain.ainvoke({})
             if response.out_of_scope:
                 stage.append_content(f"Request is out of scope, reasoning: {response.reasoning}")
@@ -108,8 +149,19 @@ class OutOfScopeChecker:
         inputs[ChainParametersConfig.OUT_OF_SCOPE] = response.out_of_scope
         inputs[ChainParametersConfig.OUT_OF_SCOPE_REASONING] = response.reasoning
 
-        if not response.out_of_scope:
+        if not response.out_of_scope or state.get(StateVarsConfig.CMD_OUT_OF_SCOPE_ONLY, False):
             return inputs
+
+        if start_new_conversation_messages_threshold != -1:
+            out_of_scope_msgs_count = self._count_out_of_scope_msgs(history) + 1
+            if out_of_scope_msgs_count > start_new_conversation_messages_threshold:
+                return self._start_new_conversation(
+                    inputs,
+                    choice,
+                    out_of_scope_msgs_count,
+                    start_new_conversation_messages_threshold,
+                    self._channel_config.out_of_scope.start_new_conversation_message,
+                )
 
         # tell user that the request is out of scope
 
@@ -129,4 +181,4 @@ class OutOfScopeChecker:
         return inputs
 
     async def create_chain(self) -> Runnable:
-        return RunnableLambda.assign(self._stream_response)
+        return RunnableLambda(self._stream_response)
