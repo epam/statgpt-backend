@@ -73,7 +73,7 @@ jobs:
         with:
           lfs: true
 
-      - uses: epam/ai-dial-ci/actions/python_prepare@2.4.1
+      - uses: epam/ai-dial-ci/actions/python_prepare@2.6.0
         with:
           python-version: ${{ inputs.python-version }}
           poetry-version: ${{ inputs.poetry-version }}
@@ -128,7 +128,7 @@ jobs:
         with:
           lfs: true
 
-      - uses: epam/ai-dial-ci/actions/python_prepare@2.4.1
+      - uses: epam/ai-dial-ci/actions/python_prepare@2.6.0
         with:
           python-version: ${{ inputs.python-version }}
           poetry-version: ${{ inputs.poetry-version }}

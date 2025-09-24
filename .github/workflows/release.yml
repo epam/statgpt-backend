@@ -33,7 +33,7 @@ jobs:
       is-latest: ${{ steps.semantic_versioning.outputs.is-latest }}
       latest-tag: ${{ steps.semantic_versioning.outputs.latest-tag }}
     steps:
-      - uses: epam/ai-dial-ci/actions/semantic_versioning@2.4.1
+      - uses: epam/ai-dial-ci/actions/semantic_versioning@2.6.0
         id: semantic_versioning
 
   release:
@@ -116,11 +116,11 @@ jobs:
         run: |
           sed -i "s/^version = .*/version = \"${{ needs.calculate_version.outputs.next-version-without-hyphens }}\"/g" pyproject.toml
 
-      - uses: epam/ai-dial-ci/actions/generate_release_notes@2.4.1
+      - uses: epam/ai-dial-ci/actions/generate_release_notes@2.6.0
         with:
           latest-tag: ${{ needs.calculate_version.outputs.latest-tag }}
 
-      - uses: epam/ai-dial-ci/actions/publish_tag_release@2.4.1
+      - uses: epam/ai-dial-ci/actions/publish_tag_release@2.6.0
         with:
           tag-version: ${{ needs.calculate_version.outputs.next-version }}
           changelog-file: "/tmp/my_changelog" # Comes from generate_release_notes step
