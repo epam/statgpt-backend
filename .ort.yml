@@ -30,7 +30,7 @@ resolutions:
     - message: ".*PyPI::alembic:1\\.16\\.2.*"
       reason: "CANT_FIX_EXCEPTION"
       comment: "MIT License: https://github.com/sqlalchemy/alembic/blob/main/LICENSE"
-    - message: ".*PyPI::markup-safe:3\\.0\\.2.*"
+    - message: ".*PyPI::markupsafe:3\\.0\\.2.*"
       reason: "CANT_FIX_EXCEPTION"
       comment: "BSD 3-Clause License: https://github.com/pallets/markupsafe/blob/main/LICENSE.txt"
     - message: ".*PyPI::setuptools:80\\.9\\.0.*"
