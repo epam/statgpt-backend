@@ -7,8 +7,8 @@ excludes:
     - pattern: "experiments"
       reason: "DEV_DEPENDENCY_OF"
       comment: "Packages for experimentation only."
-resolutions:
-  rule_violations:
+#resolutions:
+#  rule_violations:
 #    - message: ".*PyPI::httpx:0\\.28\\.1.*"
 #      reason: 'CANT_FIX_EXCEPTION'
 #      comment: 'BSD 3-Clause "New" or "Revised" License: https://github.com/encode/httpx/blob/0.28.1/LICENSE.md'
