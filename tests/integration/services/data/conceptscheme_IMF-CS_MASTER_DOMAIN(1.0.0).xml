@@ -1,0 +1,238 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<mes:Structure xmlns:mes="http://www.sdmx.org/resources/sdmxml/schemas/v2_1/message" xmlns:str="http://www.sdmx.org/resources/sdmxml/schemas/v2_1/structure" xmlns:com="http://www.sdmx.org/resources/sdmxml/schemas/v2_1/common" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xml="http://www.w3.org/XML/1998/namespace" xsi:schemaLocation="http://www.sdmx.org/resources/sdmxml/schemas/v2_1/message ../../schemas/SDMXMessage.xsd">
+  <mes:Header>
+    <mes:ID>IDREF2079</mes:ID>
+    <mes:Test>false</mes:Test>
+    <mes:Prepared>2025-07-29T08:01:11.203354034Z</mes:Prepared>
+    <mes:Sender id="unknown"/>
+  </mes:Header>
+  <mes:Structures>
+    <str:Concepts>
+      <str:ConceptScheme urn="urn:sdmx:org.sdmx.infomodel.conceptscheme.ConceptScheme=IMF:CS_MASTER_DOMAIN(1.0.0)" agencyID="IMF" id="CS_MASTER_DOMAIN" version="1.0.0" isFinal="true" isExternalReference="false" isPartial="false">
+        <com:Annotations>
+          <com:Annotation id="origin"/>
+          <com:Annotation id="isFinal"/>
+          <com:Annotation id="lastUpdatedAt"/>
+        </com:Annotations>
+        <com:Name xml:lang="en">Master Domain Concepts</com:Name>
+        <com:Description xml:lang="en">Standardized definitions for data elements specific to particular domains or subject areas. This includes concepts and attributes related to macroeconomics, finance, socio-demographics, and other specialized fields.</com:Description>
+        <str:Concept id="ACCOUNTING_ENTRY" urn="urn:sdmx:org.sdmx.infomodel.conceptscheme.Concept=IMF:CS_MASTER_DOMAIN(1.0.0).ACCOUNTING_ENTRY">
+          <com:Name xml:lang="en">Accounting Entry</com:Name>
+          <com:Description xml:lang="en">A classification that identifies whether a transaction represents a use of resources, a source of funds, an asset, a liability, or a change in equity.  </com:Description>
+          <str:CoreRepresentation>
+            <str:Enumeration>
+              <Ref agencyID="IMF" id="CL_ACCOUNTING_ENTRY" version="2.2.1" package="codelist" class="Codelist"/>
+            </str:Enumeration>
+          </str:CoreRepresentation>
+        </str:Concept>
+        <str:Concept id="COMMODITY" urn="urn:sdmx:org.sdmx.infomodel.conceptscheme.Concept=IMF:CS_MASTER_DOMAIN(1.0.0).COMMODITY">
+          <com:Name xml:lang="en">Commodity</com:Name>
+          <com:Description xml:lang="en"> Comprehensive list of all the different commodity codes used in IMF.</com:Description>
+          <str:CoreRepresentation>
+            <str:Enumeration>
+              <Ref agencyID="IMF" id="CL_COMMODITY" version="2.2.0" package="codelist" class="Codelist"/>
+            </str:Enumeration>
+          </str:CoreRepresentation>
+        </str:Concept>
+        <str:Concept id="SECTOR" urn="urn:sdmx:org.sdmx.infomodel.conceptscheme.Concept=IMF:CS_MASTER_DOMAIN(1.0.0).SECTOR">
+          <com:Name xml:lang="en">Sector</com:Name>
+          <com:Description xml:lang="en">A classification of economic entities based on their primary function and economic behavior, such as households, corporations, government, or non-profit institutions.</com:Description>
+          <str:CoreRepresentation>
+            <str:Enumeration>
+              <Ref agencyID="IMF" id="CL_SECTOR" version="2.13.0" package="codelist" class="Codelist"/>
+            </str:Enumeration>
+          </str:CoreRepresentation>
+        </str:Concept>
+        <str:Concept id="COUNTERPART_SECTOR" urn="urn:sdmx:org.sdmx.infomodel.conceptscheme.Concept=IMF:CS_MASTER_DOMAIN(1.0.0).COUNTERPART_SECTOR">
+          <com:Name xml:lang="en">Counterpart Sector</com:Name>
+          <com:Description xml:lang="en">In the context of a specific transaction or economic flow, the counterpart sector refers to the institutional sector on the opposite side of the transaction.</com:Description>
+          <str:CoreRepresentation>
+            <str:Enumeration>
+              <Ref agencyID="IMF" id="CL_SECTOR" version="2.13.0" package="codelist" class="Codelist"/>
+            </str:Enumeration>
+          </str:CoreRepresentation>
+        </str:Concept>
+        <str:Concept id="EXRATE" urn="urn:sdmx:org.sdmx.infomodel.conceptscheme.Concept=IMF:CS_MASTER_DOMAIN(1.0.0).EXRATE">
+          <com:Name xml:lang="en">Exchange Rate</com:Name>
+          <com:Description xml:lang="en">Represents a set of codes identifying the exchange rate between two currencies. An exchange rate indicates how much of one currency is needed to buy one unit of another currency.  It is derived by comparing the value of one currency to another, often influenced by economic factors like interest rates, inflation, and government policy. This codelist includes various exchange rate calculations, such as period averages, pre-Euro rates, and those involving Special Drawing Rights (SDRs).</com:Description>
+          <str:CoreRepresentation>
+            <str:Enumeration>
+              <Ref agencyID="IMF" id="CL_EXRATE" version="1.2.0" package="codelist" class="Codelist"/>
+            </str:Enumeration>
+          </str:CoreRepresentation>
+        </str:Concept>
+        <str:Concept id="FLOW_STOCK_ENTRY" urn="urn:sdmx:org.sdmx.infomodel.conceptscheme.Concept=IMF:CS_MASTER_DOMAIN(1.0.0).FLOW_STOCK_ENTRY">
+          <com:Name xml:lang="en">Flow or stock entry</com:Name>
+          <com:Description xml:lang="en">A classification that indicates whether a data point represents a flow (a quantity measured over a period of time) or a stock (a quantity measured at a specific point in time).</com:Description>
+          <str:CoreRepresentation>
+            <str:Enumeration>
+              <Ref agencyID="IMF" id="CL_FSENTRY" version="2.2.0" package="codelist" class="Codelist"/>
+            </str:Enumeration>
+          </str:CoreRepresentation>
+        </str:Concept>
+        <str:Concept id="FUNCTIONAL_CAT" urn="urn:sdmx:org.sdmx.infomodel.conceptscheme.Concept=IMF:CS_MASTER_DOMAIN(1.0.0).FUNCTIONAL_CAT">
+          <com:Name xml:lang="en">Functional category</com:Name>
+          <com:Description xml:lang="en">A classification used to categorize investments based on their purpose or function, such as equity investments, debt investments, or other investments.</com:Description>
+          <str:CoreRepresentation>
+            <str:Enumeration>
+              <Ref agencyID="IMF" id="CL_FUNCTIONAL_CAT" version="2.3.0" package="codelist" class="Codelist"/>
+            </str:Enumeration>
+          </str:CoreRepresentation>
+        </str:Concept>
+        <str:Concept id="GFS_STO" urn="urn:sdmx:org.sdmx.infomodel.conceptscheme.Concept=IMF:CS_MASTER_DOMAIN(1.0.0).GFS_STO">
+          <com:Name xml:lang="en">GFS Stocks, Transactions, Other Flows</com:Name>
+          <com:Description xml:lang="en">A classification of data items used in the Government Finance Statistics (GFS) framework, distinguishing between stocks (levels at a point in time), transactions (changes over a period), and other flows.</com:Description>
+          <str:CoreRepresentation>
+            <str:Enumeration>
+              <Ref agencyID="IMF" id="CL_GFS_STO" version="2.9.0" package="codelist" class="Codelist"/>
+            </str:Enumeration>
+          </str:CoreRepresentation>
+        </str:Concept>
+        <str:Concept id="INDEX_TYPE" urn="urn:sdmx:org.sdmx.infomodel.conceptscheme.Concept=IMF:CS_MASTER_DOMAIN(1.0.0).INDEX_TYPE">
+          <com:Name xml:lang="en">Index type</com:Name>
+          <com:Description xml:lang="en">Type of index prices. </com:Description>
+          <str:CoreRepresentation>
+            <str:Enumeration>
+              <Ref agencyID="IMF" id="CL_INDEX_TYPE" version="2.6.0" package="codelist" class="Codelist"/>
+            </str:Enumeration>
+          </str:CoreRepresentation>
+        </str:Concept>
+        <str:Concept id="INT_TTC" urn="urn:sdmx:org.sdmx.infomodel.conceptscheme.Concept=IMF:CS_MASTER_DOMAIN(1.0.0).INT_TTC">
+          <com:Name xml:lang="en">Interest Rate types, Terms and Conditions</com:Name>
+          <com:Description xml:lang="en">A classification of interest rates based on their type (fixed or floating), terms (maturity), and other conditions (e.g., collateralization, reference rates).</com:Description>
+          <str:CoreRepresentation>
+            <str:Enumeration>
+              <Ref agencyID="IMF" id="CL_INT_TTC" version="2.6.0" package="codelist" class="Codelist"/>
+            </str:Enumeration>
+          </str:CoreRepresentation>
+        </str:Concept>
+        <str:Concept id="INSTR_ASSET" urn="urn:sdmx:org.sdmx.infomodel.conceptscheme.Concept=IMF:CS_MASTER_DOMAIN(1.0.0).INSTR_ASSET">
+          <com:Name xml:lang="en">Instrument and Assets Classification</com:Name>
+          <com:Description xml:lang="en">Because of the symmetry of financial assets and liabilities, the term ‘instrument’ is used to relate to both the asset and the liability aspect of financial transactions, other flows and financial balance sheets.  (Source: Handbook of National Accounting, 2013)</com:Description>
+          <str:CoreRepresentation>
+            <str:Enumeration>
+              <Ref agencyID="IMF" id="CL_INSTR_ASSET" version="2.15.1" package="codelist" class="Codelist"/>
+            </str:Enumeration>
+          </str:CoreRepresentation>
+        </str:Concept>
+        <str:Concept id="INT_ACC_ITEM" urn="urn:sdmx:org.sdmx.infomodel.conceptscheme.Concept=IMF:CS_MASTER_DOMAIN(1.0.0).INT_ACC_ITEM">
+          <com:Name xml:lang="en">International Accounts Item</com:Name>
+          <com:Description xml:lang="en">A classification of transactions in the balance of payments, such as trade in goods, services, income, and financial flows.</com:Description>
+          <str:CoreRepresentation>
+            <str:Enumeration>
+              <Ref agencyID="IMF" id="CL_INT_ACC_ITEM" version="2.8.0" package="codelist" class="Codelist"/>
+            </str:Enumeration>
+          </str:CoreRepresentation>
+        </str:Concept>
+        <str:Concept id="ACCOUNTS" urn="urn:sdmx:org.sdmx.infomodel.conceptscheme.Concept=IMF:CS_MASTER_DOMAIN(1.0.0).ACCOUNTS">
+          <com:Name xml:lang="en">Macroeconomic and Financial Accounts</com:Name>
+          <com:Description xml:lang="en">A framework for organizing macroeconomic and financial data into a set of integrated accounts and tables that provide a comprehensive overview of an economy.</com:Description>
+          <str:CoreRepresentation>
+            <str:Enumeration>
+              <Ref agencyID="IMF" id="CL_ACCOUNTS" version="2.5.0" package="codelist" class="Codelist"/>
+            </str:Enumeration>
+          </str:CoreRepresentation>
+        </str:Concept>
+        <str:Concept id="FI_MATURITY" urn="urn:sdmx:org.sdmx.infomodel.conceptscheme.Concept=IMF:CS_MASTER_DOMAIN(1.0.0).FI_MATURITY">
+          <com:Name xml:lang="en">Maturity of Financial Instrument</com:Name>
+          <com:Description xml:lang="en">A classification of financial instruments based on their remaining time to maturity or expiration.</com:Description>
+          <str:CoreRepresentation>
+            <str:Enumeration>
+              <Ref agencyID="IMF" id="CL_FI_MATURITY" version="2.1.0" package="codelist" class="Codelist"/>
+            </str:Enumeration>
+          </str:CoreRepresentation>
+        </str:Concept>
+        <str:Concept id="MFS_INSTR" urn="urn:sdmx:org.sdmx.infomodel.conceptscheme.Concept=IMF:CS_MASTER_DOMAIN(1.0.0).MFS_INSTR">
+          <com:Name xml:lang="en">Monetary and Financial Instruments</com:Name>
+          <com:Description xml:lang="en">A classification of financial instruments used in monetary and financial statistics, including currency, deposits, loans, securities, and derivatives.</com:Description>
+          <str:CoreRepresentation>
+            <str:Enumeration>
+              <Ref agencyID="IMF" id="CL_MFS_INSTR" version="2.6.0" package="codelist" class="Codelist"/>
+            </str:Enumeration>
+          </str:CoreRepresentation>
+        </str:Concept>
+        <str:Concept id="NA_STO" urn="urn:sdmx:org.sdmx.infomodel.conceptscheme.Concept=IMF:CS_MASTER_DOMAIN(1.0.0).NA_STO">
+          <com:Name xml:lang="en">Stocks, Transactions, Other Flows</com:Name>
+          <com:Description xml:lang="en">A classification of data items used in the System of National Accounts (SNA) framework, distinguishing between stocks (levels at a point in time), transactions (changes over a period), and other flows.</com:Description>
+          <str:CoreRepresentation>
+            <str:Enumeration>
+              <Ref agencyID="IMF" id="CL_NA_STO" version="2.4.0" package="codelist" class="Codelist"/>
+            </str:Enumeration>
+          </str:CoreRepresentation>
+        </str:Concept>
+        <str:Concept id="PRICES" urn="urn:sdmx:org.sdmx.infomodel.conceptscheme.Concept=IMF:CS_MASTER_DOMAIN(1.0.0).PRICES">
+          <com:Name xml:lang="en">Prices</com:Name>
+          <com:Description xml:lang="en">Represents different types of prices or price adjustments, including those that have been adjusted for inflation (real or constant prices) and those that have not (nominal or current prices). It also includes various methods for adjusting prices for inflation, such as using deflators or converting to a constant base period.</com:Description>
+          <str:CoreRepresentation>
+            <str:Enumeration>
+              <Ref agencyID="IMF" id="CL_PRICES" version="2.3.0" package="codelist" class="Codelist"/>
+            </str:Enumeration>
+          </str:CoreRepresentation>
+        </str:Concept>
+        <str:Concept id="STATISTICAL_MEASURES" urn="urn:sdmx:org.sdmx.infomodel.conceptscheme.Concept=IMF:CS_MASTER_DOMAIN(1.0.0).STATISTICAL_MEASURES">
+          <com:Name xml:lang="en">Statistical Measures</com:Name>
+          <com:Description xml:lang="en">Describe characteristics of a group of data. They summarize the distribution, central tendency, or spread of multiple values.</com:Description>
+          <str:CoreRepresentation>
+            <str:Enumeration>
+              <Ref agencyID="IMF" id="CL_STATISTICAL_MEASURES" version="1.6.0" package="codelist" class="Codelist"/>
+            </str:Enumeration>
+          </str:CoreRepresentation>
+        </str:Concept>
+        <str:Concept id="TRADE_FLOW" urn="urn:sdmx:org.sdmx.infomodel.conceptscheme.Concept=IMF:CS_MASTER_DOMAIN(1.0.0).TRADE_FLOW">
+          <com:Name xml:lang="en">Trade flow</com:Name>
+          <com:Description xml:lang="en">Data related to the movement of goods and services between countries, including exports and imports.</com:Description>
+          <str:CoreRepresentation>
+            <str:Enumeration>
+              <Ref agencyID="IMF" id="CL_TRADE_FLOW" version="2.1.0" package="codelist" class="Codelist"/>
+            </str:Enumeration>
+          </str:CoreRepresentation>
+        </str:Concept>
+        <str:Concept id="VALUATION" urn="urn:sdmx:org.sdmx.infomodel.conceptscheme.Concept=IMF:CS_MASTER_DOMAIN(1.0.0).VALUATION">
+          <com:Name xml:lang="en">Valuation</com:Name>
+          <com:Description xml:lang="en">Valuation refers to the rules and conventions used for recording monetary flows and stocks in macroeconomic statistics. Standard national accounts valuations include the basic price (what the seller receives) and the purchaser's price (what the purchaser pays). The purchaser's price is the basic price, plus taxes less subsidies on products, plus invoiced transportation and insurance services, plus distribution margin. International trade in goods considers the free on board (fob) price and cost-insurance-freight price, among others. Other valuation types include prices used in financial markets (e.g., buy and sell prices).</com:Description>
+          <str:CoreRepresentation>
+            <str:Enumeration>
+              <Ref agencyID="IMF" id="CL_VALUATION" version="2.4.0" package="codelist" class="Codelist"/>
+            </str:Enumeration>
+          </str:CoreRepresentation>
+        </str:Concept>
+        <str:Concept id="SOC_CONCEPTS" urn="urn:sdmx:org.sdmx.infomodel.conceptscheme.Concept=IMF:CS_MASTER_DOMAIN(1.0.0).SOC_CONCEPTS">
+          <com:Name xml:lang="en">Social Concepts</com:Name>
+          <com:Description xml:lang="en">A broad category encompassing various social indicators, such as tourism and labor concepts.</com:Description>
+          <str:CoreRepresentation>
+            <str:Enumeration>
+              <Ref agencyID="IMF" id="CL_SOC_CONCEPTS" version="1.3.0" package="codelist" class="Codelist"/>
+            </str:Enumeration>
+          </str:CoreRepresentation>
+        </str:Concept>
+        <str:Concept id="COFOG" urn="urn:sdmx:org.sdmx.infomodel.conceptscheme.Concept=IMF:CS_MASTER_DOMAIN(1.0.0).COFOG">
+          <com:Name xml:lang="en">COFOG</com:Name>
+          <com:Description xml:lang="en">The Classification of the Functions of Government, a standardized system for classifying government expenditures by purpose.</com:Description>
+          <str:CoreRepresentation>
+            <str:Enumeration>
+              <Ref agencyID="IMF" id="CL_COFOG" version="2.0.0" package="codelist" class="Codelist"/>
+            </str:Enumeration>
+          </str:CoreRepresentation>
+        </str:Concept>
+        <str:Concept id="COICOP_1999" urn="urn:sdmx:org.sdmx.infomodel.conceptscheme.Concept=IMF:CS_MASTER_DOMAIN(1.0.0).COICOP_1999">
+          <com:Name xml:lang="en">Expenditure Category</com:Name>
+          <com:Description xml:lang="en">The Classification of Individual Consumption According to Purpose (COICOP) 1999 is a standardized classification system developed by the United Nations Statistics Division to categorize household consumption expenditures by purpose. It includes 14 divisions, 47 groups, and 117 classes.</com:Description>
+          <str:CoreRepresentation>
+            <str:Enumeration>
+              <Ref agencyID="IMF" id="CL_COICOP_1999" version="1.0.1" package="codelist" class="Codelist"/>
+            </str:Enumeration>
+          </str:CoreRepresentation>
+        </str:Concept>
+        <str:Concept id="COICOP_2018" urn="urn:sdmx:org.sdmx.infomodel.conceptscheme.Concept=IMF:CS_MASTER_DOMAIN(1.0.0).COICOP_2018">
+          <com:Name xml:lang="en">Expenditure Category (COICOP 2018)</com:Name>
+          <com:Description xml:lang="en">The Classification of Individual Consumption According to Purpose (COICOP) 2018 is an updated and expanded version of the COICOP classification system, designed to better reflect the evolving consumption patterns of the 21st century. It includes 14 divisions, 50 groups, 153 classes, and 449 subclasses.</com:Description>
+          <str:CoreRepresentation>
+            <str:Enumeration>
+              <Ref agencyID="IMF" id="CL_COICOP_2018" version="1.0.0" package="codelist" class="Codelist"/>
+            </str:Enumeration>
+          </str:CoreRepresentation>
+        </str:Concept>
+      </str:ConceptScheme>
+    </str:Concepts>
+  </mes:Structures>
+</mes:Structure>

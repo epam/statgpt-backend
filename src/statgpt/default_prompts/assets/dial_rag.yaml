@@ -1,0 +1,266 @@
+prefilterSystemPromptDate: >-
+    Only set publication date filters when the query **explicitly requires filtering publications by their publication date**.
+    For all instructions below please assume the current date is {current_date_long}.
+
+    DO set a date filter if:
+    - The query directly asks for publications from a specific time period (e.g., "according to 2023 publications", "from publications in the last 3 months").
+    - The query requests information as published up to a certain date (e.g., "as of publications before 2020").
+    - The query asks for main takeaways, key points, or summaries for a specific year or period (e.g. "main takeaways of 2024 from sonar", "key points of Economic Outlook reports from this year").
+    - The query clearly states a latest period (for example, "publications for the last month", "main insights from the last 5 years"),
+        set start_date to the according date in the past relative to the end_date (if not specified, end date is today: {current_date_yyyymmdd}):
+            - "last month" -> if "end" is 2025-02-08 then "start" is 2025-01-08
+            - "last 5 years" -> if "end" is 2025-02-01 then "start" is 2020-02-01
+
+    DO NOT set a date filter if:
+    - The query refers to the time period of events, facts, or trends, analytics over long period of time (e.g., "evolution of risks over the past five years", "costliest disasters in last 10 years", "losses in 2023"), unless it also specifies publication timing.
+    - The query is about facts, events, or definitions that may be discussed in later publications.
+    - Whenever the query asks for the latest insights, summaries, or rankings without specifying a time period (e.g., "latest publications on climate change", "most profitable business line").
+
+    Date Format:
+    - Use "YYYY-MM-DD"
+    - Both start_date and end_date are inclusive
+    - End date cannot be in the future
+
+    Examples:
+    - "what are the main takeaways of 2024 from sonar?" → start="2024-01-01", end=""
+    - "what are the key points of Economic Outlook reports from this year?" → start="{{current_year}}-01-01", end=""
+    - "what are the main takeaways of 2021 from economic outlook?" -> {{"start": "2021-01-01", "end": ""}}
+      Historical facts: requires all publications since that year
+    - "what was the insurance gap forecast according to publications up to 2020?" -> {{"start": "latest", "end": "2020-12-31"}}
+      Analytical content: requires latest perspective up to target year
+    - "how is business line defined in publications up to 2019?" -> {{"start": "", "end": "2019-12-31"}}
+      Reference content: Explicitly states interest in definitions in publications before a year
+    - "how is business line defined in publications?" -> {{"start": "", "end": ""}}
+      Reference content: Does not specify a year, so we assume all time definitions are relevant
+    - "How did the specialty insurance segment evolve in 2022?" → start="2022-01-01", end=""
+      Use historical fixed period.
+      Even though "evolve" is mentioned, the query clearly asks about a specific year.
+
+    - "How much were the natural disaster losses in 2023 and what was the break-up by regions" → start="2023-01-01", end=""
+      Query requests a fact for the year 2023.
+      This fact could be contained in ANY publication starting from 2023 - set "2023-01-01" as a starting point.
+
+    - "what was the most profitable business line according to publications up to 2015?" → start="", end="2015-12-31"
+      The cutoff "up to 2015" forces a limit that we must set as end date
+
+    - "what was the most profitable business line according to publications from last 3 months?" → start=..., end={current_date_yyyymmdd}  where ... is 3 months before {current_date_yyyymmdd}
+      e.g.  {{"start": "2025-01-10", "end": "2025-04-10"}} for "end": 2025-04-10
+      Although "most profitable business line" typically calls for the latest insight, "from last 3 months" part forces a limit.
+
+    - "Which were the top 10 costliest natural disasters ever globally, ranked by insured losses" → start="", end=""
+      No specific historical period is mentioned so we rely on the latest summarization available.
+      Even for "ever" questions, we use the latest set of publications.
+
+    - "what is the evolution of key risks over the past five years?" → start="", end=""
+      Even though a period is mentioned, the intent is to get a current, summarized insight on trends.
+
+    - "Which were the top 10 costliest natural disasters globally in last 10 years?" → start="", end=""
+      We don't support performing Analytics over long periods by ourselves, so we only can search for such information in the latest publications.
+
+    - "How many people lost their lives in natural disasters in last five years" → start="", end=""
+      Even though a period is mentioned, we can't count the number of people lost in natural disasters by ourselves,
+      so we don't try to set any date limits for such queries.
+
+    - "How was specialty insurance segment expected to evolve in year 2022" → start="", end="2022-12-31"
+      The query asks about the expected evolution in 2022, so we use end_date set to the end of 2022.
+
+    - "what is the evolution of key risks over the past five years according to publications from the last month?"
+      → start=..., end={current_date_yyyymmdd} where ... is 1 month before {current_date_yyyymmdd}
+      e.g.  {{"start": "2025-01-08", "end": "2025-02-08"}} for "end": 2025-02-08
+      User explicitly specified a time period for publications as the last month.
+
+    - "What catastrophes incurred losses above 1 billion USD?" → start="", end=""
+      Request for a fact that is not changing over time.
+
+    - "inflation forecast according to 2023 publications" → start="2023-01-01", end="2023-12-31"
+      Explicit request for publications dated 2023.
+
+    - "main insights from 2012" → start="2012-01-01", end=""
+      Insights could be contained in ANY publication starting from 2012.
+
+    - "What are the latest publications on climate change?" → start="", end=""
+
+    - "According to previous three reports how big a risk is financial market instability today?" → start="", end=""
+      Ask for previous three report means we can't apply a date limit.
+
+    - "How did the last report update the forecast for natural catastrophes in 2025?" → start="", end=""
+      We must not limit the dates in any way, because we are asked about the last report.
+
+    - "what are the underwriting trends according to the most recent short insights publication?" → start="", end=""
+      We don't limit the dates in any way, because we are asked about the most recent publication
+
+    - "what are the main takeaways of the last sigma report?" → start="", end=""
+      Ask for the last sigma report. It could be a report posted long time ago, still we need to pull it as the last. Therefore we don't limit the dates in any way
+
+    - "what are the key points of latest reports?" → start="", end=""
+      Specifically asks for the latest reports
+
+    - "what are the key points of the last 3 Economic Outlook reports?" → start="", end=""
+      Ask for the last 3 Economic Outlook reports. It could be reports posted long time ago.
+
+    - "What are the reasons for revising its GDP forecast for UK from last quarter" → start="", end=""
+      It's not clear what "last quarter" means, so we use don't set a date limit.
+
+    - "reasons for revising GDP forecast for UK from last quarter" → start="", end=""
+        Same as previous example, but rephrased.
+
+    - "What is premium forecast for the the US in year 2025 and what is the rationale for this forecast" → start="", end=""
+
+    - "what were the premiums forecast for 2023?" → start="", end="2023-12-31"
+      The query asks for the premiums forecast for 2023, so we use end_date set to the end of 2023.
+
+    - "What was Inflation forecast for Germany in year 2019 and what were the underlying drivers?" → start=", end="2019-12-31"
+      The query asks for the inflation forecast for 2019, so we use end_date set to the end of 2019.
+
+
+prefilterSystemPromptLatest: >-
+    Set the "latest" filter when the query requires the **most current perspective, analysis, or ranking**, or when the answer could change with new publications (e.g., rankings, distributions, top N, evolving topics), even if not explicitly stated.
+
+    DO set "latest" if:
+    - The query asks for current rankings, distributions, top N, trends, forecasts, or summaries that depend on the most recent data or analysis.
+    - The query is about evolving topics where new publications may change the answer.
+    - The query is about the most profitable, biggest, or top items, or about the evolution of something up to the present.
+    - All of the above, and when time period specified only limits the end date: "what were the premiums forecast for 2023?", "What were the US premium forecast? Use only publications up to 2024"
+
+    DO NOT set "latest" if:
+    - The query is about historical facts, events, or definitions that do not change with new publications (e.g., "What catastrophes incurred losses above 1 billion USD?").
+    - The answer would not change even if new publications appear.
+    - The query clearly asks for publications from a specific time period, e.g. a year.
+    - The query is specifically about publications themselves (e.g., "last N publications").
+      Otherwise applying "latest" might exclude relevant publications that are not the most recent.
+
+    Examples:
+    - "How did the specialty insurance segment evolve in 2022?" → is_latest=false
+    Use historical fixed period.
+    Even though "evolve" is mentioned, the query clearly asks about a specific year.
+
+    - "How much were the natural disaster losses in 2023 and what was the break-up by regions" → is_latest=false
+
+    - "what was the most profitable business line according to publications up to 2015?" → is_latest=true
+
+    - "what was the most profitable business line according to publications from last 3 months?" → is_latest=false
+      Although "most profitable business line" typically calls for the latest insight, "from last 3 months" part forces a limit.
+
+    - "Which were the top 10 costliest natural disasters ever globally, ranked by insured losses" → is_latest=true
+      No specific historical period is mentioned so we rely on the latest summarization available.
+      Even for "ever" questions, we use the latest set of publications.
+
+    - "what is the evolution of key risks over the past five years?" → is_latest=true
+      Even though a period is mentioned, the intent is to get a current, summarized insight on trends.
+
+    - "Which were the top 10 costliest natural disasters globally in last 10 years?" → is_latest=true
+      We don't support performing Analytics over long periods by ourselves, so we only can search for such information in the latest publications.
+
+    - "How many people lost their lives in natural disasters in last five years" → is_latest=true
+      Even though a period is mentioned, we can't count the number of people lost in natural disasters by ourselves,
+      so we only can search for such information in the latest publications.
+
+    - "Which country is the world's biggest insurance market?" → is_latest=true
+
+    - "what is the evolution of key risks over the past five years according to publications from the last month?" → is_latest=false
+      User explicitly specified a time period for publications as the last month.
+
+    - "What catastrophes incurred losses above 1 billion USD?" → is_latest=false
+      Request for a fact that is not changing over time.
+      No ask for a "top" or "most" qualifier - thus it isn't a request for a summarized insight.
+
+    - "inflation forecast according to 2023 publications" → is_latest=false
+      Explicit request for publications dated 2023 - limits both start and end dates to the whole year.
+
+    - "How was specialty insurance segment expected to evolve in year 2022" → is_latest=true
+      The query asks about the expected evolution, so we use latest. 2022 shows a year of interest, not a publication date.
+
+    - "what was the insurance gap forecast according to publications up to 2020?" → is_latest=true
+
+    - "what were the premiums forecast for 2023?" -> is_latest=true
+      The query asks for the premiums forecast so we use latest, 2023 is a forecasted year not a publication date.
+
+    - "What were the US premium forecast? Use only publications up to 2024" -> is_latest=true
+      The query asks for the US premium forecast so we use latest, 2024 limits the end date of the search.
+
+    - "What was Inflation forecast for Germany in year 2019 and what were the underlying drivers?" -> is_latest=true
+      The query asks for the inflation forecast for 2019, so we use latest, 2019 is a forecasted year not a publication date.
+
+    - "main insights from 2012" → is_latest=false
+      Insights could be contained in ANY publication starting from 2012.
+
+    - "What are the latest publications on climate change?" → is_latest=true
+      User asks for the latest publications, so we set is_latest to true.
+
+    - "According to previous three reports how big a risk is financial market instability today?" → is_latest=false
+      Ask for previous three report means we must not apply a latest limit.
+
+    - "How did the last report update the forecast for natural catastrophes in 2025?" → is_latest=false
+      For forecasts, trends, analytics, etc. we don't use "latest" when we are asked about the last N reports.
+
+    - "what are the underwriting trends according to the most recent short insights publication?" -> is_latest=false
+      We don't limit the dates in any way, because we are asked about the most recent publication
+
+    - "what are the main takeaways of the last sigma report?" -> is_latest=false
+      Ask for the last sigma report. It could be a report posted long time ago, still we need to pull it as the last. Therefore we don't limit the dates in any way
+
+    - "what are the key points of latest Sigma reports?" -> is_latest=true
+
+    - what are the key points of the last 3 Economic Outlook reports?" -> is_latest=false
+      Ask for the last 3 Economic Outlook reports. It could be reports posted long time ago.
+
+    - "What are the reasons for revising its GDP forecast for UK from last quarter" -> is_latest=true
+      It's not clear what "last quarter" means, so we use "latest" as the start date.
+
+    - "reasons for revising GDP forecast for UK from last quarter" -> is_latest=true
+        Same as previous example, but rephrased.
+
+prefilterSystemPromptPublicationTypes: >-
+    Your task is to help the user to find the right publication by narrowing down the search results.
+
+    You must fill in a publication type field in the filter object that selects publications.
+
+    Fill this field only if the user explicitly asks for a specific publication type.
+    This is a categorical dimension. The available values are: {available_publication_types}.
+    You may select multiple values if applicable.
+    If the user does not specify a type, leave this field as an empty list.
+
+    Examples of queries that should trigger publication_type:
+      - "what are the main takeaways of 2021 from economic outlook?" -> {{"publication_types": ["Economic Outlook"]}}
+      - "what are the main takeaways of the last sigma report?" -> {{"publication_types": ["sigma"]}}
+
+prefilterSystemPromptLastNPublications: >-
+    You must fill in a last_n_publications field in a filter object that selects publications.
+    This field is used to limit the number of publications returned by the search and indicate that newer publications are preferred.
+
+    Allowed values for last_n_publications:
+
+    * None (default, when not specified)
+    * Positive Integer (e.g. 1, 5, 10)
+
+    Common patterns that should trigger last_n_publications:
+    - "last N publications/reports/documents"
+    - "previous N reports"
+    - "N most recent publications"
+    - "according to the last publication"
+
+    Do not set last_n_publications when:
+    - Query only mentions "latest" without a number
+    - Query asks about "last period" but not about publications, e.g. last month, last year, last 3 years
+    - Query asks about "top N" of something other than publications
+
+    Examples:
+    - "What are the last 5 publications on climate change?" -> {{"last_n_publications": 5}}
+    - "What are the latest publications on climate change?" -> {{"last_n_publications": None}}
+    - "What are the publications on climate change from 2023?" -> {{"last_n_publications": None}}
+    - "How did the last report update the forecast for natural catastrophes in 2025?" -> {{"last_n_publications": 1}}
+    - "What are the top five factors driving insurance market growth worldwide?" -> {{"last_n_publications": None}}
+    - "What are the reasons for revising the premium forecast from last round" -> {{"last_n_publications": None}}
+      last round in this context means last round of forecasts, but we can't get the last round of forecasts by setting last_n_publications
+      We can only get the last publication by that, which might not contain forecasts. So we don't limit the number of publications
+    - "What are the reasons for revising the premium forecast" -> {{"last_n_publications": None}}
+      no mention of last publications, therefore we don't limit the number of publications
+    - "According to previous three reports how big a risk is financial market instability today?" -> {{"last_n_publications": 3}}
+    - "what are the underwriting trends according to the most recent short insights publication?" -> {{"last_n_publications": 1}}
+    - "what are the main takeaways of the last month from sigma reports?" -> {{"last_n_publications": None}}
+    - "How many people lost their lives in natural disasters in last five years" -> {{"last_n_publications": None}}
+      Five years is a period, not a number of publications.
+    - "What are the reasons for revising its GDP forecast for UK from last quarter" -> {{"last_n_publications": None}}
+      No mention of last publications, therefore we don't limit the number of publications
+    - "reasons for revising GDP forecast for UK from last quarter" -> {{"last_n_publications": None}}
+        Same as previous example, but rephrased.

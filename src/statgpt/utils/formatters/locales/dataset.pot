@@ -1,0 +1,112 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) YEAR THE PACKAGE'S COPYRIGHT HOLDER
+# This file is distributed under the same license as the PACKAGE package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: PACKAGE VERSION\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-09-22 17:07+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"Language: \n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=CHARSET\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+#: dataset_simple.py:18 dataset_detailed.py:75
+msgid "[Official]"
+msgstr ""
+
+#: dataset_simple.py:24 dataset_detailed.py:84
+msgid "ID"
+msgstr ""
+
+#: dataset_simple.py:28 dataset_detailed.py:88
+msgid "Internal ID"
+msgstr ""
+
+#: dataset_simple.py:36 dataset_detailed.py:33 dataset_detailed.py:63
+#: dataset_detailed.py:97
+msgid "Description"
+msgstr ""
+
+#: dataset_detailed.py:17
+msgid "Dimensions"
+msgstr ""
+
+#: dataset_detailed.py:28 dataset_detailed.py:60
+msgid "Type"
+msgstr ""
+
+#: dataset_detailed.py:39
+msgid "Values"
+msgstr ""
+
+#: dataset_detailed.py:43
+msgid "Total"
+msgstr ""
+
+#: dataset_detailed.py:43
+msgid "items"
+msgstr ""
+
+#: dataset_detailed.py:43
+msgid "Sample values"
+msgstr ""
+
+#: dataset_detailed.py:49
+msgid "Attributes"
+msgstr ""
+
+#: dataset_detailed.py:81
+msgid "Basic Information"
+msgstr ""
+
+#: datasets_list_formatter.py:39
+msgid "Cannot sort by both id and name."
+msgstr ""
+
+#: datasets_list_formatter.py:62 datasets_list_formatter.py:64 citation.py:28
+msgid "Provider"
+msgstr ""
+
+#: datasets_list_formatter.py:64 datasets_list_formatter.py:110
+msgid "Unknown"
+msgstr ""
+
+#: datasets_list_formatter.py:67
+msgid "Total datasets from this provider"
+msgstr ""
+
+#: datasets_list_formatter.py:78 datasets_list_formatter.py:100
+#: datasets_list_formatter.py:105
+msgid "Total datasets"
+msgstr ""
+
+#: datasets_list_formatter.py:82
+msgid "Total providers"
+msgstr ""
+
+#: datasets_list_formatter.py:101
+msgid "Official"
+msgstr ""
+
+#: datasets_list_formatter.py:102
+msgid "Unofficial"
+msgstr ""
+
+#: datasets_list_formatter.py:114
+msgid "By provider"
+msgstr ""
+
+#: citation.py:33
+msgid "Last updated"
+msgstr ""
+
+#: citation.py:38
+msgid "URL"
+msgstr ""

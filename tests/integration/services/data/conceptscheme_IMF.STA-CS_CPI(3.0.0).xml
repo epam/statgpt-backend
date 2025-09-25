@@ -1,0 +1,30 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<mes:Structure xmlns:mes="http://www.sdmx.org/resources/sdmxml/schemas/v2_1/message" xmlns:str="http://www.sdmx.org/resources/sdmxml/schemas/v2_1/structure" xmlns:com="http://www.sdmx.org/resources/sdmxml/schemas/v2_1/common" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xml="http://www.w3.org/XML/1998/namespace" xsi:schemaLocation="http://www.sdmx.org/resources/sdmxml/schemas/v2_1/message ../../schemas/SDMXMessage.xsd">
+  <mes:Header>
+    <mes:ID>IDREF1454</mes:ID>
+    <mes:Test>false</mes:Test>
+    <mes:Prepared>2025-07-29T10:35:42.398134822Z</mes:Prepared>
+    <mes:Sender id="unknown"/>
+  </mes:Header>
+  <mes:Structures>
+    <str:Concepts>
+      <str:ConceptScheme urn="urn:sdmx:org.sdmx.infomodel.conceptscheme.ConceptScheme=IMF.STA:CS_CPI(3.0.0)" agencyID="IMF.STA" id="CS_CPI" version="3.0.0" isFinal="true" isExternalReference="false" isPartial="false">
+        <com:Annotations>
+          <com:Annotation id="origin"/>
+          <com:Annotation id="isFinal"/>
+          <com:Annotation id="lastUpdatedAt"/>
+        </com:Annotations>
+        <com:Name xml:lang="en">Consumer Price Index (CPI)</com:Name>
+        <str:Concept id="TYPE_OF_TRANSFORMATION" urn="urn:sdmx:org.sdmx.infomodel.conceptscheme.Concept=IMF.STA:CS_CPI(3.0.0).TYPE_OF_TRANSFORMATION">
+          <com:Name xml:lang="en">Type of Transformation</com:Name>
+          <com:Description xml:lang="en">Represents the specific calculations or computations applied to source data, along with the standard unit used to express the resulting new data elements or indicators. </com:Description>
+          <str:CoreRepresentation>
+            <str:Enumeration>
+              <Ref agencyID="IMF.STA" id="CL_CPI_TYPE_OF_TRANSFORMATION" version="3.1.0" package="codelist" class="Codelist"/>
+            </str:Enumeration>
+          </str:CoreRepresentation>
+        </str:Concept>
+      </str:ConceptScheme>
+    </str:Concepts>
+  </mes:Structures>
+</mes:Structure>

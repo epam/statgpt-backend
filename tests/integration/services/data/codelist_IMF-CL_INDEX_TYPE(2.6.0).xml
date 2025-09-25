@@ -1,0 +1,215 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<mes:Structure xmlns:mes="http://www.sdmx.org/resources/sdmxml/schemas/v2_1/message" xmlns:str="http://www.sdmx.org/resources/sdmxml/schemas/v2_1/structure" xmlns:com="http://www.sdmx.org/resources/sdmxml/schemas/v2_1/common" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xml="http://www.w3.org/XML/1998/namespace" xsi:schemaLocation="http://www.sdmx.org/resources/sdmxml/schemas/v2_1/message ../../schemas/SDMXMessage.xsd">
+  <mes:Header>
+    <mes:ID>IDREF4629</mes:ID>
+    <mes:Test>false</mes:Test>
+    <mes:Prepared>2025-07-29T09:49:23.227648454Z</mes:Prepared>
+    <mes:Sender id="unknown"/>
+  </mes:Header>
+  <mes:Structures>
+    <str:Codelists>
+      <str:Codelist urn="urn:sdmx:org.sdmx.infomodel.codelist.Codelist=IMF:CL_INDEX_TYPE(2.6.0)" agencyID="IMF" id="CL_INDEX_TYPE" version="2.6.0" isFinal="true" isExternalReference="false" isPartial="false">
+        <com:Annotations>
+          <com:Annotation id="origin"/>
+          <com:Annotation id="isFinal"/>
+          <com:Annotation id="lastUpdatedAt"/>
+        </com:Annotations>
+        <com:Name xml:lang="en">Index type</com:Name>
+        <com:Description xml:lang="en">This codelist represents different types of price indices and related measures.</com:Description>
+        <str:Code id="BSI" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_INDEX_TYPE(2.6.0).BSI">
+          <com:Name xml:lang="en">Bank stock index</com:Name>
+          <com:Description xml:lang="en">A financial index that tracks the performance of a basket of stocks issued by banking institutions. This index provides insights into the health and performance of the banking sector, reflecting changes in stock prices of banks in response to economic, regulatory, and market conditions.</com:Description>
+        </str:Code>
+        <str:Code id="CCPI" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_INDEX_TYPE(2.6.0).CCPI">
+          <com:Name xml:lang="en">Core consumer price index (CPI)</com:Name>
+          <com:Description xml:lang="en">A measure of the price level of consumer goods and services, excluding volatile items such as food and energy.</com:Description>
+        </str:Code>
+        <str:Code id="CCPISVN" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_INDEX_TYPE(2.6.0).CCPISVN">
+          <com:Name xml:lang="en">Core consumer price index (CCPI) (SVN)</com:Name>
+        </str:Code>
+        <str:Code id="CECO" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_INDEX_TYPE(2.6.0).CECO">
+          <com:Name xml:lang="en">Commodity price index, energy, crude oil (petroleum)</com:Name>
+          <com:Description xml:lang="en">The Commodity Price Index for energy, crude oil (petroleum) is a measure that tracks the average price changes of crude oil over time.</com:Description>
+        </str:Code>
+        <str:Code id="CEMPI" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_INDEX_TYPE(2.6.0).CEMPI">
+          <com:Name xml:lang="en">Commodity net export price index</com:Name>
+          <com:Description xml:lang="en">Represents the difference in the trends of export and import price indices for commodities. It is calculated by subtracting the Commodity Import Price Index from the Commodity Export Price Index. A positive value indicates that the prices of exports are increasing at a faster rate than the prices of imports, potentially leading to a favorable trade balance and contributing to economic growth.</com:Description>
+        </str:Code>
+        <str:Code id="CEPI" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_INDEX_TYPE(2.6.0).CEPI">
+          <com:Name xml:lang="en">Commodity export price index</com:Name>
+          <com:Description xml:lang="en">A measure that tracks the changes over time in the prices of a basket of goods exported by a country. This index provides insight into the trends of export prices for commodities such as oil, metals, and agricultural products. An increase in the index suggests that the prices of exported commodities are rising, potentially leading to higher revenues for exporters.</com:Description>
+        </str:Code>
+        <str:Code id="CHICPIF" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_INDEX_TYPE(2.6.0).CHICPIF">
+          <com:Name xml:lang="en">Core HICP inflation forecast</com:Name>
+          <com:Description xml:lang="en">The Core Harmonised Index of Consumer Prices (HICP) Inflation Forecast predicts the future rate of inflation, excluding volatile items such as energy, food, alcohol, and tobacco. This forecast helps in assessing underlying inflation trends and is crucial for monetary policy decisions and economic planning.</com:Description>
+        </str:Code>
+        <str:Code id="CMPI" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_INDEX_TYPE(2.6.0).CMPI">
+          <com:Name xml:lang="en">Commodity import price index</com:Name>
+          <com:Description xml:lang="en">This index measures the changes in the prices of a basket of goods imported into a country over time. It reflects the cost trends of imported commodities, including energy sources, raw materials, and food products. A higher index indicates increasing import prices, which may affect domestic inflation rates and the purchasing power of consumers, as well as impact the costs for businesses relying on imported goods.</com:Description>
+        </str:Code>
+        <str:Code id="CPCE" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_INDEX_TYPE(2.6.0).CPCE">
+          <com:Name xml:lang="en">Core PCE Price Index</com:Name>
+          <com:Description xml:lang="en">The Core Personal Consumption Expenditures (PCE) Price Index is a measure of inflation that tracks changes in the prices of goods and services purchased by consumers, excluding food and energy prices.</com:Description>
+        </str:Code>
+        <str:Code id="CPI" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_INDEX_TYPE(2.6.0).CPI">
+          <com:Name xml:lang="en">Consumer price index (CPI)</com:Name>
+          <com:Description xml:lang="en">The Consumer Price Index (CPI) is an index of the prices of consumption goods and services, as compared to a certain reference period.</com:Description>
+        </str:Code>
+        <str:Code id="CPIR" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_INDEX_TYPE(2.6.0).CPIR">
+          <com:Name xml:lang="en">Relative consumer price index (CPI)</com:Name>
+          <com:Description xml:lang="en">The CPI of the country compared to the trade-weighted CPI of the country’s trade partners</com:Description>
+        </str:Code>
+        <str:Code id="CPIU" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_INDEX_TYPE(2.6.0).CPIU">
+          <com:Name xml:lang="en">Consumer price index (Urban)</com:Name>
+          <com:Description xml:lang="en">The Consumer Price Index (Urban), often abbreviated as CPI-U, is a key economic indicator that measures the average change over time in the prices paid by urban consumers for a fixed basket of goods and services.</com:Description>
+        </str:Code>
+        <str:Code id="CPIX" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_INDEX_TYPE(2.6.0).CPIX">
+          <com:Name xml:lang="en">Commodity price index</com:Name>
+          <com:Description xml:lang="en">A commodity price index is a measurement tool that tracks the average price changes of a basket of commodities over time. These commodities can include various raw materials or primary agricultural products</com:Description>
+        </str:Code>
+        <str:Code id="D" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_INDEX_TYPE(2.6.0).D">
+          <com:Name xml:lang="en">Deflator</com:Name>
+          <com:Description xml:lang="en">A measure used to adjust nominal values for inflation, reflecting the real value.</com:Description>
+        </str:Code>
+        <str:Code id="DMN_EMP_CR_SQSCLD" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_INDEX_TYPE(2.6.0).DMN_EMP_CR_SQSCLD">
+          <com:Name xml:lang="en">Flexible exchange market pressure index</com:Name>
+          <com:Description xml:lang="en">Measures the pressure on a country's exchange rate in a flexible exchange rate system, taking into account factors such as changes in exchange rates, interest rates, and international reserves. It helps in identifying periods of excessive upward or downward pressure on the currency, indicating potential stability or vulnerability in the foreign exchange market. Calculated as one unit equivalent to one standard deviation of standarized variable.</com:Description>
+        </str:Code>
+        <str:Code id="EPI" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_INDEX_TYPE(2.6.0).EPI">
+          <com:Name xml:lang="en">Export price index (XPI)</com:Name>
+          <com:Description xml:lang="en">An index that measures the price changes of goods and services sold to foreign buyers.</com:Description>
+        </str:Code>
+        <str:Code id="FSI" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_INDEX_TYPE(2.6.0).FSI">
+          <com:Name xml:lang="en">Financial stress indicators</com:Name>
+          <com:Description xml:lang="en">Quantitative measures that signal the level of stress in the financial system. These indicators can include volatility in stock and bond markets, widening credit spreads, and increased interbank lending rates. They are used to identify periods of financial turbulence that could impact economic stability and inform policy responses.  Calculated as the sum of standardized subcomponents.</com:Description>
+        </str:Code>
+        <str:Code id="HFIDX" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_INDEX_TYPE(2.6.0).HFIDX">
+          <com:Name xml:lang="en">Herfindahl index</com:Name>
+          <com:Description xml:lang="en">A measure of market concentration and competition, calculated as the sum of the squares of the market shares of all firms in the market.</com:Description>
+        </str:Code>
+        <str:Code id="HICP" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_INDEX_TYPE(2.6.0).HICP">
+          <com:Name xml:lang="en">Harmonised index of consumer prices (HICP)</com:Name>
+          <com:Description xml:lang="en">The Harmonised Index of Consumer Prices (HICP) gives comparable measures of inflations for the countries and country groups for which it is produced. It is an economic indicator that measures the change over time of the prices of consumer goods and services acquired by households.  In other words, it is a set of consumer price indexes (CPIs) calculated according to a harmonized approach and a set of definitions as laid down in Regulations and Recommendations. For example, the European Union's HICP provides the official measure of consumer price inflation in the euro area for the purposes of monetary policy and the assessment of inflation convergence as required under the Maastricht criteria for accession to the euro.</com:Description>
+        </str:Code>
+        <str:Code id="IPIX" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_INDEX_TYPE(2.6.0).IPIX">
+          <com:Name xml:lang="en">Industrial production index (IPI)</com:Name>
+          <com:Description xml:lang="en">Industrial Production Index (IPI) is a monthly economic indicator that measures changes in the volume of output in the industrial sector, typically comprising manufacturing, mining, and utilities.</com:Description>
+        </str:Code>
+        <str:Code id="L" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_INDEX_TYPE(2.6.0).L">
+          <com:Name xml:lang="en">Chain linked volume</com:Name>
+          <com:Description xml:lang="en">A volume measure that adjusts for changes in price levels over time by chaining together successive periods' volume measures.</com:Description>
+        </str:Code>
+        <str:Code id="LR" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_INDEX_TYPE(2.6.0).LR">
+          <com:Name xml:lang="en">Chain linked volume (rebased)</com:Name>
+          <com:Description xml:lang="en">A chain linked volume measure that has been recalibrated to a new base period.</com:Description>
+        </str:Code>
+        <str:Code id="MPI" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_INDEX_TYPE(2.6.0).MPI">
+          <com:Name xml:lang="en">Import price index</com:Name>
+          <com:Description xml:lang="en">An index that measures the price changes of goods and services purchased from foreign sellers.</com:Description>
+        </str:Code>
+        <str:Code id="NEER" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_INDEX_TYPE(2.6.0).NEER">
+          <com:Name xml:lang="en">Nominal effective exchange rate (NEER)</com:Name>
+          <com:Description xml:lang="en">A nominal effective exchange rate (NEER) is a measure of the value of a currency against a weighted average of several foreign currencies. The weights are derived by taking a three-year average of the trade partners' combined value of imports and exports with the focal country as a share of the focal countries' total combined value of imports and exports.</com:Description>
+        </str:Code>
+        <str:Code id="PD" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_INDEX_TYPE(2.6.0).PD">
+          <com:Name xml:lang="en">Price deflator</com:Name>
+          <com:Description xml:lang="en">An economic indicator used to adjust nominal economic data series for changes in relevant price levels.  Price deflators can be explicit, such as producer or consumer price indices, or implicit, such as the GDP deflator derived by dividing nominal GDP by GDP in volume terms.</com:Description>
+        </str:Code>
+        <str:Code id="PPI" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_INDEX_TYPE(2.6.0).PPI">
+          <com:Name xml:lang="en">Producer price index (PPI)</com:Name>
+          <com:Description xml:lang="en">The Producer Price Index (PPI) is a key economic indicator that measures the average change over time in the selling prices received by domestic producers for their output.</com:Description>
+        </str:Code>
+        <str:Code id="REER" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_INDEX_TYPE(2.6.0).REER">
+          <com:Name xml:lang="en">Real effective exchange rate (REER)</com:Name>
+          <com:Description xml:lang="en">A real effective exchange rate (REER) is a measure of the value of a currency against a weighted average of several foreign currencies divided by a price deflator or index of costs. The weights are derived by taking a three-year average of the trade partners' combined value of imports and exports with the focal country as a share of the focal countries' total combined value of imports and exports. An increase in REER implies that exports become more expensive and imports become cheaper; therefore, an increase indicates a loss in trade competitiveness.</com:Description>
+        </str:Code>
+        <str:Code id="RSI" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_INDEX_TYPE(2.6.0).RSI">
+          <com:Name xml:lang="en">Retail sales index</com:Name>
+          <com:Description xml:lang="en">The Retail Sales Index (RSI) measures the monthly performance of the retail sector by tracking changes in the value of sales at retail establishments. It is an important economic indicator that reflects consumer spending and retail sector health, providing insights into economic trends and consumer behavior.</com:Description>
+        </str:Code>
+        <str:Code id="SQRMSCINC_RET_SQSCLD" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_INDEX_TYPE(2.6.0).SQRMSCINC_RET_SQSCLD">
+          <com:Name xml:lang="en">Financial price index</com:Name>
+          <com:Description xml:lang="en">A composite index that tracks the movement of financial asset prices, such as stocks, bonds, and other securities. It provides insights into the overall performance of financial markets and can signal shifts in investor sentiment, economic expectations, and market conditions.  Calculated as one unit equivalent to one standard deviation of standarized variable.</com:Description>
+        </str:Code>
+        <str:Code id="STKRET" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_INDEX_TYPE(2.6.0).STKRET">
+          <com:Name xml:lang="en">Stock returns</com:Name>
+          <com:Description xml:lang="en">Measures the profit or loss generated on an investment in a stock over a specific period. Stock returns can be calculated based on price appreciation (capital gains) and any dividends received, offering investors a comprehensive view of the performance and profitability of their stock investments.</com:Description>
+        </str:Code>
+        <str:Code id="THEIL" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_INDEX_TYPE(2.6.0).THEIL">
+          <com:Name xml:lang="en">Theil index</com:Name>
+          <com:Description xml:lang="en">A Theil index can be interpreted as a measure of redundancy, lack of diversity, isolation, segregation, inequality, non-randomness, and compressibility.  In the context of diversification, the higher the index the less diversification.</com:Description>
+        </str:Code>
+        <str:Code id="TT" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_INDEX_TYPE(2.6.0).TT">
+          <com:Name xml:lang="en">Terms of trade (TOT)</com:Name>
+          <com:Description xml:lang="en">The ratio of export prices to import prices, indicating the relative value of imports in terms of exports.</com:Description>
+        </str:Code>
+        <str:Code id="VI" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_INDEX_TYPE(2.6.0).VI">
+          <com:Name xml:lang="en">Volume index</com:Name>
+          <com:Description xml:lang="en">Index showing the average of the proportionate changes in quantities of a specified set of goods or services between two periods.</com:Description>
+        </str:Code>
+        <str:Code id="WPI" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_INDEX_TYPE(2.6.0).WPI">
+          <com:Name xml:lang="en">Wholesale price index (WPI)</com:Name>
+          <com:Description xml:lang="en">The Wholesale Price Index (WPI) measures changes in the purchaser prices paid by non-household institutional units</com:Description>
+        </str:Code>
+        <str:Code id="PDE" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_INDEX_TYPE(2.6.0).PDE">
+          <com:Name xml:lang="en">Price deflator (Eurostat)</com:Name>
+          <com:Description xml:lang="en">An economic indicator used to adjust nominal economic data series for changes in relevant price levels.  Price deflators can be explicit, such as producer or consumer price indices, or implicit, such as the GDP deflator derived by dividing nominal GDP by GDP in volume terms.</com:Description>
+        </str:Code>
+        <str:Code id="UVD" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_INDEX_TYPE(2.6.0).UVD">
+          <com:Name xml:lang="en">Unit value deflator</com:Name>
+          <com:Description xml:lang="en">A price index constructed by comparing the average price of a unit of goods or services in a given period to the average price of that same unit in a base period. UVDs are often used in international trade to analyze changes in export and import prices.</com:Description>
+        </str:Code>
+        <str:Code id="REER_ASM" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_INDEX_TYPE(2.6.0).REER_ASM">
+          <com:Name xml:lang="en">REER % ASM</com:Name>
+        </str:Code>
+        <str:Code id="CPPI" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_INDEX_TYPE(2.6.0).CPPI">
+          <com:Name xml:lang="en">Core producer price index (Core PPI)</com:Name>
+          <com:Description xml:lang="en">The Producer price index (PPI) is a key economic indicator that measures the average change over time in the selling prices received by domestic producers for their output.</com:Description>
+        </str:Code>
+        <str:Code id="PMI" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_INDEX_TYPE(2.6.0).PMI">
+          <com:Name xml:lang="en">Purchasing managers index (PMI)</com:Name>
+          <com:Description xml:lang="en">The Purchasing Managers’ Index (PMI) is a monthly survey-based economic indicator measuring changes in key business conditions—such as production, new orders, and employment—across manufacturing and services, with readings above 50 indicating expansion and below 50 signaling contraction.</com:Description>
+        </str:Code>
+        <str:Code id="HIPP" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_INDEX_TYPE(2.6.0).HIPP">
+          <com:Name xml:lang="en">Harmonised index of producer prices (HIPP)</com:Name>
+          <com:Description xml:lang="en">The Harmonised Index of Producer Prices (HICP) gives comparable measures of inflations for the countries and country groups for which it is produced. It is an economic indicator that measures the change over time of the prices of producer goods and services acquired by producers.  In other words, it is a set of producer price indexes (CPIs) calculated according to a harmonized approach and a set of definitions as laid down in Regulations and Recommendations.</com:Description>
+        </str:Code>
+        <str:Code id="FMSCI" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_INDEX_TYPE(2.6.0).FMSCI">
+          <com:Name xml:lang="en">Morgan Stanley MSCI stock price index</com:Name>
+        </str:Code>
+        <str:Code id="TTG" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_INDEX_TYPE(2.6.0).TTG">
+          <com:Name xml:lang="en">Terms of trade (TOT) Goods</com:Name>
+          <com:Description xml:lang="en">The ratio of export of goods prices to import of goods prices, indicating the relative value of imports of goods in terms of exports of goods.</com:Description>
+        </str:Code>
+        <str:Code id="PD_EUR" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_INDEX_TYPE(2.6.0).PD_EUR">
+          <com:Name xml:lang="en">Price deflator (EUR)</com:Name>
+          <com:Description xml:lang="en">An economic indicator used to adjust nominal economic data series for changes in relevant price levels.  Price deflators can be explicit, such as producer or consumer price indices, or implicit, such as the GDP deflator derived by dividing nominal GDP by GDP in volume terms. Derived by taking the current price series denominated in EUR divided by the constant price series denominated in EUR.</com:Description>
+        </str:Code>
+        <str:Code id="PD_USD" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_INDEX_TYPE(2.6.0).PD_USD">
+          <com:Name xml:lang="en">Price deflator (USD)</com:Name>
+          <com:Description xml:lang="en">An economic indicator used to adjust nominal economic data series for changes in relevant price levels.  Price deflators can be explicit, such as producer or consumer price indices, or implicit, such as the GDP deflator derived by dividing nominal GDP by GDP in volume terms. Derived by taking the current price series denominated in USD divided by the constant price series denominated in USD.</com:Description>
+        </str:Code>
+        <str:Code id="PD_XDR" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_INDEX_TYPE(2.6.0).PD_XDR">
+          <com:Name xml:lang="en">Price deflator (SDR)</com:Name>
+          <com:Description xml:lang="en">An economic indicator used to adjust nominal economic data series for changes in relevant price levels.  Price deflators can be explicit, such as producer or consumer price indices, or implicit, such as the GDP deflator derived by dividing nominal GDP by GDP in volume terms.  Derived by taking the current price series denominated in SDR divided by the constant price series denominated in SDR.</com:Description>
+        </str:Code>
+        <str:Code id="PIX" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_INDEX_TYPE(2.6.0).PIX">
+          <com:Name xml:lang="en">Production index</com:Name>
+          <com:Description xml:lang="en">Production Index is a indicator that measures changes in the volume of output in a sector, typically comprising manufacturing, mining, and utilities.</com:Description>
+        </str:Code>
+        <str:Code id="CCPIXFEN" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_INDEX_TYPE(2.6.0).CCPIXFEN">
+          <com:Name xml:lang="en">Core inflation excluding food and energy</com:Name>
+          <com:Description xml:lang="en">Core inflation excluding food and energy.</com:Description>
+        </str:Code>
+        <str:Code id="PCPIHACO" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_INDEX_TYPE(2.6.0).PCPIHACO">
+          <com:Name xml:lang="en">Core inflation including housing</com:Name>
+          <com:Description xml:lang="en">Core inflation including housing.</com:Description>
+        </str:Code>
+        <str:Code id="CPISRP" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_INDEX_TYPE(2.6.0).CPISRP">
+          <com:Name xml:lang="en">Consumer price index (CPI) common reference period</com:Name>
+          <com:Description xml:lang="en">The Consumer Price Index (CPI) is an index of the prices of consumption goods and services, as compared to a certain reference period.</com:Description>
+        </str:Code>
+      </str:Codelist>
+    </str:Codelists>
+  </mes:Structures>
+</mes:Structure>

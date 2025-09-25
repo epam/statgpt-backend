@@ -1,0 +1,183 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<mes:Structure xmlns:mes="http://www.sdmx.org/resources/sdmxml/schemas/v2_1/message" xmlns:str="http://www.sdmx.org/resources/sdmxml/schemas/v2_1/structure" xmlns:com="http://www.sdmx.org/resources/sdmxml/schemas/v2_1/common" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xml="http://www.w3.org/XML/1998/namespace" xsi:schemaLocation="http://www.sdmx.org/resources/sdmxml/schemas/v2_1/message ../../schemas/SDMXMessage.xsd">
+  <mes:Header>
+    <mes:ID>IDREF6011</mes:ID>
+    <mes:Test>false</mes:Test>
+    <mes:Prepared>2025-07-29T09:50:36.193411415Z</mes:Prepared>
+    <mes:Sender id="unknown"/>
+  </mes:Header>
+  <mes:Structures>
+    <str:Codelists>
+      <str:Codelist urn="urn:sdmx:org.sdmx.infomodel.codelist.Codelist=IMF:CL_DECIMALS(1.0.2)" agencyID="IMF" id="CL_DECIMALS" version="1.0.2" isFinal="true" isExternalReference="false" isPartial="false">
+        <com:Annotations>
+          <com:Annotation id="dataEngineSettings"/>
+          <com:Annotation id="origin"/>
+          <com:Annotation id="isFinal"/>
+          <com:Annotation id="lastUpdatedAt"/>
+        </com:Annotations>
+        <com:Name xml:lang="en">Decimals</com:Name>
+        <com:Description xml:lang="en">This code list provides a list of values showing the number of decimal digits used in the data. This code list was released in 2009. More information about this code list and SDMX code lists in general (e.g. list of generic codes for expressing general concepts like "Total", "Unknown", etc.; syntaxes for the creation of further codes; general guidelines for the creation of SDMX code lists) can be found at this address: https://sdmx.org/?page_id=4345.</com:Description>
+        <str:Code id="0" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_DECIMALS(1.0.2).0">
+          <com:Name xml:lang="ar">صفر</com:Name>
+          <com:Name xml:lang="ru">Ноль</com:Name>
+          <com:Name xml:lang="pt">Zero</com:Name>
+          <com:Name xml:lang="ja">零</com:Name>
+          <com:Name xml:lang="en">Zero</com:Name>
+          <com:Name xml:lang="fr">Zéro</com:Name>
+          <com:Name xml:lang="es">Cero</com:Name>
+          <com:Name xml:lang="zh">零</com:Name>
+        </str:Code>
+        <str:Code id="1" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_DECIMALS(1.0.2).1">
+          <com:Name xml:lang="ar">واحد</com:Name>
+          <com:Name xml:lang="ru">Один</com:Name>
+          <com:Name xml:lang="pt">Um</com:Name>
+          <com:Name xml:lang="ja">一</com:Name>
+          <com:Name xml:lang="en">One</com:Name>
+          <com:Name xml:lang="fr">Un</com:Name>
+          <com:Name xml:lang="es">Uno</com:Name>
+          <com:Name xml:lang="zh">一</com:Name>
+        </str:Code>
+        <str:Code id="2" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_DECIMALS(1.0.2).2">
+          <com:Name xml:lang="ar">اثنان</com:Name>
+          <com:Name xml:lang="ru">Два</com:Name>
+          <com:Name xml:lang="pt">Dois</com:Name>
+          <com:Name xml:lang="ja">二</com:Name>
+          <com:Name xml:lang="en">Two</com:Name>
+          <com:Name xml:lang="fr">Deux</com:Name>
+          <com:Name xml:lang="es">Dos</com:Name>
+          <com:Name xml:lang="zh">二</com:Name>
+        </str:Code>
+        <str:Code id="3" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_DECIMALS(1.0.2).3">
+          <com:Name xml:lang="ar">ثلاثة</com:Name>
+          <com:Name xml:lang="ru">Три</com:Name>
+          <com:Name xml:lang="pt">Três</com:Name>
+          <com:Name xml:lang="ja">三</com:Name>
+          <com:Name xml:lang="en">Three</com:Name>
+          <com:Name xml:lang="fr">Trois</com:Name>
+          <com:Name xml:lang="es">Tres</com:Name>
+          <com:Name xml:lang="zh">三</com:Name>
+        </str:Code>
+        <str:Code id="4" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_DECIMALS(1.0.2).4">
+          <com:Name xml:lang="ar">أربعة</com:Name>
+          <com:Name xml:lang="ru">Четыре</com:Name>
+          <com:Name xml:lang="pt">Quatro</com:Name>
+          <com:Name xml:lang="ja">四</com:Name>
+          <com:Name xml:lang="en">Four</com:Name>
+          <com:Name xml:lang="fr">Quatre</com:Name>
+          <com:Name xml:lang="es">Cuatro</com:Name>
+          <com:Name xml:lang="zh">四</com:Name>
+        </str:Code>
+        <str:Code id="5" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_DECIMALS(1.0.2).5">
+          <com:Name xml:lang="ar">خمسة</com:Name>
+          <com:Name xml:lang="ru">Пять</com:Name>
+          <com:Name xml:lang="pt">Cinco</com:Name>
+          <com:Name xml:lang="ja">五</com:Name>
+          <com:Name xml:lang="en">Five</com:Name>
+          <com:Name xml:lang="fr">Cinq</com:Name>
+          <com:Name xml:lang="es">Cinco</com:Name>
+          <com:Name xml:lang="zh">五</com:Name>
+        </str:Code>
+        <str:Code id="6" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_DECIMALS(1.0.2).6">
+          <com:Name xml:lang="ar">ستة</com:Name>
+          <com:Name xml:lang="ru">Шесть</com:Name>
+          <com:Name xml:lang="pt">Seis</com:Name>
+          <com:Name xml:lang="ja">六</com:Name>
+          <com:Name xml:lang="en">Six</com:Name>
+          <com:Name xml:lang="fr">Six</com:Name>
+          <com:Name xml:lang="es">Seis</com:Name>
+          <com:Name xml:lang="zh">六</com:Name>
+        </str:Code>
+        <str:Code id="7" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_DECIMALS(1.0.2).7">
+          <com:Name xml:lang="ar">سبعة</com:Name>
+          <com:Name xml:lang="ru">Семь</com:Name>
+          <com:Name xml:lang="pt">Sete</com:Name>
+          <com:Name xml:lang="ja">七</com:Name>
+          <com:Name xml:lang="en">Seven</com:Name>
+          <com:Name xml:lang="fr">Sept</com:Name>
+          <com:Name xml:lang="es">Siete</com:Name>
+          <com:Name xml:lang="zh">七</com:Name>
+        </str:Code>
+        <str:Code id="8" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_DECIMALS(1.0.2).8">
+          <com:Name xml:lang="ar">ثمانية</com:Name>
+          <com:Name xml:lang="ru">Восемь</com:Name>
+          <com:Name xml:lang="pt">Oito</com:Name>
+          <com:Name xml:lang="ja">八</com:Name>
+          <com:Name xml:lang="en">Eight</com:Name>
+          <com:Name xml:lang="fr">Huit</com:Name>
+          <com:Name xml:lang="es">Ocho</com:Name>
+          <com:Name xml:lang="zh">八</com:Name>
+        </str:Code>
+        <str:Code id="9" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_DECIMALS(1.0.2).9">
+          <com:Name xml:lang="ar">تسعة</com:Name>
+          <com:Name xml:lang="ru">Девять</com:Name>
+          <com:Name xml:lang="pt">Nove</com:Name>
+          <com:Name xml:lang="ja">九</com:Name>
+          <com:Name xml:lang="en">Nine</com:Name>
+          <com:Name xml:lang="fr">Neuf</com:Name>
+          <com:Name xml:lang="es">Nueve</com:Name>
+          <com:Name xml:lang="zh">九</com:Name>
+        </str:Code>
+        <str:Code id="10" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_DECIMALS(1.0.2).10">
+          <com:Name xml:lang="ar">عشرة</com:Name>
+          <com:Name xml:lang="ru">Десять</com:Name>
+          <com:Name xml:lang="pt">Dez</com:Name>
+          <com:Name xml:lang="ja">十</com:Name>
+          <com:Name xml:lang="en">Ten</com:Name>
+          <com:Name xml:lang="fr">Dix</com:Name>
+          <com:Name xml:lang="es">Diez</com:Name>
+          <com:Name xml:lang="zh">十</com:Name>
+        </str:Code>
+        <str:Code id="11" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_DECIMALS(1.0.2).11">
+          <com:Name xml:lang="ar">أحد عشر</com:Name>
+          <com:Name xml:lang="ru">Одиннадцать</com:Name>
+          <com:Name xml:lang="pt">Onze</com:Name>
+          <com:Name xml:lang="ja">十一</com:Name>
+          <com:Name xml:lang="en">Eleven</com:Name>
+          <com:Name xml:lang="fr">Onze</com:Name>
+          <com:Name xml:lang="es">Once</com:Name>
+          <com:Name xml:lang="zh">十一</com:Name>
+        </str:Code>
+        <str:Code id="12" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_DECIMALS(1.0.2).12">
+          <com:Name xml:lang="ar">اثنا عشر</com:Name>
+          <com:Name xml:lang="ru">Двенадцать</com:Name>
+          <com:Name xml:lang="pt">Doze</com:Name>
+          <com:Name xml:lang="ja">十二</com:Name>
+          <com:Name xml:lang="en">Twelve</com:Name>
+          <com:Name xml:lang="fr">Douze</com:Name>
+          <com:Name xml:lang="es">Doce</com:Name>
+          <com:Name xml:lang="zh">十二</com:Name>
+        </str:Code>
+        <str:Code id="13" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_DECIMALS(1.0.2).13">
+          <com:Name xml:lang="ar">ثلاثة عشر</com:Name>
+          <com:Name xml:lang="ru">Тринадцать</com:Name>
+          <com:Name xml:lang="pt">Treze</com:Name>
+          <com:Name xml:lang="ja">十三</com:Name>
+          <com:Name xml:lang="en">Thirteen</com:Name>
+          <com:Name xml:lang="fr">Treize</com:Name>
+          <com:Name xml:lang="es">Trece</com:Name>
+          <com:Name xml:lang="zh">十三</com:Name>
+        </str:Code>
+        <str:Code id="14" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_DECIMALS(1.0.2).14">
+          <com:Name xml:lang="ar">أربعة عشر</com:Name>
+          <com:Name xml:lang="ru">Четырнадцать</com:Name>
+          <com:Name xml:lang="pt">Catorze</com:Name>
+          <com:Name xml:lang="ja">十四</com:Name>
+          <com:Name xml:lang="en">Fourteen</com:Name>
+          <com:Name xml:lang="fr">Quatorze</com:Name>
+          <com:Name xml:lang="es">Catorce</com:Name>
+          <com:Name xml:lang="zh">十四</com:Name>
+        </str:Code>
+        <str:Code id="15" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_DECIMALS(1.0.2).15">
+          <com:Name xml:lang="ar">خمسة عشر</com:Name>
+          <com:Name xml:lang="ru">Пятнадцать</com:Name>
+          <com:Name xml:lang="pt">Quinze</com:Name>
+          <com:Name xml:lang="ja">十五</com:Name>
+          <com:Name xml:lang="en">Fifteen</com:Name>
+          <com:Name xml:lang="fr">Quinze</com:Name>
+          <com:Name xml:lang="es">Quince</com:Name>
+          <com:Name xml:lang="zh">十五</com:Name>
+        </str:Code>
+      </str:Codelist>
+    </str:Codelists>
+  </mes:Structures>
+</mes:Structure>

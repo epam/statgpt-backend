@@ -1,0 +1,362 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<mes:Structure xmlns:mes="http://www.sdmx.org/resources/sdmxml/schemas/v2_1/message" xmlns:str="http://www.sdmx.org/resources/sdmxml/schemas/v2_1/structure" xmlns:com="http://www.sdmx.org/resources/sdmxml/schemas/v2_1/common" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xml="http://www.w3.org/XML/1998/namespace" xsi:schemaLocation="http://www.sdmx.org/resources/sdmxml/schemas/v2_1/message ../../schemas/SDMXMessage.xsd">
+  <mes:Header>
+    <mes:ID>IDREF6440</mes:ID>
+    <mes:Test>false</mes:Test>
+    <mes:Prepared>2025-07-29T10:14:02.392506152Z</mes:Prepared>
+    <mes:Sender id="unknown"/>
+  </mes:Header>
+  <mes:Structures>
+    <str:Codelists>
+      <str:Codelist urn="urn:sdmx:org.sdmx.infomodel.codelist.Codelist=IMF:CL_DEPARTMENT(1.0.2)" agencyID="IMF" id="CL_DEPARTMENT" version="1.0.2" isFinal="true" isExternalReference="false" isPartial="false">
+        <com:Annotations>
+          <com:Annotation id="origin"/>
+          <com:Annotation id="isFinal"/>
+          <com:Annotation id="lastUpdatedAt"/>
+        </com:Annotations>
+        <com:Name xml:lang="en">Department</com:Name>
+        <com:Description xml:lang="en">This codelist identifies the internal departments or organizational units within an institution (e.g., the IMF) that are primarily responsible for the creation, maintenance, or dissemination of a specific data resource.</com:Description>
+        <str:Code id="AFR" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_DEPARTMENT(1.0.2).AFR">
+          <com:Name xml:lang="ar">الإدارة الأفريقية (AFR)</com:Name>
+          <com:Name xml:lang="ru">Африканский департамент (AFR)</com:Name>
+          <com:Name xml:lang="pt">Departamento Africano (AFR)</com:Name>
+          <com:Name xml:lang="ja">アフリカ局 (Afurika-kyoku)</com:Name>
+          <com:Name xml:lang="en">African Department (AFR)</com:Name>
+          <com:Name xml:lang="fr">Département Afrique (AFR)</com:Name>
+          <com:Name xml:lang="es">Departamento de África (AFR)</com:Name>
+          <com:Name xml:lang="zh">非洲部 (Fēizhōu Bù)</com:Name>
+        </str:Code>
+        <str:Code id="APD" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_DEPARTMENT(1.0.2).APD">
+          <com:Name xml:lang="ar">إدارة آسيا والمحيط الهادئ (APD)</com:Name>
+          <com:Name xml:lang="ru">Департамент Азии и Тихого океана (APD)</com:Name>
+          <com:Name xml:lang="pt">Departamento da Ásia e Pacífico (APD)</com:Name>
+          <com:Name xml:lang="ja">アジア太平洋局 (Ajia Taiheiyō-kyoku)</com:Name>
+          <com:Name xml:lang="en">Asia and Pacific Department (APD)</com:Name>
+          <com:Name xml:lang="fr">Département Asie et Pacifique (APD)</com:Name>
+          <com:Name xml:lang="es">Departamento de Asia y el Pacífico (APD)</com:Name>
+          <com:Name xml:lang="zh">亚洲和太平洋部 (Yàzhōu hé Tàipíngyáng Bù)</com:Name>
+        </str:Code>
+        <str:Code id="COM" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_DEPARTMENT(1.0.2).COM">
+          <com:Name xml:lang="ar">إدارة الاتصالات (COM)</com:Name>
+          <com:Name xml:lang="ru">Департамент коммуникаций (COM)</com:Name>
+          <com:Name xml:lang="pt">Departamento de Comunicações (COM)</com:Name>
+          <com:Name xml:lang="ja">広報局 (Kōhō-kyoku)</com:Name>
+          <com:Name xml:lang="en">Communications Department (COM)</com:Name>
+          <com:Name xml:lang="fr">Département de la communication (COM)</com:Name>
+          <com:Name xml:lang="es">Departamento de Comunicaciones (COM)</com:Name>
+          <com:Name xml:lang="zh">传播部 (Chuánbō Bù)</com:Name>
+        </str:Code>
+        <str:Code id="CSF" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_DEPARTMENT(1.0.2).CSF">
+          <com:Name xml:lang="ar">إدارة الخدمات المؤسسية والمرافق (CSF)</com:Name>
+          <com:Name xml:lang="ru">Департамент корпоративных услуг и объектов (CSF)</com:Name>
+          <com:Name xml:lang="pt">Departamento de Serviços Corporativos e Instalações (CSF)</com:Name>
+          <com:Name xml:lang="ja">企業サービス・施設局 (Kigyō sābisu shisetsu-kyoku)</com:Name>
+          <com:Name xml:lang="en">Corporate Services and Facilities Department (CSF)</com:Name>
+          <com:Name xml:lang="fr">Département des services généraux et des installations (CSF)</com:Name>
+          <com:Name xml:lang="es">Departamento de Servicios Corporativos e Instalaciones (CSF)</com:Name>
+          <com:Name xml:lang="zh">企业服务和设施部 (Qǐyè fúwù hé shèshī bù)</com:Name>
+        </str:Code>
+        <str:Code id="DMD" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_DEPARTMENT(1.0.2).DMD">
+          <com:Name xml:lang="ar">مكتب نائب المدير العام (DMD)</com:Name>
+          <com:Name xml:lang="ru">Канцелярия заместителя управляющего директора (DMD)</com:Name>
+          <com:Name xml:lang="pt">Gabinete do Vice-Diretor-Geral (DMD)</com:Name>
+          <com:Name xml:lang="ja">副専務理事室 (Fuku senmu riji-shitsu)</com:Name>
+          <com:Name xml:lang="en">Office of the Deputy Managing Director (DMD)</com:Name>
+          <com:Name xml:lang="fr">Bureau du directeur général adjoint (DMD)</com:Name>
+          <com:Name xml:lang="es">Oficina del Director Gerente Adjunto (DMD)</com:Name>
+          <com:Name xml:lang="zh">副总裁办公室 (Fù zǒngcái bàngōngshì)</com:Name>
+        </str:Code>
+        <str:Code id="ETO" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_DEPARTMENT(1.0.2).ETO">
+          <com:Name xml:lang="ar">مكتب الأخلاقيات (ETO)</com:Name>
+          <com:Name xml:lang="ru">Бюро по этике (ETO)</com:Name>
+          <com:Name xml:lang="pt">Escritório de Ética (ETO)</com:Name>
+          <com:Name xml:lang="ja">倫理局 (Rinri-kyoku)</com:Name>
+          <com:Name xml:lang="en">Ethics Office (ETO)</com:Name>
+          <com:Name xml:lang="fr">Bureau de l'éthique (ETO)</com:Name>
+          <com:Name xml:lang="es">Oficina de Ética (ETO)</com:Name>
+          <com:Name xml:lang="zh">道德操守办公室 (Dàodé cāoshǒu bàngōngshì)</com:Name>
+        </str:Code>
+        <str:Code id="EUO" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_DEPARTMENT(1.0.2).EUO">
+          <com:Name xml:lang="ar">المكاتب في أوروبا (EUO)</com:Name>
+          <com:Name xml:lang="ru">Офисы в Европе (EUO)</com:Name>
+          <com:Name xml:lang="pt">Escritórios na Europa (EUO)</com:Name>
+          <com:Name xml:lang="ja">欧州事務所 (Ōshū jimusho)</com:Name>
+          <com:Name xml:lang="en">Offices in Europe (EUO)</com:Name>
+          <com:Name xml:lang="fr">Bureaux en Europe (EUO)</com:Name>
+          <com:Name xml:lang="es">Oficinas en Europa (EUO)</com:Name>
+          <com:Name xml:lang="zh">欧洲办事处 (Ōuzhōu bànshìchù)</com:Name>
+        </str:Code>
+        <str:Code id="EUR" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_DEPARTMENT(1.0.2).EUR">
+          <com:Name xml:lang="ar">الإدارة الأوروبية (EUR)</com:Name>
+          <com:Name xml:lang="ru">Европейский департамент (EUR)</com:Name>
+          <com:Name xml:lang="pt">Departamento Europeu (EUR)</com:Name>
+          <com:Name xml:lang="ja">欧州局 (Ōshū-kyoku)</com:Name>
+          <com:Name xml:lang="en">European Department (EUR)</com:Name>
+          <com:Name xml:lang="fr">Département Europe (EUR)</com:Name>
+          <com:Name xml:lang="es">Departamento Europeo (EUR)</com:Name>
+          <com:Name xml:lang="zh">欧洲部 (Ōuzhōu Bù)</com:Name>
+        </str:Code>
+        <str:Code id="FAD" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_DEPARTMENT(1.0.2).FAD">
+          <com:Name xml:lang="ar">إدارة الشؤون المالية (FAD)</com:Name>
+          <com:Name xml:lang="ru">Департамент бюджетных вопросов (FAD)</com:Name>
+          <com:Name xml:lang="pt">Departamento de Assuntos Fiscais (FAD)</com:Name>
+          <com:Name xml:lang="ja">財政局 (Zaisei-kyoku)</com:Name>
+          <com:Name xml:lang="en">Fiscal Affairs Department (FAD)</com:Name>
+          <com:Name xml:lang="fr">Département des affaires fiscales (FAD)</com:Name>
+          <com:Name xml:lang="es">Departamento de Asuntos Fiscales (FAD)</com:Name>
+          <com:Name xml:lang="zh">财政事务部 (Cáizhèng shìwù bù)</com:Name>
+        </str:Code>
+        <str:Code id="FED" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_DEPARTMENT(1.0.2).FED">
+          <com:Name xml:lang="ar">مكتب المديرين التنفيذيين للصندوق (FED)</com:Name>
+          <com:Name xml:lang="ru">Канцелярия исполнительных директоров Фонда (FED)</com:Name>
+          <com:Name xml:lang="pt">Gabinete dos Diretores Executivos do Fundo (FED)</com:Name>
+          <com:Name xml:lang="ja">基金理事室 (Kikin riji-shitsu)</com:Name>
+          <com:Name xml:lang="en">Fund Office of Executive Directors (FED)</com:Name>
+          <com:Name xml:lang="fr">Bureau des administrateurs du Fonds (FED)</com:Name>
+          <com:Name xml:lang="es">Oficina de Directores Ejecutivos del Fondo (FED)</com:Name>
+          <com:Name xml:lang="zh">基金执行董事办公室 (Jījīn zhíxíng dǒngshì bàngōngshì)</com:Name>
+        </str:Code>
+        <str:Code id="FIN" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_DEPARTMENT(1.0.2).FIN">
+          <com:Name xml:lang="ar">الإدارة المالية (FIN)</com:Name>
+          <com:Name xml:lang="ru">Финансовый департамент (FIN)</com:Name>
+          <com:Name xml:lang="pt">Departamento de Finanças (FIN)</com:Name>
+          <com:Name xml:lang="ja">財務局 (Zaimu-kyoku)</com:Name>
+          <com:Name xml:lang="en">Finance Department (FIN)</com:Name>
+          <com:Name xml:lang="fr">Département des finances (FIN)</com:Name>
+          <com:Name xml:lang="es">Departamento de Finanzas (FIN)</com:Name>
+          <com:Name xml:lang="zh">财务部 (Cáiwù bù)</com:Name>
+        </str:Code>
+        <str:Code id="GRC" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_DEPARTMENT(1.0.2).GRC">
+          <com:Name xml:lang="ar">رئيس لجنة التظلمات (GRC)</com:Name>
+          <com:Name xml:lang="ru">Председатель Комитета по рассмотрению жалоб (GRC)</com:Name>
+          <com:Name xml:lang="pt">Presidente do Comité de Queixas (GRC)</com:Name>
+          <com:Name xml:lang="ja">苦情委員会委員長 (Kujō iinkai iinchō)</com:Name>
+          <com:Name xml:lang="en">Grievance Committee Chairman (GRC)</com:Name>
+          <com:Name xml:lang="fr">Président du comité des griefs (GRC)</com:Name>
+          <com:Name xml:lang="es">Presidente del Comité de Quejas (GRC)</com:Name>
+          <com:Name xml:lang="zh">申诉委员会主席 (Shēnsù wěiyuánhuì zhǔxí)</com:Name>
+        </str:Code>
+        <str:Code id="HRD" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_DEPARTMENT(1.0.2).HRD">
+          <com:Name xml:lang="ar">إدارة الموارد البشرية (HRD)</com:Name>
+          <com:Name xml:lang="ru">Департамент человеческих ресурсов (HRD)</com:Name>
+          <com:Name xml:lang="pt">Departamento de Recursos Humanos (HRD)</com:Name>
+          <com:Name xml:lang="ja">人事局 (Jinji-kyoku)</com:Name>
+          <com:Name xml:lang="en">Human Resources Department (HRD)</com:Name>
+          <com:Name xml:lang="fr">Département des ressources humaines (HRD)</com:Name>
+          <com:Name xml:lang="es">Departamento de Recursos Humanos (HRD)</com:Name>
+          <com:Name xml:lang="zh">人力资源部 (Rénlì zīyuán bù)</com:Name>
+        </str:Code>
+        <str:Code id="ICD" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_DEPARTMENT(1.0.2).ICD">
+          <com:Name xml:lang="ar">معهد تنمية القدرات (ICD)</com:Name>
+          <com:Name xml:lang="ru">Институт развития потенциала (ICD)</com:Name>
+          <com:Name xml:lang="pt">Instituto para o Desenvolvimento de Capacidades (ICD)</com:Name>
+          <com:Name xml:lang="ja">能力開発研究所 (Nōryoku kaihatsu kenkyūjo)</com:Name>
+          <com:Name xml:lang="en">Institute for Capacity Development (ICD)</com:Name>
+          <com:Name xml:lang="fr">Institut pour le développement des capacités (ICD)</com:Name>
+          <com:Name xml:lang="es">Instituto para el Desarrollo de Capacidades (ICD)</com:Name>
+          <com:Name xml:lang="zh">能力发展研究所 (Nénglì fāzhǎn yánjiūsuǒ)</com:Name>
+        </str:Code>
+        <str:Code id="IEO" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_DEPARTMENT(1.0.2).IEO">
+          <com:Name xml:lang="ar">مكتب التقييم المستقل (IEO)</com:Name>
+          <com:Name xml:lang="ru">Независимое управление оценки (IEO)</com:Name>
+          <com:Name xml:lang="pt">Gabinete de Avaliação Independente (IEO)</com:Name>
+          <com:Name xml:lang="ja">独立評価局 (Dokuritsu hyōka-kyoku)</com:Name>
+          <com:Name xml:lang="en">Independent Evaluation Office (IEO)</com:Name>
+          <com:Name xml:lang="fr">Bureau d'évaluation indépendant (IEO)</com:Name>
+          <com:Name xml:lang="es">Oficina de Evaluación Independiente (IEO)</com:Name>
+          <com:Name xml:lang="zh">独立评估办公室 (Dúlì pínggū bàngōngshì)</com:Name>
+        </str:Code>
+        <str:Code id="INV" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_DEPARTMENT(1.0.2).INV">
+          <com:Name xml:lang="ar">مكتب الاستثمار (INV)</com:Name>
+          <com:Name xml:lang="ru">Инвестиционное управление (INV)</com:Name>
+          <com:Name xml:lang="pt">Escritório de Investimento (INV)</com:Name>
+          <com:Name xml:lang="ja">投資局 (Tōshi-kyoku)</com:Name>
+          <com:Name xml:lang="en">Investment Office (INV)</com:Name>
+          <com:Name xml:lang="fr">Bureau de l'investissement (INV)</com:Name>
+          <com:Name xml:lang="es">Oficina de Inversiones (INV)</com:Name>
+          <com:Name xml:lang="zh">投资办公室 (Tóuzī bàngōngshì)</com:Name>
+        </str:Code>
+        <str:Code id="ITD" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_DEPARTMENT(1.0.2).ITD">
+          <com:Name xml:lang="ar">إدارة تكنولوجيا المعلومات (ITD)</com:Name>
+          <com:Name xml:lang="ru">Департамент информационных технологий (ITD)</com:Name>
+          <com:Name xml:lang="pt">Departamento de Tecnologia da Informação (ITD)</com:Name>
+          <com:Name xml:lang="ja">情報技術局 (Jōhō gijutsu-kyoku)</com:Name>
+          <com:Name xml:lang="en">Information Technology Department (ITD)</com:Name>
+          <com:Name xml:lang="fr">Département des technologies de l'information (ITD)</com:Name>
+          <com:Name xml:lang="es">Departamento de Tecnología de la Información (ITD)</com:Name>
+          <com:Name xml:lang="zh">信息技术部 (Xìnxī jìshù bù)</com:Name>
+        </str:Code>
+        <str:Code id="LEG" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_DEPARTMENT(1.0.2).LEG">
+          <com:Name xml:lang="ar">الإدارة القانونية (LEG)</com:Name>
+          <com:Name xml:lang="ru">Юридический департамент (LEG)</com:Name>
+          <com:Name xml:lang="pt">Departamento Jurídico (LEG)</com:Name>
+          <com:Name xml:lang="ja">法務局 (Hōmu-kyoku)</com:Name>
+          <com:Name xml:lang="en">Legal Department (LEG)</com:Name>
+          <com:Name xml:lang="fr">Département juridique (LEG)</com:Name>
+          <com:Name xml:lang="es">Departamento Jurídico (LEG)</com:Name>
+          <com:Name xml:lang="zh">法律部 (Fǎlǜ bù)</com:Name>
+        </str:Code>
+        <str:Code id="MCD" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_DEPARTMENT(1.0.2).MCD">
+          <com:Name xml:lang="ar">إدارة الشرق الأوسط وآسيا الوسطى (MCD)</com:Name>
+          <com:Name xml:lang="ru">Департамент Ближнего Востока и Центральной Азии (MCD)</com:Name>
+          <com:Name xml:lang="pt">Departamento do Oriente Médio e Ásia Central (MCD)</com:Name>
+          <com:Name xml:lang="ja">中東・中央アジア局 (Chūtō Chūō Ajia-kyoku)</com:Name>
+          <com:Name xml:lang="en">Middle East and Central Asia Department (MCD)</com:Name>
+          <com:Name xml:lang="fr">Département du Moyen-Orient et de l'Asie centrale (MCD)</com:Name>
+          <com:Name xml:lang="es">Departamento de Oriente Medio y Asia Central (MCD)</com:Name>
+          <com:Name xml:lang="zh">中东和中亚部 (Zhōngdōng hé Zhōngyà bù)</com:Name>
+        </str:Code>
+        <str:Code id="MCM" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_DEPARTMENT(1.0.2).MCM">
+          <com:Name xml:lang="ar">إدارة أسواق النقد ورأس المال (MCM)</com:Name>
+          <com:Name xml:lang="ru">Департамент денежно-кредитных и капитальных рынков (MCM)</com:Name>
+          <com:Name xml:lang="pt">Departamento de Mercados Monetários e de Capitais (MCM)</com:Name>
+          <com:Name xml:lang="ja">金融・資本市場局 (Kin'yū shihon shijō-kyoku)</com:Name>
+          <com:Name xml:lang="en">Monetary and Capital Markets Department (MCM)</com:Name>
+          <com:Name xml:lang="fr">Département des marchés monétaires et de capitaux (MCM)</com:Name>
+          <com:Name xml:lang="es">Departamento de Mercados Monetarios y de Capital (MCM)</com:Name>
+          <com:Name xml:lang="zh">货币和资本市场部 (Huòbì hé zīběn shìchǎng bù)</com:Name>
+        </str:Code>
+        <str:Code id="MDT" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_DEPARTMENT(1.0.2).MDT">
+          <com:Name xml:lang="ar">مكتب الوساطة (MDT)</com:Name>
+          <com:Name xml:lang="ru">Отдел посредничества (MDT)</com:Name>
+          <com:Name xml:lang="pt">Escritório de Mediação (MDT)</com:Name>
+          <com:Name xml:lang="ja">調停局 (Chōtei-kyoku)</com:Name>
+          <com:Name xml:lang="en">Mediation Office (MDT)</com:Name>
+          <com:Name xml:lang="fr">Bureau de la médiation (MDT)</com:Name>
+          <com:Name xml:lang="es">Oficina de Mediación (MDT)</com:Name>
+          <com:Name xml:lang="zh">调解办公室 (Tiáojiě bàngōngshì)</com:Name>
+        </str:Code>
+        <str:Code id="OAP" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_DEPARTMENT(1.0.2).OAP">
+          <com:Name xml:lang="ar">المكتب الإقليمي لآسيا والمحيط الهادئ (OAP)</com:Name>
+          <com:Name xml:lang="ru">Региональное отделение для Азии и Тихого океана (OAP)</com:Name>
+          <com:Name xml:lang="pt">Escritório Regional para a Ásia e o Pacífico (OAP)</com:Name>
+          <com:Name xml:lang="ja">アジア太平洋地域事務所 (Ajia Taiheiyō chiiki jimusho)</com:Name>
+          <com:Name xml:lang="en">Regional Office for Asia and the Pacific (OAP)</com:Name>
+          <com:Name xml:lang="fr">Bureau régional pour l'Asie et le Pacifique (OAP)</com:Name>
+          <com:Name xml:lang="es">Oficina Regional para Asia y el Pacífico (OAP)</com:Name>
+          <com:Name xml:lang="zh">亚洲和太平洋区域办事处 (Yàzhōu hé Tàipíngyáng qūyù bànshìchù)</com:Name>
+        </str:Code>
+        <str:Code id="OBP" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_DEPARTMENT(1.0.2).OBP">
+          <com:Name xml:lang="ar">مكتب الميزانية والتخطيط (OBP)</com:Name>
+          <com:Name xml:lang="ru">Управление бюджета и планирования (OBP)</com:Name>
+          <com:Name xml:lang="pt">Gabinete de Orçamento e Planejamento (OBP)</com:Name>
+          <com:Name xml:lang="ja">予算・計画局 (Yosan keikaku-kyoku)</com:Name>
+          <com:Name xml:lang="en">Office of Budget and Planning (OBP)</com:Name>
+          <com:Name xml:lang="fr">Bureau du budget et de la planification (OBP)</com:Name>
+          <com:Name xml:lang="es">Oficina de Presupuesto y Planificación (OBP)</com:Name>
+          <com:Name xml:lang="zh">预算和规划办公室 (Yùsuàn hé guīhuà bàngōngshì)</com:Name>
+        </str:Code>
+        <str:Code id="OIA" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_DEPARTMENT(1.0.2).OIA">
+          <com:Name xml:lang="ar">مكتب التدقيق الداخلي والتفتيش (OIA)</com:Name>
+          <com:Name xml:lang="ru">Управление внутренней ревизии и инспекции (OIA)</com:Name>
+          <com:Name xml:lang="pt">Gabinete de Auditoria Interna e Inspeção (OIA)</com:Name>
+          <com:Name xml:lang="ja">内部監査・検査局 (Naibu kansa kensa-kyoku)</com:Name>
+          <com:Name xml:lang="en">Office of Internal Audit (OIA)</com:Name>
+          <com:Name xml:lang="fr">Bureau de l'audit interne et de l'inspection (OIA)</com:Name>
+          <com:Name xml:lang="es">Oficina de Auditoría Interna e Inspección (OIA)</com:Name>
+          <com:Name xml:lang="zh">内部审计和检查办公室 (Nèibù shěnjì hé jiǎnchá bàngōngshì)</com:Name>
+        </str:Code>
+        <str:Code id="OMB" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_DEPARTMENT(1.0.2).OMB">
+          <com:Name xml:lang="ar">مكتب أمين المظالم (OMB)</com:Name>
+          <com:Name xml:lang="ru">Канцелярия Омбудсмена (OMB)</com:Name>
+          <com:Name xml:lang="pt">Gabinete do Provedor de Justiça (OMB)</com:Name>
+          <com:Name xml:lang="ja">オンブズマン事務所 (Onbuzuman jimusho)</com:Name>
+          <com:Name xml:lang="en">Ombudsperson (OMB)</com:Name>
+          <com:Name xml:lang="fr">Bureau de l'ombudsman (OMB)</com:Name>
+          <com:Name xml:lang="es">Oficina del Ombudsman (OMB)</com:Name>
+          <com:Name xml:lang="zh">申诉专员办公室 (Shēnsù zhuānyuán bàngōngshì)</com:Name>
+        </str:Code>
+        <str:Code id="OMD" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_DEPARTMENT(1.0.2).OMD">
+          <com:Name xml:lang="ar">مكتب المدير العام (OMD)</com:Name>
+          <com:Name xml:lang="ru">Канцелярия управляющего директора (OMD)</com:Name>
+          <com:Name xml:lang="pt">Gabinete do Diretor-Geral (OMD)</com:Name>
+          <com:Name xml:lang="ja">専務理事室 (Senmu riji-shitsu)</com:Name>
+          <com:Name xml:lang="en">Office of the Managing Director (OMD)</com:Name>
+          <com:Name xml:lang="fr">Bureau du directeur général (OMD)</com:Name>
+          <com:Name xml:lang="es">Oficina del Director Gerente (OMD)</com:Name>
+          <com:Name xml:lang="zh">总裁办公室 (Zǒngcái bàngōngshì)</com:Name>
+        </str:Code>
+        <str:Code id="ORM" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_DEPARTMENT(1.0.2).ORM">
+          <com:Name xml:lang="ar">مكتب إدارة المخاطر (ORM)</com:Name>
+          <com:Name xml:lang="ru">Управление рисками (ORM)</com:Name>
+          <com:Name xml:lang="pt">Gabinete de Gestão de Riscos (ORM)</com:Name>
+          <com:Name xml:lang="ja">リスク管理局 (Risuku kanri-kyoku)</com:Name>
+          <com:Name xml:lang="en">Office of Risk Management (ORM)</com:Name>
+          <com:Name xml:lang="fr">Bureau de la gestion des risques (ORM)</com:Name>
+          <com:Name xml:lang="es">Oficina de Gestión de Riesgos (ORM)</com:Name>
+          <com:Name xml:lang="zh">风险管理办公室 (Fēngxiǎn guǎnlǐ bàngōngshì)</com:Name>
+        </str:Code>
+        <str:Code id="OII" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_DEPARTMENT(1.0.2).OII">
+          <com:Name xml:lang="ar">مكتب التحقيقات الداخلية (OII)</com:Name>
+          <com:Name xml:lang="ru">Управление внутренних расследований (OII)</com:Name>
+          <com:Name xml:lang="pt">Gabinete de Investigações Internas (OII)</com:Name>
+          <com:Name xml:lang="ja">内部調査局 (Naibu chōsa-kyoku)</com:Name>
+          <com:Name xml:lang="en">Office of Internal Investigations (OII)</com:Name>
+          <com:Name xml:lang="fr">Bureau des enquêtes internes (OII)</com:Name>
+          <com:Name xml:lang="es">Oficina de Investigaciones Internas (OII)</com:Name>
+          <com:Name xml:lang="zh">内部调查办公室 (Nèibù diàochá bàngōngshì)</com:Name>
+        </str:Code>
+        <str:Code id="RES" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_DEPARTMENT(1.0.2).RES">
+          <com:Name xml:lang="ar">إدارة البحوث (RES)</com:Name>
+          <com:Name xml:lang="ru">Департамент исследований (RES)</com:Name>
+          <com:Name xml:lang="pt">Departamento de Pesquisa (RES)</com:Name>
+          <com:Name xml:lang="ja">調査局 (Chōsa-kyoku)</com:Name>
+          <com:Name xml:lang="en">Research Department (RES)</com:Name>
+          <com:Name xml:lang="fr">Département de la recherche (RES)</com:Name>
+          <com:Name xml:lang="es">Departamento de Investigación (RES)</com:Name>
+          <com:Name xml:lang="zh">研究部 (Yánjiū bù)</com:Name>
+        </str:Code>
+        <str:Code id="SEC" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_DEPARTMENT(1.0.2).SEC">
+          <com:Name xml:lang="ar">إدارة السكرتارية (SEC)</com:Name>
+          <com:Name xml:lang="ru">Департамент секретаря (SEC)</com:Name>
+          <com:Name xml:lang="pt">Departamento do Secretário (SEC)</com:Name>
+          <com:Name xml:lang="ja">秘書局 (Hisho-kyoku)</com:Name>
+          <com:Name xml:lang="en">Secretary's Department (SEC)</com:Name>
+          <com:Name xml:lang="fr">Département du secrétaire (SEC)</com:Name>
+          <com:Name xml:lang="es">Departamento del Secretario (SEC)</com:Name>
+          <com:Name xml:lang="zh">秘书部 (Mìshū bù)</com:Name>
+        </str:Code>
+        <str:Code id="SPR" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_DEPARTMENT(1.0.2).SPR">
+          <com:Name xml:lang="ar">إدارة استراتيجية السياسة والمراجعة (SPR)</com:Name>
+          <com:Name xml:lang="ru">Департамент стратегии, политики и обзора (SPR)</com:Name>
+          <com:Name xml:lang="pt">Departamento de Estratégia, Política e Revisão (SPR)</com:Name>
+          <com:Name xml:lang="ja">戦略政策・レビュー局 (Senryaku seisaku rebyū-kyoku)</com:Name>
+          <com:Name xml:lang="en">Strategy, Policy, and Review Department (SPR)</com:Name>
+          <com:Name xml:lang="fr">Département de la stratégie, des politiques et de l'examen (SPR)</com:Name>
+          <com:Name xml:lang="es">Departamento de Estrategia, Política y Revisión (SPR)</com:Name>
+          <com:Name xml:lang="zh">战略政策和审查部 (Zhànlüè zhèngcè hé shěnchá bù)</com:Name>
+        </str:Code>
+        <str:Code id="STA" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_DEPARTMENT(1.0.2).STA">
+          <com:Name xml:lang="ar">إدارة الإحصاء (STA)</com:Name>
+          <com:Name xml:lang="ru">Департамент статистики (STA)</com:Name>
+          <com:Name xml:lang="pt">Departamento de Estatística (STA)</com:Name>
+          <com:Name xml:lang="ja">統計局 (Tōkei-kyoku)</com:Name>
+          <com:Name xml:lang="en">Statistics Department (STA)</com:Name>
+          <com:Name xml:lang="fr">Département des statistiques (STA)</com:Name>
+          <com:Name xml:lang="es">Departamento de Estadística (STA)</com:Name>
+          <com:Name xml:lang="zh">统计部 (Tǒngjì bù)</com:Name>
+        </str:Code>
+        <str:Code id="WHD" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_DEPARTMENT(1.0.2).WHD">
+          <com:Name xml:lang="ar">إدارة نصف الكرة الغربي (WHD)</com:Name>
+          <com:Name xml:lang="ru">Департамент Западного полушария (WHD)</com:Name>
+          <com:Name xml:lang="pt">Departamento do Hemisfério Ocidental (WHD)</com:Name>
+          <com:Name xml:lang="ja">西半球局 (Seihankyū-kyoku)</com:Name>
+          <com:Name xml:lang="en">Western Hemisphere Department (WHD)</com:Name>
+          <com:Name xml:lang="fr">Département de l'hémisphère occidental (WHD)</com:Name>
+          <com:Name xml:lang="es">Departamento del Hemisferio Occidental (WHD)</com:Name>
+          <com:Name xml:lang="zh">西半球部 (Xībànqiú bù)</com:Name>
+        </str:Code>
+        <str:Code id="TRM" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_DEPARTMENT(1.0.2).TRM">
+          <com:Name xml:lang="ar">مكتب إدارة التحول (TRM)</com:Name>
+          <com:Name xml:lang="ru">Управление трансформации (TRM)</com:Name>
+          <com:Name xml:lang="pt">Gabinete de Gestão da Transformação (TRM)</com:Name>
+          <com:Name xml:lang="ja">変革管理局 (Henkaku kanri-kyoku)</com:Name>
+          <com:Name xml:lang="en">Office of Transformation Management (TRM)</com:Name>
+          <com:Name xml:lang="fr">Bureau de la gestion de la transformation (TRM)</com:Name>
+          <com:Name xml:lang="es">Oficina de Gestión de la Transformación (TRM)</com:Name>
+          <com:Name xml:lang="zh">转型管理办公室 (Zhuǎnxíng guǎnlǐ bàngōngshì)</com:Name>
+        </str:Code>
+      </str:Codelist>
+    </str:Codelists>
+  </mes:Structures>
+</mes:Structure>

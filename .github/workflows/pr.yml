@@ -1,0 +1,70 @@
+name: PR Workflow
+
+on:
+  pull_request:
+    branches: [development, release-*]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    uses: ./.github/workflows/test.yml
+    secrets: inherit
+    with:
+      bypass-checks: false
+      style-checks-enabled: true
+      style-checks-bypassed: false
+      code-checks-enabled: true
+      code-checks-bypassed: false
+      ort-enabled: true
+      ort-bypassed: false
+      ort-version: "latest"
+      python-version: "3.11"
+      poetry-version: "2.1.1"
+      runs-on: '["ubuntu-24.04"]'
+
+  docker_build:
+    runs-on: ubuntu-24.04
+    strategy:
+      matrix:
+        include:
+          - image-name: "epam/statgpt-chat-backend"
+            dockerfile: "docker/chat.Dockerfile"
+          - image-name: "epam/statgpt-admin-backend"
+            dockerfile: "docker/admin.Dockerfile"
+
+    steps:
+      - name: Maximize build space
+        uses: AdityaGarg8/remove-unwanted-software@90e01b21170618765a73370fcc3abbd1684a7793 # v5
+        if: false # Maximize build space by removing unwanted software if set to true
+        with:
+          remove-android: "true"
+          remove-dotnet: "true"
+          remove-haskell: "true"
+          remove-codeql: "true"
+          remove-docker-images: "true"
+          remove-cached-tools: "true"
+          remove-large-packages: "true"
+
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          lfs: true
+
+      # Workaround: Copy the specific Dockerfile to root as "Dockerfile" (the build_docker action does not support multiple images)
+      - name: Prepare Dockerfile
+        run: |
+          cp ${{ matrix.dockerfile }} ./Dockerfile
+
+      - uses: ./.github/actions/build_docker
+        with:
+          image-name: ghcr.io/${{ matrix.image-name }}
+          image-tag: test
+          push-enabled: false
+          trivy-enabled: true
+          bypass-checks: false
+          trivy-severity: "CRITICAL,HIGH"
+          trivy-severity-for-sarif: "CRITICAL,HIGH"
+          trivy-limit-severities-for-sarif: true
+          platforms: "linux/amd64"

@@ -1,0 +1,131 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<mes:Structure xmlns:mes="http://www.sdmx.org/resources/sdmxml/schemas/v2_1/message" xmlns:str="http://www.sdmx.org/resources/sdmxml/schemas/v2_1/structure" xmlns:com="http://www.sdmx.org/resources/sdmxml/schemas/v2_1/common" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xml="http://www.w3.org/XML/1998/namespace" xsi:schemaLocation="http://www.sdmx.org/resources/sdmxml/schemas/v2_1/message ../../schemas/SDMXMessage.xsd">
+  <mes:Header>
+    <mes:ID>IDREF1057</mes:ID>
+    <mes:Test>false</mes:Test>
+    <mes:Prepared>2025-07-29T10:14:46.173267529Z</mes:Prepared>
+    <mes:Sender id="unknown"/>
+  </mes:Header>
+  <mes:Structures>
+    <str:Codelists>
+      <str:Codelist urn="urn:sdmx:org.sdmx.infomodel.codelist.Codelist=IMF:CL_FREQ(1.0.3)" agencyID="IMF" id="CL_FREQ" version="1.0.3" isFinal="true" isExternalReference="false" isPartial="false">
+        <com:Annotations>
+          <com:Annotation id="dataEngineSettings"/>
+          <com:Annotation id="origin"/>
+          <com:Annotation id="isFinal"/>
+          <com:Annotation id="lastUpdatedAt"/>
+        </com:Annotations>
+        <com:Name xml:lang="en">Frequency</com:Name>
+        <com:Description xml:lang="en">This code list provides a set of values indicating the "frequency" of the data (e.g. weekly, monthly, quarterly). The concept “frequency” may refer to various stages in the production process, e.g. data collection or data dissemination. For example, a time series could be disseminated at annual frequency but the underlying data are compiled monthly. The code list is applicable for all different uses of "frequency". This code list was formally adopted on 4 December 2013. More information about and supporting material for this code list and SDMX code lists in general (e.g. list of generic codes for expressing general concepts like "Total", "Unknown", etc.; syntaxes for the creation of further codes; general guidelines for the creation of SDMX code lists) can be found at this address: https://sdmx.org/?page_id=4345.</com:Description>
+        <str:Code id="A" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_FREQ(1.0.3).A">
+          <com:Name xml:lang="ar">سنوية</com:Name>
+          <com:Name xml:lang="ru">Годовые</com:Name>
+          <com:Name xml:lang="pt">Anual</com:Name>
+          <com:Name xml:lang="ja">年次</com:Name>
+          <com:Name xml:lang="en">Annual</com:Name>
+          <com:Name xml:lang="fr">Annuel</com:Name>
+          <com:Name xml:lang="es">Anual</com:Name>
+          <com:Name xml:lang="zh">每年</com:Name>
+          <com:Description xml:lang="ar">تُستخدم لتوصيف البيانات التي يتم جمعها أو نشرها على أساس سنوي.</com:Description>
+          <com:Description xml:lang="ru">Используется для данных, собираемых или распространяемых каждый год.</com:Description>
+          <com:Description xml:lang="pt">Utilizado para dados compilados ou divulgados anualmente.</com:Description>
+          <com:Description xml:lang="ja">毎年収集または公表されるデータに使用。</com:Description>
+          <com:Description xml:lang="en">To be used for data collected or disseminated every year.</com:Description>
+          <com:Description xml:lang="fr">À utiliser pour les données recueillies ou diffusées chaque année.</com:Description>
+          <com:Description xml:lang="es">Se usa para datos recopilados o divulgados cada año.</com:Description>
+          <com:Description xml:lang="zh">用于每年收集或发布的数据。</com:Description>
+        </str:Code>
+        <str:Code id="D" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_FREQ(1.0.3).D">
+          <com:Name xml:lang="ar">يومية</com:Name>
+          <com:Name xml:lang="ru">Ежедневные</com:Name>
+          <com:Name xml:lang="pt">Diário</com:Name>
+          <com:Name xml:lang="ja">日次</com:Name>
+          <com:Name xml:lang="en">Daily</com:Name>
+          <com:Name xml:lang="fr">Quotidien</com:Name>
+          <com:Name xml:lang="es">Diaria</com:Name>
+          <com:Name xml:lang="zh">每日</com:Name>
+          <com:Description xml:lang="ar">تُستخدم لتوصيف البيانات التي يتم جمعها أو نشرها على أساس يومي.</com:Description>
+          <com:Description xml:lang="ru">Используется для данных, собираемых или распространяемых каждый день.</com:Description>
+          <com:Description xml:lang="pt">Utilizado para dados compilados ou divulgados diariamente.</com:Description>
+          <com:Description xml:lang="ja">毎日収集または公表されるデータに使用。</com:Description>
+          <com:Description xml:lang="en">To be used for data collected or disseminated every day.</com:Description>
+          <com:Description xml:lang="fr">À utiliser pour les données recueillies ou diffusées chaque jour.</com:Description>
+          <com:Description xml:lang="es">Se usa para datos recopilados o divulgados cada día.</com:Description>
+          <com:Description xml:lang="zh">用于每天收集或发布的数据。</com:Description>
+        </str:Code>
+        <str:Code id="M" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_FREQ(1.0.3).M">
+          <com:Name xml:lang="ar">شهرية</com:Name>
+          <com:Name xml:lang="ru">Месячные</com:Name>
+          <com:Name xml:lang="pt">Mensal</com:Name>
+          <com:Name xml:lang="ja">月次</com:Name>
+          <com:Name xml:lang="en">Monthly</com:Name>
+          <com:Name xml:lang="fr">Mensuel</com:Name>
+          <com:Name xml:lang="es">Mensual</com:Name>
+          <com:Name xml:lang="zh">每月</com:Name>
+          <com:Description xml:lang="ar">تُستخدم لتوصيف البيانات التي يتم جمعها أو نشرها على أساس شهري.</com:Description>
+          <com:Description xml:lang="ru">Используется для данных, собираемых или распространяемых каждый месяц.</com:Description>
+          <com:Description xml:lang="pt">Utilizado para dados compilados ou divulgados mensalmente.</com:Description>
+          <com:Description xml:lang="ja">毎月収集または公表されるデータに使用。</com:Description>
+          <com:Description xml:lang="en">To be used for data collected or disseminated every month.</com:Description>
+          <com:Description xml:lang="fr">À utiliser pour les données recueillies ou diffusées chaque mois.</com:Description>
+          <com:Description xml:lang="es">Se usa para datos recopilados o divulgados cada mes.</com:Description>
+          <com:Description xml:lang="zh">用于每月收集或发布的数据。</com:Description>
+        </str:Code>
+        <str:Code id="Q" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_FREQ(1.0.3).Q">
+          <com:Name xml:lang="ar">ربع سنوية</com:Name>
+          <com:Name xml:lang="ru">Квартальные</com:Name>
+          <com:Name xml:lang="pt">Trimestral</com:Name>
+          <com:Name xml:lang="ja">四半期</com:Name>
+          <com:Name xml:lang="en">Quarterly</com:Name>
+          <com:Name xml:lang="fr">Trimestriel</com:Name>
+          <com:Name xml:lang="es">Trimestral</com:Name>
+          <com:Name xml:lang="zh">每季度</com:Name>
+          <com:Description xml:lang="ar">تُستخدم لتوصيف البيانات التي يتم جمعها أو نشرها على أساس ربع سنوي.</com:Description>
+          <com:Description xml:lang="ru">Используется для данных, собираемых или распространяемых каждый квартал.</com:Description>
+          <com:Description xml:lang="pt">Utilizado para dados compilados ou divulgados trimestralmente.</com:Description>
+          <com:Description xml:lang="ja">四半期ごとに収集または公表されるデータに使用。</com:Description>
+          <com:Description xml:lang="en">To be used for data collected or disseminated every quarter.</com:Description>
+          <com:Description xml:lang="fr">À utiliser pour les données recueillies ou diffusées chaque trimestre.</com:Description>
+          <com:Description xml:lang="es">Se usa para datos recopilados o divulgados cada trimestre.</com:Description>
+          <com:Description xml:lang="zh">用于每季度收集或发布的数据。</com:Description>
+        </str:Code>
+        <str:Code id="S" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_FREQ(1.0.3).S">
+          <com:Name xml:lang="ar">نصف سنوية</com:Name>
+          <com:Name xml:lang="ru">Полугодовые, шестимесячные</com:Name>
+          <com:Name xml:lang="pt">Semestral</com:Name>
+          <com:Name xml:lang="ja">半期</com:Name>
+          <com:Name xml:lang="en">Half-yearly, semester</com:Name>
+          <com:Name xml:lang="fr">Semestriel</com:Name>
+          <com:Name xml:lang="es">Semestral</com:Name>
+          <com:Name xml:lang="zh">每半年</com:Name>
+          <com:Description xml:lang="ar">تُستخدم لتوصيف البيانات التي يتم جمعها أو نشرها على أساس نصف سنوي.</com:Description>
+          <com:Description xml:lang="ru">Используется для данных, собираемых или распространяемых каждые шесть месяцев.</com:Description>
+          <com:Description xml:lang="pt">Utilizado para dados compilados ou divulgados semestralmente.</com:Description>
+          <com:Description xml:lang="ja">半期ごとに収集または公表されるデータに使用。</com:Description>
+          <com:Description xml:lang="en">To be used for data collected or disseminated every semester.</com:Description>
+          <com:Description xml:lang="fr">À utiliser pour les données recueillies ou diffusées chaque semestre.</com:Description>
+          <com:Description xml:lang="es">Se usa para datos recopilados o divulgados cada semestre.</com:Description>
+          <com:Description xml:lang="zh">用于每半年收集或发布的数据。</com:Description>
+        </str:Code>
+        <str:Code id="W" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_FREQ(1.0.3).W">
+          <com:Name xml:lang="ar">أسبوعية</com:Name>
+          <com:Name xml:lang="ru">Недельные</com:Name>
+          <com:Name xml:lang="pt">Semanal</com:Name>
+          <com:Name xml:lang="ja">週次</com:Name>
+          <com:Name xml:lang="en">Weekly</com:Name>
+          <com:Name xml:lang="fr">Hebdomadaire</com:Name>
+          <com:Name xml:lang="es">Semanal</com:Name>
+          <com:Name xml:lang="zh">每周</com:Name>
+          <com:Description xml:lang="ar">تُستخدم لتوصيف البيانات التي يتم جمعها أو نشرها على أساس أسبوعي.</com:Description>
+          <com:Description xml:lang="ru">Используется для данных, собираемых или распространяемых каждую неделю.</com:Description>
+          <com:Description xml:lang="pt">Utilizado para dados compilados ou divulgados semanalmente.</com:Description>
+          <com:Description xml:lang="ja">毎週収集または公表されるデータに使用。</com:Description>
+          <com:Description xml:lang="en">To be used for data collected or disseminated every week.</com:Description>
+          <com:Description xml:lang="fr">À utiliser pour les données recueillies ou diffusées chaque semaine.</com:Description>
+          <com:Description xml:lang="es">Se usa para datos recopilados o divulgados cada semana.</com:Description>
+          <com:Description xml:lang="zh">用于每周收集或发布的数据。</com:Description>
+        </str:Code>
+      </str:Codelist>
+    </str:Codelists>
+  </mes:Structures>
+</mes:Structure>

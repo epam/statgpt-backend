@@ -1,0 +1,113 @@
+# Ukrainian translations for Dataset Formatter
+# Copyright (C) 2025
+# This file is distributed under the same license as the statgpt package.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: statgpt 1.0\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-09-22 17:07+0300\n"
+"PO-Revision-Date: 2024-01-01 00:00+0000\n"
+"Last-Translator: \n"
+"Language-Team: Ukrainian\n"
+"Language: uk\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+#: dataset_simple.py:18 dataset_detailed.py:75
+msgid "[Official]"
+msgstr "[Офіційний]"
+
+# Basic labels
+#: dataset_simple.py:24 dataset_detailed.py:84
+msgid "ID"
+msgstr "Ідентифікатор"
+
+#: dataset_simple.py:28 dataset_detailed.py:88
+msgid "Internal ID"
+msgstr "Внутрішній ID"
+
+#: dataset_simple.py:36 dataset_detailed.py:33 dataset_detailed.py:63
+#: dataset_detailed.py:97
+msgid "Description"
+msgstr "Опис"
+
+#: dataset_detailed.py:17
+msgid "Dimensions"
+msgstr "Виміри"
+
+#: dataset_detailed.py:28 dataset_detailed.py:60
+msgid "Type"
+msgstr "Тип"
+
+#: dataset_detailed.py:39
+msgid "Values"
+msgstr "Значення"
+
+#: dataset_detailed.py:43
+msgid "Total"
+msgstr "Всього"
+
+#: dataset_detailed.py:43
+msgid "items"
+msgstr "елементів"
+
+#: dataset_detailed.py:43
+msgid "Sample values"
+msgstr "Приклад значень"
+
+#: dataset_detailed.py:49
+msgid "Attributes"
+msgstr "Атрибути"
+
+# Section headers
+#: dataset_detailed.py:81
+msgid "Basic Information"
+msgstr "Основна інформація"
+
+# List formatter strings
+#: datasets_list_formatter.py:39
+msgid "Cannot sort by both id and name."
+msgstr "Неможливо сортувати одночасно за ID та назвою."
+
+#: datasets_list_formatter.py:62 datasets_list_formatter.py:64 citation.py:28
+msgid "Provider"
+msgstr "Постачальник"
+
+#: datasets_list_formatter.py:64 datasets_list_formatter.py:110
+msgid "Unknown"
+msgstr "Невідомо"
+
+#: datasets_list_formatter.py:67
+msgid "Total datasets from this provider"
+msgstr "Всього наборів даних від цього постачальника"
+
+#: datasets_list_formatter.py:78 datasets_list_formatter.py:100
+#: datasets_list_formatter.py:105
+msgid "Total datasets"
+msgstr "Всього наборів даних"
+
+#: datasets_list_formatter.py:82
+msgid "Total providers"
+msgstr "Всього постачальників"
+
+#: datasets_list_formatter.py:101
+msgid "Official"
+msgstr "Офіційні"
+
+#: datasets_list_formatter.py:102
+msgid "Unofficial"
+msgstr "Неофіційні"
+
+#: datasets_list_formatter.py:114
+msgid "By provider"
+msgstr "За постачальником"
+
+#: citation.py:33
+msgid "Last updated"
+msgstr "Останнє оновлення"
+
+#: citation.py:38
+msgid "URL"
+msgstr "URL"

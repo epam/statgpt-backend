@@ -1,0 +1,188 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<mes:Structure xmlns:mes="http://www.sdmx.org/resources/sdmxml/schemas/v2_1/message" xmlns:str="http://www.sdmx.org/resources/sdmxml/schemas/v2_1/structure" xmlns:com="http://www.sdmx.org/resources/sdmxml/schemas/v2_1/common" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xml="http://www.w3.org/XML/1998/namespace" xsi:schemaLocation="http://www.sdmx.org/resources/sdmxml/schemas/v2_1/message ../../schemas/SDMXMessage.xsd">
+  <mes:Header>
+    <mes:ID>IDREF8572</mes:ID>
+    <mes:Test>false</mes:Test>
+    <mes:Prepared>2025-07-29T07:57:00.640550843Z</mes:Prepared>
+    <mes:Sender id="unknown"/>
+  </mes:Header>
+  <mes:Structures>
+    <str:Concepts>
+      <str:ConceptScheme urn="urn:sdmx:org.sdmx.infomodel.conceptscheme.ConceptScheme=IMF:CS_MASTER_DATA(1.0.0)" agencyID="IMF" id="CS_MASTER_DATA" version="1.0.0" isFinal="true" isExternalReference="false" isPartial="false">
+        <com:Annotations>
+          <com:Annotation id="origin"/>
+          <com:Annotation id="isFinal"/>
+          <com:Annotation id="lastUpdatedAt"/>
+        </com:Annotations>
+        <com:Name xml:lang="en">Master Data Concepts</com:Name>
+        <com:Description xml:lang="en">Standardized concepts and definitions for describing data elements across datasets, covering cross-cutting data attributes such as temporal information, country, unit of measure, transformation. </com:Description>
+        <str:Concept id="COMMENTS" urn="urn:sdmx:org.sdmx.infomodel.conceptscheme.Concept=IMF:CS_MASTER_DATA(1.0.0).COMMENTS">
+          <com:Name xml:lang="en">Comments</com:Name>
+          <com:Description xml:lang="en">Additional notes, explanations, or remarks regarding the data, methodology, or other aspects of an observation.</com:Description>
+          <str:CoreRepresentation>
+            <str:TextFormat textType="String"/>
+          </str:CoreRepresentation>
+        </str:Concept>
+        <str:Concept id="OBS_STATUS" urn="urn:sdmx:org.sdmx.infomodel.conceptscheme.Concept=IMF:CS_MASTER_DATA(1.0.0).OBS_STATUS">
+          <com:Name xml:lang="en">Observation Status</com:Name>
+          <com:Description xml:lang="en">Indicates the status of an observation within a dataset, such as whether it is a provisional value, an estimated value, a final figure, or a value where a time series break occurs. (Source: SDMX)</com:Description>
+          <str:CoreRepresentation>
+            <str:Enumeration>
+              <Ref agencyID="IMF" id="CL_OBS_STATUS" version="1.0.0" package="codelist" class="Codelist"/>
+            </str:Enumeration>
+          </str:CoreRepresentation>
+        </str:Concept>
+        <str:Concept id="DERIVATION_TYPE" urn="urn:sdmx:org.sdmx.infomodel.conceptscheme.Concept=IMF:CS_MASTER_DATA(1.0.0).DERIVATION_TYPE">
+          <com:Name xml:lang="en">Derivation Type</com:Name>
+          <com:Description xml:lang="en">Identifies the specific method used to derive a new data element or indicator from source data. </com:Description>
+          <str:CoreRepresentation>
+            <str:Enumeration>
+              <Ref agencyID="IMF" id="CL_DERIVATION_TYPE" version="1.2.1" package="codelist" class="Codelist"/>
+            </str:Enumeration>
+          </str:CoreRepresentation>
+        </str:Concept>
+        <str:Concept id="OVERLAP" urn="urn:sdmx:org.sdmx.infomodel.conceptscheme.Concept=IMF:CS_MASTER_DATA(1.0.0).OVERLAP">
+          <com:Name xml:lang="en">IMF Data Overlap</com:Name>
+          <com:Description xml:lang="en">Indicates the potential for overlap within IMF data.</com:Description>
+          <str:CoreRepresentation>
+            <str:Enumeration>
+              <Ref agencyID="IMF" id="CL_OVERLAP" version="1.0.0" package="codelist" class="Codelist"/>
+            </str:Enumeration>
+          </str:CoreRepresentation>
+        </str:Concept>
+        <str:Concept id="CONF_STATUS" urn="urn:sdmx:org.sdmx.infomodel.conceptscheme.Concept=IMF:CS_MASTER_DATA(1.0.0).CONF_STATUS">
+          <com:Name xml:lang="en">Confidentiality Status</com:Name>
+          <com:Description xml:lang="en">This classification provides information about the sensitivity and confidentiality status of the data. (Source:SDMX)</com:Description>
+          <str:CoreRepresentation>
+            <str:Enumeration>
+              <Ref agencyID="IMF" id="CL_CONF_STATUS" version="1.0.0" package="codelist" class="Codelist"/>
+            </str:Enumeration>
+          </str:CoreRepresentation>
+        </str:Concept>
+        <str:Concept id="REPORTING_PERIOD_TYPE" urn="urn:sdmx:org.sdmx.infomodel.conceptscheme.Concept=IMF:CS_MASTER_DATA(1.0.0).REPORTING_PERIOD_TYPE">
+          <com:Name xml:lang="en">Reporting Period Type</com:Name>
+          <com:Description xml:lang="en">It is used to identify and distinguish between different types of time periods in economic and financial reporting.  The specific start and end dates for a fiscal year (FY) can vary depending on the country, organization, or industry. When reporting data using this codelist, it is essential to specify the exact start and end dates of the fiscal year being referenced.</com:Description>
+          <str:CoreRepresentation>
+            <str:Enumeration>
+              <Ref agencyID="IMF" id="CL_REPORTING_PERIOD_TYPE" version="1.3.0" package="codelist" class="Codelist"/>
+            </str:Enumeration>
+          </str:CoreRepresentation>
+        </str:Concept>
+        <str:Concept id="REFERENCE_PERIOD" urn="urn:sdmx:org.sdmx.infomodel.conceptscheme.Concept=IMF:CS_MASTER_DATA(1.0.0).REFERENCE_PERIOD">
+          <com:Name xml:lang="en">Reference Period</com:Name>
+          <com:Description xml:lang="en">A time interval defined by a start date and an end date, used to constrain and specify the timeframe for reporting data. </com:Description>
+          <str:CoreRepresentation>
+            <str:TextFormat textType="String"/>
+          </str:CoreRepresentation>
+        </str:Concept>
+        <str:Concept id="BASE_YEAR" urn="urn:sdmx:org.sdmx.infomodel.conceptscheme.Concept=IMF:CS_MASTER_DATA(1.0.0).BASE_YEAR">
+          <com:Name xml:lang="en">Base year</com:Name>
+          <com:Description xml:lang="en">The reference year used for comparison in the calculation of index numbers or other statistical measures. Changes in values over time are typically expressed as percentage deviations from the base year.</com:Description>
+          <str:CoreRepresentation>
+            <str:TextFormat textType="String"/>
+          </str:CoreRepresentation>
+        </str:Concept>
+        <str:Concept id="CALENDAR_YEAR" urn="urn:sdmx:org.sdmx.infomodel.conceptscheme.Concept=IMF:CS_MASTER_DATA(1.0.0).CALENDAR_YEAR">
+          <com:Name xml:lang="en">Calendar year</com:Name>
+          <com:Description xml:lang="en">A period of twelve consecutive months starting on January 1st and ending on December 31st, as per the Gregorian calendar.</com:Description>
+          <str:CoreRepresentation>
+            <str:TextFormat textType="String"/>
+          </str:CoreRepresentation>
+        </str:Concept>
+        <str:Concept id="FISCAL_YEAR" urn="urn:sdmx:org.sdmx.infomodel.conceptscheme.Concept=IMF:CS_MASTER_DATA(1.0.0).FISCAL_YEAR">
+          <com:Name xml:lang="en">Fiscal year</com:Name>
+          <com:Description xml:lang="en">A twelve-month period used by governments and businesses for accounting and financial reporting purposes. The start and end dates of a fiscal year can vary depending on the organization and country but often differ from the calendar year.</com:Description>
+          <str:CoreRepresentation>
+            <str:TextFormat textType="String"/>
+          </str:CoreRepresentation>
+        </str:Concept>
+        <str:Concept id="COUNTRY" urn="urn:sdmx:org.sdmx.infomodel.conceptscheme.Concept=IMF:CS_MASTER_DATA(1.0.0).COUNTRY">
+          <com:Annotations>
+            <com:Annotation id="indexed">
+              <com:AnnotationType>INDEX_CONCEPTS</com:AnnotationType>
+            </com:Annotation>
+          </com:Annotations>
+          <com:Name xml:lang="en">Country</com:Name>
+          <com:Description xml:lang="en">The country or region for which the data or statistics in a resource are collected or reported.</com:Description>
+          <str:CoreRepresentation>
+            <str:Enumeration>
+              <Ref agencyID="IMF" id="CL_COUNTRY" version="1.5.1" package="codelist" class="Codelist"/>
+            </str:Enumeration>
+          </str:CoreRepresentation>
+        </str:Concept>
+        <str:Concept id="COUNTERPART_COUNTRY" urn="urn:sdmx:org.sdmx.infomodel.conceptscheme.Concept=IMF:CS_MASTER_DATA(1.0.0).COUNTERPART_COUNTRY">
+          <com:Name xml:lang="en">Counterpart Country</com:Name>
+          <com:Description xml:lang="en">The country or region with which a transaction or interaction occurs in the context of international statistics or data.</com:Description>
+          <str:CoreRepresentation>
+            <str:Enumeration>
+              <Ref agencyID="IMF" id="CL_COUNTRY" version="1.5.1" package="codelist" class="Codelist"/>
+            </str:Enumeration>
+          </str:CoreRepresentation>
+        </str:Concept>
+        <str:Concept id="UNIT" urn="urn:sdmx:org.sdmx.infomodel.conceptscheme.Concept=IMF:CS_MASTER_DATA(1.0.0).UNIT">
+          <com:Name xml:lang="en">Unit of Measure</com:Name>
+          <com:Description xml:lang="en">The standard unit used to quantify a particular data element or indicator.I It encompasses various units, including currency, physical units, percentages, and other standardized measures.</com:Description>
+          <str:CoreRepresentation>
+            <str:Enumeration>
+              <Ref agencyID="IMF" id="CL_UNIT" version="2.8.0" package="codelist" class="Codelist"/>
+            </str:Enumeration>
+          </str:CoreRepresentation>
+        </str:Concept>
+        <str:Concept id="CURRENCY" urn="urn:sdmx:org.sdmx.infomodel.conceptscheme.Concept=IMF:CS_MASTER_DATA(1.0.0).CURRENCY">
+          <com:Name xml:lang="en">Currency</com:Name>
+          <com:Description xml:lang="en">Denominated in Currency specifies the currency in which a financial instrument is valued and settled.</com:Description>
+          <str:CoreRepresentation>
+            <str:Enumeration>
+              <Ref agencyID="IMF" id="CL_CURRENCY" version="2.2.1" package="codelist" class="Codelist"/>
+            </str:Enumeration>
+          </str:CoreRepresentation>
+        </str:Concept>
+        <str:Concept id="TRANSFORMATION" urn="urn:sdmx:org.sdmx.infomodel.conceptscheme.Concept=IMF:CS_MASTER_DATA(1.0.0).TRANSFORMATION">
+          <com:Name xml:lang="en">Transformation</com:Name>
+          <com:Description xml:lang="en">Represents a set of codes identifying the specific transformations or calculations applied to source data to derive new data elements or indicators. A transformation involves a computation with one or more input values (either base variables obtained by observation or derived variables from prior transformations) that results in a single output value (the value of a new derived variable).</com:Description>
+          <str:CoreRepresentation>
+            <str:Enumeration>
+              <Ref agencyID="IMF" id="CL_TRANSFORMATION" version="2.19.0" package="codelist" class="Codelist"/>
+            </str:Enumeration>
+          </str:CoreRepresentation>
+        </str:Concept>
+        <str:Concept id="S_ADJUSTMENT" urn="urn:sdmx:org.sdmx.infomodel.conceptscheme.Concept=IMF:CS_MASTER_DATA(1.0.0).S_ADJUSTMENT">
+          <com:Name xml:lang="en">Seasonal Adjustment</com:Name>
+          <com:Description xml:lang="en">Specific adjustment for the time series (e.g. seasonally adjusted).</com:Description>
+          <str:CoreRepresentation>
+            <str:Enumeration>
+              <Ref agencyID="IMF" id="CL_S_ADJUSTMENT" version="1.0.2" package="codelist" class="Codelist"/>
+            </str:Enumeration>
+          </str:CoreRepresentation>
+        </str:Concept>
+        <str:Concept id="GENDER" urn="urn:sdmx:org.sdmx.infomodel.conceptscheme.Concept=IMF:CS_MASTER_DATA(1.0.0).GENDER">
+          <com:Name xml:lang="en">Gender</com:Name>
+          <com:Description xml:lang="en">Gender identity refers to each person’s internal and individual experience of gender. One's gender identity can be the same or different from their sex assigned at birth. (Source: UNECE 2023 Gender and salutation code lists)</com:Description>
+          <str:CoreRepresentation>
+            <str:Enumeration>
+              <Ref agencyID="IMF" id="CL_GENDER" version="1.0.0" package="codelist" class="Codelist"/>
+            </str:Enumeration>
+          </str:CoreRepresentation>
+        </str:Concept>
+        <str:Concept id="SEX" urn="urn:sdmx:org.sdmx.infomodel.conceptscheme.Concept=IMF:CS_MASTER_DATA(1.0.0).SEX">
+          <com:Name xml:lang="en">Sex</com:Name>
+          <com:Description xml:lang="en">An individual’s sex may be defined by one’s assigned sex at birth and/or one’s biological attributes which includes a combination of hormones, chromosomes, physiology, and anatomy. It  includes both binary options as well as X and intersex. (Source: UNECE 2023 Gender and salutation code lists)</com:Description>
+          <str:CoreRepresentation>
+            <str:Enumeration>
+              <Ref agencyID="IMF" id="CL_SEX" version="1.1.0" package="codelist" class="Codelist"/>
+            </str:Enumeration>
+          </str:CoreRepresentation>
+        </str:Concept>
+        <str:Concept id="CIVIL_STATUS" urn="urn:sdmx:org.sdmx.infomodel.conceptscheme.Concept=IMF:CS_MASTER_DATA(1.0.0).CIVIL_STATUS">
+          <com:Name xml:lang="en">Civil (or Marital) Status</com:Name>
+          <com:Description xml:lang="en">The legal status of an individual regarding marriage, such as single, married, widowed, or divorced.</com:Description>
+          <str:CoreRepresentation>
+            <str:Enumeration>
+              <Ref agencyID="IMF" id="CL_CIVIL_STATUS" version="1.0.1" package="codelist" class="Codelist"/>
+            </str:Enumeration>
+          </str:CoreRepresentation>
+        </str:Concept>
+      </str:ConceptScheme>
+    </str:Concepts>
+  </mes:Structures>
+</mes:Structure>

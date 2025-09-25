@@ -1,0 +1,3041 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<mes:Structure xmlns:mes="http://www.sdmx.org/resources/sdmxml/schemas/v2_1/message" xmlns:str="http://www.sdmx.org/resources/sdmxml/schemas/v2_1/structure" xmlns:com="http://www.sdmx.org/resources/sdmxml/schemas/v2_1/common" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xml="http://www.w3.org/XML/1998/namespace" xsi:schemaLocation="http://www.sdmx.org/resources/sdmxml/schemas/v2_1/message ../../schemas/SDMXMessage.xsd">
+  <mes:Header>
+    <mes:ID>IDREF5115</mes:ID>
+    <mes:Test>false</mes:Test>
+    <mes:Prepared>2025-07-29T09:56:50.614354191Z</mes:Prepared>
+    <mes:Sender id="unknown"/>
+  </mes:Header>
+  <mes:Structures>
+    <str:Codelists>
+      <str:Codelist urn="urn:sdmx:org.sdmx.infomodel.codelist.Codelist=IMF:CL_COUNTRY(1.5.1)" agencyID="IMF" id="CL_COUNTRY" version="1.5.1" isFinal="true" isExternalReference="false" isPartial="false">
+        <com:Annotations>
+          <com:Annotation id="origin"/>
+          <com:Annotation id="isFinal"/>
+          <com:Annotation id="lastUpdatedAt"/>
+        </com:Annotations>
+        <com:Name xml:lang="en">Country</com:Name>
+        <com:Description xml:lang="en">This codelist identifies the geographical, economic, or aggregate entities for which statistical data is collected and shared. It includes countries, territories (not necessarily recognized as states under international law), economic entities, and UN and IMF country groups used for statistical calculations.</com:Description>
+        <str:Code id="AFG" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).AFG">
+          <com:Name xml:lang="ar">جمهورية أفغانستان الإسلامية</com:Name>
+          <com:Name xml:lang="ru">Афганистан, Исламская Республика</com:Name>
+          <com:Name xml:lang="ja">アフガニスタン・イスラム共和国</com:Name>
+          <com:Name xml:lang="en">Afghanistan, Islamic Republic of</com:Name>
+          <com:Name xml:lang="fr">Afghanistan, République islamique d’</com:Name>
+          <com:Name xml:lang="es">Afganistán, República Islámica del</com:Name>
+          <com:Name xml:lang="zh">阿富汗伊斯兰共和国</com:Name>
+        </str:Code>
+        <str:Code id="ALB" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).ALB">
+          <com:Name xml:lang="ar">ألبانيا</com:Name>
+          <com:Name xml:lang="ru">Албания</com:Name>
+          <com:Name xml:lang="ja">アルバニア</com:Name>
+          <com:Name xml:lang="en">Albania</com:Name>
+          <com:Name xml:lang="fr">Albanie</com:Name>
+          <com:Name xml:lang="es">Albania</com:Name>
+          <com:Name xml:lang="zh">阿尔巴尼亚</com:Name>
+        </str:Code>
+        <str:Code id="DZA" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).DZA">
+          <com:Name xml:lang="ar">الجزائر</com:Name>
+          <com:Name xml:lang="ru">Алжир</com:Name>
+          <com:Name xml:lang="ja">アルジェリア</com:Name>
+          <com:Name xml:lang="en">Algeria</com:Name>
+          <com:Name xml:lang="fr">Algérie</com:Name>
+          <com:Name xml:lang="es">Argelia</com:Name>
+          <com:Name xml:lang="zh">阿尔及利亚</com:Name>
+        </str:Code>
+        <str:Code id="ASM" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).ASM">
+          <com:Name xml:lang="ar">ساموا الأمريكية</com:Name>
+          <com:Name xml:lang="ru">Американское Самоа</com:Name>
+          <com:Name xml:lang="ja">アメリカ領サモア</com:Name>
+          <com:Name xml:lang="en">American Samoa</com:Name>
+          <com:Name xml:lang="fr">Samoa américaines</com:Name>
+          <com:Name xml:lang="es">Samoa Americana</com:Name>
+          <com:Name xml:lang="zh">美属萨摩亚</com:Name>
+        </str:Code>
+        <str:Code id="AND" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).AND">
+          <com:Name xml:lang="ar">إمارة أندورا</com:Name>
+          <com:Name xml:lang="ru">Андорра, Княжество</com:Name>
+          <com:Name xml:lang="ja">アンドラ公国</com:Name>
+          <com:Name xml:lang="en">Andorra, Principality of</com:Name>
+          <com:Name xml:lang="fr">Andorre, Principauté d’</com:Name>
+          <com:Name xml:lang="es">Andorra, Principado de</com:Name>
+          <com:Name xml:lang="zh">安道尔公国</com:Name>
+        </str:Code>
+        <str:Code id="AGO" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).AGO">
+          <com:Name xml:lang="ar">أنغولا</com:Name>
+          <com:Name xml:lang="ru">Ангола</com:Name>
+          <com:Name xml:lang="ja">アンゴラ</com:Name>
+          <com:Name xml:lang="en">Angola</com:Name>
+          <com:Name xml:lang="fr">Angola</com:Name>
+          <com:Name xml:lang="es">Angola</com:Name>
+          <com:Name xml:lang="zh">安哥拉</com:Name>
+        </str:Code>
+        <str:Code id="AIA" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).AIA">
+          <com:Name xml:lang="ar">أنغيلا، أقليم بريطاني ما وراء البحار</com:Name>
+          <com:Name xml:lang="ru">Ангилья, Заморская территория Великобритании</com:Name>
+          <com:Name xml:lang="ja">イギリス領アンギラ</com:Name>
+          <com:Name xml:lang="en">Anguilla, United Kingdom-British Overseas Territory</com:Name>
+          <com:Name xml:lang="fr">Anguilla, Royaume-Uni – Territoire britannique d’outre-mer</com:Name>
+          <com:Name xml:lang="es">Anguilla, Territorio Británico de Ultramar del Reino Unido</com:Name>
+          <com:Name xml:lang="zh">安圭拉，英国海外领土</com:Name>
+        </str:Code>
+        <str:Code id="ATG" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).ATG">
+          <com:Name xml:lang="ar">أنتيغوا وبربودا</com:Name>
+          <com:Name xml:lang="ru">Антигуа и Барбуда</com:Name>
+          <com:Name xml:lang="ja">アンティグア・バーブーダ</com:Name>
+          <com:Name xml:lang="en">Antigua and Barbuda</com:Name>
+          <com:Name xml:lang="fr">Antigua-et-Barbuda</com:Name>
+          <com:Name xml:lang="es">Antigua y Barbuda</com:Name>
+          <com:Name xml:lang="zh">安提瓜和巴布达</com:Name>
+        </str:Code>
+        <str:Code id="ARG" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).ARG">
+          <com:Name xml:lang="ar">الأرجنتين</com:Name>
+          <com:Name xml:lang="ru">Аргентина</com:Name>
+          <com:Name xml:lang="ja">アルゼンチン</com:Name>
+          <com:Name xml:lang="en">Argentina</com:Name>
+          <com:Name xml:lang="fr">Argentine</com:Name>
+          <com:Name xml:lang="es">Argentina</com:Name>
+          <com:Name xml:lang="zh">阿根廷</com:Name>
+        </str:Code>
+        <str:Code id="ARM" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).ARM">
+          <com:Name xml:lang="ar">جمهورية أرمينيا</com:Name>
+          <com:Name xml:lang="ru">Армения, Республика</com:Name>
+          <com:Name xml:lang="ja">アルメニア共和国</com:Name>
+          <com:Name xml:lang="en">Armenia, Republic of</com:Name>
+          <com:Name xml:lang="fr">Arménie, République de</com:Name>
+          <com:Name xml:lang="es">Armenia, República de</com:Name>
+          <com:Name xml:lang="zh">亚美尼亚共和国</com:Name>
+        </str:Code>
+        <str:Code id="ABW" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).ABW">
+          <com:Name xml:lang="ar">أروبا، مملكة هولندا</com:Name>
+          <com:Name xml:lang="ru">Аруба, Королевство Нидерланды</com:Name>
+          <com:Name xml:lang="ja">オランダ領アルバ</com:Name>
+          <com:Name xml:lang="en">Aruba, Kingdom of the Netherlands</com:Name>
+          <com:Name xml:lang="fr">Aruba, Royaume des Pays-Bas</com:Name>
+          <com:Name xml:lang="es">Aruba, Reino de los Países Bajos</com:Name>
+          <com:Name xml:lang="zh">阿鲁巴，荷兰王国</com:Name>
+        </str:Code>
+        <str:Code id="AUS" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).AUS">
+          <com:Name xml:lang="ar">أستراليا</com:Name>
+          <com:Name xml:lang="ru">Aвстралия</com:Name>
+          <com:Name xml:lang="ja">オーストラリア</com:Name>
+          <com:Name xml:lang="en">Australia</com:Name>
+          <com:Name xml:lang="fr">Australie</com:Name>
+          <com:Name xml:lang="es">Australia</com:Name>
+          <com:Name xml:lang="zh">澳大利亚</com:Name>
+        </str:Code>
+        <str:Code id="AUT" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).AUT">
+          <com:Name xml:lang="ar">النمسا</com:Name>
+          <com:Name xml:lang="ru">Австрия</com:Name>
+          <com:Name xml:lang="ja">オーストリア</com:Name>
+          <com:Name xml:lang="en">Austria</com:Name>
+          <com:Name xml:lang="fr">Autriche</com:Name>
+          <com:Name xml:lang="es">Austria</com:Name>
+          <com:Name xml:lang="zh">奥地利</com:Name>
+        </str:Code>
+        <str:Code id="AZE" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).AZE">
+          <com:Name xml:lang="ar">جمهورية أذربيجان</com:Name>
+          <com:Name xml:lang="ru">Азербайджанская Республика</com:Name>
+          <com:Name xml:lang="ja">アゼルバイジャン共和国</com:Name>
+          <com:Name xml:lang="en">Azerbaijan, Republic of</com:Name>
+          <com:Name xml:lang="fr">Azerbaïdjan, République d’</com:Name>
+          <com:Name xml:lang="es">Azerbaiyán, República de</com:Name>
+          <com:Name xml:lang="zh">阿塞拜疆共和国</com:Name>
+        </str:Code>
+        <str:Code id="BHS" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).BHS">
+          <com:Name xml:lang="ar">جزر البهاما</com:Name>
+          <com:Name xml:lang="ru">Багамские острова</com:Name>
+          <com:Name xml:lang="ja">バハマ</com:Name>
+          <com:Name xml:lang="en">Bahamas, The</com:Name>
+          <com:Name xml:lang="fr">Bahamas, Les</com:Name>
+          <com:Name xml:lang="es">Bahamas, Las</com:Name>
+          <com:Name xml:lang="zh">巴哈马</com:Name>
+        </str:Code>
+        <str:Code id="BHR" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).BHR">
+          <com:Name xml:lang="ar">مملكة البحرين</com:Name>
+          <com:Name xml:lang="ru">Бахрейн, Королевство</com:Name>
+          <com:Name xml:lang="ja">バーレーン王国</com:Name>
+          <com:Name xml:lang="en">Bahrain, Kingdom of</com:Name>
+          <com:Name xml:lang="fr">Bahreïn, Royaume de</com:Name>
+          <com:Name xml:lang="es">Bahrein, Reino de</com:Name>
+          <com:Name xml:lang="zh">巴林王国</com:Name>
+        </str:Code>
+        <str:Code id="BGD" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).BGD">
+          <com:Name xml:lang="ar">بنغلاديش</com:Name>
+          <com:Name xml:lang="ru">Бангладеш</com:Name>
+          <com:Name xml:lang="ja">バングラデシュ</com:Name>
+          <com:Name xml:lang="en">Bangladesh</com:Name>
+          <com:Name xml:lang="fr">Bangladesh</com:Name>
+          <com:Name xml:lang="es">Bangladesh</com:Name>
+          <com:Name xml:lang="zh">孟加拉国</com:Name>
+        </str:Code>
+        <str:Code id="BRB" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).BRB">
+          <com:Name xml:lang="ar">بربادوس</com:Name>
+          <com:Name xml:lang="ru">Барбадос</com:Name>
+          <com:Name xml:lang="ja">バルバドス</com:Name>
+          <com:Name xml:lang="en">Barbados</com:Name>
+          <com:Name xml:lang="fr">Barbade</com:Name>
+          <com:Name xml:lang="es">Barbados</com:Name>
+          <com:Name xml:lang="zh">巴巴多斯</com:Name>
+        </str:Code>
+        <str:Code id="BLR" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).BLR">
+          <com:Name xml:lang="ar">جمهورية بيلاروس</com:Name>
+          <com:Name xml:lang="ru">Беларусь, Республика</com:Name>
+          <com:Name xml:lang="ja">ベラルーシ共和国</com:Name>
+          <com:Name xml:lang="en">Belarus, Republic of</com:Name>
+          <com:Name xml:lang="fr">Bélarus, la République du</com:Name>
+          <com:Name xml:lang="es">Belarús, República de</com:Name>
+          <com:Name xml:lang="zh">白俄罗斯共和国</com:Name>
+        </str:Code>
+        <str:Code id="BEL" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).BEL">
+          <com:Name xml:lang="ar">بلجيكا</com:Name>
+          <com:Name xml:lang="ru">Бельгия</com:Name>
+          <com:Name xml:lang="ja">ベルギー</com:Name>
+          <com:Name xml:lang="en">Belgium</com:Name>
+          <com:Name xml:lang="fr">Belgique</com:Name>
+          <com:Name xml:lang="es">Bélgica</com:Name>
+          <com:Name xml:lang="zh">比利时</com:Name>
+        </str:Code>
+        <str:Code id="BLZ" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).BLZ">
+          <com:Name xml:lang="ar">بليز</com:Name>
+          <com:Name xml:lang="ru">Белиз</com:Name>
+          <com:Name xml:lang="ja">ベリーズ</com:Name>
+          <com:Name xml:lang="en">Belize</com:Name>
+          <com:Name xml:lang="fr">Belize</com:Name>
+          <com:Name xml:lang="es">Belice</com:Name>
+          <com:Name xml:lang="zh">伯利兹</com:Name>
+        </str:Code>
+        <str:Code id="BEN" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).BEN">
+          <com:Name xml:lang="ar">بنن</com:Name>
+          <com:Name xml:lang="ru">Бенин</com:Name>
+          <com:Name xml:lang="ja">ベナン</com:Name>
+          <com:Name xml:lang="en">Benin</com:Name>
+          <com:Name xml:lang="fr">Bénin</com:Name>
+          <com:Name xml:lang="es">Benin</com:Name>
+          <com:Name xml:lang="zh">贝宁</com:Name>
+        </str:Code>
+        <str:Code id="BMU" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).BMU">
+          <com:Name xml:lang="ar">بيرمودا</com:Name>
+          <com:Name xml:lang="ru">Бермудские Острова</com:Name>
+          <com:Name xml:lang="ja">バミューダ</com:Name>
+          <com:Name xml:lang="en">Bermuda</com:Name>
+          <com:Name xml:lang="fr">Bermudes</com:Name>
+          <com:Name xml:lang="es">Bermuda</com:Name>
+          <com:Name xml:lang="zh">百慕大</com:Name>
+        </str:Code>
+        <str:Code id="BTN" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).BTN">
+          <com:Name xml:lang="ar">بوتان</com:Name>
+          <com:Name xml:lang="ru">Бутан</com:Name>
+          <com:Name xml:lang="ja">ブータン</com:Name>
+          <com:Name xml:lang="en">Bhutan</com:Name>
+          <com:Name xml:lang="fr">Bhoutan</com:Name>
+          <com:Name xml:lang="es">Bhután</com:Name>
+          <com:Name xml:lang="zh">不丹</com:Name>
+        </str:Code>
+        <str:Code id="BOL" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).BOL">
+          <com:Name xml:lang="ar">بوليفيا</com:Name>
+          <com:Name xml:lang="ru">Боливия</com:Name>
+          <com:Name xml:lang="ja">ボリビア</com:Name>
+          <com:Name xml:lang="en">Bolivia</com:Name>
+          <com:Name xml:lang="fr">Bolivie</com:Name>
+          <com:Name xml:lang="es">Bolivia</com:Name>
+          <com:Name xml:lang="zh">玻利维亚</com:Name>
+        </str:Code>
+        <str:Code id="BIH" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).BIH">
+          <com:Name xml:lang="ar">البوسنة والهرسك</com:Name>
+          <com:Name xml:lang="ru">Босния и Герцеговина</com:Name>
+          <com:Name xml:lang="ja">ボスニア・ヘルツェゴビナ</com:Name>
+          <com:Name xml:lang="en">Bosnia and Herzegovina</com:Name>
+          <com:Name xml:lang="fr">Bosnie-Herzégovine</com:Name>
+          <com:Name xml:lang="es">Bosnia y Herzegovina</com:Name>
+          <com:Name xml:lang="zh">波斯尼亚和黑塞哥维那</com:Name>
+        </str:Code>
+        <str:Code id="BWA" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).BWA">
+          <com:Name xml:lang="ar">بوتسوانا</com:Name>
+          <com:Name xml:lang="ru">Ботсвана</com:Name>
+          <com:Name xml:lang="ja">ボツワナ</com:Name>
+          <com:Name xml:lang="en">Botswana</com:Name>
+          <com:Name xml:lang="fr">Botswana</com:Name>
+          <com:Name xml:lang="es">Botswana</com:Name>
+          <com:Name xml:lang="zh">博茨瓦纳</com:Name>
+        </str:Code>
+        <str:Code id="BRA" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).BRA">
+          <com:Name xml:lang="ar">البرازيل</com:Name>
+          <com:Name xml:lang="ru">Бразилия</com:Name>
+          <com:Name xml:lang="ja">ブラジル</com:Name>
+          <com:Name xml:lang="en">Brazil</com:Name>
+          <com:Name xml:lang="fr">Brésil</com:Name>
+          <com:Name xml:lang="es">Brasil</com:Name>
+          <com:Name xml:lang="zh">巴西</com:Name>
+        </str:Code>
+        <str:Code id="VGB" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).VGB">
+          <com:Name xml:lang="ar">جزر فرجن البريطانية</com:Name>
+          <com:Name xml:lang="ru">Британские Виргинские Острова</com:Name>
+          <com:Name xml:lang="ja">イギリス領バージン諸島</com:Name>
+          <com:Name xml:lang="en">British Virgin Islands</com:Name>
+          <com:Name xml:lang="fr">Îles vierges britanniques</com:Name>
+          <com:Name xml:lang="es">Islas Vírgenes Británicas</com:Name>
+          <com:Name xml:lang="zh">英属维尔京群岛</com:Name>
+        </str:Code>
+        <str:Code id="BRN" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).BRN">
+          <com:Name xml:lang="ar">بروني دار السلام</com:Name>
+          <com:Name xml:lang="ru">Бруней-Даруссалам</com:Name>
+          <com:Name xml:lang="ja">ブルネイ・ダルサラーム</com:Name>
+          <com:Name xml:lang="en">Brunei Darussalam</com:Name>
+          <com:Name xml:lang="fr">Brunéi Darussalam</com:Name>
+          <com:Name xml:lang="es">Brunei Darussalam</com:Name>
+          <com:Name xml:lang="zh">文莱达鲁萨兰国</com:Name>
+        </str:Code>
+        <str:Code id="BGR" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).BGR">
+          <com:Name xml:lang="ar">بلغاريا</com:Name>
+          <com:Name xml:lang="ru">Болгария</com:Name>
+          <com:Name xml:lang="ja">ブルガリア</com:Name>
+          <com:Name xml:lang="en">Bulgaria</com:Name>
+          <com:Name xml:lang="fr">Bulgarie</com:Name>
+          <com:Name xml:lang="es">Bulgaria</com:Name>
+          <com:Name xml:lang="zh">保加利亚</com:Name>
+        </str:Code>
+        <str:Code id="BFA" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).BFA">
+          <com:Name xml:lang="ar">بوركينا فاسو</com:Name>
+          <com:Name xml:lang="ru">Буркина-Фасо</com:Name>
+          <com:Name xml:lang="ja">ブルキナファソ</com:Name>
+          <com:Name xml:lang="en">Burkina Faso</com:Name>
+          <com:Name xml:lang="fr">Burkina Faso</com:Name>
+          <com:Name xml:lang="es">Burkina Faso</com:Name>
+          <com:Name xml:lang="zh">布基纳法索</com:Name>
+        </str:Code>
+        <str:Code id="BDI" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).BDI">
+          <com:Name xml:lang="ar">بوروندي</com:Name>
+          <com:Name xml:lang="ru">Бурунди</com:Name>
+          <com:Name xml:lang="ja">ブルンジ</com:Name>
+          <com:Name xml:lang="en">Burundi</com:Name>
+          <com:Name xml:lang="fr">Burundi</com:Name>
+          <com:Name xml:lang="es">Burundi</com:Name>
+          <com:Name xml:lang="zh">布隆迪</com:Name>
+        </str:Code>
+        <str:Code id="CPV" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).CPV">
+          <com:Name xml:lang="ar">كابو فيردي</com:Name>
+          <com:Name xml:lang="ru">Кабо-Верде</com:Name>
+          <com:Name xml:lang="ja">カーボベルデ</com:Name>
+          <com:Name xml:lang="en">Cabo Verde</com:Name>
+          <com:Name xml:lang="fr">Cabo Verde</com:Name>
+          <com:Name xml:lang="es">Cabo Verde</com:Name>
+          <com:Name xml:lang="zh">佛得角</com:Name>
+        </str:Code>
+        <str:Code id="KHM" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).KHM">
+          <com:Name xml:lang="ar">كمبوديا</com:Name>
+          <com:Name xml:lang="ru">Камбоджа</com:Name>
+          <com:Name xml:lang="ja">カンボジア</com:Name>
+          <com:Name xml:lang="en">Cambodia</com:Name>
+          <com:Name xml:lang="fr">Cambodge</com:Name>
+          <com:Name xml:lang="es">Camboya</com:Name>
+          <com:Name xml:lang="zh">柬埔寨</com:Name>
+        </str:Code>
+        <str:Code id="CMR" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).CMR">
+          <com:Name xml:lang="ar">الكاميرون</com:Name>
+          <com:Name xml:lang="ru">Камерун</com:Name>
+          <com:Name xml:lang="ja">カメルーン</com:Name>
+          <com:Name xml:lang="en">Cameroon</com:Name>
+          <com:Name xml:lang="fr">Cameroun</com:Name>
+          <com:Name xml:lang="es">Camerún</com:Name>
+          <com:Name xml:lang="zh">喀麦隆</com:Name>
+        </str:Code>
+        <str:Code id="CAN" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).CAN">
+          <com:Name xml:lang="ar">كندا</com:Name>
+          <com:Name xml:lang="ru">Канада</com:Name>
+          <com:Name xml:lang="ja">カナダ</com:Name>
+          <com:Name xml:lang="en">Canada</com:Name>
+          <com:Name xml:lang="fr">Canada</com:Name>
+          <com:Name xml:lang="es">Canadá</com:Name>
+          <com:Name xml:lang="zh">加拿大</com:Name>
+        </str:Code>
+        <str:Code id="CYM" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).CYM">
+          <com:Name xml:lang="ar">جزر كايمان</com:Name>
+          <com:Name xml:lang="ru">Каймановы Острова</com:Name>
+          <com:Name xml:lang="ja">ケイマン諸島</com:Name>
+          <com:Name xml:lang="en">Cayman Islands</com:Name>
+          <com:Name xml:lang="fr">Îles Caïman</com:Name>
+          <com:Name xml:lang="es">Islas Caimán</com:Name>
+          <com:Name xml:lang="zh">开曼群岛</com:Name>
+        </str:Code>
+        <str:Code id="CAF" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).CAF">
+          <com:Name xml:lang="ar">جمهورية إفريقيا الوسطى</com:Name>
+          <com:Name xml:lang="ru">Центральноафриканская Республика</com:Name>
+          <com:Name xml:lang="ja">中央アフリカ共和国</com:Name>
+          <com:Name xml:lang="en">Central African Republic</com:Name>
+          <com:Name xml:lang="fr">République centrafricaine</com:Name>
+          <com:Name xml:lang="es">República Centroafricana</com:Name>
+          <com:Name xml:lang="zh">中非共和国</com:Name>
+        </str:Code>
+        <str:Code id="TCD" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).TCD">
+          <com:Name xml:lang="ar">تشاد</com:Name>
+          <com:Name xml:lang="ru">Чад</com:Name>
+          <com:Name xml:lang="ja">チャド</com:Name>
+          <com:Name xml:lang="en">Chad</com:Name>
+          <com:Name xml:lang="fr">Tchad</com:Name>
+          <com:Name xml:lang="es">Chad</com:Name>
+          <com:Name xml:lang="zh">乍得</com:Name>
+        </str:Code>
+        <str:Code id="CHL" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).CHL">
+          <com:Name xml:lang="ar">شيلي</com:Name>
+          <com:Name xml:lang="ru">Чили</com:Name>
+          <com:Name xml:lang="ja">チリ</com:Name>
+          <com:Name xml:lang="en">Chile</com:Name>
+          <com:Name xml:lang="fr">Chili</com:Name>
+          <com:Name xml:lang="es">Chile</com:Name>
+          <com:Name xml:lang="zh">智利</com:Name>
+        </str:Code>
+        <str:Code id="CHN" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).CHN">
+          <com:Name xml:lang="ar">جمهورية الصين الشعبية</com:Name>
+          <com:Name xml:lang="ru">Китайская Народная Республика</com:Name>
+          <com:Name xml:lang="ja">中華人民共和国</com:Name>
+          <com:Name xml:lang="en">China, People's Republic of</com:Name>
+          <com:Name xml:lang="fr">Chine, République populaire de</com:Name>
+          <com:Name xml:lang="es">China, República Popular</com:Name>
+          <com:Name xml:lang="zh">中华人民共和国</com:Name>
+        </str:Code>
+        <str:Code id="COL" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).COL">
+          <com:Name xml:lang="ar">كولومبيا</com:Name>
+          <com:Name xml:lang="ru">Колумбия</com:Name>
+          <com:Name xml:lang="ja">コロンビア</com:Name>
+          <com:Name xml:lang="en">Colombia</com:Name>
+          <com:Name xml:lang="fr">Colombie</com:Name>
+          <com:Name xml:lang="es">Colombia</com:Name>
+          <com:Name xml:lang="zh">哥伦比亚</com:Name>
+        </str:Code>
+        <str:Code id="COM" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).COM">
+          <com:Name xml:lang="ar">اتحاد جزر القمر</com:Name>
+          <com:Name xml:lang="ru">Союз Коморских Островов</com:Name>
+          <com:Name xml:lang="ja">コモロ連合</com:Name>
+          <com:Name xml:lang="en">Comoros, Union of the</com:Name>
+          <com:Name xml:lang="fr">Comores, Union des</com:Name>
+          <com:Name xml:lang="es">Comoras, Unión de las</com:Name>
+          <com:Name xml:lang="zh">科摩罗联盟</com:Name>
+        </str:Code>
+        <str:Code id="COD" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).COD">
+          <com:Name xml:lang="ar">جمهورية الكونغو الديمقراطية</com:Name>
+          <com:Name xml:lang="ru">Конго, Демократическая республика</com:Name>
+          <com:Name xml:lang="ja">コンゴ民主共和国</com:Name>
+          <com:Name xml:lang="en">Congo, Democratic Republic of the</com:Name>
+          <com:Name xml:lang="fr">Congo, République démocratique du</com:Name>
+          <com:Name xml:lang="es">Congo, República Democrática del</com:Name>
+          <com:Name xml:lang="zh">刚果民主共和国</com:Name>
+        </str:Code>
+        <str:Code id="COG" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).COG">
+          <com:Name xml:lang="ar">جمهورية الكونغو</com:Name>
+          <com:Name xml:lang="ru">Конго, Республика</com:Name>
+          <com:Name xml:lang="ja">コンゴ共和国</com:Name>
+          <com:Name xml:lang="en">Congo, Republic of</com:Name>
+          <com:Name xml:lang="fr">Congo, République du</com:Name>
+          <com:Name xml:lang="es">Congo, República del</com:Name>
+          <com:Name xml:lang="zh">刚果共和国</com:Name>
+        </str:Code>
+        <str:Code id="COK" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).COK">
+          <com:Name xml:lang="ar">جزر كوك</com:Name>
+          <com:Name xml:lang="ru">Острова Кука</com:Name>
+          <com:Name xml:lang="ja">クック諸島</com:Name>
+          <com:Name xml:lang="en">Cook Islands</com:Name>
+          <com:Name xml:lang="fr">Îles Cook</com:Name>
+          <com:Name xml:lang="es">Islas Cook</com:Name>
+          <com:Name xml:lang="zh">库克群岛</com:Name>
+        </str:Code>
+        <str:Code id="CRI" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).CRI">
+          <com:Name xml:lang="ar">كوستاريكا</com:Name>
+          <com:Name xml:lang="ru">Коста-Рика</com:Name>
+          <com:Name xml:lang="ja">コスタリカ</com:Name>
+          <com:Name xml:lang="en">Costa Rica</com:Name>
+          <com:Name xml:lang="fr">Costa Rica</com:Name>
+          <com:Name xml:lang="es">Costa Rica</com:Name>
+          <com:Name xml:lang="zh">哥斯达黎加</com:Name>
+        </str:Code>
+        <str:Code id="HRV" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).HRV">
+          <com:Name xml:lang="ar">جمهورية كرواتيا</com:Name>
+          <com:Name xml:lang="ru">Хорватия, Республика</com:Name>
+          <com:Name xml:lang="ja">クロアチア共和国</com:Name>
+          <com:Name xml:lang="en">Croatia, Republic of</com:Name>
+          <com:Name xml:lang="fr">Croatie, République de</com:Name>
+          <com:Name xml:lang="es">Croacia, República de</com:Name>
+          <com:Name xml:lang="zh">克罗地亚共和国</com:Name>
+        </str:Code>
+        <str:Code id="CUB" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).CUB">
+          <com:Name xml:lang="ar">كوبا</com:Name>
+          <com:Name xml:lang="ru">Куба</com:Name>
+          <com:Name xml:lang="ja">キューバ</com:Name>
+          <com:Name xml:lang="en">Cuba</com:Name>
+          <com:Name xml:lang="fr">Cuba</com:Name>
+          <com:Name xml:lang="es">Cuba</com:Name>
+          <com:Name xml:lang="zh">古巴</com:Name>
+        </str:Code>
+        <str:Code id="CUW" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).CUW">
+          <com:Name xml:lang="ar">جزر كوراساو، مملكة هولندا</com:Name>
+          <com:Name xml:lang="ru">Кюрасао, Королевство Нидерланды</com:Name>
+          <com:Name xml:lang="ja">オランダ領キュラソー</com:Name>
+          <com:Name xml:lang="en">Curaçao, Kingdom of the Netherlands</com:Name>
+          <com:Name xml:lang="fr">Curaçao, Royaume des Pays-Bas</com:Name>
+          <com:Name xml:lang="es">Curaçao, Reino de los Países Bajos</com:Name>
+          <com:Name xml:lang="zh">库拉索，荷兰王国</com:Name>
+        </str:Code>
+        <str:Code id="CYP" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).CYP">
+          <com:Name xml:lang="ar">قبرص</com:Name>
+          <com:Name xml:lang="ru">Кипр</com:Name>
+          <com:Name xml:lang="ja">キプロス</com:Name>
+          <com:Name xml:lang="en">Cyprus</com:Name>
+          <com:Name xml:lang="fr">Chypre</com:Name>
+          <com:Name xml:lang="es">Chipre</com:Name>
+          <com:Name xml:lang="zh">塞浦路斯</com:Name>
+        </str:Code>
+        <str:Code id="CZE" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).CZE">
+          <com:Name xml:lang="ar">الجمهورية التشيكية</com:Name>
+          <com:Name xml:lang="ru">Чешская Республика</com:Name>
+          <com:Name xml:lang="ja">チェコ共和国</com:Name>
+          <com:Name xml:lang="en">Czech Republic</com:Name>
+          <com:Name xml:lang="fr">République tchèque</com:Name>
+          <com:Name xml:lang="es">República Checa</com:Name>
+          <com:Name xml:lang="zh">捷克共和国</com:Name>
+        </str:Code>
+        <str:Code id="CIV" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).CIV">
+          <com:Name xml:lang="ar">كوت ديفوار</com:Name>
+          <com:Name xml:lang="ru">Кот-д‘Ивуар</com:Name>
+          <com:Name xml:lang="ja">コートジボワール</com:Name>
+          <com:Name xml:lang="en">Côte d'Ivoire</com:Name>
+          <com:Name xml:lang="fr">Côte d’Ivoire</com:Name>
+          <com:Name xml:lang="es">'''Côte d´Ivoire'''</com:Name>
+          <com:Name xml:lang="zh">科特迪瓦</com:Name>
+        </str:Code>
+        <str:Code id="DNK" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).DNK">
+          <com:Name xml:lang="ar">الدانمرك</com:Name>
+          <com:Name xml:lang="ru">Дания</com:Name>
+          <com:Name xml:lang="ja">デンマーク</com:Name>
+          <com:Name xml:lang="en">Denmark</com:Name>
+          <com:Name xml:lang="fr">Danemark</com:Name>
+          <com:Name xml:lang="es">Dinamarca</com:Name>
+          <com:Name xml:lang="zh">丹麦</com:Name>
+        </str:Code>
+        <str:Code id="DJI" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).DJI">
+          <com:Name xml:lang="ar">جيبوتي</com:Name>
+          <com:Name xml:lang="ru">Джибути</com:Name>
+          <com:Name xml:lang="ja">ジブチ</com:Name>
+          <com:Name xml:lang="en">Djibouti</com:Name>
+          <com:Name xml:lang="fr">Djibouti</com:Name>
+          <com:Name xml:lang="es">Djibouti</com:Name>
+          <com:Name xml:lang="zh">吉布提</com:Name>
+        </str:Code>
+        <str:Code id="DMA" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).DMA">
+          <com:Name xml:lang="ar">دومينيكا</com:Name>
+          <com:Name xml:lang="ru">Доминика</com:Name>
+          <com:Name xml:lang="ja">ドミニカ国</com:Name>
+          <com:Name xml:lang="en">Dominica</com:Name>
+          <com:Name xml:lang="fr">Dominique</com:Name>
+          <com:Name xml:lang="es">Dominica</com:Name>
+          <com:Name xml:lang="zh">多米尼克</com:Name>
+        </str:Code>
+        <str:Code id="DOM" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).DOM">
+          <com:Name xml:lang="ar">الجمهورية الدومينيكية</com:Name>
+          <com:Name xml:lang="ru">Доминиканская Республика</com:Name>
+          <com:Name xml:lang="ja">ドミニカ共和国</com:Name>
+          <com:Name xml:lang="en">Dominican Republic</com:Name>
+          <com:Name xml:lang="fr">République dominicaine</com:Name>
+          <com:Name xml:lang="es">República Dominicana</com:Name>
+          <com:Name xml:lang="zh">多米尼加共和国</com:Name>
+        </str:Code>
+        <str:Code id="ECU" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).ECU">
+          <com:Name xml:lang="ar">إكوادور</com:Name>
+          <com:Name xml:lang="ru">Эквадор</com:Name>
+          <com:Name xml:lang="ja">エクアドル</com:Name>
+          <com:Name xml:lang="en">Ecuador</com:Name>
+          <com:Name xml:lang="fr">Équateur</com:Name>
+          <com:Name xml:lang="es">Ecuador</com:Name>
+          <com:Name xml:lang="zh">厄瓜多尔</com:Name>
+        </str:Code>
+        <str:Code id="EGY" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).EGY">
+          <com:Name xml:lang="ar">جمهورية مصر العربية</com:Name>
+          <com:Name xml:lang="ru">Египет, Арабская Республика</com:Name>
+          <com:Name xml:lang="ja">エジプト・アラブ共和国</com:Name>
+          <com:Name xml:lang="en">Egypt, Arab Republic of</com:Name>
+          <com:Name xml:lang="fr">Égypte, République arabe d’</com:Name>
+          <com:Name xml:lang="es">Egipto, República Árabe de</com:Name>
+          <com:Name xml:lang="zh">阿拉伯埃及共和国</com:Name>
+        </str:Code>
+        <str:Code id="SLV" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).SLV">
+          <com:Name xml:lang="ar">السلفادور</com:Name>
+          <com:Name xml:lang="ru">Сальвадор</com:Name>
+          <com:Name xml:lang="ja">エルサルバドル</com:Name>
+          <com:Name xml:lang="en">El Salvador</com:Name>
+          <com:Name xml:lang="fr">El Salvador</com:Name>
+          <com:Name xml:lang="es">El Salvador</com:Name>
+          <com:Name xml:lang="zh">萨尔瓦多</com:Name>
+        </str:Code>
+        <str:Code id="GNQ" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).GNQ">
+          <com:Name xml:lang="ar">جمهورية غينيا الاستوائية</com:Name>
+          <com:Name xml:lang="ru">Экваториальная Гвинея, Республика</com:Name>
+          <com:Name xml:lang="ja">赤道ギニア共和国</com:Name>
+          <com:Name xml:lang="en">Equatorial Guinea, Republic of</com:Name>
+          <com:Name xml:lang="fr">Guinée équatoriale, République de</com:Name>
+          <com:Name xml:lang="es">Guinea Ecuatorial, República de</com:Name>
+          <com:Name xml:lang="zh">赤道几内亚共和国</com:Name>
+        </str:Code>
+        <str:Code id="ERI" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).ERI">
+          <com:Name xml:lang="ar">دولة إريتريا</com:Name>
+          <com:Name xml:lang="ru">Эритрея, Государство</com:Name>
+          <com:Name xml:lang="ja">エリトリア国</com:Name>
+          <com:Name xml:lang="en">Eritrea, The State of</com:Name>
+          <com:Name xml:lang="fr">Érythrée, État d’</com:Name>
+          <com:Name xml:lang="es">Eritrea, Estado de</com:Name>
+          <com:Name xml:lang="zh">厄立特里亚国</com:Name>
+        </str:Code>
+        <str:Code id="EST" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).EST">
+          <com:Name xml:lang="ar">جمهورية إستونيا</com:Name>
+          <com:Name xml:lang="ru">Эстонская Республика</com:Name>
+          <com:Name xml:lang="ja">エストニア共和国</com:Name>
+          <com:Name xml:lang="en">Estonia, Republic of</com:Name>
+          <com:Name xml:lang="fr">Estonie, République d’</com:Name>
+          <com:Name xml:lang="es">Estonia, República de</com:Name>
+          <com:Name xml:lang="zh">爱沙尼亚共和国</com:Name>
+        </str:Code>
+        <str:Code id="SWZ" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).SWZ">
+          <com:Name xml:lang="ar">مملكة إسواتيني</com:Name>
+          <com:Name xml:lang="ru">Эсватини, Королевство</com:Name>
+          <com:Name xml:lang="ja">エスワティニ王国</com:Name>
+          <com:Name xml:lang="en">Eswatini, Kingdom of</com:Name>
+          <com:Name xml:lang="fr">Eswatini, Royaume de</com:Name>
+          <com:Name xml:lang="es">Eswatini, Reino de</com:Name>
+          <com:Name xml:lang="zh">斯威士兰王国</com:Name>
+        </str:Code>
+        <str:Code id="ETH" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).ETH">
+          <com:Name xml:lang="ar">جمهورية إثيوبيا الديمقراطية الاتحادية</com:Name>
+          <com:Name xml:lang="ru">Эфиопия, Федеративная Демократическая Республика</com:Name>
+          <com:Name xml:lang="ja">エチオピア連邦民主共和国</com:Name>
+          <com:Name xml:lang="en">Ethiopia, The Federal Democratic Republic of</com:Name>
+          <com:Name xml:lang="fr">Éthiopie, République fédérale démocratique d’</com:Name>
+          <com:Name xml:lang="es">Etiopía, República Democrática Federal de</com:Name>
+          <com:Name xml:lang="zh">埃塞俄比亚联邦民主共和国</com:Name>
+        </str:Code>
+        <str:Code id="FLK" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).FLK">
+          <com:Name xml:lang="ar">جزر فولكلاند (مالفيناس)</com:Name>
+          <com:Name xml:lang="ru">Фолклендские (Мальвинские) острова</com:Name>
+          <com:Name xml:lang="ja">フォークランド（マルビナス）諸島</com:Name>
+          <com:Name xml:lang="en">Falkland Islands (Malvinas)</com:Name>
+          <com:Name xml:lang="fr">Îles Malouines</com:Name>
+          <com:Name xml:lang="es">Islas Falkland (Malvinas)</com:Name>
+          <com:Name xml:lang="zh">福克兰群岛（马尔维纳斯）</com:Name>
+        </str:Code>
+        <str:Code id="FRO" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).FRO">
+          <com:Name xml:lang="ar">جُزُر فارو</com:Name>
+          <com:Name xml:lang="ru">Фарерские острова</com:Name>
+          <com:Name xml:lang="ja">フェロー諸島</com:Name>
+          <com:Name xml:lang="en">Faroe Islands</com:Name>
+          <com:Name xml:lang="fr">Îles Féroé</com:Name>
+          <com:Name xml:lang="es">Islas Faroe</com:Name>
+          <com:Name xml:lang="zh">法罗群岛</com:Name>
+        </str:Code>
+        <str:Code id="FJI" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).FJI">
+          <com:Name xml:lang="ar">جمهورية فيجي</com:Name>
+          <com:Name xml:lang="ru">Фиджи, Республика</com:Name>
+          <com:Name xml:lang="ja">フィジー共和国</com:Name>
+          <com:Name xml:lang="en">Fiji, Republic of</com:Name>
+          <com:Name xml:lang="fr">Fidji, République des</com:Name>
+          <com:Name xml:lang="es">Fiji, República de</com:Name>
+          <com:Name xml:lang="zh">斐济共和国</com:Name>
+        </str:Code>
+        <str:Code id="FIN" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).FIN">
+          <com:Name xml:lang="ar">فنلندا</com:Name>
+          <com:Name xml:lang="ru">Финляндия</com:Name>
+          <com:Name xml:lang="ja">フィンランド</com:Name>
+          <com:Name xml:lang="en">Finland</com:Name>
+          <com:Name xml:lang="fr">Finlande</com:Name>
+          <com:Name xml:lang="es">Finlandia</com:Name>
+          <com:Name xml:lang="zh">芬兰</com:Name>
+        </str:Code>
+        <str:Code id="FRA" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).FRA">
+          <com:Name xml:lang="ar">فرنسا</com:Name>
+          <com:Name xml:lang="ru">Франция</com:Name>
+          <com:Name xml:lang="ja">フランス</com:Name>
+          <com:Name xml:lang="en">France</com:Name>
+          <com:Name xml:lang="fr">France</com:Name>
+          <com:Name xml:lang="es">Francia</com:Name>
+          <com:Name xml:lang="zh">法国</com:Name>
+        </str:Code>
+        <str:Code id="GUF" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).GUF">
+          <com:Name xml:lang="ar">غيانا الفرنسية</com:Name>
+          <com:Name xml:lang="ru">Французская Гвиана</com:Name>
+          <com:Name xml:lang="ja">フランス領ギアナ</com:Name>
+          <com:Name xml:lang="en">French Guiana</com:Name>
+          <com:Name xml:lang="fr">Guyane française</com:Name>
+          <com:Name xml:lang="es">Guyana Francesa</com:Name>
+          <com:Name xml:lang="zh">法属圭亚那</com:Name>
+        </str:Code>
+        <str:Code id="PYF" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).PYF">
+          <com:Name xml:lang="ar">بولينيزيا الفرنسية</com:Name>
+          <com:Name xml:lang="ru">Французская Полинезия</com:Name>
+          <com:Name xml:lang="ja">フランス領ポリネシア</com:Name>
+          <com:Name xml:lang="en">French Polynesia</com:Name>
+          <com:Name xml:lang="fr">Polynésie française</com:Name>
+          <com:Name xml:lang="es">Polinesia Francesa</com:Name>
+          <com:Name xml:lang="zh">法属波利尼西亚</com:Name>
+        </str:Code>
+        <str:Code id="GAB" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).GAB">
+          <com:Name xml:lang="ar">غابون</com:Name>
+          <com:Name xml:lang="ru">Габон</com:Name>
+          <com:Name xml:lang="ja">ガボン</com:Name>
+          <com:Name xml:lang="en">Gabon</com:Name>
+          <com:Name xml:lang="fr">Gabon</com:Name>
+          <com:Name xml:lang="es">Gabón</com:Name>
+          <com:Name xml:lang="zh">加蓬</com:Name>
+        </str:Code>
+        <str:Code id="GMB" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).GMB">
+          <com:Name xml:lang="ar">غامبيا</com:Name>
+          <com:Name xml:lang="ru">Гамбия</com:Name>
+          <com:Name xml:lang="ja">ガンビア</com:Name>
+          <com:Name xml:lang="en">Gambia, The</com:Name>
+          <com:Name xml:lang="fr">Gambie</com:Name>
+          <com:Name xml:lang="es">Gambia</com:Name>
+          <com:Name xml:lang="zh">冈比亚</com:Name>
+        </str:Code>
+        <str:Code id="GEO" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).GEO">
+          <com:Name xml:lang="ar">جورجيا</com:Name>
+          <com:Name xml:lang="ru">Грузия</com:Name>
+          <com:Name xml:lang="ja">ジョージア</com:Name>
+          <com:Name xml:lang="en">Georgia</com:Name>
+          <com:Name xml:lang="fr">Géorgie</com:Name>
+          <com:Name xml:lang="es">Georgia</com:Name>
+          <com:Name xml:lang="zh">格鲁吉亚</com:Name>
+        </str:Code>
+        <str:Code id="DEU" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).DEU">
+          <com:Name xml:lang="ar">ألمانيا</com:Name>
+          <com:Name xml:lang="ru">Германия</com:Name>
+          <com:Name xml:lang="ja">ドイツ</com:Name>
+          <com:Name xml:lang="en">Germany</com:Name>
+          <com:Name xml:lang="fr">Allemagne</com:Name>
+          <com:Name xml:lang="es">Alemania</com:Name>
+          <com:Name xml:lang="zh">德国</com:Name>
+        </str:Code>
+        <str:Code id="GHA" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).GHA">
+          <com:Name xml:lang="ar">غانا</com:Name>
+          <com:Name xml:lang="ru">Гана</com:Name>
+          <com:Name xml:lang="ja">ガーナ</com:Name>
+          <com:Name xml:lang="en">Ghana</com:Name>
+          <com:Name xml:lang="fr">Ghana</com:Name>
+          <com:Name xml:lang="es">Ghana</com:Name>
+          <com:Name xml:lang="zh">加纳</com:Name>
+        </str:Code>
+        <str:Code id="GIB" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).GIB">
+          <com:Name xml:lang="ar">جبل طارق</com:Name>
+          <com:Name xml:lang="ru">Гибралтар</com:Name>
+          <com:Name xml:lang="ja">ジブラルタル</com:Name>
+          <com:Name xml:lang="en">Gibraltar</com:Name>
+          <com:Name xml:lang="fr">Gibraltar</com:Name>
+          <com:Name xml:lang="es">Gibraltar</com:Name>
+          <com:Name xml:lang="zh">直布罗陀</com:Name>
+        </str:Code>
+        <str:Code id="GRC" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).GRC">
+          <com:Name xml:lang="ar">اليونان</com:Name>
+          <com:Name xml:lang="ru">Греция</com:Name>
+          <com:Name xml:lang="ja">ギリシャ</com:Name>
+          <com:Name xml:lang="en">Greece</com:Name>
+          <com:Name xml:lang="fr">Grèce</com:Name>
+          <com:Name xml:lang="es">Grecia</com:Name>
+          <com:Name xml:lang="zh">希腊</com:Name>
+        </str:Code>
+        <str:Code id="GRL" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).GRL">
+          <com:Name xml:lang="ar">غرينلند</com:Name>
+          <com:Name xml:lang="ru">Гренландия</com:Name>
+          <com:Name xml:lang="ja">グリーンランド</com:Name>
+          <com:Name xml:lang="en">Greenland</com:Name>
+          <com:Name xml:lang="fr">Groenland</com:Name>
+          <com:Name xml:lang="es">Groenlandia</com:Name>
+          <com:Name xml:lang="zh">格陵兰</com:Name>
+        </str:Code>
+        <str:Code id="GRD" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).GRD">
+          <com:Name xml:lang="ar">غرينادا</com:Name>
+          <com:Name xml:lang="ru">Гренада</com:Name>
+          <com:Name xml:lang="ja">グレナダ</com:Name>
+          <com:Name xml:lang="en">Grenada</com:Name>
+          <com:Name xml:lang="fr">Grenade</com:Name>
+          <com:Name xml:lang="es">Granada</com:Name>
+          <com:Name xml:lang="zh">格林纳达</com:Name>
+        </str:Code>
+        <str:Code id="GLP" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).GLP">
+          <com:Name xml:lang="ar">غواديلوب</com:Name>
+          <com:Name xml:lang="ru">Гваделупа</com:Name>
+          <com:Name xml:lang="ja">グアドループ</com:Name>
+          <com:Name xml:lang="en">Guadeloupe</com:Name>
+          <com:Name xml:lang="fr">Guadeloupe</com:Name>
+          <com:Name xml:lang="es">Guadalupe</com:Name>
+          <com:Name xml:lang="zh">瓜德罗普岛</com:Name>
+        </str:Code>
+        <str:Code id="GUM" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).GUM">
+          <com:Name xml:lang="ar">غوام</com:Name>
+          <com:Name xml:lang="ru">Гуам</com:Name>
+          <com:Name xml:lang="ja">グアム</com:Name>
+          <com:Name xml:lang="en">Guam</com:Name>
+          <com:Name xml:lang="fr">Guam</com:Name>
+          <com:Name xml:lang="es">Guam</com:Name>
+          <com:Name xml:lang="zh">关岛</com:Name>
+        </str:Code>
+        <str:Code id="GTM" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).GTM">
+          <com:Name xml:lang="ar">غواتيمالا</com:Name>
+          <com:Name xml:lang="ru">Гватемала</com:Name>
+          <com:Name xml:lang="ja">グアテマラ</com:Name>
+          <com:Name xml:lang="en">Guatemala</com:Name>
+          <com:Name xml:lang="fr">Guatemala</com:Name>
+          <com:Name xml:lang="es">Guatemala</com:Name>
+          <com:Name xml:lang="zh">危地马拉</com:Name>
+        </str:Code>
+        <str:Code id="GGY" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).GGY">
+          <com:Name xml:lang="ar">غيرنسي</com:Name>
+          <com:Name xml:lang="ru">Гернси</com:Name>
+          <com:Name xml:lang="ja">ガーンジー</com:Name>
+          <com:Name xml:lang="en">Guernsey</com:Name>
+          <com:Name xml:lang="fr">Guernesey</com:Name>
+          <com:Name xml:lang="es">Guernsey</com:Name>
+          <com:Name xml:lang="zh">根西岛</com:Name>
+        </str:Code>
+        <str:Code id="GIN" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).GIN">
+          <com:Name xml:lang="ar">غينيا</com:Name>
+          <com:Name xml:lang="ru">Гвинея</com:Name>
+          <com:Name xml:lang="ja">ギニア</com:Name>
+          <com:Name xml:lang="en">Guinea</com:Name>
+          <com:Name xml:lang="fr">Guinée</com:Name>
+          <com:Name xml:lang="es">Guinea</com:Name>
+          <com:Name xml:lang="zh">几内亚</com:Name>
+        </str:Code>
+        <str:Code id="GNB" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).GNB">
+          <com:Name xml:lang="ar">غينيا بيساو</com:Name>
+          <com:Name xml:lang="ru">Гвинея-Бисау</com:Name>
+          <com:Name xml:lang="ja">ギニアビサウ</com:Name>
+          <com:Name xml:lang="en">Guinea-Bissau</com:Name>
+          <com:Name xml:lang="fr">Guinée-Bissau</com:Name>
+          <com:Name xml:lang="es">Guinea-Bissau</com:Name>
+          <com:Name xml:lang="zh">几内亚比绍</com:Name>
+        </str:Code>
+        <str:Code id="GUY" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).GUY">
+          <com:Name xml:lang="ar">غيانا</com:Name>
+          <com:Name xml:lang="ru">Гайана</com:Name>
+          <com:Name xml:lang="ja">ガイアナ</com:Name>
+          <com:Name xml:lang="en">Guyana</com:Name>
+          <com:Name xml:lang="fr">Guyana</com:Name>
+          <com:Name xml:lang="es">Guyana</com:Name>
+          <com:Name xml:lang="zh">圭亚那</com:Name>
+        </str:Code>
+        <str:Code id="HTI" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).HTI">
+          <com:Name xml:lang="ar">هايتي</com:Name>
+          <com:Name xml:lang="ru">Гаити</com:Name>
+          <com:Name xml:lang="ja">ハイチ</com:Name>
+          <com:Name xml:lang="en">Haiti</com:Name>
+          <com:Name xml:lang="fr">Haïti</com:Name>
+          <com:Name xml:lang="es">Haití</com:Name>
+          <com:Name xml:lang="zh">海地</com:Name>
+        </str:Code>
+        <str:Code id="VAT" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).VAT">
+          <com:Name xml:lang="ar">الكرسي الرسولي</com:Name>
+          <com:Name xml:lang="ru">Святой Престол</com:Name>
+          <com:Name xml:lang="ja">バチカン</com:Name>
+          <com:Name xml:lang="en">Holy See</com:Name>
+          <com:Name xml:lang="fr">Saint-Siège</com:Name>
+          <com:Name xml:lang="es">Santa Sede</com:Name>
+          <com:Name xml:lang="zh">圣座（梵蒂冈）</com:Name>
+        </str:Code>
+        <str:Code id="HND" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).HND">
+          <com:Name xml:lang="ar">هندوراس</com:Name>
+          <com:Name xml:lang="ru">Гондурас</com:Name>
+          <com:Name xml:lang="ja">ホンジュラス</com:Name>
+          <com:Name xml:lang="en">Honduras</com:Name>
+          <com:Name xml:lang="fr">Honduras</com:Name>
+          <com:Name xml:lang="es">Honduras</com:Name>
+          <com:Name xml:lang="zh">洪都拉斯</com:Name>
+        </str:Code>
+        <str:Code id="HKG" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).HKG">
+          <com:Name xml:lang="ar">منطقة هونغ كونغ الصينية الإدارية الخاصة</com:Name>
+          <com:Name xml:lang="ru">Гонконг, специальный административный район Китайской Народной Республики</com:Name>
+          <com:Name xml:lang="ja">中華人民共和国香港特別行政区</com:Name>
+          <com:Name xml:lang="en">Hong Kong Special Administrative Region, People's Republic of China</com:Name>
+          <com:Name xml:lang="fr">Région administrative spéciale de Hong Kong, République populaire de Chine</com:Name>
+          <com:Name xml:lang="es">Región Administrativa Especial de Hong Kong, República Popular de China</com:Name>
+          <com:Name xml:lang="zh">中华人民共和国香港特别行政区</com:Name>
+        </str:Code>
+        <str:Code id="HUN" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).HUN">
+          <com:Name xml:lang="ar">هنغاريا</com:Name>
+          <com:Name xml:lang="ru">Венгрия</com:Name>
+          <com:Name xml:lang="ja">ハンガリー</com:Name>
+          <com:Name xml:lang="en">Hungary</com:Name>
+          <com:Name xml:lang="fr">Hongrie</com:Name>
+          <com:Name xml:lang="es">Hungría</com:Name>
+          <com:Name xml:lang="zh">匈牙利</com:Name>
+        </str:Code>
+        <str:Code id="ISL" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).ISL">
+          <com:Name xml:lang="ar">آيسلندا</com:Name>
+          <com:Name xml:lang="ru">Исландия</com:Name>
+          <com:Name xml:lang="ja">アイスランド</com:Name>
+          <com:Name xml:lang="en">Iceland</com:Name>
+          <com:Name xml:lang="fr">Islande</com:Name>
+          <com:Name xml:lang="es">Islandia</com:Name>
+          <com:Name xml:lang="zh">冰岛</com:Name>
+        </str:Code>
+        <str:Code id="IND" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).IND">
+          <com:Name xml:lang="ar">الهند</com:Name>
+          <com:Name xml:lang="ru">Индия</com:Name>
+          <com:Name xml:lang="ja">インド</com:Name>
+          <com:Name xml:lang="en">India</com:Name>
+          <com:Name xml:lang="fr">Inde</com:Name>
+          <com:Name xml:lang="es">India</com:Name>
+          <com:Name xml:lang="zh">印度</com:Name>
+        </str:Code>
+        <str:Code id="IDN" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).IDN">
+          <com:Name xml:lang="ar">إندونيسيا</com:Name>
+          <com:Name xml:lang="ru">Индонезия</com:Name>
+          <com:Name xml:lang="ja">インドネシア</com:Name>
+          <com:Name xml:lang="en">Indonesia</com:Name>
+          <com:Name xml:lang="fr">Indonésie</com:Name>
+          <com:Name xml:lang="es">Indonesia</com:Name>
+          <com:Name xml:lang="zh">印度尼西亚</com:Name>
+        </str:Code>
+        <str:Code id="IRN" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).IRN">
+          <com:Name xml:lang="ar">جمهورية إيران الإسلامية</com:Name>
+          <com:Name xml:lang="ru">Иран, Исламская Республика</com:Name>
+          <com:Name xml:lang="ja">イラン・イスラム共和国</com:Name>
+          <com:Name xml:lang="en">Iran, Islamic Republic of</com:Name>
+          <com:Name xml:lang="fr">Iran, République islamique d’</com:Name>
+          <com:Name xml:lang="es">Irán, República Islámica del</com:Name>
+          <com:Name xml:lang="zh">伊朗伊斯兰共和国</com:Name>
+        </str:Code>
+        <str:Code id="IRQ" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).IRQ">
+          <com:Name xml:lang="ar">العراق</com:Name>
+          <com:Name xml:lang="ru">Ирак</com:Name>
+          <com:Name xml:lang="ja">イラク</com:Name>
+          <com:Name xml:lang="en">Iraq</com:Name>
+          <com:Name xml:lang="fr">Irak</com:Name>
+          <com:Name xml:lang="es">Iraq</com:Name>
+          <com:Name xml:lang="zh">伊拉克</com:Name>
+        </str:Code>
+        <str:Code id="IRL" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).IRL">
+          <com:Name xml:lang="ar">آيرلندا</com:Name>
+          <com:Name xml:lang="ru">Ирландия</com:Name>
+          <com:Name xml:lang="ja">アイルランド</com:Name>
+          <com:Name xml:lang="en">Ireland</com:Name>
+          <com:Name xml:lang="fr">Irlande</com:Name>
+          <com:Name xml:lang="es">Irlanda</com:Name>
+          <com:Name xml:lang="zh">爱尔兰</com:Name>
+        </str:Code>
+        <str:Code id="IMN" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).IMN">
+          <com:Name xml:lang="ar">جزيرة مان</com:Name>
+          <com:Name xml:lang="ru">Остров Мэн</com:Name>
+          <com:Name xml:lang="ja">マン島</com:Name>
+          <com:Name xml:lang="en">Isle of Man</com:Name>
+          <com:Name xml:lang="fr">Île de Man</com:Name>
+          <com:Name xml:lang="es">Isla de Man</com:Name>
+          <com:Name xml:lang="zh">马恩岛</com:Name>
+        </str:Code>
+        <str:Code id="ISR" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).ISR">
+          <com:Name xml:lang="ar">اسرائيل</com:Name>
+          <com:Name xml:lang="ru">Израиль</com:Name>
+          <com:Name xml:lang="ja">イスラエル</com:Name>
+          <com:Name xml:lang="en">Israel</com:Name>
+          <com:Name xml:lang="fr">Israël</com:Name>
+          <com:Name xml:lang="es">Israel</com:Name>
+          <com:Name xml:lang="zh">以色列</com:Name>
+        </str:Code>
+        <str:Code id="ITA" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).ITA">
+          <com:Name xml:lang="ar">إيطاليا</com:Name>
+          <com:Name xml:lang="ru">Италия</com:Name>
+          <com:Name xml:lang="ja">イタリア</com:Name>
+          <com:Name xml:lang="en">Italy</com:Name>
+          <com:Name xml:lang="fr">Italie</com:Name>
+          <com:Name xml:lang="es">Italia</com:Name>
+          <com:Name xml:lang="zh">意大利</com:Name>
+        </str:Code>
+        <str:Code id="JAM" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).JAM">
+          <com:Name xml:lang="ar">جاميكا</com:Name>
+          <com:Name xml:lang="ru">Ямайка</com:Name>
+          <com:Name xml:lang="ja">ジャマイカ</com:Name>
+          <com:Name xml:lang="en">Jamaica</com:Name>
+          <com:Name xml:lang="fr">Jamaïque</com:Name>
+          <com:Name xml:lang="es">Jamaica</com:Name>
+          <com:Name xml:lang="zh">牙买加</com:Name>
+        </str:Code>
+        <str:Code id="JPN" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).JPN">
+          <com:Name xml:lang="ar">اليابان</com:Name>
+          <com:Name xml:lang="ru">Япония</com:Name>
+          <com:Name xml:lang="ja">日本</com:Name>
+          <com:Name xml:lang="en">Japan</com:Name>
+          <com:Name xml:lang="fr">Japon</com:Name>
+          <com:Name xml:lang="es">Japón</com:Name>
+          <com:Name xml:lang="zh">日本</com:Name>
+        </str:Code>
+        <str:Code id="JEY" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).JEY">
+          <com:Name xml:lang="ar">جيرسي</com:Name>
+          <com:Name xml:lang="ru">Джерси</com:Name>
+          <com:Name xml:lang="ja">ジャージー</com:Name>
+          <com:Name xml:lang="en">Jersey</com:Name>
+          <com:Name xml:lang="fr">Jersey</com:Name>
+          <com:Name xml:lang="es">Jersey</com:Name>
+          <com:Name xml:lang="zh">泽西岛</com:Name>
+        </str:Code>
+        <str:Code id="JOR" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).JOR">
+          <com:Name xml:lang="ar">الأردن</com:Name>
+          <com:Name xml:lang="ru">Иордания</com:Name>
+          <com:Name xml:lang="ja">ヨルダン</com:Name>
+          <com:Name xml:lang="en">Jordan</com:Name>
+          <com:Name xml:lang="fr">Jordanie</com:Name>
+          <com:Name xml:lang="es">Jordania</com:Name>
+          <com:Name xml:lang="zh">约旦</com:Name>
+        </str:Code>
+        <str:Code id="KAZ" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).KAZ">
+          <com:Name xml:lang="ar">جمهورية كازاخستان</com:Name>
+          <com:Name xml:lang="ru">Казахстан, Республика</com:Name>
+          <com:Name xml:lang="ja">カザフスタン共和国</com:Name>
+          <com:Name xml:lang="en">Kazakhstan, Republic of</com:Name>
+          <com:Name xml:lang="fr">Kazakhstan, République du</com:Name>
+          <com:Name xml:lang="es">Kazajstán, República de</com:Name>
+          <com:Name xml:lang="zh">哈萨克斯坦共和国</com:Name>
+        </str:Code>
+        <str:Code id="KEN" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).KEN">
+          <com:Name xml:lang="ar">كينيا</com:Name>
+          <com:Name xml:lang="ru">Кения</com:Name>
+          <com:Name xml:lang="ja">ケニア</com:Name>
+          <com:Name xml:lang="en">Kenya</com:Name>
+          <com:Name xml:lang="fr">Kenya</com:Name>
+          <com:Name xml:lang="es">Kenya</com:Name>
+          <com:Name xml:lang="zh">肯尼亚</com:Name>
+        </str:Code>
+        <str:Code id="KIR" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).KIR">
+          <com:Name xml:lang="ar">كيريباتي</com:Name>
+          <com:Name xml:lang="ru">Кирибати</com:Name>
+          <com:Name xml:lang="ja">キリバス</com:Name>
+          <com:Name xml:lang="en">Kiribati</com:Name>
+          <com:Name xml:lang="fr">Kiribati</com:Name>
+          <com:Name xml:lang="es">Kiribati</com:Name>
+          <com:Name xml:lang="zh">基里巴斯</com:Name>
+        </str:Code>
+        <str:Code id="PRK" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).PRK">
+          <com:Name xml:lang="ar">جمهورية كوريا الشعبية الديموقراطية</com:Name>
+          <com:Name xml:lang="ru">Корейская Народно-Демократическая Республика</com:Name>
+          <com:Name xml:lang="ja">朝鮮民主主義人民共和国</com:Name>
+          <com:Name xml:lang="en">Korea, Democratic People's Republic of</com:Name>
+          <com:Name xml:lang="fr">Corée, République populaire démocratique de</com:Name>
+          <com:Name xml:lang="es">Corea, República Popular Democrática de</com:Name>
+          <com:Name xml:lang="zh">朝鲜民主主义人民共和国</com:Name>
+        </str:Code>
+        <str:Code id="KOR" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).KOR">
+          <com:Name xml:lang="ar">جمهورية كوريا</com:Name>
+          <com:Name xml:lang="ru">Корея, Республика</com:Name>
+          <com:Name xml:lang="ja">大韓民国</com:Name>
+          <com:Name xml:lang="en">Korea, Republic of</com:Name>
+          <com:Name xml:lang="fr">Corée, République de</com:Name>
+          <com:Name xml:lang="es">Corea, República de</com:Name>
+          <com:Name xml:lang="zh">韩国</com:Name>
+        </str:Code>
+        <str:Code id="KOS" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).KOS">
+          <com:Name xml:lang="ar">جمهورية كوسوفو</com:Name>
+          <com:Name xml:lang="ru">Косово, Республика</com:Name>
+          <com:Name xml:lang="ja">コソボ共和国</com:Name>
+          <com:Name xml:lang="en">Kosovo, Republic of</com:Name>
+          <com:Name xml:lang="fr">Kosovo, République du</com:Name>
+          <com:Name xml:lang="es">Kosovo, República de</com:Name>
+          <com:Name xml:lang="zh">科索沃共和国</com:Name>
+        </str:Code>
+        <str:Code id="KWT" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).KWT">
+          <com:Name xml:lang="ar">الكويت</com:Name>
+          <com:Name xml:lang="ru">Кувейт</com:Name>
+          <com:Name xml:lang="ja">クウェート</com:Name>
+          <com:Name xml:lang="en">Kuwait</com:Name>
+          <com:Name xml:lang="fr">Koweït</com:Name>
+          <com:Name xml:lang="es">Kuwait</com:Name>
+          <com:Name xml:lang="zh">科威特</com:Name>
+        </str:Code>
+        <str:Code id="KGZ" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).KGZ">
+          <com:Name xml:lang="ar">جمهورية قيرغيزستان</com:Name>
+          <com:Name xml:lang="ru">Кыргызская Республика</com:Name>
+          <com:Name xml:lang="ja">キルギス</com:Name>
+          <com:Name xml:lang="en">Kyrgyz Republic</com:Name>
+          <com:Name xml:lang="fr">République kirghize</com:Name>
+          <com:Name xml:lang="es">República Kirguisa</com:Name>
+          <com:Name xml:lang="zh">吉尔吉斯共和国</com:Name>
+        </str:Code>
+        <str:Code id="LAO" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).LAO">
+          <com:Name xml:lang="ar">جمهورية لاو الديمقراطية الشعبية</com:Name>
+          <com:Name xml:lang="ru">Лаосская Народно-Демократическая Республика</com:Name>
+          <com:Name xml:lang="ja">ラオス人民民主共和国</com:Name>
+          <com:Name xml:lang="en">Lao People's Democratic Republic</com:Name>
+          <com:Name xml:lang="fr">République démocratique populaire lao</com:Name>
+          <com:Name xml:lang="es">República Democrática Popular Lao</com:Name>
+          <com:Name xml:lang="zh">老挝人民民主共和国</com:Name>
+        </str:Code>
+        <str:Code id="LVA" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).LVA">
+          <com:Name xml:lang="ar">جمهورية لاتفيا</com:Name>
+          <com:Name xml:lang="ru">Латвийская Республика</com:Name>
+          <com:Name xml:lang="ja">ラトビア共和国</com:Name>
+          <com:Name xml:lang="en">Latvia, Republic of</com:Name>
+          <com:Name xml:lang="fr">Lettonie, République de</com:Name>
+          <com:Name xml:lang="es">Letonia, República de</com:Name>
+          <com:Name xml:lang="zh">拉脱维亚共和国</com:Name>
+        </str:Code>
+        <str:Code id="LBN" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).LBN">
+          <com:Name xml:lang="ar">لبنان</com:Name>
+          <com:Name xml:lang="ru">Ливан</com:Name>
+          <com:Name xml:lang="ja">レバノン</com:Name>
+          <com:Name xml:lang="en">Lebanon</com:Name>
+          <com:Name xml:lang="fr">Liban</com:Name>
+          <com:Name xml:lang="es">Líbano</com:Name>
+          <com:Name xml:lang="zh">黎巴嫩</com:Name>
+        </str:Code>
+        <str:Code id="LSO" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).LSO">
+          <com:Name xml:lang="ar">مملكة ليسوتو</com:Name>
+          <com:Name xml:lang="ru">Лесото, Королевство</com:Name>
+          <com:Name xml:lang="ja">レソト王国</com:Name>
+          <com:Name xml:lang="en">Lesotho, Kingdom of</com:Name>
+          <com:Name xml:lang="fr">Lesotho, Royaume du</com:Name>
+          <com:Name xml:lang="es">Lesotho, Reino de</com:Name>
+          <com:Name xml:lang="zh">莱索托王国</com:Name>
+        </str:Code>
+        <str:Code id="LBR" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).LBR">
+          <com:Name xml:lang="ar">ليبريا</com:Name>
+          <com:Name xml:lang="ru">Либерия</com:Name>
+          <com:Name xml:lang="ja">リベリア</com:Name>
+          <com:Name xml:lang="en">Liberia</com:Name>
+          <com:Name xml:lang="fr">Libéria</com:Name>
+          <com:Name xml:lang="es">Liberia</com:Name>
+          <com:Name xml:lang="zh">利比里亚</com:Name>
+        </str:Code>
+        <str:Code id="LBY" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).LBY">
+          <com:Name xml:lang="ar">ليبيا</com:Name>
+          <com:Name xml:lang="ru">Ливия</com:Name>
+          <com:Name xml:lang="ja">リビア</com:Name>
+          <com:Name xml:lang="en">Libya</com:Name>
+          <com:Name xml:lang="fr">Libye</com:Name>
+          <com:Name xml:lang="es">Libia</com:Name>
+          <com:Name xml:lang="zh">利比亚</com:Name>
+        </str:Code>
+        <str:Code id="LIE" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).LIE">
+          <com:Name xml:lang="en">Liechtenstein, Principality of</com:Name>
+        </str:Code>
+        <str:Code id="LTU" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).LTU">
+          <com:Name xml:lang="ar">جمهورية ليتوانيا</com:Name>
+          <com:Name xml:lang="ru">Литовская Республика</com:Name>
+          <com:Name xml:lang="ja">リトアニア共和国</com:Name>
+          <com:Name xml:lang="en">Lithuania, Republic of</com:Name>
+          <com:Name xml:lang="fr">Lituanie, République de</com:Name>
+          <com:Name xml:lang="es">Lituania, República de</com:Name>
+          <com:Name xml:lang="zh">立陶宛共和国</com:Name>
+        </str:Code>
+        <str:Code id="LUX" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).LUX">
+          <com:Name xml:lang="ar">لكسمبرغ</com:Name>
+          <com:Name xml:lang="ru">Люксембург</com:Name>
+          <com:Name xml:lang="ja">ルクセンブルク</com:Name>
+          <com:Name xml:lang="en">Luxembourg</com:Name>
+          <com:Name xml:lang="fr">Luxembourg</com:Name>
+          <com:Name xml:lang="es">Luxemburgo</com:Name>
+          <com:Name xml:lang="zh">卢森堡</com:Name>
+        </str:Code>
+        <str:Code id="MAC" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).MAC">
+          <com:Name xml:lang="ar">إقليم ماكاو الإداري الخاص، جمهورية الصين الشعبية</com:Name>
+          <com:Name xml:lang="ru">Макао, специальный административный район Китайской Народной Республики</com:Name>
+          <com:Name xml:lang="ja">中華人民共和国マカオ特別行政区</com:Name>
+          <com:Name xml:lang="en">Macao Special Administrative Region, People's Republic of China</com:Name>
+          <com:Name xml:lang="fr">Région administrative spéciale de Macao, République populaire de Chine</com:Name>
+          <com:Name xml:lang="es">Región Administrativa Especial de Macao, República Popular de China</com:Name>
+          <com:Name xml:lang="zh">中华人民共和国澳门特别行政区</com:Name>
+        </str:Code>
+        <str:Code id="MDG" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).MDG">
+          <com:Name xml:lang="ar">جمهورية مدغشقر</com:Name>
+          <com:Name xml:lang="ru">Мадагаскар, Республика</com:Name>
+          <com:Name xml:lang="ja">マダガスカル共和国</com:Name>
+          <com:Name xml:lang="en">Madagascar, Republic of</com:Name>
+          <com:Name xml:lang="fr">Madagascar, République de</com:Name>
+          <com:Name xml:lang="es">Madagascar, República de</com:Name>
+          <com:Name xml:lang="zh">马达加斯加共和国</com:Name>
+        </str:Code>
+        <str:Code id="MWI" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).MWI">
+          <com:Name xml:lang="ar">ملاوي</com:Name>
+          <com:Name xml:lang="ru">Малави</com:Name>
+          <com:Name xml:lang="ja">マラウイ</com:Name>
+          <com:Name xml:lang="en">Malawi</com:Name>
+          <com:Name xml:lang="fr">Malawi</com:Name>
+          <com:Name xml:lang="es">Malawi</com:Name>
+          <com:Name xml:lang="zh">马拉维</com:Name>
+        </str:Code>
+        <str:Code id="MYS" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).MYS">
+          <com:Name xml:lang="ar">ماليزيا</com:Name>
+          <com:Name xml:lang="ru">Малайзия</com:Name>
+          <com:Name xml:lang="ja">マレーシア</com:Name>
+          <com:Name xml:lang="en">Malaysia</com:Name>
+          <com:Name xml:lang="fr">Malaisie</com:Name>
+          <com:Name xml:lang="es">Malasia</com:Name>
+          <com:Name xml:lang="zh">马来西亚</com:Name>
+        </str:Code>
+        <str:Code id="MDV" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).MDV">
+          <com:Name xml:lang="ar">جزر مالديف</com:Name>
+          <com:Name xml:lang="ru">Мальдивы</com:Name>
+          <com:Name xml:lang="ja">モルディブ</com:Name>
+          <com:Name xml:lang="en">Maldives</com:Name>
+          <com:Name xml:lang="fr">Maldives</com:Name>
+          <com:Name xml:lang="es">Maldivas</com:Name>
+          <com:Name xml:lang="zh">马尔代夫</com:Name>
+        </str:Code>
+        <str:Code id="MLI" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).MLI">
+          <com:Name xml:lang="ar">مالي</com:Name>
+          <com:Name xml:lang="ru">Мали</com:Name>
+          <com:Name xml:lang="ja">マリ</com:Name>
+          <com:Name xml:lang="en">Mali</com:Name>
+          <com:Name xml:lang="fr">Mali</com:Name>
+          <com:Name xml:lang="es">Malí</com:Name>
+          <com:Name xml:lang="zh">马里</com:Name>
+        </str:Code>
+        <str:Code id="MLT" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).MLT">
+          <com:Name xml:lang="ar">مالطة</com:Name>
+          <com:Name xml:lang="ru">Мальта</com:Name>
+          <com:Name xml:lang="ja">マルタ</com:Name>
+          <com:Name xml:lang="en">Malta</com:Name>
+          <com:Name xml:lang="fr">Malte</com:Name>
+          <com:Name xml:lang="es">Malta</com:Name>
+          <com:Name xml:lang="zh">马耳他</com:Name>
+        </str:Code>
+        <str:Code id="MHL" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).MHL">
+          <com:Name xml:lang="ar">جمهورية جزر مارشال</com:Name>
+          <com:Name xml:lang="ru">Маршалловы Острова, Республика</com:Name>
+          <com:Name xml:lang="ja">マーシャル諸島共和国</com:Name>
+          <com:Name xml:lang="en">Marshall Islands, Republic of the</com:Name>
+          <com:Name xml:lang="fr">Îles Marshall, République des</com:Name>
+          <com:Name xml:lang="es">Islas Marshall, República de las</com:Name>
+          <com:Name xml:lang="zh">马绍尔群岛共和国</com:Name>
+        </str:Code>
+        <str:Code id="MTQ" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).MTQ">
+          <com:Name xml:lang="ar">مارتينيك</com:Name>
+          <com:Name xml:lang="ru">Мартиника</com:Name>
+          <com:Name xml:lang="ja">マルティニーク</com:Name>
+          <com:Name xml:lang="en">Martinique</com:Name>
+          <com:Name xml:lang="fr">Martinique</com:Name>
+          <com:Name xml:lang="es">Martinica</com:Name>
+          <com:Name xml:lang="zh">马提尼克</com:Name>
+        </str:Code>
+        <str:Code id="MRT" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).MRT">
+          <com:Name xml:lang="ar">جمهورية إيران الإسلامية</com:Name>
+          <com:Name xml:lang="ru">Мавритания, Исламская Республика</com:Name>
+          <com:Name xml:lang="ja">モーリタニア・イスラム共和国</com:Name>
+          <com:Name xml:lang="en">Mauritania, Islamic Republic of</com:Name>
+          <com:Name xml:lang="fr">Mauritanie, République islamique de</com:Name>
+          <com:Name xml:lang="es">Mauritania, República Islámica de</com:Name>
+          <com:Name xml:lang="zh">毛里塔尼亚伊斯兰共和国</com:Name>
+        </str:Code>
+        <str:Code id="MUS" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).MUS">
+          <com:Name xml:lang="ar">موريشيوس</com:Name>
+          <com:Name xml:lang="ru">Маврикий</com:Name>
+          <com:Name xml:lang="ja">モーリシャス</com:Name>
+          <com:Name xml:lang="en">Mauritius</com:Name>
+          <com:Name xml:lang="fr">Maurice</com:Name>
+          <com:Name xml:lang="es">Mauricio</com:Name>
+          <com:Name xml:lang="zh">毛里求斯</com:Name>
+        </str:Code>
+        <str:Code id="MYT" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).MYT">
+          <com:Name xml:lang="ar">مايوت</com:Name>
+          <com:Name xml:lang="ru">Майотта</com:Name>
+          <com:Name xml:lang="ja">マヨット</com:Name>
+          <com:Name xml:lang="en">Mayotte</com:Name>
+          <com:Name xml:lang="fr">Mayotte</com:Name>
+          <com:Name xml:lang="es">Mayotte</com:Name>
+          <com:Name xml:lang="zh">马约特岛</com:Name>
+        </str:Code>
+        <str:Code id="MEX" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).MEX">
+          <com:Name xml:lang="ar">المكسيك</com:Name>
+          <com:Name xml:lang="ru">Мексика</com:Name>
+          <com:Name xml:lang="ja">メキシコ</com:Name>
+          <com:Name xml:lang="en">Mexico</com:Name>
+          <com:Name xml:lang="fr">Mexique</com:Name>
+          <com:Name xml:lang="es">México</com:Name>
+          <com:Name xml:lang="zh">墨西哥</com:Name>
+        </str:Code>
+        <str:Code id="FSM" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).FSM">
+          <com:Name xml:lang="ar">ولايات ميكرونيزيا الموحدة</com:Name>
+          <com:Name xml:lang="ru">Федеративные Штаты Микронезии</com:Name>
+          <com:Name xml:lang="ja">ミクロネシア連邦</com:Name>
+          <com:Name xml:lang="en">Micronesia, Federated States of</com:Name>
+          <com:Name xml:lang="fr">Micronésie, États fédérés de</com:Name>
+          <com:Name xml:lang="es">Micronesia, Estados Federados de</com:Name>
+          <com:Name xml:lang="zh">密克罗尼西亚联邦</com:Name>
+        </str:Code>
+        <str:Code id="MDA" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).MDA">
+          <com:Name xml:lang="ar">جمهورية مولدوفا</com:Name>
+          <com:Name xml:lang="ru">Молдова, Республика</com:Name>
+          <com:Name xml:lang="ja">モルドバ共和国</com:Name>
+          <com:Name xml:lang="en">Moldova, Republic of</com:Name>
+          <com:Name xml:lang="fr">Moldova, République de</com:Name>
+          <com:Name xml:lang="es">Moldova, República de</com:Name>
+          <com:Name xml:lang="zh">摩尔多瓦共和国</com:Name>
+        </str:Code>
+        <str:Code id="MCO" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).MCO">
+          <com:Name xml:lang="ar">موناكو</com:Name>
+          <com:Name xml:lang="ru">Монако</com:Name>
+          <com:Name xml:lang="ja">モナコ</com:Name>
+          <com:Name xml:lang="en">Monaco</com:Name>
+          <com:Name xml:lang="fr">Monaco</com:Name>
+          <com:Name xml:lang="es">Mónaco</com:Name>
+          <com:Name xml:lang="zh">摩纳哥</com:Name>
+        </str:Code>
+        <str:Code id="MNG" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).MNG">
+          <com:Name xml:lang="ar">مونغوليا</com:Name>
+          <com:Name xml:lang="ru">Монголия</com:Name>
+          <com:Name xml:lang="ja">モンゴル</com:Name>
+          <com:Name xml:lang="en">Mongolia</com:Name>
+          <com:Name xml:lang="fr">Mongolie</com:Name>
+          <com:Name xml:lang="es">Mongolia</com:Name>
+          <com:Name xml:lang="zh">蒙古</com:Name>
+        </str:Code>
+        <str:Code id="MNE" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).MNE">
+          <com:Name xml:lang="ar">الجبل الأسود</com:Name>
+          <com:Name xml:lang="ru">Черногория</com:Name>
+          <com:Name xml:lang="ja">モンテネグロ</com:Name>
+          <com:Name xml:lang="en">Montenegro</com:Name>
+          <com:Name xml:lang="fr">Monténégro</com:Name>
+          <com:Name xml:lang="es">Montenegro</com:Name>
+          <com:Name xml:lang="zh">黑山共和国</com:Name>
+        </str:Code>
+        <str:Code id="MSR" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).MSR">
+          <com:Name xml:lang="ar">مونتسيرات، إقليم بريطاني ما وراء البحار</com:Name>
+          <com:Name xml:lang="ru">Монтсеррат, Заморская территория Великобритании</com:Name>
+          <com:Name xml:lang="ja">イギリス領モントセラト</com:Name>
+          <com:Name xml:lang="en">Montserrat, United Kingdom-British Overseas Territory</com:Name>
+          <com:Name xml:lang="fr">Montserrat, Royaume-Uni – Territoire britannique d’outre-mer</com:Name>
+          <com:Name xml:lang="es">Montserrat, Territorio Británico de Ultramar del Reino Unido</com:Name>
+          <com:Name xml:lang="zh">安圭拉，英国海外领土</com:Name>
+        </str:Code>
+        <str:Code id="MAR" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).MAR">
+          <com:Name xml:lang="ar">المغرب</com:Name>
+          <com:Name xml:lang="ru">Марокко</com:Name>
+          <com:Name xml:lang="ja">モロッコ</com:Name>
+          <com:Name xml:lang="en">Morocco</com:Name>
+          <com:Name xml:lang="fr">Maroc</com:Name>
+          <com:Name xml:lang="es">Marruecos</com:Name>
+          <com:Name xml:lang="zh">摩洛哥</com:Name>
+        </str:Code>
+        <str:Code id="MOZ" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).MOZ">
+          <com:Name xml:lang="ar">جمهورية موزامبيق</com:Name>
+          <com:Name xml:lang="ru">Мозамбик, Республика</com:Name>
+          <com:Name xml:lang="ja">モザンビーク共和国</com:Name>
+          <com:Name xml:lang="en">Mozambique, Republic of</com:Name>
+          <com:Name xml:lang="fr">Mozambique, République du</com:Name>
+          <com:Name xml:lang="es">Mozambique, República de</com:Name>
+          <com:Name xml:lang="zh">莫桑比克共和国</com:Name>
+        </str:Code>
+        <str:Code id="MMR" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).MMR">
+          <com:Name xml:lang="ar">ميانمار</com:Name>
+          <com:Name xml:lang="ru">Мьянма</com:Name>
+          <com:Name xml:lang="ja">ミャンマー</com:Name>
+          <com:Name xml:lang="en">Myanmar</com:Name>
+          <com:Name xml:lang="fr">Myanmar</com:Name>
+          <com:Name xml:lang="es">Myanmar</com:Name>
+          <com:Name xml:lang="zh">缅甸</com:Name>
+        </str:Code>
+        <str:Code id="NAM" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).NAM">
+          <com:Name xml:lang="ar">ناميبيا</com:Name>
+          <com:Name xml:lang="ru">Намибия</com:Name>
+          <com:Name xml:lang="ja">ナミビア</com:Name>
+          <com:Name xml:lang="en">Namibia</com:Name>
+          <com:Name xml:lang="fr">Namibie</com:Name>
+          <com:Name xml:lang="es">Namibia</com:Name>
+          <com:Name xml:lang="zh">纳米比亚</com:Name>
+        </str:Code>
+        <str:Code id="NRU" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).NRU">
+          <com:Name xml:lang="ar">جمهورية ناورو</com:Name>
+          <com:Name xml:lang="ru">Науру, Республика</com:Name>
+          <com:Name xml:lang="ja">ナウル共和国</com:Name>
+          <com:Name xml:lang="en">Nauru, Republic of</com:Name>
+          <com:Name xml:lang="fr">Nauru, République de</com:Name>
+          <com:Name xml:lang="es">Nauru</com:Name>
+          <com:Name xml:lang="zh">瑙鲁共和国</com:Name>
+        </str:Code>
+        <str:Code id="NPL" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).NPL">
+          <com:Name xml:lang="ar">نيبال</com:Name>
+          <com:Name xml:lang="ru">Непал</com:Name>
+          <com:Name xml:lang="ja">ネパール</com:Name>
+          <com:Name xml:lang="en">Nepal</com:Name>
+          <com:Name xml:lang="fr">Népal</com:Name>
+          <com:Name xml:lang="es">Nepal</com:Name>
+          <com:Name xml:lang="zh">尼泊尔</com:Name>
+        </str:Code>
+        <str:Code id="NLD" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).NLD">
+          <com:Name xml:lang="ar">هولندا</com:Name>
+          <com:Name xml:lang="ru">Нидерланды</com:Name>
+          <com:Name xml:lang="ja">オランダ</com:Name>
+          <com:Name xml:lang="en">Netherlands, The</com:Name>
+          <com:Name xml:lang="fr">Pays-Bas</com:Name>
+          <com:Name xml:lang="es">Países Bajos</com:Name>
+          <com:Name xml:lang="zh">荷兰</com:Name>
+        </str:Code>
+        <str:Code id="NCL" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).NCL">
+          <com:Name xml:lang="ar">كاليدونيا الجديدة</com:Name>
+          <com:Name xml:lang="ru">Новая Каледония</com:Name>
+          <com:Name xml:lang="ja">ニューカレドニア</com:Name>
+          <com:Name xml:lang="en">New Caledonia</com:Name>
+          <com:Name xml:lang="fr">Nouvelle-Calédonie</com:Name>
+          <com:Name xml:lang="es">Nueva Caledonia</com:Name>
+          <com:Name xml:lang="zh">新喀里多尼亚</com:Name>
+        </str:Code>
+        <str:Code id="NZL" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).NZL">
+          <com:Name xml:lang="ar">نيوزيلندا</com:Name>
+          <com:Name xml:lang="ru">Новая Зеландия</com:Name>
+          <com:Name xml:lang="ja">ニュージーランド</com:Name>
+          <com:Name xml:lang="en">New Zealand</com:Name>
+          <com:Name xml:lang="fr">Nouvelle-Zélande</com:Name>
+          <com:Name xml:lang="es">Nueva Zelandia</com:Name>
+          <com:Name xml:lang="zh">新西兰</com:Name>
+        </str:Code>
+        <str:Code id="NIC" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).NIC">
+          <com:Name xml:lang="ar">نيكاراغوا</com:Name>
+          <com:Name xml:lang="ru">Никарагуа</com:Name>
+          <com:Name xml:lang="ja">ニカラグア</com:Name>
+          <com:Name xml:lang="en">Nicaragua</com:Name>
+          <com:Name xml:lang="fr">Nicaragua</com:Name>
+          <com:Name xml:lang="es">Nicaragua</com:Name>
+          <com:Name xml:lang="zh">尼加拉瓜</com:Name>
+        </str:Code>
+        <str:Code id="NER" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).NER">
+          <com:Name xml:lang="ar">النيجر</com:Name>
+          <com:Name xml:lang="ru">Нигер</com:Name>
+          <com:Name xml:lang="ja">ニジェール</com:Name>
+          <com:Name xml:lang="en">Niger</com:Name>
+          <com:Name xml:lang="fr">Niger</com:Name>
+          <com:Name xml:lang="es">Níger</com:Name>
+          <com:Name xml:lang="zh">尼日尔</com:Name>
+        </str:Code>
+        <str:Code id="NGA" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).NGA">
+          <com:Name xml:lang="ar">نيجيريا</com:Name>
+          <com:Name xml:lang="ru">Нигерия</com:Name>
+          <com:Name xml:lang="ja">ナイジェリア</com:Name>
+          <com:Name xml:lang="en">Nigeria</com:Name>
+          <com:Name xml:lang="fr">Nigéria</com:Name>
+          <com:Name xml:lang="es">Nigeria</com:Name>
+          <com:Name xml:lang="zh">尼日利亚</com:Name>
+        </str:Code>
+        <str:Code id="NIU" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).NIU">
+          <com:Name xml:lang="ar">نيوي</com:Name>
+          <com:Name xml:lang="ru">Ниуэ</com:Name>
+          <com:Name xml:lang="ja">ニウエ</com:Name>
+          <com:Name xml:lang="en">Niue</com:Name>
+          <com:Name xml:lang="fr">Nioué</com:Name>
+          <com:Name xml:lang="es">Niue</com:Name>
+          <com:Name xml:lang="zh">纽埃岛</com:Name>
+        </str:Code>
+        <str:Code id="NFK" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).NFK">
+          <com:Name xml:lang="ar">جزر نورفولك</com:Name>
+          <com:Name xml:lang="ru">Остров Норфолк</com:Name>
+          <com:Name xml:lang="ja">ノーフォーク島</com:Name>
+          <com:Name xml:lang="en">Norfolk Island</com:Name>
+          <com:Name xml:lang="fr">Île Norfolk</com:Name>
+          <com:Name xml:lang="es">Islas Norfolk</com:Name>
+          <com:Name xml:lang="zh">诺福克岛</com:Name>
+        </str:Code>
+        <str:Code id="MKD" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).MKD">
+          <com:Name xml:lang="ar">جمهورية مقدونيا الشمالية</com:Name>
+          <com:Name xml:lang="ru">Северная Македония, Республика</com:Name>
+          <com:Name xml:lang="ja">北マケドニア共和国</com:Name>
+          <com:Name xml:lang="en">North Macedonia, Republic of</com:Name>
+          <com:Name xml:lang="fr">Macédoine du Nord, République de</com:Name>
+          <com:Name xml:lang="es">Macedonia del Norte, República de</com:Name>
+          <com:Name xml:lang="zh">北马其顿共和国</com:Name>
+        </str:Code>
+        <str:Code id="MNP" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).MNP">
+          <com:Name xml:lang="ar">جزر ماريانا الشمالية</com:Name>
+          <com:Name xml:lang="ru">Северные Марианские Острова</com:Name>
+          <com:Name xml:lang="ja">北マリアナ諸島</com:Name>
+          <com:Name xml:lang="en">Northern Mariana Islands</com:Name>
+          <com:Name xml:lang="fr">Îles Mariannes du Nord</com:Name>
+          <com:Name xml:lang="es">Islas Mariana del Norte</com:Name>
+          <com:Name xml:lang="zh">北马利亚纳群岛</com:Name>
+        </str:Code>
+        <str:Code id="NOR" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).NOR">
+          <com:Name xml:lang="ar">النرويج</com:Name>
+          <com:Name xml:lang="ru">Норвегия</com:Name>
+          <com:Name xml:lang="ja">ノルウェー</com:Name>
+          <com:Name xml:lang="en">Norway</com:Name>
+          <com:Name xml:lang="fr">Norvège</com:Name>
+          <com:Name xml:lang="es">Noruega</com:Name>
+          <com:Name xml:lang="zh">挪威</com:Name>
+        </str:Code>
+        <str:Code id="OMN" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).OMN">
+          <com:Name xml:lang="ar">عُمان</com:Name>
+          <com:Name xml:lang="ru">Оман</com:Name>
+          <com:Name xml:lang="ja">オマーン</com:Name>
+          <com:Name xml:lang="en">Oman</com:Name>
+          <com:Name xml:lang="fr">Oman</com:Name>
+          <com:Name xml:lang="es">Omán</com:Name>
+          <com:Name xml:lang="zh">阿曼</com:Name>
+        </str:Code>
+        <str:Code id="PAK" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).PAK">
+          <com:Name xml:lang="ar">باكستان</com:Name>
+          <com:Name xml:lang="ru">Пакистан</com:Name>
+          <com:Name xml:lang="ja">パキスタン</com:Name>
+          <com:Name xml:lang="en">Pakistan</com:Name>
+          <com:Name xml:lang="fr">Pakistan</com:Name>
+          <com:Name xml:lang="es">Pakistán</com:Name>
+          <com:Name xml:lang="zh">巴基斯坦</com:Name>
+        </str:Code>
+        <str:Code id="PLW" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).PLW">
+          <com:Name xml:lang="ar">جمهورية بالاو</com:Name>
+          <com:Name xml:lang="ru">Палау, Республика</com:Name>
+          <com:Name xml:lang="ja">パラオ共和国</com:Name>
+          <com:Name xml:lang="en">Palau, Republic of</com:Name>
+          <com:Name xml:lang="fr">Palaos, République des</com:Name>
+          <com:Name xml:lang="es">Palau, República de</com:Name>
+          <com:Name xml:lang="zh">帕劳共和国</com:Name>
+        </str:Code>
+        <str:Code id="PAN" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).PAN">
+          <com:Name xml:lang="ar">بنما</com:Name>
+          <com:Name xml:lang="ru">Панама</com:Name>
+          <com:Name xml:lang="ja">パナマ</com:Name>
+          <com:Name xml:lang="en">Panama</com:Name>
+          <com:Name xml:lang="fr">Panama</com:Name>
+          <com:Name xml:lang="es">Panamá</com:Name>
+          <com:Name xml:lang="zh">巴拿马</com:Name>
+        </str:Code>
+        <str:Code id="PNG" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).PNG">
+          <com:Name xml:lang="ar">بابوا غينيا الجديدة</com:Name>
+          <com:Name xml:lang="ru">Папуа-Новая Гвинея</com:Name>
+          <com:Name xml:lang="ja">パプアニューギニア</com:Name>
+          <com:Name xml:lang="en">Papua New Guinea</com:Name>
+          <com:Name xml:lang="fr">Papouasie-Nouvelle-Guinée</com:Name>
+          <com:Name xml:lang="es">Papua Nueva Guinea</com:Name>
+          <com:Name xml:lang="zh">巴布亚新几内亚</com:Name>
+        </str:Code>
+        <str:Code id="PRY" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).PRY">
+          <com:Name xml:lang="ar">باراغواي</com:Name>
+          <com:Name xml:lang="ru">Парагвай</com:Name>
+          <com:Name xml:lang="ja">パラグアイ</com:Name>
+          <com:Name xml:lang="en">Paraguay</com:Name>
+          <com:Name xml:lang="fr">Paraguay</com:Name>
+          <com:Name xml:lang="es">Paraguay</com:Name>
+          <com:Name xml:lang="zh">巴拉圭</com:Name>
+        </str:Code>
+        <str:Code id="PER" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).PER">
+          <com:Name xml:lang="ar">بيرو</com:Name>
+          <com:Name xml:lang="ru">Перу</com:Name>
+          <com:Name xml:lang="ja">ペルー</com:Name>
+          <com:Name xml:lang="en">Peru</com:Name>
+          <com:Name xml:lang="fr">Pérou</com:Name>
+          <com:Name xml:lang="es">Perú</com:Name>
+          <com:Name xml:lang="zh">秘鲁</com:Name>
+        </str:Code>
+        <str:Code id="PHL" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).PHL">
+          <com:Name xml:lang="ar">الفلبين</com:Name>
+          <com:Name xml:lang="ru">Филиппины</com:Name>
+          <com:Name xml:lang="ja">フィリピン</com:Name>
+          <com:Name xml:lang="en">Philippines</com:Name>
+          <com:Name xml:lang="fr">Philippines</com:Name>
+          <com:Name xml:lang="es">Filipinas</com:Name>
+          <com:Name xml:lang="zh">菲律宾</com:Name>
+        </str:Code>
+        <str:Code id="PCN" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).PCN">
+          <com:Name xml:lang="ar">جزر بيتكيرن</com:Name>
+          <com:Name xml:lang="ru">Острова Питкэрн</com:Name>
+          <com:Name xml:lang="ja">ピトケアン諸島</com:Name>
+          <com:Name xml:lang="en">Pitcairn Islands</com:Name>
+          <com:Name xml:lang="fr">Îles Pitcairn</com:Name>
+          <com:Name xml:lang="es">Islas Pitcairn</com:Name>
+          <com:Name xml:lang="zh">皮特凯恩群岛</com:Name>
+        </str:Code>
+        <str:Code id="POL" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).POL">
+          <com:Name xml:lang="ar">جمهورية بولندا</com:Name>
+          <com:Name xml:lang="ru">Польша, Республика</com:Name>
+          <com:Name xml:lang="ja">ポーランド共和国</com:Name>
+          <com:Name xml:lang="en">Poland, Republic of</com:Name>
+          <com:Name xml:lang="fr">Pologne, République de</com:Name>
+          <com:Name xml:lang="es">Polonia, República de</com:Name>
+          <com:Name xml:lang="zh">波兰共和国</com:Name>
+        </str:Code>
+        <str:Code id="PRT" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).PRT">
+          <com:Name xml:lang="ar">البرتغال</com:Name>
+          <com:Name xml:lang="ru">Португалия</com:Name>
+          <com:Name xml:lang="ja">ポルトガル</com:Name>
+          <com:Name xml:lang="en">Portugal</com:Name>
+          <com:Name xml:lang="fr">Portugal</com:Name>
+          <com:Name xml:lang="es">Portugal</com:Name>
+          <com:Name xml:lang="zh">葡萄牙</com:Name>
+        </str:Code>
+        <str:Code id="PRI" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).PRI">
+          <com:Name xml:lang="ar">بورتو ريكو</com:Name>
+          <com:Name xml:lang="ru">Пуэрто-Рико</com:Name>
+          <com:Name xml:lang="ja">プエルトリコ</com:Name>
+          <com:Name xml:lang="en">Puerto Rico</com:Name>
+          <com:Name xml:lang="fr">Porto Rico</com:Name>
+          <com:Name xml:lang="es">Puerto Rico</com:Name>
+          <com:Name xml:lang="zh">波多黎各</com:Name>
+        </str:Code>
+        <str:Code id="QAT" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).QAT">
+          <com:Name xml:lang="ar">قطر</com:Name>
+          <com:Name xml:lang="ru">Катар</com:Name>
+          <com:Name xml:lang="ja">カタール</com:Name>
+          <com:Name xml:lang="en">Qatar</com:Name>
+          <com:Name xml:lang="fr">Qatar</com:Name>
+          <com:Name xml:lang="es">Qatar</com:Name>
+          <com:Name xml:lang="zh">卡塔尔</com:Name>
+        </str:Code>
+        <str:Code id="ROU" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).ROU">
+          <com:Name xml:lang="ar">رومانيا</com:Name>
+          <com:Name xml:lang="ru">Румыния</com:Name>
+          <com:Name xml:lang="ja">ルーマニア</com:Name>
+          <com:Name xml:lang="en">Romania</com:Name>
+          <com:Name xml:lang="fr">Roumanie</com:Name>
+          <com:Name xml:lang="es">Rumania</com:Name>
+          <com:Name xml:lang="zh">罗马尼亚</com:Name>
+          <com:Description xml:lang="en">Alternative ISO3 code is ROM.</com:Description>
+        </str:Code>
+        <str:Code id="RUS" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).RUS">
+          <com:Name xml:lang="ar">الاتحاد الروسي</com:Name>
+          <com:Name xml:lang="ru">Российская Федерация</com:Name>
+          <com:Name xml:lang="ja">ロシア連邦</com:Name>
+          <com:Name xml:lang="en">Russian Federation</com:Name>
+          <com:Name xml:lang="fr">Fédération de Russie</com:Name>
+          <com:Name xml:lang="es">Federación de Rusia</com:Name>
+          <com:Name xml:lang="zh">俄罗斯联邦</com:Name>
+        </str:Code>
+        <str:Code id="RWA" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).RWA">
+          <com:Name xml:lang="ar">رواندا</com:Name>
+          <com:Name xml:lang="ru">Руанда</com:Name>
+          <com:Name xml:lang="ja">ルワンダ</com:Name>
+          <com:Name xml:lang="en">Rwanda</com:Name>
+          <com:Name xml:lang="fr">Rwanda</com:Name>
+          <com:Name xml:lang="es">Rwanda</com:Name>
+          <com:Name xml:lang="zh">卢旺达</com:Name>
+        </str:Code>
+        <str:Code id="REU" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).REU">
+          <com:Name xml:lang="ar">ريونيون</com:Name>
+          <com:Name xml:lang="ru">Реюньон</com:Name>
+          <com:Name xml:lang="ja">レユニオン</com:Name>
+          <com:Name xml:lang="en">Réunion</com:Name>
+          <com:Name xml:lang="fr">Réunion</com:Name>
+          <com:Name xml:lang="es">Isla Reunión</com:Name>
+          <com:Name xml:lang="zh">留尼汪岛</com:Name>
+        </str:Code>
+        <str:Code id="WSM" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).WSM">
+          <com:Name xml:lang="ar">ساموا</com:Name>
+          <com:Name xml:lang="ru">Самоа</com:Name>
+          <com:Name xml:lang="ja">サモア</com:Name>
+          <com:Name xml:lang="en">Samoa</com:Name>
+          <com:Name xml:lang="fr">Samoa</com:Name>
+          <com:Name xml:lang="es">Samoa</com:Name>
+          <com:Name xml:lang="zh">萨摩亚</com:Name>
+        </str:Code>
+        <str:Code id="SMR" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).SMR">
+          <com:Name xml:lang="ar">جمهورية سان مارينو</com:Name>
+          <com:Name xml:lang="ru">Сан-Марино, Республика</com:Name>
+          <com:Name xml:lang="ja">サンマリノ共和国</com:Name>
+          <com:Name xml:lang="en">San Marino, Republic of</com:Name>
+          <com:Name xml:lang="fr">Saint-Marin, République de</com:Name>
+          <com:Name xml:lang="es">San Marino, República de</com:Name>
+          <com:Name xml:lang="zh">圣马力诺共和国</com:Name>
+        </str:Code>
+        <str:Code id="SAU" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).SAU">
+          <com:Name xml:lang="ar">المملكة العربية السعودية</com:Name>
+          <com:Name xml:lang="ru">Саудовская Аравия</com:Name>
+          <com:Name xml:lang="ja">サウジアラビア</com:Name>
+          <com:Name xml:lang="en">Saudi Arabia</com:Name>
+          <com:Name xml:lang="fr">Arabie saoudite</com:Name>
+          <com:Name xml:lang="es">Arabia Saudita</com:Name>
+          <com:Name xml:lang="zh">沙特阿拉伯</com:Name>
+        </str:Code>
+        <str:Code id="SEN" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).SEN">
+          <com:Name xml:lang="ar">السنغال</com:Name>
+          <com:Name xml:lang="ru">Сенегал</com:Name>
+          <com:Name xml:lang="ja">セネガル</com:Name>
+          <com:Name xml:lang="en">Senegal</com:Name>
+          <com:Name xml:lang="fr">Sénégal</com:Name>
+          <com:Name xml:lang="es">Senegal</com:Name>
+          <com:Name xml:lang="zh">塞内加尔</com:Name>
+        </str:Code>
+        <str:Code id="SRB" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).SRB">
+          <com:Name xml:lang="ar">جمهورية صربيا</com:Name>
+          <com:Name xml:lang="ru">Сербия, Республика</com:Name>
+          <com:Name xml:lang="ja">セルビア共和国</com:Name>
+          <com:Name xml:lang="en">Serbia, Republic of</com:Name>
+          <com:Name xml:lang="fr">Serbie, République de</com:Name>
+          <com:Name xml:lang="es">Serbia, República de</com:Name>
+          <com:Name xml:lang="zh">塞尔维亚共和国</com:Name>
+        </str:Code>
+        <str:Code id="SYC" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).SYC">
+          <com:Name xml:lang="ar">سيشل</com:Name>
+          <com:Name xml:lang="ru">Сейшельские Острова</com:Name>
+          <com:Name xml:lang="ja">セーシェル</com:Name>
+          <com:Name xml:lang="en">Seychelles</com:Name>
+          <com:Name xml:lang="fr">Seychelles</com:Name>
+          <com:Name xml:lang="es">Seychelles</com:Name>
+          <com:Name xml:lang="zh">塞舌尔</com:Name>
+        </str:Code>
+        <str:Code id="SLE" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).SLE">
+          <com:Name xml:lang="ar">سيراليون</com:Name>
+          <com:Name xml:lang="ru">Сьерра-Леоне</com:Name>
+          <com:Name xml:lang="ja">シエラレオネ</com:Name>
+          <com:Name xml:lang="en">Sierra Leone</com:Name>
+          <com:Name xml:lang="fr">Sierra Leone</com:Name>
+          <com:Name xml:lang="es">Sierra Leona</com:Name>
+          <com:Name xml:lang="zh">塞拉利昂</com:Name>
+        </str:Code>
+        <str:Code id="SGP" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).SGP">
+          <com:Name xml:lang="ar">سنغافورة</com:Name>
+          <com:Name xml:lang="ru">Сингапур</com:Name>
+          <com:Name xml:lang="ja">シンガポール</com:Name>
+          <com:Name xml:lang="en">Singapore</com:Name>
+          <com:Name xml:lang="fr">Singapour</com:Name>
+          <com:Name xml:lang="es">Singapur</com:Name>
+          <com:Name xml:lang="zh">新加坡</com:Name>
+        </str:Code>
+        <str:Code id="SXM" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).SXM">
+          <com:Name xml:lang="ar">سينت مارتن، مملكة هولندا</com:Name>
+          <com:Name xml:lang="ru">Синт-Мартен, Королевство Нидерланды</com:Name>
+          <com:Name xml:lang="ja">オランダ領シント・マールテン</com:Name>
+          <com:Name xml:lang="en">Sint Maarten, Kingdom of the Netherlands</com:Name>
+          <com:Name xml:lang="fr">Sint Maarten, Royaume des Pays-Bas</com:Name>
+          <com:Name xml:lang="es">San Martín, Reino de los Países Bajos</com:Name>
+          <com:Name xml:lang="zh">圣马丁，荷兰王国</com:Name>
+        </str:Code>
+        <str:Code id="SVK" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).SVK">
+          <com:Name xml:lang="ar">الجمهورية السلوفاكية</com:Name>
+          <com:Name xml:lang="ru">Словацкая Республика</com:Name>
+          <com:Name xml:lang="ja">スロバキア共和国</com:Name>
+          <com:Name xml:lang="en">Slovak Republic</com:Name>
+          <com:Name xml:lang="fr">République slovaque</com:Name>
+          <com:Name xml:lang="es">República Eslovaca</com:Name>
+          <com:Name xml:lang="zh">斯洛伐克共和国</com:Name>
+        </str:Code>
+        <str:Code id="SVN" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).SVN">
+          <com:Name xml:lang="ar">جمهورية سلوفينيا</com:Name>
+          <com:Name xml:lang="ru">Словения, Республика</com:Name>
+          <com:Name xml:lang="ja">スロベニア共和国</com:Name>
+          <com:Name xml:lang="en">Slovenia, Republic of</com:Name>
+          <com:Name xml:lang="fr">Slovénie, République de</com:Name>
+          <com:Name xml:lang="es">Eslovenia, República de</com:Name>
+          <com:Name xml:lang="zh">斯洛文尼亚共和国</com:Name>
+        </str:Code>
+        <str:Code id="SLB" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).SLB">
+          <com:Name xml:lang="ar">جزر سليمان</com:Name>
+          <com:Name xml:lang="ru">Соломоновы Острова</com:Name>
+          <com:Name xml:lang="ja">ソロモン諸島</com:Name>
+          <com:Name xml:lang="en">Solomon Islands</com:Name>
+          <com:Name xml:lang="fr">Îles Salomon</com:Name>
+          <com:Name xml:lang="es">Islas Salomón</com:Name>
+          <com:Name xml:lang="zh">所罗门群岛</com:Name>
+        </str:Code>
+        <str:Code id="SOM" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).SOM">
+          <com:Name xml:lang="ar">الصومال</com:Name>
+          <com:Name xml:lang="ru">Сомали</com:Name>
+          <com:Name xml:lang="ja">ソマリア</com:Name>
+          <com:Name xml:lang="en">Somalia</com:Name>
+          <com:Name xml:lang="fr">Somalie</com:Name>
+          <com:Name xml:lang="es">Somalia</com:Name>
+          <com:Name xml:lang="zh">索马里</com:Name>
+        </str:Code>
+        <str:Code id="ZAF" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).ZAF">
+          <com:Name xml:lang="ar">جنوب إفريقيا</com:Name>
+          <com:Name xml:lang="ru">Южно-Африканская Республика</com:Name>
+          <com:Name xml:lang="ja">南アフリカ</com:Name>
+          <com:Name xml:lang="en">South Africa</com:Name>
+          <com:Name xml:lang="fr">Afrique du Sud</com:Name>
+          <com:Name xml:lang="es">Sudáfrica</com:Name>
+          <com:Name xml:lang="zh">南非</com:Name>
+        </str:Code>
+        <str:Code id="SSD" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).SSD">
+          <com:Name xml:lang="ar">جمهورية جنوب السودان</com:Name>
+          <com:Name xml:lang="ru">Южный Судан, Республика</com:Name>
+          <com:Name xml:lang="ja">南スーダン共和国</com:Name>
+          <com:Name xml:lang="en">South Sudan, Republic of</com:Name>
+          <com:Name xml:lang="fr">Soudan du Sud, République du</com:Name>
+          <com:Name xml:lang="es">Sudán del Sur, República de</com:Name>
+          <com:Name xml:lang="zh">南苏丹共和国</com:Name>
+        </str:Code>
+        <str:Code id="ESP" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).ESP">
+          <com:Name xml:lang="ar">إسبانيا</com:Name>
+          <com:Name xml:lang="ru">Испания</com:Name>
+          <com:Name xml:lang="ja">スペイン</com:Name>
+          <com:Name xml:lang="en">Spain</com:Name>
+          <com:Name xml:lang="fr">Espagne</com:Name>
+          <com:Name xml:lang="es">España</com:Name>
+          <com:Name xml:lang="zh">西班牙</com:Name>
+        </str:Code>
+        <str:Code id="LKA" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).LKA">
+          <com:Name xml:lang="ar">سري لانكا</com:Name>
+          <com:Name xml:lang="ru">Шри Ланка</com:Name>
+          <com:Name xml:lang="ja">スリランカ</com:Name>
+          <com:Name xml:lang="en">Sri Lanka</com:Name>
+          <com:Name xml:lang="fr">Sri Lanka</com:Name>
+          <com:Name xml:lang="es">Sri Lanka</com:Name>
+          <com:Name xml:lang="zh">斯里兰卡</com:Name>
+        </str:Code>
+        <str:Code id="SHN" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).SHN">
+          <com:Name xml:lang="ar">سانت هيلينا</com:Name>
+          <com:Name xml:lang="ru">Св. Елены, Остров</com:Name>
+          <com:Name xml:lang="ja">セントヘレナ</com:Name>
+          <com:Name xml:lang="en">St. Helena</com:Name>
+          <com:Name xml:lang="fr">Sainte-Hélène</com:Name>
+          <com:Name xml:lang="es">Santa Elena</com:Name>
+          <com:Name xml:lang="zh">圣赫勒拿岛</com:Name>
+        </str:Code>
+        <str:Code id="KNA" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).KNA">
+          <com:Name xml:lang="ar">سانت كيتس ونيفس</com:Name>
+          <com:Name xml:lang="ru">Сент-Китс и Невис</com:Name>
+          <com:Name xml:lang="ja">セントクリストファー・ネービス</com:Name>
+          <com:Name xml:lang="en">St. Kitts and Nevis</com:Name>
+          <com:Name xml:lang="fr">Saint-Kitts-et-Nevis</com:Name>
+          <com:Name xml:lang="es">San Kitts y Nevis</com:Name>
+          <com:Name xml:lang="zh">圣基茨和尼维斯</com:Name>
+        </str:Code>
+        <str:Code id="LCA" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).LCA">
+          <com:Name xml:lang="ar">سانت لوسيا</com:Name>
+          <com:Name xml:lang="ru">Сент-Люсия</com:Name>
+          <com:Name xml:lang="ja">セントルシア</com:Name>
+          <com:Name xml:lang="en">St. Lucia</com:Name>
+          <com:Name xml:lang="fr">Sainte-Lucie</com:Name>
+          <com:Name xml:lang="es">Santa Lucía</com:Name>
+          <com:Name xml:lang="zh">圣卢西亚</com:Name>
+        </str:Code>
+        <str:Code id="SPM" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).SPM">
+          <com:Name xml:lang="ar">سانت بيير وميكلون</com:Name>
+          <com:Name xml:lang="ru">Сен-Пьер и Микелон</com:Name>
+          <com:Name xml:lang="ja">サンピエール・ミクロン</com:Name>
+          <com:Name xml:lang="en">St. Pierre and Miquelon</com:Name>
+          <com:Name xml:lang="fr">Saint-Pierre-et-Miquelon</com:Name>
+          <com:Name xml:lang="es">San Pedro y Miquelón</com:Name>
+          <com:Name xml:lang="zh">圣皮埃尔和密克隆</com:Name>
+        </str:Code>
+        <str:Code id="VCT" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).VCT">
+          <com:Name xml:lang="ar">سانت فينسنت وجزر غرينادين</com:Name>
+          <com:Name xml:lang="ru">Сент-Винсент и Гренадины</com:Name>
+          <com:Name xml:lang="ja">セントビンセントおよびグレナディーン諸島</com:Name>
+          <com:Name xml:lang="en">St. Vincent and the Grenadines</com:Name>
+          <com:Name xml:lang="fr">Saint-Vincent-et-les Grenadines</com:Name>
+          <com:Name xml:lang="es">San Vicente y las Granadinas</com:Name>
+          <com:Name xml:lang="zh">圣文森特和格林纳丁斯</com:Name>
+        </str:Code>
+        <str:Code id="SDN" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).SDN">
+          <com:Name xml:lang="ar">السودان</com:Name>
+          <com:Name xml:lang="ru">Судан</com:Name>
+          <com:Name xml:lang="ja">スーダン</com:Name>
+          <com:Name xml:lang="en">Sudan</com:Name>
+          <com:Name xml:lang="fr">Soudan</com:Name>
+          <com:Name xml:lang="es">Sudán</com:Name>
+          <com:Name xml:lang="zh">苏丹</com:Name>
+        </str:Code>
+        <str:Code id="SUR" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).SUR">
+          <com:Name xml:lang="ar">سورينام</com:Name>
+          <com:Name xml:lang="ru">Суринам</com:Name>
+          <com:Name xml:lang="ja">スリナム</com:Name>
+          <com:Name xml:lang="en">Suriname</com:Name>
+          <com:Name xml:lang="fr">Suriname</com:Name>
+          <com:Name xml:lang="es">Suriname</com:Name>
+          <com:Name xml:lang="zh">苏里南</com:Name>
+        </str:Code>
+        <str:Code id="SJM" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).SJM">
+          <com:Name xml:lang="ar">جزر سفالبارد وجان ماين</com:Name>
+          <com:Name xml:lang="ru">Шпицберген и Ян-Майен</com:Name>
+          <com:Name xml:lang="ja">スヴァールバル諸島およびヤンマイエン島</com:Name>
+          <com:Name xml:lang="en">Svalbard and Jan Mayen Islands</com:Name>
+          <com:Name xml:lang="fr">Îles Svalbard et Jan Mayen</com:Name>
+          <com:Name xml:lang="es">Islas Svalbard y Jan Mayen</com:Name>
+          <com:Name xml:lang="zh">斯瓦尔巴群岛和扬马廷岛</com:Name>
+        </str:Code>
+        <str:Code id="SWE" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).SWE">
+          <com:Name xml:lang="ar">السويد</com:Name>
+          <com:Name xml:lang="ru">Швеция</com:Name>
+          <com:Name xml:lang="ja">スウェーデン</com:Name>
+          <com:Name xml:lang="en">Sweden</com:Name>
+          <com:Name xml:lang="fr">Suède</com:Name>
+          <com:Name xml:lang="es">Suecia</com:Name>
+          <com:Name xml:lang="zh">瑞典</com:Name>
+        </str:Code>
+        <str:Code id="CHE" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).CHE">
+          <com:Name xml:lang="ar">سويسرا</com:Name>
+          <com:Name xml:lang="ru">Швейцария</com:Name>
+          <com:Name xml:lang="ja">スイス</com:Name>
+          <com:Name xml:lang="en">Switzerland</com:Name>
+          <com:Name xml:lang="fr">Suisse</com:Name>
+          <com:Name xml:lang="es">Suiza</com:Name>
+          <com:Name xml:lang="zh">瑞士</com:Name>
+        </str:Code>
+        <str:Code id="SYR" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).SYR">
+          <com:Name xml:lang="ar">الجمهورية العربية السورية</com:Name>
+          <com:Name xml:lang="ru">Сирийская Арабская Республика</com:Name>
+          <com:Name xml:lang="ja">シリア・アラブ共和国</com:Name>
+          <com:Name xml:lang="en">Syrian Arab Republic</com:Name>
+          <com:Name xml:lang="fr">République arabe syrienne</com:Name>
+          <com:Name xml:lang="es">República Árabe Siria</com:Name>
+          <com:Name xml:lang="zh">阿拉伯叙利亚共和国</com:Name>
+        </str:Code>
+        <str:Code id="STP" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).STP">
+          <com:Name xml:lang="ar">جمهورية سان تومي وبرينسيبي الديمقراطية</com:Name>
+          <com:Name xml:lang="ru">Сан-Томе и Принсипи, Демократическая Республика</com:Name>
+          <com:Name xml:lang="ja">サントメ・プリンシペ民主共和国</com:Name>
+          <com:Name xml:lang="en">São Tomé and Príncipe, Democratic Republic of</com:Name>
+          <com:Name xml:lang="fr">Sao Tomé-et-Principe, République démocratique de</com:Name>
+          <com:Name xml:lang="es">Santo Tomé y Príncipe, República Democrática de</com:Name>
+          <com:Name xml:lang="zh">圣多美和普林西比民主共和国</com:Name>
+        </str:Code>
+        <str:Code id="TWN" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).TWN">
+          <com:Name xml:lang="ar">مقاطعة تايوان الصينية</com:Name>
+          <com:Name xml:lang="ru">Тайвань, провинция Китая</com:Name>
+          <com:Name xml:lang="ja">台湾（中国）</com:Name>
+          <com:Name xml:lang="en">Taiwan Province of China</com:Name>
+          <com:Name xml:lang="fr">Taiwan, province chinoise de</com:Name>
+          <com:Name xml:lang="es">Provincia china de Taiwan</com:Name>
+          <com:Name xml:lang="zh">中国台湾省</com:Name>
+        </str:Code>
+        <str:Code id="TJK" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).TJK">
+          <com:Name xml:lang="ar">جمهورية طاجيكستان</com:Name>
+          <com:Name xml:lang="ru">Таджикистан, Республика</com:Name>
+          <com:Name xml:lang="ja">タジキスタン共和国</com:Name>
+          <com:Name xml:lang="en">Tajikistan, Republic of</com:Name>
+          <com:Name xml:lang="fr">Tadjikistan, République du</com:Name>
+          <com:Name xml:lang="es">Tayikistán, República de</com:Name>
+          <com:Name xml:lang="zh">塔吉克斯坦共和国</com:Name>
+        </str:Code>
+        <str:Code id="TZA" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).TZA">
+          <com:Name xml:lang="ar">جمهورية تنزانيا المتحدة</com:Name>
+          <com:Name xml:lang="ru">Танзания, Объединенная Республика</com:Name>
+          <com:Name xml:lang="ja">タンザニア連合共和国</com:Name>
+          <com:Name xml:lang="en">Tanzania, United Republic of</com:Name>
+          <com:Name xml:lang="fr">Tanzanie, République-Unie de</com:Name>
+          <com:Name xml:lang="es">Tanzanía, República Unida de</com:Name>
+          <com:Name xml:lang="zh">坦桑尼亚联合共和国</com:Name>
+        </str:Code>
+        <str:Code id="THA" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).THA">
+          <com:Name xml:lang="ar">تايلند</com:Name>
+          <com:Name xml:lang="ru">Таиланд</com:Name>
+          <com:Name xml:lang="ja">タイ</com:Name>
+          <com:Name xml:lang="en">Thailand</com:Name>
+          <com:Name xml:lang="fr">Thaïlande</com:Name>
+          <com:Name xml:lang="es">Tailandia</com:Name>
+          <com:Name xml:lang="zh">泰国</com:Name>
+        </str:Code>
+        <str:Code id="TLS" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).TLS">
+          <com:Name xml:lang="ar">جمهورية تيمور - ليشتي الديمقراطية</com:Name>
+          <com:Name xml:lang="ru">Тимор-Лешти, Демократическая Республика</com:Name>
+          <com:Name xml:lang="ja">東ティモール民主共和国</com:Name>
+          <com:Name xml:lang="en">Timor-Leste, Democratic Republic of</com:Name>
+          <com:Name xml:lang="fr">Timor-Leste, République démocratique du</com:Name>
+          <com:Name xml:lang="es">Timor-Leste, República Democrática de</com:Name>
+          <com:Name xml:lang="zh">东帝汶民主共和国</com:Name>
+        </str:Code>
+        <str:Code id="TGO" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).TGO">
+          <com:Name xml:lang="ar">توغو</com:Name>
+          <com:Name xml:lang="ru">Того</com:Name>
+          <com:Name xml:lang="ja">トーゴ</com:Name>
+          <com:Name xml:lang="en">Togo</com:Name>
+          <com:Name xml:lang="fr">Togo</com:Name>
+          <com:Name xml:lang="es">Togo</com:Name>
+          <com:Name xml:lang="zh">多哥</com:Name>
+        </str:Code>
+        <str:Code id="TKL" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).TKL">
+          <com:Name xml:lang="ar">توكلو</com:Name>
+          <com:Name xml:lang="ru">Токелау</com:Name>
+          <com:Name xml:lang="ja">トケラウ</com:Name>
+          <com:Name xml:lang="en">Tokelau</com:Name>
+          <com:Name xml:lang="fr">Tokélaou</com:Name>
+          <com:Name xml:lang="es">Tokelau</com:Name>
+          <com:Name xml:lang="zh">托克劳群岛</com:Name>
+        </str:Code>
+        <str:Code id="TON" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).TON">
+          <com:Name xml:lang="ar">تونغا</com:Name>
+          <com:Name xml:lang="ru">Тонга</com:Name>
+          <com:Name xml:lang="ja">トンガ</com:Name>
+          <com:Name xml:lang="en">Tonga</com:Name>
+          <com:Name xml:lang="fr">Tonga</com:Name>
+          <com:Name xml:lang="es">Tonga</com:Name>
+          <com:Name xml:lang="zh">汤加</com:Name>
+        </str:Code>
+        <str:Code id="TTO" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).TTO">
+          <com:Name xml:lang="ar">ترينيداد وتوباغو</com:Name>
+          <com:Name xml:lang="ru">Тринидад и Тобаго</com:Name>
+          <com:Name xml:lang="ja">トリニダード・トバゴ</com:Name>
+          <com:Name xml:lang="en">Trinidad and Tobago</com:Name>
+          <com:Name xml:lang="fr">Trinité-et-Tobago</com:Name>
+          <com:Name xml:lang="es">Trinidad y Tabago</com:Name>
+          <com:Name xml:lang="zh">特立尼达和多巴哥</com:Name>
+        </str:Code>
+        <str:Code id="TUN" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).TUN">
+          <com:Name xml:lang="ar">تونس</com:Name>
+          <com:Name xml:lang="ru">Тунис</com:Name>
+          <com:Name xml:lang="ja">チュニジア</com:Name>
+          <com:Name xml:lang="en">Tunisia</com:Name>
+          <com:Name xml:lang="fr">Tunisie</com:Name>
+          <com:Name xml:lang="es">Túnez</com:Name>
+          <com:Name xml:lang="zh">突尼斯</com:Name>
+        </str:Code>
+        <str:Code id="TKM" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).TKM">
+          <com:Name xml:lang="ar">تركمانستان</com:Name>
+          <com:Name xml:lang="ru">Туркменистан</com:Name>
+          <com:Name xml:lang="ja">トルクメニスタン</com:Name>
+          <com:Name xml:lang="en">Turkmenistan</com:Name>
+          <com:Name xml:lang="fr">Turkménistan</com:Name>
+          <com:Name xml:lang="es">Turkmenistán</com:Name>
+          <com:Name xml:lang="zh">土库曼斯坦</com:Name>
+        </str:Code>
+        <str:Code id="TCA" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).TCA">
+          <com:Name xml:lang="ar">جزر تركس وكايكوس</com:Name>
+          <com:Name xml:lang="ru">Острова Теркс и Кайкос</com:Name>
+          <com:Name xml:lang="ja">タークス・カイコス諸島</com:Name>
+          <com:Name xml:lang="en">Turks and Caicos Islands</com:Name>
+          <com:Name xml:lang="fr">Îles Turques et Caïques</com:Name>
+          <com:Name xml:lang="es">Islas Turcas y Caicos</com:Name>
+          <com:Name xml:lang="zh">特克斯和凯科斯群岛</com:Name>
+        </str:Code>
+        <str:Code id="TUV" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).TUV">
+          <com:Name xml:lang="ar">توفالو</com:Name>
+          <com:Name xml:lang="ru">Тувалу</com:Name>
+          <com:Name xml:lang="ja">ツバル</com:Name>
+          <com:Name xml:lang="en">Tuvalu</com:Name>
+          <com:Name xml:lang="fr">Tuvalu</com:Name>
+          <com:Name xml:lang="es">Tuvalu</com:Name>
+          <com:Name xml:lang="zh">图瓦卢</com:Name>
+        </str:Code>
+        <str:Code id="TUR" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).TUR">
+          <com:Name xml:lang="ar">الجمهورية التركية</com:Name>
+          <com:Name xml:lang="ru">Турецкая Республика</com:Name>
+          <com:Name xml:lang="ja">トルコ共和国</com:Name>
+          <com:Name xml:lang="en">Türkiye, Republic of</com:Name>
+          <com:Name xml:lang="fr">Türkiye, République de</com:Name>
+          <com:Name xml:lang="es">Türkiye, República de</com:Name>
+          <com:Name xml:lang="zh">土耳其共和国</com:Name>
+        </str:Code>
+        <str:Code id="UGA" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).UGA">
+          <com:Name xml:lang="ar">أوغندا</com:Name>
+          <com:Name xml:lang="ru">Уганда</com:Name>
+          <com:Name xml:lang="ja">ウガンダ</com:Name>
+          <com:Name xml:lang="en">Uganda</com:Name>
+          <com:Name xml:lang="fr">Ouganda</com:Name>
+          <com:Name xml:lang="es">Uganda</com:Name>
+          <com:Name xml:lang="zh">乌干达</com:Name>
+        </str:Code>
+        <str:Code id="UKR" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).UKR">
+          <com:Name xml:lang="ar">أوكرانيا</com:Name>
+          <com:Name xml:lang="ru">Украина</com:Name>
+          <com:Name xml:lang="ja">ウクライナ</com:Name>
+          <com:Name xml:lang="en">Ukraine</com:Name>
+          <com:Name xml:lang="fr">Ukraine</com:Name>
+          <com:Name xml:lang="es">Ucrania</com:Name>
+          <com:Name xml:lang="zh">乌克兰</com:Name>
+        </str:Code>
+        <str:Code id="ARE" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).ARE">
+          <com:Name xml:lang="ar">الإمارات العربية المتحدة</com:Name>
+          <com:Name xml:lang="ru">Объединенные Арабские Эмираты</com:Name>
+          <com:Name xml:lang="ja">アラブ首長国連邦</com:Name>
+          <com:Name xml:lang="en">United Arab Emirates</com:Name>
+          <com:Name xml:lang="fr">Émirats arabes unis</com:Name>
+          <com:Name xml:lang="es">Emiratos Árabes Unidos</com:Name>
+          <com:Name xml:lang="zh">阿拉伯联合酋长国</com:Name>
+        </str:Code>
+        <str:Code id="GBR" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).GBR">
+          <com:Name xml:lang="ar">المملكة المتحدة</com:Name>
+          <com:Name xml:lang="ru">Соединенное Королевство</com:Name>
+          <com:Name xml:lang="ja">イギリス</com:Name>
+          <com:Name xml:lang="en">United Kingdom</com:Name>
+          <com:Name xml:lang="fr">Royaume-Uni</com:Name>
+          <com:Name xml:lang="es">Reino Unido</com:Name>
+          <com:Name xml:lang="zh">英国</com:Name>
+        </str:Code>
+        <str:Code id="USA" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).USA">
+          <com:Name xml:lang="ar">الولايات المتحدة</com:Name>
+          <com:Name xml:lang="ru">Соединенные Штаты</com:Name>
+          <com:Name xml:lang="ja">アメリカ合衆国</com:Name>
+          <com:Name xml:lang="en">United States</com:Name>
+          <com:Name xml:lang="fr">États-Unis</com:Name>
+          <com:Name xml:lang="es">Estados Unidos</com:Name>
+          <com:Name xml:lang="zh">美国</com:Name>
+        </str:Code>
+        <str:Code id="VIR" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).VIR">
+          <com:Name xml:lang="ar">جزر فرجن الأمريكية</com:Name>
+          <com:Name xml:lang="ru">Виргинские Острова Соединенных Штатов</com:Name>
+          <com:Name xml:lang="ja">アメリカ領バージン諸島</com:Name>
+          <com:Name xml:lang="en">United States Virgin Islands</com:Name>
+          <com:Name xml:lang="fr">Îles vierges américaines</com:Name>
+          <com:Name xml:lang="es">Islas Vírgenes de los Estados Unidos de América</com:Name>
+          <com:Name xml:lang="zh">美属维尔京群岛</com:Name>
+        </str:Code>
+        <str:Code id="URY" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).URY">
+          <com:Name xml:lang="ar">أوروغواي</com:Name>
+          <com:Name xml:lang="ru">Уругвай</com:Name>
+          <com:Name xml:lang="ja">ウルグアイ</com:Name>
+          <com:Name xml:lang="en">Uruguay</com:Name>
+          <com:Name xml:lang="fr">Uruguay</com:Name>
+          <com:Name xml:lang="es">Uruguay</com:Name>
+          <com:Name xml:lang="zh">乌拉圭</com:Name>
+        </str:Code>
+        <str:Code id="UZB" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).UZB">
+          <com:Name xml:lang="ar">جمهورية أوزبكستان</com:Name>
+          <com:Name xml:lang="ru">Узбекистан, Республика</com:Name>
+          <com:Name xml:lang="ja">ウズベキスタン共和国</com:Name>
+          <com:Name xml:lang="en">Uzbekistan, Republic of</com:Name>
+          <com:Name xml:lang="fr">Ouzbékistan, République d’</com:Name>
+          <com:Name xml:lang="es">Uzbekistán, República de</com:Name>
+          <com:Name xml:lang="zh">乌兹别克斯坦共和国</com:Name>
+        </str:Code>
+        <str:Code id="VUT" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).VUT">
+          <com:Name xml:lang="ar">فانواتو</com:Name>
+          <com:Name xml:lang="ru">Вануату</com:Name>
+          <com:Name xml:lang="ja">バヌアツ</com:Name>
+          <com:Name xml:lang="en">Vanuatu</com:Name>
+          <com:Name xml:lang="fr">Vanuatu</com:Name>
+          <com:Name xml:lang="es">Vanuatu</com:Name>
+          <com:Name xml:lang="zh">瓦努阿图</com:Name>
+        </str:Code>
+        <str:Code id="VEN" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).VEN">
+          <com:Name xml:lang="ar">جمهورية فنزويلا البوليفارية</com:Name>
+          <com:Name xml:lang="ru">Венесуэла, Боливарианская Республика</com:Name>
+          <com:Name xml:lang="ja">ベネズエラ・ボリバル共和国</com:Name>
+          <com:Name xml:lang="en">Venezuela, República Bolivariana de</com:Name>
+          <com:Name xml:lang="fr">Venezuela, République bolivarienne du</com:Name>
+          <com:Name xml:lang="es">Venezuela, República Bolivariana de</com:Name>
+          <com:Name xml:lang="zh">委内瑞拉玻利瓦尔共和国</com:Name>
+        </str:Code>
+        <str:Code id="VNM" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).VNM">
+          <com:Name xml:lang="ar">فييت نام</com:Name>
+          <com:Name xml:lang="ru">Вьетнам</com:Name>
+          <com:Name xml:lang="ja">ベトナム</com:Name>
+          <com:Name xml:lang="en">Vietnam</com:Name>
+          <com:Name xml:lang="fr">Viet Nam</com:Name>
+          <com:Name xml:lang="es">Viet Nam</com:Name>
+          <com:Name xml:lang="zh">越南</com:Name>
+        </str:Code>
+        <str:Code id="WLF" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).WLF">
+          <com:Name xml:lang="ar">جزر واليس وفوتونا</com:Name>
+          <com:Name xml:lang="ru">Острова Уоллис и Футуна</com:Name>
+          <com:Name xml:lang="ja">ウォリス・ フツナ</com:Name>
+          <com:Name xml:lang="en">Wallis and Futuna Islands</com:Name>
+          <com:Name xml:lang="fr">Îles Wallis et Futuna</com:Name>
+          <com:Name xml:lang="es">Islas Wallis y Futuna</com:Name>
+          <com:Name xml:lang="zh">瓦利斯群岛和富图纳群岛</com:Name>
+        </str:Code>
+        <str:Code id="WBG" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).WBG">
+          <com:Name xml:lang="ar">الضفة الغربية وغزة</com:Name>
+          <com:Name xml:lang="ru">Западный берег и Газа</com:Name>
+          <com:Name xml:lang="ja">西岸・ガザ地区</com:Name>
+          <com:Name xml:lang="en">West Bank and Gaza</com:Name>
+          <com:Name xml:lang="fr">Cisjordanie et Gaza</com:Name>
+          <com:Name xml:lang="es">Ribera Occidental y Gaza</com:Name>
+          <com:Name xml:lang="zh">西岸和加沙</com:Name>
+        </str:Code>
+        <str:Code id="YEM" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).YEM">
+          <com:Name xml:lang="ar">الجمهورية اليمنية</com:Name>
+          <com:Name xml:lang="ru">Йемен, Республика</com:Name>
+          <com:Name xml:lang="ja">イエメン共和国</com:Name>
+          <com:Name xml:lang="en">Yemen, Republic of</com:Name>
+          <com:Name xml:lang="fr">Yémen, République du</com:Name>
+          <com:Name xml:lang="es">Yemen, República del</com:Name>
+          <com:Name xml:lang="zh">也门共和国</com:Name>
+        </str:Code>
+        <str:Code id="ZMB" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).ZMB">
+          <com:Name xml:lang="ar">زامبيا</com:Name>
+          <com:Name xml:lang="ru">Замбия</com:Name>
+          <com:Name xml:lang="ja">ザンビア</com:Name>
+          <com:Name xml:lang="en">Zambia</com:Name>
+          <com:Name xml:lang="fr">Zambie</com:Name>
+          <com:Name xml:lang="es">Zambia</com:Name>
+          <com:Name xml:lang="zh">赞比亚</com:Name>
+        </str:Code>
+        <str:Code id="ZWE" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).ZWE">
+          <com:Name xml:lang="ar">زمبابوي</com:Name>
+          <com:Name xml:lang="ru">Зимбабве</com:Name>
+          <com:Name xml:lang="ja">ジンバブエ</com:Name>
+          <com:Name xml:lang="en">Zimbabwe</com:Name>
+          <com:Name xml:lang="fr">Zimbabwe</com:Name>
+          <com:Name xml:lang="es">Zimbabwe</com:Name>
+          <com:Name xml:lang="zh">津巴布韦</com:Name>
+        </str:Code>
+        <str:Code id="ALA" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).ALA">
+          <com:Name xml:lang="ar">جزر أولاند</com:Name>
+          <com:Name xml:lang="ru">Аландские острова</com:Name>
+          <com:Name xml:lang="ja">オーランド諸島</com:Name>
+          <com:Name xml:lang="en">Åland Islands</com:Name>
+          <com:Name xml:lang="fr">Åland</com:Name>
+          <com:Name xml:lang="es">Islas Aland</com:Name>
+          <com:Name xml:lang="zh">阿兰群岛</com:Name>
+        </str:Code>
+        <str:Code id="BES" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).BES">
+          <com:Name xml:lang="ar">جزر بونير وسان يوستاتيوس وسابا</com:Name>
+          <com:Name xml:lang="ru">Бонайре, Синт-Эстатиус и Саба</com:Name>
+          <com:Name xml:lang="ja">ボネール、シント・ユースタティウスおよびサバ</com:Name>
+          <com:Name xml:lang="en">Bonaire, Saint Eustatius and Saba</com:Name>
+          <com:Name xml:lang="fr">Bonaire, Saint-Eustache et Saba</com:Name>
+          <com:Name xml:lang="es">Bonaire, San Eustaquio y Saba</com:Name>
+          <com:Name xml:lang="zh">博内尔、圣尤斯特歇斯和萨巴</com:Name>
+        </str:Code>
+        <str:Code id="ATF" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).ATF">
+          <com:Name xml:lang="ar">الأراضي الفرنسية الجنوبية</com:Name>
+          <com:Name xml:lang="ru">Французские Южные территории</com:Name>
+          <com:Name xml:lang="ja">フランス領南方地域</com:Name>
+          <com:Name xml:lang="en">French Southern Territories</com:Name>
+          <com:Name xml:lang="fr">Terres australes françaises</com:Name>
+          <com:Name xml:lang="es">Territorios Australes Franceses</com:Name>
+          <com:Name xml:lang="zh">法属南部领地</com:Name>
+        </str:Code>
+        <str:Code id="CWX" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).CWX">
+          <com:Name xml:lang="ar">كوراساو وسينت مارتن</com:Name>
+          <com:Name xml:lang="ru">Кюрасао и Синт-Мартен</com:Name>
+          <com:Name xml:lang="ja">キュラソーとシント・マールテン</com:Name>
+          <com:Name xml:lang="en">Curaçao and Sint Maarten</com:Name>
+          <com:Name xml:lang="fr">Curaçao et Saint-Martin</com:Name>
+          <com:Name xml:lang="es">Curazao y Sint Maarten</com:Name>
+          <com:Name xml:lang="zh">库拉索和圣马丁</com:Name>
+          <com:Description xml:lang="en">2010: Curaçao and Sint Maarten became a constituent country within the Kingdom of the Netherlands in 2010.</com:Description>
+        </str:Code>
+        <str:Code id="CSK" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).CSK">
+          <com:Name xml:lang="ar">تشيكوسلوفاكيا</com:Name>
+          <com:Name xml:lang="ru">Чехословакия</com:Name>
+          <com:Name xml:lang="ja">チェコスロバキア</com:Name>
+          <com:Name xml:lang="en">Czechoslovakia</com:Name>
+          <com:Name xml:lang="fr">Tchécoslovaquie</com:Name>
+          <com:Name xml:lang="es">Checoslovaquia</com:Name>
+          <com:Name xml:lang="zh">捷克斯洛伐克</com:Name>
+          <com:Description xml:lang="en">1993: Dissolved, forming Czech Republic (CZE) and Slovakia (SVK).</com:Description>
+        </str:Code>
+        <str:Code id="DDR" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).DDR">
+          <com:Name xml:lang="ar">جمهورية ألمانيا الديمقراطية</com:Name>
+          <com:Name xml:lang="ru">Германская Демократическая Республика</com:Name>
+          <com:Name xml:lang="ja">ドイツ民主共和国 (東ドイツ)</com:Name>
+          <com:Name xml:lang="en">German Democratic Republic</com:Name>
+          <com:Name xml:lang="fr">République démocratique allemande</com:Name>
+          <com:Name xml:lang="es">República Democrática Alemana</com:Name>
+          <com:Name xml:lang="zh">德意志民主共和国</com:Name>
+          <com:Description xml:lang="en">1990: Reunified with the Federal Republic of Germany to form Germany (DEU).</com:Description>
+        </str:Code>
+        <str:Code id="ANT" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).ANT">
+          <com:Name xml:lang="ar">جزر الأنتيل الهولندية</com:Name>
+          <com:Name xml:lang="ru">Нидерландские Антильские острова</com:Name>
+          <com:Name xml:lang="ja">オランダ領アンティル</com:Name>
+          <com:Name xml:lang="en">Netherlands Antilles</com:Name>
+          <com:Name xml:lang="fr">Antilles néerlandaises</com:Name>
+          <com:Name xml:lang="es">Antillas Neerlandesas</com:Name>
+          <com:Name xml:lang="zh">荷属安的列斯</com:Name>
+          <com:Description xml:lang="en">2010: Dissolved. Curaçao and Sint Maarten became constituent countries within the Kingdom of the Netherlands, and Bonaire, Sint Eustatius, and Saba became special municipalities of the Netherlands.</com:Description>
+        </str:Code>
+        <str:Code id="VDR" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).VDR">
+          <com:Name xml:lang="ar">جمهورية فيتنام الديمقراطية</com:Name>
+          <com:Name xml:lang="ru">Демократическая Республика Вьетнам</com:Name>
+          <com:Name xml:lang="ja">ベトナム民主共和国 (北ベトナム)</com:Name>
+          <com:Name xml:lang="en">Vietnam, Democratic Republic of</com:Name>
+          <com:Name xml:lang="fr">République démocratique du Viêt Nam</com:Name>
+          <com:Name xml:lang="es">República Democrática de Vietnam</com:Name>
+          <com:Name xml:lang="zh">越南民主共和国</com:Name>
+          <com:Description xml:lang="en">1977: Unified with the Republic of Vietnam (South Vietnam) to form Vietnam (VNM).</com:Description>
+        </str:Code>
+        <str:Code id="SCG" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).SCG">
+          <com:Name xml:lang="ar">صربيا والجبل الأسود</com:Name>
+          <com:Name xml:lang="ru">Сербия и Черногория</com:Name>
+          <com:Name xml:lang="ja">セルビア・モンテネグロ</com:Name>
+          <com:Name xml:lang="en">Serbia and Montenegro</com:Name>
+          <com:Name xml:lang="fr">Serbie-et-Monténégro</com:Name>
+          <com:Name xml:lang="es">Serbia y Montenegro</com:Name>
+          <com:Name xml:lang="zh">塞尔维亚和黑山</com:Name>
+          <com:Description xml:lang="en">2006: Became Serbia (SRB) and Montenegro (MNE).</com:Description>
+        </str:Code>
+        <str:Code id="SUN" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).SUN">
+          <com:Name xml:lang="ar">اتحاد الجمهوريات الاشتراكية السوفياتية</com:Name>
+          <com:Name xml:lang="ru">Союз Советских Социалистических Республик</com:Name>
+          <com:Name xml:lang="ja">ソビエト社会主義共和国連邦</com:Name>
+          <com:Name xml:lang="en">Union of Soviet Socialist Republics (USSR)</com:Name>
+          <com:Name xml:lang="fr">Union des républiques socialistes soviétiques</com:Name>
+          <com:Name xml:lang="es">Unión de Repúblicas Socialistas Soviéticas</com:Name>
+          <com:Name xml:lang="zh">苏联</com:Name>
+          <com:Description xml:lang="en">1992: Dissolved, forming multiple independent countries.</com:Description>
+        </str:Code>
+        <str:Code id="YAR" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).YAR">
+          <com:Name xml:lang="ar">الجمهورية العربية اليمنية</com:Name>
+          <com:Name xml:lang="ru">Йеменская Арабская Республика</com:Name>
+          <com:Name xml:lang="ja">イエメン・アラブ共和国</com:Name>
+          <com:Name xml:lang="en">Yemen Arab Republic</com:Name>
+          <com:Name xml:lang="fr">République arabe du Yémen</com:Name>
+          <com:Name xml:lang="es">República Árabe de Yemen</com:Name>
+          <com:Name xml:lang="zh">阿拉伯也门共和国</com:Name>
+          <com:Description xml:lang="en">1990: Unified with the People's Democratic Republic of Yemen to form Yemen (YEM).</com:Description>
+        </str:Code>
+        <str:Code id="YMD" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).YMD">
+          <com:Name xml:lang="ar">جمهورية اليمن الديمقراطية الشعبية</com:Name>
+          <com:Name xml:lang="ru">Народно-Демократическая Республика Йемен</com:Name>
+          <com:Name xml:lang="ja">イエメン人民民主共和国</com:Name>
+          <com:Name xml:lang="en">Yemen, People's Democratic Republic of</com:Name>
+          <com:Name xml:lang="fr">République démocratique populaire du Yémen</com:Name>
+          <com:Name xml:lang="es">República Democrática Popular de Yemen</com:Name>
+          <com:Name xml:lang="zh">也门民主人民共和国</com:Name>
+          <com:Description xml:lang="en">1990: Unified with the Yemen Arab Republic to form Yemen (YEM).</com:Description>
+        </str:Code>
+        <str:Code id="YUG" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).YUG">
+          <com:Name xml:lang="ar">جمهورية يوغوسلافيا الاتحادية الاشتراكية</com:Name>
+          <com:Name xml:lang="ru">Социалистическая Федеративная Республика Югославия</com:Name>
+          <com:Name xml:lang="ja">ユーゴスラビア社会主義連邦共和国</com:Name>
+          <com:Name xml:lang="en">Yugoslavia, Socialist Federal Republic of</com:Name>
+          <com:Name xml:lang="fr">République fédérative socialiste de Yougoslavie</com:Name>
+          <com:Name xml:lang="es">República Federativa Socialista de Yugoslavia</com:Name>
+          <com:Name xml:lang="zh">南斯拉夫社会主义联邦共和国</com:Name>
+          <com:Description xml:lang="en">1992: Dissolved, forming multiple independent countries.</com:Description>
+        </str:Code>
+        <str:Code id="U019" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).U019">
+          <com:Name xml:lang="ar">الأمريكيتان</com:Name>
+          <com:Name xml:lang="ru">Америка</com:Name>
+          <com:Name xml:lang="ja">アメリカ大陸</com:Name>
+          <com:Name xml:lang="en">Americas</com:Name>
+          <com:Name xml:lang="fr">Amériques</com:Name>
+          <com:Name xml:lang="es">América</com:Name>
+          <com:Name xml:lang="zh">美洲</com:Name>
+          <com:Description xml:lang="en">Geographic regions, as defined by the UN Standard codes for statistical use (M49): https://unstats.un.org/unsd/methodology/m49/</com:Description>
+        </str:Code>
+        <str:Code id="U015" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).U015">
+          <com:Name xml:lang="ar">شمال أفريقيا</com:Name>
+          <com:Name xml:lang="ru">Северная Африка</com:Name>
+          <com:Name xml:lang="ja">北アフリカ</com:Name>
+          <com:Name xml:lang="en">Northern Africa</com:Name>
+          <com:Name xml:lang="fr">Afrique du Nord</com:Name>
+          <com:Name xml:lang="es">Norte de África</com:Name>
+          <com:Name xml:lang="zh">北非</com:Name>
+          <com:Description xml:lang="en">Geographic regions, as defined by the UN Standard codes for statistical use (M49): https://unstats.un.org/unsd/methodology/m49/</com:Description>
+        </str:Code>
+        <str:Code id="U202" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).U202">
+          <com:Name xml:lang="ar">أفريقيا جنوب الصحراء الكبرى</com:Name>
+          <com:Name xml:lang="ru">Африка к югу от Сахары</com:Name>
+          <com:Name xml:lang="ja">サハラ以南のアフリカ</com:Name>
+          <com:Name xml:lang="en">Sub-Saharan Africa</com:Name>
+          <com:Name xml:lang="fr">Afrique subsaharienne</com:Name>
+          <com:Name xml:lang="es">África Subsahariana</com:Name>
+          <com:Name xml:lang="zh">撒哈拉以南非洲</com:Name>
+          <com:Description xml:lang="en">Geographic regions, as defined by the UN Standard codes for statistical use (M49): https://unstats.un.org/unsd/methodology/m49/</com:Description>
+        </str:Code>
+        <str:Code id="U002" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).U002">
+          <com:Name xml:lang="ar">أفريقيا</com:Name>
+          <com:Name xml:lang="ru">Африка</com:Name>
+          <com:Name xml:lang="ja">アフリカ</com:Name>
+          <com:Name xml:lang="en">Africa</com:Name>
+          <com:Name xml:lang="fr">Afrique</com:Name>
+          <com:Name xml:lang="es">África</com:Name>
+          <com:Name xml:lang="zh">非洲</com:Name>
+          <com:Description xml:lang="en">Geographic regions, as defined by the UN Standard codes for statistical use (M49): https://unstats.un.org/unsd/methodology/m49/</com:Description>
+        </str:Code>
+        <str:Code id="U142" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).U142">
+          <com:Name xml:lang="ar">آسيا</com:Name>
+          <com:Name xml:lang="ru">Азия</com:Name>
+          <com:Name xml:lang="ja">アジア</com:Name>
+          <com:Name xml:lang="en">Asia</com:Name>
+          <com:Name xml:lang="fr">Asie</com:Name>
+          <com:Name xml:lang="es">Asia</com:Name>
+          <com:Name xml:lang="zh">亚洲</com:Name>
+          <com:Description xml:lang="en">Geographic regions, as defined by the UN Standard codes for statistical use (M49): https://unstats.un.org/unsd/methodology/m49/</com:Description>
+        </str:Code>
+        <str:Code id="U053" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).U053">
+          <com:Name xml:lang="ar">أستراليا ونيوزيلندا</com:Name>
+          <com:Name xml:lang="ru">Австралия и Новая Зеландия</com:Name>
+          <com:Name xml:lang="ja">オーストラリアとニュージーランド</com:Name>
+          <com:Name xml:lang="en">Australia and New Zealand</com:Name>
+          <com:Name xml:lang="fr">Australie et Nouvelle-Zélande</com:Name>
+          <com:Name xml:lang="es">Australia y Nueva Zelanda</com:Name>
+          <com:Name xml:lang="zh">澳大利亚和新西兰</com:Name>
+          <com:Description xml:lang="en">Geographic regions, as defined by the UN Standard codes for statistical use (M49): https://unstats.un.org/unsd/methodology/m49/</com:Description>
+        </str:Code>
+        <str:Code id="U029" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).U029">
+          <com:Name xml:lang="ar">منطقة البحر الكاريبي</com:Name>
+          <com:Name xml:lang="ru">Карибский бассейн</com:Name>
+          <com:Name xml:lang="ja">カリブ海</com:Name>
+          <com:Name xml:lang="en">Caribbean</com:Name>
+          <com:Name xml:lang="fr">Caraïbes</com:Name>
+          <com:Name xml:lang="es">Caribe</com:Name>
+          <com:Name xml:lang="zh">加勒比地区</com:Name>
+          <com:Description xml:lang="en">Geographic regions, as defined by the UN Standard codes for statistical use (M49): https://unstats.un.org/unsd/methodology/m49/</com:Description>
+        </str:Code>
+        <str:Code id="U013" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).U013">
+          <com:Name xml:lang="ar">أمريكا الوسطى</com:Name>
+          <com:Name xml:lang="ru">Центральная Америка</com:Name>
+          <com:Name xml:lang="ja">中央アメリカ</com:Name>
+          <com:Name xml:lang="en">Central America</com:Name>
+          <com:Name xml:lang="fr">Amérique centrale</com:Name>
+          <com:Name xml:lang="es">América Central</com:Name>
+          <com:Name xml:lang="zh">中美洲</com:Name>
+          <com:Description xml:lang="en">Geographic regions, as defined by the UN Standard codes for statistical use (M49): https://unstats.un.org/unsd/methodology/m49/</com:Description>
+        </str:Code>
+        <str:Code id="U143" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).U143">
+          <com:Name xml:lang="ar">آسيا الوسطى</com:Name>
+          <com:Name xml:lang="ru">Центральная Азия</com:Name>
+          <com:Name xml:lang="ja">中央アジア</com:Name>
+          <com:Name xml:lang="en">Central Asia</com:Name>
+          <com:Name xml:lang="fr">Asie centrale</com:Name>
+          <com:Name xml:lang="es">Asia Central</com:Name>
+          <com:Name xml:lang="zh">中亚</com:Name>
+          <com:Description xml:lang="en">Geographic regions, as defined by the UN Standard codes for statistical use (M49): https://unstats.un.org/unsd/methodology/m49/</com:Description>
+        </str:Code>
+        <str:Code id="U014" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).U014">
+          <com:Name xml:lang="ar">شرق أفريقيا</com:Name>
+          <com:Name xml:lang="ru">Восточная Африка</com:Name>
+          <com:Name xml:lang="ja">東アフリカ</com:Name>
+          <com:Name xml:lang="en">Eastern Africa</com:Name>
+          <com:Name xml:lang="fr">Afrique de l'Est</com:Name>
+          <com:Name xml:lang="es">Este de África</com:Name>
+          <com:Name xml:lang="zh">东非</com:Name>
+          <com:Description xml:lang="en">Geographic regions, as defined by the UN Standard codes for statistical use (M49): https://unstats.un.org/unsd/methodology/m49/</com:Description>
+        </str:Code>
+        <str:Code id="U030" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).U030">
+          <com:Name xml:lang="ar">شرق آسيا</com:Name>
+          <com:Name xml:lang="ru">Восточная Азия</com:Name>
+          <com:Name xml:lang="ja">東アジア</com:Name>
+          <com:Name xml:lang="en">Eastern Asia</com:Name>
+          <com:Name xml:lang="fr">Asie de l'Est</com:Name>
+          <com:Name xml:lang="es">Este de Asia</com:Name>
+          <com:Name xml:lang="zh">东亚</com:Name>
+          <com:Description xml:lang="en">Geographic regions, as defined by the UN Standard codes for statistical use (M49): https://unstats.un.org/unsd/methodology/m49/</com:Description>
+        </str:Code>
+        <str:Code id="U151" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).U151">
+          <com:Name xml:lang="ar">أوروبا الشرقية</com:Name>
+          <com:Name xml:lang="ru">Восточная Европа</com:Name>
+          <com:Name xml:lang="ja">東ヨーロッパ</com:Name>
+          <com:Name xml:lang="en">Eastern Europe</com:Name>
+          <com:Name xml:lang="fr">Europe de l'Est</com:Name>
+          <com:Name xml:lang="es">Europa del Este</com:Name>
+          <com:Name xml:lang="zh">东欧</com:Name>
+          <com:Description xml:lang="en">Geographic regions, as defined by the UN Standard codes for statistical use (M49): https://unstats.un.org/unsd/methodology/m49/</com:Description>
+        </str:Code>
+        <str:Code id="U150" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).U150">
+          <com:Name xml:lang="ar">أوروبا</com:Name>
+          <com:Name xml:lang="ru">Европа</com:Name>
+          <com:Name xml:lang="ja">ヨーロッパ</com:Name>
+          <com:Name xml:lang="en">Europe</com:Name>
+          <com:Name xml:lang="fr">Europe</com:Name>
+          <com:Name xml:lang="es">Europa</com:Name>
+          <com:Name xml:lang="zh">欧洲</com:Name>
+          <com:Description xml:lang="en">Geographic regions, as defined by the UN Standard codes for statistical use (M49): https://unstats.un.org/unsd/methodology/m49/</com:Description>
+        </str:Code>
+        <str:Code id="U054" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).U054">
+          <com:Name xml:lang="ar">ميلانيزيا</com:Name>
+          <com:Name xml:lang="ru">Меланезия</com:Name>
+          <com:Name xml:lang="ja">メラネシア</com:Name>
+          <com:Name xml:lang="en">Melanesia</com:Name>
+          <com:Name xml:lang="fr">Mélanésie</com:Name>
+          <com:Name xml:lang="es">Melanesia</com:Name>
+          <com:Name xml:lang="zh">美拉尼西亚</com:Name>
+          <com:Description xml:lang="en">Geographic regions, as defined by the UN Standard codes for statistical use (M49): https://unstats.un.org/unsd/methodology/m49/</com:Description>
+        </str:Code>
+        <str:Code id="U057" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).U057">
+          <com:Name xml:lang="ar">ميكرونيزيا</com:Name>
+          <com:Name xml:lang="ru">Микронезия</com:Name>
+          <com:Name xml:lang="ja">ミクロネシア</com:Name>
+          <com:Name xml:lang="en">Micronesia</com:Name>
+          <com:Name xml:lang="fr">Micronésie</com:Name>
+          <com:Name xml:lang="es">Micronesia</com:Name>
+          <com:Name xml:lang="zh">密克罗尼西亚</com:Name>
+          <com:Description xml:lang="en">Geographic regions, as defined by the UN Standard codes for statistical use (M49): https://unstats.un.org/unsd/methodology/m49/</com:Description>
+        </str:Code>
+        <str:Code id="U017" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).U017">
+          <com:Name xml:lang="ar">وسط أفريقيا</com:Name>
+          <com:Name xml:lang="ru">Центральная Африка</com:Name>
+          <com:Name xml:lang="ja">中央アフリカ</com:Name>
+          <com:Name xml:lang="en">Middle Africa</com:Name>
+          <com:Name xml:lang="fr">Afrique centrale</com:Name>
+          <com:Name xml:lang="es">África Central</com:Name>
+          <com:Name xml:lang="zh">中非</com:Name>
+          <com:Description xml:lang="en">Geographic regions, as defined by the UN Standard codes for statistical use (M49): https://unstats.un.org/unsd/methodology/m49/</com:Description>
+        </str:Code>
+        <str:Code id="U154" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).U154">
+          <com:Name xml:lang="ar">شمال أوروبا</com:Name>
+          <com:Name xml:lang="ru">Северная Европа</com:Name>
+          <com:Name xml:lang="ja">北欧</com:Name>
+          <com:Name xml:lang="en">Northern Europe</com:Name>
+          <com:Name xml:lang="fr">Europe du Nord</com:Name>
+          <com:Name xml:lang="es">Norte de Europa</com:Name>
+          <com:Name xml:lang="zh">北欧</com:Name>
+          <com:Description xml:lang="en">Geographic regions, as defined by the UN Standard codes for statistical use (M49): https://unstats.un.org/unsd/methodology/m49/</com:Description>
+        </str:Code>
+        <str:Code id="U009" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).U009">
+          <com:Name xml:lang="ar">أوقيانوسيا</com:Name>
+          <com:Name xml:lang="ru">Океания</com:Name>
+          <com:Name xml:lang="ja">オセアニア</com:Name>
+          <com:Name xml:lang="en">Oceania</com:Name>
+          <com:Name xml:lang="fr">Océanie</com:Name>
+          <com:Name xml:lang="es">Oceanía</com:Name>
+          <com:Name xml:lang="zh">大洋洲</com:Name>
+          <com:Description xml:lang="en">Geographic regions, as defined by the UN Standard codes for statistical use (M49): https://unstats.un.org/unsd/methodology/m49/</com:Description>
+        </str:Code>
+        <str:Code id="U061" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).U061">
+          <com:Name xml:lang="ar">بولينيزيا</com:Name>
+          <com:Name xml:lang="ru">Полинезия</com:Name>
+          <com:Name xml:lang="ja">ポリネシア</com:Name>
+          <com:Name xml:lang="en">Polynesia</com:Name>
+          <com:Name xml:lang="fr">Polynésie</com:Name>
+          <com:Name xml:lang="es">Polinesia</com:Name>
+          <com:Name xml:lang="zh">波利尼西亚</com:Name>
+          <com:Description xml:lang="en">Geographic regions, as defined by the UN Standard codes for statistical use (M49): https://unstats.un.org/unsd/methodology/m49/</com:Description>
+        </str:Code>
+        <str:Code id="U005" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).U005">
+          <com:Name xml:lang="ar">أمريكا الجنوبية</com:Name>
+          <com:Name xml:lang="ru">Южная Америка</com:Name>
+          <com:Name xml:lang="ja">南アメリカ</com:Name>
+          <com:Name xml:lang="en">South America</com:Name>
+          <com:Name xml:lang="fr">Amérique du Sud</com:Name>
+          <com:Name xml:lang="es">América del Sur</com:Name>
+          <com:Name xml:lang="zh">南美洲</com:Name>
+          <com:Description xml:lang="en">Geographic regions, as defined by the UN Standard codes for statistical use (M49): https://unstats.un.org/unsd/methodology/m49/</com:Description>
+        </str:Code>
+        <str:Code id="U035" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).U035">
+          <com:Name xml:lang="ar">جنوب شرق آسيا</com:Name>
+          <com:Name xml:lang="ru">Юго-Восточная Азия</com:Name>
+          <com:Name xml:lang="ja">東南アジア</com:Name>
+          <com:Name xml:lang="en">South-eastern Asia</com:Name>
+          <com:Name xml:lang="fr">Asie du Sud-Est</com:Name>
+          <com:Name xml:lang="es">Sudeste Asiático</com:Name>
+          <com:Name xml:lang="zh">东南亚</com:Name>
+          <com:Description xml:lang="en">Geographic regions, as defined by the UN Standard codes for statistical use (M49): https://unstats.un.org/unsd/methodology/m49/</com:Description>
+        </str:Code>
+        <str:Code id="U018" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).U018">
+          <com:Name xml:lang="ar">جنوب أفريقيا</com:Name>
+          <com:Name xml:lang="ru">Южная Африка</com:Name>
+          <com:Name xml:lang="ja">南部アフリカ</com:Name>
+          <com:Name xml:lang="en">Southern Africa</com:Name>
+          <com:Name xml:lang="fr">Afrique australe</com:Name>
+          <com:Name xml:lang="es">Sur de África</com:Name>
+          <com:Name xml:lang="zh">南非</com:Name>
+          <com:Description xml:lang="en">Geographic regions, as defined by the UN Standard codes for statistical use (M49): https://unstats.un.org/unsd/methodology/m49/</com:Description>
+        </str:Code>
+        <str:Code id="U034" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).U034">
+          <com:Name xml:lang="ar">جنوب آسيا</com:Name>
+          <com:Name xml:lang="ru">Южная Азия</com:Name>
+          <com:Name xml:lang="ja">南アジア</com:Name>
+          <com:Name xml:lang="en">Southern Asia</com:Name>
+          <com:Name xml:lang="fr">Asie du Sud</com:Name>
+          <com:Name xml:lang="es">Sur de Asia</com:Name>
+          <com:Name xml:lang="zh">南亚</com:Name>
+          <com:Description xml:lang="en">Geographic regions, as defined by the UN Standard codes for statistical use (M49): https://unstats.un.org/unsd/methodology/m49/</com:Description>
+        </str:Code>
+        <str:Code id="U039" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).U039">
+          <com:Name xml:lang="ar">جنوب أوروبا</com:Name>
+          <com:Name xml:lang="ru">Южная Европа</com:Name>
+          <com:Name xml:lang="ja">南ヨーロッパ</com:Name>
+          <com:Name xml:lang="en">Southern Europe</com:Name>
+          <com:Name xml:lang="fr">Europe du Sud</com:Name>
+          <com:Name xml:lang="es">Sur de Europa</com:Name>
+          <com:Name xml:lang="zh">南欧</com:Name>
+          <com:Description xml:lang="en">Geographic regions, as defined by the UN Standard codes for statistical use (M49): https://unstats.un.org/unsd/methodology/m49/</com:Description>
+        </str:Code>
+        <str:Code id="U011" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).U011">
+          <com:Name xml:lang="ar">غرب أفريقيا</com:Name>
+          <com:Name xml:lang="ru">Западная Африка</com:Name>
+          <com:Name xml:lang="ja">西アフリカ</com:Name>
+          <com:Name xml:lang="en">Western Africa</com:Name>
+          <com:Name xml:lang="fr">Afrique de l'Ouest</com:Name>
+          <com:Name xml:lang="es">Oeste de África</com:Name>
+          <com:Name xml:lang="zh">西非</com:Name>
+          <com:Description xml:lang="en">Geographic regions, as defined by the UN Standard codes for statistical use (M49): https://unstats.un.org/unsd/methodology/m49/</com:Description>
+        </str:Code>
+        <str:Code id="U145" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).U145">
+          <com:Name xml:lang="ar">غرب آسيا</com:Name>
+          <com:Name xml:lang="ru">Западная Азия</com:Name>
+          <com:Name xml:lang="ja">西アジア</com:Name>
+          <com:Name xml:lang="en">Western Asia</com:Name>
+          <com:Name xml:lang="fr">Asie occidentale</com:Name>
+          <com:Name xml:lang="es">Asia Occidental</com:Name>
+          <com:Name xml:lang="zh">西亚</com:Name>
+          <com:Description xml:lang="en">Geographic regions, as defined by the UN Standard codes for statistical use (M49): https://unstats.un.org/unsd/methodology/m49/</com:Description>
+        </str:Code>
+        <str:Code id="U155" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).U155">
+          <com:Name xml:lang="ar">أوروبا الغربية</com:Name>
+          <com:Name xml:lang="ru">Западная Европа</com:Name>
+          <com:Name xml:lang="ja">西ヨーロッパ</com:Name>
+          <com:Name xml:lang="en">Western Europe</com:Name>
+          <com:Name xml:lang="fr">Europe occidentale</com:Name>
+          <com:Name xml:lang="es">Europa Occidental</com:Name>
+          <com:Name xml:lang="zh">西欧</com:Name>
+          <com:Description xml:lang="en">Geographic regions, as defined by the UN Standard codes for statistical use (M49): https://unstats.un.org/unsd/methodology/m49/</com:Description>
+        </str:Code>
+        <str:Code id="G202" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).G202">
+          <com:Name xml:lang="ar">آسيا المتقدمة</com:Name>
+          <com:Name xml:lang="ru">Развитая Азия</com:Name>
+          <com:Name xml:lang="ja">先進アジア</com:Name>
+          <com:Name xml:lang="en">Advanced Asia</com:Name>
+          <com:Name xml:lang="fr">Asie avancée</com:Name>
+          <com:Name xml:lang="es">Asia Avanzada</com:Name>
+          <com:Name xml:lang="zh">发达亚洲</com:Name>
+          <com:Description xml:lang="en">Advanced economies (AE) located in the Asia region.</com:Description>
+        </str:Code>
+        <str:Code id="G110" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).G110">
+          <com:Name xml:lang="ar">الاقتصادات المتقدمة</com:Name>
+          <com:Name xml:lang="ru">Развитые экономики</com:Name>
+          <com:Name xml:lang="ja">先進国</com:Name>
+          <com:Name xml:lang="en">Advanced Economies</com:Name>
+          <com:Name xml:lang="fr">Économies avancées</com:Name>
+          <com:Name xml:lang="es">Economías Avanzadas</com:Name>
+          <com:Name xml:lang="zh">发达经济体</com:Name>
+          <com:Description xml:lang="en">Economies that are highly developed; there are no strict criteria, economic or otherwise.</com:Description>
+        </str:Code>
+        <str:Code id="G906" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).G906">
+          <com:Name xml:lang="ar">أوروبا المتقدمة</com:Name>
+          <com:Name xml:lang="ru">Развитая Европа</com:Name>
+          <com:Name xml:lang="ja">先進ヨーロッパ</com:Name>
+          <com:Name xml:lang="en">Advanced Europe</com:Name>
+          <com:Name xml:lang="fr">Europe avancée</com:Name>
+          <com:Name xml:lang="es">Europa Avanzada</com:Name>
+          <com:Name xml:lang="zh">发达欧洲</com:Name>
+          <com:Description xml:lang="en">Advanced economies (AE) located in the Europe region.</com:Description>
+        </str:Code>
+        <str:Code id="G510" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).G510">
+          <com:Name xml:lang="ar">دول الآسيان 5</com:Name>
+          <com:Name xml:lang="ru">АСЕАН-5</com:Name>
+          <com:Name xml:lang="ja">ASEAN5カ国</com:Name>
+          <com:Name xml:lang="en">ASEAN-5</com:Name>
+          <com:Name xml:lang="fr">ASEAN-5</com:Name>
+          <com:Name xml:lang="es">ASEAN-5</com:Name>
+          <com:Name xml:lang="zh">东盟五国</com:Name>
+          <com:Description xml:lang="en">ASEAN-5 refers to Indonesia, Malaysia, Philippines, Singapore, and Thailand.</com:Description>
+        </str:Code>
+        <str:Code id="G940" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).G940">
+          <com:Name xml:lang="ar">القوقاز وآسيا الوسطى</com:Name>
+          <com:Name xml:lang="ru">Кавказ и Центральная Азия</com:Name>
+          <com:Name xml:lang="ja">コーカサス・中央アジア</com:Name>
+          <com:Name xml:lang="en">Caucasus and Central Asia (CCA)</com:Name>
+          <com:Name xml:lang="fr">Caucase et Asie centrale</com:Name>
+          <com:Name xml:lang="es">Cáucaso y Asia Central</com:Name>
+          <com:Name xml:lang="zh">高加索和中亚</com:Name>
+          <com:Description xml:lang="en">Emerging markets and developing economies located in the Caucasus and Central Asia region.</com:Description>
+        </str:Code>
+        <str:Code id="G758" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).G758">
+          <com:Name xml:lang="ar">الجماعة الاقتصادية والنقدية لوسط أفريقيا</com:Name>
+          <com:Name xml:lang="ru">Центральноафриканское экономическое и валютное сообщество</com:Name>
+          <com:Name xml:lang="ja">中央アフリカ経済通貨共同体</com:Name>
+          <com:Name xml:lang="en">Central African Economic and Monetary Community (CEMAC)</com:Name>
+          <com:Name xml:lang="fr">Communauté économique et monétaire de l'Afrique centrale (CEMAC)</com:Name>
+          <com:Name xml:lang="es">Comunidad Económica y Monetaria de África Central (CEMAC)</com:Name>
+          <com:Name xml:lang="zh">中部非洲经济与货币共同体</com:Name>
+          <com:Description xml:lang="en">Member countries of the monetary and economic community of Central Africa, which was founded in 1999 to promote economic integration and establish a common African market. Includes Cameroon, Chad, Central African Republic, Republic of Congo, Equatorial Guinea and Gabon. [SM/08/253].</com:Description>
+        </str:Code>
+        <str:Code id="G609" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).G609">
+          <com:Name xml:lang="ar">منطقة فرنك CFA</com:Name>
+          <com:Name xml:lang="ru">Зона франка КФА</com:Name>
+          <com:Name xml:lang="ja">CFAフラン圏</com:Name>
+          <com:Name xml:lang="en">CFA franc zone</com:Name>
+          <com:Name xml:lang="fr">Zone franc CFA</com:Name>
+          <com:Name xml:lang="es">Zona franco CFA</com:Name>
+          <com:Name xml:lang="zh">非洲金融共同体法郎区</com:Name>
+          <com:Description xml:lang="en">Countries in Sub-Saharan Africa affiliated with the West African Economic and Monetary Union (WAEMU) or the Central African Economic and Monetary Union (CEMAC) and maintain the same currency, the CFA franc. See WAEMU and CEMAC definitions for more information.  https://www.imf.org/external/pubs/ft/fabric/backgrnd.htm</com:Description>
+        </str:Code>
+        <str:Code id="G619" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).G619">
+          <com:Name xml:lang="ar">جماعة شرق إفريقيا</com:Name>
+          <com:Name xml:lang="ru">Восточноафриканское сообщество</com:Name>
+          <com:Name xml:lang="ja">東アフリカ共同体</com:Name>
+          <com:Name xml:lang="en">East African Community (EAC)</com:Name>
+          <com:Name xml:lang="fr">Communauté d'Afrique de l'Est (CAE)</com:Name>
+          <com:Name xml:lang="es">Comunidad de África Oriental (CAO)</com:Name>
+          <com:Name xml:lang="zh">东非共同体</com:Name>
+          <com:Description xml:lang="en">Member countries of the regional intergovernmental organization the East African Community (EAC).</com:Description>
+        </str:Code>
+        <str:Code id="G309" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).G309">
+          <com:Name xml:lang="ar">اتحاد عملة شرق البحر الكاريبي</com:Name>
+          <com:Name xml:lang="ru">Восточно-карибский валютный союз</com:Name>
+          <com:Name xml:lang="ja">東カリブ通貨同盟</com:Name>
+          <com:Name xml:lang="en">Eastern Caribbean Currency Union (ECCU)</com:Name>
+          <com:Name xml:lang="fr">Union monétaire des Caraïbes orientales (UMCO)</com:Name>
+          <com:Name xml:lang="es">Unión Monetaria del Caribe Oriental (UMCO)</com:Name>
+          <com:Name xml:lang="zh">东加勒比货币联盟</com:Name>
+          <com:Description xml:lang="en">Countries and territories that are members of the Eastern Caribbean Currency Union (ECCU), a development of the Organization of Eastern Caribbean States that is under the supervision of the Eastern Caribbean Central Bank and uses as common currency the East Caribbean dollar. https://www.imf.org/external/pubs/nft/op/195/index.htm</com:Description>
+        </str:Code>
+        <str:Code id="G776" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).G776">
+          <com:Name xml:lang="ar">الجماعة الاقتصادية لدول غرب أفريقيا</com:Name>
+          <com:Name xml:lang="ru">Экономическое сообщество западноафриканских государств</com:Name>
+          <com:Name xml:lang="ja">西アフリカ諸国経済共同体</com:Name>
+          <com:Name xml:lang="en">Economic Community of West African States (ECOWAS)</com:Name>
+          <com:Name xml:lang="fr">Communauté économique des États de l'Afrique de l'Ouest (CEDEAO)</com:Name>
+          <com:Name xml:lang="es">Comunidad Económica de Estados de África Occidental (CEDEAO)</com:Name>
+          <com:Name xml:lang="zh">西非国家经济共同体</com:Name>
+          <com:Description xml:lang="en">Member states of the regional, economic and political union ECOWAS (Economic Community of West African States), located in the Western African region. https://www.ecowas.int/member-states/</com:Description>
+        </str:Code>
+        <str:Code id="G209" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).G209">
+          <com:Name xml:lang="ar">اقتصادات الأسواق الناشئة والبلدان النامية حسب التمويل الخارجي: صافي الدائنين</com:Name>
+          <com:Name xml:lang="ru">Экономики с формирующимся рынком и развивающиеся страны по внешнему финансированию: чистые кредиторы</com:Name>
+          <com:Name xml:lang="ja">新興国・途上国（対外資金調達別）：純債権国</com:Name>
+          <com:Name xml:lang="en">EMDEs by External Financing: Net Creditors</com:Name>
+          <com:Name xml:lang="fr">EMDE par financement extérieur : Créanciers nets</com:Name>
+          <com:Name xml:lang="es">Economías de Mercados Emergentes y Países en Desarrollo por Financiamiento Externo: Acreedores Netos</com:Name>
+          <com:Name xml:lang="zh">按外部融资划分的经济市场和发展中经济体：净债权人</com:Name>
+          <com:Description xml:lang="en">EMDEs who are net creditors (Net IIP > 0)</com:Description>
+        </str:Code>
+        <str:Code id="G606" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).G606">
+          <com:Name xml:lang="ar">اقتصادات الأسواق الناشئة والبلدان النامية حسب التمويل الخارجي: صافي المدينين</com:Name>
+          <com:Name xml:lang="ru">Экономики с формирующимся рынком и развивающиеся страны по внешнему финансированию: чистые должники</com:Name>
+          <com:Name xml:lang="ja">新興国・途上国（対外資金調達別）：純債務国</com:Name>
+          <com:Name xml:lang="en">EMDEs by External Financing: Net Debtors</com:Name>
+          <com:Name xml:lang="fr">EMDE par financement extérieur : Débiteurs nets</com:Name>
+          <com:Name xml:lang="es">Economías de Mercados Emergentes y Países en Desarrollo por Financiamiento Externo: Deudores Netos</com:Name>
+          <com:Name xml:lang="zh">按外部融资划分的经济市场和发展中经济体：净债务人</com:Name>
+          <com:Description xml:lang="en">EMDEs who are net debtors (Net IIP &lt; 0).</com:Description>
+        </str:Code>
+        <str:Code id="G087" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).G087">
+          <com:Name xml:lang="ar">اقتصادات الأسواق الناشئة والبلدان النامية حسب التمويل الخارجي: صافي المدينين مع متأخرات و / أو إعادة جدولة</com:Name>
+          <com:Name xml:lang="ru">Экономики с формирующимся рынком и развивающиеся страны по внешнему финансированию: чистые должники с просрочками и/или реструктуризацией</com:Name>
+          <com:Name xml:lang="ja">新興国・途上国（対外資金調達別）：延滞および/またはリスケジュールのある純債務国</com:Name>
+          <com:Name xml:lang="en">EMDEs by External Financing: Net Debtors with Arrears and/or Reschedulings</com:Name>
+          <com:Name xml:lang="fr">EMDE par financement extérieur : Débiteurs nets avec arriérés et/ou rééchelonnements</com:Name>
+          <com:Name xml:lang="es">Economías de Mercados Emergentes y Países en Desarrollo por Financiamiento Externo: Deudores Netos con Atrasos y/o Refinanciaciones</com:Name>
+          <com:Name xml:lang="zh">按外部融资划分的经济市场和发展中经济体：有欠款和/或重组的净债务人</com:Name>
+          <com:Description xml:lang="en">EMDEs who are net debtors (Net IIP &lt; 0) and have recent arrears and/or rescheduling of external debt.</com:Description>
+        </str:Code>
+        <str:Code id="G216" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).G216">
+          <com:Name xml:lang="ar">اقتصادات الأسواق الناشئة والبلدان النامية حسب مصدر عائدات التصدير: متنوعة</com:Name>
+          <com:Name xml:lang="ru">Экономики с формирующимся рынком и развивающиеся страны по источникам экспортных доходов: диверсифицированные</com:Name>
+          <com:Name xml:lang="ja">新興国・途上国（輸出収入源別）：多様化</com:Name>
+          <com:Name xml:lang="en">EMDEs by Source of Export Earnings: Diversified</com:Name>
+          <com:Name xml:lang="fr">EMDE par source de revenus d'exportation : Diversifiés</com:Name>
+          <com:Name xml:lang="es">Economías de Mercados Emergentes y Países en Desarrollo por Fuente de Ingresos de Exportación: Diversificadas</com:Name>
+          <com:Name xml:lang="zh">按出口收入来源划分的经济市场和发展中经济体：多样化</com:Name>
+          <com:Description xml:lang="en">EMDEs whose export earnings are less than 50% in all categories (fuel; primary products excluding fuel; manufactures; and services, income, or transfers).</com:Description>
+        </str:Code>
+        <str:Code id="G080" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).G080">
+          <com:Name xml:lang="ar">اقتصادات الأسواق الناشئة والبلدان النامية حسب مصدر عائدات التصدير: الوقود</com:Name>
+          <com:Name xml:lang="ru">Экономики с формирующимся рынком и развивающиеся страны по источникам экспортных доходов: топливо</com:Name>
+          <com:Name xml:lang="ja">新興国・途上国（輸出収入源別）：燃料</com:Name>
+          <com:Name xml:lang="en">EMDEs by Source of Export Earnings: Fuel</com:Name>
+          <com:Name xml:lang="fr">EMDE par source de revenus d'exportation : Carburants</com:Name>
+          <com:Name xml:lang="es">Economías de Mercados Emergentes y Países en Desarrollo por Fuente de Ingresos de Exportación: Combustibles</com:Name>
+          <com:Name xml:lang="zh">按出口收入来源划分的经济市场和发展中经济体：燃料</com:Name>
+          <com:Description xml:lang="en">EMDEs whose main source (>50%) of export earnings is Fuel.</com:Description>
+        </str:Code>
+        <str:Code id="G083" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).G083">
+          <com:Name xml:lang="ar">اقتصادات الأسواق الناشئة والبلدان النامية حسب مصدر عائدات التصدير: السلع المصنعة</com:Name>
+          <com:Name xml:lang="ru">Экономики с формирующимся рынком и развивающиеся страны по источникам экспортных доходов: промышленные товары</com:Name>
+          <com:Name xml:lang="ja">新興国・途上国（輸出収入源別）：工業製品</com:Name>
+          <com:Name xml:lang="en">EMDEs by Source of Export Earnings: Manufactures</com:Name>
+          <com:Name xml:lang="fr">EMDE par source de revenus d'exportation : Produits manufacturés</com:Name>
+          <com:Name xml:lang="es">Economías de Mercados Emergentes y Países en Desarrollo por Fuente de Ingresos de Exportación: Manufacturas</com:Name>
+          <com:Name xml:lang="zh">按出口收入来源划分的经济市场和发展中经济体：制成品</com:Name>
+          <com:Description xml:lang="en">EMDEs whose main source (>50%) of export earnings is manufactures.</com:Description>
+        </str:Code>
+        <str:Code id="G092" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).G092">
+          <com:Name xml:lang="ar">اقتصادات الأسواق الناشئة والبلدان النامية حسب مصدر عائدات التصدير: غير الوقود</com:Name>
+          <com:Name xml:lang="ru">Экономики с формирующимся рынком и развивающиеся страны по источникам экспортных доходов: нетопливные</com:Name>
+          <com:Name xml:lang="ja">新興国・途上国（輸出収入源別）：非燃料</com:Name>
+          <com:Name xml:lang="en">EMDEs by Source of Export Earnings: Nonfuel</com:Name>
+          <com:Name xml:lang="fr">EMDE par source de revenus d'exportation : Non combustibles</com:Name>
+          <com:Name xml:lang="es">Economías de Mercados Emergentes y Países en Desarrollo por Fuente de Ingresos de Exportación: No Combustibles</com:Name>
+          <com:Name xml:lang="zh">按出口收入来源划分的经济市场和发展中经济体：非燃料</com:Name>
+          <com:Description xml:lang="en">EMDEs whose main source (>50%) of export earnings is non-Fuel.</com:Description>
+        </str:Code>
+        <str:Code id="G089" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).G089">
+          <com:Name xml:lang="ar">اقتصادات الأسواق الناشئة والبلدان النامية حسب مصدر عائدات التصدير: المنتجات الأولية (باستثناء الوقود)</com:Name>
+          <com:Name xml:lang="ru">Экономики с формирующимся рынком и развивающиеся страны по источникам экспортных доходов: первичные продукты (исключая топливо)</com:Name>
+          <com:Name xml:lang="ja">新興国・途上国（輸出収入源別）：一次産品（燃料を除く）</com:Name>
+          <com:Name xml:lang="en">EMDEs by Source of Export Earnings: Primary Products (excluding Fuel)</com:Name>
+          <com:Name xml:lang="fr">EMDE par source de revenus d'exportation : Produits primaires (hors carburants)</com:Name>
+          <com:Name xml:lang="es">Economías de Mercados Emergentes y Países en Desarrollo por Fuente de Ingresos de Exportación: Productos Primarios (excluyendo Combustibles)</com:Name>
+          <com:Name xml:lang="zh">按出口收入来源划分的经济市场和发展中经济体：初级产品（不包括燃料）</com:Name>
+          <com:Description xml:lang="en">EMDEs whose main source (>50%) of export earnings is primary products excluding fuel.</com:Description>
+        </str:Code>
+        <str:Code id="G084" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).G084">
+          <com:Name xml:lang="ar">اقتصادات الأسواق الناشئة والبلدان النامية حسب مصدر عائدات التصدير: الخدمات (بما في ذلك الدخل والتحويلات)</com:Name>
+          <com:Name xml:lang="ru">Экономики с формирующимся рынком и развивающиеся страны по источникам экспортных доходов: услуги (включая доходы и трансферты)</com:Name>
+          <com:Name xml:lang="ja">新興国・途上国（輸出収入源別）：サービス（所得、移転を含む）</com:Name>
+          <com:Name xml:lang="en">EMDEs by Source of Export Earnings: Services (including Income, Transfers)</com:Name>
+          <com:Name xml:lang="fr">EMDE par source de revenus d'exportation : Services (y compris les revenus et les transferts)</com:Name>
+          <com:Name xml:lang="es">Economías de Mercados Emergentes y Países en Desarrollo por Fuente de Ingresos de Exportación: Servicios (incluidos Ingresos y Transferencias)</com:Name>
+          <com:Name xml:lang="zh">按出口收入来源划分的经济市场和发展中经济体：服务业（包括收入和转移）</com:Name>
+          <com:Description xml:lang="en">EMDEs whose main source (>50%) of export earnings is services, income, or transfers.</com:Description>
+        </str:Code>
+        <str:Code id="G505" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).G505">
+          <com:Name xml:lang="ar">آسيا الناشئة والنامية</com:Name>
+          <com:Name xml:lang="ru">Развивающаяся Азия</com:Name>
+          <com:Name xml:lang="ja">新興・発展途上アジア</com:Name>
+          <com:Name xml:lang="en">Emerging and Developing Asia</com:Name>
+          <com:Name xml:lang="fr">Asie émergente et en développement</com:Name>
+          <com:Name xml:lang="es">Asia Emergente y en Desarrollo</com:Name>
+          <com:Name xml:lang="zh">新兴和发展中亚洲</com:Name>
+          <com:Description xml:lang="en">EMDEs located in the Asia region.</com:Description>
+        </str:Code>
+        <str:Code id="G903" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).G903">
+          <com:Name xml:lang="ar">أوروبا الناشئة والنامية</com:Name>
+          <com:Name xml:lang="ru">Развивающаяся Европа</com:Name>
+          <com:Name xml:lang="ja">新興・発展途上ヨーロッパ</com:Name>
+          <com:Name xml:lang="en">Emerging and Developing Europe</com:Name>
+          <com:Name xml:lang="fr">Europe émergente et en développement</com:Name>
+          <com:Name xml:lang="es">Europa Emergente y en Desarrollo</com:Name>
+          <com:Name xml:lang="zh">新兴和发展中欧洲</com:Name>
+          <com:Description xml:lang="en">EMDEs located in the Europe region.</com:Description>
+        </str:Code>
+        <str:Code id="G1515" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).G1515">
+          <com:Name xml:lang="ar">آسيا الناشئة</com:Name>
+          <com:Name xml:lang="ru">Развивающаяся Азия</com:Name>
+          <com:Name xml:lang="ja">新興アジア</com:Name>
+          <com:Name xml:lang="en">Emerging Asia</com:Name>
+          <com:Name xml:lang="fr">Asie émergente</com:Name>
+          <com:Name xml:lang="es">Asia Emergente</com:Name>
+          <com:Name xml:lang="zh">新兴亚洲</com:Name>
+          <com:Description xml:lang="en">Large emerging market economies in the Asia region. This group includes China, India, Indonesia, Malaysia, the Philippines, Thailand, and Vietnam.</com:Description>
+        </str:Code>
+        <str:Code id="G200" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).G200">
+          <com:Name xml:lang="ar">اقتصادات الأسواق الناشئة والبلدان النامية</com:Name>
+          <com:Name xml:lang="ru">Страны с формирующимся рынком и развивающиеся страны</com:Name>
+          <com:Name xml:lang="ja">新興国・途上国</com:Name>
+          <com:Name xml:lang="en">Emerging Market and Developing Economies</com:Name>
+          <com:Name xml:lang="fr">Économies de marché émergentes et en développement</com:Name>
+          <com:Name xml:lang="es">Economías de Mercado Emergentes y en Desarrollo</com:Name>
+          <com:Name xml:lang="zh">新兴市场和发展中经济体</com:Name>
+          <com:Description xml:lang="en">Economies that are not classified as Advanced Economies. This group includes Emerging and Developing Europe (903), Middle East and Central Asia (400), Emerging and Developing Asia (505) + Latin America and the Caribbean (205) + Sub-Sahara Africa (603).</com:Description>
+        </str:Code>
+        <str:Code id="G1201" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).G1201">
+          <com:Name xml:lang="ar">اقتصادات الأسواق الناشئة والمتوسطة الدخل</com:Name>
+          <com:Name xml:lang="ru">Развивающиеся рынки и страны со средним уровнем дохода</com:Name>
+          <com:Name xml:lang="ja">新興市場および中所得国経済</com:Name>
+          <com:Name xml:lang="en">Emerging Market and Middle-Income Economies</com:Name>
+          <com:Name xml:lang="fr">Économies émergentes et à revenu intermédiaire</com:Name>
+          <com:Name xml:lang="es">Economías de mercado emergentes y de ingresos medios</com:Name>
+          <com:Name xml:lang="zh">新兴市场和中等收入经济体</com:Name>
+          <com:Description xml:lang="en">Emerging market and developing economies (EMDE) not classified by the IMF as Low-Income Developing Countries (LIDC).</com:Description>
+        </str:Code>
+        <str:Code id="G995" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).G995">
+          <com:Name xml:lang="ar">منطقة اليورو</com:Name>
+          <com:Name xml:lang="ru">Еврозона</com:Name>
+          <com:Name xml:lang="ja">ユーロ圏</com:Name>
+          <com:Name xml:lang="en">Euro Area (EA) – aggregate of member states</com:Name>
+          <com:Name xml:lang="fr">Zone euro</com:Name>
+          <com:Name xml:lang="es">Zona Euro</com:Name>
+          <com:Name xml:lang="zh">欧元区</com:Name>
+          <com:Description xml:lang="en">Economies that are members of the Euro Area – WEO aggregation.</com:Description>
+        </str:Code>
+        <str:Code id="G998" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).G998">
+          <com:Name xml:lang="ar">الاتحاد الأوروبي</com:Name>
+          <com:Name xml:lang="ru">Европейский Союз (ЕС)</com:Name>
+          <com:Name xml:lang="ja">欧州連合（EU）</com:Name>
+          <com:Name xml:lang="en">European Union (EU)</com:Name>
+          <com:Name xml:lang="fr">Union européenne (UE)</com:Name>
+          <com:Name xml:lang="es">Unión Europea (UE)</com:Name>
+          <com:Name xml:lang="zh">欧洲联盟 (欧盟)</com:Name>
+          <com:Description xml:lang="en">Economies that are members of the European Union. Umbrella term referring to a three "pillar" construction encompassing the European Community (EC), Common Foreign and Security Policy, and Justice and Home Affairs.</com:Description>
+        </str:Code>
+        <str:Code id="G715" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).G715">
+          <com:Name xml:lang="ar">الدول الهشة والمتأثرة بالنزاعات</com:Name>
+          <com:Name xml:lang="ru">Нестабильные и затронутые конфликтом государства</com:Name>
+          <com:Name xml:lang="ja">脆弱で紛争の影響を受けている国家</com:Name>
+          <com:Name xml:lang="en">Fragile and Conflict-affected States (FCS)</com:Name>
+          <com:Name xml:lang="fr">États fragiles et touchés par un conflit</com:Name>
+          <com:Name xml:lang="es">Estados Frágiles y Afectados por Conflictos</com:Name>
+          <com:Name xml:lang="zh">脆弱和受冲突影响的国家</com:Name>
+          <com:Description xml:lang="en">This is a country grouping established by the World Bank's classification of countries in fragile and conflict-affected situations. The list consists of (i) countries with high levels of institutional and social fragility and (ii) countries affected by violent conflict, using indicators and thresholds assessed by the World Bank. It is updated annually and available publicly. Under the new IMF strategy for Fragile and Conflicted States (FCS), the Fund has adopted the methodology, thresholds, and criteria of the World Bank's Fragility and Conflict Situations for the IMF Fragile and Conflicted States. This is explained in the FCS Strategy Board paper: The IMF Strategy for Fragile and Conflict-Affected States (March 14, 2022, p. 21-22).</com:Description>
+        </str:Code>
+        <str:Code id="G120" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).G120">
+          <com:Name xml:lang="ar">مجموعة العشرين</com:Name>
+          <com:Name xml:lang="ru">Большая двадцатка</com:Name>
+          <com:Name xml:lang="ja">G20</com:Name>
+          <com:Name xml:lang="en">G20</com:Name>
+          <com:Name xml:lang="fr">G20</com:Name>
+          <com:Name xml:lang="es">G20</com:Name>
+          <com:Name xml:lang="zh">二十国集团</com:Name>
+          <com:Description xml:lang="en">Member states of the G20 international forum, which consists of 19 individual countries and the European Union.</com:Description>
+        </str:Code>
+        <str:Code id="G119" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).G119">
+          <com:Name xml:lang="ar">مجموعة السبع</com:Name>
+          <com:Name xml:lang="ru">Большая семерка</com:Name>
+          <com:Name xml:lang="ja">G7</com:Name>
+          <com:Name xml:lang="en">G7</com:Name>
+          <com:Name xml:lang="fr">G7</com:Name>
+          <com:Name xml:lang="es">G7</com:Name>
+          <com:Name xml:lang="zh">七国集团</com:Name>
+          <com:Description xml:lang="en">Economies that are members of the G7 (Canada, France, Germany, Italy, Japan, the United Kingdom, and the United States).</com:Description>
+        </str:Code>
+        <str:Code id="G450" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).G450">
+          <com:Name xml:lang="ar">مجلس التعاون الخليجي</com:Name>
+          <com:Name xml:lang="ru">Совет сотрудничества стран Персидского залива (ССАГПЗ)</com:Name>
+          <com:Name xml:lang="ja">湾岸協力会議</com:Name>
+          <com:Name xml:lang="en">Gulf Cooperation Council (GCC)</com:Name>
+          <com:Name xml:lang="fr">Conseil de coopération du Golfe (CCG)</com:Name>
+          <com:Name xml:lang="es">Consejo de Cooperación del Golfo (CCG)</com:Name>
+          <com:Name xml:lang="zh">海湾合作委员会</com:Name>
+          <com:Description xml:lang="en">Member countries of the regional intergovernmental political and economic alliance the Gulf Cooperation Council, which consists of all the Arab states of the Persian Gulf, except Iraq.</com:Description>
+        </str:Code>
+        <str:Code id="G711" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).G711">
+          <com:Name xml:lang="ar">البلدان الفقيرة المثقلة بالديون</com:Name>
+          <com:Name xml:lang="ru">Бедные страны с высоким уровнем задолженности</com:Name>
+          <com:Name xml:lang="ja">重債務貧困国</com:Name>
+          <com:Name xml:lang="en">Heavily Indebted Poor Countries (HIPC)</com:Name>
+          <com:Name xml:lang="fr">Pays pauvres très endettés (PPTE)</com:Name>
+          <com:Name xml:lang="es">Países Pobres Muy Endeudados (PPME)</com:Name>
+          <com:Name xml:lang="zh">重债穷国</com:Name>
+          <com:Description xml:lang="en">Heavily Indebted Poor Countries as named by IMF/WB. Includes AFR Heavily Indebted Poor Countries (712).</com:Description>
+        </str:Code>
+        <str:Code id="G205" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).G205">
+          <com:Name xml:lang="ar">أمريكا اللاتينية ومنطقة البحر الكاريبي</com:Name>
+          <com:Name xml:lang="ru">Латинская Америка и Карибский бассейн</com:Name>
+          <com:Name xml:lang="ja">ラテンアメリカ・カリブ海地域</com:Name>
+          <com:Name xml:lang="en">Latin America and the Caribbean (LAC)</com:Name>
+          <com:Name xml:lang="fr">Amérique latine et Caraïbes</com:Name>
+          <com:Name xml:lang="es">América Latina y el Caribe</com:Name>
+          <com:Name xml:lang="zh">拉丁美洲和加勒比</com:Name>
+          <com:Description xml:lang="en">EMDEs located in the Latin America and Caribbean region, including Mexico.  This group includes Caribbean (1218) + Central America (121) + South America (2041) and Mexico.</com:Description>
+        </str:Code>
+        <str:Code id="G201" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).G201">
+          <com:Name xml:lang="ar">البلدان النامية منخفضة الدخل</com:Name>
+          <com:Name xml:lang="ru">Страны с низким уровнем дохода</com:Name>
+          <com:Name xml:lang="ja">低所得開発途上国</com:Name>
+          <com:Name xml:lang="en">Low-Income Developing Countries (LIDC)</com:Name>
+          <com:Name xml:lang="fr">Pays en développement à faible revenu</com:Name>
+          <com:Name xml:lang="es">Países en Desarrollo de Bajos Ingresos</com:Name>
+          <com:Name xml:lang="zh">低收入发展中国家</com:Name>
+          <com:Description xml:lang="en">Countries that have per capita income levels below a certain threshold (currently set at $2,700 in 2016 as measured by the World Bank's Atlas method), structural features consistent with limited development and structural transformation, and insufficiently close external financial linkages to be widely seen as emerging market economies.</com:Description>
+        </str:Code>
+        <str:Code id="G400" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).G400">
+          <com:Name xml:lang="ar">الشرق الأوسط وآسيا الوسطى</com:Name>
+          <com:Name xml:lang="ru">Ближний Восток и Центральная Азия</com:Name>
+          <com:Name xml:lang="ja">中東・中央アジア</com:Name>
+          <com:Name xml:lang="en">Middle East and Central Asia</com:Name>
+          <com:Name xml:lang="fr">Moyen-Orient et Asie centrale</com:Name>
+          <com:Name xml:lang="es">Oriente Medio y Asia Central</com:Name>
+          <com:Name xml:lang="zh">中东和中亚</com:Name>
+          <com:Description xml:lang="en">EMDEs located in the Middle East and North Africa region, Afghanistan, and Pakistan (MENAP) or Caucasus and Central Asia region (CCA).</com:Description>
+        </str:Code>
+        <str:Code id="G401" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).G401">
+          <com:Name xml:lang="ar">الشرق الأوسط وآسيا الوسطى: مُصدرو النفط</com:Name>
+          <com:Name xml:lang="ru">Ближний Восток и Центральная Азия: экспортеры нефти</com:Name>
+          <com:Name xml:lang="ja">中東・中央アジア：石油輸出国</com:Name>
+          <com:Name xml:lang="en">Middle East and Central Asia: Oil Exporters</com:Name>
+          <com:Name xml:lang="fr">Moyen-Orient et Asie centrale : Exportateurs de pétrole</com:Name>
+          <com:Name xml:lang="es">Oriente Medio y Asia Central: Exportadores de petróleo</com:Name>
+          <com:Name xml:lang="zh">中东和中亚：石油出口国</com:Name>
+          <com:Description xml:lang="en">EMDEs in MECA whose main source (>50%) of export earnings is Fuel.</com:Description>
+        </str:Code>
+        <str:Code id="G402" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).G402">
+          <com:Name xml:lang="ar">الشرق الأوسط وآسيا الوسطى: مُستوردو النفط</com:Name>
+          <com:Name xml:lang="ru">Ближний Восток и Центральная Азия: импортеры нефти</com:Name>
+          <com:Name xml:lang="ja">中東・中央アジア：石油輸入国</com:Name>
+          <com:Name xml:lang="en">Middle East and Central Asia: Oil Importers</com:Name>
+          <com:Name xml:lang="fr">Moyen-Orient et Asie centrale : Importateurs de pétrole</com:Name>
+          <com:Name xml:lang="es">Oriente Medio y Asia Central: Importadores de petróleo</com:Name>
+          <com:Name xml:lang="zh">中东和中亚：石油进口国</com:Name>
+          <com:Description xml:lang="en">EMDEs in MECA whose main source (>50%) of export earnings is not Fuel.</com:Description>
+        </str:Code>
+        <str:Code id="G406" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).G406">
+          <com:Name xml:lang="ar">الشرق الأوسط وشمال أفريقيا</com:Name>
+          <com:Name xml:lang="ru">Ближний Восток и Северная Африка (БВСА)</com:Name>
+          <com:Name xml:lang="ja">中東・北アフリカ</com:Name>
+          <com:Name xml:lang="en">Middle East and North Africa (MENA)</com:Name>
+          <com:Name xml:lang="fr">Moyen-Orient et Afrique du Nord (MENA)</com:Name>
+          <com:Name xml:lang="es">Oriente Medio y Norte de África (MENA)</com:Name>
+          <com:Name xml:lang="zh">中东北非</com:Name>
+          <com:Description xml:lang="en">EMDEs located in the Middle East and North Africa region.</com:Description>
+        </str:Code>
+        <str:Code id="G92031" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).G92031">
+          <com:Name xml:lang="ar">أمريكا الشمالية</com:Name>
+          <com:Name xml:lang="ru">Северная Америка</com:Name>
+          <com:Name xml:lang="ja">北アメリカ</com:Name>
+          <com:Name xml:lang="en">North America</com:Name>
+          <com:Name xml:lang="fr">Amérique du Nord</com:Name>
+          <com:Name xml:lang="es">América del Norte</com:Name>
+          <com:Name xml:lang="zh">北美洲</com:Name>
+          <com:Description xml:lang="en">North America refers to Canada, Mexico, Puerto Rico, and the United States.</com:Description>
+        </str:Code>
+        <str:Code id="G757" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).G757">
+          <com:Name xml:lang="ar">الاتحاد الجمركي لجنوب إفريقيا</com:Name>
+          <com:Name xml:lang="ru">Южноафриканский таможенный союз</com:Name>
+          <com:Name xml:lang="ja">南部アフリカ関税同盟</com:Name>
+          <com:Name xml:lang="en">Southern African Customs Union (SACU)</com:Name>
+          <com:Name xml:lang="fr">Union douanière d'Afrique australe (SACU)</com:Name>
+          <com:Name xml:lang="es">Unión Aduanera de África Austral (SACU)</com:Name>
+          <com:Name xml:lang="zh">南部非洲关税同盟</com:Name>
+          <com:Description xml:lang="en">Member states of Southern African Customs Union (consists of Botswana, Eswatini, Lesotho, Namibia, and South Africa).</com:Description>
+        </str:Code>
+        <str:Code id="G603" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).G603">
+          <com:Name xml:lang="ar">أفريقيا جنوب الصحراء الكبرى</com:Name>
+          <com:Name xml:lang="ru">Страны Африки к югу от Сахары</com:Name>
+          <com:Name xml:lang="ja">サハラ以南アフリカ</com:Name>
+          <com:Name xml:lang="en">Sub-Saharan Africa (SSA)</com:Name>
+          <com:Name xml:lang="fr">Afrique subsaharienne</com:Name>
+          <com:Name xml:lang="es">África subsahariana</com:Name>
+          <com:Name xml:lang="zh">撒哈拉以南非洲</com:Name>
+          <com:Description xml:lang="en">EMDEs located in the Sub-Sahara Africa region.</com:Description>
+        </str:Code>
+        <str:Code id="G1627" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).G1627">
+          <com:Name xml:lang="ar">أفريقيا جنوب الصحراء الكبرى (SSA): الدخل المنخفض</com:Name>
+          <com:Name xml:lang="ru">Африка к югу от Сахары (SSA): Низкий доход</com:Name>
+          <com:Name xml:lang="ja">サハラ以南アフリカ (SSA)：低所得国</com:Name>
+          <com:Name xml:lang="en">Sub-Saharan Africa (SSA): Low-Income</com:Name>
+          <com:Name xml:lang="fr">Afrique subsaharienne (ASS) : Faible revenu</com:Name>
+          <com:Name xml:lang="es">África Subsahariana (SSA): Bajos Ingresos</com:Name>
+          <com:Name xml:lang="zh">撒哈拉以南非洲 (SSA)：低收入</com:Name>
+          <com:Description xml:lang="en">Countries geographically located in Africa, fully or partially south of the Sahara desert with an average GNI per capita income of US$1025 or below for the period 2016-18.</com:Description>
+        </str:Code>
+        <str:Code id="G1626" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).G1626">
+          <com:Name xml:lang="ar">أفريقيا جنوب الصحراء الكبرى (SSA): الدخل المتوسط</com:Name>
+          <com:Name xml:lang="ru">Африка к югу от Сахары (SSA): Средний доход</com:Name>
+          <com:Name xml:lang="ja">サハラ以南アフリカ (SSA)：中所得国</com:Name>
+          <com:Name xml:lang="en">Sub-Saharan Africa (SSA): Middle-Income</com:Name>
+          <com:Name xml:lang="fr">Afrique subsaharienne (ASS) : Revenu intermédiaire</com:Name>
+          <com:Name xml:lang="es">África Subsahariana (SSA): Ingresos Medios</com:Name>
+          <com:Name xml:lang="zh">撒哈拉以南非洲 (SSA)：中等收入</com:Name>
+          <com:Description xml:lang="en">Countries geographically located in Africa, fully or partially south of the Sahara desert with an average GNI per capita income of above US$1025 for the period 2016-18.</com:Description>
+        </str:Code>
+        <str:Code id="G1614" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).G1614">
+          <com:Name xml:lang="ar">أفريقيا جنوب الصحراء الكبرى (SSA): مصدرون النفط</com:Name>
+          <com:Name xml:lang="ru">Африка к югу от Сахары (SSA): Экспортеры нефти</com:Name>
+          <com:Name xml:lang="ja">サハラ以南アフリカ (SSA)：石油輸出国</com:Name>
+          <com:Name xml:lang="en">Sub-Saharan Africa (SSA): Oil Exporters</com:Name>
+          <com:Name xml:lang="fr">Afrique subsaharienne (ASS) : Exportateurs de pétrole</com:Name>
+          <com:Name xml:lang="es">África Subsahariana (SSA): Exportadores de Petróleo</com:Name>
+          <com:Name xml:lang="zh">撒哈拉以南非洲 (SSA)：石油出口国</com:Name>
+          <com:Description xml:lang="en">EMDEs in SSA whose main source (>50%) of export earnings is Fuel.</com:Description>
+        </str:Code>
+        <str:Code id="G759" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).G759">
+          <com:Name xml:lang="ar">الاتحاد الاقتصادي والنقدي لغرب أفريقيا</com:Name>
+          <com:Name xml:lang="ru">Западноафриканский экономический и валютный союз</com:Name>
+          <com:Name xml:lang="ja">西アフリカ経済通貨同盟</com:Name>
+          <com:Name xml:lang="en">West African Economic and Monetary Union (WAEMU)</com:Name>
+          <com:Name xml:lang="fr">Union économique et monétaire ouest-africaine (UEMOA)</com:Name>
+          <com:Name xml:lang="es">Unión Económica y Monetaria de África Occidental (UEMOA)</com:Name>
+          <com:Name xml:lang="zh">西非经济货币联盟</com:Name>
+          <com:Description xml:lang="en">Member states of the West African Economic and Monetary Union (WAEMU). Supersedes the West African Monetary Union.</com:Description>
+        </str:Code>
+        <str:Code id="G001" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).G001">
+          <com:Name xml:lang="ar">العالم</com:Name>
+          <com:Name xml:lang="ru">Мир</com:Name>
+          <com:Name xml:lang="ja">世界</com:Name>
+          <com:Name xml:lang="en">World</com:Name>
+          <com:Name xml:lang="fr">Monde</com:Name>
+          <com:Name xml:lang="es">Mundo</com:Name>
+          <com:Name xml:lang="zh">世界</com:Name>
+          <com:Description xml:lang="en">All economies covered by the dataset. Consult the dataset documentation for the specific composition of economies at each point in time.</com:Description>
+        </str:Code>
+        <str:Code id="G163" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).G163">
+          <com:Name xml:lang="en">Euro Area (EA)</com:Name>
+          <com:Description xml:lang="en">Economies that are members of the Euro Area. https://ec.europa.eu/info/business-economy-euro/euro-area/what-euro-area_en</com:Description>
+        </str:Code>
+        <str:Code id="GASEAN" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).GASEAN">
+          <com:Name xml:lang="en">ASEAN</com:Name>
+          <com:Description xml:lang="en">The Association of Southeast Asian Nations is a political and economic union of 10 states in Southeast Asia. (https://en.wikipedia.org/wiki/Member_states_of_ASEAN)</com:Description>
+        </str:Code>
+        <str:Code id="G765" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).G765">
+          <com:Name xml:lang="en">Southern African Development Community (SADC)</com:Name>
+          <com:Description xml:lang="en">Member states of the Southern African Development Community (SADC): https://www.sadc.int/</com:Description>
+        </str:Code>
+        <str:Code id="G760" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).G760">
+          <com:Name xml:lang="en">Common Market for Eastern and Southern Africa (COMESA)</com:Name>
+          <com:Description xml:lang="en">Member states of the largest regional economic organization in Africa, the Common Market for Eastern and Southern Africa (COMESA), which includes a free trade area and a customs union (launched in 2009): https://www.comesa.int/members/</com:Description>
+        </str:Code>
+        <str:Code id="G129" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).G129">
+          <com:Name xml:lang="en">Benelux</com:Name>
+          <com:Description xml:lang="en">Grouping of Belgium, the Netherlands, and Luxembourg. The term "Benelux," formed from the first two letters of each country's name, originally referred to a customs union established in 1948. Today, the term is used as a generic grouping of the three countries. (Eurostat)</com:Description>
+        </str:Code>
+        <str:Code id="BLM" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).BLM">
+          <com:Name xml:lang="en">Saint Barthelemy</com:Name>
+        </str:Code>
+        <str:Code id="MAF" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).MAF">
+          <com:Name xml:lang="en">Saint Martin</com:Name>
+        </str:Code>
+        <str:Code id="SGS" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).SGS">
+          <com:Name xml:lang="en">South Georgia and the South Sandwich Islands</com:Name>
+        </str:Code>
+        <str:Code id="CXR" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).CXR">
+          <com:Name xml:lang="en">Christmas Island</com:Name>
+        </str:Code>
+        <str:Code id="CCK" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).CCK">
+          <com:Name xml:lang="en">Cocos Islands</com:Name>
+        </str:Code>
+        <str:Code id="ESH" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).ESH">
+          <com:Name xml:lang="en">Western Sahara</com:Name>
+        </str:Code>
+        <str:Code id="BVT" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).BVT">
+          <com:Name xml:lang="en">Bouvet Island</com:Name>
+        </str:Code>
+        <str:Code id="IOT" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).IOT">
+          <com:Name xml:lang="en">British Indian Ocean Territory</com:Name>
+        </str:Code>
+        <str:Code id="HMD" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).HMD">
+          <com:Name xml:lang="en">Heard Island and McDonald Islands</com:Name>
+        </str:Code>
+        <str:Code id="UMI" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).UMI">
+          <com:Name xml:lang="en">United States Minor Outlying Islands</com:Name>
+        </str:Code>
+        <str:Code id="GSAC" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF:CL_COUNTRY(1.5.1).GSAC">
+          <com:Name xml:lang="en">Southern African Customs Union (SACU)</com:Name>
+        </str:Code>
+      </str:Codelist>
+    </str:Codelists>
+  </mes:Structures>
+</mes:Structure>

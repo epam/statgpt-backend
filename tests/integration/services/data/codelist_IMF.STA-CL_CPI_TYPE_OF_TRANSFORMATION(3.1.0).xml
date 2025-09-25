@@ -1,0 +1,49 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<mes:Structure xmlns:mes="http://www.sdmx.org/resources/sdmxml/schemas/v2_1/message" xmlns:str="http://www.sdmx.org/resources/sdmxml/schemas/v2_1/structure" xmlns:com="http://www.sdmx.org/resources/sdmxml/schemas/v2_1/common" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xml="http://www.w3.org/XML/1998/namespace" xsi:schemaLocation="http://www.sdmx.org/resources/sdmxml/schemas/v2_1/message ../../schemas/SDMXMessage.xsd">
+  <mes:Header>
+    <mes:ID>IDREF8002</mes:ID>
+    <mes:Test>false</mes:Test>
+    <mes:Prepared>2025-07-29T10:37:05.995648768Z</mes:Prepared>
+    <mes:Sender id="unknown"/>
+  </mes:Header>
+  <mes:Structures>
+    <str:Codelists>
+      <str:Codelist urn="urn:sdmx:org.sdmx.infomodel.codelist.Codelist=IMF.STA:CL_CPI_TYPE_OF_TRANSFORMATION(3.1.0)" agencyID="IMF.STA" id="CL_CPI_TYPE_OF_TRANSFORMATION" version="3.1.0" isFinal="true" isExternalReference="false" isPartial="false">
+        <com:Annotations>
+          <com:Annotation id="origin"/>
+          <com:Annotation id="isFinal"/>
+          <com:Annotation id="lastUpdatedAt"/>
+        </com:Annotations>
+        <com:Name xml:lang="en">Consumer Price Index (CPI) Type of Transformation</com:Name>
+        <str:Code id="IX" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF.STA:CL_CPI_TYPE_OF_TRANSFORMATION(3.1.0).IX">
+          <com:Name xml:lang="en">Index</com:Name>
+          <com:Description xml:lang="en">A statistical measure that expresses the relative change in a variable over time.</com:Description>
+        </str:Code>
+        <str:Code id="POP_PCH_PA_PT" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF.STA:CL_CPI_TYPE_OF_TRANSFORMATION(3.1.0).POP_PCH_PA_PT">
+          <com:Name xml:lang="en">Period average, Period-over-period percent change</com:Name>
+          <com:Description xml:lang="en">Average percentage change of the data series over a defined period. A ratio expressed as a fraction of 100.</com:Description>
+        </str:Code>
+        <str:Code id="YOY_PCH_PA_PT" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF.STA:CL_CPI_TYPE_OF_TRANSFORMATION(3.1.0).YOY_PCH_PA_PT">
+          <com:Name xml:lang="en">Period average, Year-over-year (YOY) percent change</com:Name>
+          <com:Description xml:lang="en">The percentage change over two consecutive years in the average value of an index for the current period compared to the previous period. This provides a measure of how the average relative value (compared to the base period) has changed over two consecutive periods. A ratio expressed as a fraction of 100.</com:Description>
+        </str:Code>
+        <str:Code id="WGT" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF.STA:CL_CPI_TYPE_OF_TRANSFORMATION(3.1.0).WGT">
+          <com:Name xml:lang="en">Weight</com:Name>
+          <com:Description xml:lang="en">Weight refers to a numerical value assigned to each observation in a dataset to adjust its relative importance in calculations.</com:Description>
+        </str:Code>
+        <str:Code id="WGT_PT" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF.STA:CL_CPI_TYPE_OF_TRANSFORMATION(3.1.0).WGT_PT">
+          <com:Name xml:lang="en">Weight, Percent</com:Name>
+          <com:Description xml:lang="en">Weight refers to a numerical value assigned to each observation in a dataset to adjust its relative importance in calculations. A ratio expressed as a fraction of 100.</com:Description>
+        </str:Code>
+        <str:Code id="OLP_IX" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF.STA:CL_CPI_TYPE_OF_TRANSFORMATION(3.1.0).OLP_IX">
+          <com:Name xml:lang="en">Overlap, Index</com:Name>
+          <com:Description xml:lang="en">This refers to a period where existing and new series (e.g., Consumer Price Index) are compiled in parallel to allow the two to be linked. It's a methodological construct to facilitate linking and ensure a smooth transition between different versions or methodologies of data collection. A statistical measure that expresses the relative change in a variable over time.</com:Description>
+        </str:Code>
+        <str:Code id="SRP_IX" urn="urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF.STA:CL_CPI_TYPE_OF_TRANSFORMATION(3.1.0).SRP_IX">
+          <com:Name xml:lang="en">Standard reference period (SRP), Index</com:Name>
+          <com:Description xml:lang="en">Standard Reference Period (SRP) is a consistent timeframe used for comparing data over time. A statistical measure that expresses the relative change in a variable over time.</com:Description>
+        </str:Code>
+      </str:Codelist>
+    </str:Codelists>
+  </mes:Structures>
+</mes:Structure>

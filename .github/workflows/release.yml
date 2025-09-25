@@ -1,0 +1,131 @@
+name: Release Workflow
+
+on:
+  push:
+    branches: [development, release-*]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    uses: ./.github/workflows/test.yml
+    secrets: inherit
+    with:
+      bypass-checks: false
+      style-checks-enabled: true
+      style-checks-bypassed: false
+      code-checks-enabled: true
+      code-checks-bypassed: false
+      ort-enabled: true
+      ort-bypassed: false
+      ort-version: "latest"
+      python-version: "3.11"
+      poetry-version: "2.1.1"
+      runs-on: '["ubuntu-24.04"]'
+
+  calculate_version:
+    runs-on: ubuntu-24.04
+    outputs:
+      next-version: ${{ steps.semantic_versioning.outputs.next-version }}
+      next-version-without-hyphens: ${{ steps.semantic_versioning.outputs.next-version-without-hyphens }}
+      is-latest: ${{ steps.semantic_versioning.outputs.is-latest }}
+      latest-tag: ${{ steps.semantic_versioning.outputs.latest-tag }}
+    steps:
+      - uses: epam/ai-dial-ci/actions/semantic_versioning@2.4.1
+        id: semantic_versioning
+
+  release:
+    runs-on: ubuntu-24.04
+    needs: [test, calculate_version]
+    permissions:
+      contents: read
+      packages: write
+      security-events: write
+    strategy:
+      matrix:
+        include:
+          - image-name: "epam/statgpt-chat-backend"
+            dockerfile: "docker/chat.Dockerfile"
+          - image-name: "epam/statgpt-admin-backend"
+            dockerfile: "docker/admin.Dockerfile"
+
+    steps:
+      - name: Maximize build space
+        uses: AdityaGarg8/remove-unwanted-software@90e01b21170618765a73370fcc3abbd1684a7793 # v5
+        if: false # Maximize build space by removing unwanted software if set to true
+        with:
+          remove-android: "true"
+          remove-dotnet: "true"
+          remove-haskell: "true"
+          remove-codeql: "true"
+          remove-docker-images: "true"
+          remove-cached-tools: "true"
+          remove-large-packages: "true"
+
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          lfs: true
+          token: ${{ secrets.ACTIONS_BOT_TOKEN }}
+
+      - name: Set version in pyproject.toml for Docker build
+        shell: bash
+        run: |
+          sed -i "s/^version = .*/version = \"${{ needs.calculate_version.outputs.next-version-without-hyphens }}\"/g" pyproject.toml
+
+      # Workaround: Copy the specific Dockerfile to root as "Dockerfile" (the build_docker action does not support multiple images)
+      - name: Prepare Dockerfile
+        run: |
+          cp ${{ matrix.dockerfile }} ./Dockerfile
+
+      - uses: ./.github/actions/build_docker
+        with:
+          image-name: ${{ matrix.image-name }}
+          image-tag: ${{ needs.calculate_version.outputs.next-version }}
+          push-enabled: true
+          trivy-enabled: true
+          bypass-checks: false
+          trivy-severity: "CRITICAL,HIGH"
+          trivy-severity-for-sarif: "CRITICAL,HIGH"
+          trivy-limit-severities-for-sarif: true
+          platforms: "linux/amd64"
+          ghcr-username: ${{ github.actor }}
+          ghcr-password: ${{ secrets.ACTIONS_BOT_TOKEN }}
+          dockerhub-username: ${{ secrets.DOCKERHUB_LOGIN }}
+          dockerhub-password: ${{ secrets.DOCKERHUB_TOKEN }}
+          image-extra-aliases: |
+            ghcr.io/${{ matrix.image-name }}:${{ needs.calculate_version.outputs.next-version }}
+            ${{ github.ref == 'refs/heads/development' && format('{0}:development', matrix.image-name) || '' }}
+            ${{ github.ref == 'refs/heads/development' && format('ghcr.io/{0}:development', matrix.image-name) || '' }}
+            ${{ startsWith(github.ref, 'refs/heads/release-') && needs.calculate_version.outputs.is-latest == 'true' && format('{0}:latest', matrix.image-name) || '' }}
+            ${{ startsWith(github.ref, 'refs/heads/release-') && needs.calculate_version.outputs.is-latest == 'true' && format('ghcr.io/{0}:latest', matrix.image-name) || '' }}
+
+  create_release:
+    runs-on: ubuntu-24.04
+    needs: [calculate_version, release]
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          token: ${{ secrets.ACTIONS_BOT_TOKEN }}
+
+      - name: Set version in pyproject.toml for release
+        shell: bash
+        run: |
+          sed -i "s/^version = .*/version = \"${{ needs.calculate_version.outputs.next-version-without-hyphens }}\"/g" pyproject.toml
+
+      - uses: epam/ai-dial-ci/actions/generate_release_notes@2.4.1
+        with:
+          latest-tag: ${{ needs.calculate_version.outputs.latest-tag }}
+
+      - uses: epam/ai-dial-ci/actions/publish_tag_release@2.4.1
+        with:
+          tag-version: ${{ needs.calculate_version.outputs.next-version }}
+          changelog-file: "/tmp/my_changelog" # Comes from generate_release_notes step
+          extra-commit-command: |
+            git config --global user.name "statgpt-actions"
+            git config --global user.email "231008922+statgpt-actions@users.noreply.github.com"
+            git add pyproject.toml
+            git commit -m '[skip ci] Update version' || true
