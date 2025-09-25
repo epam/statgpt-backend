@@ -7,20 +7,23 @@ excludes:
     - pattern: "experiments"
       reason: "DEV_DEPENDENCY_OF"
       comment: "Packages for experimentation only."
-#resolutions:
-#  rule_violations:
-#    - message: ".*PyPI::httpx:0\\.28\\.1.*"
-#      reason: 'CANT_FIX_EXCEPTION'
-#      comment: 'BSD 3-Clause "New" or "Revised" License: https://github.com/encode/httpx/blob/0.28.1/LICENSE.md'
-#    - message: ".*PyPI::httpcore:1\\.0\\.9.*"
-#      reason: 'CANT_FIX_EXCEPTION'
-#      comment: 'BSD 3-Clause "New" or "Revised" License: https://github.com/encode/httpcore/blob/1.0.9/LICENSE.md'
-#    - message: ".*PyPI::werkzeug:3\\.0\\.1.*"
-#      reason: 'CANT_FIX_EXCEPTION'
-#      comment: 'BSD 3-Clause "New" or "Revised" License: https://github.com/pallets/werkzeug/blob/3.0.1/LICENSE.rst'
-#    - message: ".*PyPI::numpy:2\\.0\\.0.*"
-#      reason: 'CANT_FIX_EXCEPTION'
-#      comment: 'BSD License: https://github.com/numpy/numpy/blob/v2.0.0/LICENSE.txt'
-#    - message: ".*PyPI::urllib3:2\\.5\\.0.*"
-#      reason: "CANT_FIX_EXCEPTION"
-#      comment: "MIT License: https://github.com/urllib3/urllib3/blob/main/LICENSE.txt"
+resolutions:
+  rule_violations:
+    - message: ".*PyPI::pandas:2\\.3\\.0.*"
+      reason: "CANT_FIX_EXCEPTION"
+      comment: "BSD 3-Clause License: https://github.com/pandas-dev/pandas/blob/main/LICENSE"
+    - message: ".*PyPI::numpy:1\\.26\\.4.*"
+      reason: "CANT_FIX_EXCEPTION"
+      comment: "BSD 3-Clause License: https://github.com/numpy/numpy/blob/main/LICENSE.txt"
+    - message: ".*PyPI::httpcore:1\\.0\\.9.*"
+      reason: "CANT_FIX_EXCEPTION"
+      comment: "BSD 3-Clause License: https://github.com/encode/httpcore/blob/master/LICENSE.md"
+    - message: ".*PyPI::tiktoken:0\\.9\\.0.*"
+      reason: "CANT_FIX_EXCEPTION"
+      comment: "MIT License: https://github.com/openai/tiktoken/blob/0.11.0/LICENSE"
+    - message: ".*PyPI::urllib3:2\\.4\\.0.*"
+      reason: "CANT_FIX_EXCEPTION"
+      comment: "MIT License: https://github.com/urllib3/urllib3/blob/2.5.0/LICENSE.txt"
+    - message: ".*PyPI::typing-extensions:4\\.14\\.0.*"
+      reason: "CANT_FIX_EXCEPTION"
+      comment: "Same as CPython: https://github.com/python/typing_extensions/blob/4.14.0/LICENSE"
