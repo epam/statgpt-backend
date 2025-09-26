@@ -84,6 +84,9 @@ jobs:
       - name: Run style checks
         continue-on-error: ${{ inputs.bypass-checks || inputs.style-checks-bypassed }}
         shell: bash
+        env:
+          # Force Poetry to use the setup-python interpreter (inputs.python-version) instead of the runner default python3
+          POETRY_PYTHON: python${{ inputs.python-version }}
         run: |
           make lint
 
@@ -156,6 +159,8 @@ jobs:
         continue-on-error: ${{ inputs.bypass-checks || inputs.code-checks-bypassed }}
         shell: bash
         env:
+          # Force Poetry to use the setup-python interpreter (inputs.python-version) instead of the runner default python3
+          POETRY_PYTHON: python${{ inputs.python-version }}
           TEST_DATABASE_HOST: ${{ env.TEST_DATABASE_HOST }}
           TEST_DATABASE_PORT: ${{ env.TEST_DATABASE_PORT }}
           TEST_DATABASE: ${{ env.TEST_DATABASE }}
