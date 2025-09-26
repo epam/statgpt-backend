@@ -9,14 +9,14 @@ export
 init_venv:
 	@echo "Using Python: $(POETRY_PYTHON)"
 	@$(POETRY_PYTHON) --version
+	rm -rf .venv || true
 	poetry env remove --all || true
-	poetry env use "$(POETRY_PYTHON)"
+	$(POETRY_PYTHON) -m venv .venv
+	poetry env use .venv/bin/python
+	@echo "Verifying virtual environment:"
+	.venv/bin/python --version
 	@echo "Poetry environment info:"
 	poetry env info
-	@echo "Virtual environment Python version:"
-	poetry run python --version
-	@echo "Virtual environment Python path:"
-	poetry run which python
 
 install_dev: init_venv
 	@echo "About to run poetry install..."
