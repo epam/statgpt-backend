@@ -78,26 +78,12 @@ jobs:
           python-version: ${{ inputs.python-version }}
           poetry-version: ${{ inputs.poetry-version }}
 
-      - name: Debug Python versions
-        run: |
-          echo "Available Python executables:"
-          which -a python python3 python3.11 python3.12 || true
-          echo "Python versions:"
-          python --version || true
-          python3 --version || true
-          python3.11 --version || true
-          python3.12 --version || true
-          echo "pythonLocation: $pythonLocation"
-          ls -la $pythonLocation/bin/ | grep python || true
-
       - name: Create reports directory
         run: mkdir -p reports
 
       - name: Run style checks
         continue-on-error: ${{ inputs.bypass-checks || inputs.style-checks-bypassed }}
         shell: bash
-        env:
-          POETRY_PYTHON: ${{ env.pythonLocation }}/bin/python
         run: |
           make lint
 

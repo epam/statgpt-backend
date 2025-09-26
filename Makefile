@@ -1,4 +1,4 @@
-POETRY_PYTHON ?= python3
+POETRY_PYTHON ?= $(if $(pythonLocation),$(pythonLocation)/bin/python,python3)
 SRC_DIRS = src scripts
 STATGPT_MYPY_DIRS = src/statgpt/config src/statgpt/default_prompts src/statgpt/schemas src/statgpt/security src/statgpt/services src/statgpt/settings src/statgpt/utils/formatters src/statgpt/utils/openai src/statgpt/utils/message_interceptors src/statgpt/utils/message_history.py
 MYPY_DIRS = src/common src/admin_portal ${STATGPT_MYPY_DIRS}
@@ -7,9 +7,19 @@ MYPY_DIRS = src/common src/admin_portal ${STATGPT_MYPY_DIRS}
 export
 
 init_venv:
-	poetry env use ${POETRY_PYTHON}
+	@echo "Using Python: $(POETRY_PYTHON)"
+	@$(POETRY_PYTHON) --version
+	poetry env remove --all || true
+	poetry env use "$(POETRY_PYTHON)"
+	@echo "Poetry environment info:"
+	poetry env info
+	@echo "Virtual environment Python version:"
+	poetry run python --version
+	@echo "Virtual environment Python path:"
+	poetry run which python
 
 install_dev: init_venv
+	@echo "About to run poetry install..."
 	poetry install --with dev
 
 format: install_dev
