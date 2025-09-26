@@ -7,19 +7,11 @@ MYPY_DIRS = src/common src/admin_portal ${STATGPT_MYPY_DIRS}
 export
 
 init_venv:
-	@echo "Using Python: $(POETRY_PYTHON)"
-	@$(POETRY_PYTHON) --version
-	rm -rf .venv || true
 	poetry env remove --all || true
 	$(POETRY_PYTHON) -m venv .venv
 	poetry env use .venv/bin/python
-	@echo "Verifying virtual environment:"
-	.venv/bin/python --version
-	@echo "Poetry environment info:"
-	poetry env info
 
 install_dev: init_venv
-	@echo "About to run poetry install..."
 	poetry install --with dev
 
 format: install_dev
