@@ -1,4 +1,4 @@
-POETRY_PYTHON ?= python3
+POETRY_PYTHON ?= python3.11
 SRC_DIRS = src scripts
 STATGPT_MYPY_DIRS = src/statgpt/config src/statgpt/default_prompts src/statgpt/schemas src/statgpt/security src/statgpt/services src/statgpt/settings src/statgpt/utils/formatters src/statgpt/utils/openai src/statgpt/utils/message_interceptors src/statgpt/utils/message_history.py
 MYPY_DIRS = src/common src/admin_portal ${STATGPT_MYPY_DIRS}
