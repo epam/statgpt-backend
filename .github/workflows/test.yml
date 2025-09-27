@@ -85,6 +85,7 @@ jobs:
         continue-on-error: ${{ inputs.bypass-checks || inputs.style-checks-bypassed }}
         shell: bash
         run: |
+          make remove_venv
           make lint
 
   code_checks:
@@ -163,6 +164,7 @@ jobs:
           PGVECTOR_PASSWORD: ${{ env.PGVECTOR_PASSWORD }}
           ELASTIC_CONNECTION_STRING: ${{ env.ELASTIC_CONNECTION_STRING }}
         run: |
+          make remove_venv
           make test
 
       - name: Upload test results

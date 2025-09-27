@@ -6,9 +6,11 @@ MYPY_DIRS = src/common src/admin_portal ${STATGPT_MYPY_DIRS}
 -include .env
 export
 
-init_venv:
+remove_venv:
 	poetry env remove --all || true
 	$(POETRY_PYTHON) -m venv .venv
+
+init_venv:
 	poetry env use .venv/bin/python
 
 install_dev: init_venv
