@@ -1,13 +1,17 @@
-POETRY_PYTHON ?= python3
-SRC_DIRS = src scripts
+POETRY_PYTHON ?= $(if $(pythonLocation),$(pythonLocation)/bin/python,python3)
+SRC_DIRS = src scripts tests
 STATGPT_MYPY_DIRS = src/statgpt/config src/statgpt/default_prompts src/statgpt/schemas src/statgpt/security src/statgpt/services src/statgpt/settings src/statgpt/utils/formatters src/statgpt/utils/openai src/statgpt/utils/message_interceptors src/statgpt/utils/message_history.py
 MYPY_DIRS = src/common src/admin_portal ${STATGPT_MYPY_DIRS}
 
 -include .env
 export
 
+remove_venv:
+	poetry env remove --all || true
+	$(POETRY_PYTHON) -m venv .venv
+
 init_venv:
-	poetry env use ${POETRY_PYTHON}
+	poetry env use .venv/bin/python
 
 install_dev: init_venv
 	poetry install --with dev
