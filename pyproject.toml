@@ -4,6 +4,8 @@ version = "1.1.2"
 description = "StatGPT: Platform for talking to Official Statistics data & SDMX"
 readme = "README.md"
 requires-python = ">=3.11,<3.12"
+license = "MIT"
+license-files = ["LICENSE"]
 dependencies = [
     # Core framework & API
     'aidial-sdk[telemetry] (>=0.25.1,<0.26.0)',  # DIAL integration SDK
