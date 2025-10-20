@@ -7,7 +7,7 @@ from common import utils
 from statgpt.chains.parameters import ChainParameters
 from statgpt.config import ChainParametersConfig
 from statgpt.schemas import BatchedSelectionOutputBase
-from statgpt.services import ScoredDimensionCandidate
+from statgpt.services.chat_facade import ScoredDimensionCandidate
 
 from .chain_factory import ChainFactory
 

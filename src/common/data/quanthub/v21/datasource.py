@@ -111,7 +111,7 @@ class QuanthubSdmx21DataSourceHandler(Sdmx21DataSourceHandler):
             structure_message = await dataflow_loader.load_structure_message(urn)
         except Exception as e:
             if allow_offline:
-                msg = "Failed to load the dataflow or its associated structures."
+                msg = f"Failed to load the dataflow or its associated structures. {urn=}"
                 logger.exception(msg)
                 return SdmxOfflineDataSet(
                     entity_id, title, dataset_config, self, status_details=msg
@@ -148,6 +148,14 @@ class QuanthubSdmx21DataSourceHandler(Sdmx21DataSourceHandler):
                 raise e
 
         try:
+            attribute_values = await sdmx_client.dataset_level_attributes(
+                agency_id=urn.agency_id, resource_id=urn.resource_id, version=urn.version
+            )
+        except Exception:
+            logger.exception(f"Failed to load dataset-level attributes for the dataflow({urn}).")
+            attribute_values = {}
+
+        try:
             annotations = await sdmx_client.dynamic_dataflow_annotations(
                 agency_id=urn.agency_id, resource_id=urn.resource_id, version=urn.version
             )
@@ -173,6 +181,7 @@ class QuanthubSdmx21DataSourceHandler(Sdmx21DataSourceHandler):
                 locale=self._config.locale,
                 dimensions=dimensions,
                 attributes=attributes,
+                attribute_values=attribute_values,
                 annotations=annotations,
             )
         except Exception as e:

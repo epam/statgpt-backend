@@ -22,7 +22,7 @@ from statgpt.schemas.query_builder import (
     DatasetDimQueries,
     DatasetDimQueriesType,
 )
-from statgpt.services import ScoredIndicatorCandidate
+from statgpt.services.chat_facade import ScoredIndicatorCandidate
 from statgpt.utils.formatters import (
     CitationFormatterConfig,
     DatasetFormatterConfig,

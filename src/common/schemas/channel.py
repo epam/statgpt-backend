@@ -3,6 +3,7 @@ from pydantic import BaseModel, Field
 from .base import BaseYamlModel, DbDefaultBase
 from .enums import LocaleEnum
 from .model_config import LLMModelConfig
+from .onboarding import OnboardingConfig
 from .tools import (
     AvailableDatasetsTool,
     AvailablePublicationsTool,
@@ -38,6 +39,10 @@ class SupremeAgentConfig(BaseYamlModel):
     llm_model_config: LLMModelConfig = Field(
         default_factory=LLMModelConfig,
         description="LLM model configuration for the supreme agent",
+    )
+    additional_context: str = Field(
+        default="",
+        description="Additional context for the supreme agent",
     )
 
 
@@ -114,6 +119,9 @@ class ChannelConfig(BaseYamlModel):
     locale: LocaleEnum = Field(default=LocaleEnum.EN, description="The locale of the channel")
     conversation_starters: ConversationStartersConfig | None = Field(
         default=None, description="The conversation starters configuration"
+    )
+    onboarding: OnboardingConfig | None = Field(
+        default=None, description="The onboarding configuration"
     )
     named_entity_types: list[str] = Field(
         default=[], description="The named entity types used for named entity extraction"

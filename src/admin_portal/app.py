@@ -5,6 +5,8 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 import dotenv
+from aidial_sdk.telemetry.init import init_telemetry
+from aidial_sdk.telemetry.types import MetricsConfig, TelemetryConfig, TracingConfig
 from fastapi import FastAPI
 
 module_path = Path(__file__).parent.parent.absolute()
@@ -19,6 +21,7 @@ except Exception:
     pass
 
 from admin_portal.routers import router
+from admin_portal.settings.app import APP_SETTINGS
 from common.models import DatabaseHealthChecker, optional_msi_token_manager_context
 from common.services.data_preloader import preload_data
 
@@ -41,6 +44,15 @@ app = FastAPI(
     docs_url="/admin/api/docs",
     redoc_url="/admin/api/redoc",
     openapi_url="/admin/api/openapi.json",
+)
+
+init_telemetry(
+    app=app,
+    config=TelemetryConfig(
+        service_name=APP_SETTINGS.otel_service_name,
+        tracing=TracingConfig(),
+        metrics=MetricsConfig(),
+    ),
 )
 
 app.include_router(router)

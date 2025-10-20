@@ -153,6 +153,17 @@ class DataQueryDetails(BaseToolDetails):
         description="The version of the indicator selection algorithm",
     )
     special_dimensions_processors: list[SpecialDimensionsProcessor] = Field(default_factory=list)
+    filter_by_country_entities: bool = Field(
+        default=True,
+        description=("Whether to filter dataset queries by presence of 'country' named entities"),
+    )
+    clarify_if_multiple_datasets: bool = Field(
+        default=True,
+        description=(
+            "Whether to ask the user for clarification if multiple datasets are "
+            "found to match the query."
+        ),
+    )
     llm_models: DataQueryLLMModels = Field(default_factory=DataQueryLLMModels)  # type: ignore
     prompts: DataQueryPrompts = Field(default_factory=DataQueryPrompts)  # type: ignore
     messages: DataQueryMessages = Field(default_factory=DataQueryMessages)  # type: ignore

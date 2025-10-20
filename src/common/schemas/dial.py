@@ -21,7 +21,7 @@ class Attachment(ExtraAllowModel):
 
 class Stage(ExtraAllowModel):
     name: StrictStr
-    status: Status
+    status: Status | None
     content: StrictStr | None = Field(default=None)
     attachments: list[Attachment] | None = Field(default=None)
 

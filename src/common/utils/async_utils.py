@@ -1,7 +1,8 @@
 import asyncio
 import functools
 import logging
-from typing import Callable, TypeVar
+from collections.abc import Callable
+from typing import Any, TypeVar
 
 T = TypeVar('T')
 
@@ -36,12 +37,6 @@ def catch_and_log_async(logger: logging.Logger | None = None):
                 _logger.error(
                     f"Exception in {func.__name__}: {e}",
                     exc_info=True,
-                    extra={
-                        "function": func.__name__,
-                        "module": func.__module__,
-                        "args": args,
-                        "kwargs": kwargs,
-                    },
                 )
                 return None
 
@@ -50,8 +45,9 @@ def catch_and_log_async(logger: logging.Logger | None = None):
     return decorator
 
 
-def gather_with_concurrency(n: int, *coros) -> asyncio.Future:
+async def gather_with_concurrency(n: int, *coros) -> list[Any]:
     """Run coroutines with a limit on the number of concurrent tasks.
+    If any of the coroutines fails, all other coroutines will be cancelled.
 
     Args:
         n: Maximum number of coroutines to run concurrently (must be > 0)
@@ -66,13 +62,14 @@ def gather_with_concurrency(n: int, *coros) -> asyncio.Future:
     if n <= 0:
         raise ValueError(f"Concurrency limit must be positive, got {n}")
 
-    if n >= len(coros):
-        return asyncio.gather(*coros)
-
     semaphore = asyncio.Semaphore(n)
 
     async def sem_coro(coro):
         async with semaphore:
             return await coro
 
-    return asyncio.gather(*(sem_coro(coro) for coro in coros))
+    async with asyncio.TaskGroup() as tg:
+        tasks: list[asyncio.Task] = [tg.create_task(sem_coro(coro)) for coro in coros]
+
+    # If we get here, all tasks succeeded
+    return [task.result() for task in tasks]

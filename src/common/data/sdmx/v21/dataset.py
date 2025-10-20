@@ -1,5 +1,6 @@
 import collections
 import json
+import logging
 import os
 import tempfile
 import time
@@ -18,10 +19,10 @@ from sdmx.model.common import Code
 from sdmx.model.v21 import DataflowDefinition as DataFlow
 
 from common.auth.auth_context import AuthContext
-from common.config.logging import multiline_logger as logger
 from common.data.base import (
     CategoricalDimension,
     DataResponse,
+    DataResponseStatus,
     DataSet,
     DataSetAvailabilityQuery,
     DataSetQuery,
@@ -32,6 +33,7 @@ from common.data.base import (
     Query,
     QueryOperator,
     VirtualDimension,
+    VirtualDimensionCategory,
 )
 from common.data.sdmx.common import (
     BaseNameableArtefact,
@@ -44,16 +46,20 @@ from common.data.sdmx.common import (
     SdmxDimension,
 )
 from common.schemas.dataset import Status
-from common.settings.sdmx import sdmx_settings
-from common.utils import escape_invalid_filename_chars
-from common.utils.plotly import PlotlyGraphBuilder, df_2_plotly_grid
-
-from .attribute import Sdmx21Attribute, Sdmx21CodeListAttribute
-from .query import (
+from common.schemas.enums import DataParsingStatus, DataRequestStatus
+from common.schemas.query import (
     JsonComponentQuery,
     JsonQueryMetadata,
     JsonQueryOperator,
     JsonQueryWithMetadata,
+)
+from common.settings.sdmx import sdmx_settings
+from common.utils import escape_invalid_filename_chars
+from common.utils.plotly import PlotlyGraphBuilder, df_2_plotly_grid
+from common.utils.time_utils import get_time_period_bounds
+
+from .attribute import Sdmx21Attribute, Sdmx21CodeListAttribute
+from .query import (
     SdmxDataSetAvailabilityQuery,
     SdmxDataSetQuery,
     SdmxQueryReadinessStatus,
@@ -62,6 +68,9 @@ from .query import (
 
 if t.TYPE_CHECKING:
     from common.data.sdmx.v21.datasource import Sdmx21DataSourceHandler
+
+
+_log = logging.getLogger(__name__)
 
 
 class SdmxOfflineDataSet(OfflineDataSet[SdmxDataSetConfig, 'Sdmx21DataSourceHandler']):
@@ -82,11 +91,17 @@ class Sdmx21DataResponse(DataResponse):
         sdmx_query: SdmxDataSetQuery,
         df: pd.DataFrame,
         url: str | None,
+        status: DataResponseStatus,
     ):
         self.dataset = dataset
         self.sdmx_query = sdmx_query
         self.df = df
         self._url = url
+        self._status = status
+
+    @property
+    def status(self) -> DataResponseStatus:
+        return self._status
 
     @cached_property
     def file_name(self) -> str:
@@ -103,6 +118,8 @@ class Sdmx21DataResponse(DataResponse):
     @cached_property
     def visual_dataframe(self) -> pd.DataFrame:
         """Return a DataFrame suitable for visualization and export (Plotly grid, CSV file)"""
+        if self.df.empty:
+            return self.df
         time_dimension = self.dataset.get_time_dimension()
         visual_df: pd.DataFrame = self.df.unstack(time_dimension.entity_id)  # type: ignore[assignment]
         visual_df.columns = visual_df.columns.droplevel(0)
@@ -127,9 +144,10 @@ class Sdmx21DataResponse(DataResponse):
 
         return Sdmx21DataResponse(
             dataset=self.dataset,
-            df=pd.concat([self.df, other.df]),
+            df=pd.concat([self.df, other.df]).drop_duplicates(),
             sdmx_query=self.sdmx_query.merge(other.sdmx_query),
             url=None,
+            status=self.status.merge(other.status),
         )
 
     @property
@@ -167,7 +185,7 @@ class Sdmx21DataResponse(DataResponse):
             graphs = graph_builder.plot_for_all_indicators()
             return [(self._graph_name(figure, template), figure) for figure in graphs]
         except Exception:
-            logger.exception(f"Failed to create plots for dataset {self.dataset.short_urn}")
+            _log.exception(f"Failed to create plots for dataset {self.dataset.short_urn}")
             return []
 
     @property
@@ -190,12 +208,32 @@ class Sdmx21DataResponse(DataResponse):
             metadata=JsonQueryMetadata(
                 country_dimension=self.dataset.config.country_dimension,
                 indicator_dimensions=self.dataset.config.indicator_dimensions,
+                dataset_url=self.dataset.dataset_url,
             ),
         ).model_dump(by_alias=True)
 
     @property
     def python_code(self) -> str | None:
         return self.dataset.get_python_code(self.sdmx_query)
+
+    @cached_property
+    def time_period(self) -> tuple[str, str] | None:
+        """Return the time period covered by the data in this response as a tuple of (start, end)."""
+        if self.df.empty:
+            return None
+
+        time_dimension = self.dataset.get_time_dimension()
+        time_column = time_dimension.entity_id
+
+        if time_column not in self.df.index.names:
+            return None
+
+        time_values = self.df.index.get_level_values(time_column).dropna().unique()
+        if len(time_values) == 0:
+            return None
+
+        time_values_list = [str(v) for v in time_values]
+        return get_time_period_bounds(time_values_list)
 
     def _enrich_df_with_names(self, df: pd.DataFrame) -> pd.DataFrame:
         df = df.copy(deep=True)
@@ -207,9 +245,11 @@ class Sdmx21DataResponse(DataResponse):
             )
             if id2name_mapping is None:
                 continue
-            df[f"{column}_Name"] = df[column].map(id2name_mapping, na_action='ignore')
-            sorted_columns.append(column)
-            sorted_columns.append(f"{column}_Name")
+            id_column = column  # ToDo: consider adding _ID suffix
+            name_column = f"{column}_Name"
+            df[name_column] = df[column].map(id2name_mapping, na_action='ignore')
+            for c in (id_column, name_column):
+                sorted_columns.append(c)
         # append columns that were not enriched
         for column in df.columns:
             if column not in sorted_columns:
@@ -307,7 +347,7 @@ class Sdmx21DataSet(
     _dimensions: t.Dict[str, SdmxDimension | VirtualDimension]
     _attributes: t.Dict[str, Sdmx21Attribute]
     _virtual_dimensions: t.Dict[str, VirtualDimension]
-    _indicator_dimensions: t.Dict[str, SdmxCodeListDimension]
+    _indicator_dimensions: t.Dict[str, SdmxCodeListDimension | VirtualDimension]
     _indicator_dimensions_required_for_query: list[str]
     _country_dimension: SdmxCodeListDimension | VirtualDimension | None
     _fixed_indicator: FixedItem | None
@@ -339,21 +379,31 @@ class Sdmx21DataSet(
         self._attributes = {attribute.entity_id: attribute for attribute in attributes}
         self._attrib_values_id_2_name = None
 
+        # virtual dimensions
+        for virtual_dimension_config in config.virtual_dimensions:
+            dimension = VirtualDimension(virtual_dimension_config)
+            self._virtual_dimensions[dimension.entity_id] = dimension
+            self._dimensions[dimension.entity_id] = dimension
+
         if indicator_dimensions := config.indicator_dimensions:
             if self._fixed_indicator is not None:
                 raise ValueError(
                     "fixed_indicator must not be provided if indicator_dimensions are present"
                 )
-            logger.debug(f"dataset {self.entity_id}: using provided {indicator_dimensions=}")
+            _log.debug(f"dataset {self.entity_id}: using provided {indicator_dimensions=}")
             for dim_id in indicator_dimensions:
-                dimension = self._dimensions[dim_id]
-                if not isinstance(dimension, SdmxCodeListDimension):
-                    raise TypeError(f"Indicator dimension must be code list dimension: {dimension}")
-                self._indicator_dimensions[dim_id] = dimension
+                indicator_dimension = self._dimensions[dim_id]
+                if not isinstance(indicator_dimension, SdmxCodeListDimension) and not isinstance(
+                    indicator_dimension, VirtualDimension
+                ):
+                    raise TypeError(
+                        f"Indicator dimension must be code list dimension or virtual dimension: {indicator_dimension}"
+                    )
+                self._indicator_dimensions[dim_id] = indicator_dimension
         else:
             if self._fixed_indicator is None:
                 raise ValueError("either indicator_dimensions or fixed_indicator must be provided")
-            logger.info(f"dataset {self.entity_id}: using fixed indicator: {self._fixed_indicator}")
+            _log.info(f"dataset {self.entity_id}: using fixed indicator: {self._fixed_indicator}")
 
         # indicator dimensions required for query
         diff = list(
@@ -377,19 +427,13 @@ class Sdmx21DataSet(
                 config.indicator_dimensions_required_for_query
             )
 
-        # virtual dimensions
-        for virtual_dimension_config in config.virtual_dimensions:
-            dimension = VirtualDimension(virtual_dimension_config)
-            self._virtual_dimensions[dimension.entity_id] = dimension
-            self._dimensions[dimension.entity_id] = dimension
-
         if country_dimension_id := config.country_dimension:
-            dimension = self._dimensions[country_dimension_id]
-            if not isinstance(dimension, SdmxCodeListDimension | VirtualDimension):
+            country_dimension = self._dimensions[country_dimension_id]
+            if not isinstance(country_dimension, SdmxCodeListDimension | VirtualDimension):
                 raise TypeError(
-                    f"Country dimension must be code list dimension or virtual dimension: {dimension}"
+                    f"Country dimension must be code list dimension or virtual dimension: {country_dimension}"
                 )
-            self._country_dimension = dimension
+            self._country_dimension = country_dimension
             self._country_dimension._alias = config.country_dimension_alias
         else:
             self._country_dimension = None
@@ -421,6 +465,12 @@ class Sdmx21DataSet(
             # dataset-level override
             return self.config.default_value_codes
         return self._datasource.config.default_value_codes
+
+    @property
+    def dataset_url(self) -> str | None:
+        if self.config.citation and self.config.citation.url:
+            return self.config.citation.get_url()
+        return None
 
     def _indicators_from_fixed_indicator(self) -> t.Sequence[ComplexIndicator]:
         if self._fixed_indicator is None:
@@ -526,8 +576,8 @@ class Sdmx21DataSet(
     async def _load_indicator_combinations_to(
         self, file_path: str, auth_context: AuthContext
     ) -> None:
-        indicator_ids = [x.entity_id for x in self.indicator_dimensions()]
-        logger.info(
+        indicator_ids = [x.entity_id for x in self.indicator_dimensions(non_virtual=True)]
+        _log.info(
             f'{self.source_id}. Will extract available combinations for following indicator dimensions: {indicator_ids}'
         )
 
@@ -543,7 +593,7 @@ class Sdmx21DataSet(
         dim_2_avail_values_cnt_sorted = sorted(
             {k: len(v) for k, v in avail_values.items()}.items(), key=lambda x: x[1]
         )
-        logger.info(f"{self.source_id} {dim_2_avail_values_cnt_sorted=}")
+        _log.info(f"{self.source_id} {dim_2_avail_values_cnt_sorted=}")
         order = [x[0] for x in dim_2_avail_values_cnt_sorted]
 
         series, queries_count = await self._get_available_series(
@@ -554,25 +604,31 @@ class Sdmx21DataSet(
             queries_count=1,
             auth_context=auth_context,
         )
-        logger.info(f'{self.source_id}. Extracted available indicator dimension combinations')
-        logger.info(
+        _log.info(f'{self.source_id}. Extracted available indicator dimension combinations')
+        _log.info(
             f"{self.source_id}. Number of series extracted: {len(series)}. Number of queries sent: {queries_count}"
         )
 
         elsapsed_time = time.time() - time_start
-        logger.info(f'{self.source_id}. elapsed time: {elsapsed_time :.3f} sec')
+        _log.info(f'{self.source_id}. elapsed time: {elsapsed_time :.3f} sec')
+
+        virtual_indicator_dimensions = self.virtual_indicator_dimensions()
 
         series_df = pd.DataFrame(series)
         series_df.sort_values(order, inplace=True)
+
+        for dim in virtual_indicator_dimensions:
+            series_df[dim.entity_id] = dim.value.entity_id
+
         series_df.to_csv(file_path, index=False)
-        logger.info(f"{self.source_id}. Saved indicator combinations to '{file_path}'")
+        _log.info(f"{self.source_id}. Saved indicator combinations to '{file_path}'")
 
         duplicates = series_df.duplicated().sum()
         if duplicates:
             raise ValueError(
                 f"{self.source_id}. Found {duplicates} duplicates in the indicator combinations"
             )
-        logger.info(f"{self.source_id}. No duplicates found in the indicator combinations")
+        _log.info(f"{self.source_id}. No duplicates found in the indicator combinations")
 
     async def _get_or_load_indicator_combinations(self, auth_context: AuthContext) -> pd.DataFrame:
         file_name = escape_invalid_filename_chars(f"{self.source_id}.csv")
@@ -584,20 +640,20 @@ class Sdmx21DataSet(
             if not os.path.exists(file_path):
                 os.makedirs(dir_name, exist_ok=True)
                 # Create cache of available indicator combinations:
-                logger.info(f"{self.source_id}. Indicator combinations cache not found.")
+                _log.info(f"{self.source_id}. Indicator combinations cache not found.")
                 await self._load_indicator_combinations_to(file_path, auth_context=auth_context)
             else:
-                logger.info(f"{self.source_id}. Getting indicator combinations from cache.")
+                _log.info(f"{self.source_id}. Getting indicator combinations from cache.")
 
-            return pd.read_csv(file_path, dtype=str)
+            return pd.read_csv(file_path, dtype=str, keep_default_na=False)
         else:
-            logger.info(
+            _log.info(
                 f"{self.source_id}. Indicator combinations cache disabled. Loading to temp dir..."
             )
             with tempfile.TemporaryDirectory() as tmp_dir:
                 file_path = os.path.join(tmp_dir, file_name)
                 await self._load_indicator_combinations_to(file_path, auth_context)
-                return pd.read_csv(file_path, dtype=str)
+                return pd.read_csv(file_path, dtype=str, keep_default_na=False)
 
     async def _indicators_from_dimensions(
         self, auth_context: AuthContext
@@ -613,10 +669,15 @@ class Sdmx21DataSet(
         # after the pydantic model is created. and it seems to preser the insert order of keys.
         df_avail_dim_combinations = df_avail_dim_combinations[self._indicator_dimensions.keys()]
 
-        dim_cat_id_2_model: dict[str, dict[str, CodeCategory]] = collections.defaultdict(dict)
+        dim_cat_id_2_model: dict[str, dict[str, CodeCategory | VirtualDimensionCategory]] = (
+            collections.defaultdict(dict)
+        )
         for dimension in self._indicator_dimensions.values():
-            for code_category in dimension.available_values:
-                dim_cat_id_2_model[dimension.entity_id][code_category.query_id] = code_category
+            if isinstance(dimension, SdmxCodeListDimension):
+                for code_category in dimension.available_values:
+                    dim_cat_id_2_model[dimension.entity_id][code_category.query_id] = code_category
+            elif isinstance(dimension, VirtualDimension):
+                dim_cat_id_2_model[dimension.entity_id][dimension.value.entity_id] = dimension.value
 
         df_indicators = df_avail_dim_combinations.apply(  # type: ignore
             lambda row: ComplexIndicator(
@@ -651,6 +712,11 @@ class Sdmx21DataSet(
             if isinstance(dimension, SdmxDimension) and dimension.is_time_dimension:
                 return dimension
         raise ValueError("No time dimension")
+
+    def get_frequency_dimension(self) -> VirtualDimension | SdmxDimension:
+        if self.config.frequency_dimension not in self._dimensions:
+            raise ValueError(f"No frequency dimension (id={self.config.frequency_dimension!r})")
+        return self._dimensions[self.config.frequency_dimension]
 
     @staticmethod
     def _append_category_query(
@@ -731,16 +797,6 @@ class Sdmx21DataSet(
                 continue
             if dimension.dimension_type == DimensionType.CATEGORY:
                 self._append_category_query(dimension_query, dimension, result)
-        for dimension in self.non_virtual_dimensions():
-            if dimension.is_mandatory and dimension.entity_id not in result:
-                default_queries = self._config.dimension_default_queries.get(
-                    dimension.entity_id, []
-                )
-                if default_queries:
-                    for default_query in default_queries:
-                        self._append_dimension_query(
-                            DimensionQuery.from_query(default_query, dimension.entity_id), result
-                        )
         # appending datetime queries at the end, so we can use the value for frequency
         for dimension_query in query.dimensions_queries:
             dimension = self._dimensions[dimension_query.dimension_id]
@@ -807,9 +863,22 @@ class Sdmx21DataSet(
             for special_dimension in self._config.special_dimensions
         }
 
-    def indicator_dimensions(self) -> t.Sequence[SdmxCodeListDimension]:
+    def indicator_dimensions(
+        self, non_virtual: bool = False
+    ) -> t.Sequence[SdmxCodeListDimension | VirtualDimension]:
         # TODO: does not support fixed indicator
+        if non_virtual:
+            return [
+                dim
+                for dim in self._indicator_dimensions.values()
+                if not isinstance(dim, VirtualDimension)
+            ]
         return list(self._indicator_dimensions.values())
+
+    def virtual_indicator_dimensions(self) -> t.Sequence[VirtualDimension]:
+        return [
+            dim for dim in self._indicator_dimensions.values() if isinstance(dim, VirtualDimension)
+        ]
 
     def indicator_dimensions_required_for_query(self) -> list[str]:
         return self._indicator_dimensions_required_for_query
@@ -996,7 +1065,7 @@ class Sdmx21DataSet(
         return sdmx_pandas
 
     def _include_attributes(self, df: pd.DataFrame) -> pd.DataFrame:
-        if not self.config.include_attributes:
+        if df.empty or not self.config.include_attributes:
             return df
 
         # Note: the data result might contain not all attributes, so we need to filter them
@@ -1022,19 +1091,10 @@ class Sdmx21DataSet(
         res_df = res_df.set_index(keys=attributes, append=True)
         return res_df
 
-    async def _query_data(
-        self, query: DataSetQuery, auth_context: AuthContext
-    ) -> tuple[SdmxDataSetQuery, DataMessage]:
-        status, missing_dimensions = self._evaluate_data_query_status(query)
-        if status != SdmxQueryReadinessStatus.READY:
-            raise ValueError(
-                f"Query is not ready: {query}, missing dimensions: {missing_dimensions}"
-            )
-        sdmx_query = self._to_sdmx_query(query)
-        logger.info(f"Querying dataset {self.entity_id} with {sdmx_query}")
-        if sdmx_query.time_dimension_query is None:
-            raise ValueError("Time dimension query is required")
-
+    async def _query_sdmx_data(
+        self, sdmx_query: SdmxDataSetQuery, auth_context: AuthContext
+    ) -> DataMessage:
+        _log.info(f"Querying dataset '{self.source_id}' with {sdmx_query}")
         client = await self._datasource.create_sdmx_client(auth_context)
         data_msg: DataMessage = await client.data(
             agency_id=self._artefact.maintainer.id,  # type: ignore
@@ -1044,30 +1104,72 @@ class Sdmx21DataSet(
             params=sdmx_query.get_params(),
             dsd=self._artefact.structure,
         )
-        if not data_msg:
-            raise ValueError("No data returned for the query")
-        return sdmx_query, data_msg
+        return data_msg
 
     async def query(
         self, query: DataSetQuery, auth_context: AuthContext
     ) -> Sdmx21DataResponse | None:
-        sdmx_query, data_msg = await self._query_data(query, auth_context)
+        status, missing_dimensions = self._evaluate_data_query_status(query)
+        if status != SdmxQueryReadinessStatus.READY:
+            raise ValueError(
+                f"Query is not ready: {query}, missing dimensions: {missing_dimensions}"
+            )
+        sdmx_query = self._to_sdmx_query(query)
+
+        try:
+            data_msg = await self._query_sdmx_data(sdmx_query, auth_context)
+        except Exception as e:
+            _log.exception(e)
+            return Sdmx21DataResponse(
+                dataset=self,
+                df=pd.DataFrame(),
+                sdmx_query=sdmx_query,
+                url=None,
+                status=DataResponseStatus(
+                    request_status=DataRequestStatus.FAILED,
+                    parsing_status=DataParsingStatus.NA,
+                ),
+            )
+
+        if not data_msg:
+            return Sdmx21DataResponse(
+                dataset=self,
+                df=pd.DataFrame(),
+                sdmx_query=sdmx_query,
+                url=None,
+                status=DataResponseStatus(
+                    request_status=DataRequestStatus.SUCCESS,
+                    parsing_status=DataParsingStatus.FAILED,
+                ),
+            )
 
         url = self._get_query_url(data_msg.response)  # type: ignore
 
-        sdmx_pandas = self._data_msg_to_dataframe(data_msg)
-        if sdmx_pandas.empty:
-            req_url = data_msg.response.url if data_msg.response else None
-            logger.warning(f"Empty response in dataset(id={self.entity_id}), url={req_url!r}")
-            return None
-
-        sdmx_pandas = self._include_attributes(sdmx_pandas)
+        try:
+            sdmx_pandas = self._data_msg_to_dataframe(data_msg)
+            sdmx_pandas = self._include_attributes(sdmx_pandas)
+        except Exception as e:
+            _log.exception(e)
+            return Sdmx21DataResponse(
+                dataset=self,
+                df=pd.DataFrame(),
+                sdmx_query=sdmx_query,
+                url=url,
+                status=DataResponseStatus(
+                    request_status=DataRequestStatus.SUCCESS,
+                    parsing_status=DataParsingStatus.FAILED,
+                ),
+            )
 
         return Sdmx21DataResponse(
             dataset=self,
             df=sdmx_pandas,
             sdmx_query=sdmx_query,
             url=url,
+            status=DataResponseStatus(
+                request_status=DataRequestStatus.SUCCESS,
+                parsing_status=DataParsingStatus.SUCCESS,
+            ),
         )
 
     def get_python_code(self, sdmx_query: SdmxDataSetQuery) -> str:

@@ -2,6 +2,7 @@ import asyncio
 import json
 import string
 
+import pandas as pd
 import plotly.graph_objects as go
 from aidial_sdk.chat_completion import Choice
 
@@ -9,10 +10,20 @@ from common.auth.auth_context import AuthContext
 from common.config import logger
 from common.data.base import DataResponse
 from common.schemas.data_query_tool import DataQueryAttachments
+from common.schemas.enums import DataParsingStatus
 from common.utils import AttachmentsStorage, MediaTypes, attachments_storage_factory
 from common.utils.async_utils import catch_and_log_async
 from statgpt.schemas.tool_artifact import DataQueryArtifact
 from statgpt.utils import get_json_markdown, get_python_code_markdown
+
+_DATA_DISCLAIMER = """
+DISCLAIMER: Some of the values are coded, in that case for each column you will find two columns: {column}_ID and \
+{column}_Name. Mind that numerical codes are **just identifiers** and do not have any numerical meaning.
+"""
+_PARSING_PARTIALLY_FAILED_DISCLAIMER = """
+IMPORTANT: Some of the data could not be parsed correctly and is not included in the data shown below. \
+It will be still visible to the user in the table view in the UI.
+"""
 
 
 class DataQueryArtifactDisplayer:
@@ -37,33 +48,81 @@ class DataQueryArtifactDisplayer:
     ) -> str:
         responses = self._merge_data_responses(data_query_artifacts)
 
-        datasets_content = filter(
-            None, [self._get_system_message_content(response) for response in responses.values()]
-        )
+        datasets_content = [
+            self._get_system_message_content(response) for response in responses.values()
+        ]
+        datasets_content = filter(None, datasets_content)
 
         return "\n\n".join(datasets_content)
 
     def _get_system_message_content(self, response: DataResponse) -> str | None:
-        df = response.visual_dataframe
+        if response.status.parsing_status == DataParsingStatus.FAILED:
+            return None
+
+        df = response.visual_dataframe.copy()
         cells_number = df.shape[0] * df.shape[1] if df is not None else 0
 
         if cells_number == 0:
-            return None
+            return self._get_no_data_message(response)
         elif cells_number <= self._max_cells:
-            # convert df to markdown with full precision
-            markdown_content = df.to_markdown()
-            return (
-                f"Data from dataset {response.dataset_name}: \n\n"
-                + markdown_content
-                + "\n\n The data itself is shown to user in the table view in the UI. When citing the data, make "
-                + "sure to use full precision values from the table."
-            )
+            try:
+                return self._get_data_message(response, df)
+            except Exception:
+                logger.exception(
+                    "Failed to convert dataframe to tsv, displaying error message instead, data response: %s",
+                    response,
+                )
+                return self._get_data_display_error_message(response)
         else:
-            return (
-                f"Data from dataset {response.dataset_name} contains {cells_number} cells. "
-                "The data is too large to include in the message. The data itself is shown to user in the table view "
-                "in the UI."
-            )
+            return self._get_data_too_large_message(response, cells_number)
+
+    @classmethod
+    def _get_no_data_message(cls, response: DataResponse) -> str:
+        return f"Data from dataset {response.dataset_name} is empty."
+
+    @classmethod
+    def _get_data_message(cls, response: DataResponse, df: pd.DataFrame) -> str:
+        # add _ID suffix to all columns with _Name suffix variations
+        to_rename = {}
+        for col in df.columns:
+            if isinstance(col, str) and col.endswith("_Name") and col[:-5] in df.columns:
+                to_rename[col[:-5]] = col[:-5] + "_ID"
+        df.rename(columns=to_rename, inplace=True)
+        # convert df to tsv with full precision
+        tsv = df.to_csv(
+            sep="\t",
+            index=False,
+            na_rep="NA",
+            date_format="%Y-%m-%d",
+            lineterminator="\n",
+        )
+
+        result = (
+            _DATA_DISCLAIMER
+            + f"Data from dataset {response.dataset_name}: \n\n<DATA>\n"
+            + tsv
+            + "\n</DATA>\n\n The data itself is shown to user in the table view in the UI. If citing the data, "
+            + "make sure to use full precision values from the table."
+        )
+
+        if response.status.parsing_status == DataParsingStatus.PARTIALLY_FAILED:
+            result = _PARSING_PARTIALLY_FAILED_DISCLAIMER + "\n" + result
+        return result
+
+    @classmethod
+    def _get_data_display_error_message(cls, response: DataResponse) -> str:
+        return (
+            f"Data from dataset {response.dataset_name} could not be displayed due to an error. "
+            "The data itself is shown to user in the table view in the UI."
+        )
+
+    @classmethod
+    def _get_data_too_large_message(cls, response: DataResponse, cells_number: int) -> str:
+        return (
+            f"Data from dataset {response.dataset_name} contains {cells_number} cells. "
+            "The data is too large to include in the message. The data itself is shown to user in the table view "
+            "in the UI."
+        )
 
     def _merge_data_responses(
         self, data_query_artifacts: list[DataQueryArtifact]

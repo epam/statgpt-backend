@@ -61,6 +61,17 @@ def is_file_or_folder_name_valid(name: str, length_limit: int = 100) -> bool:
     return True
 
 
+def clean_filename(name: str, maxlen: int | None = 100) -> str:
+    """Clean a filename by replacing invalid characters with underscores and trimming length."""
+    name = name.strip()
+    name = re.sub(f'{INVALID_PATH_CHARS_PATTERN}+', '_', name)
+    name = re.sub(r'[^\w]+', '_', name)
+    name = name.lower()
+    if maxlen is not None:
+        name = name[:maxlen]
+    return name
+
+
 def escape_invalid_filename_chars(filename: str) -> str:
     escaped_filename = re.sub(INVALID_PATH_CHARS_PATTERN, '_', filename)
     return escaped_filename
@@ -116,6 +127,12 @@ def read_yaml(fp: Path | str, encoding="utf-8"):
     with open(fp, encoding=encoding) as fin:
         data = yaml.safe_load(fin)
     return data
+
+
+def optional_read_yaml(fp: Path | str, encoding="utf-8"):
+    if not os.path.exists(fp):
+        return None
+    return read_yaml(fp, encoding=encoding)
 
 
 def write_yaml_to_stream(data, stream=None, indent=2, width=10000, **kwargs):

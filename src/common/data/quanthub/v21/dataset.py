@@ -1,24 +1,29 @@
+import logging
 import typing
 from collections.abc import Iterable
 from datetime import datetime
 
+import pandas as pd
 from sdmx.model.v21 import DataflowDefinition as DataFlow
 from sdmx.model.v21 import DataStructureDefinition
 
 from common.auth.auth_context import AuthContext
-from common.config.logging import multiline_logger as logger
-from common.data.base import DataSetQuery
-from common.data.quanthub.config import QuanthubDataSetConfig
-from common.data.quanthub.v21.qh_sdmx_30_schemas import QhAnnotation
+from common.data.base import DataResponseStatus, DataSetQuery
+from common.data.quanthub.config import PropertySource, PropertySourceEnum, QuanthubDataSetConfig
+from common.data.quanthub.sdmx_schemas.v30 import QhAnnotation
 from common.data.sdmx import Sdmx21DataSet
 from common.data.sdmx.common import SdmxDimension
 from common.data.sdmx.v21.attribute import Sdmx21Attribute
 from common.data.sdmx.v21.dataset import Sdmx21DataResponse
-from common.data.sdmx.v21.query import SdmxDataSetQuery
+from common.data.sdmx.v21.query import SdmxDataSetQuery, SdmxQueryReadinessStatus
 from common.data.sdmx.v21.utils import convert_keys_to_str
+from common.schemas.enums import DataParsingStatus, DataRequestStatus
 
 if typing.TYPE_CHECKING:
     from common.data.quanthub.v21.datasource import QuanthubSdmx21DataSourceHandler
+
+
+_log = logging.getLogger(__name__)
 
 
 class QuanthubSdmx21DataSet(Sdmx21DataSet):
@@ -32,6 +37,7 @@ class QuanthubSdmx21DataSet(Sdmx21DataSet):
         locale: str,
         dimensions: Iterable[SdmxDimension],
         attributes: Iterable[Sdmx21Attribute],
+        attribute_values: dict[str, str | None],
         annotations: Iterable[QhAnnotation],
     ):
         super().__init__(
@@ -45,16 +51,70 @@ class QuanthubSdmx21DataSet(Sdmx21DataSet):
             attributes=attributes,
         )
         self._config: QuanthubDataSetConfig = config
+        self._attribute_values = attribute_values
         self._annotations = list(annotations)
+
+    @property
+    def dataset_url(self) -> str | None:
+        if self._datasource.config.use_data_explorer_for_dataset_url:  # type: ignore
+            if data_explorer_url := self._datasource.config.get_data_explorer_url():  # type: ignore
+                return f"{data_explorer_url}?urn={self._short_urn}"
+            else:
+                _log.warning("Data explorer URL is not configured for the data source: %s", self._datasource.source_id)  # type: ignore
+        return super().dataset_url
 
     def _get_annotation_by_id(self, annotation_id: str) -> QhAnnotation | None:
         return next((a for a in self._annotations if a.id == annotation_id), None)
 
+    def _get_annotation_value_by_id(self, annotation_id: str) -> str | None:
+        if annotation := self._get_annotation_by_id(annotation_id):
+            return annotation.value
+        return None
+
+    def _get_attribute_value_by_id(self, attribute_id: str) -> str | None:
+        return self._attribute_values.get(attribute_id)
+
+    def _get_citation_value(self, field: str) -> str | None:
+        if self._config.citation:
+            return getattr(self._config.citation, field, None)
+        return None
+
+    def _get_property_value_by_source(self, property_source: PropertySource) -> str | None:
+        """Get the property value using the specified property source"""
+        mapping = {
+            PropertySourceEnum.ANNOTATION: self._get_annotation_value_by_id,
+            PropertySourceEnum.ATTRIBUTE: self._get_attribute_value_by_id,
+            PropertySourceEnum.CITATION: self._get_citation_value,
+            PropertySourceEnum.VALUE: lambda field: field,
+        }
+        if getter := mapping.get(property_source.source):
+            return getter(property_source.field)
+        raise ValueError(f"Unsupported property source: {property_source.source}")
+
+    @staticmethod
+    def _parse_date_with_formats(value: str, formats: list[str] | None) -> datetime | None:
+        if formats:
+            for fmt in formats:
+                try:
+                    return datetime.strptime(value, fmt)
+                except ValueError:
+                    _log.debug(f"Failed to parse date {value!r} with format {fmt!r}")
+            _log.warning(f"Failed to parse date {value!r} with any of the formats: {formats}")
+            return None
+        else:
+            try:
+                return datetime.fromisoformat(value)
+            except ValueError:
+                _log.warning(f"Failed to parse date {value!r} with ISO format")
+                return None
+
     async def updated_at(self, auth_context: AuthContext) -> datetime | None:
-        annotation = self._get_annotation_by_id(self._config.updated_at_annotation)
-        if annotation and annotation.value:
-            return datetime.fromisoformat(annotation.value)
-        return await super().updated_at(auth_context)
+        for property_source in self._config.updated_at:
+            value = self._get_property_value_by_source(property_source)
+            if value and (value := value.strip()):
+                if res := self._parse_date_with_formats(value, property_source.formats):
+                    return res
+        return None
 
     def _get_data_explorer_url(
         self,
@@ -81,7 +141,7 @@ class QuanthubSdmx21DataSet(Sdmx21DataSet):
             if end_period:
                 params['endPeriod'] = end_period if '-' in end_period else f"{end_period}-A"
         except Exception as e:
-            logger.exception(e)
+            _log.exception(e)
 
         params_str = '&'.join([f'{k}={v}' for k, v in params.items()])
         return f"{base_url}?{params_str}"
@@ -89,7 +149,39 @@ class QuanthubSdmx21DataSet(Sdmx21DataSet):
     async def query(
         self, query: DataSetQuery, auth_context: AuthContext
     ) -> Sdmx21DataResponse | None:
-        sdmx_query, data_msg = await self._query_data(query, auth_context)
+        status, missing_dimensions = self._evaluate_data_query_status(query)
+        if status != SdmxQueryReadinessStatus.READY:
+            raise ValueError(
+                f"Query is not ready: {query}, missing dimensions: {missing_dimensions}"
+            )
+        sdmx_query = self._to_sdmx_query(query)
+
+        try:
+            data_msg = await self._query_sdmx_data(sdmx_query, auth_context)
+        except Exception as e:
+            _log.exception(e)
+            return Sdmx21DataResponse(
+                dataset=self,
+                df=pd.DataFrame(),
+                sdmx_query=sdmx_query,
+                url=None,
+                status=DataResponseStatus(
+                    request_status=DataRequestStatus.FAILED,
+                    parsing_status=DataParsingStatus.NA,
+                ),
+            )
+
+        if not data_msg:
+            return Sdmx21DataResponse(
+                dataset=self,
+                df=pd.DataFrame(),
+                sdmx_query=sdmx_query,
+                url=None,
+                status=DataResponseStatus(
+                    request_status=DataRequestStatus.SUCCESS,
+                    parsing_status=DataParsingStatus.FAILED,
+                ),
+            )
 
         if data_explorer_url := self._datasource.config.get_data_explorer_url():  # type: ignore
             url = self._get_data_explorer_url(
@@ -101,17 +193,29 @@ class QuanthubSdmx21DataSet(Sdmx21DataSet):
         else:
             url = self._get_query_url(data_msg.response)  # type: ignore
 
-        sdmx_pandas = self._data_msg_to_dataframe(data_msg)
-        if sdmx_pandas.empty:
-            req_url = data_msg.response.url if data_msg.response else None
-            logger.warning(f"Empty response in dataset(id={self.entity_id}), url={req_url!r}")
-            return None
-
-        sdmx_pandas = self._include_attributes(sdmx_pandas)
+        try:
+            sdmx_pandas = self._data_msg_to_dataframe(data_msg)
+            sdmx_pandas = self._include_attributes(sdmx_pandas)
+        except Exception as e:
+            _log.exception(e)
+            return Sdmx21DataResponse(
+                dataset=self,
+                df=pd.DataFrame(),
+                sdmx_query=sdmx_query,
+                url=url,
+                status=DataResponseStatus(
+                    request_status=DataRequestStatus.SUCCESS,
+                    parsing_status=DataParsingStatus.FAILED,
+                ),
+            )
 
         return Sdmx21DataResponse(
             dataset=self,
             df=sdmx_pandas,
             sdmx_query=sdmx_query,
             url=url,
+            status=DataResponseStatus(
+                request_status=DataRequestStatus.SUCCESS,
+                parsing_status=DataParsingStatus.SUCCESS,
+            ),
         )

@@ -15,14 +15,7 @@ from langchain_core.runnables import (
 
 from common.auth.auth_context import AuthContext
 from common.config import multiline_logger as logger
-from common.data.base import (
-    DataSetAvailabilityQuery,
-    DataSetQuery,
-    DimensionQuery,
-    DimensionType,
-    Query,
-    QueryOperator,
-)
+from common.data.base import DataSetAvailabilityQuery, DataSetQuery, QueryOperator
 from common.data.sdmx.common import DimensionVirtualCodeCategory
 from common.data.sdmx.v21.dataset import Sdmx21DataSet
 from common.schemas import ChannelConfig, DataQueryDetails
@@ -37,8 +30,10 @@ from common.utils.timer import debug_timer
 from statgpt.chains import CandidatesSelectionSimpleChainFactory
 from statgpt.chains.data_query.base import BaseDataQueryFactory
 from statgpt.chains.data_query.parameters import DataQueryParameters
+from statgpt.chains.data_query.query_constructor import QueryConstructorFactory
 from statgpt.chains.parameters import ChainParameters
 from statgpt.chains.utils import dataset_utils
+from statgpt.config import ChainParametersConfig, StateVarsConfig
 from statgpt.default_prompts.v2 import DefaultPrompts
 from statgpt.schemas.query_builder import (
     ChainState,
@@ -50,13 +45,14 @@ from statgpt.schemas.query_builder import (
     NamedEntity,
     QueryBuilderAgentState,
 )
-from statgpt.services import ScoredDimensionCandidate
+from statgpt.services.chat_facade import ScoredDimensionCandidate
 from statgpt.utils.callbacks import StageCallback
 from statgpt.utils.formatters import DatasetFormatterConfig, DatasetsListFormatter
 
 from . import utils as query_utils
 from .data_query import DataQueryChain
 from .datasets_selection import DataSetsSelectionChain
+from .datetime_adjuster import expand_time_range
 from .datetime_chain import DateTimeDimensionChain
 from .incomplete_queries import IncompleteQueriesChain
 from .indicator_selection.factory import IndicatorSelectionFactory
@@ -295,24 +291,23 @@ class QueryBuilderFactoryV2(BaseDataQueryFactory):
         )
         return country_entities
 
-    @staticmethod
-    def _filter_strong_queries_by_countries_presence(
-        inputs: dict,
-    ) -> DatasetAvailabilityQueriesType:
+    def _filter_strong_queries_by_countries(self, inputs: dict) -> DatasetAvailabilityQueriesType:
         """
-        Idea is to remove all dataset queries without country query,
-        if there is at least one dataset query with country query.
+        1. check if country dimension is filled in at least one dataset query.
+        if so, remove all dataset queries without country query and exit.
 
-        Original reason is to remove datasets not having requested country data,
-        for example STATCAN (Statistics of Canada) does not have data for France.
-        We can't filter STATCAN dataset simply by availability of France dim value,
-        since there is no France in the first place -
-        it won't be selected by LLM and there would be nothing to use in availability data.
+        2. else, check if there are any country named entities detected.
+        if so, remove all dataset queries and exit.
+
+        Original example:
+        STATCAN (Statistics of Canada) does not have data for France.
+        query "What is the GDP of France?" will not fill country dim for STATCAN,
+        but it will for datasets containing France.
+        we filter out STATCAN dataset query in this method, as it's irrelevant.
 
         See issue 75 for reference.
         """
-        logger.info('_filter_strong_queries_by_countries_presence()')
-
+        logger.info('_filter_strong_queries_by_countries()')
         chain_state = ChainState(**inputs)
         queries = chain_state.strong_queries
 
@@ -328,9 +323,7 @@ class QueryBuilderFactoryV2(BaseDataQueryFactory):
                 )
             country_dim = dataset.country_dimension()
             if not country_dim:
-                # we don't the country dimension for this dataset.
-                # it's also possible that country dimension is not present at all.
-                # thus we can't filter this dataset out.
+                # no country dimension - don't filter this dataset out
                 continue
 
             country_query = query.dimensions_queries_dict.get(country_dim.entity_id)
@@ -342,12 +335,13 @@ class QueryBuilderFactoryV2(BaseDataQueryFactory):
                 datasets_source_ids_without_country_query.add(dataset.source_id)
 
         if at_least_one_country_selected:
-            # remove all datasets with country dimension and without country query
+            logger.info('filter by selected country terms')
+
             if datasets_entity_ids_without_country_query:
                 logger.info(
-                    'found at least one country query. '
-                    f'removing following {len(datasets_source_ids_without_country_query)} '
-                    'dataset queries, since they do not contain country query: '
+                    'at least one dataset has country query. '
+                    f'removing {len(datasets_source_ids_without_country_query)} '
+                    'dataset queries without country query: '
                     f'{datasets_source_ids_without_country_query}'
                 )
                 queries = {
@@ -357,13 +351,21 @@ class QueryBuilderFactoryV2(BaseDataQueryFactory):
                 }
             else:
                 logger.info(
-                    'found at least one country query. '
-                    'keeping all dataset queries: they all either contain '
-                    'a country query, or do not have country dimension specified'
+                    'keeping all dataset queries: '
+                    'either all of them have country query '
+                    'or there is no country dim for them'
                 )
         else:
-            # if the named entity of type country was found in the query, but no country dimensions were set,
-            # we need to clear the strong queries
+            if self._config.filter_by_country_entities is False:
+                logger.info(
+                    'no selected country terms. '
+                    'filter by country named entities is disabled in config. '
+                    'return queries as they are.'
+                )
+                return queries
+
+            logger.info('no selected country terms. fallback to filter by country named entities')
+
             country_entities = chain_state.country_named_entities
             if country_entities:
                 logger.info(
@@ -526,129 +528,6 @@ class QueryBuilderFactoryV2(BaseDataQueryFactory):
         chain_state = ChainState(**inputs)
         stage.append_content(chain_state.dataset_queries_formatted_str)
 
-    @staticmethod
-    def _set_dimension_query_from_default_or_available_values(
-        dim_id,
-        dim_type: DimensionType,
-        dataset_id,
-        default_queries,
-        default_value_codes: list[str],
-        availability: Query | None,
-    ):
-        """
-        Try to set dimension query for dimension absent in strong queries.
-        Use default queries if available, otherwise use available values.
-        """
-
-        if default_queries:
-            default_query = default_queries[0]
-            if not default_query.values:
-                logger.debug(
-                    f'No default values for "{dim_id}" dimension ' f'in "{dataset_id}" dataset'
-                )
-                return
-
-            if dim_type != DimensionType.CATEGORY:
-                return DimensionQuery.from_default_query(default_query, dim_id)
-
-            if availability is None or not availability.values:
-                logger.debug(
-                    f'No available values extracted for "{dim_id}" dimension '
-                    f'in "{dataset_id}" dataset'
-                )
-                return
-
-            available_values = availability.values
-
-            # filter default values by availability
-            filtered_defaults = set(default_query.values).intersection(available_values)
-            if not filtered_defaults:
-                logger.debug(
-                    'No default values left after filtering by availability for '
-                    f'"{dim_id}" dimension in "{dataset_id}" dataset'
-                )
-                return
-
-            return DimensionQuery(
-                values=list(filtered_defaults),
-                operator=default_query.operator,
-                dimension_id=dim_id,
-                is_default=True,
-            )
-
-        logger.debug(
-            f'No default queries for "{dim_id}" dimension in "{dataset_id}" dataset. '
-            'Will try to auto-set dimension queries using availability data.'
-        )
-
-        if dim_type != DimensionType.CATEGORY:
-            logger.debug(
-                f'Can\'t auto-set query for "{dim_id}" dimension '
-                f'in "{dataset_id}" dataset, since it\'s not a categorical dimension.'
-            )
-            return
-
-        if availability is None or not availability.values:
-            logger.debug(
-                f'No available values extracted for "{dim_id}" dimension '
-                f'in "{dataset_id}" dataset'
-            )
-            return
-
-        available_values = availability.values
-
-        available_default_values = set(default_value_codes).intersection(available_values)
-        if available_default_values:
-            logger.debug(
-                f'Auto-setting dimension query for "{dim_id}" dimension '
-                f'in "{dataset_id}" dataset to available default values: '
-                f'{available_default_values}'
-            )
-            return DimensionQuery(
-                values=list(available_default_values),
-                operator=QueryOperator.IN,
-                dimension_id=dim_id,
-                is_default=True,
-            )
-
-        # TODO: make k_low and k_high configurable
-        k_low = 10
-        k_high = 40
-        if len(available_values) > k_low:
-            logger.debug(
-                f'Too many available values ({len(available_values)}) '
-                f'for "{dim_id}" dimension without default queries '
-                f'in "{dataset_id}" dataset. Can\'t auto-set dimension query. '
-                f'Sample values: {available_values[:10]}'
-            )
-
-            # TODO: ask clarifications. propose to select from available values.
-            # Need to:
-            # 0. ask non-indicator dim clarifictions ONLY after
-            # indicators clarifiactions are resolved.
-            # 1. store them in some structure (field, object)
-            # 2. ask LLM either to explicitly list them,
-            # or to provide a template str to place them to.
-
-            if len(available_values) > k_high:
-                # TODO: do not list all available values in clarification question
-                # samples = available_values[:k_high]
-                pass
-
-            return
-
-        logger.debug(
-            f'Auto-setting dimension query for "{dim_id}" dimension '
-            f'in "{dataset_id}" dataset to following '
-            f'{len(available_values)} available values: {available_values}'
-        )
-        return DimensionQuery(
-            values=list(available_values),  # shallow copy should be enough
-            operator=QueryOperator.ALL,
-            dimension_id=dim_id,
-            is_default=False,
-        )
-
     def _filter_queries_by_required_indicator_dims(self, inputs: dict) -> dict[str, DataSetQuery]:
         chain_state = ChainState(**inputs)
         datasets_dict = chain_state.datasets_dict
@@ -681,7 +560,7 @@ class QueryBuilderFactoryV2(BaseDataQueryFactory):
 
         return filtered_queries
 
-    def _get_dataset_queries(self, inputs: dict) -> dict[str, DataSetQuery]:
+    async def _get_dataset_queries(self, inputs: dict) -> dict[str, DataSetQuery]:
         """Convert strong queries to dataset queries. Set missing dimensions if possible."""
         chain_state = ChainState(**inputs)
         datasets_dict = chain_state.datasets_dict
@@ -697,71 +576,17 @@ class QueryBuilderFactoryV2(BaseDataQueryFactory):
             return {}
 
         dataset_queries: dict[str, DataSetQuery] = {}
+
         for dataset_id, ds_strong_query in strong_queries_nonempty.items():
             dataset = datasets_dict[dataset_id]
-            ds_default_queries = dataset.config.dimension_default_queries
-            ds_dimension_queries: dict[str, DimensionQuery] = {
-                d.dimension_id: d for d in ds_strong_query.dimensions_queries
-            }
-            is_ds_query_valid = True
-            ds_strong_availability = strong_availability.get(dataset_id, DataSetAvailabilityQuery())
-
-            # now we check if dataset query is valid:
-            # whether a query for each dataset dimension is either present, or could be auto-set.
-            for dimension in dataset.dimensions():
-                dim_id = dimension.entity_id
-                if dim_id in ds_dimension_queries:
-                    # dimension is already present in strong queries.
-                    # continue checking next dimensions.
-                    continue
-
-                default_queries = ds_default_queries.get(dim_id)
-                availability = ds_strong_availability.dimensions_queries_dict.get(dim_id)
-
-                if dimension.dimension_type == DimensionType.DATETIME:
-                    chain_state = ChainState(**inputs)
-                    dtqr = chain_state.date_time_query_response
-                    if dtqr.time_period_specified:
-                        logger.info(
-                            f'there is an empty time period filter in dataset "{dataset_id}". '
-                            'LLM detected that user specified time period filter to be empty. '
-                            'keeping empty time filter, not setting default'
-                        )
-                        ds_dimension_queries[dim_id] = DimensionQuery(
-                            values=['', ''],
-                            operator=QueryOperator.BETWEEN,
-                            dimension_id=dim_id,
-                            is_default=False,
-                        )
-                        continue
-                    else:
-                        logger.info(
-                            f'there is an empty time period filter in dataset "{dataset_id}". '
-                            'LLM detected that user did not specify time period. '
-                            f'using default time period: {default_queries}'
-                        )
-
-                dim_query = self._set_dimension_query_from_default_or_available_values(
-                    dim_id=dim_id,
-                    dim_type=dimension.dimension_type,
-                    dataset_id=dataset.source_id,
-                    default_queries=default_queries,
-                    default_value_codes=dataset.default_value_codes,
-                    availability=availability,
-                )
-                if dim_query is not None:
-                    ds_dimension_queries[dim_id] = dim_query
-                else:
-                    # this dimension query is missing, hence the whole dataset query is invalid.
-                    # statgpt will ask user to fill missing dimensions for invalid queries.
-                    # do not break here, continue checking next dimensions,
-                    # since we need to detect ALL missing dimensions in each data query.
-                    is_ds_query_valid = False
-
-            dataset_queries[dataset_id] = DataSetQuery(
-                # indicator_query=dataset_query.indicator_query,
-                dimensions_queries=list(ds_dimension_queries.values()),
-                is_valid=is_ds_query_valid,
+            query_constructor = QueryConstructorFactory.create(dataset)
+            dataset_queries[dataset_id] = await query_constructor.construct_query(
+                ds_query=ds_strong_query,
+                ds_availability_query=strong_availability.get(
+                    dataset_id, DataSetAvailabilityQuery()
+                ),
+                dataset=datasets_dict[dataset_id],
+                chain_state=chain_state,
             )
 
         return dataset_queries
@@ -787,6 +612,15 @@ class QueryBuilderFactoryV2(BaseDataQueryFactory):
         return dataset_to_dimension_id_to_name
 
     async def _route_based_on_data_query_status(self, inputs: dict) -> Runnable:
+        state = ChainParameters.get_state(inputs)
+        skip = state.get(StateVarsConfig.CMD_SKIP_DATA_QUERY_SUMMARIZATION, False)
+        if skip:
+            query = ChainParameters.get_query(inputs)
+            response = f"<call to Query_Data was skipped for debug purposes>\n\n {query!r}"
+            return RunnablePassthrough.assign(
+                **{DataQueryParameters.RESPONSE_FIELD: lambda _: response}
+            )
+
         chain_state = ChainState(**inputs)
         dataset_queries = chain_state.dataset_queries
 
@@ -807,32 +641,38 @@ class QueryBuilderFactoryV2(BaseDataQueryFactory):
             # and the message shown to user is misleading.
             return await self._no_data_chain.create_chain(inputs)
 
-        if len(dataset_queries) > 1:
+        if self._config.clarify_if_multiple_datasets and len(dataset_queries) > 1:
             return await self._multiple_datasets_chain.create_chain()
 
-        # only one dataset query
-        dataset_id = next(iter(dataset_queries))
-        dataset_query = dataset_queries[dataset_id]
+        valid_queries = {ds_id: dq for ds_id, dq in dataset_queries.items() if dq.is_valid}
+        if len(valid_queries) >= 1:
+            return (
+                RunnablePassthrough.assign(
+                    **{ChainParametersConfig.DATASET_QUERIES: lambda _: valid_queries}
+                )
+                | self._data_query_chain.create_chain()
+            )
 
-        if dataset_query.is_valid:
-            return self._data_query_chain.create_chain()
-        else:
-            # some dimensions are missing
-            incomplete_queries_chain_inputs = dict(
-                formatted_query_with_missing_dimensions=await query_utils.format_dataset_queries(
-                    auth_context=auth_context,
-                    dataset_queries=dataset_queries,
-                    datasets_dict=chain_state.datasets_dict,
-                    include_missing_dimensions=True,
-                    include_default_queries=True,
-                    include_auto_selects=True,
-                    availability=chain_state.strong_availability[dataset_id],
-                ),
-                **inputs,
-            )
-            return await self._incomplete_queries_chain.create_chain(
-                incomplete_queries_chain_inputs, auth_context.api_key
-            )
+        # all queries are invalid: have some dimensions are missing
+        # ToDo: adjust to process multiple datasets
+        dataset_id = next(iter(dataset_queries))
+
+        incomplete_queries_chain_inputs = dict(
+            **{k: v for k, v in inputs.items() if k != 'dataset_queries'},
+            formatted_query_with_missing_dimensions=await query_utils.format_dataset_queries(
+                auth_context=auth_context,
+                dataset_queries=dataset_queries,
+                datasets_dict=chain_state.datasets_dict,
+                include_missing_dimensions=True,
+                include_default_queries=True,
+                include_auto_selects=True,
+                availability=chain_state.strong_availability[dataset_id],
+            ),
+            dataset_queries={dataset_id: dataset_queries[dataset_id]},
+        )
+        return await self._incomplete_queries_chain.create_chain(
+            incomplete_queries_chain_inputs, auth_context.api_key
+        )
 
     async def _run_indicators_selection(self, inputs: dict) -> Runnable:
         service = ChainParameters.get_data_service(inputs)
@@ -1053,9 +893,7 @@ class QueryBuilderFactoryV2(BaseDataQueryFactory):
                 # RunnablePassthrough.assign(
                 #     strong_queries=self._filter_strong_queries_by_counterparties_presence
                 # )
-                RunnablePassthrough.assign(
-                    strong_queries=self._filter_strong_queries_by_countries_presence
-                )
+                RunnablePassthrough.assign(strong_queries=self._filter_strong_queries_by_countries)
                 | RunnablePassthrough.assign(
                     strong_availability=self._get_availability_from_strong_queries
                 )
@@ -1295,6 +1133,7 @@ class QueryBuilderFactoryV2(BaseDataQueryFactory):
             # --- create final dataset queries ---
             | (
                 RunnablePassthrough.assign(dataset_queries=self._get_dataset_queries)
+                | RunnablePassthrough.assign(dataset_queries=expand_time_range)
                 | RunnablePassthrough.assign(
                     dimension_id_to_name=self._map_dimension_ids_to_names,
                     dataset_queries_formatted_str=self._format_dataset_queries,

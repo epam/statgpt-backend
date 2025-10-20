@@ -2,7 +2,7 @@ import typing as t
 from datetime import datetime
 from uuid import UUID
 
-from aidial_sdk.chat_completion import Choice, Stage
+from aidial_sdk.chat_completion import Choice, Stage, Status
 from langchain_core.callbacks.base import AsyncCallbackHandler
 from langchain_core.runnables import RunnableConfig
 
@@ -16,7 +16,7 @@ class StageCallback(AsyncCallbackHandler):
     def __init__(
         self,
         stage_name: str,
-        content_appender: t.Callable[[Stage, t.Dict[str, t.Any]], t.Awaitable[None]] | None,
+        content_appender: t.Callable[[Stage, dict[str, t.Any]], t.Awaitable[None]] | None,
         debug_only: bool = False,
     ):
         self._stage_name = stage_name
@@ -30,13 +30,13 @@ class StageCallback(AsyncCallbackHandler):
 
     async def on_chain_start(
         self,
-        serialized: t.Dict[str, t.Any],
-        inputs: t.Dict[str, t.Any],
+        serialized: dict[str, t.Any],
+        inputs: dict[str, t.Any],
         *,
         run_id: UUID,
-        parent_run_id: t.Optional[UUID] = None,
-        tags: t.Optional[t.List[str]] = None,
-        metadata: t.Optional[t.Dict[str, t.Any]] = None,
+        parent_run_id: UUID | None = None,
+        tags: list[str] | None = None,
+        metadata: dict[str, t.Any] | None = None,
         **kwargs: t.Any,
     ) -> None:
         if self._run_id is not None:
@@ -68,13 +68,33 @@ class StageCallback(AsyncCallbackHandler):
         self._stage.open()
         self._start_time = datetime.now()
 
+    def _append_stage_timing(self) -> None:
+        if not dial_app_settings.dial_show_stage_seconds:
+            return
+        end_time = datetime.now()
+        start_str = self._start_time.strftime('%H:%M:%S')
+        end_str = end_time.strftime('%H:%M:%S')
+        took_seconds: str = (
+            f" ({(end_time - self._start_time).total_seconds():.2f} s. "
+            f"start: {start_str}, end: {end_str})"
+        )
+        self._stage.append_name(took_seconds)
+
+    def _raise_if_not_initialized(self) -> None:
+        if self._run_id is None:
+            raise ValueError("Run ID is not set")
+        if self._stage is None:
+            raise ValueError("Stage is not set")
+        if self._start_time is None:
+            raise ValueError("Start time is not set")
+
     async def on_chain_end(
         self,
-        outputs: t.Dict[str, t.Any],
+        outputs: dict[str, t.Any],
         *,
         run_id: UUID,
-        parent_run_id: t.Optional[UUID] = None,
-        tags: t.Optional[t.List[str]] = None,
+        parent_run_id: UUID | None = None,
+        tags: list[str] | None = None,
         **kwargs: t.Any,
     ) -> None:
         if self._debug_only and not self._show_debug_stages:
@@ -84,12 +104,7 @@ class StageCallback(AsyncCallbackHandler):
 
         if run_id != self._run_id:
             return
-        if self._run_id is None:
-            raise ValueError("Run ID is not set")
-        if self._stage is None:
-            raise ValueError("Stage is not set")
-        if self._start_time is None:
-            raise ValueError("Start time is not set")
+        self._raise_if_not_initialized()
         try:
             if self._content_appender is not None:
                 await self._content_appender(self._stage, outputs)
@@ -97,33 +112,48 @@ class StageCallback(AsyncCallbackHandler):
             logger.exception(f"An error occurred while populating the stage content: {repr(e)}")
             self._stage.append_content('An error occurred while populating the stage content.')
         finally:
-            end_time = datetime.now()
-            start_str = self._start_time.strftime('%H:%M:%S')
-            end_str = end_time.strftime('%H:%M:%S')
-            took_seconds: str = (
-                f" ({(end_time - self._start_time).total_seconds():.2f} s. "
-                f"start: {start_str}, end: {end_str})"
-            )
-            if dial_app_settings.dial_show_stage_seconds:
-                self._stage.append_name(took_seconds)
+            self._append_stage_timing()
             self._stage.close()
+
+    def on_chain_error(
+        self,
+        error: BaseException,
+        *,
+        run_id: UUID,
+        parent_run_id: UUID | None = None,
+        tags: list[str] | None = None,
+        **kwargs: t.Any,
+    ) -> None:
+        if self._debug_only and not self._show_debug_stages:
+            return
+        if not self._choice_present:
+            return
+        if run_id != self._run_id:
+            return
+
+        self._raise_if_not_initialized()
+        try:
+            self._stage.append_content(f"Error: {repr(error)}")
+        finally:
+            self._append_stage_timing()
+            self._stage.close(status=Status.FAILED)
 
     @classmethod
     def create_config(
         cls,
         stage_name: str,
-        content_appender: t.Callable[[Stage, t.Dict[str, t.Any]], t.Awaitable[None]],
+        content_appender: t.Callable[[Stage, dict[str, t.Any]], t.Awaitable[None]],
     ) -> RunnableConfig:
         return RunnableConfig(callbacks=[cls(stage_name, content_appender)])
 
 
 class ChoiceCallback(AsyncCallbackHandler):
-    _content_appender: t.Callable[[Choice, t.Dict[str, t.Any]], t.Awaitable[t.NoReturn]]
-    _run_id: t.Optional[UUID]
+    _content_appender: t.Callable[[Choice, dict[str, t.Any]], t.Awaitable[t.NoReturn]]
+    _run_id: UUID | None
 
     def __init__(
         self,
-        content_appender: t.Callable[[Choice, t.Dict[str, t.Any]], t.Awaitable[t.NoReturn]],
+        content_appender: t.Callable[[Choice, dict[str, t.Any]], t.Awaitable[t.NoReturn]],
     ):
         self._content_appender = content_appender
         self._choice_present = False
@@ -131,13 +161,13 @@ class ChoiceCallback(AsyncCallbackHandler):
 
     async def on_chain_start(
         self,
-        serialized: t.Dict[str, t.Any],
-        inputs: t.Dict[str, t.Any],
+        serialized: dict[str, t.Any],
+        inputs: dict[str, t.Any],
         *,
         run_id: UUID,
-        parent_run_id: t.Optional[UUID] = None,
-        tags: t.Optional[t.List[str]] = None,
-        metadata: t.Optional[t.Dict[str, t.Any]] = None,
+        parent_run_id: UUID | None = None,
+        tags: list[str] | None = None,
+        metadata: dict[str, t.Any] | None = None,
         **kwargs: t.Any,
     ) -> t.Any:
         if self._run_id is not None:
@@ -157,11 +187,11 @@ class ChoiceCallback(AsyncCallbackHandler):
 
     async def on_chain_end(
         self,
-        outputs: t.Dict[str, t.Any],
+        outputs: dict[str, t.Any],
         *,
         run_id: UUID,
-        parent_run_id: t.Optional[UUID] = None,
-        tags: t.Optional[t.List[str]] = None,
+        parent_run_id: UUID | None = None,
+        tags: list[str] | None = None,
         **kwargs: t.Any,
     ) -> t.Any:
         if not self._choice_present:

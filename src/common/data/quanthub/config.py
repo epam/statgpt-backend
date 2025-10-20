@@ -1,4 +1,4 @@
-from enum import Enum
+from enum import StrEnum
 
 from pydantic import Field, SecretStr, model_validator
 
@@ -7,10 +7,40 @@ from common.data.sdmx.common.config import SdmxDataSetConfig, SdmxDataSourceConf
 from common.schemas.base import BaseYamlModel
 
 
+class PropertySourceEnum(StrEnum):
+    ANNOTATION = "annotation"
+    """Retrieve the property from an SDMX annotation."""
+    ATTRIBUTE = "attribute"
+    """Retrieve the property from an SDMX attribute."""
+    CITATION = "citation"
+    """Retrieve the property from the dataset citation configuration."""
+    VALUE = "value"
+    """Use a fixed value specified in the `field`."""
+
+
+class PropertySource(BaseYamlModel):
+    source: PropertySourceEnum = Field()
+    field: str = Field(description="The field name in the source")
+    formats: list[str] | None = Field(
+        default=None, description="The list of non-default formats to try when parsing the value"
+    )
+
+
 class QuanthubDataSetConfig(SdmxDataSetConfig):
     """Configuration for a Quanthub SDMX dataset."""
 
-    updated_at_annotation: str = Field(default='lastUpdatedAt')
+    updated_at: list[PropertySource] = Field(
+        min_length=1,
+        default_factory=lambda: [
+            PropertySource(source=PropertySourceEnum.ANNOTATION, field="lastUpdatedAt"),
+            PropertySource(source=PropertySourceEnum.CITATION, field="last_updated"),
+        ],
+        description=(
+            "A list of sources ordered by priority for obtaining the dataset's update date."
+            " By default, it first tries to get it from the 'lastUpdatedAt' annotation,"
+            " and if not found, from the 'last_updated' field in the citation."
+        ),
+    )
 
 
 class BasicAuthCredentials(BaseYamlModel):
@@ -24,7 +54,7 @@ class BasicAuthCredentials(BaseYamlModel):
         return config_utils.replace_env(self.username)
 
 
-class AuthGrantType(Enum):
+class AuthGrantType(StrEnum):
     ROPC = "ropc"
     CLIENT_CREDENTIALS = "client_credentials"
     MSI = "msi"
@@ -119,6 +149,10 @@ class QuanthubSdmxDataSourceConfig(SdmxDataSourceConfig):
         default=None,
         description="The SDMX 3.0 URL for annotations. If not set, loading dynamic annotations is disabled.",
     )
+    attributes_url: str | None = Field(
+        default=None,
+        description="The SDMX 3.0 URL for attributes. If not set, loading attributes is disabled.",
+    )
     availability_via_post_url: str | None = Field(
         default=None,
         description="The SDMX 3.0 URL for availability via POST. If not set, the default availability endpoint will be used.",
@@ -128,6 +162,13 @@ class QuanthubSdmxDataSourceConfig(SdmxDataSourceConfig):
         description=(
             "The URL to the Quanthub Data Explorer. If set, it is used for creating URL queries with preset "
             "facet values, and URLs in data query responses point to the Data Explorer instead of the API."
+        ),
+    )
+    use_data_explorer_for_dataset_url: bool = Field(
+        default=False,
+        description=(
+            "If true and data_explorer_url is set, dataset URLs will point to data explorer instead of the dataset "
+            "pages configure in dataset citations."
         ),
     )
 
@@ -142,6 +183,9 @@ class QuanthubSdmxDataSourceConfig(SdmxDataSourceConfig):
 
     def get_annotations_url(self) -> str | None:
         return config_utils.replace_env(self.annotations_url) if self.annotations_url else None
+
+    def get_attributes_url(self) -> str | None:
+        return config_utils.replace_env(self.attributes_url) if self.attributes_url else None
 
     def get_availability_via_post_url(self) -> str | None:
         if self.availability_via_post_url:

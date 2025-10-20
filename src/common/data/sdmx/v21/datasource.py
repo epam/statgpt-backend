@@ -134,7 +134,7 @@ class Sdmx21DataSourceHandler(
             structure_message = await dataflow_loader.load_structure_message(urn)
         except Exception as e:
             if allow_offline:
-                msg = "Failed to load the dataflow or its associated structures."
+                msg = f"Failed to load the dataflow or its associated structures. {urn=}"
                 logger.exception(msg)
                 return SdmxOfflineDataSet(
                     entity_id, title, dataset_config, self, status_details=msg

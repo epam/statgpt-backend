@@ -4,7 +4,7 @@ from aidial_sdk.chat_completion import Choice
 from pydantic import BaseModel, ConfigDict, Field
 
 from common.auth.auth_context import AuthContext
-from statgpt.services import ChannelServiceFacade
+from statgpt.services.chat_facade import ChannelServiceFacade
 
 
 class ChainParametersConfig:
@@ -24,6 +24,7 @@ class ChainParametersConfig:
     INDICATOR_ID_2_DATASET_IDS = "indicator_id_2_dataset_ids"
     DATASETS = "datasets"
     DATASETS_DICT = "datasets_dict"
+    DATASETS_DICT_INDEXED = "datasets_dict_indexed"
     DATASET_DIMENSION_QUERIES = "dataset_dimension_queries"
     DATASET_QUERIES_FORMATTED_STR = "dataset_queries_formatted_str"
     DATASET_QUERIES = "dataset_queries"

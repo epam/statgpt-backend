@@ -142,9 +142,12 @@ class Search:
 
             return lex_indexed
 
-        async def _es_get_by_id(self, _id: str) -> dict:
+        async def _es_get_by_id(self, _id: str) -> dict | None:
             query = {"term": {"id.keyword": _id}}
             result: SearchResult = await self._outer._indicators_index.search(query=query, size=1)
+            if len(result.hits.hits) == 0:
+                logger.warning(f"HybridMatch: cannot find by id {_id}")
+                return None
             return result.hits.hits[0].source
 
         async def _semantic_raw(
@@ -185,23 +188,22 @@ class Search:
             hybrid: dict[str, dict] = {}
 
             for doc, _ in result:
-                metadata = doc.metadata
-                _id = metadata['id']
+                _id = doc.metadata['id']
 
                 sem = sem_indexed[_id]['score']
                 lex = 0 if _id not in lex_indexed else lex_indexed[_id]['score']
 
-                # get enriched metadata
+                enriched_metadata: dict | None
                 if _id in lex_indexed:
-                    metadata = lex_indexed[_id]['metadata']
+                    enriched_metadata = lex_indexed[_id]['metadata']
                 else:
-                    metadata = await self._es_get_by_id(_id)
+                    enriched_metadata = await self._es_get_by_id(_id)
 
-                if _id not in hybrid:
+                if _id not in hybrid and enriched_metadata is not None:
                     score = self._convex_combination(sem, lex, alpha)
                     hybrid[_id] = {
                         'score': score,
-                        'metadata': metadata,
+                        'metadata': enriched_metadata,
                     }
             return hybrid
 

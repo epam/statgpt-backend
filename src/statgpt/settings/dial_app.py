@@ -84,6 +84,12 @@ class DialAppSettings(BaseSettings):
         default=False, alias="CMD_RAG_PREFILTER_ONLY", description="Only apply RAG prefilter"
     )
 
+    cmd_skip_data_query_summarization: bool = Field(
+        default=False,
+        alias="CMD_SKIP_DATA_QUERY_SUMMARIZATION",
+        description="Skip data query summarization step",
+    )
+
     eval_dial_role: Optional[str] = Field(
         default=None, alias="EVAL_DIAL_ROLE", description="DIAL role for evaluation"
     )

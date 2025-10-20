@@ -25,7 +25,7 @@ class BaseToolConfig(BaseYamlModel):
         description="The name of the tool. Must be unique within a channel.",
         pattern=r'^[a-zA-Z0-9_\.-]+$',
     )
-    description: str = Field(description="The description of the tool.", max_length=1024)
+    description: str = Field(description="The description of the tool.", max_length=4096)
 
     details: BaseToolDetails = Field(
         default_factory=BaseToolDetails, description="Details as a JSON object"

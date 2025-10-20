@@ -7,17 +7,19 @@ from sdmx.model.v21 import DataStructureDefinition
 from common.auth.auth_context import AuthContext
 from common.config import multiline_logger as logger
 from common.data.quanthub.config import QuanthubSdmxDataSourceConfig
-from common.data.sdmx.v21.ratelimiter import SdmxRateLimiter
-from common.data.sdmx.v21.sdmx_client import AsyncSdmxClient, init_sdmx
-from common.utils import Cache
-
-from .authorizer import QuanthubAuthorizer, QuanthubAuthorizerFactory
-from .qh_sdmx_30_schemas import (
+from common.data.quanthub.sdmx_schemas.v30 import (
     QhAnnotation,
     QhAvailabilityRequestBody,
     QhAvailabilityResponseBody,
     QhDataflowMessage,
+    QhDataMessage,
 )
+from common.data.sdmx.v21.ratelimiter import SdmxRateLimiter
+from common.data.sdmx.v21.sdmx_client import AsyncSdmxClient, init_sdmx
+from common.utils import Cache
+
+from .attributes_parser import AttributesParser
+from .authorizer import QuanthubAuthorizer, QuanthubAuthorizerFactory
 from .sdmx_extensions import init_qh_sdmx_extensions
 
 
@@ -28,6 +30,7 @@ class AsyncQuanthubClient(AsyncSdmxClient):
     """
 
     _annotation_cache: Cache[list[QhAnnotation]] = Cache()
+    _attributes_cache: Cache[dict[str, str | None]] = Cache()
 
     @classmethod
     def from_config(  # type: ignore[override]
@@ -59,6 +62,7 @@ class AsyncQuanthubClient(AsyncSdmxClient):
             httpx_client,
             authorizer=authorizer,
             annotations_url=config.get_annotations_url(),
+            attributes_url=config.get_attributes_url(),
             availability_via_post_url=config.get_availability_via_post_url(),
             rate_limiter=rate_limiter,
         )
@@ -69,6 +73,7 @@ class AsyncQuanthubClient(AsyncSdmxClient):
         httpx_client: httpx.AsyncClient,
         authorizer: QuanthubAuthorizer | None,
         annotations_url: str | None,
+        attributes_url: str | None,
         availability_via_post_url: str | None,
         rate_limiter: SdmxRateLimiter,
     ):
@@ -79,6 +84,7 @@ class AsyncQuanthubClient(AsyncSdmxClient):
             rate_limiter=rate_limiter,
         )
         self._annotations_url = annotations_url
+        self._attributes_url = attributes_url
         self._availability_via_post_url = availability_via_post_url
 
     async def availableconstraint(
@@ -111,6 +117,37 @@ class AsyncQuanthubClient(AsyncSdmxClient):
                 params=params,
                 dsd=dsd,
             )
+
+    async def dataset_level_attributes(
+        self, *, agency_id: str, resource_id: str, version: str
+    ) -> dict[str, str | None]:
+        """Fetch dataset-level attributes and their values for a given dataflow.
+
+        Returns:
+            A dictionary mapping attribute IDs to their values.
+        """
+        if not self._attributes_url:
+            return {}
+
+        url = f"{self._attributes_url}/data/dataflow/{agency_id}/{resource_id}/{version}/*"
+        if (item := self._attributes_cache.get(url)) is not None:
+            return item
+
+        headers = {}
+        if self._authorizer is not None:
+            headers = await self._authorizer.get_authorization_headers()
+
+        params: dict[str, str | int] = {"attributes": "dataset", "measures": "none", "limit": 1}
+
+        async with self._rate_limiter.structure_limiter():
+            resp = await self._httpx_client.get(url, headers=headers, params=params)
+        resp.raise_for_status()
+
+        response_data = QhDataMessage.model_validate(resp.json())
+        attributes = AttributesParser.parse(response_data)
+
+        self._attributes_cache.set(url, attributes)
+        return attributes
 
     async def dynamic_dataflow_annotations(
         self, *, agency_id: str, resource_id: str, version: str

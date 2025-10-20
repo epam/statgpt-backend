@@ -11,11 +11,14 @@ def get_chat_model(
     api_key: str | SecretStr,
     model_config: LLMModelConfig,
     azure_endpoint: str = dial_settings.url,
+    timeout: httpx.Timeout | None = None,
     **kwargs,
 ) -> AzureChatOpenAI:
     # default params
     if not isinstance(api_key, SecretStr):
         api_key = SecretStr(api_key)
+    if not timeout:
+        timeout = httpx.Timeout(60, connect=4)
     params = dict(
         azure_endpoint=azure_endpoint,
         api_version=model_config.api_version,
@@ -24,7 +27,7 @@ def get_chat_model(
         seed=model_config.seed,
         max_retries=10,
         api_key=api_key,  # since we use SecretStr, it won't be logged
-        timeout=httpx.Timeout(60, connect=4),  # timeouts are crucial!
+        timeout=timeout,  # timeouts are crucial!
     )
     params.update(kwargs)  # update default params
     api_key_log = f'{api_key.get_secret_value()[:3]}*****{api_key.get_secret_value()[-2:]}'

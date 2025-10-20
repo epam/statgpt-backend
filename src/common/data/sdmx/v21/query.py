@@ -4,7 +4,6 @@ from enum import StrEnum
 from pydantic import BaseModel, Field
 
 from common.data.sdmx.common import UrnParseError, UrnParser
-from common.schemas.base import BaseYamlModel
 
 
 class SdmxQueryReadinessStatus(StrEnum):
@@ -154,36 +153,3 @@ class SdmxDataSetAvailabilityQuery(BaseModel):
             if self.time_dimension_query.end_period:
                 result['endPeriod'] = self.time_dimension_query.end_period
         return result
-
-
-class JsonQueryOperator(StrEnum):
-    IN = "in"
-    BETWEEN = "between"
-    GE = "ge"
-    """Greater than or equal"""
-    LE = "le"
-    """Less than or equal"""
-    GT = "gt"
-    """Greater than"""
-    LT = "lt"
-    """Less than"""
-
-
-class JsonComponentQuery(BaseYamlModel):
-    component_code: str = Field(description="The code of the component")
-    operator: JsonQueryOperator = Field(description="The operator of the query")
-    values: list[str] = Field(description="The values of the query")
-
-
-class JsonQueryMetadata(BaseYamlModel):
-    country_dimension: str = Field(description="The country dimension code")
-    indicator_dimensions: list[str] = Field(description="The indicator dimension codes")
-
-
-class JsonQuery(BaseYamlModel):
-    urn: str = Field(description="The urn of the dataset")
-    filters: list[JsonComponentQuery] = Field(description="The list of component queries")
-
-
-class JsonQueryWithMetadata(JsonQuery):
-    metadata: JsonQueryMetadata = Field(description="The metadata of the query")
