@@ -296,8 +296,8 @@ class AsyncSdmxClient:
 
     async def _perform_request(self, req: PreparedRequest, max_retries=3, delay=3) -> Response:
         self._LOADING.add(req.url)  # type: ignore[arg-type]
+        attempts = 0
         try:
-            attempts = 0
             while True:
                 attempts += 1
                 resp = await self._httpx_client.request(
@@ -315,6 +315,12 @@ class AsyncSdmxClient:
                         f"Retrying in {delay} seconds...\nRequest: {req.method} {req.url} body={req.body!r}"
                     )
                     await asyncio.sleep(delay)
+        except Exception:
+            logger.exception(
+                f"Server failed to respond, after {attempts} attempts: "
+                f"{req.method} {req.url} body={req.body!r}"
+            )
+            raise
         finally:
             self._LOADING.discard(req.url)  # type: ignore[arg-type]
 
@@ -342,6 +348,7 @@ class AsyncSdmxClient:
             raise ValueError(
                 "can't determine a reader for response content type "
                 + repr(response.headers.get("content-type", None))
+                + f" and url {response.url}"
             ) from None
 
         # Instantiate reader from class

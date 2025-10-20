@@ -24,7 +24,9 @@ class ListResponse(BaseModel, Generic[ItemT]):
 
 
 class BaseYamlModel(BaseModel):
-    model_config = ConfigDict(alias_generator=alias_generators.to_camel, populate_by_name=True)
+    model_config = ConfigDict(
+        alias_generator=alias_generators.to_camel, populate_by_name=True, extra="allow"
+    )
 
 
 class SystemUserPrompt(BaseYamlModel):

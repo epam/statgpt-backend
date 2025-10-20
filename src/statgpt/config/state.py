@@ -9,6 +9,7 @@ class StateVarsConfig:
     # "cmd_" prefix indicates the command
     CMD_OUT_OF_SCOPE_ONLY = "cmd_out_of_scope_only"
     CMD_RAG_PREFILTER_ONLY = "cmd_rag_prefilter_only"
+    CMD_SKIP_DATA_QUERY_SUMMARIZATION = "cmd_skip_data_query_summarization"
     ERROR = 'error'
 
     # values used in Agentic approach

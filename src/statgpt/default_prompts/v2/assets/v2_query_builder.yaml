@@ -1,4 +1,6 @@
 datetimePrompt: |-
+  ## Description
+
   You are an expert in Statistical Data and Metadata Exchange and text
   processing. Your task is to extract the time range from the user's query,
   converting both "start" and "end" dates into YYYY-MM-DD format and to
@@ -47,6 +49,10 @@ datetimePrompt: |-
     - If start date is defined, end date is NOT defined and the query uses the
     present tense or if tense is ambiguous, set "end" to null and "forecast" to True
 
+  ## Examples
+
+  NOTE: `current_date` for the examples below is "2025-09-18"
+
   **Examples for Forecast Determination:**
     - "estimated GDP till 2030" -> forecasts true (future)
     - "estimated CPI starting from 2035" -> forecasts true (future)
@@ -57,13 +63,14 @@ datetimePrompt: |-
 
   **Examples for Time Period Extraction (Explicit Dates):**
     - "from 2010" -> {{"forecast": true, "start": "2010-01-01", "end": null, "time_period_specified": true}}
-    - "till 2030" -> {{"forecast": true, "start": "{current_date}", "end": "2030-12-31", "time_period_specified": true}}
-    - "forecast until 2030" -> {{"forecast": true, "start": "{current_date}", "end": "2030-12-31", "time_period_specified": true}}
+    - "till 2030" -> {{"forecast": true, "start": "2025-09-18", "end": "2030-12-31", "time_period_specified": true}}
+    - "forecast until 2030" -> {{"forecast": true, "start": "2025-09-18", "end": "2030-12-31", "time_period_specified": true}}
     - "from 2020 to 2024" -> {{"forecast": false, "start": "2020-01-01", "end": "2024-12-31", "time_period_specified": true}}
     - "in 2018" -> {{"forecast": false, "start": "2018-01-01", "end": "2018-12-31", "time_period_specified": true}}
     - "forecast for 2033" -> {{"forecast": true, "start": "2033-01-01", "end": "2033-12-31", "time_period_specified": true}}
     - "is going to be in 2035" -> {{"forecast": true, "start": "2035-01-01", "end": "2035-12-31", "time_period_specified": true}}
-    - "for the last 10 years" -> {{"forecast": false, ..., "end": "{current_date}", "time_period_specified": true}}
+    - "for the last 2 months" -> {{"forecast": false, "2025-07-18", "end": "2025-09-18", "time_period_specified": true}}
+    - "for the next 5 years" -> {{"forecast": true, "start": "2025-09-18", "end": "2030-09-18", "time_period_specified": true}}
 
   **Examples Covering "All Available Dates":**
     - "give me values for all available dates"
@@ -73,15 +80,23 @@ datetimePrompt: |-
     - "please give me X for all available time"
         - Should output {{"forecast": false, "start": null, "end": null, "time_period_specified": true}}
 
+  **Examples When Year Doesn't Indicate Time Filter:**
+    - "in 2010 prices" -> {{"forecast": false, "start": null, "end": null, "time_period_specified": false}}
+    - "in 2010 prices between 2010 and 2012" -> {{"forecast": false, "start": "2010-01-01", "end": "2012-12-31", "time_period_specified": true}}
+    - "in constant 2015 prices" -> {{"forecast": false, "start": null, "end": null, "time_period_specified": false}}
+    - "in constant 2015 prices between 2016 and 2020" -> {{"forecast": false, "start": "2016-01-01", "end": "2020-12-31", "time_period_specified": true}}
+    - "2010=100" -> {{"forecast": false, "start": null, "end": null, "time_period_specified": false}}
+    - "2010=100 for 2008-2010" -> {{"forecast": false, "start": "2008-01-01", "end": "2010-12-31", "time_period_specified": true}}
+
   **Additional Examples:**
     - "what is X from 2005" -> {{"forecast": true, "start": "2005-01-01", "end": null, "time_period_specified": true}}
     - "give me X until 2006" -> {{"forecast": false, "start": null, "end": "2006-12-31", "time_period_specified": true}}
     - "what's X of UK?" -> {{"forecast": false, "start": null, "end": null, "time_period_specified": false}}
-    - "what's forecast of X for UK?" -> {{"forecast": true, "start": "{current_date}", "end": null, "time_period_specified": true}}
+    - "what's forecast of X for UK?" -> {{"forecast": true, "start": "2025-09-18", "end": null, "time_period_specified": true}}
     - "what X is going to be in 2025?" -> {{"forecast": true, "start": "2025-01-01", "end": "2025-12-31", "time_period_specified": true}}
     - "what is forecasted X from 2025 to 2030?" -> {{"forecast": true, "start": "2025-01-01", "end": "2030-12-31", "time_period_specified": true}}
-    - "what is X forecast till 2030?" -> {{"forecast": true, "start": "{current_date}", "end": "2030-12-31", "time_period_specified": true}}
-    - "what is estimated X till 2028?" -> {{"forecast": true, "start": "{current_date}", "end": "2028-12-31", "time_period_specified": true}}
+    - "what is X forecast till 2030?" -> {{"forecast": true, "start": "2025-09-18", "end": "2030-12-31", "time_period_specified": true}}
+    - "what is estimated X till 2028?" -> {{"forecast": true, "start": "2025-09-18", "end": "2028-12-31", "time_period_specified": true}}
     - "what is estimated X for 2025?" -> {{"forecast": true, "start": "2025-01-01", "end": "2025-12-31", "time_period_specified": true}}
     - "what is X projection from 2030 onward?" -> {{"forecast": true, "start": "2030-01-01", "end": null, "time_period_specified": true}}
     - "what is projected X from 2011?" -> {{"forecast": true, "start": "2011-01-01", "end": null, "time_period_specified": true}}
@@ -89,14 +104,10 @@ datetimePrompt: |-
   **Tense Examples:**
     - "please give me X from 2010" -> {{"forecast": true, "start": "2010-01-01", "end": null, "time_period_specified": true}} (no tense)
     - "what is X from 2010?" -> {{"forecast": true, "start": "2010-01-01", "end": null, "time_period_specified": true}} (present tense)
-    - "what was X from 2010?" -> {{"forecast": false, "start": "2010-01-01", "end": "{current_date}", "time_period_specified": true}} (past tense)
+    - "what was X from 2010?" -> {{"forecast": false, "start": "2010-01-01", "end": "2025-09-18", "time_period_specified": true}} (past tense)
     - "what was X until 2010?" -> {{"forecast": false, "start": null, "end": "2010-01-01", "time_period_specified": true}} (past tense)
 
-  Your response MUST only include a JSON object corresponding to the output
-  schema below. Do not include any other text, explanations, or comments in your
-  response.
-
-  {format_instructions}
+  ## Current Date
 
   Today is {current_date}
 groupExpanderPrompt: >-

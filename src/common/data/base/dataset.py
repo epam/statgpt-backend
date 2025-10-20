@@ -11,6 +11,7 @@ from pydantic import BaseModel, ConfigDict, Field, StrictStr, alias_generators
 from common.auth.auth_context import AuthContext
 from common.config.utils import replace_env
 from common.schemas.dataset import Status
+from common.schemas.enums import DataParsingStatus, DataRequestStatus
 
 from .attribute import Attribute
 from .base import BaseEntity, EntityType
@@ -92,8 +93,53 @@ class DataSetConfig(BaseModel, ABC):
     model_config = ConfigDict(alias_generator=alias_generators.to_camel, populate_by_name=True)
 
 
+class DataResponseStatus(BaseModel):
+    request_status: DataRequestStatus = Field(description="status of the data request")
+    parsing_status: DataParsingStatus = Field(description="status of data parsing")
+
+    def merge(self, other: DataResponseStatus) -> DataResponseStatus:
+        if (
+            self.request_status == DataRequestStatus.FAILED
+            and other.request_status == DataParsingStatus.FAILED
+        ):
+            request_status = DataRequestStatus.FAILED
+        elif (
+            self.request_status == DataRequestStatus.SUCCESS
+            and other.request_status == DataRequestStatus.SUCCESS
+        ):
+            request_status = DataRequestStatus.SUCCESS
+        else:
+            request_status = DataRequestStatus.PARTIALLY_FAILED
+
+        if (
+            self.parsing_status == DataParsingStatus.FAILED
+            and other.parsing_status == DataParsingStatus.FAILED
+        ):
+            parsing_status = DataParsingStatus.FAILED
+        elif (
+            self.parsing_status == DataParsingStatus.SUCCESS
+            and other.parsing_status == DataParsingStatus.SUCCESS
+        ):
+            parsing_status = DataParsingStatus.SUCCESS
+        elif self.parsing_status == DataParsingStatus.NA:
+            parsing_status = other.parsing_status
+        elif other.parsing_status == DataParsingStatus.NA:
+            parsing_status = self.parsing_status
+        else:
+            parsing_status = DataParsingStatus.PARTIALLY_FAILED
+        return DataResponseStatus(
+            request_status=request_status,
+            parsing_status=parsing_status,
+        )
+
+
 class DataResponse(ABC):
     """Base class for data responses from datasets."""
+
+    @property
+    @abstractmethod
+    def status(self) -> DataResponseStatus:
+        pass
 
     @property
     @abstractmethod
@@ -160,6 +206,11 @@ class DataResponse(ABC):
     def python_code(self) -> str | None:
         """Return the Python code to query the data source."""
 
+    @property
+    @abstractmethod
+    def time_period(self) -> tuple[str, str] | None:
+        """Return the time period covered by the data in this response as a tuple of (start, end)."""
+
 
 DataSetConfigType = t.TypeVar("DataSetConfigType", bound=DataSetConfig)
 DataSourceHandlerType = t.TypeVar("DataSourceHandlerType", bound='DataSourceHandler')
@@ -199,6 +250,11 @@ class DataSet(BaseEntity, t.Generic[DataSetConfigType, DataSourceHandlerType], A
         return self._title
 
     @property
+    @abstractmethod
+    def dataset_url(self) -> str | None:
+        pass
+
+    @property
     def config(self) -> DataSetConfigType:
         return self._config
 
@@ -221,6 +277,14 @@ class DataSet(BaseEntity, t.Generic[DataSetConfigType, DataSourceHandlerType], A
         pass
 
     @abstractmethod
+    def get_time_dimension(self) -> Dimension:
+        pass
+
+    @abstractmethod
+    def get_frequency_dimension(self) -> Dimension:
+        pass
+
+    @abstractmethod
     def attributes(self) -> t.Sequence[Attribute]:
         pass
 
@@ -236,7 +300,11 @@ class DataSet(BaseEntity, t.Generic[DataSetConfigType, DataSourceHandlerType], A
         pass
 
     @abstractmethod
-    def indicator_dimensions(self) -> t.Sequence[Dimension]:
+    def indicator_dimensions(self, non_virtual: bool = False) -> t.Sequence[Dimension]:
+        pass
+
+    @abstractmethod
+    def virtual_indicator_dimensions(self) -> t.Sequence[Dimension]:
         pass
 
     @abstractmethod
@@ -280,10 +348,20 @@ class OfflineDataSet(DataSet, t.Generic[DataSetConfigType, DataSourceHandlerType
     def default_value_codes(self) -> list[str]:
         return []
 
+    @property
+    def dataset_url(self) -> str | None:
+        return None
+
     def dimensions(self) -> list[Dimension]:
         return []
 
     def dimension(self, dimension_id: str) -> Dimension:
+        raise RuntimeError("No dimensions for offline datasets")
+
+    def get_time_dimension(self) -> Dimension:
+        raise RuntimeError("No dimensions for offline datasets")
+
+    def get_frequency_dimension(self) -> Dimension:
         raise RuntimeError("No dimensions for offline datasets")
 
     def attributes(self) -> list[Attribute]:
@@ -301,7 +379,10 @@ class OfflineDataSet(DataSet, t.Generic[DataSetConfigType, DataSourceHandlerType
     def special_dimensions(self) -> dict[str, Dimension]:
         return {}
 
-    def indicator_dimensions(self) -> list[Dimension]:
+    def indicator_dimensions(self, non_virtual: bool = False) -> list[Dimension]:
+        return []
+
+    def virtual_indicator_dimensions(self) -> list[Dimension]:
         return []
 
     def indicator_dimensions_required_for_query(self) -> list[str]:

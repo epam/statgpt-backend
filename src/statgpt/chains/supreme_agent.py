@@ -156,12 +156,24 @@ class SupremeAgent:
         return start_time, first_token_time, resp
 
     @classmethod
+    def _create_system_prompt(cls, channel_config: ChannelConfig) -> str:
+        if channel_config.supreme_agent.additional_context:
+            return (
+                SupremeAgentPrompts.SYSTEM_PROMPT
+                + "\n\n"
+                + SupremeAgentPrompts.ADDITIONAL_CONTEXT_PROMPT
+            )
+        return SupremeAgentPrompts.SYSTEM_PROMPT
+
+    @classmethod
     def _create_chain(
         cls, auth_context: AuthContext, channel_config: ChannelConfig, tools: list[StatGptTool]
     ) -> Runnable:
         prompt_template = ChatPromptTemplate.from_messages(
             [
-                SystemMessagePromptTemplate.from_template(SupremeAgentPrompts.SYSTEM_PROMPT),
+                SystemMessagePromptTemplate.from_template(
+                    cls._create_system_prompt(channel_config)
+                ),
                 MessagesPlaceholder(variable_name="chat_history", optional=True),
             ]
         ).partial(
@@ -171,6 +183,7 @@ class SupremeAgent:
             chat_bot_language_instructions=format_as_markdown_list(
                 channel_config.supreme_agent.language_instructions, list_type="ordered"
             ),
+            additional_context=channel_config.supreme_agent.additional_context,
         )
         model = get_chat_model(
             api_key=auth_context.api_key,

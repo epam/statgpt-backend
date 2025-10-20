@@ -6,7 +6,7 @@ from langchain_core.documents import Document
 from pydantic import BaseModel
 
 from common.data.base import BaseIndicator
-from common.data.base.category import DimensionCategory
+from common.data.base.category import Category, DimensionCategory
 from common.settings.document import IndicatorDocumentMetadataFields
 
 from .category import CodeCategory, DimensionCodeCategory
@@ -15,9 +15,9 @@ from .constants import SdmxConstants
 
 class CodeIndicator(BaseIndicator):
 
-    _code_category: CodeCategory
+    _code_category: Category
 
-    def __init__(self, code: CodeCategory):
+    def __init__(self, code: Category):
         super().__init__()
         self._code_category = code
 
@@ -49,7 +49,7 @@ class CodeIndicator(BaseIndicator):
     # return self._code_category.to_document()
 
     def get_document_content(self, include_description: bool = False) -> str:
-        return self._code_category.get_document_content(include_description)
+        return self._code_category.get_document_content(include_description=include_description)
 
     def get_document_metadata(self) -> dict:
         return self._code_category.get_document_metadata()

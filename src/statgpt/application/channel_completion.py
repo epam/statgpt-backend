@@ -24,7 +24,7 @@ from statgpt.config import ChainParametersConfig as ParamsConfig
 from statgpt.config import StateVarsConfig
 from statgpt.schemas.dial_app_configuration import StatGPTConfiguration
 from statgpt.security import create_auth_context
-from statgpt.services import ChannelServiceFacade
+from statgpt.services.chat_facade import ChannelServiceFacade
 from statgpt.settings.dial_app import dial_app_settings
 from statgpt.utils.dial_stages import optional_timed_stage
 
@@ -32,10 +32,13 @@ _log = logging.getLogger(__name__)
 
 
 class ChannelCompletion(ChatCompletion):
+
+    def __init__(self, deployment_id: str) -> None:
+        self._deployment_id = deployment_id
+
     async def chat_completion(self, request: Request, response: Response) -> None:
         start_time = datetime.now()
-        deployment_id = request.original_request.path_params["deployment_id"]
-        _log.info(f"{deployment_id=}")
+        _log.info(f"{self._deployment_id=}")
 
         if request.custom_fields and request.custom_fields.configuration:
             configuration = StatGPTConfiguration.model_validate(request.custom_fields.configuration)
@@ -48,11 +51,13 @@ class ChannelCompletion(ChatCompletion):
         if application_settings.memory_debug:
             from common.utils.memory_profiler import memory_profiler
 
-            memory_profiler.take_snapshot(f"request_start_{deployment_id}_{start_time.isoformat()}")
+            memory_profiler.take_snapshot(
+                f"request_start_{self._deployment_id}_{start_time.isoformat()}"
+            )
 
         async with get_readonly_session_contex_manager() as db_session:
             try:
-                service = await ChannelServiceFacade.get_channel(db_session, deployment_id)
+                service = await ChannelServiceFacade.get_channel(db_session, self._deployment_id)
             except Exception as e:
                 _log.error(e)
                 raise DIALException(
@@ -63,11 +68,10 @@ class ChannelCompletion(ChatCompletion):
             await self._channel_completion(request, response, service, start_time, configuration)
 
     async def configuration(self, request: ConfigurationRequest) -> ConfigurationResponse | dict:
-        deployment_id = request.original_request.path_params["deployment_id"]
 
         async with get_readonly_session_contex_manager() as db_session:
             try:
-                service = await ChannelServiceFacade.get_channel(db_session, deployment_id)
+                service = await ChannelServiceFacade.get_channel(db_session, self._deployment_id)
             except Exception as e:
                 _log.error(e)
                 raise DIALException(
@@ -158,6 +162,7 @@ class ChannelCompletion(ChatCompletion):
             StateVarsConfig.SHOW_DEBUG_STAGES: dial_app_settings.dial_show_debug_stages,
             StateVarsConfig.CMD_OUT_OF_SCOPE_ONLY: dial_app_settings.cmd_out_of_scope_only,
             StateVarsConfig.CMD_RAG_PREFILTER_ONLY: dial_app_settings.cmd_rag_prefilter_only,
+            StateVarsConfig.CMD_SKIP_DATA_QUERY_SUMMARIZATION: dial_app_settings.cmd_skip_data_query_summarization,
         }
 
         if len(request.messages) < 2:

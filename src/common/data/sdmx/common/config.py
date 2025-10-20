@@ -155,6 +155,9 @@ class SdmxDataSetConfig(DataSetConfig):
     country_dimension_alias: str | None = Field(
         None, description="The alias of the main country dimension"
     )
+    frequency_dimension: str = Field(
+        default='FREQUENCY', description="Identifier of the frequency dimension"
+    )
     dimension_all_values: dict[str, FixedItem] = Field(
         default_factory=dict,
         description=(

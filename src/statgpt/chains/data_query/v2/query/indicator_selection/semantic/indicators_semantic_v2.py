@@ -19,7 +19,7 @@ from statgpt.schemas.query_builder import (
     IndicatorsSearchResult,
     RetrievalStagesResults,
 )
-from statgpt.services import ScoredIndicatorCandidate
+from statgpt.services.chat_facade import ScoredIndicatorCandidate
 from statgpt.utils.dial_stages import optional_timed_stage
 
 from .packed_indicators_selection import PackedIndicatorsSelectionV1ChainFactory

@@ -40,6 +40,11 @@ class Dimension(BaseEntity, t.Generic[DimensionValueType], ABC):
     def is_mandatory(self) -> bool:
         pass
 
+    @property
+    @abstractmethod
+    def is_time_dimension(self) -> bool:
+        pass
+
     @abstractmethod
     def format_value(self, value: DimensionValueType) -> str:
         pass
@@ -126,6 +131,10 @@ class VirtualDimension(CategoricalDimension[VirtualDimensionCategory]):
         return None
 
     @property
+    def value(self) -> VirtualDimensionCategory:
+        return self._value
+
+    @property
     def is_mandatory(self) -> bool:
         return False
 
@@ -151,6 +160,10 @@ class VirtualDimension(CategoricalDimension[VirtualDimensionCategory]):
     @property
     def alias(self) -> str | None:
         return self._alias
+
+    @property
+    def is_time_dimension(self) -> bool:
+        return False
 
 
 class DateTimeDimension(Dimension[str], ABC):

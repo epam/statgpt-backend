@@ -59,6 +59,10 @@ class CommandsInterceptor(BaseMessageInterceptor):
                     command='rag_prefilter_only',
                     state_var=StateVarsConfig.CMD_RAG_PREFILTER_ONLY,
                 ),
+                InterceptableCommand(
+                    command='skip_data_query_summarization',
+                    state_var=StateVarsConfig.CMD_SKIP_DATA_QUERY_SUMMARIZATION,
+                ),
             ]
         else:
             logger.info("CommandsInterceptor: dev commands disabled")

@@ -3,6 +3,7 @@ from .base import BaseEntity
 from .category import Category, DimensionCategory, VirtualDimensionCategory
 from .dataset import (
     DataResponse,
+    DataResponseStatus,
     DataSet,
     DatasetCitation,
     DataSetConfig,

@@ -17,7 +17,7 @@ from statgpt.chains.candidates_selection_batched import (
 from statgpt.chains.parameters import ChainParameters
 from statgpt.config import StateVarsConfig
 from statgpt.schemas.query_builder import ChainState, DatasetDimQueries
-from statgpt.services import ScoredIndicatorCandidate
+from statgpt.services.chat_facade import ScoredIndicatorCandidate
 
 from . import PackedIndicatorsSelectionV1ChainFactory
 from .pis_v1_v2 import LLMResponseBase

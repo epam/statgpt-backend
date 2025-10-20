@@ -59,7 +59,13 @@ class IndicatorsSelectionHybrid(IndicatorSelectionBase):
         auth_context = ChainParameters.get_auth_context(inputs)
         state = ChainParameters.get_state(inputs)
         show_debug_stages = state.get(StateVarsConfig.SHOW_DEBUG_STAGES, False)
-        datasets_dict: dict[str, DataSet] = ChainParameters.get_datasets_dict(inputs)
+        # NOTE: hybrid indicators selection does not take into account datasets filters,
+        # thus it might select series from filtered-out datasets.
+        # these series will be filtered out when combining with strong queries (non-indicators).
+        # but here we need all datasets to correctly format indicator queries.
+        datasets_dict_indexed: dict[str, DataSet] = ChainParameters.get_datasets_dict_indexed(
+            inputs
+        )
         best_of: dict[str, list[DimensionQuery]] = inputs["hybrid_best_of"]
 
         with optional_timed_stage(
@@ -75,7 +81,7 @@ class IndicatorsSelectionHybrid(IndicatorSelectionBase):
                     stage=stage,
                     queries=indicator_queries,
                     auth_context=auth_context,
-                    datasets_dict=datasets_dict,
+                    datasets_dict=datasets_dict_indexed,
                 )
 
         return inputs

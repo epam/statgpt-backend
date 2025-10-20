@@ -18,7 +18,7 @@ from common.schemas.dial import Message as DialMessage
 from common.schemas.dial import ToolCall as DialToolCall
 from statgpt.config import StateVarsConfig
 from statgpt.schemas.tool_artifact import ToolArtifact
-from statgpt.services import ChannelServiceFacade
+from statgpt.services.chat_facade import ChannelServiceFacade
 from statgpt.utils.message_interceptors.commands_interceptor import CommandsInterceptor
 from statgpt.utils.message_interceptors.system_msg_interceptor import SystemMessageInterceptor
 

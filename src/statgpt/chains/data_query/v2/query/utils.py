@@ -16,7 +16,7 @@ from common.data.base import (
 )
 from common.data.sdmx.common.config import FixedItem
 from common.data.sdmx.v21.dataset import Sdmx21DataSet
-from common.schemas.enums import LocaleEnum
+from common.schemas.enums import DataParsingStatus, LocaleEnum
 from statgpt.schemas.query_builder import DatasetAvailabilityQueriesType, DatasetDimQueriesType
 from statgpt.services.chat_facade import ScoredDimensionCandidate
 from statgpt.settings.dial_app import dial_app_settings
@@ -51,7 +51,7 @@ def get_indicators_for_retrieval_results(
                 indicator_name = next(
                     (
                         v.name
-                        for d in dataset.indicator_dimensions()
+                        for d in dataset.indicator_dimensions(non_virtual=True)
                         for v in d.available_values
                         if v.query_id == value
                     ),
@@ -185,12 +185,20 @@ async def format_dataset_queries(
         if print_is_official and dataset.config.is_official:
             dataset_entry += f' {dial_app_settings.official_dataset_label}'
 
-        if data_responses:
-            response = data_responses.get(dataset_id)
-            if response and not response.visual_dataframe.empty:
+        response = data_responses.get(dataset_id) if data_responses else None
+
+        if response:
+            if not response.visual_dataframe.empty:
                 dataset_entry += f'\n✅ **Execution result**: Data received, contains {response.visual_dataframe.shape[0]} series.'
-                if response.url_query:
-                    dataset_entry += f'\n\n[🔍 View data in explorer]({response.url_query})'
+            elif response.status.parsing_status in (
+                DataParsingStatus.FAILED,
+                DataParsingStatus.PARTIALLY_FAILED,
+            ):
+                dataset_entry += (
+                    "\n❗ **Execution result**: The query was executed, but parsing the response failed."
+                    "\n\n💡 **Note:** While the data is not visible to you, user will be able to see it in UI."
+                    " It's recommended to inform user that you were not able to see the data due to parsing issues."
+                )
             else:
                 dataset_entry += (
                     '\n❌ **Execution result**: A response was received, but it does not contain any data.'
@@ -198,8 +206,17 @@ async def format_dataset_queries(
                     ' the specified time period. You may want to try selecting a different time period.'
                     ' Another option is to try to find relevant data in other datasets or using other tools.'
                 )
+            if response.url_query:
+                dataset_entry += f'\n\n[🔍 View data in explorer]({response.url_query})'
 
         dataset_entry += f'\n* ID: {dataset.source_id}'
+
+        try:
+            if response and (time_period := response.time_period):
+                start, end = time_period
+                dataset_entry += f'\n* Factual time period: {start} to {end}'
+        except Exception as e:
+            logger.exception("Error formatting time period for dataset query", exc_info=e)
 
         if citation:
             formatted_citation = await SimpleDatasetFormatter(
@@ -212,7 +229,7 @@ async def format_dataset_queries(
 
         dataset_entry += "\n* Query:"
 
-        indicators: set[str] = {d.entity_id for d in dataset.indicator_dimensions()}
+        indicators: set[str] = {d.entity_id for d in dataset.indicator_dimensions(non_virtual=True)}
 
         # TODO: can use a simpler function: dataset.map_dim_values_id_2_name()
 
@@ -331,7 +348,7 @@ async def format_availability_queries(
         datetime_dimensions: dict[str, DateTimeDimension] = {
             d.entity_id: d for d in dimensions if isinstance(d, DateTimeDimension)
         }
-        indicators: set[str] = {d.entity_id for d in dataset.indicator_dimensions()}
+        indicators: set[str] = {d.entity_id for d in dataset.indicator_dimensions(non_virtual=True)}
 
         for dimension_id, dim_query in query.dimensions_queries_dict.items():
             if cat_dimension := categorical_dimensions.get(dimension_id):

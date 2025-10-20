@@ -63,11 +63,18 @@ class CitationOverrideFormatter(CitationFormatter):
         config: CitationFormatterConfig,
         locale: LocaleEnum,
         last_updated_override_value: str = "",
+        url_override_value: str | None = None,
     ):
         super().__init__(config, locale)
         self._last_updated_override_value = last_updated_override_value
+        self._url_override_value = url_override_value
 
     def _format_last_updated(self, last_updated: str | None) -> str:
         if self._last_updated_override_value:
             return super()._format_last_updated(self._last_updated_override_value)
         return super()._format_last_updated(last_updated)
+
+    def _format_url(self, url: str | None) -> str:
+        if self._url_override_value:
+            return super()._format_url(self._url_override_value)
+        return super()._format_url(url)

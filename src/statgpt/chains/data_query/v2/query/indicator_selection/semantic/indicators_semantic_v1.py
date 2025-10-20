@@ -14,7 +14,7 @@ from statgpt.schemas.query_builder import (
     RetrievalStageDescription,
     RetrievalStagesResults,
 )
-from statgpt.services import ScoredIndicatorCandidate
+from statgpt.services.chat_facade import ScoredIndicatorCandidate
 
 
 class IndicatorSelectionSemanticV1ChainFactory(SemanticIndicatorSelectionBase):
@@ -129,7 +129,7 @@ class IndicatorSelectionSemanticV1ChainFactory(SemanticIndicatorSelectionBase):
         for dataset_id, dataset_query in old_strong_queries.items():
             dataset = chain_state.datasets_dict[dataset_id]
 
-            for dimension in dataset.indicator_dimensions():
+            for dimension in dataset.indicator_dimensions(non_virtual=True):
                 if query := dataset_query.dimensions_queries_dict.get(dimension.entity_id):
                     query.values = []  # TODO: ?
 

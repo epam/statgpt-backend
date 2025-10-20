@@ -1,4 +1,3 @@
-from langchain_core.output_parsers import PydanticOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.runnables import Runnable, RunnablePassthrough
 
@@ -17,19 +16,17 @@ class DateTimeDimensionChain:
         self._system_prompt = system_prompt
 
     def create_chain(self, api_key: str) -> Runnable:
-        # used only to generate format instructions
-        tmp_parser = PydanticOutputParser(pydantic_object=DateTimeQueryResponse)
         prompt_template = ChatPromptTemplate.from_messages(
             [
                 ("system", self._system_prompt),
                 ("human", "{query}"),
             ],
-        ).partial(format_instructions=tmp_parser.get_format_instructions())
+        )
 
         llm = get_chat_model(
             api_key=api_key,
             model_config=self._llm_model_config,
-        ).with_structured_output(schema=DateTimeQueryResponse, method='json_mode')
+        ).with_structured_output(schema=DateTimeQueryResponse, method='json_schema')
         logger.info(
             f"{self.__class__.__name__} using LLM model: {self._llm_model_config.deployment.deployment_id}"
         )

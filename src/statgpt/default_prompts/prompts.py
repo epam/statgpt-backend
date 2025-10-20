@@ -26,6 +26,7 @@ class SupremeAgentPrompts:
     """
 
     SYSTEM_PROMPT: str
+    ADDITIONAL_CONTEXT_PROMPT: str
 
 
 class NotSupportedScenariosPrompts:
@@ -69,6 +70,7 @@ def load_prompts():
 
     # supreme agent prompts
     SupremeAgentPrompts.SYSTEM_PROMPT = supreme_agent_config["systemPrompt"]
+    SupremeAgentPrompts.ADDITIONAL_CONTEXT_PROMPT = supreme_agent_config["additionalContextPrompt"]
 
     # not supported scenarios prompts
     NotSupportedScenariosPrompts.CHECKER_PROMPT = not_supported_scenarios_config["checkerPrompt"]

@@ -70,3 +70,16 @@ class AvailableDatasetsVersion(StrEnum):
 class LocaleEnum(StrEnum):
     EN = "en"
     UK = "uk"
+
+
+class DataRequestStatus(StrEnum):
+    SUCCESS = "SUCCESS"
+    FAILED = "FAILED"
+    PARTIALLY_FAILED = "PARTIALLY_FAILED"
+
+
+class DataParsingStatus(StrEnum):
+    NA = "NA"
+    SUCCESS = "SUCCESS"
+    FAILED = "FAILED"
+    PARTIALLY_FAILED = "PARTIALLY_FAILED"

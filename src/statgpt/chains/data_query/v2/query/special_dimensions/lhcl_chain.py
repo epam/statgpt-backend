@@ -22,7 +22,7 @@ from statgpt.schemas.query_builder import (
     LLMSelectionDimensionCandidate,
     SpecialDimensionChainOutput,
 )
-from statgpt.services import ScoredDimensionCandidate
+from statgpt.services.chat_facade import ScoredDimensionCandidate
 from statgpt.utils.callbacks import StageCallback
 
 from .base import SpecialDimensionChainFactoryBase

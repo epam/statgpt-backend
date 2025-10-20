@@ -7,7 +7,12 @@ from langchain_core.runnables import Runnable, RunnableConfig, RunnableLambda, R
 
 from common.auth.auth_context import AuthContext
 from common.data import base
-from common.data.base import DimensionQuery, QueryOperator
+from common.data.base import (
+    DimensionQuery,
+    QueryOperator,
+    VirtualDimension,
+    VirtualDimensionCategory,
+)
 from common.prompts import IndexerPrompts
 from common.settings.hybrid_index import HybridIndexSettings
 from common.utils.elastic import ElasticIndex
@@ -15,6 +20,7 @@ from common.utils.models import get_chat_model
 from common.utils.timer import debug_timer
 from common.vectorstore import VectorStore
 
+from ..data.sdmx.common import CodeCategory, SdmxCodeListDimension
 from . import schemas
 
 _log = logging.getLogger(__name__)
@@ -273,7 +279,15 @@ class Indexer:
         dimension_id = list(dimension_dict.keys())[0]
         dimension = dataset.dimension(dimension_id)
         code = dimension_dict[dimension_id]
-        item = dimension.code_list[code]  # type: ignore[attr-defined]
+        item: CodeCategory | VirtualDimensionCategory | None
+        if isinstance(dimension, SdmxCodeListDimension):
+            item = dimension.code_list[code]
+        elif isinstance(dimension, VirtualDimension):
+            item = dimension.value
+        else:
+            raise RuntimeError(
+                f"Cannot get primary from dimension {dimension_id} of dataset {dataset.source_id}: unsupported dimension type {type(dimension)}"
+            )
         if item is None:
             raise RuntimeError(
                 f"Cannot find code {code} in dimension {dimension_id} of dataset {dataset.source_id}"
@@ -353,7 +367,19 @@ class Indexer:
             dimension_queries.append(dimension_query)
 
             dimension = dataset.dimension(dimension_id)
-            item = dimension.code_list[code]  # type: ignore[attr-defined]
+            item: CodeCategory | VirtualDimensionCategory | None
+            if isinstance(dimension, SdmxCodeListDimension):
+                item = dimension.code_list[code]
+            elif isinstance(dimension, VirtualDimension):
+                item = dimension.value
+            else:
+                raise RuntimeError(
+                    f"Cannot create series for indicator {indicator.entity_id} of dataset {dataset.source_id}: unsupported dimension type {type(dimension)}"
+                )
+            if item is None:
+                raise RuntimeError(
+                    f"Cannot find code {code} in dimension {dimension_id} of dataset {dataset.source_id}"
+                )
             name.append(f"{item.name}")
             where.append({dimension.name: item.name})
 
@@ -361,10 +387,10 @@ class Indexer:
                 item_description = item.description
                 if item_description and len(item_description.strip()) > 0:
                     description += item_description
-            if indexer_config.indicator.annotations is not None:
+            if indexer_config.indicator.annotations is not None and isinstance(item, CodeCategory):
                 description_annotation = indexer_config.indicator.annotations.description
                 if description_annotation is not None and len(description_annotation.strip()) > 0:
-                    description += item.annotation(description_annotation)
+                    description += item.annotation(description_annotation)  # type: ignore
 
         indicator_name = ", ".join(name)
 

@@ -14,7 +14,7 @@ from common.data.base import (
 )
 from common.data.sdmx.v21.dataset import Sdmx21DataSet
 from common.schemas import ToolTypes
-from statgpt.services import (
+from statgpt.services.chat_facade import (
     ChannelServiceFacade,
     ScoredDimensionCandidate,
     ScoredIndicatorCandidate,

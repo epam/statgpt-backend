@@ -98,7 +98,7 @@ class PlotlyGraphBuilder:
     @property
     def _indicator_id_col(self) -> str:
         try:
-            return self._dataset.indicator_dimensions()[0].entity_id
+            return self._dataset.indicator_dimensions(non_virtual=True)[0].entity_id
         except IndexError:
             raise ValueError("There is no at least one indicator dimension")
 

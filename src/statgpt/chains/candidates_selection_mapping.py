@@ -9,7 +9,7 @@ from common.schemas import LLMModelConfig
 from common.utils.models import get_chat_model
 from statgpt.chains.parameters import ChainParameters
 from statgpt.schemas import CandidatesRelevancyMapping
-from statgpt.services import ScoredCandidate
+from statgpt.services.chat_facade import ScoredCandidate
 
 from .candidates_selection_batched import BatchedSelectionInnerChainFactory
 

@@ -46,6 +46,7 @@ class SimpleDatasetFormatter(BaseDatasetFormatter):
                 config=self.config.citation,
                 locale=self.config.locale,
                 last_updated_override_value=last_updated,
+                url_override_value=dataset.dataset_url,
             ).format(citation)
             result.append(formatted_citation)
 

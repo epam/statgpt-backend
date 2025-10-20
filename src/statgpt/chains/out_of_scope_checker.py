@@ -43,7 +43,8 @@ class OutOfScopeChecker:
 
     def _get_tool_description(self) -> str:
         return json.dumps(
-            {tool.name: tool.out_of_scope_description for tool in self._channel_config.tools}
+            {tool.name: tool.out_of_scope_description for tool in self._channel_config.tools},
+            ensure_ascii=False,
         )
 
     @staticmethod
@@ -123,11 +124,14 @@ class OutOfScopeChecker:
             topics_blacklist += NotSupportedScenariosPrompts.GENERAL_TOPICS_BLACKLIST
         if self._channel_config.out_of_scope.custom_instructions:
             topics_blacklist += self._channel_config.out_of_scope.custom_instructions
-        if topics_blacklist:
-            params["custom_instructions"] = (
+        params["custom_instructions"] = (
+            (
                 "# The following topics and questions are strictly OUT OF SCOPE:  \n"
                 + format_as_markdown_list(topics_blacklist, list_type="ordered")
             )
+            if topics_blacklist
+            else ""
+        )
 
         prompt_template = ChatPromptTemplate.from_messages(
             [

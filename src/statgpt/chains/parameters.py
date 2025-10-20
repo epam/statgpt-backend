@@ -8,7 +8,7 @@ from common.data.base import DataResponse, DataSet, DataSetQuery, DimensionQuery
 from statgpt.config import ChainParametersConfig
 from statgpt.schemas.dial_app_configuration import StatGPTConfiguration
 from statgpt.schemas.file_rags.dial_rag import RagFilterDial
-from statgpt.services import ChannelServiceFacade
+from statgpt.services.chat_facade import ChannelServiceFacade
 from statgpt.utils.message_history import History
 
 
@@ -74,6 +74,11 @@ class ChainParameters:
     def get_datasets_dict(data: dict) -> dict[str, DataSet]:
         """Flat sequence of all datasets that relevant indicator candidates belong to"""
         return data[ChainParametersConfig.DATASETS_DICT]
+
+    @staticmethod
+    def get_datasets_dict_indexed(data: dict) -> dict[str, DataSet]:
+        """Flat sequence of all indexed datasets"""
+        return data[ChainParametersConfig.DATASETS_DICT_INDEXED]
 
     @staticmethod
     def get_dataset_dimension_queries(data: dict) -> dict[str, list[DimensionQuery]]:
