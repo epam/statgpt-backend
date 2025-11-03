@@ -37,9 +37,9 @@ jobs:
           PR_DATA=$(curl -s -H "Authorization: token ${{ secrets.ACTIONS_BOT_TOKEN }}" \
             "${{ github.event.issue.pull_request.url }}")
 
-          echo "number=$(echo '$PR_DATA' | jq -r '.number')" >> $GITHUB_OUTPUT
-          echo "head-ref=$(echo '$PR_DATA' | jq -r '.head.ref')" >> $GITHUB_OUTPUT
-          echo "head-repo=$(echo '$PR_DATA' | jq -r '.head.repo.full_name')" >> $GITHUB_OUTPUT
+          echo "number=$(echo "$PR_DATA" | jq -r '.number')" >> $GITHUB_OUTPUT
+          echo "head-ref=$(echo "$PR_DATA" | jq -r '.head.ref')" >> $GITHUB_OUTPUT
+          echo "head-repo=$(echo "$PR_DATA" | jq -r '.head.repo.full_name')" >> $GITHUB_OUTPUT
 
       - name: React to comment
         if: steps.check-command.outputs.should-deploy == 'true'
@@ -47,7 +47,7 @@ jobs:
           curl -s -H "Authorization: token ${{ secrets.ACTIONS_BOT_TOKEN }}" \
             -X POST \
             -d '{"content": "rocket"}' \
-            "${{ github.event.issue.comments_url }}/${{ github.event.comment.id }}/reactions"
+            "https://api.github.com/repos/${{ github.repository }}/issues/comments/${{ github.event.comment.id }}/reactions"
 
   deploy-review:
     runs-on: ubuntu-latest
