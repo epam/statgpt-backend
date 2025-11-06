@@ -1,3 +1,5 @@
+import uuid
+
 import httpx
 from httpx import HTTPStatusError
 
@@ -67,7 +69,7 @@ class QuanthubSdmx21DataSourceHandler(Sdmx21DataSourceHandler):
 
     async def get_dataset(
         self,
-        entity_id: str,
+        entity_id: uuid.UUID,
         title: str,
         config: dict,
         auth_context: AuthContext,
@@ -78,7 +80,7 @@ class QuanthubSdmx21DataSourceHandler(Sdmx21DataSourceHandler):
 
         if allow_cached and not self._config.auth_enabled:
             # If auth is disabled, we can cache datasets for all users
-            if ds := self._dataset_cache.get(entity_id):
+            if ds := self._dataset_cache.get(str(entity_id)):
                 logger.debug(
                     f"Returning cached dataset(id={entity_id}, urn={dataset_config.urn!r})."
                 )
@@ -120,7 +122,9 @@ class QuanthubSdmx21DataSourceHandler(Sdmx21DataSourceHandler):
                 raise e
 
         try:
-            dimensions_creator = DimensionsCreator(structure_message, urn, self._config.locale)
+            dimensions_creator = DimensionsCreator(
+                structure_message, urn, self._config.locale, dataset_config.get_dimension_aliases()
+            )
             dimensions = await dimensions_creator.create_dimensions()
         except Exception as e:
             if allow_offline:
@@ -201,7 +205,7 @@ class QuanthubSdmx21DataSourceHandler(Sdmx21DataSourceHandler):
         if allow_cached and not self._config.auth_enabled:
             # If auth is disabled, cache the dataset for all users
             # NOTE: we do not cache offline datasets
-            self._dataset_cache.set(entity_id, res)
+            self._dataset_cache.set(str(entity_id), res)
             logger.info(f"Cached dataset(id={entity_id}, urn={dataset_config.urn!r}).")
 
         return res

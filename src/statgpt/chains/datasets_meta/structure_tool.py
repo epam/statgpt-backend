@@ -65,7 +65,7 @@ class DatasetStructureTool(
         formatter = DetailedDatasetFormatter(
             self._dataset_formatter_config, auth_context=auth_context
         )
-        response = await formatter.format(dataset)
+        response = await formatter.format(dataset)  # type: ignore[arg-type]
 
         if target:
             target.append_content(response)

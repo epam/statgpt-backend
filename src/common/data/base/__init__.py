@@ -11,7 +11,19 @@ from .dataset import (
     OfflineDataSet,
     SpecialDimension,
 )
-from .datasource import DataSetDescriptor, DataSourceConfig, DataSourceHandler, DataSourceType
+from .dataset_hierarchy import (
+    DatasetHierarchy,
+    DatasetHierarchyCreatorABC,
+    DefaultDatasetHierarchyCreator,
+    HierarchyItem,
+)
+from .datasource import (
+    DataSetDescriptor,
+    DataSetHierarchyConfig,
+    DataSourceConfig,
+    DataSourceHandler,
+    DataSourceType,
+)
 from .dimension import CategoricalDimension, DateTimeDimension, Dimension, VirtualDimension
 from .enums import AttributeType, DimensionType, EntityType, QueryOperator
 from .indicator import BaseIndicator

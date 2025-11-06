@@ -50,3 +50,12 @@ class ChannelService:
     async def get_schema_by_id(self, item_id: int) -> schemas.Channel:
         item = await self.get_model_by_id(item_id)
         return ChannelSerializer.db_to_schema(item)
+
+    @staticmethod
+    def is_channel_hybrid(channel: models.Channel) -> bool:
+        """Returns `True` if the channel is using hybrid indexer."""
+        channel_config = schemas.ChannelConfig.model_validate(channel.details)
+        if channel_config.data_query is None:
+            return False
+        indexer_version = channel_config.data_query.details.indexer_version
+        return indexer_version == schemas.IndexerVersion.hybrid

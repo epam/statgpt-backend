@@ -45,9 +45,6 @@ class CodeIndicator(BaseIndicator):
     def source_id(self) -> str:
         return self._code_category.source_id
 
-    # def to_document(self, include_description: bool = False) -> Document:
-    # return self._code_category.to_document()
-
     def get_document_content(self, include_description: bool = False) -> str:
         return self._code_category.get_document_content(include_description=include_description)
 
@@ -131,22 +128,13 @@ class ComplexIndicator(BaseIndicator):
         content = self.CONTENT_SEPARATOR.join(parts)
         return content
 
-    def get_document_metadata(
-        self, additional_metadata: dict[str, Any] | None = None
-    ) -> dict[str, Any]:
+    def get_document_metadata(self) -> dict[str, Any]:
         metadata = {
             IndicatorDocumentMetadataFields.INDICATORS_METADATA: [
                 indicator.get_document_metadata() for indicator in self._indicators
             ]
         }
-        metadata.update(additional_metadata or {})
         return metadata
-
-    def to_document(self, additional_metadata: dict[str, Any] | None = None) -> Document:
-        return Document(
-            page_content=self.get_document_content(),
-            metadata=self.get_document_metadata(additional_metadata),
-        )
 
     @classmethod
     def from_document(cls, document: Document) -> ComplexIndicator:

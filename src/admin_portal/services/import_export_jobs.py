@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import os
 import shutil
@@ -209,7 +210,7 @@ class JobsService:
     ) -> str:
         """Export channel data including datasets and embeddings to the folder."""
 
-        async with models.get_session_contex_manager() as session:
+        async with models.get_readonly_session_contex_manager() as session:
             channel_service = ChannelService(session)
             channel_db = await channel_service.export_channel_to_folder(
                 channel_id, data_dir, auth_context
@@ -244,14 +245,18 @@ class JobsService:
                 )
 
                 res_file_path = os.path.abspath(os.path.join(tmp_dir, archive_name))
-                path = shutil.make_archive(res_file_path, 'zip', data_dir)
+                _log.info(f"Compressing {data_dir} to {res_file_path}.zip (non-blocking)")
+                path = await asyncio.to_thread(shutil.make_archive, res_file_path, 'zip', data_dir)
+                _log.info(f"Compression completed: {path}")
 
                 attachments_storage: AttachmentsStorage
                 async with attachments_storage_factory(
                     api_key=auth_context.api_key
                 ) as attachments_storage:
                     resp = await attachments_storage.put_local_file(
-                        f"{JobsConfig.DIAL_EXPORT_FOLDER}/{os.path.basename(path)}", path
+                        f"{JobsConfig.DIAL_EXPORT_FOLDER}/{os.path.basename(path)}",
+                        path,
+                        show_progress=True,
                     )
                     file_url = resp.url
         except Exception as e:
@@ -273,11 +278,36 @@ class JobsService:
             headers={'Api-Key': auth_context.api_key},
         )
         async with client.stream('GET', f"/v1/{file_url}") as response:
+            response.raise_for_status()
+            total_size = int(response.headers.get('content-length', 0))
+            downloaded = 0
+            chunk_count = 0
+            log_interval = 100  # Log every 100 chunks
+
+            _log.info(f"Starting download from {file_url}")
+            if total_size > 0:
+                _log.info(f"Total file size: {total_size / (1024 * 1024):.2f} MB")
+
             async for chunk in response.aiter_bytes():
                 zip_file.write(chunk)
+                downloaded += len(chunk)
+                chunk_count += 1
 
-    @staticmethod
+                if chunk_count % log_interval == 0:
+                    if total_size > 0:
+                        percent = (downloaded / total_size) * 100
+                        _log.info(
+                            f"Downloaded {downloaded / (1024 * 1024):.2f} MB / "
+                            f"{total_size / (1024 * 1024):.2f} MB ({percent:.1f}%)"
+                        )
+                    else:
+                        _log.info(f"Downloaded {downloaded / (1024 * 1024):.2f} MB")
+
+            _log.info(f"Download completed: {downloaded / (1024 * 1024):.2f} MB total")
+
     async def _import_data_from_zip(
+        self,
+        job: models.Job,
         zip_file: zipfile.ZipFile,
         clean_up: bool,
         update_datasets: bool,
@@ -291,6 +321,9 @@ class JobsService:
             channel_db = await channel_service.import_channel_from_zip(
                 zip_file, clean_up, auth_context
             )
+
+            job.channel_id = channel_db.id
+            await self._update_job_status(job, schemas.PreprocessingStatusEnum.IN_PROGRESS)
 
             glossary_service = GlossaryOfTermsService(session)
             await glossary_service.import_glossary_from_zip(zip_file, channel_db.id)
@@ -334,7 +367,7 @@ class JobsService:
 
                 with zipfile.ZipFile(zip_file_path, 'r') as zip_file:
                     channel_id = await self._import_data_from_zip(
-                        zip_file, clean_up, update_datasets, update_data_sources, auth_context
+                        job, zip_file, clean_up, update_datasets, update_data_sources, auth_context
                     )
         except Exception as e:
             _log.exception(e)
@@ -342,7 +375,6 @@ class JobsService:
             await self._update_job_status(job, schemas.PreprocessingStatusEnum.FAILED)
             return
 
-        job.channel_id = channel_id
         await self._update_job_status(job, schemas.PreprocessingStatusEnum.COMPLETED)
         _log.info(f"Channel(id={channel_id}) imported successfully. Job id={job_id}")
 

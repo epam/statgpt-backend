@@ -111,7 +111,7 @@ class ChannelCompletion(ChatCompletion):
                 ParamsConfig.CONFIGURATION: configuration,
             }
 
-            callbacks = []
+            callbacks: list = []
             if langchain_settings.use_custom_logger_callback:
                 callbacks.append(LCMessageLoggerAsync())
 
@@ -124,7 +124,7 @@ class ChannelCompletion(ChatCompletion):
                     with optional_timed_stage(choice=choice, name=name, enabled=debug) as stage:
                         inputs[ParamsConfig.PERFORMANCE_STAGE] = stage
                         chains_response: dict = await chain.ainvoke(
-                            inputs, config={'callbacks': callbacks}
+                            inputs, config={'callbacks': callbacks}  # type: ignore[typeddict-item]
                         )
                     state = ChainParameters.get_state(chains_response)
                     state[StateVarsConfig.ERROR] = None

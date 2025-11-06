@@ -166,7 +166,7 @@ class DialRagPrefilterBuilder:
             if is_latest and not last_n_publications and not start_date
             else self._create_filters(grounded_publication_types, start_date, end_date)
         )
-        params = dict()
+        params: dict[str, list[RagFilterDialSingle] | TopNDocuments] = {}
         if filters:
             params["filters"] = filters
         if last_n_publications:

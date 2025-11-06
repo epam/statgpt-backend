@@ -3,7 +3,7 @@ from enum import StrEnum
 from pydantic import BaseModel, Field
 from sdmx.message import StructureMessage
 from sdmx.model.common import Agency, CubeRegion, DimensionComponent
-from sdmx.model.v21 import ContentConstraint, MemberSelection, MemberValue
+from sdmx.model.v21 import Annotation, ContentConstraint, MemberSelection, MemberValue
 
 
 class Operator(StrEnum):
@@ -66,6 +66,24 @@ class QhAvailabilityRequestBody(BaseModel):
         return cls(filters=filters)
 
 
+class QhAnnotation(BaseModel):
+
+    id: str | None = Field(default=None)
+    title: str | None = Field(default=None)
+    type: str | None = Field(default=None)
+    value: str | None = Field(default=None)
+    text: str | None = Field(default=None)
+
+    def to_sdmx1(self) -> Annotation:
+        return Annotation(
+            id=self.id,
+            title=self.title,
+            type=self.type,
+            text=self.text,
+            # The `value` field was added by SDMX 3.0.0, so it's not included here.
+        )
+
+
 class QhSelectionValue(BaseModel):
     member_value: str = Field(alias='memberValue')
 
@@ -106,6 +124,8 @@ class QhDataConstraint(BaseModel):
     descriptions: dict[str, str] = Field(default_factory=dict)
     version: str = Field()
     agency_id: str = Field(alias='agencyID')
+
+    annotations: list[QhAnnotation] = Field(default_factory=list)
     cube_regions: list[QhCubeRegion] = Field(alias='cubeRegions')
 
     def to_sdmx1(self) -> ContentConstraint:
@@ -115,6 +135,7 @@ class QhDataConstraint(BaseModel):
             name=self.names,
             version=self.version,
             maintainer=Agency(id=self.agency_id),
+            annotations=[a.to_sdmx1() for a in self.annotations],
             data_content_region=[cr.to_sdmx1() for cr in self.cube_regions],
         )
 
@@ -136,17 +157,6 @@ class QhAvailabilityResponseBody(BaseModel):
             message.constraint[content_constraint.id] = content_constraint
 
         return message
-
-
-class QhAnnotation(BaseModel):
-
-    # Not sure if `id` is allowed to be None by the SDMX 3.0 standard, but some providers may return it as None.
-    id: str | None = Field(default=None)
-
-    title: str | None = Field(default=None)
-    type: str | None = Field(default=None)
-    value: str | None = Field(default=None)
-    text: str | None = Field(default=None)
 
 
 class QhDataflow(BaseModel):

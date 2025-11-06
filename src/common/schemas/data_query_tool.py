@@ -1,14 +1,15 @@
-from pydantic import Field, TypeAdapter, field_validator
+from pydantic import Field, PositiveInt, TypeAdapter, field_validator
 from pydantic_core.core_schema import FieldValidationInfo
 
+from common.config import LLMModelsEnum
 from common.config.utils import replace_env
 
 from .base import BaseYamlModel, SystemUserPrompt
 from .enums import (
-    DataQueryVersion,
     IndexerVersion,
     IndicatorSelectionVersion,
     SpecialDimensionsProcessorType,
+    TimePeriodStrategy,
 )
 from .model_config import LLMModelConfig
 from .tool_details import BaseToolDetails
@@ -33,6 +34,7 @@ class DataQueryPrompts(BaseYamlModel):
     validation_system_prompt: str | None = Field(default=None)
     validation_user_prompt: str | None = Field(default=None)
     incomplete_queries_prompt: str | None = Field(default=None)
+    summarize_queries_prompt: str | None = Field(default=None)
 
 
 class DataQueryMessages(BaseYamlModel):
@@ -53,6 +55,10 @@ class DataQueryMessages(BaseYamlModel):
         default=None,
         description="Message for the multiple datasets response, only for agent, won't be shown to the user. "
         "Will be appended to the end of the tool response if present.",
+    )
+    invalid_time_period: str | None = Field(
+        default=None,
+        description="Message when all built queries have time periods that are out of range.",
     )
 
 
@@ -130,6 +136,7 @@ class DataQueryLLMModels(BaseYamlModel):
     named_entities_model_config: LLMModelConfig = Field(default_factory=LLMModelConfig)
     time_period_model_config: LLMModelConfig = Field(default_factory=LLMModelConfig)
     query_normalization_model_config: LLMModelConfig = Field(default_factory=LLMModelConfig)
+    summarize_queries_model_config: LLMModelConfig = Field(default_factory=LLMModelConfig)
 
 
 class SpecialDimensionsProcessor(BaseYamlModel):
@@ -138,13 +145,92 @@ class SpecialDimensionsProcessor(BaseYamlModel):
     type: SpecialDimensionsProcessorType = Field()
     llm_model_config: LLMModelConfig = Field(default_factory=LLMModelConfig)
     # TODO: top_k is specific to LHCL, move it to LHCL config subclass later
-    top_k: int = Field(description="Number of candidates retrieved from vector search", default=50)
+    top_k: PositiveInt = Field(
+        description="Number of candidates retrieved from vector search", default=50
+    )
     prompt: SystemUserPrompt
 
 
-class DataQueryDetails(BaseToolDetails):
+class HybridSearchConfig(BaseYamlModel):
+    """Configuration for the Hybrid Search and Indexer."""
 
-    version: DataQueryVersion = DataQueryVersion.v2
+    # ~~~~~~~~~~ Indexer config ~~~~~~~~~~
+
+    indexer_alpha: float = Field(
+        default=0.99,
+        description="Weight for semantic score in convex combination with lexical score",
+    )
+    ignored_term_ids: set[str] = Field(
+        default_factory=lambda: {"_Z"}, description="Set of term IDs not to include in series name"
+    )
+
+    normalize_model_config: LLMModelConfig = Field(
+        description="LLM Model used for normalization",
+        default_factory=lambda: LLMModelConfig(deployment=LLMModelsEnum.GPT_4_1_MINI_2025_04_14),
+    )
+    harmonize_model_config: LLMModelConfig = Field(
+        description="LLM Model used for harmonization",
+        default_factory=lambda: LLMModelConfig(deployment=LLMModelsEnum.GPT_4_1_MINI_2025_04_14),
+    )
+
+    # ~~~~~~~~~~ Search config ~~~~~~~~~~
+
+    search_model_config: LLMModelConfig = Field(
+        description="LLM Model used for search",
+        default_factory=LLMModelConfig,
+    )
+
+    DEFAULT_MAX_CANDIDATES: PositiveInt = 32
+
+    max_candidates: PositiveInt = Field(
+        default=DEFAULT_MAX_CANDIDATES,
+        description=(
+            "The maximum amount of candidates to be returned from hybrid search. "
+            "If query is complex and will be split into multiple simple queries by Hybrid Search, "
+            "this limit will be applied to each simple query."
+        ),
+    )
+    max_lexical_pre_match_candidates: PositiveInt = Field(default=DEFAULT_MAX_CANDIDATES)
+    max_lexical_candidates: PositiveInt = Field(
+        default=4 * DEFAULT_MAX_CANDIDATES,
+        description="The number of candidates to be searched by lexical search.",
+    )
+    max_semantic_candidates: PositiveInt = Field(
+        default=2 * DEFAULT_MAX_CANDIDATES,
+        description="The number of candidates to be searched by semantic search.",
+    )
+
+    default_alpha: float = Field(default=0.9)
+    hybrid_alpha: float = Field(default=0.8)
+    fallback_alpha: float = Field(
+        default=0.999, description="Alpha in case of fallback to semantic search."
+    )
+
+    max_output_div: PositiveInt = Field(default=4)
+    batch_size: PositiveInt = Field(default=32)
+    named_entities_to_remove: list[str] = Field(
+        default_factory=list, description="Named entities to remove from the search query."
+    )
+
+    use_only_best_score: bool = Field(
+        default=False,
+        description="Whether to use only indicators with best score, instead of allowing indicators with lower scores.",
+    )
+    single_dataset_score_threshold: int = Field(
+        default=1,
+        description="Relevance score threshold for when indicators are available only from a single dataset.",
+        ge=0,
+        le=3,
+    )
+    multi_dataset_score_threshold: int = Field(
+        default=2,
+        description="Relevance score threshold for when indicators are available from multiple datasets.",
+        ge=0,
+        le=3,
+    )
+
+
+class DataQueryDetails(BaseToolDetails):
     indexer_version: IndexerVersion = Field(
         default=IndexerVersion.semantic, description="The version of the indexer"
     )
@@ -152,10 +238,15 @@ class DataQueryDetails(BaseToolDetails):
         default=IndicatorSelectionVersion.semantic_v4,
         description="The version of the indicator selection algorithm",
     )
+    candidates_per_entity: PositiveInt = Field(
+        default=30,
+        description="The maximum number of non-indicator dimension candidates to retrieve per named entity",
+    )
+    hybrid_search_config: HybridSearchConfig | None = Field(default=None)
     special_dimensions_processors: list[SpecialDimensionsProcessor] = Field(default_factory=list)
     filter_by_country_entities: bool = Field(
         default=True,
-        description=("Whether to filter dataset queries by presence of 'country' named entities"),
+        description="Whether to filter dataset queries by presence of 'country' named entities",
     )
     clarify_if_multiple_datasets: bool = Field(
         default=True,
@@ -164,11 +255,15 @@ class DataQueryDetails(BaseToolDetails):
             "found to match the query."
         ),
     )
+    time_period_strategy: TimePeriodStrategy = Field(
+        default=TimePeriodStrategy.BEFORE,
+        description="A strategy that determines when to apply time periods for filtering in availability queries.",
+    )
     llm_models: DataQueryLLMModels = Field(default_factory=DataQueryLLMModels)  # type: ignore
     prompts: DataQueryPrompts = Field(default_factory=DataQueryPrompts)  # type: ignore
     messages: DataQueryMessages = Field(default_factory=DataQueryMessages)  # type: ignore
     attachments: DataQueryAttachments = Field(default_factory=DataQueryAttachments)  # type: ignore
-    tool_response_max_cells: int = Field(
+    tool_response_max_cells: PositiveInt = Field(
         default=300,
         description=(
             "Maximum number of cells to include in the tool response. If the result exceeds this number, "

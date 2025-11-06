@@ -1,23 +1,19 @@
 import typing as t
 
 import pandas as pd
+from aidial_sdk.chat_completion import Choice
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from common.auth.auth_context import AuthContext
 from common.config import multiline_logger as logger
-from common.data.base import (
-    DataSet,
-    DataSetAvailabilityQuery,
-    DataSetQuery,
-    DimensionQuery,
-    QueryOperator,
-)
-from common.data.sdmx.v21.dataset import Sdmx21DataSet
+from common.data.base import DataSetAvailabilityQuery, DataSetQuery, DimensionQuery, QueryOperator
 from common.schemas import ToolTypes
+from statgpt.config import StateVarsConfig
 from statgpt.services.chat_facade import (
     ChannelServiceFacade,
     ScoredDimensionCandidate,
     ScoredIndicatorCandidate,
+    VersionedDataSet,
 )
 
 from .selection_candidates import (
@@ -125,16 +121,22 @@ class NamedEntitiesResponse(BaseModel):
     )
 
 
-class DataSetsSelectionResponse(BaseModel):
-    model_config = ConfigDict(coerce_numbers_to_str=True)
+class DataSetsSelectionLLMResponse(BaseModel):
 
-    dataset_ids: list[str] = Field(
+    dataset_indexes: list[int] = Field(
         description=(
-            "Selected numeric dataset IDs. If there is no EXPLICIT datasets specification "
-            "in the query, use an empty list."
+            "List of indexes of selected datasets. "
+            "If there is no EXPLICIT datasets specification in the query, use an empty list."
         ),
         default_factory=list,
     )
+    rewritten_query: str = Field(
+        default='', description='User query with all detected dataset references removed'
+    )
+
+
+class DataSetsSelectionChainResponse(BaseModel):
+    dataset_ids: list[str] = Field(default_factory=list, description="Selected dataset UUIDs.")
     rewritten_query: str = Field(
         default='', description='User query with all detected dataset references removed'
     )
@@ -147,7 +149,7 @@ class RetrievalStageDescription(BaseModel):
 
 
 class RetrievalStagesResults(BaseModel):
-    indicators: dict[str, list[dict]] = Field(
+    indicators: dict[str, dict] = Field(
         description="Dictionary mapping stages to their respective list of indicators.",
         default_factory=dict,
     )
@@ -191,9 +193,9 @@ class QueryBuilderAgentState(ToolMessageState):
     normalized_query_raw: str = Field(
         default="", description="Summarized conversation, before datasets are removed from summary"
     )
-    datasets_selection_response: DataSetsSelectionResponse = Field(
+    datasets_selection_response: DataSetsSelectionChainResponse = Field(
         description="LLM response containing ids of selected datasets",
-        default_factory=DataSetsSelectionResponse,
+        default_factory=DataSetsSelectionChainResponse,
     )
     normalized_query: str = Field(default="", description="Summarized conversation")
     date_time_query_response: DateTimeQueryResponse = Field(
@@ -219,10 +221,6 @@ class QueryBuilderAgentState(ToolMessageState):
     dataset_queries: dict[str, DataSetQuery] = Field(
         description="Queries to the datasets (ready to be sent to source)", default_factory=dict
     )
-    retrieval_results: RetrievalStagesResults = Field(
-        description='Retrieval stages results, used in evaluations',
-        default_factory=RetrievalStagesResults,
-    )
     dimension_id_to_name: DatasetDimensionTermNameType = Field(
         description="For dataset queries, contains mapping of datasets id "
         "to their dimension ids to term ids to term names",
@@ -231,6 +229,14 @@ class QueryBuilderAgentState(ToolMessageState):
     special_dims_outputs: dict[str, SpecialDimensionChainOutput] = Field(
         description="mapping from SpecialDimensionsProcessor.id to its chain output",
         default_factory=dict,
+    )
+
+
+class DataQueryEvalAttachment(BaseModel):
+
+    retrieval_results: RetrievalStagesResults = Field(
+        description='Retrieval stages results, used in evaluations',
+        default_factory=RetrievalStagesResults,
     )
 
 
@@ -343,19 +349,22 @@ class ChainState(BaseModel):
     """
 
     auth_context: AuthContext
+    choice: Choice
+    target: t.Any
+    state: dict[str, t.Any] = Field(default_factory=dict)
     data_service: ChannelServiceFacade
     query_with_expanded_groups: str = ''
     normalized_query_raw: str = Field(
         default="", description="Summarized conversation, before datasets are removed from summary"
     )
-    datasets_selection_response: DataSetsSelectionResponse = DataSetsSelectionResponse()
+    datasets_selection_response: DataSetsSelectionChainResponse = DataSetsSelectionChainResponse()
     normalized_query: str = Field(default="", description="Summarized conversation")
     date_time_query_response: DateTimeQueryResponse = DateTimeQueryResponse()
     # all datasets indexed by statgpt
-    datasets_dict_indexed: dict[str, DataSet] = {}
+    versioned_datasets_dict: dict[str, VersionedDataSet] = Field(default_factory=dict)
     # selected datasets
-    datasets_dict: dict[str, DataSet | Sdmx21DataSet] = {}
-    named_entities_response: NamedEntitiesResponse = NamedEntitiesResponse()
+    datasets_dict: dict[str, VersionedDataSet] = Field(default_factory=dict)
+    named_entities_response: NamedEntitiesResponse = Field(default_factory=NamedEntitiesResponse)
     country_named_entities: list[NamedEntity] = []
     dimension_candidates: list[ScoredDimensionCandidate] = []
 
@@ -387,6 +396,10 @@ class ChainState(BaseModel):
     dataset_queries_formatted_str: str = ''
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
+
+    @property
+    def show_debug_stages(self):
+        return self.state.get(StateVarsConfig.SHOW_DEBUG_STAGES, False)
 
 
 class MetaStateKeys:

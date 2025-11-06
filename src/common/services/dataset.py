@@ -1,6 +1,8 @@
 import asyncio
 import logging
+from collections import defaultdict
 from collections.abc import Iterable
+from typing import NamedTuple
 
 from fastapi import HTTPException, status
 from sqlalchemy import Select, select
@@ -12,6 +14,7 @@ import common.models as models
 import common.schemas as schemas
 from common.auth.auth_context import AuthContext
 from common.data.base import DataSet, DataSourceHandler
+from common.schemas import PreprocessingStatusEnum as StatusEnum
 from common.settings.dataflow_loader import DataflowLoaderSettings
 from common.utils import async_utils
 
@@ -19,6 +22,11 @@ from .base import DbServiceBase
 from .data_source import DataSourceSerializer, DataSourceService, DataSourceTypeService
 
 _log = logging.getLogger(__name__)
+
+
+class LastCompletedVersions(NamedTuple):
+    last_completed_version: schemas.ChannelDatasetVersion | None
+    previous_completed_version: schemas.ChannelDatasetVersion | None
 
 
 class DataSetSerializer:
@@ -48,16 +56,28 @@ class DataSetSerializer:
 class ChannelDataSetSerializer:
     @staticmethod
     def db_to_schema(
-        item_db: models.ChannelDataset, dataset: schemas.DataSet
+        item_db: models.ChannelDataset,
+        dataset: schemas.DataSet,
+        latest_version: schemas.ChannelDatasetVersion | None,
+        last_completed_versions: LastCompletedVersions,
     ) -> schemas.ChannelDatasetExpanded:
+        preprocessing_status = (
+            StatusEnum.NOT_STARTED
+            if latest_version is None
+            else latest_version.preprocessing_status
+        )
+
         return schemas.ChannelDatasetExpanded(
             id=item_db.id,
             created_at=item_db.created_at,
             updated_at=item_db.updated_at,
             channel_id=item_db.channel_id,
             dataset_id=item_db.dataset_id,
-            preprocessing_status=item_db.preprocessing_status,
+            preprocessing_status=preprocessing_status,
             dataset=dataset,
+            latest_version=latest_version,
+            last_completed_version=last_completed_versions.last_completed_version,
+            previous_completed_version=last_completed_versions.previous_completed_version,
         )
 
 
@@ -94,6 +114,7 @@ class DataSetService(DbServiceBase):
 
     async def get_datasets_models(
         self,
+        *,
         limit: int | None,
         offset: int,
         expand: bool = False,
@@ -140,7 +161,7 @@ class DataSetService(DbServiceBase):
             handler = handlers[item.source_id]
             tasks.append(
                 handler.get_dataset(
-                    entity_id=str(item.id),
+                    entity_id=item.id_,
                     title=item.title,
                     config=item.details,
                     auth_context=auth_context,
@@ -173,6 +194,7 @@ class DataSetService(DbServiceBase):
         return handler_class(config=config)
 
     async def _get_item_or_raise(self, item_id: int, expand: bool = False) -> models.DataSet:
+        """Retrieve a models.DataSet by id or raise a 404 error if not found."""
         options = None
         if expand:
             options = [selectinload(models.DataSet.source).selectinload(models.DataSource.type)]
@@ -202,7 +224,7 @@ class DataSetService(DbServiceBase):
 
         handler = await self._get_handler(item.source_id)
         dataset = await handler.get_dataset(
-            entity_id=str(item.id),
+            entity_id=item.id_,
             title=item.title,
             config=item.details,
             auth_context=auth_context,
@@ -232,22 +254,16 @@ class DataSetService(DbServiceBase):
         return [item for item in q_result.all()]
 
     async def get_channel_dataset_models_with_ds(
-        self,
-        limit: int | None,
-        offset: int,
-        channel_id: int,
-        status: schemas.PreprocessingStatusEnum | None = None,
+        self, channel_id: int
     ) -> list[models.ChannelDataset]:
         query = (
             select(models.ChannelDataset)
             .where(models.ChannelDataset.channel_id == channel_id)
             .options(joinedload(models.ChannelDataset.dataset))
         )
-        if status is not None:
-            query = query.where(models.ChannelDataset.preprocessing_status == status)
 
         async with self._lock_session() as session:
-            q_result = await session.scalars(query.limit(limit).offset(offset))
+            q_result = await session.scalars(query)
         return [item for item in q_result.all()]
 
     async def get_channel_dataset_schemas(
@@ -262,11 +278,31 @@ class DataSetService(DbServiceBase):
             limit=None, offset=0, ids=datasets_ids, auth_context=auth_context, allow_offline=True
         )
 
+        channel_dataset_ids = [item.id for item in items]
+        latest_versions = await self._get_latest_channel_dataset_versions(channel_dataset_ids)
+        latest_successful_versions = await self._get_latest_successful_channel_dataset_versions(
+            channel_dataset_ids
+        )
+
         res = []
         for item in items:
+            latest_version = latest_versions.get(item.id)
+            ds_completed_versions = latest_successful_versions[item.id]
             dataset = next(d for d in datasets if d.id == item.dataset_id)
-            res.append(ChannelDataSetSerializer.db_to_schema(item, dataset))
+            res.append(
+                ChannelDataSetSerializer.db_to_schema(
+                    item, dataset, latest_version, ds_completed_versions
+                )
+            )
         return res
+
+    async def _get_channel_dataset_model_or_raise(self, item_id: int) -> models.ChannelDataset:
+        item: models.ChannelDataset | None = await self._session.get(models.ChannelDataset, item_id)
+        if item is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Channel dataset not found"
+            )
+        return item
 
     async def get_channel_dataset_model_or_none(
         self, channel_id: int, dataset_id: int
@@ -295,9 +331,248 @@ class DataSetService(DbServiceBase):
         return item
 
     async def get_channel_dataset_schema(
-        self, channel_id: int, dataset_id: int
-    ) -> schemas.ChannelDatasetBase:
+        self, channel_id: int, dataset_id: int, auth_context: AuthContext
+    ) -> schemas.ChannelDatasetExpanded:
         item = await self.get_channel_dataset_model_or_raise(
             channel_id=channel_id, dataset_id=dataset_id
         )
-        return schemas.ChannelDatasetBase.model_validate(item, from_attributes=True)
+        dataset = await self.get_schema_by_id(item.dataset_id, auth_context, allow_offline=True)
+        latest_version = await self._get_latest_channel_dataset_version_schema(item.id)
+        last_completed_versions = await self._get_latest_successful_channel_dataset_versions(
+            channel_dataset_ids=[item.id]
+        )
+        return ChannelDataSetSerializer.db_to_schema(
+            item, dataset, latest_version, last_completed_versions[item.id]
+        )
+
+    async def _get_channel_dataset_version_or_raise(
+        self, item_id: int
+    ) -> models.ChannelDatasetVersion:
+        item: models.ChannelDatasetVersion | None = await self._session.get(
+            models.ChannelDatasetVersion, item_id
+        )
+        if item is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Channel dataset version not found"
+            )
+        return item
+
+    async def get_channel_dataset_version_models(
+        self, limit: int | None, offset: int, channel_dataset_id: int
+    ) -> list[models.ChannelDatasetVersion]:
+        query = (
+            select(models.ChannelDatasetVersion)
+            .where(models.ChannelDatasetVersion.channel_dataset_id == channel_dataset_id)
+            .order_by(models.ChannelDatasetVersion.version.desc())
+            .limit(limit)
+            .offset(offset)
+        )
+        q_result = await self._session.scalars(query)
+        return [item for item in q_result.all()]
+
+    async def _get_latest_channel_dataset_version_model(
+        self, channel_dataset_id: int
+    ) -> models.ChannelDatasetVersion | None:
+        query = (
+            select(models.ChannelDatasetVersion)
+            .where(models.ChannelDatasetVersion.channel_dataset_id == channel_dataset_id)
+            .order_by(models.ChannelDatasetVersion.version.desc())
+            .limit(1)
+        )
+        q_result = await self._session.scalars(query)
+        return q_result.first()
+
+    async def _get_latest_channel_dataset_version_schema(
+        self, channel_dataset_id: int
+    ) -> schemas.ChannelDatasetVersion | None:
+        model = await self._get_latest_channel_dataset_version_model(channel_dataset_id)
+        if model is None:
+            return None
+        return schemas.ChannelDatasetVersion.model_validate(model, from_attributes=True)
+
+    async def _get_latest_channel_dataset_versions(
+        self, channel_dataset_ids: list[int]
+    ) -> dict[int, schemas.ChannelDatasetVersion]:
+        """Get the most recent version regardless of status for each channel dataset."""
+        if not channel_dataset_ids:
+            return {}
+
+        # Subquery to rank versions by descending order for each channel dataset
+        ranked_versions = (
+            select(
+                models.ChannelDatasetVersion,
+                func.row_number()
+                .over(
+                    partition_by=models.ChannelDatasetVersion.channel_dataset_id,
+                    order_by=models.ChannelDatasetVersion.version.desc(),
+                )
+                .label("rank"),
+            )
+            .where(models.ChannelDatasetVersion.channel_dataset_id.in_(channel_dataset_ids))
+            .subquery()
+        )
+
+        # Select only the first row (latest version) for each channel dataset
+        query = select(ranked_versions).where(ranked_versions.c.rank == 1)
+
+        result = await self._session.execute(query)
+        versions = result.fetchall()
+
+        result_dict = {}
+        for row in versions:
+            version = schemas.ChannelDatasetVersion.model_validate(row, from_attributes=True)
+            result_dict[version.channel_dataset_id] = version
+
+        return result_dict
+
+    async def _get_latest_successful_channel_dataset_versions(
+        self, channel_dataset_ids: list[int]
+    ) -> dict[int, LastCompletedVersions]:
+        """Get the last two versions with the status "COMPLETED" for each channel dataset.
+        The result is guaranteed to contain an entry for each channel dataset ID in the input,
+        even if no successful version exists (in which case the value will be a tuple of Nones).
+
+        Args:
+            channel_dataset_ids: List of channel dataset IDs to filter by.
+
+        Returns:
+            A dictionary mapping channel dataset IDs to tuple of their latest successful version
+            and the previous successful version. Returns `None` if no suitable version exists.
+        """
+        if not channel_dataset_ids:
+            return {}
+
+        # Subquery to rank successful versions by descending order for each channel dataset
+        ranked_versions = (
+            select(
+                models.ChannelDatasetVersion,
+                func.row_number()
+                .over(
+                    partition_by=models.ChannelDatasetVersion.channel_dataset_id,
+                    order_by=models.ChannelDatasetVersion.version.desc(),
+                )
+                .label("rank"),
+            )
+            .where(models.ChannelDatasetVersion.channel_dataset_id.in_(channel_dataset_ids))
+            .where(models.ChannelDatasetVersion.preprocessing_status == StatusEnum.COMPLETED)
+            .subquery()
+        )
+
+        # Select the first two rows (latest and previous successful versions) for each channel dataset
+        query = select(ranked_versions).where(ranked_versions.c.rank.in_([1, 2]))
+
+        result = await self._session.execute(query)
+        versions = result.fetchall()
+
+        result_dict = {cd_id: LastCompletedVersions(None, None) for cd_id in channel_dataset_ids}
+        for row in versions:
+            version = schemas.ChannelDatasetVersion.model_validate(row, from_attributes=True)
+            current = result_dict[version.channel_dataset_id]
+            if row.rank == 1:
+                result_dict[version.channel_dataset_id] = LastCompletedVersions(
+                    version, current.previous_completed_version
+                )
+            elif row.rank == 2:
+                result_dict[version.channel_dataset_id] = LastCompletedVersions(
+                    current.last_completed_version, version
+                )
+            else:
+                _log.warning(f"Unexpected rank {row.rank} for version {version.id}: {row}")
+        return result_dict
+
+    async def _get_latest_successful_dataset_version(
+        self, channel_dataset_ids: list[int]
+    ) -> defaultdict[int, LastCompletedVersions]:
+        """Get the last two versions with the status "COMPLETED" for each dataset.
+
+        Args:
+            channel_dataset_ids: List of channel dataset IDs to filter by.
+
+        Returns:
+            A dictionary mapping dataset IDs to the tuple of their latest successful version
+            and the previous successful version. Returns `None` if no suitable version exists.
+        """
+        result_dict: defaultdict[int, LastCompletedVersions] = defaultdict(
+            lambda: LastCompletedVersions(None, None)
+        )
+
+        if not channel_dataset_ids:
+            return result_dict
+
+        # Subquery to rank successful versions by descending order for each channel dataset
+        ranked_versions = (
+            select(
+                models.ChannelDatasetVersion,
+                models.ChannelDataset.dataset_id,
+                (
+                    func.row_number()
+                    .over(
+                        partition_by=models.ChannelDatasetVersion.channel_dataset_id,
+                        order_by=models.ChannelDatasetVersion.version.desc(),
+                    )
+                    .label("rank")
+                ),
+            )
+            .join(models.ChannelDataset)
+            .where(models.ChannelDatasetVersion.channel_dataset_id.in_(channel_dataset_ids))
+            .where(models.ChannelDatasetVersion.preprocessing_status == StatusEnum.COMPLETED)
+            .subquery()
+        )
+
+        # Select the first two rows (latest and previous successful versions) for each channel dataset
+        query = select(ranked_versions).where(ranked_versions.c.rank.in_([1, 2]))
+
+        result = await self._session.execute(query)
+        versions = result.fetchall()
+
+        for row in versions:
+            version = schemas.ChannelDatasetVersion.model_validate(row, from_attributes=True)
+            current = result_dict[row.dataset_id]
+            if row.rank == 1:
+                result_dict[row.dataset_id] = LastCompletedVersions(
+                    version, current.previous_completed_version
+                )
+            elif row.rank == 2:
+                result_dict[row.dataset_id] = LastCompletedVersions(
+                    current.last_completed_version, version
+                )
+            else:
+                _log.warning(f"Unexpected rank {row.rank} for version {version.id}: {row}")
+        return result_dict
+
+    async def get_channel_dataset_versions_schemas(
+        self, limit: int | None, offset: int, channel_id: int, dataset_id: int
+    ) -> list[schemas.ChannelDatasetVersion]:
+        channel_dataset = await self.get_channel_dataset_model_or_raise(channel_id, dataset_id)
+        items = await self.get_channel_dataset_version_models(
+            limit=limit, offset=offset, channel_dataset_id=channel_dataset.id
+        )
+        return [
+            schemas.ChannelDatasetVersion.model_validate(item, from_attributes=True)
+            for item in items
+        ]
+
+    async def get_channel_dataset_versions_count(self, channel_id: int, dataset_id: int) -> int:
+        channel_dataset = await self.get_channel_dataset_model_or_raise(channel_id, dataset_id)
+        query = (
+            select(func.count("*"))
+            .select_from(models.ChannelDatasetVersion)
+            .where(models.ChannelDatasetVersion.channel_dataset_id == channel_dataset.id)
+        )
+        return (await self._session.execute(query)).scalar_one()
+
+    async def get_latest_successful_dataset_versions_for_channel(
+        self, channel_id: int
+    ) -> defaultdict[int, LastCompletedVersions]:
+        """Get the latest successful dataset versions for all datasets in a channel.
+
+        Args:
+            channel_id: The ID of the channel to filter datasets by.
+        Returns:
+            A dictionary mapping dataset IDs to the tuple of their latest successful version
+            and the previous successful version. Returns `None` if no suitable version exists.
+        """
+
+        channel_datasets = await self.get_channel_dataset_models_with_ds(channel_id)
+        channel_dataset_ids = [cd.id for cd in channel_datasets]
+        return await self._get_latest_successful_dataset_version(channel_dataset_ids)

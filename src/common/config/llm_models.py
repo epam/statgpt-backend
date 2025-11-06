@@ -33,3 +33,12 @@ class LLMModelsEnum(StrEnum):
     @property
     def deployment_id(self) -> str:
         return os.getenv(f"LLM_MODELS_{self.name}", self.value)
+
+    @property
+    def is_gpt_41_family(self) -> bool:
+        """Check if the model belongs to the GPT-4.1 family."""
+        return self in {
+            LLMModelsEnum.GPT_4_1_2025_04_14,
+            LLMModelsEnum.GPT_4_1_MINI_2025_04_14,
+            LLMModelsEnum.GPT_4_1_NANO_2025_04_14,
+        }

@@ -39,9 +39,14 @@ class DataQueryArtifactDisplayer:
         self._auth_context = auth_context
         self._max_cells = max_cells
 
-    async def display(self, data_query_artifacts: list[DataQueryArtifact]) -> None:
-        responses = self._merge_data_responses(data_query_artifacts)
-        await self._display_data_responses(responses)
+    async def display(self, data_query_artifacts: dict[str, DataQueryArtifact]) -> None:
+        data_query_artifacts_list = list(data_query_artifacts.values())
+        responses = self._merge_data_responses(data_query_artifacts_list)
+        tasks = [
+            self._display_data_responses(responses),
+            self._display_eval_attachments(data_query_artifacts),
+        ]
+        await asyncio.gather(*tasks)
 
     async def get_system_message_content(
         self, data_query_artifacts: list[DataQueryArtifact]
@@ -51,9 +56,36 @@ class DataQueryArtifactDisplayer:
         datasets_content = [
             self._get_system_message_content(response) for response in responses.values()
         ]
-        datasets_content = filter(None, datasets_content)
+        datasets_content_filtered = list(filter(None, datasets_content))
 
-        return "\n\n".join(datasets_content)
+        return "\n\n".join(datasets_content_filtered)
+
+    async def _display_eval_attachments(
+        self, data_query_artifacts: dict[str, DataQueryArtifact]
+    ) -> None:
+        async with attachments_storage_factory(self._auth_context.api_key) as attachments_storage:
+            tasks = []
+            for tool_call_id, artifact in data_query_artifacts.items():
+                tasks.append(
+                    self._display_eval_attachment(tool_call_id, artifact, attachments_storage)
+                )
+            await asyncio.gather(*tasks)
+
+    async def _display_eval_attachment(
+        self,
+        tool_call_id: str,
+        artifact: DataQueryArtifact,
+        attachments_storage: AttachmentsStorage,
+    ) -> None:
+        eval_attachment_content = artifact.eval_attachment.model_dump(mode="json")
+        response = await self._attach_json_file(
+            attachments_storage=attachments_storage,
+            data=eval_attachment_content,
+            filename=f"data_query_eval_attachment_{tool_call_id}.json",
+            title=f"Data Query Eval data: {tool_call_id}",
+            indent=2,
+        )
+        self._choice.add_attachment(**response)
 
     def _get_system_message_content(self, response: DataResponse) -> str | None:
         if response.status.parsing_status == DataParsingStatus.FAILED:
@@ -157,6 +189,9 @@ class DataQueryArtifactDisplayer:
         ]
 
         if self._config.plotly_graphs.enabled:
+            assert (
+                self._config.plotly_graphs.name is not None
+            ), "plotly_graphs.name must be set when enabled"
             for title, figure in data_response.get_plotly_graphs_with_names(
                 self._config.plotly_graphs.name
             ):
@@ -187,6 +222,7 @@ class DataQueryArtifactDisplayer:
         if not self._config.csv_file.enabled or data_response.visual_dataframe is None:
             return None
 
+        assert self._config.csv_file.name is not None, "csv_file.name must be set when enabled"
         response = await attachments_storage.put_csv_from_dataframe(
             data_response.file_name, data_response.visual_dataframe
         )
@@ -204,7 +240,8 @@ class DataQueryArtifactDisplayer:
         if data is None:
             return None
 
-        content = get_json_markdown(json.dumps(data, indent=2))
+        assert self._config.json_query.name is not None, "json_query.name must be set when enabled"
+        content = get_json_markdown(json.dumps(data, ensure_ascii=False, indent=2))
         title = data_response.enrich_attachment_name(self._config.json_query.name)
         return dict(type=MediaTypes.MARKDOWN, title=title, data=content)
 
@@ -217,9 +254,23 @@ class DataQueryArtifactDisplayer:
         if data is None:
             return None
 
-        content = json.dumps(data)
+        assert self._config.json_query.name is not None, "json_query.name must be set when enabled"
+        content = json.dumps(data, ensure_ascii=False)
         title = data_response.enrich_attachment_name(self._config.json_query.name)
         return dict(type=MediaTypes.JSON, title=title, data=content)
+
+    @catch_and_log_async(logger)
+    async def _attach_json_file(
+        self,
+        attachments_storage: AttachmentsStorage,
+        data: dict,
+        filename: str,
+        title: str,
+        indent: int | None = None,
+    ) -> dict[str, str]:
+        json_content = json.dumps(data, ensure_ascii=False, indent=indent)
+        response = await attachments_storage.put_json(filename, json_content)
+        return dict(type=MediaTypes.JSON, title=title, url=response.url)
 
     @catch_and_log_async(logger)
     async def _attach_plotly(
@@ -242,6 +293,9 @@ class DataQueryArtifactDisplayer:
         if not data:
             return None
 
+        assert (
+            self._config.python_code.name is not None
+        ), "python_code.name must be set when enabled"
         title = data_response.enrich_attachment_name(self._config.python_code.name)
         return dict(type=MediaTypes.MARKDOWN, title=title, data=get_python_code_markdown(data))
 
@@ -256,6 +310,9 @@ class DataQueryArtifactDisplayer:
         if data is None:
             return None
 
+        assert (
+            self._config.plotly_grid.name is not None
+        ), "plotly_grid.name must be set when enabled"
         title = data_response.enrich_attachment_name(self._config.plotly_grid.name)
         return await self._attach_plotly(attachments_storage, data, data_response.file_name, title)
 
@@ -271,7 +328,12 @@ class DataQueryArtifactDisplayer:
             if not data:
                 return None
 
-            response = await attachments_storage.put_json(data_response.file_name, json.dumps(data))
+            assert (
+                self._config.custom_table.name is not None
+            ), "custom_table.name must be set when enabled"
+            response = await attachments_storage.put_json(
+                data_response.file_name, json.dumps(data, ensure_ascii=False)
+            )
             title = data_response.enrich_attachment_name(self._config.custom_table.name)
             return dict(type=MediaTypes.TTYD_TABLE, title=title, url=response.url)
         except Exception:

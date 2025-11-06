@@ -23,10 +23,10 @@ class Category(BaseEntity, ABC):
     def dimension_id(self) -> str | None:
         return None
 
-    def to_document(self, **kwargs) -> Document:
+    def to_document(self) -> Document:
         return Document(
-            page_content=self.get_document_content(**kwargs),
-            metadata=self.get_document_metadata(**kwargs),
+            page_content=self.get_document_content(),
+            metadata=self.get_document_metadata(),
         )
 
     def get_document_content(self, **kwargs) -> str:
@@ -35,7 +35,7 @@ class Category(BaseEntity, ABC):
             s += f", description: {self.description}"
         return s
 
-    def get_document_metadata(self, **kwargs) -> dict:
+    def get_document_metadata(self) -> dict:
         return {}
 
     @classmethod
@@ -107,7 +107,7 @@ class VirtualDimensionCategory(DimensionCategory):
             content += f", description: {self._description}"
         return f"{content} ({self._dimension_name})"
 
-    def get_document_metadata(self, **kwargs) -> dict:
+    def get_document_metadata(self) -> dict:
         return {
             self.METADATA_DIMENSION_ID: self._dimension_id,
             self.METADATA_DIMENSION_NAME: self._dimension_name,

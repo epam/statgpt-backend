@@ -118,3 +118,34 @@ class DatasetsListFormatter:
                 summary_lines.append(f'  - {provider}: {count}')
 
         return '\n'.join(summary_lines)
+
+
+class IndexedDatasetsListFormatter:
+    """Dataset list formatter with localization support. Includes index numbers for each dataset."""
+
+    def __init__(
+        self, config: DatasetFormatterConfig, auth_context: AuthContext, detailed: bool = False
+    ):
+        self._config = config
+        self._auth_context = auth_context
+        self._formatter: BaseDatasetFormatter
+
+        # Choose formatter based on detailed flag
+        if detailed:
+            self._formatter = DetailedDatasetFormatter(config, auth_context)
+        else:
+            self._formatter = SimpleDatasetFormatter(config, auth_context)
+
+        # Get translation function
+        self._ = self._formatter._
+
+    async def format(self, datasets: dict[int, DataSet], index_name: str = 'Index') -> str:
+        dataset_entries = []
+        for index, dataset in sorted(datasets.items(), key=lambda item: item[0]):
+            entry = await self._formatter.format(dataset)
+            item_tabs = '\t' * self._config.list_level
+            first_row, other_rows = entry.split('\n', 1)
+            entry = f"{first_row}\n{item_tabs}* {index_name}: {index}\n{other_rows}"
+            dataset_entries.append(entry)
+
+        return '\n\n'.join(dataset_entries)

@@ -18,7 +18,7 @@ class CitationFormatterConfig(BaseModel):
         return self.use_provider or self.use_last_updated or self.use_url
 
 
-class CitationFormatter(BaseFormatter[DatasetCitation]):
+class CitationFormatter(BaseFormatter):
     def __init__(self, config: CitationFormatterConfig, locale: LocaleEnum):
         super().__init__("dataset", locale)
         self._config: CitationFormatterConfig = config

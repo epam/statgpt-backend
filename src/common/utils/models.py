@@ -1,3 +1,5 @@
+from typing import Any
+
 import httpx
 from langchain_openai import AzureChatOpenAI, AzureOpenAIEmbeddings
 from pydantic import SecretStr
@@ -5,6 +7,7 @@ from pydantic import SecretStr
 from common.config.logging import multiline_logger as logger
 from common.schemas import EmbeddingsModelConfig, LLMModelConfig
 from common.settings.dial import dial_settings
+from common.utils.callbacks import BrokenResponseInterceptor
 
 
 def get_chat_model(
@@ -19,7 +22,7 @@ def get_chat_model(
         api_key = SecretStr(api_key)
     if not timeout:
         timeout = httpx.Timeout(60, connect=4)
-    params = dict(
+    params: dict[str, Any] = dict(
         azure_endpoint=azure_endpoint,
         api_version=model_config.api_version,
         azure_deployment=model_config.deployment.deployment_id,
@@ -30,6 +33,11 @@ def get_chat_model(
         timeout=timeout,  # timeouts are crucial!
     )
     params.update(kwargs)  # update default params
+
+    if model_config.deployment.is_gpt_41_family:
+        callback = BrokenResponseInterceptor(regex_pattern=r'\s{5,}')
+        params.setdefault('callbacks', []).append(callback)
+
     api_key_log = f'{api_key.get_secret_value()[:3]}*****{api_key.get_secret_value()[-2:]}'
     logger.info(
         f'creating langchain LLM with the following params: {params}, Api key: {api_key_log}'

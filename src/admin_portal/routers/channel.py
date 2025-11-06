@@ -264,9 +264,6 @@ async def get_list_of_channel_datasets(
 async def reload_indicators_for_all_channel_datasets(
     background_tasks: BackgroundTasks,
     channel_id: int,
-    reindex_indicators: bool = True,
-    harmonize_indicator: bool | None = None,
-    reindex_dimensions: bool = True,
     max_n_embeddings: Annotated[
         int | None,
         Query(
@@ -275,7 +272,7 @@ async def reload_indicators_for_all_channel_datasets(
         ),
     ] = None,
     session: AsyncSession = Depends(models.get_session),
-) -> schemas.ListResponse[schemas.ChannelDatasetBase]:
+) -> schemas.ListResponse[schemas.ChannelDatasetExpanded]:
     """Clears existing indicators for all datasets in the channel and loads them from the data source.
     If any channel dataset is in the status `QUEUED` or `IN_PROGRESS`, it will be skipped.
     This endpoint only starts background jobs.
@@ -284,13 +281,10 @@ async def reload_indicators_for_all_channel_datasets(
     channel_datasets = await DataSetService(session).reload_all_indicators(
         background_tasks=background_tasks,
         channel_id=channel_id,
-        reindex_indicators=reindex_indicators,
-        harmonize_indicator=harmonize_indicator,
-        reindex_dimensions=reindex_dimensions,
         max_n_embeddings=max_n_embeddings,
         auth_context=SystemUserAuthContext(),
     )
-    return schemas.ListResponse[schemas.ChannelDatasetBase](
+    return schemas.ListResponse[schemas.ChannelDatasetExpanded](
         data=channel_datasets,
         limit=len(channel_datasets),
         offset=0,
@@ -299,14 +293,37 @@ async def reload_indicators_for_all_channel_datasets(
     )
 
 
+@router.post(
+    path="/{channel_id}/datasets/deduplicate",
+    status_code=status.HTTP_202_ACCEPTED,
+)
+async def deduplicate_channel(
+    background_tasks: BackgroundTasks,
+    channel_id: int,
+    session: AsyncSession = Depends(models.get_session),
+) -> schemas.Channel:
+    """Deduplicates Available_Dimensions and Special_Dimensions vector stores for channel.
+
+    This operation removes duplicate dimension values based on document content.
+
+    The deduplication runs in the background and returns immediately with status 202 Accepted.
+    """
+    service = ChannelService(session)
+    return await service.deduplicate_all_dimensions(
+        background_tasks=background_tasks,
+        channel_id=channel_id,
+        auth_context=SystemUserAuthContext(),
+    )
+
+
 @router.get("/{channel_id}/datasets/{dataset_id}")
 async def get_channel_dataset(
     channel_id: int,
     dataset_id: int,
     session: AsyncSession = Depends(models.get_session),
-) -> schemas.ChannelDatasetBase:
+) -> schemas.ChannelDatasetExpanded:
     return await DataSetService(session).get_channel_dataset_schema(
-        channel_id=channel_id, dataset_id=dataset_id
+        channel_id=channel_id, dataset_id=dataset_id, auth_context=SystemUserAuthContext()
     )
 
 
@@ -329,9 +346,6 @@ async def reload_indicators_for_channel_dataset(
     background_tasks: BackgroundTasks,
     channel_id: int,
     dataset_id: int,
-    reindex_indicators: bool = True,
-    harmonize_indicator: bool | None = None,
-    reindex_dimensions: bool = True,
     max_n_embeddings: Annotated[
         int | None,
         Query(
@@ -340,7 +354,7 @@ async def reload_indicators_for_channel_dataset(
         ),
     ] = None,
     session: AsyncSession = Depends(models.get_session),
-) -> schemas.ChannelDatasetBase:
+) -> schemas.ChannelDatasetExpanded:
     """Clears existing indicators for the dataset and loads them from the data source.
     This endpoint only starts a background job.
     """
@@ -349,9 +363,6 @@ async def reload_indicators_for_channel_dataset(
         background_tasks=background_tasks,
         channel_id=channel_id,
         dataset_id=dataset_id,
-        reindex_indicators=reindex_indicators,
-        harmonize_indicator=harmonize_indicator,
-        reindex_dimensions=reindex_dimensions,
         max_n_embeddings=max_n_embeddings,
         auth_context=SystemUserAuthContext(),
     )
@@ -364,5 +375,62 @@ async def remove_channel_dataset(
     session: AsyncSession = Depends(models.get_session),
 ):
     await DataSetService(session).remove_channel_dataset(
+        channel_id=channel_id, dataset_id=dataset_id, auth_context=SystemUserAuthContext()
+    )
+
+
+@router.get("/{channel_id}/datasets/{dataset_id}/versions")
+async def get_channel_dataset_versions(
+    channel_id: int,
+    dataset_id: int,
+    limit: int = 100,
+    offset: int = 0,
+    session: AsyncSession = Depends(models.get_session),
+) -> schemas.ListResponse[schemas.ChannelDatasetVersion]:
+    """Returns a list of dataset versions for the specified channel and dataset"""
+
+    service = DataSetService(session)
+    versions = await service.get_channel_dataset_versions_schemas(
+        limit=limit,
+        offset=offset,
+        channel_id=channel_id,
+        dataset_id=dataset_id,
+    )
+    total_count = await service.get_channel_dataset_versions_count(
+        channel_id=channel_id, dataset_id=dataset_id
+    )
+
+    return schemas.ListResponse[schemas.ChannelDatasetVersion](
+        data=versions,
+        limit=limit,
+        offset=offset,
+        count=len(versions),
+        total=total_count,
+    )
+
+
+@router.post(path="/{channel_id}/datasets/{dataset_id}/versions/rollback")
+async def rollback_channel_dataset_to_previous_version(
+    channel_id: int,
+    dataset_id: int,
+    session: AsyncSession = Depends(models.get_session),
+) -> schemas.ChannelDatasetVersion:
+    """Rolls back the specified dataset in the channel to a previous 'COMPLETED' version."""
+    return await DataSetService(session).rollback_channel_dataset_to_previous_version(
+        channel_id=channel_id, dataset_id=dataset_id
+    )
+
+
+@router.delete(
+    path="/{channel_id}/datasets/{dataset_id}/versions/clear-data",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+async def clear_channel_dataset_versions_data(
+    channel_id: int,
+    dataset_id: int,
+    session: AsyncSession = Depends(models.get_session),
+):
+    """Clears the data for all versions except the latest completed one for the specified dataset in the channel."""
+    await DataSetService(session).clear_channel_dataset_versions_data(
         channel_id=channel_id, dataset_id=dataset_id, auth_context=SystemUserAuthContext()
     )

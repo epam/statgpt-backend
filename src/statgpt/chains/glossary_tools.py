@@ -86,7 +86,7 @@ class TermDefinitionsTool(
 
         if self._tool_config.details.limit and len(terms) > self._tool_config.details.limit:
             return (
-                f"The number of requested terms exceeds the limit of {self.config.details.limit}. "
+                f"The number of requested terms exceeds the limit of {self._tool_config.details.limit}. "
                 "Please reduce the number of terms and try again. Also, mind that massive requests "
                 "are not supported (e.g. asking for definitions of all available terms), as this is "
                 "not the intended use case of this tool.",

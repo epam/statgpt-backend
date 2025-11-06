@@ -21,10 +21,7 @@ class ChainParametersConfig:
     CONFIGURATION = "configuration"
 
     TARGET_PREFILTER = "target_prefilter"
-    INDICATOR_ID_2_DATASET_IDS = "indicator_id_2_dataset_ids"
-    DATASETS = "datasets"
     DATASETS_DICT = "datasets_dict"
-    DATASETS_DICT_INDEXED = "datasets_dict_indexed"
     DATASET_DIMENSION_QUERIES = "dataset_dimension_queries"
     DATASET_QUERIES_FORMATTED_STR = "dataset_queries_formatted_str"
     DATASET_QUERIES = "dataset_queries"

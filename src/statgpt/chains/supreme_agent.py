@@ -2,6 +2,7 @@ import asyncio
 import copy
 from copy import deepcopy
 from datetime import datetime
+from typing import NamedTuple
 
 from aidial_sdk.chat_completion import Choice, Role
 from langchain_core.messages import AIMessage, AIMessageChunk, SystemMessage, ToolCall, ToolMessage
@@ -18,6 +19,7 @@ from common.schemas import ChannelConfig, FakeCall
 from common.schemas.dial import FunctionCall
 from common.schemas.dial import Message as DialMessage
 from common.schemas.dial import ToolCall as DialToolCall
+from common.utils import InvalidLLMStreamResponse
 from common.utils.markdown import format_as_markdown_list
 from common.utils.models import get_chat_model
 from statgpt.chains.data_query.data_query_artifacts_displayer import DataQueryArtifactDisplayer
@@ -114,6 +116,13 @@ class ToolCaller:
         return tool_msg
 
 
+class _SupremeAgentResponse(NamedTuple):
+    start_time: datetime
+    first_token_time: datetime | None
+    resp: AIMessageChunk
+    finished: bool
+
+
 class SupremeAgent:
     def __init__(self, choice: Choice, chain: Runnable):
         self._choice = choice
@@ -132,7 +141,7 @@ class SupremeAgent:
 
     async def run(
         self, history: History, configuration: StatGPTConfiguration
-    ) -> tuple[datetime, datetime | None, AIMessageChunk]:
+    ) -> _SupremeAgentResponse:
         chunk: AIMessageChunk
         resp: AIMessageChunk | None = None
 
@@ -142,18 +151,35 @@ class SupremeAgent:
         }
         first_token_time = None
         start_time = datetime.now()
-        async for chunk in self._chain.astream(inputs):
-            if chunk.content:
-                if first_token_time is None:
-                    first_token_time = datetime.now()
-                self._choice.append_content(chunk.content)
+        try:
+            async for chunk in self._chain.astream(inputs):
+                if chunk.content:
+                    if first_token_time is None:
+                        first_token_time = datetime.now()
+                    self._choice.append_content(chunk.content)
 
+                if resp is None:
+                    resp = chunk
+                else:
+                    resp = resp + chunk  # type: ignore
+
+            finished = True
+        except InvalidLLMStreamResponse as e:
+            logger.warning(f"Error in the response from Supreme Agent: {e}")
             if resp is None:
-                resp = chunk
-            else:
-                resp = resp + chunk  # type: ignore
+                raise
 
-        return start_time, first_token_time, resp
+            user_msg = f"<!-- delete_chars({len(resp.content) + 2}) -->"
+            self._choice.append_content(f"\n\n{user_msg}\n\n")
+
+            llm_msg = (
+                "\n\n[ERROR] The response contained too many consecutive spaces and was terminated."
+            )
+            resp.content = str(resp.content) + llm_msg
+            finished = False
+
+        assert resp is not None, "No response chunks received from LLM"
+        return _SupremeAgentResponse(start_time, first_token_time, resp, finished)
 
     @classmethod
     def _create_system_prompt(cls, channel_config: ChannelConfig) -> str:
@@ -214,7 +240,8 @@ class SupremeAgentExecutor:
         fake_history = await self._fake_tool_calls(tool_executor, inputs, show_stages=debug)
         history.prepend(fake_history)
 
-        data_query_artifacts: list[DataQueryArtifact] = []
+        data_query_artifacts: dict[str, DataQueryArtifact] = {}
+        assert self._channel_config.data_query is not None, "data_query must be configured"
         data_displayer = DataQueryArtifactDisplayer(
             choice,
             self._channel_config.data_query.details.attachments,
@@ -225,13 +252,13 @@ class SupremeAgentExecutor:
         for i in range(self._channel_config.supreme_agent.max_agent_iterations):
             name = f"[DEBUG] Supreme Agent run {i + 1}"
             with optional_timed_stage(choice=choice, name=name, enabled=debug):
-                start_time, first_token_time, resp = await supreme_agent.run(history, configuration)
-                logger.info(f"Response: {resp!r}")
+                response = await supreme_agent.run(history, configuration)
+                logger.info(f"Response: {response.resp!r}")
 
             tool_data_query_artifacts: list[DataQueryArtifact] = []
 
-            if tool_calls := resp.tool_calls:
-                history.add_chunk_as_tool_message(resp)
+            if tool_calls := response.resp.tool_calls:
+                history.add_chunk_as_tool_message(response.resp)
 
                 res: list[ToolMessage] = await asyncio.gather(
                     *(tool_executor.call_tool(tool_call, inputs) for tool_call in tool_calls)
@@ -242,19 +269,32 @@ class SupremeAgentExecutor:
 
                     if (artifact := tool_msg.artifact) and isinstance(artifact, DataQueryArtifact):
                         tool_data_query_artifacts.append(artifact)
-                        data_query_artifacts.append(artifact)
+                        data_query_artifacts[tool_msg.tool_call_id] = artifact
+
                 if tool_data_query_artifacts:
+                    # await data_displayer.display(tool_data_query_artifacts)
                     content = await data_displayer.get_system_message_content(
                         tool_data_query_artifacts
                     )
                     history.add_tool_message(SystemMessage(content=content))
-            else:
-                self._log_performance(inputs, start_time, first_token_time)
+            elif response.finished:
+                if response.first_token_time is not None:
+                    self._log_performance(inputs, response.start_time, response.first_token_time)
 
                 if data_query_artifacts:
                     await data_displayer.display(data_query_artifacts)
 
-                return resp.content
+                # Handle response content - can be str or list
+                resp_content = response.resp.content
+                if isinstance(resp_content, str):
+                    return resp_content
+                else:
+                    # Convert list content to string
+                    return str(resp_content)
+            else:
+                # Not finished due to error and no tool calls
+                # Let's add the chunk to history and try again (if retries are left)
+                history.add_chunk_as_tool_message(response.resp)
 
         warning_msg = '\n\n[WARNING] Maximum number of tool calls reached. Please enter "continue" to proceed.'
         choice.append_content(warning_msg)
@@ -274,7 +314,8 @@ class SupremeAgentExecutor:
             if (fake_call := tool_cfg.details.fake_call) is not None:
                 tool_call = self._get_tool_call_from_cfg(tool_cfg.name, fake_call)
                 tool_calls.append(tool_call)
-                last_msg: AIMessage = History.dial_to_langchain_message(tool_call)
+                last_msg = History.dial_to_langchain_message(tool_call)
+                assert isinstance(last_msg, AIMessage), "Fake tool call must convert to AIMessage"
                 tasks.append(
                     tool_executor.call_tool(
                         last_msg.tool_calls[0],

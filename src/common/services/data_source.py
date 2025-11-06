@@ -128,6 +128,25 @@ class DataSourceService(DbServiceBase):
             q_result = await session.execute(query.limit(limit).offset(offset))
         return [item for item in q_result.scalars().all()]
 
+    async def get_data_sources_models_by(self, channel_id: int) -> list[models.DataSource]:
+        """Get data sources which used by the given channel datasets."""
+
+        query = (
+            select(models.DataSource)
+            .join(models.DataSet, models.DataSet.source_id == models.DataSource.id)
+            .join(
+                models.ChannelDataset,
+                models.ChannelDataset.dataset_id == models.DataSet.id,
+            )
+            .where(models.ChannelDataset.channel_id == channel_id)
+            .options(selectinload(models.DataSource.type))
+            .distinct()
+        )
+
+        async with self._lock_session() as session:
+            q_result = await session.execute(query)
+        return [item for item in q_result.scalars().all()]
+
     async def get_data_sources_schemas(
         self,
         limit: int | None,

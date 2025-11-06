@@ -5,7 +5,7 @@ import zipfile
 from mimetypes import guess_type
 
 import yaml
-from fastapi import HTTPException, status
+from fastapi import BackgroundTasks, HTTPException, status
 from sqlalchemy import update
 from sqlalchemy.exc import IntegrityError, NoResultFound
 from sqlalchemy.sql.expression import func
@@ -18,7 +18,10 @@ from common.auth.auth_context import AuthContext
 from common.services import ChannelSerializer, ChannelService
 from common.settings.dial import dial_settings
 from common.utils import dial_core_factory
+from common.utils.elastic import ElasticSearchFactory
 from common.vectorstore import VectorStoreFactory
+
+from .background_tasks import background_task
 
 _log = logging.getLogger(__name__)
 
@@ -108,6 +111,9 @@ class AdminPortalChannelService(ChannelService):
 
         await self._clear_vector_store(item, auth_context)
 
+        if self.is_channel_hybrid(item):
+            await self._clear_elastic_indexes(item)
+
         await self._session.delete(item)
         await self._session.commit()
 
@@ -126,6 +132,36 @@ class AdminPortalChannelService(ChannelService):
                 embedding_model_name=channel.llm_model,
             )
             await vector_store.clear()
+
+    async def _clear_elastic_indexes(self, channel: models.Channel) -> None:
+        _log.info(f"Clearing Elastic indexes for channel {channel!r}")
+        for index in [channel.matching_index_name, channel.indicators_index_name]:
+            await self._clear_elastic_index(index)
+
+    @staticmethod
+    async def _clear_elastic_index(index_name: str) -> None:
+        """Drops index if it is possible, otherwise deletes all documents from the index."""
+
+        try:
+            index = await ElasticSearchFactory.get_index(index_name)
+        except Exception:
+            _log.exception(f"Failed to get Elastic index {index_name!r}")
+            return
+
+        try:
+            await index.delete()
+            _log.info(f"Dropped Elastic index {index_name!r}")
+            return
+        except Exception as e:
+            _log.info(f"Exception: {e}")
+            _log.warning(f"Failed to drop Elastic index {index_name!r}, trying to clear it...")
+
+        try:
+            res = await index.delete_by_query(query={"match_all": {}})
+            _log.debug(res)
+            _log.info(f"Cleared {res['deleted']} documents from Elastic index {index_name!r}")
+        except Exception:
+            _log.exception(f"Failed to clear Elastic index {index_name!r}")
 
     async def export_channel_to_folder(
         self, channel_id: int, folder_path: str, auth_context: AuthContext
@@ -149,12 +185,9 @@ class AdminPortalChannelService(ChannelService):
     async def import_channel_from_zip(
         self, zip_file: zipfile.ZipFile, clean_up: bool, auth_context: AuthContext
     ) -> models.Channel:
-        # Read all files from JobsConfig.DIAL_FILES_FOLDER recursively and upload them to DIAL
-
         _log.info("Uploading DIAL files for channel import")
 
         with tempfile.TemporaryDirectory() as temp_dir:
-            # Extract all files that start with the dial files folder path
             members = [
                 name
                 for name in zip_file.namelist()
@@ -188,3 +221,65 @@ class AdminPortalChannelService(ChannelService):
                 await self.delete(existing_channel.id, auth_context=auth_context)
 
         return await self._create_channel_model(channel_data)
+
+    async def deduplicate_channel_dimensions(
+        self, channel_id: int, auth_context: AuthContext
+    ) -> None:
+        """Deduplicates Available_Dimensions and Special_Dimensions vector stores for channel.
+
+        Deduplication is performed based on document content.
+        Documents with identical content will be merged.
+        """
+        channel = await self.get_model_by_id(channel_id)
+        vector_store_factory = VectorStoreFactory(session=self._session)
+
+        _log.info(f"Deduplicating available_dimensions for channel {channel_id}")
+        available_dims_store = await vector_store_factory.get_vector_store(
+            collection_name=channel.available_dimensions_table_name,
+            auth_context=auth_context,
+            embedding_model_name=channel.llm_model,
+        )
+        await available_dims_store.deduplicate_by_document_content()
+
+        _log.info(f"Deduplicating special_dimensions for channel {channel_id}")
+        special_dims_store = await vector_store_factory.get_vector_store(
+            collection_name=channel.special_dimensions_table_name,
+            auth_context=auth_context,
+            embedding_model_name=channel.llm_model,
+        )
+        await special_dims_store.deduplicate_by_document_content()
+
+        _log.info(f"Deduplication completed for channel {channel_id}")
+
+    async def deduplicate_all_dimensions(
+        self, background_tasks: BackgroundTasks, channel_id: int, auth_context: AuthContext
+    ) -> schemas.Channel:
+        """Deduplicates dimension vector stores for all datasets in a channel.
+
+        Starts background deduplication task and returns the channel.
+        """
+        channel = await self.get_model_by_id(channel_id)
+
+        # Start background task
+        background_tasks.add_task(
+            deduplicate_dimensions_in_background_task,
+            channel_id=channel_id,
+            auth_context=auth_context,
+        )
+
+        return ChannelSerializer.db_to_schema(channel)
+
+
+@background_task
+async def deduplicate_dimensions_in_background_task(
+    channel_id: int,
+    auth_context: AuthContext,
+) -> None:
+    try:
+        async with models.get_session_contex_manager() as session:
+            await AdminPortalChannelService(session).deduplicate_channel_dimensions(
+                channel_id=channel_id,
+                auth_context=auth_context,
+            )
+    except Exception:
+        _log.exception(f"Failed to deduplicate dimensions for channel {channel_id}")

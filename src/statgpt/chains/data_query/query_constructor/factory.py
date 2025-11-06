@@ -1,4 +1,4 @@
-from common.data.sdmx import Sdmx21DataSet
+from common.schemas import DataQueryDetails
 
 from .base import BaseQueryConstructor
 from .composite import CompositeQueryConstructor
@@ -9,10 +9,11 @@ from .simple import SimpleQueryConstructor
 class QueryConstructorFactory:
 
     @classmethod
-    def create(cls, dataset: Sdmx21DataSet) -> BaseQueryConstructor:
+    def create(cls, config: DataQueryDetails) -> BaseQueryConstructor:
         return CompositeQueryConstructor(
+            config=config,
             constructors=[
-                SimpleQueryConstructor(),
-                IterativeQueryConstructor(),
-            ]
+                SimpleQueryConstructor(config),
+                IterativeQueryConstructor(config),
+            ],
         )

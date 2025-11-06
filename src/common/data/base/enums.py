@@ -52,3 +52,8 @@ class QueryOperator(StrEnum):
 
     BETWEEN = "between"
     """Matches values between the given range"""
+
+
+class InvalidDataSetQueryReasonType(StrEnum):
+    INVALID_TIME_PERIOD = "invalid_time_period"
+    """The time period specified in the query is invalid."""

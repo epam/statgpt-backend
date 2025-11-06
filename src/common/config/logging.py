@@ -1,5 +1,6 @@
 import logging
 import logging.config
+import re
 import sys
 
 import uvicorn.logging
@@ -12,6 +13,11 @@ class SingleLineFormatter(uvicorn.logging.DefaultFormatter):
     def format(self, record):
         res = super().format(record).replace("\n", r"\n")
         return res
+
+
+class HealthCheckFilter(logging.Filter):
+    def filter(self, record: logging.LogRecord):
+        return not re.search(r"(\s+)/health(\s+)", record.getMessage())
 
 
 class LoggingConfig:
@@ -34,6 +40,9 @@ class LoggingConfig:
 
         for name in ["uvicorn", "uvicorn.error", "uvicorn.access"]:
             logging.getLogger(name).setLevel(cls.LOGGING_SETTINGS.level_uvicorn)
+
+        # Filter out health check requests from uvicorn logs
+        logging.getLogger("uvicorn.access").addFilter(HealthCheckFilter())
 
         for name in ["httpcore", "httpx"]:
             logging.getLogger(name).setLevel(cls.LOGGING_SETTINGS.level_httpcore)

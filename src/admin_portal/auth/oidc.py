@@ -63,7 +63,7 @@ class Jwks:
         return SigningInfo(signing_key.key, signing_algos)
 
 
-class TokenValidationError(BaseException):
+class TokenValidationError(Exception):
     pass
 
 

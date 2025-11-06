@@ -1,10 +1,11 @@
-from common.schemas import DataSet
+from common.data.base import DataSet
 from statgpt.chains.parameters import ChainParameters
 from statgpt.config import StateVarsConfig
+from statgpt.services.chat_facade import VersionedDataSet
 from statgpt.utils.dial_stages import optional_timed_stage
 
 
-async def get_available_datasets(inputs: dict) -> dict[str, DataSet]:
+async def get_available_datasets(inputs: dict) -> dict[str, VersionedDataSet]:
     data_service = ChainParameters.get_data_service(inputs)
     auth_context = ChainParameters.get_auth_context(inputs)
     choice = ChainParameters.get_choice(inputs)
@@ -14,7 +15,7 @@ async def get_available_datasets(inputs: dict) -> dict[str, DataSet]:
     name = '[DEBUG] Get available datasets'
     with optional_timed_stage(choice=choice, name=name, enabled=debug):
         datasets = await data_service.list_available_datasets(auth_context)
-        return {ds.entity_id: ds for ds in datasets}
+        return {ds.data.entity_id: ds for ds in datasets}
 
 
 async def get_dataset_by_source_id(inputs: dict, dataset_id: str) -> DataSet | None:

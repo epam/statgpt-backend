@@ -8,6 +8,12 @@ class PreprocessingStatusEnum(StrEnum):
     COMPLETED = "COMPLETED"
     FAILED = "FAILED"
 
+    @classmethod
+    def final_statuses(cls) -> list["PreprocessingStatusEnum"]:
+        """Return a list of statuses that indicate a job has reached a final state
+        (either completed successfully or failed)."""
+        return [cls.COMPLETED, cls.FAILED]
+
 
 class JobType(StrEnum):
     EXPORT = "EXPORT"
@@ -40,11 +46,6 @@ class DecoderOfLatestEnum(StrEnum):
     # LAST_PUBLICATION = "last_publication"
 
 
-class DataQueryVersion(StrEnum):
-    v1 = "v1"
-    v2 = "v2"
-
-
 class IndexerVersion(StrEnum):
     semantic = "semantic"
     hybrid = "hybrid"
@@ -56,6 +57,11 @@ class IndicatorSelectionVersion(StrEnum):
     semantic_v2 = "semantic_v2"
     semantic_v3 = "semantic_v3"
     semantic_v4 = "semantic_v4"
+
+
+class TimePeriodStrategy(StrEnum):
+    BEFORE = "BEFORE"
+    AFTER = "AFTER"
 
 
 class SpecialDimensionsProcessorType(StrEnum):

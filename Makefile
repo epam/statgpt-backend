@@ -1,7 +1,6 @@
 POETRY_PYTHON ?= $(if $(pythonLocation),$(pythonLocation)/bin/python,python3)
 SRC_DIRS = src scripts tests
-STATGPT_MYPY_DIRS = src/statgpt/config src/statgpt/default_prompts src/statgpt/schemas src/statgpt/security src/statgpt/services src/statgpt/settings src/statgpt/utils/formatters src/statgpt/utils/openai src/statgpt/utils/message_interceptors src/statgpt/utils/message_history.py
-MYPY_DIRS = src/common src/admin_portal ${STATGPT_MYPY_DIRS}
+MYPY_DIRS = src/common src/admin_portal src/statgpt
 
 -include .env
 export
@@ -67,22 +66,61 @@ test_integration: test_db_migrate
 test: test_unit test_integration
 
 # Localization commands for dataset formatters
-extract_messages:
+# Check if GNU gettext tools are installed
+check_gettext:
+ifeq ($(OS),Windows_NT)
+	@where xgettext >nul 2>&1 || ( \
+		echo Error: xgettext not found. GNU gettext tools are required for localization. & \
+		echo. & \
+		echo Installation instructions: & \
+		echo   MacOS:       brew install gettext & \
+		echo   Linux/WSL:   sudo apt install gettext & \
+		echo   Windows:     choco install gettext & \
+		echo. & \
+		echo See README.md for more details. & \
+		exit /b 1 \
+	)
+	@where msgmerge >nul 2>&1 || (echo Error: msgmerge not found. Please install GNU gettext tools. & exit /b 1)
+	@where msgfmt >nul 2>&1 || (echo Error: msgfmt not found. Please install GNU gettext tools. & exit /b 1)
+else
+	@command -v xgettext >/dev/null 2>&1 || { \
+		echo "Error: xgettext not found. GNU gettext tools are required for localization."; \
+		echo ""; \
+		echo "Installation instructions:"; \
+		echo "  MacOS:       brew install gettext"; \
+		echo "  Linux/WSL:   sudo apt install gettext"; \
+		echo "  Windows:     choco install gettext"; \
+		echo ""; \
+		echo "See README.md for more details."; \
+		exit 1; \
+	}
+	@command -v msgmerge >/dev/null 2>&1 || { \
+		echo "Error: msgmerge not found. Please install GNU gettext tools."; \
+		exit 1; \
+	}
+	@command -v msgfmt >/dev/null 2>&1 || { \
+		echo "Error: msgfmt not found. Please install GNU gettext tools."; \
+		exit 1; \
+	}
+endif
+
+extract_messages: check_gettext
 	@echo "Extracting translatable strings from formatters..."
 	@cd src/statgpt/utils/formatters && \
 	xgettext -d dataset -o locales/dataset.pot \
 		--language=Python \
 		--keyword=_ \
 		--from-code=UTF-8 \
-		base.py dataset_base.py dataset_simple.py dataset_detailed.py datasets_list_formatter.py citation.py
+		base.py dataset_base.py dataset_simple.py dataset_detailed.py datasets_list_formatter.py citation.py \
+		dataset_query.py dataset_availablity_query.py
 
-update_messages:
+update_messages: check_gettext
 	@echo "Updating .po files from template..."
 	@cd src/statgpt/utils/formatters/locales && \
 	msgmerge --update en/LC_MESSAGES/dataset.po dataset.pot && \
 	msgmerge --update uk/LC_MESSAGES/dataset.po dataset.pot
 
-compile_messages:
+compile_messages: check_gettext
 	@echo "Compiling .po files to .mo files..."
 	@cd src/statgpt/utils/formatters/locales && \
 	msgfmt -o en/LC_MESSAGES/dataset.mo en/LC_MESSAGES/dataset.po && \

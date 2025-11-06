@@ -167,9 +167,11 @@ class ChannelConfig(BaseYamlModel):
 
     @property
     def tools(self) -> list[BaseToolConfig]:
-        return [
+        tools = [
             getattr(self, field) for field in self.tool_fields if getattr(self, field) is not None
         ]
+        tools = [tool for tool in tools if tool.enabled]
+        return tools
 
     def list_named_entity_types(self) -> list[str]:
         return [

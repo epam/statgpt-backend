@@ -120,7 +120,7 @@ class UrlOnlyResponseProducer(ResponseProducerABC):
             stream = await client.chat.completions.create(
                 model=self._deployment_id,
                 stream=True,
-                messages=self._construct_history(query),
+                messages=self._construct_history(query),  # type: ignore[arg-type]
             )
             dial_streamer = OpenAiToDialStreamer(
                 debug_stage,
@@ -133,7 +133,7 @@ class UrlOnlyResponseProducer(ResponseProducerABC):
 
             with dial_streamer:
                 try:
-                    async for chunk in stream:
+                    async for chunk in stream:  # type: ignore[union-attr]
                         dial_streamer.send_chunk(chunk)
                 except APIError as e:
                     logger.exception(e)

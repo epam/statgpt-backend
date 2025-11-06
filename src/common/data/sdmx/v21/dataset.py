@@ -5,6 +5,7 @@ import os
 import tempfile
 import time
 import typing as t
+import uuid
 from collections.abc import Iterable
 from datetime import datetime
 from functools import cached_property
@@ -14,7 +15,7 @@ import plotly.graph_objects as go
 import requests
 import sdmx.model.common
 from dateutil.parser import parse
-from sdmx.message import DataMessage
+from sdmx.message import DataMessage, StructureMessage
 from sdmx.model.common import Code
 from sdmx.model.v21 import DataflowDefinition as DataFlow
 
@@ -357,7 +358,7 @@ class Sdmx21DataSet(
 
     def __init__(
         self,
-        entity_id: str,
+        entity_id: uuid.UUID,
         title: str,
         config: SdmxDataSetConfig,
         handler: 'Sdmx21DataSourceHandler',
@@ -434,7 +435,6 @@ class Sdmx21DataSet(
                     f"Country dimension must be code list dimension or virtual dimension: {country_dimension}"
                 )
             self._country_dimension = country_dimension
-            self._country_dimension._alias = config.country_dimension_alias
         else:
             self._country_dimension = None
 
@@ -786,7 +786,7 @@ class Sdmx21DataSet(
             self._append_time_dimension_query(query, result)
 
     def _to_sdmx_query(self, query: DataSetQuery) -> SdmxDataSetQuery:
-        result = SdmxDataSetQuery.empty()
+        result = SdmxDataSetQuery.empty(query.uuid)
         # self._append_indicator_query_to_dataset_query(query, result)
         for dimension_query in query.dimensions_queries:
             if not dimension_query.values and dimension_query.operator != QueryOperator.ALL:
@@ -964,7 +964,10 @@ class Sdmx21DataSet(
             pinned_columns.append(f"{dimension}_Name")
         return pinned_columns
 
-    def _availability_result_to_query(self, availability_result) -> DataSetAvailabilityQuery:
+    def _availability_result_to_query(
+        self, availability_result: StructureMessage
+    ) -> DataSetAvailabilityQuery:
+
         constraints = list(availability_result.constraint.values())
         if len(constraints) != 1:
             raise ValueError("Unexpected quantity of constraints in structure message")

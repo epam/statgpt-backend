@@ -42,13 +42,15 @@ class DatasetsMetadataTool(
     async def _arun(self, inputs: dict, query: str, **kwargs) -> tuple[str, ToolArtifact]:
         data_service = ChainParameters.get_data_service(inputs)
         auth_context = ChainParameters.get_auth_context(inputs)
-        datasets = await data_service.list_available_datasets(auth_context)
         target = ChainParameters.get_target(inputs)
 
-        datasets_formatted = await DatasetsListFormatter(
-            self._dataset_formatter_config,
-            auth_context=auth_context,
-        ).format(datasets, sort_by_name=True, add_stats=True, group_by_provider=True)
+        versioned_datasets = await data_service.list_available_datasets(auth_context)
+        datasets = [ds.data for ds in versioned_datasets]
+
+        formatter = DatasetsListFormatter(self._dataset_formatter_config, auth_context=auth_context)
+        datasets_formatted = await formatter.format(
+            datasets, sort_by_name=True, add_stats=True, group_by_provider=True
+        )
 
         params = dict(
             datasets=datasets_formatted,
@@ -56,27 +58,22 @@ class DatasetsMetadataTool(
 
         prompt_template = ChatPromptTemplate.from_messages(
             [
-                SystemMessagePromptTemplate.from_template(self._tool_config.details.system_prompt),
+                SystemMessagePromptTemplate.from_template(self._tool_config.details.system_prompt),  # type: ignore[arg-type]
                 ("human", "{query}"),
             ]
         ).partial(**params)
 
         llm = get_chat_model(
-            api_key=auth_context.api_key,
-            model_config=self._tool_config.details.llm_model_config,
+            api_key=auth_context.api_key, model_config=self._tool_config.details.llm_model_config
         )
 
         chain = prompt_template | llm
         response = ""
 
-        async for chunk in chain.astream(
-            dict(
-                query=query,
-            )
-        ):
+        async for chunk in chain.astream(dict(query=query)):
             content = chunk.content
-            response += content
+            response += content  # type: ignore[operator]
             if target:
-                target.append_content(content)
+                target.append_content(content)  # type: ignore[arg-type]
 
         return response, ToolArtifact(state=ToolMessageState(type=self.tool_type))

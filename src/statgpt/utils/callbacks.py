@@ -71,6 +71,8 @@ class StageCallback(AsyncCallbackHandler):
     def _append_stage_timing(self) -> None:
         if not dial_app_settings.dial_show_stage_seconds:
             return
+        assert self._start_time is not None, "Start time must be set"
+        assert self._stage is not None, "Stage must be set"
         end_time = datetime.now()
         start_str = self._start_time.strftime('%H:%M:%S')
         end_str = end_time.strftime('%H:%M:%S')
@@ -105,6 +107,7 @@ class StageCallback(AsyncCallbackHandler):
         if run_id != self._run_id:
             return
         self._raise_if_not_initialized()
+        assert self._stage is not None, "Stage must be set after initialization check"
         try:
             if self._content_appender is not None:
                 await self._content_appender(self._stage, outputs)
@@ -115,7 +118,7 @@ class StageCallback(AsyncCallbackHandler):
             self._append_stage_timing()
             self._stage.close()
 
-    def on_chain_error(
+    async def on_chain_error(
         self,
         error: BaseException,
         *,
@@ -132,6 +135,7 @@ class StageCallback(AsyncCallbackHandler):
             return
 
         self._raise_if_not_initialized()
+        assert self._stage is not None, "Stage must be set after initialization check"
         try:
             self._stage.append_content(f"Error: {repr(error)}")
         finally:

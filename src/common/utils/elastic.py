@@ -137,6 +137,10 @@ class ElasticIndex:
         result = await self._client.delete_by_query(index=self.name, query=query)
         return result.body
 
+    async def delete(self):
+        """Drops the index and all its data."""
+        await self._client.indices.delete(index=self.name)
+
     async def analyze(self, *, text: str) -> list[Token]:
         """Performs analysis on a text string and returns the resulting tokens."""
 

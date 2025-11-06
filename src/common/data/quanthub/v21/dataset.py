@@ -1,14 +1,18 @@
 import logging
 import typing
+import uuid
 from collections.abc import Iterable
 from datetime import datetime
 
 import pandas as pd
+from sdmx.message import StructureMessage
+from sdmx.model.common import BaseAnnotation
+from sdmx.model.v21 import ContentConstraint
 from sdmx.model.v21 import DataflowDefinition as DataFlow
 from sdmx.model.v21 import DataStructureDefinition
 
 from common.auth.auth_context import AuthContext
-from common.data.base import DataResponseStatus, DataSetQuery
+from common.data.base import DataResponseStatus, DataSetAvailabilityQuery, DataSetQuery
 from common.data.quanthub.config import PropertySource, PropertySourceEnum, QuanthubDataSetConfig
 from common.data.quanthub.sdmx_schemas.v30 import QhAnnotation
 from common.data.sdmx import Sdmx21DataSet
@@ -29,7 +33,7 @@ _log = logging.getLogger(__name__)
 class QuanthubSdmx21DataSet(Sdmx21DataSet):
     def __init__(
         self,
-        entity_id: str,
+        entity_id: uuid.UUID,
         title: str,
         config: QuanthubDataSetConfig,
         handler: 'QuanthubSdmx21DataSourceHandler',
@@ -219,3 +223,28 @@ class QuanthubSdmx21DataSet(Sdmx21DataSet):
                 parsing_status=DataParsingStatus.SUCCESS,
             ),
         )
+
+    def _availability_result_to_query(
+        self, availability_result: StructureMessage
+    ) -> DataSetAvailabilityQuery:
+        result = super()._availability_result_to_query(availability_result)
+
+        constraint: ContentConstraint = list(availability_result.constraint.values())[0]
+
+        if "TIME_PERIOD" not in result:
+            start, end = self._parse_time_period_from(constraint.annotations)
+            result.time_period_start, result.time_period_end = start, end
+
+        return result
+
+    @staticmethod
+    def _parse_time_period_from(annotations: list[BaseAnnotation]) -> tuple[str | None, str | None]:
+        start, end = None, None
+
+        for annotation in annotations:
+            if annotation.id == "time_period_start":
+                start = annotation.value or annotation.title
+            elif annotation.id == "time_period_end":
+                end = annotation.value or annotation.title
+
+        return start, end

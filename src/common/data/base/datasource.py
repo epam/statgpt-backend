@@ -1,4 +1,5 @@
 import typing as t
+import uuid
 from abc import ABC, abstractmethod
 
 from langchain_core.documents import Document
@@ -9,6 +10,7 @@ from common.auth.auth_context import AuthContext
 from .base import BaseEntity, EntityType
 from .category import DimensionCategory
 from .dataset import DataSet, DataSetConfig
+from .dataset_hierarchy import DatasetHierarchy
 from .indicator import BaseIndicator
 
 
@@ -20,6 +22,12 @@ class DataSetDescriptor(BaseModel):
     details: dict = Field(
         description="Preliminary details defined by the data source.", default_factory=dict
     )
+
+
+class DataSetHierarchyConfig(BaseModel):
+    """Default configuration of a dataset hierarchy using the configuration as the source of the hierarchy."""
+
+    # TODO: add fields and implement hierarchy creation logic
 
 
 class DataSourceConfig(BaseModel, ABC):
@@ -77,7 +85,7 @@ class DataSourceHandler(
     @abstractmethod
     async def get_dataset(
         self,
-        entity_id: str,
+        entity_id: uuid.UUID,
         title: str,
         config: dict,
         auth_context: AuthContext,
@@ -101,3 +109,6 @@ class DataSourceHandler(
     @abstractmethod
     async def is_dataset_available(self, config: dict, auth_context: AuthContext) -> bool:
         pass
+
+    async def get_dataset_hierarchy(self, auth_context: AuthContext) -> DatasetHierarchy | None:
+        return None

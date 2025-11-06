@@ -11,7 +11,7 @@ from statgpt.chains.parameters import ChainParameters
 from statgpt.chains.tools import StatGptTool, ToolArgs
 from statgpt.schemas import ToolArtifact, ToolMessageState
 
-from .response_producer import RagResponseProducer, UrlOnlyResponseProducer
+from .response_producer import RagResponseProducer, ResponseProducerABC, UrlOnlyResponseProducer
 
 
 class BaseWebSearchArgs(ToolArgs):
@@ -34,7 +34,7 @@ class WebSearchTool(StatGptTool[WebSearchToolConfig], tool_type=ToolTypes.WEB_SE
             stages_config=tool_config.details.stages_config,
         )
         if tool_config.details.urls_only:
-            self._response_producer = UrlOnlyResponseProducer(**kwargs)
+            self._response_producer: ResponseProducerABC = UrlOnlyResponseProducer(**kwargs)
         else:
             self._response_producer = RagResponseProducer(**kwargs)
 
@@ -42,10 +42,10 @@ class WebSearchTool(StatGptTool[WebSearchToolConfig], tool_type=ToolTypes.WEB_SE
     def get_args_schema(cls, tool_config: WebSearchToolConfig) -> type[BaseWebSearchArgs]:
         """Return the schema for the arguments that this tool accepts."""
 
-        other_fields = {}
+        other_fields: dict[str, Any] = {}
 
         if domains_config := tool_config.details.domains:
-            domain_enum = StrEnum(
+            domain_enum = StrEnum(  # type: ignore[misc]
                 'DomainEnum',
                 [(cls._to_enum_name(d), d) for d in domains_config.allowed_values],
             )
@@ -116,7 +116,7 @@ class WebSearchTool(StatGptTool[WebSearchToolConfig], tool_type=ToolTypes.WEB_SE
             return error, ToolArtifact(state=ToolMessageState(type=self.tool_type))
 
         selected_domains = self._extract_domains(kwargs)
-        prepared_query = self._prepare_query(query, selected_domains)
+        prepared_query = self._prepare_query(query, selected_domains or [])
         logger.info(f"Full query for web search: {prepared_query!r}")
 
         str_response = await self._response_producer.run(inputs=inputs, query=prepared_query)

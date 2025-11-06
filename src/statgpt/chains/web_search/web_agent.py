@@ -6,7 +6,7 @@ from statgpt.chains.parameters import ChainParameters
 from statgpt.chains.tools import StatGptTool, ToolArgs
 from statgpt.schemas import ToolArtifact, ToolMessageState
 
-from .response_producer import RagResponseProducer, UrlOnlyResponseProducer
+from .response_producer import RagResponseProducer, ResponseProducerABC, UrlOnlyResponseProducer
 
 
 class WebSearchArgs(ToolArgs):
@@ -25,7 +25,7 @@ class WebSearchAgentTool(StatGptTool[WebSearchToolConfig], tool_type=ToolTypes.W
             attachments_metadata=False,
         )
         if tool_config.details.urls_only:
-            self._response_producer = UrlOnlyResponseProducer(**kwargs)
+            self._response_producer: ResponseProducerABC = UrlOnlyResponseProducer(**kwargs)
         else:
             self._response_producer = RagResponseProducer(**kwargs)
 

@@ -26,6 +26,7 @@ class BaseToolConfig(BaseYamlModel):
         pattern=r'^[a-zA-Z0-9_\.-]+$',
     )
     description: str = Field(description="The description of the tool.", max_length=4096)
+    enabled: bool = Field(default=True, description="Whether the tool is enabled or not.")
 
     details: BaseToolDetails = Field(
         default_factory=BaseToolDetails, description="Details as a JSON object"

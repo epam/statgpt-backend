@@ -1,4 +1,5 @@
 import typing as t
+import uuid
 from enum import StrEnum
 
 from pydantic import BaseModel, Field
@@ -18,8 +19,9 @@ class TimeDimensionQuery(BaseModel):
 
 
 class SdmxDataSetQuery(BaseModel):
-    # TODO: remove `datetime_dimensions` or `time_dimension_query` as they have the same purpose
-    # See issue #124
+    uuid: str = Field(
+        description="The uuid of the data query", default_factory=lambda: str(uuid.uuid4())
+    )
     status: SdmxQueryReadinessStatus = Field(description="The readiness status of the query")
     categorical_dimensions: dict[str, list[str]] = Field(
         description="Categorical dimensions queries"
@@ -34,8 +36,9 @@ class SdmxDataSetQuery(BaseModel):
         )
 
     @classmethod
-    def empty(cls):
+    def empty(cls, uuid: str) -> 'SdmxDataSetQuery':
         return cls(
+            uuid=uuid,
             status=SdmxQueryReadinessStatus.READY,
             categorical_dimensions={},
             time_dimension_query=None,
@@ -125,9 +128,6 @@ class SdmxDataSetAvailabilityQuery(BaseModel):
     )
     categorical_dimensions: t.Dict[str, t.Any] = Field(
         description="Categorical dimensions queries", default_factory=dict
-    )
-    datetime_dimensions: t.Dict[str, t.Any] = Field(
-        description="Datetime dimensions queries", default_factory=dict
     )
 
     def get_key(self) -> dict[str, list[str]]:

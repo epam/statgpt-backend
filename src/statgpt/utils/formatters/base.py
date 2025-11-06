@@ -1,14 +1,11 @@
 import gettext
-from abc import ABC, abstractmethod
+from abc import ABC
 from pathlib import Path
-from typing import Generic, TypeVar
 
 from common.schemas.enums import LocaleEnum
 
-_FormatValue = TypeVar("_FormatValue")
 
-
-class BaseFormatter(ABC, Generic[_FormatValue]):
+class BaseFormatter(ABC):
     def __init__(self, domain: str, locale: LocaleEnum):
 
         locale_dir = Path(__file__).parent / "locales"
@@ -25,7 +22,3 @@ class BaseFormatter(ABC, Generic[_FormatValue]):
             )
 
         self._ = self.translation.gettext
-
-    @abstractmethod
-    async def format(self, value: _FormatValue) -> str:
-        pass
