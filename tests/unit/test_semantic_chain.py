@@ -1,6 +1,6 @@
 import pytest
 
-from statgpt.chains.data_query.v2.query.indicator_selection.semantic.packed_indicators_selection import (
+from statgpt.chains.data_query.query_builder.indicator_selection.semantic.packed_indicators_selection import (
     PackedIndicatorsSelectionV2ChainFactory,
 )
 from statgpt.schemas.query_builder import DatasetDimQueries

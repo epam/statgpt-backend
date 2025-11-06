@@ -74,7 +74,6 @@ async def test_add_channel(session, clear_channels):
     assert res.details.data_query.description == "Test Query Builder Description"
 
     details = res.details.data_query.details
-    assert details.version == schemas.DataQueryVersion.v2
     assert details.indexer_version == schemas.IndexerVersion.semantic
     assert details.indicator_selection_version == schemas.IndicatorSelectionVersion.semantic_v4
     assert details.prompts.datetime_prompt == "Testing datetime_prompt"
@@ -114,7 +113,6 @@ async def test_add_channel_with_v2_versions(
                 name="Test_Query_Builder",
                 description="Test Query Builder Description",
                 details=schemas.DataQueryDetails(
-                    version=schemas.DataQueryVersion.v2,
                     indexer_version=indexer_version,
                 ),
             ),
@@ -124,7 +122,6 @@ async def test_add_channel_with_v2_versions(
 
     res = await channel_service.create_channel(channel)
     assert res.deployment_id == deployment_id
-    assert res.details.data_query.details.version == schemas.DataQueryVersion.v2
     assert res.details.data_query.details.indexer_version == indexer_version
 
     res2 = await channel_service.get_schema_by_id(res.id)
@@ -237,7 +234,6 @@ async def test_update_channel(session, clear_channels):
     assert res2.deployment_id == "test_deployment_id_2"
     assert res2.llm_model == langchain_settings.embedding_default_model.value
 
-    assert res2.details.data_query.details.version == schemas.DataQueryVersion.v2
     assert res2.details.data_query.details.indexer_version == schemas.IndexerVersion.hybrid
     assert res2.details.data_query.details.prompts.datetime_prompt is None
     assert (
