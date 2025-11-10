@@ -70,9 +70,11 @@ class AttachmentsStorage:
         return AttachmentResponse.model_validate(response_json)
 
     async def put_local_file(
-        self, name: str, path: str, *, bucket: str | None = None
+        self, name: str, path: str, *, bucket: str | None = None, show_progress: bool = False
     ) -> AttachmentResponse:
-        response_json = await self._dial_core.put_local_file(name, path, bucket=bucket)
+        response_json = await self._dial_core.put_local_file(
+            name, path, bucket=bucket, show_progress=show_progress
+        )
         return AttachmentResponse.model_validate(response_json)
 
     async def put_png(self, name: str, content: BytesIO) -> AttachmentResponse:

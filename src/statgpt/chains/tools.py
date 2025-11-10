@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from collections.abc import MutableMapping
-from typing import Annotated, Any, Generic, TypeVar
+from typing import Annotated, Any, Generic, Literal, TypeVar
 
 from langchain_core.tools import BaseTool, InjectedToolArg
 from pydantic import BaseModel, Field
@@ -59,7 +59,8 @@ ToolConfigType = TypeVar('ToolConfigType', bound=BaseToolConfig)
 
 
 class StatGptTool(BaseTool, ABC, Generic[ToolConfigType]):
-    response_format: str = "content_and_artifact"
+    response_format: Literal['content', 'content_and_artifact'] = "content_and_artifact"
+    tool_type: ToolTypes  # Set dynamically in __init_subclass__
 
     def __init_subclass__(cls, **kwargs):
         tool_type = kwargs.pop('tool_type', None)

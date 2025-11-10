@@ -4,11 +4,11 @@ from datetime import datetime
 from aidial_sdk.chat_completion import Choice, Request, Stage
 
 from common.auth.auth_context import AuthContext
-from common.data.base import DataResponse, DataSet, DataSetQuery, DimensionQuery
+from common.data.base import DataResponse, DataSetQuery, DimensionQuery
 from statgpt.config import ChainParametersConfig
 from statgpt.schemas.dial_app_configuration import StatGPTConfiguration
 from statgpt.schemas.file_rags.dial_rag import RagFilterDial
-from statgpt.services.chat_facade import ChannelServiceFacade
+from statgpt.services.chat_facade import ChannelServiceFacade, VersionedDataSet
 from statgpt.utils.message_history import History
 
 
@@ -62,23 +62,9 @@ class ChainParameters:
         return data[ChainParametersConfig.DATA_SERVICE]
 
     @staticmethod
-    def get_indicator_id_2_dataset_ids(data: dict) -> dict[int, list[str]]:
-        return data[ChainParametersConfig.INDICATOR_ID_2_DATASET_IDS]
-
-    @staticmethod
-    def get_datasets(data: dict) -> t.Sequence[DataSet]:
-        """Flat sequence of all datasets that relevant indicator candidates belong to"""
-        return data[ChainParametersConfig.DATASETS]
-
-    @staticmethod
-    def get_datasets_dict(data: dict) -> dict[str, DataSet]:
-        """Flat sequence of all datasets that relevant indicator candidates belong to"""
+    def get_datasets_dict(data: dict) -> dict[str, VersionedDataSet]:
+        """Mapping between dataset id and versioned dataset object"""
         return data[ChainParametersConfig.DATASETS_DICT]
-
-    @staticmethod
-    def get_datasets_dict_indexed(data: dict) -> dict[str, DataSet]:
-        """Flat sequence of all indexed datasets"""
-        return data[ChainParametersConfig.DATASETS_DICT_INDEXED]
 
     @staticmethod
     def get_dataset_dimension_queries(data: dict) -> dict[str, list[DimensionQuery]]:
@@ -93,8 +79,8 @@ class ChainParameters:
         return data[ChainParametersConfig.DATASET_QUERIES]
 
     @staticmethod
-    def get_data_responses(data: dict) -> dict[str, DataResponse | None]:
-        return data[ChainParametersConfig.DATA_RESPONSES]
+    def get_data_responses(data: dict) -> dict[str, DataResponse | None] | None:
+        return data.get(ChainParametersConfig.DATA_RESPONSES)
 
     @staticmethod
     def get_performance_stage(data: dict) -> Stage:

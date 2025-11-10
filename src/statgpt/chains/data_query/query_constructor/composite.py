@@ -1,6 +1,7 @@
 import logging
 
 from common.data.base import DataSet, DataSetAvailabilityQuery, DataSetQuery
+from common.schemas import DataQueryDetails
 from statgpt.schemas.query_builder import ChainState
 
 from .base import BaseQueryConstructor
@@ -20,7 +21,8 @@ class CompositeQueryConstructor(BaseQueryConstructor):
     - If all constructors produce empty availability, return the last result
     """
 
-    def __init__(self, constructors: list[BaseQueryConstructor]):
+    def __init__(self, config: DataQueryDetails, constructors: list[BaseQueryConstructor]):
+        super().__init__(config)
         if not constructors:
             raise ValueError("CompositeQueryConstructor requires at least one constructor")
         self._constructors = constructors

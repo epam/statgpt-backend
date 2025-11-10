@@ -3,12 +3,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 import common.models as models
 import common.schemas as schemas
-from admin_portal.auth.user import User, require_jwt_auth
+from admin_portal.auth.user import require_jwt_auth
 from admin_portal.services import AdminPortalDataSetService as DataSetService
 from admin_portal.services import AdminPortalDataSourceService as DataSourceService
 from common.services import DataSourceTypeService
 
-router = APIRouter(prefix="/data-sources", tags=["data-sources"])
+router = APIRouter(
+    prefix="/data-sources", tags=["data-sources"], dependencies=[Depends(require_jwt_auth)]
+)
 
 
 @router.get("/types")
@@ -16,7 +18,6 @@ async def get_data_source_types(
     limit: int = 100,
     offset: int = 0,
     session: AsyncSession = Depends(models.get_session),
-    user: User = Depends(require_jwt_auth, use_cache=False),
 ) -> schemas.ListResponse[schemas.DataSourceType]:
     service = DataSourceTypeService(session)
     data_source_types = await service.get_data_source_types(limit=limit, offset=offset)
@@ -35,7 +36,6 @@ async def get_data_source_types(
 async def get_schema_config_of_data_source_type(
     item_id: int,
     session: AsyncSession = Depends(models.get_session),
-    user: User = Depends(require_jwt_auth, use_cache=False),
 ):
     """Returns the JSON schema for a specific data source type."""
 
@@ -48,7 +48,6 @@ async def get_data_sources(
     limit: int = 100,
     offset: int = 0,
     session: AsyncSession = Depends(models.get_session),
-    user: User = Depends(require_jwt_auth, use_cache=False),
 ) -> schemas.ListResponse[schemas.DataSource]:
     """Returns a list of data sources"""
 
@@ -69,7 +68,6 @@ async def get_data_sources(
 async def create_data_source(
     data: schemas.DataSourceBase,
     session: AsyncSession = Depends(models.get_session),
-    user: User = Depends(require_jwt_auth, use_cache=False),
 ) -> schemas.DataSource:
     """Create a new data source"""
 
@@ -80,7 +78,6 @@ async def create_data_source(
 async def get_data_source_by_id(
     item_id: int,
     session: AsyncSession = Depends(models.get_session),
-    user: User = Depends(require_jwt_auth, use_cache=False),
 ) -> schemas.DataSource:
     return await DataSourceService(session).get_schema_by_id(item_id)
 
@@ -89,7 +86,6 @@ async def get_data_source_by_id(
 async def get_available_datasets(
     item_id: int,
     session: AsyncSession = Depends(models.get_session),
-    user: User = Depends(require_jwt_auth, use_cache=False),
 ) -> schemas.ListResponse[schemas.DataSetDescriptor]:
     """Returns a list of datasets that can be loaded from the data source"""
 
@@ -110,7 +106,6 @@ async def update_data_source(
     item_id: int,
     data: schemas.DataSourceUpdate,
     session: AsyncSession = Depends(models.get_session),
-    user: User = Depends(require_jwt_auth, use_cache=False),
 ) -> schemas.DataSource:
     return await DataSourceService(session).update(item_id, data)
 
@@ -119,7 +114,6 @@ async def update_data_source(
 async def delete_data_source(
     item_id: int,
     session: AsyncSession = Depends(models.get_session),
-    user: User = Depends(require_jwt_auth, use_cache=False),
 ) -> None:
     """Delete data source by id"""
 

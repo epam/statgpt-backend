@@ -1,7 +1,8 @@
 from unittest.mock import Mock, patch
 
 from common.data.base import DataSet, DataSetQuery, DimensionQuery, QueryOperator
-from statgpt.chains.data_query.v2.query.datetime_adjuster import (
+from statgpt.services.chat_facade import VersionedDataSet
+from statgpt.utils.datetime_adjuster import (
     FrequencyEnum,
     _adjust_end_date,
     _adjust_start_date,
@@ -49,7 +50,7 @@ class TestDateTimeQueryToValues:
         query = DimensionQuery(
             dimension_id="time", operator=QueryOperator.IN, values=["2023-01-01"]
         )
-        with patch('statgpt.chains.data_query.v2.query.datetime_adjuster._log') as mock_log:
+        with patch('statgpt.utils.datetime_adjuster._log') as mock_log:
             start, end = _date_time_query_to_values(query)
             assert start is None
             assert end is None
@@ -87,14 +88,14 @@ class TestFrequencyQueryToValue:
 
     def test_unsupported_operator(self):
         query = DimensionQuery(dimension_id="freq", operator=QueryOperator.BETWEEN, values=["A"])
-        with patch('statgpt.chains.data_query.v2.query.datetime_adjuster._log') as mock_log:
+        with patch('statgpt.utils.datetime_adjuster._log') as mock_log:
             freq = _frequency_query_to_value(query)
             assert freq is None
             mock_log.warning.assert_called_once()
 
     def test_unsupported_frequency_values(self):
         query = DimensionQuery(dimension_id="freq", operator=QueryOperator.IN, values=["X", "Y"])
-        with patch('statgpt.chains.data_query.v2.query.datetime_adjuster._log') as mock_log:
+        with patch('statgpt.utils.datetime_adjuster._log') as mock_log:
             freq = _frequency_query_to_value(query)
             assert freq is None
             mock_log.warning.assert_called_once()
@@ -129,13 +130,13 @@ class TestAdjustStartDate:
         assert result == "2023-06-15"
 
     def test_invalid_date_format(self):
-        with patch('statgpt.chains.data_query.v2.query.datetime_adjuster._log') as mock_log:
+        with patch('statgpt.utils.datetime_adjuster._log') as mock_log:
             result = _adjust_start_date("invalid-date", FrequencyEnum.ANNUAL)
             assert result == "invalid-date"
             mock_log.warning.assert_called_once()
 
     def test_unsupported_frequency(self):
-        with patch('statgpt.chains.data_query.v2.query.datetime_adjuster._log') as mock_log:
+        with patch('statgpt.utils.datetime_adjuster._log') as mock_log:
             result = _adjust_start_date("2023-06-15", "X")
             assert result == "2023-06-15"
             mock_log.warning.assert_called_once()
@@ -188,13 +189,13 @@ class TestAdjustEndDate:
         assert result == "2023-06-15"
 
     def test_invalid_date_format(self):
-        with patch('statgpt.chains.data_query.v2.query.datetime_adjuster._log') as mock_log:
+        with patch('statgpt.utils.datetime_adjuster._log') as mock_log:
             result = _adjust_end_date("invalid-date", FrequencyEnum.ANNUAL)
             assert result == "invalid-date"
             mock_log.warning.assert_called_once()
 
     def test_unsupported_frequency(self):
-        with patch('statgpt.chains.data_query.v2.query.datetime_adjuster._log') as mock_log:
+        with patch('statgpt.utils.datetime_adjuster._log') as mock_log:
             result = _adjust_end_date("2023-06-15", "X")
             assert result == "2023-06-15"
             mock_log.warning.assert_called_once()
@@ -217,6 +218,7 @@ class TestAdjustEndDate:
 
 class TestExpandTimeRangeQuery:
     def create_mock_dataset(self):
+        versioned_dataset = Mock(spec=VersionedDataSet)
         dataset = Mock(spec=DataSet)
         time_dim = Mock()
         time_dim.entity_id = "TIME_PERIOD"
@@ -224,7 +226,8 @@ class TestExpandTimeRangeQuery:
         freq_dim.entity_id = "FREQ"
         dataset.get_time_dimension.return_value = time_dim
         dataset.get_frequency_dimension.return_value = freq_dim
-        return dataset
+        versioned_dataset.data = dataset
+        return versioned_dataset
 
     def test_expand_with_valid_queries(self):
         dataset = self.create_mock_dataset()
@@ -279,9 +282,11 @@ class TestExpandTimeRangeQuery:
 
     def test_expand_with_null_dimensions(self):
         # Test when get_time_dimension or get_frequency_dimension returns None
+        versioned_dataset = Mock(spec=VersionedDataSet)
         dataset = Mock(spec=DataSet)
         dataset.get_time_dimension.return_value = None
         dataset.get_frequency_dimension.return_value = None
+        versioned_dataset.data = dataset
 
         query = DataSetQuery(
             is_valid=True,
@@ -292,7 +297,7 @@ class TestExpandTimeRangeQuery:
 
         # This should handle gracefully without AttributeError
         try:
-            result = _expand_time_range_query(dataset, query)
+            result = _expand_time_range_query(versioned_dataset, query)
             # Should return query unchanged if dimensions are None
             assert result == query
         except AttributeError:
@@ -301,9 +306,10 @@ class TestExpandTimeRangeQuery:
 
 
 class TestExpandTimeRange:
-    @patch('statgpt.chains.data_query.v2.query.datetime_adjuster.ChainState')
+    @patch('statgpt.utils.datetime_adjuster.ChainState')
     def test_expand_time_range_function(self, mock_chain_state):
         # Setup mock data
+        versioned_dataset = Mock(spec=VersionedDataSet)
         dataset = Mock(spec=DataSet)
         time_dim = Mock()
         time_dim.entity_id = "TIME_PERIOD"
@@ -311,6 +317,7 @@ class TestExpandTimeRange:
         freq_dim.entity_id = "FREQ"
         dataset.get_time_dimension.return_value = time_dim
         dataset.get_frequency_dimension.return_value = freq_dim
+        versioned_dataset.data = dataset
 
         query = DataSetQuery(
             is_valid=True,
@@ -326,7 +333,7 @@ class TestExpandTimeRange:
 
         mock_state = Mock()
         mock_state.dataset_queries = {"dataset1": query}
-        mock_state.datasets_dict = {"dataset1": dataset}
+        mock_state.datasets_dict = {"dataset1": versioned_dataset}
         mock_chain_state.return_value = mock_state
 
         result = expand_time_range({"test": "input"})

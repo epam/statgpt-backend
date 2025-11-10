@@ -1,7 +1,7 @@
 import uuid
 from typing import Any
 
-from sqlalchemy import ForeignKey
+from sqlalchemy import ForeignKey, UniqueConstraint
 from sqlalchemy.dialects import postgresql
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -123,18 +123,57 @@ class ChannelDataset(DefaultBase):
     channel_id: Mapped[int] = mapped_column(ForeignKey("channels.id"))
     dataset_id: Mapped[int] = mapped_column(ForeignKey("datasets.id"))
 
-    preprocessing_status: Mapped[
-        PreprocessingStatusEnum
-    ]  # = mapped_column(default=PreprocessingStatusEnum.NOT_STARTED)
-
     # relationships
     channel: Mapped[Channel] = relationship(back_populates="mapped_datasets")
     dataset: Mapped[DataSet] = relationship(back_populates="mapped_channels")
+    versions: Mapped[list["ChannelDatasetVersion"]] = relationship(
+        back_populates="channel_dataset", cascade="all, delete"
+    )
+
+    def __repr__(self) -> str:
+        return f"ChannelDataset(id={self.id!r}, channel_id={self.channel_id!r}, dataset_id={self.dataset_id!r})"
+
+
+class ChannelDatasetVersion(DefaultBase):
+    __tablename__ = "channel_dataset_versions"
+    __table_args__ = (
+        UniqueConstraint(
+            'channel_dataset_id', 'version', name='uix_unique_version_for_channel_dataset'
+        ),
+    )
+
+    channel_dataset_id: Mapped[int] = mapped_column(ForeignKey("channel_datasets.id"))
+    version: Mapped[int] = mapped_column(default=0)  # will be auto-incremented by trigger
+    preprocessing_status: Mapped[PreprocessingStatusEnum]
+    pointer_to: Mapped[int | None] = mapped_column(
+        ForeignKey("channel_dataset_versions.id", ondelete='SET NULL'), default=None
+    )
+
+    creation_reason: Mapped[str]
+    reason_for_failure: Mapped[str | None] = mapped_column(default=None)
+
+    # relationships
+    channel_dataset: Mapped[ChannelDataset] = relationship(back_populates="versions")
+    pointer = relationship(
+        "ChannelDatasetVersion",
+        remote_side='ChannelDatasetVersion.id',
+        back_populates="pointing_versions",
+        cascade="all",
+        passive_deletes=True,
+    )
+    pointing_versions = relationship(
+        "ChannelDatasetVersion",
+        remote_side='ChannelDatasetVersion.pointer_to',
+        back_populates="pointer",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
 
     def __repr__(self) -> str:
         return (
-            f"ChannelDataset(id={self.id!r}, channel_id={self.channel_id!r},"
-            f" dataset_id={self.dataset_id!r}, preprocessing_status={self.preprocessing_status!r})"
+            f"ChannelDatasetVersion(id={self.id!r}, channel_dataset_id={self.channel_dataset_id!r},"
+            f" version={self.version!r}, preprocessing_status={self.preprocessing_status!r},"
+            f" pointer_to={self.pointer_to!r})"
         )
 
 

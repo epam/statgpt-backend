@@ -21,11 +21,3 @@ class SpecialDimensionValueDocumentMetadataFields(DimensionValueDocumentMetadata
     """Field names in special dimension value document metadata"""
 
     PROCESSOR_ID = 'processor_id'
-
-
-class VectorStoreMetadataFields:
-
-    DOCUMENT_ID = 'document_id'
-    TABLE_NAME = 'table_name'
-
-    __ALL__ = [DOCUMENT_ID, TABLE_NAME]

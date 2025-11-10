@@ -9,6 +9,7 @@ from common.data.base import (
     Query,
     QueryOperator,
 )
+from common.schemas.enums import TimePeriodStrategy
 from statgpt.schemas.query_builder import ChainState
 
 from .base import BaseQueryConstructor
@@ -82,14 +83,14 @@ class SimpleQueryConstructor(BaseQueryConstructor):
                 f'Can\'t auto-set query for "{dim_id}" dimension '
                 f'in "{dataset_id}" dataset, since it\'s not a categorical dimension.'
             )
-            return
+            return None
 
         if availability is None or not availability.values:
             _log.debug(
                 f'No available values extracted for "{dim_id}" dimension '
                 f'in "{dataset_id}" dataset'
             )
-            return
+            return None
 
         available_values = availability.values
 
@@ -131,7 +132,7 @@ class SimpleQueryConstructor(BaseQueryConstructor):
                 # samples = available_values[:k_high]
                 pass
 
-            return
+            return None
 
         _log.debug(
             f'Auto-setting dimension query for "{dim_id}" dimension '
@@ -168,6 +169,10 @@ class SimpleQueryConstructor(BaseQueryConstructor):
             availability = ds_availability_query.dimensions_queries_dict.get(dim_id)
 
             if dimension.dimension_type == DimensionType.DATETIME:
+                if self._config.time_period_strategy is TimePeriodStrategy.AFTER:
+                    _log.info("Skipping setting time dimension query (AFTER strategy)")
+                    continue
+
                 dtqr = chain_state.date_time_query_response
                 if dtqr.time_period_specified:
                     _log.info(

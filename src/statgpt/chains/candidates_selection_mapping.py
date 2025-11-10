@@ -61,7 +61,9 @@ class CandidatesSelectionMappingChainFactory(BatchedSelectionInnerChainFactory):
 
         auth_context = ChainParameters.get_auth_context(inputs)
 
-        parser = PydanticOutputParser(pydantic_object=CandidatesRelevancyMapping)
+        parser: PydanticOutputParser[CandidatesRelevancyMapping] = PydanticOutputParser(
+            pydantic_object=CandidatesRelevancyMapping
+        )
         prompt_template = ChatPromptTemplate.from_messages(
             [
                 ("system", self._system_prompt),

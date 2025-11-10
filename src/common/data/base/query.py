@@ -1,8 +1,9 @@
-import typing as t
+import uuid
+from typing import Any
 
 from pydantic import BaseModel, Field, model_validator
 
-from .enums import QueryOperator
+from .enums import InvalidDataSetQueryReasonType, QueryOperator
 
 
 class Query(BaseModel):
@@ -47,23 +48,40 @@ class DimensionQuery(Query):
         )
 
 
+class InvalidDataSetQueryReason(BaseModel):
+    type: InvalidDataSetQueryReasonType
+    details: dict[str, Any] = Field(default_factory=dict)
+
+
 class DataSetQuery(BaseModel):
-    dimensions_queries: t.List[DimensionQuery] = Field(description="The queries for dimensions")
-    is_valid: bool = Field(True, description="Whether the query is valid")
+    uuid: str = Field(
+        default_factory=lambda: str(uuid.uuid4()), description="The UUID of the query"
+    )
+    short_summary: str | None = Field(default=None, description="The short summary of the query")
+    dimensions_queries: list[DimensionQuery] = Field(description="The queries for dimensions")
+    is_valid: bool = Field(default=True, description="Whether the query is valid")
+    invalidity_reason: InvalidDataSetQueryReason | None = Field(
+        default=None, description="Reason why the query is invalid"
+    )
 
     @property
-    def dimensions_queries_dict(self) -> t.Dict[str, Query]:
+    def dimensions_queries_dict(self) -> dict[str, Query]:
         return {
             query.dimension_id: Query(values=query.values, operator=query.operator)
             for query in self.dimensions_queries
         }
 
+    def to_availability_query(self) -> "DataSetAvailabilityQuery":
+        return DataSetAvailabilityQuery.from_dimension_queries_list(self.dimensions_queries)
+
 
 class DataSetAvailabilityQuery(BaseModel):
     # NOTE: this class is more generic than availability queries only - rename?
-    dimensions_queries_dict: t.Dict[str, Query] = Field(
+    dimensions_queries_dict: dict[str, Query] = Field(
         description="The queries for dimensions", default_factory=dict
     )
+    time_period_start: str | None = Field(default=None)
+    time_period_end: str | None = Field(default=None)
 
     @classmethod
     def from_dimension_queries_list(
@@ -128,3 +146,27 @@ class DataSetAvailabilityQuery(BaseModel):
                 )
             )
         return result
+
+
+def create_time_period_query_from(
+    start: str | None, end: str | None, dimension_id: str = "TIME_PERIOD"
+) -> DimensionQuery | None:
+    if start and end:
+        return DimensionQuery(
+            dimension_id=dimension_id,
+            values=[start, end],
+            operator=QueryOperator.BETWEEN,
+        )
+    elif start:
+        return DimensionQuery(
+            dimension_id=dimension_id,
+            values=[start],
+            operator=QueryOperator.GREATER_THAN_OR_EQUALS,
+        )
+    elif end:
+        return DimensionQuery(
+            dimension_id=dimension_id,
+            values=[end],
+            operator=QueryOperator.LESS_THAN_OR_EQUALS,
+        )
+    return None

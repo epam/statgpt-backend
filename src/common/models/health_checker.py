@@ -31,19 +31,19 @@ class DatabaseHealthChecker:
             raise DatabaseConnectionError(msg)
 
     @classmethod
-    async def check_alembic_version(cls):
+    async def check_alembic_version(cls) -> None:
         async with get_session_contex_manager() as session:
             res = await session.execute(
                 text(
                     "SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'alembic_version');"
                 )
             )
-            table_exist: bool = res.scalar()
+            table_exist: bool = res.scalar()  # type: ignore[assignment]
             if not table_exist:
                 raise AlembicTableNotFoundError("Alembic table doesn't exist")
 
             res = await session.execute(text("SELECT version_num FROM alembic_version;"))
-            alembic_version: str = res.scalar()
+            alembic_version: str = res.scalar()  # type: ignore[assignment]
 
             if alembic_version != Versions.ALEMBIC_TARGET_VERSION:
                 logger.error(

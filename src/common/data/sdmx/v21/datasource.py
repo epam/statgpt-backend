@@ -1,4 +1,5 @@
 import typing as t
+import uuid
 from abc import ABC
 
 from langchain_core.documents import Document
@@ -9,8 +10,10 @@ from common.auth.auth_context import AuthContext
 from common.config import multiline_logger as logger
 from common.data.base import (
     DataSetDescriptor,
+    DatasetHierarchy,
     DataSourceHandler,
     DataSourceType,
+    DefaultDatasetHierarchyCreator,
     VirtualDimensionCategory,
 )
 from common.data.sdmx.common import (
@@ -26,6 +29,7 @@ from common.data.sdmx.v21.dataset import Sdmx21DataSet, SdmxOfflineDataSet
 from common.data.sdmx.v21.dimensions_creator import DimensionsCreator
 from common.data.sdmx.v21.sdmx_client import AsyncSdmxClient
 
+from .dataset_hierarchy import CategorySchemaDataSetHierarchyCreator
 from .ratelimiter import SdmxRateLimiterFactory
 from .schemas import Urn
 
@@ -34,6 +38,11 @@ class Sdmx21DataSourceHandler(
     DataSourceHandler[SdmxDataSourceConfig, Sdmx21DataSet | SdmxOfflineDataSet, SdmxDataSetConfig],
     ABC,
 ):
+    _HIERARCHY_CREATORS = {
+        'config': DefaultDatasetHierarchyCreator,
+        'category_scheme': CategorySchemaDataSetHierarchyCreator,
+    }
+
     def __init__(self, config: SdmxDataSourceConfig):
         super().__init__(config)
         self._urn_parser = UrnParser.create_default()
@@ -100,7 +109,7 @@ class Sdmx21DataSourceHandler(
 
     async def get_dataset(
         self,
-        entity_id: str,
+        entity_id: uuid.UUID,
         title: str,
         config: dict,
         auth_context: AuthContext,
@@ -143,7 +152,9 @@ class Sdmx21DataSourceHandler(
                 raise e
 
         try:
-            dimensions_creator = DimensionsCreator(structure_message, urn, self._config.locale)
+            dimensions_creator = DimensionsCreator(
+                structure_message, urn, self._config.locale, dataset_config.get_dimension_aliases()
+            )
             dimensions = await dimensions_creator.create_dimensions()
         except Exception as e:
             if allow_offline:
@@ -195,3 +206,22 @@ class Sdmx21DataSourceHandler(
             return DimensionCodeCategory.from_document(document)
         else:
             return VirtualDimensionCategory.from_document(document)
+
+    async def get_dataset_hierarchy(self, auth_context: AuthContext) -> DatasetHierarchy | None:
+        if self.config.dataset_hierarchy is None:
+            return None
+
+        try:
+            if self.config.dataset_hierarchy.type not in self._HIERARCHY_CREATORS:
+                raise ValueError(
+                    f"Unsupported dataset hierarchy type: {self.config.dataset_hierarchy.type}"
+                )
+
+            creator_class = self._HIERARCHY_CREATORS[self.config.dataset_hierarchy.type]
+            creator = creator_class(self, auth_context)
+            return await creator.create_hierarchy()
+        except Exception:
+            logger.exception(
+                "Failed to create dataset hierarchy. Returning None. See exception details below."
+            )
+            return None

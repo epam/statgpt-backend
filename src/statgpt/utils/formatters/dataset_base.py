@@ -43,7 +43,7 @@ class DatasetFormatterConfig(BaseModel):
         )
 
 
-class BaseDatasetFormatter(BaseFormatter[DataSet], ABC):
+class BaseDatasetFormatter(BaseFormatter, ABC):
     def __init__(self, config: DatasetFormatterConfig, auth_context: AuthContext):
         super().__init__("dataset", config.locale)
         self.config = config

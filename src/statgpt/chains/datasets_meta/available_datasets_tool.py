@@ -23,12 +23,14 @@ class AvailableDatasetsTool(
     async def _arun(self, inputs: dict) -> tuple[str, ToolArtifact]:
         data_service = ChainParameters.get_data_service(inputs)
         auth_context = ChainParameters.get_auth_context(inputs)
-        datasets = await data_service.list_available_datasets(auth_context)
 
-        response = await DatasetsListFormatter(
-            self._dataset_formatter_config,
-            auth_context=auth_context,
-        ).format(datasets, sort_by_name=True, add_stats=True, group_by_provider=True)
+        versioned_datasets = await data_service.list_available_datasets(auth_context)
+        datasets = [ds.data for ds in versioned_datasets]
+
+        formatter = DatasetsListFormatter(self._dataset_formatter_config, auth_context=auth_context)
+        response = await formatter.format(
+            datasets, sort_by_name=True, add_stats=True, group_by_provider=True
+        )
 
         target = ChainParameters.get_target(inputs)
         if target:

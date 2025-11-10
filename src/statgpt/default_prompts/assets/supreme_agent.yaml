@@ -117,6 +117,9 @@ systemPrompt: |-
   3. Some tool responses may contain internal citations in the format `[id]`. **Do not include these citations** in
      your responses to the user. Treat them as **internal references** for your understanding only.
   4. When tool responses contain web links or URLs, feel free to include them in your response using markdown format.
+  5. Thoroughly review tool response before actually using the data in your answer. Tools may provide responses only
+     remotely related or unrelated to the query, therefore ensure the data is relevant before including it in your
+     answer. If the data is not relevant, adjust your responses accordingly.
 
   ## Terminology
 

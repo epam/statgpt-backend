@@ -9,7 +9,7 @@ license-files = ["LICENSE"]
 dependencies = [
     # Core framework & API
     'aidial-sdk[telemetry] (>=0.25.1,<0.26.0)',  # DIAL integration SDK
-    'fastapi (>=0.117.1,<0.118.0)',              # Web framework
+    'fastapi (>=0.121.0,<0.122.0)',              # Web framework
     'pydantic (>=2.11.7,<3.0.0)',                # Data validation
     'pydantic-core (>=2.33.2,<3.0.0)',           # Pydantic core functionality
     'pydantic-settings (>=2.10.1,<3.0.0)',       # Settings management
@@ -57,6 +57,8 @@ dependencies = [
     'markdown (>=3.7,<4.0)',                     # Markdown processing
     'setuptools (>=80.4.0)',                     # Package management
     'babel (>=2.17.0,<3.0.0)',                   # Internationalization
+    'aiofiles (>=25.1.0,<26.0.0)',               # Async file operations
+    'pyarrow (>=20.0.0,<21.0.0)',                # Parquet support for import/export
 ]
 
 [tool.isort]
@@ -164,6 +166,7 @@ freezegun = "^1.5.1"
 aidial-rag-eval = ">=0.2.0,<0.3.0"
 # jinja2 is required for the aidial-rag-eval package, since it uses langchain with Jinja2 templates, which are optional for langchain
 jinja2 = "^3.1.6"
+types-aiofiles = "25.1.0.20251011"
 
 [tool.poetry.group.experiments]
 optional = true
@@ -174,7 +177,6 @@ pandas = { extras = ["excel"], version = "^2.2.2" }
 langgraph = "^0.4.3"
 opik = "^1.7.23"
 pdfplumber = "^0.11.6"
-aiofiles = "^24.1.0"
 
 [[tool.poetry.source]]
 name = "pytorch_cpu"

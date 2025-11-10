@@ -153,7 +153,7 @@ class OutOfScopeChecker:
         with optional_timed_stage(
             choice, "[DEBUG] Guardrails: Relevancy", enabled=show_debug_stages
         ) as stage:
-            response: OutOfScopeCheckerResponse = await chain.ainvoke({})
+            response: OutOfScopeCheckerResponse = await chain.ainvoke({})  # type: ignore[assignment]
             if stage:
                 if response.out_of_scope:
                     stage.append_content(
@@ -194,7 +194,7 @@ class OutOfScopeChecker:
         chain = prompt_template | model
 
         async for chunk in chain.astream(inputs):
-            choice.append_content(chunk.content)
+            choice.append_content(chunk.content)  # type: ignore[union-attr]
 
         return inputs
 

@@ -6,7 +6,13 @@ from .category import (
     SdmxDimensionCategory,
 )
 from .codelist import BaseSdmxCodeList, InMemoryCodeList
-from .config import FixedItem, SdmxDataSetConfig, SdmxDataSourceConfig
+from .config import (
+    CategorySchemaDataSetHierarchyConfig,
+    DefaultDataSetHierarchyConfig,
+    FixedItem,
+    SdmxDataSetConfig,
+    SdmxDataSourceConfig,
+)
 from .constants import SdmxConstants
 from .dimension import SdmxCodeListDimension, SdmxDimension, SdmxTimeDimension
 from .indicator import CodeIndicator, ComplexIndicator

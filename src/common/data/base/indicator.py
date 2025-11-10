@@ -38,7 +38,7 @@ class BaseIndicator(BaseEntity, ABC):
     def to_document(self, additional_metadata: dict[str, t.Any] | None = None) -> Document:
         return Document(
             page_content=self.get_document_content(),
-            metadata=self.get_document_metadata(),
+            metadata=dict(**self.get_document_metadata(), **(additional_metadata or {})),
         )
 
     @abstractmethod

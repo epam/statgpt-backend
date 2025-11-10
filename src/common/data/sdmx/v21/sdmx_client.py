@@ -73,6 +73,19 @@ class AsyncSdmxClient:
             use_cache=use_cache,
         )
 
+    async def categoryscheme(
+        self, *, agency_id: str, resource_id: str, version: str, use_cache: bool = False
+    ) -> StructureMessage:
+        """Fetch a category scheme from the SDMX API with parents and siblings references."""
+        return await self._get_structure(  # type: ignore[return-value]
+            resource_type=Resource.categoryscheme,
+            agency_id=agency_id,
+            resource_id=resource_id,
+            version=version,
+            params={'references': 'parentsandsiblings'},
+            use_cache=use_cache,
+        )
+
     async def conceptscheme(
         self, *, agency_id: str, resource_id: str, version: str, use_cache: bool = False
     ) -> StructureMessage:
@@ -345,8 +358,11 @@ class AsyncSdmxClient:
         try:
             reader_class = get_reader(response)
         except ValueError:
+            logger.info(
+                f"Failed to parse response:\n{response.status_code} {response.url}\nheaders={response.headers!r}"
+            )
             raise ValueError(
-                "can't determine a reader for response content type "
+                "Can't determine a reader for response content type "
                 + repr(response.headers.get("content-type", None))
                 + f" and url {response.url}"
             ) from None

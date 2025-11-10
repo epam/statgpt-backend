@@ -32,7 +32,7 @@ class CodeCategory(Category, BaseNameableArtefact[sdmx_common.Code]):
 
         return content
 
-    def get_document_metadata(self, **kwargs) -> dict:
+    def get_document_metadata(self) -> dict:
         return {
             SdmxConstants.METADATA_CODE_URN: self._artefact.urn,
             SdmxConstants.METADATA_CODE_ID: self._artefact.id,
@@ -84,7 +84,7 @@ class SdmxDimensionCategory(DimensionCategory, ABC):
     def dimension_alias(self) -> str | None:
         return self._dimension_alias
 
-    def get_document_metadata(self, **kwargs) -> dict:
+    def get_document_metadata(self) -> dict:
         metadata = {
             SdmxConstants.METADATA_DIMENSION_ID: self._dimension_id,
             SdmxConstants.METADATA_DIMENSION_NAME: self._dimension_name,
@@ -137,9 +137,9 @@ class DimensionVirtualCodeCategory(SdmxDimensionCategory):
         else:
             return f"{content} ({self._dimension_name})"
 
-    def get_document_metadata(self, **kwargs) -> dict:
+    def get_document_metadata(self) -> dict:
         return {
-            **SdmxDimensionCategory.get_document_metadata(self, **kwargs),
+            **SdmxDimensionCategory.get_document_metadata(self),
             SdmxConstants.METADATA_VIRTUAL_DIMENSION_VALUE_ID: self.fixed_item.id,
             SdmxConstants.METADATA_VIRTUAL_DIMENSION_VALUE_NAME: self.fixed_item.name,
             SdmxConstants.METADATA_VIRTUAL_DIMENSION_VALUE_DESCRIPTION: self.fixed_item.description,
@@ -188,10 +188,10 @@ class DimensionCodeCategory(SdmxDimensionCategory, CodeCategory):
         else:
             return f"{content} ({self._dimension_name})"
 
-    def get_document_metadata(self, **kwargs) -> dict:
+    def get_document_metadata(self) -> dict:
         return {
-            **CodeCategory.get_document_metadata(self, **kwargs),
-            **SdmxDimensionCategory.get_document_metadata(self, **kwargs),
+            **CodeCategory.get_document_metadata(self),
+            **SdmxDimensionCategory.get_document_metadata(self),
         }
 
     @classmethod

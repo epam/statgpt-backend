@@ -78,12 +78,22 @@ Alternative - venv-specific (using `pip`):
 * make sure the correct python venv is activated
 * `make install_poetry`
 
-#### Install Docker Engine and Docker Compose suitable for your OS
+#### 4. Install Docker Engine and Docker Compose suitable for your OS
 
 Since Docker Desktop requires a paid license for commercial use, you can use one of the following alternatives:
 
 * [Docker Engine and Docker Compose on Linux](https://docs.docker.com/engine/install/)
 * [Rancher Desktop](https://rancherdesktop.io/) on Windows or MacOS
+
+#### 5. Install GNU gettext (for localization)
+
+Required for localization commands (`make extract_messages`, `make update_messages`, `make compile_messages`):
+
+* MacOS - `brew install gettext`
+* Linux/WSL - `sudo apt install gettext`
+* Windows (native) - Install via [Chocolatey](https://community.chocolatey.org/packages/gettext): `choco install gettext`
+
+Verify installation: `which xgettext msgmerge msgfmt`
 
 ---
 
@@ -220,22 +230,31 @@ or:
  make db_downgrade
  ```
 
-### 6 Localizations
+### 6. Localization (i18n)
 
-To update localization files, run:
+The project uses GNU gettext for internationalizing dataset formatters. Use these commands when working with translations:
 
-```bash
-make extract_messages  # Extract messages to be translated
-make update_messages   # Update existing translation files with new messages
-```
+**Workflow:**
 
-Check the *.po files for new messages and provide translations.
+1. **Extract translatable strings** - Run after adding/modifying strings marked with `_()` in formatter code:
+   ```bash
+   make extract_messages
+   ```
+   This creates/updates the `locales/dataset.pot` template file.
 
-Then compile translations:
+2. **Update translation files** - Run to sync `.po` files with the new template:
+   ```bash
+   make update_messages
+   ```
+   This updates `en/LC_MESSAGES/dataset.po` and `uk/LC_MESSAGES/dataset.po` with new strings.
 
-```bash
-make compile_messages
-```
+3. **Compile translations** - Run after translating strings in `.po` files to generate binary `.mo` files:
+   ```bash
+   make compile_messages
+   ```
+   Or use the shorthand: `make locales`
+
+**Note:** All commands require GNU gettext to be installed (see [Prerequisites](#pre-requisites)).
 
 ## Run Tests
 

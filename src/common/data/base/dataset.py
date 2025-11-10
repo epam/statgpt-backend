@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import typing as t
+import uuid
 from abc import ABC, abstractmethod
 from datetime import datetime
 
@@ -82,6 +83,9 @@ class DataSetConfig(BaseModel, ABC):
         description="The list of virtual dimensions (e.g. Country for datasets by national agencies)",
         default_factory=list,
     )
+    dimension_aliases: t.Dict[str, str] = Field(
+        description="Mapping of dimension IDs to their aliases", default_factory=dict
+    )
     pinned_columns: t.List[str] = Field(
         description="Column names and order to pin in the data in grid", default_factory=list
     )
@@ -89,6 +93,9 @@ class DataSetConfig(BaseModel, ABC):
     @abstractmethod
     def get_source_id(self) -> str:
         pass
+
+    def get_dimension_aliases(self) -> t.Dict[str, str]:
+        return self.dimension_aliases
 
     model_config = ConfigDict(alias_generator=alias_generators.to_camel, populate_by_name=True)
 
@@ -222,7 +229,7 @@ class DataSet(BaseEntity, t.Generic[DataSetConfigType, DataSourceHandlerType], A
 
     def __init__(
         self,
-        entity_id: str,
+        entity_id: uuid.UUID,
         title: str,
         config: DataSetConfigType,
         datasource: DataSourceHandlerType,
@@ -232,6 +239,10 @@ class DataSet(BaseEntity, t.Generic[DataSetConfigType, DataSourceHandlerType], A
         self._title = title
         self._config = config
         self._datasource = datasource
+
+    @property
+    def id(self) -> uuid.UUID:
+        return self._entity_id
 
     @abstractmethod
     async def updated_at(self, auth_context: AuthContext) -> datetime | None:
@@ -243,7 +254,12 @@ class DataSet(BaseEntity, t.Generic[DataSetConfigType, DataSourceHandlerType], A
 
     @property
     def entity_id(self) -> str:
-        return self._entity_id
+        return str(self._entity_id)
+
+    @property
+    @abstractmethod
+    def source_id(self) -> str:
+        """ID of the dataset in the source system."""
 
     @property
     def name(self) -> str:
@@ -331,7 +347,7 @@ class OfflineDataSet(DataSet, t.Generic[DataSetConfigType, DataSourceHandlerType
 
     def __init__(
         self,
-        entity_id: str,
+        entity_id: uuid.UUID,
         title: str,
         config: DataSetConfigType,
         datasource: DataSourceHandlerType,

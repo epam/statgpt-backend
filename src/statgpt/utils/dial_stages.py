@@ -1,8 +1,8 @@
 import asyncio
 import logging
 from abc import ABC, abstractmethod
-from collections.abc import Callable, Generator
-from contextlib import contextmanager
+from collections.abc import Callable
+from contextlib import AbstractContextManager, contextmanager
 from datetime import datetime
 from time import perf_counter
 
@@ -212,7 +212,7 @@ def delayed_timed_stage(choice: Choice, *args, **kwargs):
 
 
 @contextmanager
-def optional_stage(stage_generator: Generator, enabled: bool):
+def optional_stage(stage_generator: AbstractContextManager[StageInterface], enabled: bool):
     if not enabled:
         # Create a dummy stage that does nothing
         stage_generator = DummyStage()

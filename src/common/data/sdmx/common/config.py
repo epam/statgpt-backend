@@ -1,10 +1,11 @@
 import logging
-from typing import Any
+import typing as t
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, alias_generators
 
 from common.config import utils as config_utils
-from common.data.base import DataSetConfig, DataSourceConfig
+from common.data.base import DataSetConfig, DataSetHierarchyConfig, DataSourceConfig
 
 _log = logging.getLogger(__name__)
 
@@ -105,6 +106,21 @@ class SdmxRateLimitsConfig(BaseModel):
             return None
 
 
+class DefaultDataSetHierarchyConfig(DataSetHierarchyConfig):
+    type: Literal['config']
+
+
+class CategorySchemaDataSetHierarchyConfig(BaseModel):
+    """Configuration of a dataset hierarchy using the SDMX category scheme as the source of the hierarchy."""
+
+    type: Literal['category_scheme']
+
+    # The URN of the category scheme:
+    agency_id: str
+    resource_id: str
+    version: str = Field(default='latest')
+
+
 class SdmxDataSourceConfig(DataSourceConfig):
     description: str = Field(default="", description="The description of the data source")
     sdmx_config: SdmxConfig = Field(description="The configuration for the SDMX data source")
@@ -122,6 +138,13 @@ class SdmxDataSourceConfig(DataSourceConfig):
     rate_limits: SdmxRateLimitsConfig = Field(
         default_factory=SdmxRateLimitsConfig,
         description="The rate limits configuration for the SDMX data source",
+    )
+    dataset_hierarchy: (
+        DefaultDataSetHierarchyConfig | CategorySchemaDataSetHierarchyConfig | None
+    ) = Field(
+        default=None,
+        discriminator='type',
+        description="The configuration of the dataset hierarchy for this data source",
     )
 
     def get_id(self) -> str:
@@ -181,5 +204,13 @@ class SdmxDataSetConfig(DataSetConfig):
 
     def get_source_id(self) -> str:
         return self.urn
+
+    def get_dimension_aliases(self) -> t.Dict[str, str]:
+        if not self.country_dimension_alias or not self.country_dimension:
+            return self.dimension_aliases
+        return {
+            self.country_dimension: self.country_dimension_alias,
+            **self.dimension_aliases,
+        }
 
     model_config = ConfigDict(alias_generator=alias_generators.to_camel, populate_by_name=True)

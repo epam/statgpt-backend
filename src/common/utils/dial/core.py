@@ -1,10 +1,49 @@
+import logging
+import os
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from io import BytesIO
 from typing import Any, Literal
 
+import aiofiles
 import httpx
 from pydantic import SecretStr
+
+_log = logging.getLogger(__name__)
+
+
+async def read_file_with_progress(file_path: str, chunk_size: int = 64 * 1024) -> BytesIO:
+    """Read file asynchronously with progress logging."""
+    file_size = os.path.getsize(file_path)
+    uploaded = 0
+    chunk_count = 0
+    log_interval = 100  # Log every 100 chunks
+    buffer = BytesIO()
+
+    _log.info(f"Starting upload of {file_path}")
+    _log.info(f"Total file size: {file_size / (1024 * 1024):.2f} MB")
+
+    async with aiofiles.open(file_path, 'rb') as f:
+        while True:
+            chunk = await f.read(chunk_size)
+            if not chunk:
+                break
+
+            buffer.write(chunk)
+            uploaded += len(chunk)
+            chunk_count += 1
+
+            if chunk_count % log_interval == 0:
+                percent = (uploaded / file_size) * 100
+                _log.info(
+                    f"Uploaded {uploaded / (1024 * 1024):.2f} MB / "
+                    f"{file_size / (1024 * 1024):.2f} MB ({percent:.1f}%)"
+                )
+
+    _log.info(f"Upload completed: {uploaded / (1024 * 1024):.2f} MB total")
+    buffer.seek(0)
+    return buffer
+
 
 HTTP_METHOD_TYPE = Literal['GET', 'POST', 'PUT', 'DELETE', 'PATCH']
 
@@ -125,17 +164,28 @@ class DialCore:
         return response.json()
 
     async def put_local_file(
-        self, name: str, path: str, *, bucket: str | None = None
+        self, name: str, path: str, *, bucket: str | None = None, show_progress: bool = False
     ) -> dict[str, Any]:
         """Put file from local drive."""
 
         if not bucket:
             bucket = await self.get_bucket()
 
-        response = await self._client.put(
-            f"/v1/files/{bucket}/{name}",
-            files={name: open(path, 'rb')},
-        )
+        if show_progress:
+            # Read file asynchronously with progress logging
+            file_buffer = await read_file_with_progress(path)
+            response = await self._client.put(
+                f"/v1/files/{bucket}/{name}",
+                files={name: (name, file_buffer)},
+            )
+        else:
+            # Read file asynchronously without progress
+            async with aiofiles.open(path, 'rb') as f:
+                content = await f.read()
+            response = await self._client.put(
+                f"/v1/files/{bucket}/{name}",
+                files={name: (name, BytesIO(content))},
+            )
         response.raise_for_status()
         return response.json()
 

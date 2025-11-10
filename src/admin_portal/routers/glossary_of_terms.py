@@ -3,11 +3,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 import common.models as models
 import common.schemas as schemas
-from admin_portal.auth.user import User, require_jwt_auth
+from admin_portal.auth.user import require_jwt_auth
 from admin_portal.services import AdminPortalGlossaryOfTermsService as GlossaryOfTermsService
 
 terms_router = APIRouter(prefix="/terms", tags=["glossary_of_terms"])
-channel_terms_router = APIRouter(prefix="/{channel_id}/terms", tags=["glossary_of_terms"])
+channel_terms_router = APIRouter(
+    prefix="/{channel_id}/terms",
+    tags=["glossary_of_terms"],
+    dependencies=[Depends(require_jwt_auth)],
+)
 
 
 @channel_terms_router.get("")
@@ -16,7 +20,6 @@ async def get_channel_glossary_terms(
     limit: int = 100,
     offset: int = 0,
     session: AsyncSession = Depends(models.get_session),
-    user: User = Depends(require_jwt_auth, use_cache=False),
 ) -> schemas.ListResponse[schemas.GlossaryTerm]:
     """Returns a list of glossary terms for the channel."""
 
@@ -39,7 +42,6 @@ async def add_glossary_term_to_channel(
     channel_id: int,
     data: schemas.GlossaryTermBase,
     session: AsyncSession = Depends(models.get_session),
-    user: User = Depends(require_jwt_auth, use_cache=False),
 ) -> schemas.GlossaryTerm:
     """Add a new term to the channel glossary."""
 
@@ -51,7 +53,6 @@ async def add_terms_bulk(
     channel_id: int,
     data: list[schemas.GlossaryTermBase],
     session: AsyncSession = Depends(models.get_session),
-    user: User = Depends(require_jwt_auth, use_cache=False),
 ) -> list[schemas.GlossaryTerm]:
     """Add multiple terms to the channel glossary."""
 
@@ -62,7 +63,6 @@ async def add_terms_bulk(
 async def clear_channel_terms(
     channel_id: int,
     session: AsyncSession = Depends(models.get_session),
-    user: User = Depends(require_jwt_auth, use_cache=False),
 ) -> list[schemas.GlossaryTerm]:
     """Delete all glossary terms for the channel and return the deleted terms."""
 
@@ -73,7 +73,6 @@ async def clear_channel_terms(
 async def update_terms_bulk(
     data: list[schemas.GlossaryTermUpdateBulk],
     session: AsyncSession = Depends(models.get_session),
-    user: User = Depends(require_jwt_auth, use_cache=False),
 ) -> list[schemas.GlossaryTerm]:
     """Update multiple glossary terms."""
 
@@ -84,7 +83,6 @@ async def update_terms_bulk(
 async def delete_terms_bulk(
     term_ids: list[int],
     session: AsyncSession = Depends(models.get_session),
-    user: User = Depends(require_jwt_auth, use_cache=False),
 ) -> list[schemas.GlossaryTerm]:
     """Delete multiple glossary terms by their ids and return the deleted terms."""
 
@@ -95,7 +93,6 @@ async def delete_terms_bulk(
 async def get_glossary_term_by_id(
     item_id: int,
     session: AsyncSession = Depends(models.get_session),
-    user: User = Depends(require_jwt_auth, use_cache=False),
 ) -> schemas.GlossaryTerm:
     """Returns a glossary term by id."""
 
@@ -107,7 +104,6 @@ async def update_glossary_term(
     item_id: int,
     data: schemas.GlossaryTermUpdate,
     session: AsyncSession = Depends(models.get_session),
-    user: User = Depends(require_jwt_auth, use_cache=False),
 ) -> schemas.GlossaryTerm:
     """Update the received fields of a glossary term."""
 
@@ -118,7 +114,6 @@ async def update_glossary_term(
 async def delete_glossary_term(
     item_id: int,
     session: AsyncSession = Depends(models.get_session),
-    user: User = Depends(require_jwt_auth, use_cache=False),
 ) -> None:
     """Delete a glossary term by id."""
 

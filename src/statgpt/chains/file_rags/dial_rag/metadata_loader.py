@@ -50,7 +50,7 @@ class DialRagMetadataLoader:
                 f'Got {response.status_code} code for '
                 f'{response.request.method} '
                 f'request to {response.url}. '
-                f'response content: {response.content}'
+                f'response content: {response.content.decode("utf-8", errors="replace")}'
             )
         response.raise_for_status()
 

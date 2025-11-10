@@ -46,7 +46,9 @@ class CandidatesSelectionSimpleChainFactory(BatchedSelectionInnerChainFactory):
 
         auth_context = ChainParameters.get_auth_context(inputs)
 
-        parser = PydanticOutputParser(pydantic_object=SelectedCandidates)
+        parser: PydanticOutputParser[SelectedCandidates] = PydanticOutputParser(
+            pydantic_object=SelectedCandidates
+        )
         prompt_template = ChatPromptTemplate.from_messages(
             [
                 ("system", self._system_prompt),
@@ -78,7 +80,7 @@ class CandidatesSelectionSimpleChainFactory(BatchedSelectionInnerChainFactory):
         if not candidates:
             return ''
         # NOTE: we assume all candidates are of the same type
-        text = candidates[0].candidates_to_llm_string(candidates)
+        text = candidates[0].candidates_to_llm_string(candidates)  # type: ignore[arg-type]
         return text
 
     def _display_formatted_candidates_in_stage(self, inputs: dict):

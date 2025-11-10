@@ -265,4 +265,4 @@ class DialRagAgentFactory(BaseRAGFactory):
         return inputs
 
     async def create_chain(self) -> Runnable:
-        return RunnableLambda(self._stream_response) | self._set_tool_state
+        return RunnableLambda(self._stream_response) | self._set_tool_state  # type: ignore[arg-type]

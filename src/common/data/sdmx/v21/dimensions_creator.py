@@ -14,10 +14,13 @@ from common.data.sdmx.v21.schemas import StructureMessage21, Urn
 
 class DimensionsCreator:
 
-    def __init__(self, structure_message: StructureMessage21, urn: Urn, locale: str):
+    def __init__(
+        self, structure_message: StructureMessage21, urn: Urn, locale: str, aliases: dict[str, str]
+    ):
         self._structure_message = structure_message
         self._urn = urn
         self._locale = locale
+        self._aliases = aliases
 
     async def create_dimensions(self) -> list[SdmxDimension]:
         return self._create_dimensions()
@@ -160,7 +163,15 @@ class DimensionsCreator:
         code_list: BaseSdmxCodeList,
     ) -> SdmxCodeListDimension:
         available_codes = self._get_available_dimension_values(dimension)
-        return SdmxCodeListDimension(dimension, name, description, code_list, available_codes)
+        alias = self._aliases.get(dimension.id)
+        return SdmxCodeListDimension(
+            dimension=dimension,
+            name=name,
+            description=description,
+            code_list=code_list,
+            available_codes=available_codes,
+            alias=alias,
+        )
 
     def _create_code_list_dimension(
         self,
@@ -181,8 +192,8 @@ class DimensionsCreator:
         indexed_codelist = InMemoryCodeList(code_list, self._locale)
         return self._create_sdmx_code_list_dimension(dimension, name, description, indexed_codelist)
 
-    @staticmethod
     def _create_time_period_dimension(
+        self,
         dimension: common.TimeDimension,
         name: str,
         description: str | None,
@@ -199,9 +210,12 @@ class DimensionsCreator:
             raise ValueError(
                 f"{facet.value_type=} is unavailable. must be one of {allowed_facet_dtypes=}"
             )
+        alias = self._aliases.get(dimension.id)
 
         logger.debug(f"Creating SdmxTimeDimension for {dimension=}")
-        result_dimension = SdmxTimeDimension(dimension, name, description, time_dimension=True)
+        result_dimension = SdmxTimeDimension(
+            dimension, name, description, time_dimension=True, alias=alias
+        )
         return result_dimension
 
     def _get_available_dimension_values(self, dimension: common.DimensionComponent) -> set[str]:

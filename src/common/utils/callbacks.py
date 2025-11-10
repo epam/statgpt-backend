@@ -1,14 +1,17 @@
 import re
 import typing as t
+from uuid import UUID
 
 from langchain_core.callbacks.base import AsyncCallbackHandler
 from langchain_core.messages import AIMessage, BaseMessage
-from langchain_core.outputs import ChatGeneration
+from langchain_core.outputs import ChatGeneration, ChatGenerationChunk, GenerationChunk
 from langchain_core.outputs.llm_result import LLMResult
 
 from common.config import multiline_logger as logger
 from common.schemas.token_usage import TokenUsageItem
 from common.utils.token_usage_context import get_token_usage_manager
+
+from .exceptions import InvalidLLMStreamResponse
 
 
 class LCMessageLoggerAsync(AsyncCallbackHandler):
@@ -148,6 +151,43 @@ class TokenUsageByModelsCallback(AsyncCallbackHandler):
                 completion_tokens=completion_tokens,
             )
         )
+
+
+class BrokenResponseInterceptor(AsyncCallbackHandler):
+    raise_error: bool = True
+
+    def __init__(self, regex_pattern: str, max_chunk_number: int = 3):
+        if max_chunk_number < 1:
+            raise ValueError('max_chunk_number must be >= 1')
+
+        self._regex_pattern = regex_pattern
+        self._max_chunk_number = max_chunk_number
+
+        self._regex = re.compile(self._regex_pattern)
+        self._chunk_number = 0
+
+    def __repr__(self):
+        return f'{type(self).__name__}(regex_pattern={self._regex_pattern}, max_chunk_number={self._max_chunk_number})'
+
+    async def on_llm_new_token(
+        self,
+        token: str,
+        *,
+        chunk: GenerationChunk | ChatGenerationChunk | None = None,
+        run_id: UUID,
+        parent_run_id: UUID | None = None,
+        tags: list[str] | None = None,
+        **kwargs: t.Any,
+    ) -> None:
+        if self._regex.fullmatch(token) is None:
+            self._chunk_number = 0
+            return
+
+        self._chunk_number += 1
+        if self._chunk_number >= self._max_chunk_number:
+            raise InvalidLLMStreamResponse(
+                f"LLM streamed invalid response token {self._chunk_number} times in a row"
+            )
 
 
 # class LCGPTUsageLoggerAsync(AsyncCallbackHandler):
