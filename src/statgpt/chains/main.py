@@ -1,10 +1,7 @@
-import typing as t
-
 from langchain_core.runnables import Runnable, RunnablePassthrough
 
 from common.config import logger
 from common.schemas import ChannelConfig
-from common.schemas.dial import Message as DialMessage
 from statgpt.chains.out_of_scope_checker import OutOfScopeChecker
 from statgpt.chains.parameters import ChainParameters
 from statgpt.chains.supreme_agent import SupremeAgentExecutor, ToolCaller
@@ -24,13 +21,8 @@ class MainChainFactory:
         state = ChainParameters.get_state(inputs)
         data_service = ChainParameters.get_data_service(inputs)
 
-        # NOTE: we introduced custom Message model that uses pydantic v2,
-        # since aidial_sdk uses pydantic v1 models.
-        # the interface should be the same, but this is source of potential bugs.
-        dial_messages: list[DialMessage] = t.cast(list[DialMessage], request.messages)
-
         return await History.from_dial_with_interceptors(
-            messages=dial_messages, state=state, data_service=data_service
+            messages=request.messages, state=state, data_service=data_service
         )
 
     async def create_chain(self) -> Runnable:

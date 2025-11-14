@@ -35,6 +35,7 @@ class JobsConfig:
     CHANNEL_FILE = 'channel.yaml'
     DATASETS_FILE = 'datasets.yaml'
     DATA_SOURCES_FILE = 'data_sources.yaml'
+    VERSIONS_FILE = 'versions.yaml'
     GLOSSARY_TERMS_FILE = 'glossary_terms.csv'
     DIAL_FILES_FOLDER = 'dial_files'
 
@@ -46,3 +47,10 @@ class JobsConfig:
     CHANNEL_FIELDS = {"deployment_id", "title", "description", "llm_model", "details"}
     DATASET_FIELDS = {"id_", "title", "details"}  # and dynamic 'dataSource' field
     DATA_SOURCE_FIELDS = {"title", "description", "type_id", "details"}
+    VERSIONS_FIELDS = {
+        'structure_metadata',
+        'structure_hash',
+        'indicator_dimensions_hash',
+        'non_indicator_dimensions_hash',
+        'special_dimensions_hash',
+    }

@@ -31,6 +31,9 @@ from .interval_processor import IntervalProcessor
 from .media_types import MediaTypes
 from .misc import (
     batched,
+    crc32_hash,
+    crc32_hash_incremental,
+    crc32_hash_incremental_async,
     create_base64_uuid,
     get_last_commit_hash_for,
     secret_2_safe_str,

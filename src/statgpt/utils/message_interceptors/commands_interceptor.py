@@ -1,11 +1,11 @@
 import re
 import typing as t
 
+from aidial_sdk.chat_completion import Message as DialMessage
 from aidial_sdk.chat_completion import Role
 from pydantic import BaseModel
 
 from common.config import multiline_logger as logger
-from common.schemas.dial import Message as DialMessage
 from statgpt.config import StateVarsConfig
 from statgpt.settings.dial_app import dial_app_settings
 

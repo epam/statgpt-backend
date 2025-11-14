@@ -409,6 +409,18 @@ async def get_channel_dataset_versions(
     )
 
 
+@router.get(path="/{channel_id}/datasets/{dataset_id}/versions/check-latest-up-to-date")
+async def is_channel_dataset_latest_version_up_to_date(
+    channel_id: int,
+    dataset_id: int,
+    session: AsyncSession = Depends(models.get_session),
+) -> schemas.ChangesBetweenVersionAndActualData:
+    """Check if the latest completed version of the specified channel dataset is up to date."""
+    return await DataSetService(session).is_channel_dataset_latest_version_up_to_date(
+        channel_id=channel_id, dataset_id=dataset_id, auth_context=SystemUserAuthContext()
+    )
+
+
 @router.post(path="/{channel_id}/datasets/{dataset_id}/versions/rollback")
 async def rollback_channel_dataset_to_previous_version(
     channel_id: int,

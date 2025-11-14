@@ -99,6 +99,24 @@ class DataSourceHandler(
         pass
 
     @abstractmethod
+    async def get_structure_hash_and_metadata(
+        self, dataset_config: dict, auth_context: AuthContext
+    ) -> tuple[str, dict]:
+        """Get a hash calculated based on the part of the dataset structure that is important for indexing.
+        If this hash changes, the dataset should be re-indexed.
+
+        Additionally, return metadata about the structure that can be used to understand what has changed.
+        The metadata is a JSON-serializable dictionary.
+        """
+
+    @abstractmethod
+    def get_structure_metadata_diff(self, old_metadata: dict | None, new_metadata: dict) -> dict:
+        """Get the difference between the old and new structure metadata of a dataset.
+
+        Return a JSON-serializable dictionary describing what has changed.
+        """
+
+    @abstractmethod
     async def get_indicator_from_document(self, documents: Document) -> BaseIndicator:
         pass
 

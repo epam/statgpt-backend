@@ -51,7 +51,7 @@ class DialAppFactory:
         app.add_chat_completion_with_dependencies(
             "{deployment_id}",
             AppChatCompletion(),
-            heartbeat_interval=10,
+            heartbeat_interval=5,
         )
         app.include_router(service_router)
 

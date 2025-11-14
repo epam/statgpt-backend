@@ -32,7 +32,7 @@ class BaseSdmxCodeList(BaseNameableArtefact[common.Codelist], ABC):
         pass
 
     @abstractmethod
-    def __getitem__(self, item: str) -> CodeCategory | None:
+    def __getitem__(self, item: str) -> CodeCategory:
         pass
 
 
@@ -40,24 +40,36 @@ class InMemoryCodeList(BaseSdmxCodeList):
     _code_list: common.Codelist
     _codes: t.Dict[str, CodeCategory]
 
-    def __init__(
-        self,
-        code_list: common.Codelist,
-        locale: str,
-    ):
+    def __init__(self, code_list: common.Codelist, locale: str):
         super().__init__(code_list, locale)
         self._code_list = code_list
-        self._codes = {code.id: CodeCategory(code, locale) for code in code_list.items.values()}
+        self._codes = {}
+
+    def _get_item_and_cache(self, item: str) -> CodeCategory | None:
+        if item not in self._codes:
+            code = self._code_list[item]
+            if code is None:
+                return None
+            self._codes[item] = CodeCategory(code, self._locale)
+        return self._codes[item]
+
+    def _get_item_and_cache_or_raise(self, item: str) -> CodeCategory:
+        code = self._get_item_and_cache(item)
+        if code is None:
+            raise KeyError(f"Code '{item}' not found in codelist '{self.code_list.id}'")
+        return code
 
     @property
     def code_list(self) -> common.Codelist:
         return self._code_list
 
     def codes(self) -> t.Sequence[CodeCategory]:
-        return list(self._codes.values())
+        if len(self._codes) == len(self._code_list.items):
+            return list(self._codes.values())
+        return [self._get_item_and_cache_or_raise(code) for code in self._code_list.items.values()]
 
-    def __getitem__(self, item: str) -> CodeCategory | None:
-        return self._codes.get(item)
+    def __getitem__(self, item: str) -> CodeCategory:
+        return self._get_item_and_cache_or_raise(item)
 
     def __contains__(self, item: str) -> bool:
-        return item in self._codes
+        return item in self._code_list

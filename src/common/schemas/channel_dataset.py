@@ -1,4 +1,4 @@
-from pydantic import Field
+from pydantic import BaseModel, Field
 
 from .base import DbDefaultBase
 from .dataset import DataSet
@@ -28,6 +28,11 @@ class ChannelDatasetVersion(DbDefaultBase):
             " if the rollback version was also a rollback to a previous version."
         )
     )
+    structure_metadata: dict | None
+    structure_hash: str | None
+    indicator_dimensions_hash: str | None
+    non_indicator_dimensions_hash: str | None
+    special_dimensions_hash: str | None
 
     @property
     def version_data_id(self) -> int:
@@ -49,3 +54,29 @@ class ChannelDatasetExpanded(ChannelDatasetBase):
         )
     )
     latest_version: ChannelDatasetVersion | None
+
+
+class BaseChange(BaseModel):
+    message: str
+    last_version_hash: str | None
+    actual_hash: str | None
+
+
+class DataChange(BaseChange):
+    pass
+
+
+class StructureChange(BaseChange):
+    details: dict
+
+
+class ChangesBetweenVersionAndActualData(BaseModel):
+    data_changes: list[DataChange] = Field(
+        description="List of changes between the indexed data of the latest completed version and the actual data."
+    )
+    has_changes: bool = Field(
+        description="Indicates whether there are any changes between the version data and the actual data."
+    )
+    structure_change: StructureChange | None = Field(
+        description="Details about the structure change, if any."
+    )

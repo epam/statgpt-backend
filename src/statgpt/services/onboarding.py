@@ -4,8 +4,8 @@ import logging
 from typing import Literal
 
 from aidial_sdk.chat_completion import Button, Choice, FormMetaclass
-from aidial_sdk.pydantic_v1 import BaseModel as PydanticV1BaseModel
-from aidial_sdk.pydantic_v1 import Field as PydanticV1Field
+from aidial_sdk.pydantic.v2 import ConfigDict as DialConfigDict
+from aidial_sdk.pydantic.v2 import Field as DialField
 from pydantic import BaseModel, Field
 
 from common.auth.auth_context import AuthContext
@@ -59,9 +59,8 @@ class OnboardingState(BaseModel):
         self.current_path = []
 
 
-class CompletedSchema(PydanticV1BaseModel, metaclass=FormMetaclass):
-    class Config:
-        chat_message_input_disabled = True
+class CompletedSchema(BaseModel, metaclass=FormMetaclass):
+    model_config = DialConfigDict(chat_message_input_disabled=True)
 
 
 class OnboardingService:
@@ -119,10 +118,10 @@ class OnboardingService:
         if button_clicked == "complete" and state.is_completion_button():
             # User clicked the final completion button
             state.set_completed()
-            return CompletedSchema.schema()
+            return CompletedSchema.model_json_schema()
 
         if state.is_completed():
-            return CompletedSchema.schema()
+            return CompletedSchema.model_json_schema()
 
         if not button_clicked:
             # No button clicked, show current state
@@ -239,25 +238,23 @@ class OnboardingService:
 
         description = "\n".join(description_parts)
 
-        class NavigationForm(PydanticV1BaseModel, metaclass=FormMetaclass):
-            class Config:
-                chat_message_input_disabled = True
+        class NavigationForm(BaseModel, metaclass=FormMetaclass):
+            model_config = DialConfigDict(chat_message_input_disabled=True)
 
-            choice: str | None = PydanticV1Field(
+            choice: str | None = DialField(
                 description=description,
                 buttons=buttons,
             )
 
-        return NavigationForm.schema()
+        return NavigationForm.model_json_schema()
 
     def _create_completion_button_form(self) -> dict:
         """Create completion form shown when all topics have been explored."""
 
-        class CompletionButtonForm(PydanticV1BaseModel, metaclass=FormMetaclass):
-            class Config:
-                chat_message_input_disabled = True
+        class CompletionButtonForm(BaseModel, metaclass=FormMetaclass):
+            model_config = DialConfigDict(chat_message_input_disabled=True)
 
-            completion: int | None = PydanticV1Field(
+            completion: int | None = DialField(
                 buttons=[
                     Button(
                         const="complete",
@@ -268,7 +265,7 @@ class OnboardingService:
                 ],
             )
 
-        return CompletionButtonForm.schema()
+        return CompletionButtonForm.model_json_schema()
 
     def _create_completion_form(self) -> dict:
         """
@@ -276,16 +273,15 @@ class OnboardingService:
         This form simply disables input.
         """
 
-        class CompletionForm(PydanticV1BaseModel, metaclass=FormMetaclass):
-            class Config:
-                chat_message_input_disabled = True
+        class CompletionForm(BaseModel, metaclass=FormMetaclass):
+            model_config = DialConfigDict(chat_message_input_disabled=True)
 
-            completion: int | None = PydanticV1Field(
+            completion: int | None = DialField(
                 description=self.config.completion_message,
                 buttons=[],
             )
 
-        return CompletionForm.schema()
+        return CompletionForm.model_json_schema()
 
     def get_response_for_path(self, path: list[str]) -> Response | None:
         """

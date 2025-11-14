@@ -5,6 +5,9 @@ MYPY_DIRS = src/common src/admin_portal src/statgpt
 -include .env
 export
 
+# AI DIAL SDK: pydantic v2 mode
+export PYDANTIC_V2=True
+
 remove_venv:
 	poetry env remove --all || true
 	$(POETRY_PYTHON) -m venv .venv

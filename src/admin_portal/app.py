@@ -7,7 +7,7 @@ from pathlib import Path
 import dotenv
 from aidial_sdk.telemetry.init import init_telemetry
 from aidial_sdk.telemetry.types import MetricsConfig, TelemetryConfig, TracingConfig
-from fastapi import FastAPI
+from fastapi import FastAPI, status
 
 module_path = Path(__file__).parent.parent.absolute()
 sys.path.append(str(module_path))
@@ -58,8 +58,8 @@ init_telemetry(
 app.include_router(router)
 
 
-@app.get("/health")
-def health():
+@app.get("/health", status_code=status.HTTP_200_OK)
+async def health():
     return {"status": "ok"}
 
 

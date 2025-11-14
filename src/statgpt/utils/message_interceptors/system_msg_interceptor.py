@@ -1,11 +1,11 @@
 import logging
 import typing as t
 
+from aidial_sdk.chat_completion import Message as DialMessage
 from aidial_sdk.chat_completion import Role
 from aidial_sdk.exceptions import InvalidRequestError
 from pydantic import ValidationError
 
-from common.schemas.dial import Message as DialMessage
 from common.schemas.query import JsonQuery
 from statgpt.services.chat_facade import ChannelServiceFacade
 

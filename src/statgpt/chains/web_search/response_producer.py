@@ -1,11 +1,11 @@
 import abc
 from typing import Any
 
+from aidial_sdk.chat_completion import Attachment
 from openai import APIError
 
 from common.config import multiline_logger as logger
 from common.schemas import StagesConfig
-from common.schemas.dial import Attachment
 from statgpt.chains.parameters import ChainParameters
 from statgpt.config import StateVarsConfig
 from statgpt.utils import OpenAiToDialStreamer, openai

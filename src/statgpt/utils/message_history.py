@@ -2,7 +2,9 @@ import json
 import typing as t
 from collections.abc import Sequence
 
+from aidial_sdk.chat_completion import Message as DialMessage
 from aidial_sdk.chat_completion import Role
+from aidial_sdk.chat_completion import ToolCall as DialToolCall
 from langchain_core.messages import (
     AIMessage,
     AIMessageChunk,
@@ -14,8 +16,6 @@ from langchain_core.messages import ToolCall as LangChainToolCall
 from langchain_core.messages import ToolMessage
 
 from common.config import multiline_logger as logger
-from common.schemas.dial import Message as DialMessage
-from common.schemas.dial import ToolCall as DialToolCall
 from statgpt.config import StateVarsConfig
 from statgpt.schemas.tool_artifact import ToolArtifact
 from statgpt.services.chat_facade import ChannelServiceFacade

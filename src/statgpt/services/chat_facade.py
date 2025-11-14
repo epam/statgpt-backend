@@ -8,9 +8,9 @@ from dataclasses import dataclass
 from typing import Any
 
 import pandas as pd
-from aidial_sdk.chat_completion import Button, FormMetaclass
-from aidial_sdk.pydantic_v1 import BaseModel as PydanticV1BaseModel
-from aidial_sdk.pydantic_v1 import Field as PydanticV1Field
+from aidial_sdk.chat_completion.form import Button, FormMetaclass
+from aidial_sdk.pydantic.v2 import ConfigDict as DialConfigDict
+from aidial_sdk.pydantic.v2 import Field as DialField
 from pydantic import BaseModel, ConfigDict, Field, computed_field
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -245,11 +245,10 @@ class ChannelServiceFacade(DbServiceBase):
                 f"No conversation starters configuration found for channel {self._channel.title}"
             )
 
-            class InitConfiguration(PydanticV1BaseModel, metaclass=FormMetaclass):
-                class Config:
-                    chat_message_input_disabled = False
+            class InitConfiguration(BaseModel, metaclass=FormMetaclass):
+                model_config = DialConfigDict(chat_message_input_disabled=False)
 
-            return InitConfiguration.schema()
+            return InitConfiguration.model_json_schema()
         intro_text: str = conversation_starters_config.intro_text
         _log.info(
             f"Conversation starters configuration found for channel {self._channel.title}, {conversation_starters_config=}"
@@ -264,21 +263,21 @@ class ChannelServiceFacade(DbServiceBase):
             for i, button in enumerate(conversation_starters_config.buttons)
         ]
 
-        class StatGPTConfiguration(PydanticV1BaseModel, metaclass=FormMetaclass):
-            class Config:
-                chat_message_input_disabled = False
+        class StatGPTConfiguration(BaseModel, metaclass=FormMetaclass):
+            model_config = DialConfigDict(chat_message_input_disabled=False)
 
-            starter: int | None = PydanticV1Field(
+            starter: int | None = DialField(
+                default=None,
                 description=intro_text,
                 buttons=buttons,
             )
-            timezone: str = PydanticV1Field(
+            timezone: str = DialField(
                 description="Timezone in IANA format, e.g. 'Europe/Berlin', 'America/New_York'. "
                 "Used to interpret and display dates and times.",
                 default="UTC",
             )
 
-        return StatGPTConfiguration.schema()
+        return StatGPTConfiguration.model_json_schema()
 
     def get_named_entity_types(self) -> list[str]:
         return self.channel_config.list_named_entity_types()

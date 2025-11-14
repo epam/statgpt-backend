@@ -2,12 +2,10 @@ from datetime import datetime
 from functools import cached_property
 from zoneinfo import ZoneInfo
 
-from pydantic import ConfigDict, Field, field_validator
-
-from common.schemas.dial import ExtraAllowModel
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
-class StatGPTConfiguration(ExtraAllowModel):
+class StatGPTConfiguration(BaseModel):
     """
     Dynamic DIAL configuration for StatGPT application.
     """

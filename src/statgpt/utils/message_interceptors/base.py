@@ -2,7 +2,7 @@ import logging
 import typing as t
 from abc import ABC, abstractmethod
 
-from common.schemas.dial import Message as DialMessage
+from aidial_sdk.chat_completion import Message as DialMessage
 
 _log = logging.getLogger(__name__)
 

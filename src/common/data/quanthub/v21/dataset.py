@@ -198,8 +198,8 @@ class QuanthubSdmx21DataSet(Sdmx21DataSet):
             url = self._get_query_url(data_msg.response)  # type: ignore
 
         try:
-            sdmx_pandas = self._data_msg_to_dataframe(data_msg)
-            sdmx_pandas = self._include_attributes(sdmx_pandas)
+            sdmx_pandas = await self._data_msg_to_dataframe(data_msg)
+            sdmx_pandas = await self._include_attributes(sdmx_pandas)
         except Exception as e:
             _log.exception(e)
             return Sdmx21DataResponse(

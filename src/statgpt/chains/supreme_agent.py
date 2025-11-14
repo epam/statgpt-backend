@@ -4,7 +4,10 @@ from copy import deepcopy
 from datetime import datetime
 from typing import NamedTuple
 
-from aidial_sdk.chat_completion import Choice, Role
+from aidial_sdk.chat_completion import Choice, FunctionCall
+from aidial_sdk.chat_completion import Message as DialMessage
+from aidial_sdk.chat_completion import Role
+from aidial_sdk.chat_completion import ToolCall as DialToolCall
 from langchain_core.messages import AIMessage, AIMessageChunk, SystemMessage, ToolCall, ToolMessage
 from langchain_core.prompts import (
     ChatPromptTemplate,
@@ -16,9 +19,6 @@ from langchain_core.runnables import Runnable, RunnablePassthrough
 from common.auth.auth_context import AuthContext
 from common.config import multiline_logger as logger
 from common.schemas import ChannelConfig, FakeCall
-from common.schemas.dial import FunctionCall
-from common.schemas.dial import Message as DialMessage
-from common.schemas.dial import ToolCall as DialToolCall
 from common.utils import InvalidLLMStreamResponse
 from common.utils.markdown import format_as_markdown_list
 from common.utils.models import get_chat_model

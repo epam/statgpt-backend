@@ -1,7 +1,7 @@
 import uuid
 from typing import Any
 
-from sqlalchemy import ForeignKey, UniqueConstraint
+from sqlalchemy import ForeignKey, String, UniqueConstraint
 from sqlalchemy.dialects import postgresql
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -151,6 +151,15 @@ class ChannelDatasetVersion(DefaultBase):
 
     creation_reason: Mapped[str]
     reason_for_failure: Mapped[str | None] = mapped_column(default=None)
+
+    structure_metadata: Mapped[dict | None] = mapped_column(type_=postgresql.JSONB, default=None)
+    structure_hash: Mapped[str | None] = mapped_column(type_=String(10), default=None)
+    # Data hashes:
+    indicator_dimensions_hash: Mapped[str | None] = mapped_column(type_=String(10), default=None)
+    non_indicator_dimensions_hash: Mapped[str | None] = mapped_column(
+        type_=String(10), default=None
+    )
+    special_dimensions_hash: Mapped[str | None] = mapped_column(type_=String(10), default=None)
 
     # relationships
     channel_dataset: Mapped[ChannelDataset] = relationship(back_populates="versions")
