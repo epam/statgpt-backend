@@ -42,11 +42,16 @@ jobs:
           echo "head-repo=$(echo "$PR_DATA" | jq -r '.head.repo.full_name')" >> $GITHUB_OUTPUT
 
       - name: React to comment
-        if: steps.check-command.outputs.should-deploy == 'true'
         run: |
+          if [[ "${{ steps.check-command.outputs.should-deploy }}" == "true" ]]; then
+            REACTION="eyes"
+          else
+            REACTION="confused"
+          fi
+
           curl -s -H "Authorization: token ${{ secrets.ACTIONS_BOT_TOKEN }}" \
             -X POST \
-            -d '{"content": "rocket"}' \
+            -d "{\"content\": \"$REACTION\"}" \
             "https://api.github.com/repos/${{ github.repository }}/issues/comments/${{ github.event.comment.id }}/reactions"
 
   deploy-review:
@@ -154,6 +159,14 @@ jobs:
           comment-id: ${{ needs.slash-command-dispatch.outputs.comment-id }}
           body: |
             >Environment URL: [review-environment](https://chat-${{ github.event.repository.name }}-pr-${{ needs.slash-command-dispatch.outputs.pr-number }}.${{ vars.REVIEW_BASE_DOMAIN }}) | [pipeline](${{ steps.deploy.outputs.web_url }})
+
+      - name: React with rocket on success
+        if: success()
+        run: |
+          curl -s -H "Authorization: token ${{ secrets.ACTIONS_BOT_TOKEN }}" \
+            -X POST \
+            -d '{"content": "rocket"}' \
+            "https://api.github.com/repos/${{ github.repository }}/issues/comments/${{ needs.slash-command-dispatch.outputs.comment-id }}/reactions"
 
       - name: Return status
         if: success() || failure()
