@@ -1,4 +1,4 @@
-# https://github.com/epam/ai-dial-ci/blob/2.4.1/actions/build_docker/action.yml
+# https://github.com/epam/ai-dial-ci/blob/2.7.3/actions/build_docker/action.yml
 # This version has modified values for maintainer and org.opencontainers.image.licenses
 
 name: "Build docker"
@@ -73,36 +73,40 @@ inputs:
     required: false
     description: "Docker build platforms (default linux/amd64)"
     default: "linux/amd64"
+  dockerfile-path:
+    required: false
+    description: "Path to the Dockerfile (default: ./Dockerfile)"
+    default: "Dockerfile"
 
 runs:
   using: "composite"
   steps:
     - name: Setup Docker Qemu
+      if: ${{ inputs.platforms != 'linux/amd64' }}
       uses: docker/setup-qemu-action@29109295f81e9208d7d86ff1c6c12d2833863392 # v3.6.0
     - name: Setup Docker buildx
-      uses: docker/setup-buildx-action@b5ca514318bd6ebac0fb2aedd5d36ec1b5c232a2 # v3.10.0
+      uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435 # v3.11.1
     - name: Login to GitHub Container Registry
       if: ${{ fromJSON(inputs.push-enabled) }} # workaround for composite jobs not being able to pass boolean inputs
-      uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3.4.0
+      uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # v3.6.0
       with:
         registry: ghcr.io
         username: ${{ inputs.ghcr-username }}
         password: ${{ inputs.ghcr-password }}
     - name: Login to Docker Hub
       if: ${{ fromJSON(inputs.push-enabled) }} # workaround for composite jobs not being able to pass boolean inputs
-      uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3.4.0
+      uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # v3.6.0
       with:
         username: ${{ inputs.dockerhub-username }}
         password: ${{ inputs.dockerhub-password }}
     - name: Build and export to Docker
       if: ${{ fromJSON(inputs.trivy-enabled) }} # workaround for composite jobs not being able to pass boolean inputs
-      uses: docker/build-push-action@14487ce63c7a62a4a324b0bfb37086795e31c6c1 # v6.16.0
+      uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
       with:
         context: .
+        file: ${{ inputs.dockerfile-path }}
         load: true
         platforms: linux/amd64
-        cache-from: type=gha
-        cache-to: type=gha,mode=max
         tags: |
           ${{ inputs.image-name }}:${{ inputs.image-tag }}
           ${{ inputs.image-extra-aliases }}
@@ -125,7 +129,7 @@ runs:
       id: trivy-sarif
       # Do not perform SARIF scan on private repos - GitHub Advanced Security is not enabled
       if: ${{ fromJSON(inputs.trivy-enabled) && !github.event.repository.private }} # workaround for composite jobs not being able to pass boolean inputs
-      uses: aquasecurity/trivy-action@7aca5acc9500b463826cc47a47a65ad7d404b045 # TODO: v0.31.0+
+      uses: aquasecurity/trivy-action@76071ef0d7ec797419534a183b498b4d6366cf37 # v0.31.0
       with:
         image-ref: "${{ inputs.image-name }}:${{ inputs.image-tag }}"
         format: "sarif"
@@ -150,7 +154,7 @@ runs:
       continue-on-error: ${{ fromJSON(env.CONTINUE_ON_ERROR) }}
     - name: Run Trivy vulnerability scanner (stdout, table view, may fail)
       if: ${{ fromJSON(inputs.trivy-enabled) }} # workaround for composite jobs not being able to pass boolean inputs
-      uses: aquasecurity/trivy-action@7aca5acc9500b463826cc47a47a65ad7d404b045 # TODO: v0.31.0+
+      uses: aquasecurity/trivy-action@76071ef0d7ec797419534a183b498b4d6366cf37 # v0.31.0
       with:
         image-ref: "${{ inputs.image-name }}:${{ inputs.image-tag }}"
         format: "table"
@@ -167,12 +171,12 @@ runs:
       continue-on-error: ${{ fromJSON(env.CONTINUE_ON_ERROR) }}
     - name: Build and push
       if: ${{ fromJSON(inputs.push-enabled) }} # workaround for composite jobs not being able to pass boolean inputs
-      uses: docker/build-push-action@14487ce63c7a62a4a324b0bfb37086795e31c6c1 # v6.16.0
+      uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
       with:
         context: .
+        file: ${{ inputs.dockerfile-path }}
         push: true
         platforms: ${{ inputs.platforms }}
-        cache-from: type=gha
         tags: |
           ${{ inputs.image-name }}:${{ inputs.image-tag }}
           ${{ inputs.image-extra-aliases }}
