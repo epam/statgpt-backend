@@ -123,6 +123,11 @@ class ChannelDataset(DefaultBase):
     channel_id: Mapped[int] = mapped_column(ForeignKey("channels.id"))
     dataset_id: Mapped[int] = mapped_column(ForeignKey("datasets.id"))
 
+    clearing_status: Mapped[PreprocessingStatusEnum] = mapped_column(
+        default=PreprocessingStatusEnum.NOT_STARTED
+    )
+    """The status of the data clearing task run after reindexing is complete."""
+
     # relationships
     channel: Mapped[Channel] = relationship(back_populates="mapped_datasets")
     dataset: Mapped[DataSet] = relationship(back_populates="mapped_channels")

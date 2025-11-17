@@ -169,6 +169,9 @@ class PgVectorStore(VectorStore, DbServiceBase):
         """
         lock_key = self._dataset_lock_key(dataset_id)
         async with self._lock_session() as session:
+            # Ensure session is in a clean state before acquiring lock
+            if session.in_transaction() and not session.is_active:
+                await session.rollback()
             await session.execute(
                 text("SELECT pg_advisory_lock(:lock_key)"), {"lock_key": lock_key}
             )
@@ -178,11 +181,26 @@ class PgVectorStore(VectorStore, DbServiceBase):
         return lock_key
 
     async def _release_dataset_lock(self, lock_key: int) -> None:
-        """Releases a session-level advisory lock."""
+        """Releases a session-level advisory lock.
+
+        Handles PendingRollback state to ensure lock is always released.
+        """
         async with self._lock_session() as session:
-            await session.execute(
-                text("SELECT pg_advisory_unlock(:lock_key)"), {"lock_key": lock_key}
-            )
+            try:
+                # Rollback if session is in a failed transaction state
+                if session.in_transaction() and not session.is_active:
+                    await session.rollback()
+                await session.execute(
+                    text("SELECT pg_advisory_unlock(:lock_key)"), {"lock_key": lock_key}
+                )
+            except Exception as e:
+                _log.error(f"Failed to release advisory lock (key={lock_key}): {e}")
+                # Still try to rollback to clean up the session
+                try:
+                    await session.rollback()
+                except Exception:
+                    pass
+                raise
         _log.debug(f"Released advisory lock (key={lock_key})")
 
     @asynccontextmanager
@@ -804,9 +822,13 @@ class PgVectorStore(VectorStore, DbServiceBase):
 
     async def _import_documents_from_zipfile(
         self, zip_file: zipfile.ZipFile, document_model: type[BaseDocument], file_path: str
-    ) -> int:
-        """Imports documents from Parquet file in zip archive in batches."""
+    ) -> dict[int, int]:
+        """Imports documents from Parquet file in zip archive in batches.
+
+        Returns a mapping from old document IDs to new auto-generated IDs.
+        """
         doc_count = 0
+        id_mapping: dict[int, int] = {}
 
         # Read Parquet file from zip archive
         with zip_file.open(file_path) as f:
@@ -820,7 +842,7 @@ class PgVectorStore(VectorStore, DbServiceBase):
                 for i in range(len(batch_dict['id'])):
                     try:
                         doc = document_model(
-                            id=batch_dict['id'][i],
+                            # Don't set id - let PostgreSQL auto-generate it
                             document=self._sanitize_text(batch_dict['document'][i]),
                             embeddings=(
                                 batch_dict['embeddings'][i].tolist()
@@ -836,11 +858,18 @@ class PgVectorStore(VectorStore, DbServiceBase):
                         raise ValueError(f"Corrupt document data: {e}")
 
                 self._session.add_all(doc_batch)
+                await self._session.flush()
+
+                # Map old IDs to new auto-generated IDs
+                for i, doc in enumerate(doc_batch):
+                    old_id = batch_dict['id'][i]
+                    id_mapping[old_id] = doc.id
+
                 await self._session.commit()
                 doc_count += len(doc_batch)
                 _log.info(f"Imported {doc_count} documents...")
 
-        return doc_count
+        return id_mapping
 
     async def _import_mappings_from_zipfile(
         self,
@@ -849,8 +878,13 @@ class PgVectorStore(VectorStore, DbServiceBase):
         file_path: str,
         dataset_versions: dict[uuid.UUID, int],
         data_sources: dict[uuid.UUID, int],
+        id_mapping: dict[int, int],
     ) -> int:
-        """Imports metadata mappings from Parquet file in zip archive in batches."""
+        """Imports metadata mappings from Parquet file in zip archive in batches.
+
+        Args:
+            id_mapping: Maps old document IDs to new auto-generated IDs
+        """
         mapping_count = 0
 
         # Read Parquet file from zip archive
@@ -865,6 +899,18 @@ class PgVectorStore(VectorStore, DbServiceBase):
                 for i in range(len(batch_dict['id'])):
                     try:
                         dataset_id = uuid.UUID(batch_dict['dataset_id'][i])
+                        old_document_id = batch_dict['document_id'][i]
+
+                        # Look up new document ID
+                        new_document_id = id_mapping.get(old_document_id)
+                        if new_document_id is None:
+                            _log.error(
+                                f"Mapping references non-existent document_id={old_document_id}. "
+                                f"This indicates corrupted or mismatched export data."
+                            )
+                            raise ValueError(
+                                f"Mapping references document_id={old_document_id} which was not found in documents"
+                            )
 
                         # 'details' field processing
                         details = json.loads(batch_dict['details'][i])
@@ -876,8 +922,8 @@ class PgVectorStore(VectorStore, DbServiceBase):
                         )
 
                         mapping = metadata_model(
-                            id=batch_dict['id'][i],
-                            document_id=batch_dict['document_id'][i],
+                            # Don't set id - let PostgreSQL auto-generate it
+                            document_id=new_document_id,  # Use new document ID
                             dataset_id=dataset_id,
                             version_id=dataset_versions[dataset_id],
                             details=details,
@@ -943,13 +989,14 @@ class PgVectorStore(VectorStore, DbServiceBase):
             doc_count = 0
             mapping_count = 0
         else:
-            doc_count = await self._import_documents_from_zipfile(
+            id_mapping = await self._import_documents_from_zipfile(
                 zip_file, document_model, documents_path
             )
+            doc_count = len(id_mapping)
             _log.info(f"Imported {doc_count} documents")
 
             mapping_count = await self._import_mappings_from_zipfile(
-                zip_file, metadata_model, mappings_path, dataset_versions, data_sources
+                zip_file, metadata_model, mappings_path, dataset_versions, data_sources, id_mapping
             )
             _log.info(f"Imported {mapping_count} mappings")
 

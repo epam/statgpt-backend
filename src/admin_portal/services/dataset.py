@@ -713,6 +713,16 @@ class AdminPortalDataSetService(DataSetService):
         await self._session.refresh(item)
         return item
 
+    async def _update_channel_dataset_status(
+        self, item: models.ChannelDataset, new_status: StatusEnum, do_commit: bool = True
+    ) -> None:
+        item.clearing_status = new_status
+        item.updated_at = func.now()
+
+        if do_commit:
+            await self._session.commit()
+            await self._session.refresh(item)
+
     async def _update_channel_dataset_version_status(
         self,
         item: models.ChannelDatasetVersion,
@@ -966,7 +976,19 @@ class AdminPortalDataSetService(DataSetService):
                     max_n_embeddings=max_n_embeddings,
                 )
 
+        for ch_ds in channel_datasets:
+            background_tasks.add_task(
+                clear_channel_dataset_data_in_background_task,
+                channel_dataset_id=ch_ds.id,
+                auth_context=auth_context,
+            )
+            await self._update_channel_dataset_status(
+                ch_ds, StatusEnum.NOT_STARTED, do_commit=False
+            )
+
         await self._session.commit()
+        for ch_ds in channel_datasets:
+            await self._session.refresh(ch_ds)
         for version in new_versions.values():
             await self._session.refresh(version)
 
@@ -1033,6 +1055,13 @@ class AdminPortalDataSetService(DataSetService):
                 auth_context=auth_context,
                 max_n_embeddings=max_n_embeddings,
             )
+
+        background_tasks.add_task(
+            clear_channel_dataset_data_in_background_task,
+            channel_dataset_id=channel_dataset.id,
+            auth_context=auth_context,
+        )
+        await self._update_channel_dataset_status(channel_dataset, StatusEnum.NOT_STARTED)
 
         latest_version = schemas.ChannelDatasetVersion.model_validate(version, from_attributes=True)
         last_completed_versions_mapping = (
@@ -1316,25 +1345,30 @@ class AdminPortalDataSetService(DataSetService):
         status_on_completion: StatusEnum = StatusEnum.COMPLETED,
     ) -> None:
         version = await self._get_channel_dataset_version_or_raise(channel_dataset_version_id)
-        channel_dataset = await self._get_channel_dataset_model_or_raise(version.channel_dataset_id)
-        channel: models.Channel = await ChannelService(self._session).get_model_by_id(
-            channel_dataset.channel_id
-        )
-        db_dataset: models.DataSet = await self.get_model_by_id(channel_dataset.dataset_id)
 
-        if await self._invalid_version_status(version):
-            return
-
-        handler_class = await DataSourceTypeService(
-            self._session
-        ).get_data_source_handler_class_by_id(db_dataset.source.type_id)
-        config = handler_class.parse_config(db_dataset.source.details)
-
-        _log.info(f"Start processing {version} of {channel_dataset}")
+        _log.info(f"Start processing {version}")
         try:
+            if await self._invalid_version_status(version):
+                return
+
             await self._update_channel_dataset_version_status(
                 version, new_status=StatusEnum.IN_PROGRESS
             )
+
+            channel_dataset = await self._get_channel_dataset_model_or_raise(
+                version.channel_dataset_id
+            )
+            _log.info(
+                f"Processing version(id={version.id}, version={version.version}) of {channel_dataset}"
+            )
+            channel = await ChannelService(self._session).get_model_by_id(
+                channel_dataset.channel_id
+            )
+            db_dataset: models.DataSet = await self.get_model_by_id(channel_dataset.dataset_id)
+            handler_class = await DataSourceTypeService(
+                self._session
+            ).get_data_source_handler_class_by_id(db_dataset.source.type_id)
+            config = handler_class.parse_config(db_dataset.source.details)
 
             handler = handler_class(config=config)
             dataset = await handler.get_dataset(
@@ -1383,17 +1417,39 @@ class AdminPortalDataSetService(DataSetService):
             await self._update_channel_dataset_version_status(
                 version, new_status=status_on_completion
             )
+            if status_on_completion is StatusEnum.COMPLETED:
+                await self._update_channel_dataset_status(
+                    channel_dataset, new_status=StatusEnum.QUEUED
+                )
             _log.info(f'Finished processing {version} of {channel_dataset}')
         except Exception as e:
-            _log.exception(f"Failed to reindex {version} of {channel_dataset}")
+            _log.exception(f"Failed to reindex {version}")
             await self._update_channel_dataset_version_status(
                 version, new_status=StatusEnum.FAILED, reason_for_failure=str(e)
             )
 
-        # In case of failure, we clear the data that might have been partially indexed
-        # In case of success, we clear previous version data to save space
-        if status_on_completion == StatusEnum.COMPLETED:  # only clear in last indexing job
-            await self.clear_channel_dataset_versions_data(channel.id, db_dataset.id, auth_context)
+    async def clear_channel_dataset_data_in_background(
+        self, channel_dataset_id: int, auth_context: AuthContext
+    ) -> None:
+        channel_dataset = await self._get_channel_dataset_model_or_raise(channel_dataset_id)
+
+        _log.info(f"Clear data after reindexing {channel_dataset}")
+        try:
+            await self._update_channel_dataset_status(
+                channel_dataset, new_status=StatusEnum.IN_PROGRESS
+            )
+
+            # In case of failure, we clear the data that might have been partially indexed
+            # In case of success, we clear previous version data to save space
+            await self.clear_channel_dataset_versions_data(
+                channel_dataset.channel_id, channel_dataset.dataset_id, auth_context
+            )
+            await self._update_channel_dataset_status(
+                channel_dataset, new_status=StatusEnum.COMPLETED
+            )
+        except Exception:
+            _log.exception(f"Failed to clear data after reindexing {channel_dataset}")
+            await self._update_channel_dataset_status(channel_dataset, new_status=StatusEnum.FAILED)
 
 
 @background_task
@@ -1419,6 +1475,21 @@ async def reload_indicators_in_background_task(
                 auth_context=auth_context,
                 max_n_embeddings=max_n_embeddings,
                 status_on_completion=status_on_completion,
+            )
+    except Exception as e:
+        _log.exception(e)
+
+
+@background_task
+async def clear_channel_dataset_data_in_background_task(
+    channel_dataset_id: int, auth_context: AuthContext
+) -> None:
+    try:
+        async with models.get_session_contex_manager() as session:
+            service = AdminPortalDataSetService(session)
+            await service.clear_channel_dataset_data_in_background(
+                channel_dataset_id=channel_dataset_id,
+                auth_context=auth_context,
             )
     except Exception as e:
         _log.exception(e)

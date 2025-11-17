@@ -7,7 +7,10 @@ from admin_portal.auth.auth_context import SystemUserAuthContext
 from admin_portal.services import AdminPortalChannelService as ChannelService
 from admin_portal.services import AdminPortalDataSetService as DataSetService
 from admin_portal.services import AdminPortalDataSourceService as DataSourceService
-from admin_portal.services.dataset import reload_indicators_in_background_task
+from admin_portal.services.dataset import (
+    clear_channel_dataset_data_in_background_task,
+    reload_indicators_in_background_task,
+)
 from common import schemas
 from common.data.base import DatasetCitation, IndexerConfig
 from common.data.base.dataset import IndexerIndicatorConfig
@@ -505,15 +508,20 @@ async def test_reload_all_indicators(session, clear_all, sdmx_clint_mock):
         assert channel_ds.latest_version.reason_for_failure is None
         assert isinstance(channel_ds.latest_version.id, int)
 
+    channel_dataset_ids = {channel_ds.id for channel_ds in res}
     version_ids = {channel_ds.latest_version.id for channel_ds in res if channel_ds.latest_version}
 
-    assert len(background_tasks.tasks) == 2
-    for f, args, kwargs in background_tasks.tasks:
+    assert len(background_tasks.tasks) == 4
+    for f, args, kwargs in background_tasks.tasks[:2]:
         assert f == reload_indicators_in_background_task
         assert kwargs['channel_dataset_version_id'] in version_ids
         assert kwargs['version_ids'] == version_ids
         assert kwargs['max_n_embeddings'] == 5
         assert kwargs['status_on_completion'] == schemas.PreprocessingStatusEnum.COMPLETED
+
+    for f, args, kwargs in background_tasks.tasks[2:]:
+        assert f == clear_channel_dataset_data_in_background_task
+        assert kwargs['channel_dataset_id'] in channel_dataset_ids
 
     res2 = await dataset_service.get_channel_dataset_schemas(
         limit=100, offset=0, channel_id=channel.id, auth_context=SystemUserAuthContext()

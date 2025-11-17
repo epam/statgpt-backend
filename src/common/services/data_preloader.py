@@ -35,6 +35,7 @@ async def preload_data(allow_cached_datasets: bool) -> None:
                 offset=0,
                 auth_context=_DataPreloaderAuthContext(),
                 allow_cached_datasets=allow_cached_datasets,
+                allow_offline=True,
             )
             _log.info(f'{len(datasets)} datasets loaded')
         except Exception:

@@ -313,21 +313,35 @@ class AsyncSdmxClient:
         try:
             while True:
                 attempts += 1
-                resp = await self._httpx_client.request(
-                    method=req.method,  # type: ignore[arg-type]
-                    url=req.url,  # type: ignore[arg-type]
-                    headers=req.headers,
-                    content=req.body,
-                )
-                if attempts == max_retries or resp.status_code < 500:
-                    resp.raise_for_status()
-                    return resp
-                else:
-                    logger.error(
-                        f"Server failed to respond after {attempts} attempts: {resp.status_code} {resp.text}\n"
-                        f"Retrying in {delay} seconds...\nRequest: {req.method} {req.url} body={req.body!r}"
+                try:
+                    resp = await self._httpx_client.request(
+                        method=req.method,  # type: ignore[arg-type]
+                        url=req.url,  # type: ignore[arg-type]
+                        headers=req.headers,
+                        content=req.body,
                     )
-                    await asyncio.sleep(delay)
+                    if attempts == max_retries or resp.status_code < 500:
+                        resp.raise_for_status()
+                        return resp
+                    else:
+                        logger.error(
+                            f"Server failed to respond after {attempts} attempts: {resp.status_code} {resp.text}\n"
+                            f"Retrying in {delay} seconds...\nRequest: {req.method} {req.url} body={req.body!r}"
+                        )
+                        await asyncio.sleep(delay)
+                except httpx.ConnectTimeout:
+                    if attempts == max_retries:
+                        logger.exception(
+                            f"Connection timed out after {attempts} attempts: "
+                            f"{req.method} {req.url} body={req.body!r}"
+                        )
+                        raise
+                    else:
+                        logger.error(
+                            f"Connection timed out after {attempts} attempts. Retrying in {delay} seconds..."
+                            f"\nRequest: {req.method} {req.url} body={req.body!r}\n"
+                        )
+                        await asyncio.sleep(delay)
         except Exception:
             logger.exception(
                 f"Server failed to respond, after {attempts} attempts: "

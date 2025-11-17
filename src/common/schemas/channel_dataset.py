@@ -45,6 +45,9 @@ class ChannelDatasetExpanded(ChannelDatasetBase):
     preprocessing_status: PreprocessingStatusEnum = Field(
         description="The preprocessing status of the latest version."
     )
+    clearing_status: PreprocessingStatusEnum = Field(
+        description="The clearing status of the channel dataset."
+    )
 
     last_completed_version: ChannelDatasetVersion | None
     previous_completed_version: ChannelDatasetVersion | None = Field(
