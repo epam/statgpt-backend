@@ -35,6 +35,16 @@ class ChannelDatasetVersion(DbDefaultBase):
     special_dimensions_hash: str | None
 
     @property
+    def all_hashes_dict(self) -> dict[str, str | None]:
+        parts = {
+            'structure': self.structure_hash,
+            'indicator_dims': self.indicator_dimensions_hash,
+            'non_indicator_dims': self.non_indicator_dimensions_hash,
+            'special_dims': self.special_dimensions_hash,
+        }
+        return parts
+
+    @property
     def version_data_id(self) -> int:
         """The ID of the version which contains the actual data for this version."""
         return self.pointer_to if self.pointer_to is not None else self.id

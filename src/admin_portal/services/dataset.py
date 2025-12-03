@@ -10,7 +10,7 @@ import yaml
 from fastapi import BackgroundTasks, HTTPException, status
 from pydantic import ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.sql.expression import func
+from sqlalchemy.sql.expression import func, text, update
 
 import common.models as models
 import common.schemas as schemas
@@ -21,7 +21,7 @@ from common.auth.auth_context import AuthContext
 from common.data import base
 from common.data.base.dataset import DataSetConfigType
 from common.hybrid_indexer import Indexer
-from common.schemas import HybridSearchConfig
+from common.schemas import ChannelIndexStatusScope, HybridSearchConfig
 from common.schemas import PreprocessingStatusEnum as StatusEnum
 from common.services import ChannelDataSetSerializer, DataSetSerializer, DataSetService
 from common.services.dataset import LastCompletedVersions
@@ -73,7 +73,7 @@ class AdminPortalDataSetService(DataSetService):
         version_ids: set[int] = set()
         for versions in latest_completed_versions.values():
             if versions.last_completed_version:
-                version_ids.add(versions.last_completed_version.id)
+                version_ids.add(versions.last_completed_version.version_data_id)
 
         _log.info(f"Exporting {len(version_ids)} version(s): {sorted(version_ids)}")
 
@@ -917,6 +917,34 @@ class AdminPortalDataSetService(DataSetService):
         else:
             _log.info("No versions to clear data for.")
 
+    async def set_failed_status_for_channel_dataset_version(self) -> None:
+        """Sets the status of all not-completed channel dataset versions to FAILED."""
+
+        _log.info("Setting FAILED status for all non-completed channel dataset versions...")
+
+        query = (
+            update(models.ChannelDatasetVersion)
+            .where(
+                models.ChannelDatasetVersion.preprocessing_status.notin_(
+                    StatusEnum.final_statuses()
+                ),
+                models.ChannelDatasetVersion.updated_at < text("NOW() - INTERVAL '12 hours'"),
+            )
+            .values(
+                preprocessing_status=StatusEnum.FAILED,
+                reason_for_failure=func.coalesce(
+                    models.ChannelDatasetVersion.reason_for_failure,
+                    "The version had invalid status.",
+                ),
+                updated_at=func.now(),
+            )
+        )
+
+        result = await self._session.execute(query)
+        await self._session.commit()
+
+        _log.info(f"Updated {result.rowcount} channel dataset version(s) to FAILED status")
+
     async def reload_all_indicators(
         self,
         background_tasks: BackgroundTasks,
@@ -1450,6 +1478,163 @@ class AdminPortalDataSetService(DataSetService):
         except Exception:
             _log.exception(f"Failed to clear data after reindexing {channel_dataset}")
             await self._update_channel_dataset_status(channel_dataset, new_status=StatusEnum.FAILED)
+
+    async def _get_deduplication_status_by_versions(
+        self,
+        available_dims_store: VectorStore,
+        special_dims_store: VectorStore,
+        indicator_dims_store: VectorStore,
+        versions: set[int],
+    ) -> schemas.DeduplicationStatus:
+        available_has_duplicates, available_count = (
+            await available_dims_store.has_duplicates_in_versions(version_ids=versions)
+        )
+        special_has_duplicates, special_count = await special_dims_store.has_duplicates_in_versions(
+            version_ids=versions
+        )
+        _, indicator_count = await indicator_dims_store.has_duplicates_in_versions(
+            version_ids=versions
+        )
+
+        # we only consider available and special dimensions for deduplication requirement
+        deduplication_required = available_has_duplicates or special_has_duplicates
+        total_duplicates = available_count + special_count + indicator_count
+
+        return schemas.DeduplicationStatus(
+            deduplication_required=deduplication_required,
+            total_duplicate_count=total_duplicates,
+            available_dimensions_duplicate_count=available_count,
+            special_dimensions_duplicate_count=special_count,
+            indicator_dimensions_duplicate_count=indicator_count,
+        )
+
+    async def _get_full_deduplication_status(
+        self,
+        available_dims_store: VectorStore,
+        special_dims_store: VectorStore,
+        indicator_dims_store: VectorStore,
+    ) -> schemas.DeduplicationStatus:
+        available_has_duplicates, available_count = await available_dims_store.has_duplicates()
+        special_has_duplicates, special_count = await special_dims_store.has_duplicates()
+        _, indicator_count = await indicator_dims_store.has_duplicates()
+
+        # we only consider available and special dimensions for deduplication requirement
+        deduplication_required = available_has_duplicates or special_has_duplicates
+        total_duplicates = available_count + special_count + indicator_count
+
+        return schemas.DeduplicationStatus(
+            deduplication_required=deduplication_required,
+            total_duplicate_count=total_duplicates,
+            available_dimensions_duplicate_count=available_count,
+            special_dimensions_duplicate_count=special_count,
+            indicator_dimensions_duplicate_count=indicator_count,
+        )
+
+    async def _check_latest_versions_status(
+        self,
+        channel: models.Channel,
+        available_dims_store: VectorStore,
+        special_dims_store: VectorStore,
+        indicator_dims_store: VectorStore,
+    ) -> schemas.ChannelIndexStatus:
+        latest_successful_versions = await self.get_latest_successful_dataset_versions_for_channel(
+            channel_id=channel.id
+        )
+        versions = {
+            v.last_completed_version.version_data_id
+            for v in latest_successful_versions.values()
+            if v.last_completed_version is not None
+        }
+
+        deduplication_status = await self._get_deduplication_status_by_versions(
+            available_dims_store,
+            special_dims_store,
+            indicator_dims_store,
+            versions,
+        )
+        sizes = schemas.VectorStoreSizes(
+            available_dimensions_size=await available_dims_store.get_size(version_ids=versions),
+            special_dimensions_size=await special_dims_store.get_size(version_ids=versions),
+            indicator_dimensions_size=await indicator_dims_store.get_size(version_ids=versions),
+        )
+
+        vector_store_status = schemas.VectorStoreStatus(
+            deduplication=deduplication_status,
+            sizes=sizes,
+        )
+        return schemas.ChannelIndexStatus(
+            vector_store=vector_store_status,
+            scope=ChannelIndexStatusScope.LATEST_COMPLETED_VERSIONS,
+        )
+
+    async def _check_full_index_status(
+        self,
+        channel: models.Channel,
+        available_dims_store: VectorStore,
+        special_dims_store: VectorStore,
+        indicator_dims_store: VectorStore,
+    ) -> schemas.ChannelIndexStatus:
+        deduplication_status = await self._get_full_deduplication_status(
+            available_dims_store,
+            special_dims_store,
+            indicator_dims_store,
+        )
+        sizes = schemas.VectorStoreSizes(
+            available_dimensions_size=await available_dims_store.get_total_size(),
+            special_dimensions_size=await special_dims_store.get_total_size(),
+            indicator_dimensions_size=await indicator_dims_store.get_total_size(),
+        )
+
+        vector_store_status = schemas.VectorStoreStatus(
+            deduplication=deduplication_status,
+            sizes=sizes,
+        )
+        return schemas.ChannelIndexStatus(
+            vector_store=vector_store_status, scope=ChannelIndexStatusScope.FULL
+        )
+
+    async def check_index_status(
+        self,
+        channel_id: int,
+        auth_context: AuthContext,
+        scope: schemas.ChannelIndexStatusScope,
+    ) -> schemas.ChannelIndexStatus:
+        """Checks index status for channel"""
+        channel = await ChannelService(self._session).get_model_by_id(channel_id)
+        vector_store_factory = VectorStoreFactory(session=self._session)
+
+        available_dims_store = await vector_store_factory.get_vector_store(
+            collection_name=channel.available_dimensions_table_name,
+            auth_context=auth_context,
+            embedding_model_name=channel.llm_model,
+        )
+        special_dims_store = await vector_store_factory.get_vector_store(
+            collection_name=channel.special_dimensions_table_name,
+            auth_context=auth_context,
+            embedding_model_name=channel.llm_model,
+        )
+        indicator_dims_store = await vector_store_factory.get_vector_store(
+            collection_name=channel.indicator_table_name,
+            auth_context=auth_context,
+            embedding_model_name=channel.llm_model,
+        )
+
+        if scope == schemas.ChannelIndexStatusScope.FULL:
+            return await self._check_full_index_status(
+                channel=channel,
+                available_dims_store=available_dims_store,
+                special_dims_store=special_dims_store,
+                indicator_dims_store=indicator_dims_store,
+            )
+        elif scope == schemas.ChannelIndexStatusScope.LATEST_COMPLETED_VERSIONS:
+            return await self._check_latest_versions_status(
+                channel=channel,
+                available_dims_store=available_dims_store,
+                special_dims_store=special_dims_store,
+                indicator_dims_store=indicator_dims_store,
+            )
+        else:
+            raise ValueError(f"Unknown scope: {scope}")
 
 
 @background_task

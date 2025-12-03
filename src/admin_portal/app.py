@@ -30,7 +30,7 @@ from common.services.data_preloader import preload_data
 async def lifespan(app_: FastAPI):
     async with optional_msi_token_manager_context():
         # Check resources' availability:
-        await DatabaseHealthChecker.check()
+        await DatabaseHealthChecker().check()
 
         # Start data preloading in the background
         asyncio.create_task(preload_data(allow_cached_datasets=False))

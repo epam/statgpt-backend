@@ -80,12 +80,12 @@ search_normalize:
     {input}
 
     Examples:
-    1. if case is described as JSON {{"Input": "Provide the total unemployment data as a percentage of the labor force for Germany for the last 15 years", "Named Entities": ["last 15 years (Time frequency)", "Germany (Country/Reference area)"], "Time Period": "from 2009-08-08 to 2024-08-08"] then expected cleaned input is "total unemployment data as a percent of the labor force"
-    2. if case is described as JSON {{"Input": "Get the Gross Domestic Product per capita growth rate for the United Kingdom since Brexit", "Named Entities": ["United Kingdom (Country/Reference area)"], "Time Period": "from 2020-01-31"] then expected cleaned input is "Get Gross Domestic Product per capita growth rate"
-    3. if case is described as JSON {{"Input": "I need to calculate the misery index for Austria. What indicators would you recommend?", "Named Entities": ["Austria (Country/Reference area)"]}} then expected cleaned input is "calculate the misery index"
+    1. if case is described as JSON {{"Input": "Provide the total unemployment data as a percentage of the labor force for Germany for the last 15 years", "Named Entities": ["last 15 years (Time frequency) (REMOVE)", "Germany (Country/Reference area) (REMOVE)"], "Time Period": "from 2009-08-08 to 2024-08-08"] then expected cleaned input is "total unemployment data as a percent of the labor force"
+    2. if case is described as JSON {{"Input": "Get the Gross Domestic Product per capita growth rate for the United Kingdom since Brexit", "Named Entities": ["United Kingdom (Country/Reference area) (REMOVE)"], "Time Period": "from 2020-01-31 (REMOVE)"] then expected cleaned input is "Gross Domestic Product per capita growth rate"
+    3. if case is described as JSON {{"Input": "I need to calculate the misery index for Austria. What indicators would you recommend?", "Named Entities": ["Austria (Country/Reference area) (REMOVE)"]}} then expected cleaned input is "misery index"
     4. if case is described as JSON {{"Input": "Query the unemployment rate and inflation rate to calculate the Misery Index"]}} then expected cleaned input is "unemployment rate and inflation rate to calculate the Misery Index"
-    5. if case is described as JSON {{"Input": "I would like to evaluate net trade flow of manufacturing items between the United States and Eurozone (as a group). What indicators would you suggest?", "Named Entities": ["United States (Country/Reference area)", Euro Area (Counterpart area)]}} then expected cleaned input is "evaluate net trade flow of manufacturing items"
-
+    5. if case is described as JSON {{"Input": "I would like to evaluate net trade flow of manufacturing items between the United States and Eurozone (as a group). What indicators would you suggest?", "Named Entities": ["United States (Country/Reference area) (REMOVE)", "Euro Area (Counterpart area) (REMOVE)""]}} then expected cleaned input is "net trade flow of manufacturing items"
+    6. if case is described as JSON {{"Input": "Number of stays of Poland citizens in hotels?", "Named Entities": ["Poland (Country/Reference area) (REMOVE)", "Poland citizen (Citizenship of a certain country (citizen of Finland/Uzbek/foreigner from Greece/etc.) (DO NOT REMOVE)"]] then expected cleaned input is "Number of stays of Poland citizens in hotels"
 separate_subjects:
   systemPrompt: |-
     You are an expert in statistical indicators.

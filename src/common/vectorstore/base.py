@@ -51,6 +51,22 @@ class VectorStore(ABC):
         """Removes and remaps duplicate documents based on document content."""
 
     @abstractmethod
+    async def has_duplicates(self) -> tuple[bool, int]:
+        """Checks if there are duplicate documents based on document content."""
+
+    @abstractmethod
+    async def has_duplicates_in_versions(self, version_ids: set[int]) -> tuple[bool, int]:
+        """Checks if there are duplicate documents based on document content in the specified version IDs."""
+
+    @abstractmethod
+    async def get_total_size(self) -> int:
+        """Returns the total number of documents in the vector store."""
+
+    @abstractmethod
+    async def get_size(self, version_ids: set[int]) -> int:
+        """Returns the number of documents in the vector store for the specified version IDs."""
+
+    @abstractmethod
     async def export_to_folder(self, folder_path: str, version_ids: set[int]) -> None:
         """Exports the vector store data to the specified folder."""
 

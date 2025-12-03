@@ -73,9 +73,19 @@ class AvailableDatasetsVersion(StrEnum):
     full = "full"
 
 
+_LANGUAGE_NAMES = {
+    "en": "English",
+    "uk": "Ukrainian",
+}
+
+
 class LocaleEnum(StrEnum):
     EN = "en"
     UK = "uk"
+
+    def get_language_name(self) -> str:
+        """Return the full language name for this locale."""
+        return _LANGUAGE_NAMES[self]
 
 
 class DataRequestStatus(StrEnum):
@@ -89,3 +99,8 @@ class DataParsingStatus(StrEnum):
     SUCCESS = "SUCCESS"
     FAILED = "FAILED"
     PARTIALLY_FAILED = "PARTIALLY_FAILED"
+
+
+class ChannelIndexStatusScope(StrEnum):
+    FULL = "full"
+    LATEST_COMPLETED_VERSIONS = "latest_completed_versions"

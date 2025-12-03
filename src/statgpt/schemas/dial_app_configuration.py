@@ -4,6 +4,8 @@ from zoneinfo import ZoneInfo
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from statgpt.settings.dial_app import dial_app_settings
+
 
 class StatGPTConfiguration(BaseModel):
     """
@@ -16,6 +18,10 @@ class StatGPTConfiguration(BaseModel):
         description="Timezone in IANA format, e.g. 'Europe/Berlin', 'America/New_York'. "
         "Used to interpret and display dates and times.",
         default="UTC",
+    )
+    enable_debug_attachments: bool = Field(
+        description="Enable debug attachments in the chat responses.",
+        default=dial_app_settings.dial_show_debug_attachments,
     )
 
     @field_validator('timezone')

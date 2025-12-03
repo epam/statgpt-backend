@@ -13,6 +13,7 @@ from common.schemas.data_query_tool import DataQueryAttachments
 from common.schemas.enums import DataParsingStatus
 from common.utils import AttachmentsStorage, MediaTypes, attachments_storage_factory
 from common.utils.async_utils import catch_and_log_async
+from statgpt.schemas.dial_app_configuration import StatGPTConfiguration
 from statgpt.schemas.tool_artifact import DataQueryArtifact
 from statgpt.utils import get_json_markdown, get_python_code_markdown
 
@@ -31,21 +32,22 @@ class DataQueryArtifactDisplayer:
         self,
         choice: Choice,
         config: DataQueryAttachments,
+        chat_config: StatGPTConfiguration,
         max_cells: int,
         auth_context: AuthContext,
     ):
         self._choice = choice
         self._config = config
+        self._chat_config = chat_config
         self._auth_context = auth_context
         self._max_cells = max_cells
 
     async def display(self, data_query_artifacts: dict[str, DataQueryArtifact]) -> None:
         data_query_artifacts_list = list(data_query_artifacts.values())
         responses = self._merge_data_responses(data_query_artifacts_list)
-        tasks = [
-            self._display_data_responses(responses),
-            self._display_eval_attachments(data_query_artifacts),
-        ]
+        tasks = [self._display_data_responses(responses)]
+        if self._chat_config.enable_debug_attachments:
+            tasks.append(self._display_eval_attachments(data_query_artifacts))
         await asyncio.gather(*tasks)
 
     async def get_system_message_content(

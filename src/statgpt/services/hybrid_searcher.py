@@ -753,8 +753,10 @@ class HybridSearcher:
         if named_entities and named_entities_to_remove:
             for entity in named_entities:
                 if entity.entity_type in named_entities_to_remove:
-                    entities_str += f" - {entity.entity} ({entity.entity_type})\n"
-            if entities_str != "":
+                    entities_str += f" - {entity.entity} ({entity.entity_type}) (REMOVE)\n"
+                else:
+                    entities_str += f" - {entity.entity} ({entity.entity_type}) (DO NOT REMOVE)\n"
+            if entities_str:
                 entities_str = "Named Entities:\n" + entities_str
 
         period_str = ""
@@ -768,24 +770,32 @@ class HybridSearcher:
             period_str = "Time Period:\n" + period_str
 
         removal_step = ""
-        if entities_str != "" or period_str != "":
-            if entities_str and period_str:
-                removal_step = "- from the input remove parts related to the Named Entities and Time Period. Only listed entities and period"
-            elif entities_str:
-                removal_step = "- from the input remove parts related to the Named Entities. Only listed entities"
-            elif period_str:
-                removal_step = "- from the input remove parts related to Time Period. Only period"
-
-        forbidden_str = ""
-        if forbidden and len(forbidden) > 0:
-            forbidden_str = ", ".join(forbidden)
-            forbidden_str = f"Forbidden to remove words:\n{forbidden_str}\n"
-
-        forbidden_step = ""
-        if forbidden_str != "":
-            forbidden_step = (
-                "- do not remove forbidden to remove words from the input if they present in input"
+        if entities_str and period_str:
+            removal_step = (
+                "- from the input: "
+                "keep entities marked (DO NOT REMOVE), "
+                "remove entities marked (REMOVE) "
+                "and remove all parts related to Time Period. "
+                "If an entity or part of entity appears in multiple categories "
+                "and at least one instance is marked (DO NOT REMOVE), keep entity"
             )
+        elif entities_str:
+            removal_step = (
+                "- from the input: "
+                "keep entities marked (DO NOT REMOVE), "
+                "remove entities marked (REMOVE). "
+                "If an entity or part of entity appears in multiple categories "
+                "and at least one instance is marked (DO NOT REMOVE), keep entity"
+            )
+        elif period_str:
+            removal_step = "- from the input remove all parts related to Time Period. Only period"
+
+        forbidden_to_remove_str = ""
+        forbidden_step = ""
+        if forbidden:
+            forbidden_to_remove_str = ", ".join(forbidden)
+            forbidden_to_remove_str = f"Forbidden to remove words:\n{forbidden_to_remove_str}\n"
+            forbidden_step = "- do not remove forbidden to remove words from the input if they are present in input"
 
         output = await self._normalize_chain.ainvoke(
             {
@@ -794,22 +804,22 @@ class HybridSearcher:
                 "input": query,
                 "entities": entities_str,
                 "period": period_str,
-                "forbidden": forbidden_str,
+                "forbidden": forbidden_to_remove_str,
             }
         )
         return output['cleaned_input']
 
     async def _separate_subjects(self, query: str, forbidden: set[str]) -> list[str]:
         forbidden_str = ""
-        if forbidden and len(forbidden) > 0:
+        if forbidden:
             for item in forbidden:
                 if len(item.split()) > 0:
                     forbidden_str += f" - {item}"
-            if forbidden_str != "":
+            if forbidden_str:
                 forbidden_str = f"Forbidden to split phrases:\n{forbidden_str}\n"
 
         forbidden_step = ""
-        if forbidden_str != "":
+        if forbidden_str:
             forbidden_step = "- do not split the input into separate queries in the middle of the forbidden to split phrases if they present in input"
 
         output = await self._separate_subjects_chain.ainvoke(
@@ -871,17 +881,21 @@ class HybridSearcher:
         )
         logger.info(f"[search], {good_candidates=}")
         logger.info(f"[search], {candidates=}")
-
-        if stage:
-            stage.append_content("> [full text] potential known terms:\n")
-            stage.append_content("```\n")
-            forbidden_str = "[" + "]  [".join(forbidden) + "]"
-            stage.append_content(f"{forbidden_str}\n")
-            stage.append_content("```\n")
-
         normalized = await self._normalize_input(query, named_entities, period, forbidden)
         normalized = normalized.lower()
         elapsed = time.perf_counter() - pc0
+
+        if stage:
+            stage.append_content("> [raw input query]:\n")
+            stage.append_content(f"```\n{query}\n```\n")
+
+            stage.append_content("> [normalized input query for search]:\n")
+            stage.append_content(f"```\n{normalized}\n```\n")
+
+            stage.append_content("> [full text] potential known terms:\n")
+            forbidden_str = "[" + "]  [".join(forbidden) + "]"
+            stage.append_content(f"```\n{forbidden_str}\n```\n")
+
         logger.info(f"[search], {normalized=}, (elapsed {elapsed:0.3f} sec)")
 
         queries = await self._separate_subjects(normalized, good_candidates)

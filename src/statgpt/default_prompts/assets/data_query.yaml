@@ -318,7 +318,7 @@ validationSystemPrompt: >-
   Please provide only REQUESTED dimension values as an output.
   Do not include any additional data, comments or text.
 
-  Make sure you analyzed the WHOLE provdided list of dimension values and did not skip anything requested by user.
+  Make sure you analyzed the WHOLE provided list of dimension values and did not skip anything requested by user.
 
   Format your answer as JSON: {format_instructions}
 validationUserPrompt: >-
@@ -350,8 +350,9 @@ datasetSelectionPrompts:
     (1) select dataset, (2) remove dataset reference from user query and (3) keep indicator in user query
     - To distinguish between indicators and datasets, pay attention to words and grammar.
     Datasets usually go after words like "from", "according to".
-    - If user asked for datasets by provider only and mentions indicator matching a dataset name, select
-    ALL datasets with that provider, not just the datasets that contain that indicator.
+    - If user asked to filter datasets only by provider
+    and mentions indicator matching a dataset name,
+    select ALL datasets with that provider, not just the datasets that contain that indicator.
     - Partial matches of provider names are allowed. For example, if user asks for datasets by IMF,
     datasets with provider "IMF.STA" or "IMF.RES" or similar should also be selected, not just datasets
     with provider "IMF".
@@ -432,4 +433,4 @@ summarizeQueriesPrompt: >-
   You are an expert in Official Statistics.
 
   Your task is to interpret and summarize the data query to natural language. The summary should be concise and easy
-  to understand for a general audience. The summary must be in the language of the query.
+  to understand for a general audience. The summary **must be in {language}**.

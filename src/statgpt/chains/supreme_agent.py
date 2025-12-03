@@ -243,10 +243,11 @@ class SupremeAgentExecutor:
         data_query_artifacts: dict[str, DataQueryArtifact] = {}
         assert self._channel_config.data_query is not None, "data_query must be configured"
         data_displayer = DataQueryArtifactDisplayer(
-            choice,
-            self._channel_config.data_query.details.attachments,
-            self._channel_config.data_query.details.tool_response_max_cells,
-            auth_context,
+            choice=choice,
+            config=self._channel_config.data_query.details.attachments,
+            chat_config=ChainParameters.get_configuration(inputs),
+            max_cells=self._channel_config.data_query.details.tool_response_max_cells,
+            auth_context=auth_context,
         )
 
         for i in range(self._channel_config.supreme_agent.max_agent_iterations):

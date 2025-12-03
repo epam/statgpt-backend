@@ -5,6 +5,7 @@ import common.models as models
 import common.schemas as schemas
 from admin_portal.auth.user import require_jwt_auth
 from admin_portal.services import AdminPortalGlossaryOfTermsService as GlossaryOfTermsService
+from common.utils.cancel_dependency import cancel_on_disconnect
 
 terms_router = APIRouter(prefix="/terms", tags=["glossary_of_terms"])
 channel_terms_router = APIRouter(
@@ -20,6 +21,7 @@ async def get_channel_glossary_terms(
     limit: int = 100,
     offset: int = 0,
     session: AsyncSession = Depends(models.get_session),
+    _=Depends(cancel_on_disconnect),
 ) -> schemas.ListResponse[schemas.GlossaryTerm]:
     """Returns a list of glossary terms for the channel."""
 
@@ -93,6 +95,7 @@ async def delete_terms_bulk(
 async def get_glossary_term_by_id(
     item_id: int,
     session: AsyncSession = Depends(models.get_session),
+    _=Depends(cancel_on_disconnect),
 ) -> schemas.GlossaryTerm:
     """Returns a glossary term by id."""
 

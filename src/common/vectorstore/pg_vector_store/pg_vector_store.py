@@ -21,6 +21,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.schema import CreateTable
 from sqlalchemy.sql import text
 from sqlalchemy.sql.elements import TextClause
+from sqlalchemy.sql.expression import func
 
 from common.services.base import DbServiceBase
 from common.settings.database import PostgresSettings
@@ -450,6 +451,122 @@ class PgVectorStore(VectorStore, DbServiceBase):
             )
         """
         )
+
+    @staticmethod
+    async def _get_duplicates(
+        session: AsyncSession, query: TextClause, params=None
+    ) -> tuple[bool, int]:
+        result = await session.execute(statement=query, params=params)
+        row = result.fetchone()
+
+        if row:
+            duplicate_count = int(row.duplicate_count)
+            has_duplicates = duplicate_count > 0
+            return (has_duplicates, duplicate_count)
+
+        return (False, 0)
+
+    async def has_duplicates(self) -> tuple[bool, int]:
+        """Checks if there are duplicate documents based on document content."""
+        document_model = await self._get_document_model()
+        metadata_model = await self._get_metadata_model()
+
+        async with self._lock_session() as session:
+            for model in [document_model, metadata_model]:
+                if not await self._check_if_table_exists(session, model.__tablename__):
+                    _log.info(f"Table {model.__tablename__!r} does not exist.")
+                    return False, 0
+
+            duplicate_check_query = text(
+                f"""
+                WITH duplicate_groups AS (
+                    SELECT d.document, COUNT(DISTINCT d.id) as doc_count
+                    FROM collections."{document_model.__tablename__}" d
+                    INNER JOIN collections."{metadata_model.__tablename__}" m ON d.id = m.document_id
+                    GROUP BY d.document
+                    HAVING COUNT(DISTINCT d.id) > 1
+                )
+                SELECT COUNT(*) as group_count,
+                       COALESCE(SUM(doc_count - 1), 0) as duplicate_count
+                FROM duplicate_groups
+                """
+            )
+
+            return await self._get_duplicates(session, duplicate_check_query, params=None)
+
+    async def has_duplicates_in_versions(self, version_ids: set[int]) -> tuple[bool, int]:
+        """Checks if there are duplicate documents based on document content.
+
+        Returns:
+            tuple[bool, int]: (has_duplicates, duplicate_count)
+        """
+        document_model = await self._get_document_model()
+        metadata_model = await self._get_metadata_model()
+
+        async with self._lock_session() as session:
+            for model in [document_model, metadata_model]:
+                if not await self._check_if_table_exists(session, model.__tablename__):
+                    _log.info(f"Table {model.__tablename__!r} does not exist.")
+                    return False, 0
+
+            # Build WHERE clause for version_ids filter
+            where_clause = ""
+            params = {}
+            if version_ids:
+                where_clause = "WHERE m.version_id = ANY(:version_ids)"
+                params = {"version_ids": list(version_ids)}
+
+            duplicate_check_query = text(
+                f"""
+                WITH duplicate_groups AS (
+                    SELECT d.document, COUNT(DISTINCT d.id) as doc_count
+                    FROM collections."{document_model.__tablename__}" d
+                    INNER JOIN collections."{metadata_model.__tablename__}" m ON d.id = m.document_id
+                    {where_clause}
+                    GROUP BY d.document
+                    HAVING COUNT(DISTINCT d.id) > 1
+                )
+                SELECT COUNT(*) as group_count,
+                       COALESCE(SUM(doc_count - 1), 0) as duplicate_count
+                FROM duplicate_groups
+                """
+            )
+
+            return await self._get_duplicates(session, duplicate_check_query, params=params)
+
+    async def get_total_size(self) -> int:
+        """Returns the total number of documents in the vector store."""
+        metadata_model = await self._get_metadata_model()
+
+        async with self._lock_session() as session:
+            if not await self._check_if_table_exists(session, metadata_model.__tablename__):
+                _log.info(f"Table {metadata_model.__tablename__!r} does not exist.")
+                return 0
+
+            size_query = select(func.count(func.distinct(metadata_model.document_id))).select_from(
+                metadata_model
+            )
+            result = await session.execute(size_query)
+            size = result.scalar_one()
+            return size
+
+    async def get_size(self, version_ids: set[int]) -> int:
+        """Returns the number of documents in the vector store."""
+        metadata_model = await self._get_metadata_model()
+
+        async with self._lock_session() as session:
+            if not await self._check_if_table_exists(session, metadata_model.__tablename__):
+                _log.info(f"Table {metadata_model.__tablename__!r} does not exist.")
+                return 0
+
+            size_query = (
+                select(func.count(func.distinct(metadata_model.document_id)))
+                .select_from(metadata_model)
+                .where(metadata_model.version_id.in_(version_ids))
+            )
+            result = await session.execute(size_query)
+            size = result.scalar_one()
+            return size
 
     async def deduplicate_by_document_content(self) -> None:
         """Removes and remaps duplicate documents based on `document` field content.

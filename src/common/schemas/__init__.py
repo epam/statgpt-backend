@@ -1,5 +1,15 @@
 from .base import ListResponse
-from .channel import Channel, ChannelBase, ChannelConfig, ChannelUpdate, SupremeAgentConfig
+from .channel import (
+    Channel,
+    ChannelBase,
+    ChannelConfig,
+    ChannelIndexStatus,
+    ChannelUpdate,
+    DeduplicationStatus,
+    SupremeAgentConfig,
+    VectorStoreSizes,
+    VectorStoreStatus,
+)
 from .channel_dataset import (
     ChangesBetweenVersionAndActualData,
     ChannelDatasetBase,
@@ -12,6 +22,7 @@ from .data_query_tool import DataQueryDetails, HybridSearchConfig
 from .data_source import DataSource, DataSourceBase, DataSourceType, DataSourceUpdate
 from .dataset import DataSet, DataSetBase, DataSetDescriptor, DataSetUpdate
 from .enums import (
+    ChannelIndexStatusScope,
     DecoderOfLatestEnum,
     IndexerVersion,
     IndicatorSelectionVersion,

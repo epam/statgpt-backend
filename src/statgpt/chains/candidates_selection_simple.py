@@ -1,5 +1,3 @@
-from operator import itemgetter
-
 from langchain_core.output_parsers import PydanticOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.runnables import Runnable, RunnableLambda, RunnablePassthrough
@@ -35,6 +33,9 @@ class CandidatesSelectionSimpleChainFactory(BatchedSelectionInnerChainFactory):
     def _get_candidates(self, inputs: dict) -> list[LLMSelectionCandidateBase]:
         return inputs[self._candidates_key]
 
+    def _get_llm_response(self, inputs: dict) -> SelectedCandidates:
+        return inputs["parsed_response"]
+
     def _route_based_on_candidates_presence(self, inputs: dict) -> Runnable | SelectedCandidates:
         candidates = self._get_candidates(inputs)
         if not candidates:
@@ -68,7 +69,8 @@ class CandidatesSelectionSimpleChainFactory(BatchedSelectionInnerChainFactory):
                 | parser
             )
             | self._remove_hallucinations
-            | itemgetter("parsed_response")
+            | self._display_llm_response_in_stage
+            | self._get_llm_response
         )
         logger.info(
             f"{self.__class__.__name__} using LLM model: {self._llm_model_config.deployment.deployment_id}"
@@ -83,7 +85,7 @@ class CandidatesSelectionSimpleChainFactory(BatchedSelectionInnerChainFactory):
         text = candidates[0].candidates_to_llm_string(candidates)  # type: ignore[arg-type]
         return text
 
-    def _display_formatted_candidates_in_stage(self, inputs: dict):
+    def _display_formatted_candidates_in_stage(self, inputs: dict) -> dict:
         choice = ChainParameters.get_choice(inputs)
         state = ChainParameters.get_state(inputs)
         show_debug_stages = state.get(StateVarsConfig.SHOW_DEBUG_STAGES)
@@ -100,21 +102,37 @@ class CandidatesSelectionSimpleChainFactory(BatchedSelectionInnerChainFactory):
 
         return inputs
 
+    def _display_llm_response_in_stage(self, inputs: dict) -> dict:
+        choice = ChainParameters.get_choice(inputs)
+        state = ChainParameters.get_state(inputs)
+        show_debug_stages = state.get(StateVarsConfig.SHOW_DEBUG_STAGES)
+
+        if not show_debug_stages:
+            return inputs
+
+        response = self._get_llm_response(inputs)
+        response_formatted = response.model_dump_json(indent=2)
+        with choice.create_stage(name='[DEBUG] Non-Indicator LLM Selection Response') as stage:
+            content = f'```json\n{response_formatted}\n```'
+            stage.append_content(content)
+
+        return inputs
+
     def _remove_hallucinations(self, inputs: dict):
         candidates = self._get_candidates(inputs)
-        parsed_response: SelectedCandidates = inputs["parsed_response"]
+        response = self._get_llm_response(inputs)
 
         candidates_ids = {x._id for x in candidates}
-        parsed_ids = set(parsed_response.ids)
+        selected_ids = set(response.ids)
 
-        hallucinations = parsed_ids.difference(candidates_ids)
+        hallucinations = selected_ids.difference(candidates_ids)
         if hallucinations:
             logger.warning(
                 f"!HALLUCINATION in Selection chain! "
                 f"{len(hallucinations)} unexpected ids found: {hallucinations}"
             )
-            parsed_response.ids = list(parsed_ids.intersection(candidates_ids))
-            inputs["parsed_response"] = parsed_response  # let's be explicit
+            response.ids = list(selected_ids.intersection(candidates_ids))  # inplace update
+            inputs["parsed_response"] = response  # not required, but explicit
         return inputs
 
     def create_chain(self) -> Runnable:

@@ -260,7 +260,6 @@ class AdminPortalChannelService(ChannelService):
         """
         channel = await self.get_model_by_id(channel_id)
 
-        # Start background task
         background_tasks.add_task(
             deduplicate_dimensions_in_background_task,
             channel_id=channel_id,
