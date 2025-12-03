@@ -20,9 +20,8 @@ COPY pyproject.toml .
 COPY poetry.lock .
 RUN poetry export -f requirements.txt --without-hashes | pip install $PIP_ARGS -r /dev/stdin
 
-# Copy scripts and source code
+# Copy source code
 COPY ./src/alembic.ini $APP_HOME/alembic.ini
-COPY ./scripts/admin.sh $APP_HOME/admin.sh
 COPY ./src/admin_portal $APP_HOME/admin_portal
 COPY ./src/common $APP_HOME/common
 
@@ -30,7 +29,7 @@ COPY ./src/common $APP_HOME/common
 RUN adduser -u 5678 --system --disabled-password --gecos "" app && chown -R app $APP_HOME
 USER app
 
-ENV APP_MODE="DIAL"
 ENV WEB_CONCURRENCY=1
+ENV PYDANTIC_V2=True
 
-CMD ["sh", "admin.sh"]
+CMD ["sh", "admin_portal/admin.sh"]
