@@ -4,10 +4,8 @@ from aidial_sdk import DIALApp
 from aidial_sdk.chat_completion import ChatCompletion, ConfigurationRequest, Request, Response
 from aidial_sdk.telemetry.types import MetricsConfig, TelemetryConfig, TracingConfig
 from fastapi import Request as FastAPIRequest
-from fastapi.params import Depends
 
 from common.settings.application import application_settings
-from common.utils.cancel_dependency import cancel_on_disconnect
 from statgpt.settings.dial_app import dial_app_settings
 
 from .application import StatGPTApp
@@ -50,7 +48,8 @@ class DialAppFactory:
             ),
         )
 
-        dependencies = [Depends(cancel_on_disconnect)]
+        # dependencies = [Depends(cancel_on_disconnect)]
+        dependencies: list = []
 
         app.add_chat_completion_with_dependencies(
             "{deployment_id}",

@@ -229,9 +229,10 @@ class QuanthubSdmx21DataSet(Sdmx21DataSet):
     ) -> DataSetAvailabilityQuery:
         result = super()._availability_result_to_query(availability_result)
 
-        constraint: ContentConstraint = list(availability_result.constraint.values())[0]
+        constraints_iterator = iter(availability_result.constraint.values())
+        constraint: ContentConstraint | None = next(constraints_iterator, None)
 
-        if "TIME_PERIOD" not in result:
+        if constraint is not None and "TIME_PERIOD" not in result:
             start, end = self._parse_time_period_from(constraint.annotations)
             result.time_period_start, result.time_period_end = start, end
 

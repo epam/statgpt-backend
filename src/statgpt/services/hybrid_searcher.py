@@ -7,6 +7,7 @@ from collections.abc import Generator
 from typing import Any, NamedTuple
 
 from aidial_sdk.chat_completion import Stage
+from langchain_core.prompts import ChatPromptTemplate
 from pydantic import BaseModel
 
 from common.config.logging import logger
@@ -732,10 +733,16 @@ class HybridSearcher:
             IndexerPrompts.get_separate_subjects_prompts()
             | self._llm.with_structured_output(method="json_mode")
         )
-        self._relevance_chain = (
-            IndexerPrompts.get_relevance_prompts()
-            | self._llm.with_structured_output(method="json_mode")
-        )
+        if system_user_prompt := config.prompts.relevancy_prompts:
+            prompt = ChatPromptTemplate.from_messages(
+                [
+                    ("system", system_user_prompt.system_message),
+                    ("human", system_user_prompt.user_message),
+                ],
+            )
+        else:
+            prompt = IndexerPrompts.get_relevance_prompts()
+        self._relevance_chain = prompt | self._llm.with_structured_output(method="json_mode")
 
     @property
     def config(self) -> HybridSearchConfig:

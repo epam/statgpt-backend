@@ -1,8 +1,9 @@
 import asyncio
+import logging
 from collections.abc import Sequence
 from contextlib import asynccontextmanager
 
-from aidial_sdk import DIALApp
+from aidial_sdk import DIALApp, logger
 from aidial_sdk.chat_completion import ChatCompletion
 from aidial_sdk.deployment.configuration import ConfigurationRequest
 from aidial_sdk.deployment.tokenize import TokenizeRequest
@@ -13,6 +14,7 @@ from fastapi import params as fastapi_params
 from common.models import DatabaseHealthChecker, optional_msi_token_manager_context
 from common.services.data_preloader import preload_data
 from common.settings.dial import dial_settings
+from statgpt.application.middleware import DebugRequestLoggingMiddleware
 
 
 @asynccontextmanager
@@ -36,6 +38,11 @@ class StatGPTApp(DIALApp):
             lifespan=lifespan,
             **kwargs,
         )
+        if logger.isEnabledFor(logging.DEBUG):
+            self.add_middleware(
+                DebugRequestLoggingMiddleware,
+                patterns=[r"/chat/completions$"],
+            )
 
     def add_chat_completion_with_dependencies(
         self,

@@ -209,18 +209,24 @@ class AsyncSdmxClient:
         use_cache: bool = False,
         tofile: os.PathLike | IO | None = None,
     ) -> Message:
-        async with self._rate_limiter.availability_limiter():
-            return await self._get(
-                resource_type=resource_type,
-                resource_id=resource_id,
-                agency_id=agency_id,
-                version=version,
-                key=key,
-                params=params,
-                dsd=dsd,
-                use_cache=use_cache,
-                tofile=tofile,
-            )
+        try:
+            async with self._rate_limiter.availability_limiter():
+                return await self._get(
+                    resource_type=resource_type,
+                    resource_id=resource_id,
+                    agency_id=agency_id,
+                    version=version,
+                    key=key,
+                    params=params,
+                    dsd=dsd,
+                    use_cache=use_cache,
+                    tofile=tofile,
+                )
+        except httpx.HTTPStatusError as e:
+            if e.response.status_code in [400, 404]:
+                logger.error(f"Bad request for URL {e.request.url!r}: {e.response.text}")
+                return StructureMessage()  # Return empty StructureMessage on bad request
+            raise
 
     async def _get_data(
         self,

@@ -42,10 +42,6 @@ class DialAppSettings(BaseSettings):
         description="Authentication mode for DIAL API calls",
     )
 
-    dial_log_level: str = Field(
-        default="INFO", alias="DIAL_LOG_LEVEL", description="Log level for DIAL application"
-    )
-
     dial_show_stage_seconds: bool = Field(
         default=False,
         alias="DIAL_SHOW_STAGE_SECONDS",

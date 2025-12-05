@@ -1007,7 +1007,9 @@ class Sdmx21DataSet(
     ) -> DataSetAvailabilityQuery:
 
         constraints = list(availability_result.constraint.values())
-        if len(constraints) != 1:
+        if len(constraints) == 0:
+            return DataSetAvailabilityQuery()  # empty query
+        elif len(constraints) != 1:
             raise ValueError("Unexpected quantity of constraints in structure message")
         constraint = constraints[0]
         if len(constraint.data_content_region) != 1:
