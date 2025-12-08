@@ -198,8 +198,8 @@ class QuanthubSdmx21DataSet(Sdmx21DataSet):
             url = self._get_query_url(data_msg.response)  # type: ignore
 
         try:
-            sdmx_pandas = self._data_msg_to_dataframe(data_msg)
-            sdmx_pandas = self._include_attributes(sdmx_pandas)
+            sdmx_pandas = await self._data_msg_to_dataframe(data_msg)
+            sdmx_pandas = await self._include_attributes(sdmx_pandas)
         except Exception as e:
             _log.exception(e)
             return Sdmx21DataResponse(
@@ -229,9 +229,10 @@ class QuanthubSdmx21DataSet(Sdmx21DataSet):
     ) -> DataSetAvailabilityQuery:
         result = super()._availability_result_to_query(availability_result)
 
-        constraint: ContentConstraint = list(availability_result.constraint.values())[0]
+        constraints_iterator = iter(availability_result.constraint.values())
+        constraint: ContentConstraint | None = next(constraints_iterator, None)
 
-        if "TIME_PERIOD" not in result:
+        if constraint is not None and "TIME_PERIOD" not in result:
             start, end = self._parse_time_period_from(constraint.annotations)
             result.time_period_start, result.time_period_end = start, end
 

@@ -1,12 +1,15 @@
+import asyncio
 import base64
 import hashlib
 import itertools
 import subprocess
 import typing as t
 import uuid
+import zlib
+from collections.abc import Iterable
 
 
-def batched(iterable: t.Iterable, n: int):
+def batched(iterable: Iterable, n: int):
     """Batch data from the iterable into tuples of length n. The last batch may be shorter than n.
 
     In Python 3.12 and later, use the built-in `itertools.batched` function.
@@ -26,6 +29,47 @@ def get_last_commit_hash_for(path: str) -> str:
         ["git", "log", "-n", "1", "--pretty=format:%H", path], capture_output=True, text=True
     )
     return commit_hash if (commit_hash := proc.stdout) is not None else ""
+
+
+def crc32_hash(data: str) -> int:
+    """Compute CRC32 hash of a string and return it as a positive integer."""
+    return zlib.crc32(data.encode("utf-8")) & 0xFFFFFFFF
+
+
+def crc32_hash_incremental(values: list[str]) -> int:
+    """
+    Compute CRC32 hash incrementally from a list of strings.
+
+    This avoids creating a large intermediate string, reducing memory usage
+    and making the operation more efficient for large lists.
+
+    Args:
+        values: Sorted list of strings to hash
+
+    Returns:
+        CRC32 hash as a positive integer
+    """
+    crc = 0
+    for value in values:
+        # Hash each value with newline separator
+        crc = zlib.crc32(f"{value}\n".encode("utf-8"), crc)
+    return crc & 0xFFFFFFFF
+
+
+async def crc32_hash_incremental_async(values: list[str]) -> int:
+    """
+    Async version of crc32_hash_incremental.
+
+    Offloads the blocking hash computation to a thread pool to avoid
+    blocking the asyncio event loop during large dataset processing.
+
+    Args:
+        values: Sorted list of strings to hash
+
+    Returns:
+        CRC32 hash as a positive integer
+    """
+    return await asyncio.to_thread(crc32_hash_incremental, values)
 
 
 def str2bool(var: str) -> bool:

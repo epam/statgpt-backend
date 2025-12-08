@@ -1,6 +1,7 @@
 import json
 import typing as t
 from abc import ABC, abstractmethod
+from enum import StrEnum
 
 from pydantic import BaseModel, Field
 
@@ -182,3 +183,12 @@ class DateTimeDimension(Dimension[str], ABC):
             QueryOperator.LESS_THAN_OR_EQUALS,
             QueryOperator.BETWEEN,
         ]
+
+
+class DimensionProcessingType(StrEnum):
+    """Dimension classification for processing purposes"""
+
+    INDICATOR = 'INDICATOR'
+    NONINDICATOR = 'NONINDICATOR'
+    SPECIAL = 'SPECIAL'
+    TIME_PERIOD = 'TIME_PERIOD'

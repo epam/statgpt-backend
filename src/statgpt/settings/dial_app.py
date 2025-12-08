@@ -42,10 +42,6 @@ class DialAppSettings(BaseSettings):
         description="Authentication mode for DIAL API calls",
     )
 
-    dial_log_level: str = Field(
-        default="INFO", alias="DIAL_LOG_LEVEL", description="Log level for DIAL application"
-    )
-
     dial_show_stage_seconds: bool = Field(
         default=False,
         alias="DIAL_SHOW_STAGE_SECONDS",
@@ -54,6 +50,12 @@ class DialAppSettings(BaseSettings):
 
     dial_show_debug_stages: bool = Field(
         default=False, alias="DIAL_SHOW_DEBUG_STAGES", description="Show debug stages information"
+    )
+
+    dial_show_debug_attachments: bool = Field(
+        default=False,
+        alias="DIAL_SHOW_DEBUG_ATTACHMENTS",
+        description="Show debug attachments in chat completion responses",
     )
 
     enable_dev_commands: bool = Field(

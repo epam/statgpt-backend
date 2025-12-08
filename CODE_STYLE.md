@@ -59,20 +59,22 @@ readability, and maintainability across the codebase.
 - **Use the correct Built-In Generics**:
   - It’s recommended to use built-in generic types instead of `typing.List`, `typing.Dict`,
     `typing.Tuple`, etc. For example:
-      - Use `list[str]` instead of `typing.List[str]`.
-      - Use `dict[str, int]` instead of `typing.Dict[str, int]`.
-      - Use `tuple[str, float]` instead of `typing.Tuple[str, float]`.
+    - Use `list[str]` instead of `typing.List[str]`.
+    - Use `dict[str, int]` instead of `typing.Dict[str, int]`.
+    - Use `tuple[str, float]` instead of `typing.Tuple[str, float]`.
   - Some other generics have been moved from the `typing` module to `collections.abc.`
     It is recommended to import them from the new module. For, example:
-      - Use `collections.abc.Iterable` instead of `typing.Iterable`.
-      - Use `collections.abc.Iterator` instead of `typing.Iterator`.
-      - Use `collections.abc.Callable` instead of `typing.Callable`.
+    - Use `collections.abc.Iterable` instead of `typing.Iterable`.
+    - Use `collections.abc.Iterator` instead of `typing.Iterator`.
+    - Use `collections.abc.Callable` instead of `typing.Callable`.
 - **Annotations for Readability**:
-    - Write function signatures with type hints, e.g., `def my_func(name: str) -> None: ...`.
-    - This improves code readability and assists with IDE-based autocompletion.
+  - Write function signatures with type hints, e.g., `def my_func(name: str) -> None: ...`.
+  - This improves code readability and assists with IDE-based autocompletion.
 - **Union Types**:
-    - In Python 3.10+, you can use the “pipe” (`|`) symbol to indicate union types. For example, `str | None` instead of
-      `Optional[str]`.
+  - In Python 3.10+, you can use the “pipe” (`|`) symbol to indicate union types. For example, `str | None` instead of `Optional[str]`
+- **Factory Methods**
+  - For a `@classmethod` that acts as a factory method, use `typing.Self` as return type.
+  [Reference](https://docs.python.org/3/library/typing.html#typing.Self)
 
 ## 8. Code Organization
 

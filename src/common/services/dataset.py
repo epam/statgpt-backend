@@ -74,6 +74,7 @@ class ChannelDataSetSerializer:
             channel_id=item_db.channel_id,
             dataset_id=item_db.dataset_id,
             preprocessing_status=preprocessing_status,
+            clearing_status=item_db.clearing_status,
             dataset=dataset,
             latest_version=latest_version,
             last_completed_version=last_completed_versions.last_completed_version,

@@ -1,4 +1,5 @@
 import typing as t
+from collections.abc import Iterable
 from dataclasses import dataclass
 
 import jwt
@@ -84,7 +85,7 @@ class AdminGroupClaimValidationError(TokenValidationError):
 
 
 class AdminGroupsClaimValidator(TokenPayloadValidator):
-    def __init__(self, admin_group_claim: str, admin_groups_values: t.Iterable[str]):
+    def __init__(self, admin_group_claim: str, admin_groups_values: Iterable[str]):
         self.admin_group_claim = admin_group_claim
         self.admin_groups_values = admin_groups_values
 
@@ -123,7 +124,7 @@ class ScopeClaimValidator(TokenPayloadValidator):
 
 
 class TokenValidator(TokenPayloadValidator):
-    def __init__(self, validators: t.Iterable[TokenPayloadValidator]):
+    def __init__(self, validators: Iterable[TokenPayloadValidator]):
         self.validators = validators
 
     def validate(self, token_payload: dict):

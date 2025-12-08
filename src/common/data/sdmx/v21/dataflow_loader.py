@@ -1,3 +1,5 @@
+from typing import Literal
+
 from sdmx.message import StructureMessage
 from sdmx.model.v21 import DataStructureDefinition
 
@@ -15,13 +17,18 @@ class DataflowLoader:
     def __init__(self, client: AsyncSdmxClient):
         self._client: AsyncSdmxClient = client
 
-    async def load_structure_message(self, urn: Urn) -> StructureMessage21:
+    async def load_structure_message(
+        self, urn: Urn, mode: Literal['full', 'shallow']
+    ) -> StructureMessage21:
         dataflow_msg = await self._load_dataflow(urn)
         result_message = StructureMessage21.from_sdmx1(dataflow_msg)
 
         schemes = await self._load_concept_schemes(result_message.dataflow[urn].structure)
         for scheme_msg in schemes:
             result_message.add_concept_schemes(scheme_msg.concept_scheme.values())
+
+        if mode == 'shallow':
+            return result_message
 
         code_lists = await self._load_code_lists(result_message, urn)
         for code_list_msg in code_lists:

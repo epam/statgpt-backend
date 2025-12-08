@@ -8,9 +8,9 @@ from dataclasses import dataclass
 from typing import Any
 
 import pandas as pd
-from aidial_sdk.chat_completion import Button, FormMetaclass
-from aidial_sdk.pydantic_v1 import BaseModel as PydanticV1BaseModel
-from aidial_sdk.pydantic_v1 import Field as PydanticV1Field
+from aidial_sdk.chat_completion.form import Button, FormMetaclass
+from aidial_sdk.pydantic.v2 import ConfigDict as DialConfigDict
+from aidial_sdk.pydantic.v2 import Field as DialField
 from pydantic import BaseModel, ConfigDict, Field, computed_field
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -43,6 +43,7 @@ from common.settings.document import (
 from common.utils.timer import debug_timer
 from common.vectorstore import ScoredVectorStoreDocument, VectorStore, VectorStoreFactory
 from statgpt import utils
+from statgpt.settings.dial_app import dial_app_settings
 
 _log = logging.getLogger(__name__)
 
@@ -166,6 +167,20 @@ class VersionedDataSet:
     data: DataSet
 
 
+class BaseChannelConfiguration(BaseModel, metaclass=FormMetaclass):
+    model_config = DialConfigDict(chat_message_input_disabled=False)
+
+    timezone: str = DialField(
+        description="Timezone in IANA format, e.g. 'Europe/Berlin', 'America/New_York'. "
+        "Used to interpret and display dates and times.",
+        default="UTC",
+    )
+    enable_debug_attachments: bool = DialField(
+        description="Enable debug attachments in the chat responses.",
+        default=dial_app_settings.dial_show_debug_attachments,
+    )
+
+
 class ChannelServiceFacade(DbServiceBase):
     def __init__(self, session: AsyncSession, channel: models.Channel) -> None:
         super().__init__(session, asyncio.Lock())
@@ -245,11 +260,7 @@ class ChannelServiceFacade(DbServiceBase):
                 f"No conversation starters configuration found for channel {self._channel.title}"
             )
 
-            class InitConfiguration(PydanticV1BaseModel, metaclass=FormMetaclass):
-                class Config:
-                    chat_message_input_disabled = False
-
-            return InitConfiguration.schema()
+            return BaseChannelConfiguration.model_json_schema()
         intro_text: str = conversation_starters_config.intro_text
         _log.info(
             f"Conversation starters configuration found for channel {self._channel.title}, {conversation_starters_config=}"
@@ -264,21 +275,14 @@ class ChannelServiceFacade(DbServiceBase):
             for i, button in enumerate(conversation_starters_config.buttons)
         ]
 
-        class StatGPTConfiguration(PydanticV1BaseModel, metaclass=FormMetaclass):
-            class Config:
-                chat_message_input_disabled = False
-
-            starter: int | None = PydanticV1Field(
+        class StatGPTConfiguration(BaseChannelConfiguration):
+            starter: int | None = DialField(
+                default=None,
                 description=intro_text,
                 buttons=buttons,
             )
-            timezone: str = PydanticV1Field(
-                description="Timezone in IANA format, e.g. 'Europe/Berlin', 'America/New_York'. "
-                "Used to interpret and display dates and times.",
-                default="UTC",
-            )
 
-        return StatGPTConfiguration.schema()
+        return StatGPTConfiguration.model_json_schema()
 
     def get_named_entity_types(self) -> list[str]:
         return self.channel_config.list_named_entity_types()

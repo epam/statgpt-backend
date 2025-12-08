@@ -80,12 +80,12 @@ search_normalize:
     {input}
 
     Examples:
-    1. if case is described as JSON {{"Input": "Provide the total unemployment data as a percentage of the labor force for Germany for the last 15 years", "Named Entities": ["last 15 years (Time frequency)", "Germany (Country/Reference area)"], "Time Period": "from 2009-08-08 to 2024-08-08"] then expected cleaned input is "total unemployment data as a percent of the labor force"
-    2. if case is described as JSON {{"Input": "Get the Gross Domestic Product per capita growth rate for the United Kingdom since Brexit", "Named Entities": ["United Kingdom (Country/Reference area)"], "Time Period": "from 2020-01-31"] then expected cleaned input is "Get Gross Domestic Product per capita growth rate"
-    3. if case is described as JSON {{"Input": "I need to calculate the misery index for Austria. What indicators would you recommend?", "Named Entities": ["Austria (Country/Reference area)"]}} then expected cleaned input is "calculate the misery index"
+    1. if case is described as JSON {{"Input": "Provide the total unemployment data as a percentage of the labor force for Germany for the last 15 years", "Named Entities": ["last 15 years (Time frequency) (REMOVE)", "Germany (Country/Reference area) (REMOVE)"], "Time Period": "from 2009-08-08 to 2024-08-08"] then expected cleaned input is "total unemployment data as a percent of the labor force"
+    2. if case is described as JSON {{"Input": "Get the Gross Domestic Product per capita growth rate for the United Kingdom since Brexit", "Named Entities": ["United Kingdom (Country/Reference area) (REMOVE)"], "Time Period": "from 2020-01-31 (REMOVE)"] then expected cleaned input is "Gross Domestic Product per capita growth rate"
+    3. if case is described as JSON {{"Input": "I need to calculate the misery index for Austria. What indicators would you recommend?", "Named Entities": ["Austria (Country/Reference area) (REMOVE)"]}} then expected cleaned input is "misery index"
     4. if case is described as JSON {{"Input": "Query the unemployment rate and inflation rate to calculate the Misery Index"]}} then expected cleaned input is "unemployment rate and inflation rate to calculate the Misery Index"
-    5. if case is described as JSON {{"Input": "I would like to evaluate net trade flow of manufacturing items between the United States and Eurozone (as a group). What indicators would you suggest?", "Named Entities": ["United States (Country/Reference area)", Euro Area (Counterpart area)]}} then expected cleaned input is "evaluate net trade flow of manufacturing items"
-
+    5. if case is described as JSON {{"Input": "I would like to evaluate net trade flow of manufacturing items between the United States and Eurozone (as a group). What indicators would you suggest?", "Named Entities": ["United States (Country/Reference area) (REMOVE)", "Euro Area (Counterpart area) (REMOVE)""]}} then expected cleaned input is "net trade flow of manufacturing items"
+    6. if case is described as JSON {{"Input": "Number of stays of Poland citizens in hotels?", "Named Entities": ["Poland (Country/Reference area) (REMOVE)", "Poland citizen (Citizenship of a certain country (citizen of Finland/Uzbek/foreigner from Greece/etc.) (DO NOT REMOVE)"]] then expected cleaned input is "Number of stays of Poland citizens in hotels"
 separate_subjects:
   systemPrompt: |-
     You are an expert in statistical indicators.
@@ -117,18 +117,29 @@ separate_subjects:
 relevance:
   systemPrompt: |-
     You are an expert in statistical indicators.
+    By picking most relevant series of indicators you help answer the user's question with best suited statistical data.
     As an output provide relevance score for each input case as JSON object {{"relevance": [{{"number": "score"}}]}}.
     Only JSON, no markdown
 
   userPrompt: |-
     Instruction steps:
-     - input consists of separate group of items. Analyze all groups
+     - input consists of separate groups of items. Analyze all groups
      - each numbered item describes statistical indicator. Analyze all items
      - use the number from round brackets for the output reference and all other info as a source for relevance context.
        All items that have number in a round brackets should be present in output together with score
      - use all parent levels of an item in the relevance context
      - for each input indicator provide relevancy score as 0, 1, 2, 3 to the statement,
-       where: 0 - irrelevant, 1 - somewhat relevant, 2 - highly relevant, 3 - extremely relevant
+       where:
+         3 - ideal indicators that perfectly match the statement;
+         2 - best relevant items, but not ideal;
+         1 - other relevant;
+         0 - irrelevant;
+     - if there's no ideal matches, then best relevant items should get score 2
+     - if there are ideal matches, then score 2 is assigned to the next best relevant items
+       their purpose is to provide extended answer for the statement
+     - items that are more detailed compared to the statement usually can't be ideal matches, because they answer more specific question than the statement asks for.
+       BUT there can be exceptions, e.g. where details can be guessed from the statement, and indicator just provides more precise definition
+     - if the statement is general and there are general items - they should get score 3 and all more detailed items should get score 2 or lower.
      - if the input indicator is at least somewhat relevant to the statement then the relevancy score can't be score 0
      - if the input statement has extra clarification description then it is mandatory to have relevant part in the candidate item to get score 3.
        This extra clarification description could be essential to distinguish relevant and extremely relevant items.

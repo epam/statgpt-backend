@@ -20,7 +20,7 @@ COPY pyproject.toml .
 COPY poetry.lock .
 RUN poetry export -f requirements.txt --without-hashes | pip install $PIP_ARGS -r /dev/stdin
 
-# Copy scripts and source code
+# Copy source code
 COPY ./src/statgpt $APP_HOME/statgpt
 COPY ./src/common $APP_HOME/common
 
@@ -30,6 +30,7 @@ USER app
 
 ENV APP_MODE="DIAL"
 ENV WEB_CONCURRENCY=1
+ENV PYDANTIC_V2=True
 
 EXPOSE 5000
 

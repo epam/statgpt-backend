@@ -151,6 +151,10 @@ class SpecialDimensionsProcessor(BaseYamlModel):
     prompt: SystemUserPrompt
 
 
+class HybridSearchPrompts(BaseYamlModel):
+    relevancy_prompts: SystemUserPrompt | None = Field(default=None)
+
+
 class HybridSearchConfig(BaseYamlModel):
     """Configuration for the Hybrid Search and Indexer."""
 
@@ -228,6 +232,7 @@ class HybridSearchConfig(BaseYamlModel):
         ge=0,
         le=3,
     )
+    prompts: HybridSearchPrompts = Field(default_factory=HybridSearchPrompts)
 
 
 class DataQueryDetails(BaseToolDetails):

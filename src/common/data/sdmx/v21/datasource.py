@@ -1,6 +1,7 @@
 import typing as t
 import uuid
 from abc import ABC
+from operator import itemgetter
 
 from langchain_core.documents import Document
 from sdmx.message import StructureMessage
@@ -28,10 +29,12 @@ from common.data.sdmx.v21.dataflow_loader import DataflowLoader
 from common.data.sdmx.v21.dataset import Sdmx21DataSet, SdmxOfflineDataSet
 from common.data.sdmx.v21.dimensions_creator import DimensionsCreator
 from common.data.sdmx.v21.sdmx_client import AsyncSdmxClient
+from common.utils import crc32_hash
+from common.utils.timer import debug_timer
 
 from .dataset_hierarchy import CategorySchemaDataSetHierarchyCreator
 from .ratelimiter import SdmxRateLimiterFactory
-from .schemas import Urn
+from .schemas import StructureMessage21, Urn
 
 
 class Sdmx21DataSourceHandler(
@@ -107,14 +110,13 @@ class Sdmx21DataSourceHandler(
     def entity_id(self) -> str:
         return self._config.get_id()
 
-    async def get_dataset(
+    async def _get_dataset(
         self,
         entity_id: uuid.UUID,
         title: str,
         config: dict,
         auth_context: AuthContext,
         allow_offline: bool = False,
-        allow_cached: bool = False,
     ) -> Sdmx21DataSet | SdmxOfflineDataSet:
         dataset_config = self.parse_data_set_config(config)
 
@@ -140,7 +142,7 @@ class Sdmx21DataSourceHandler(
 
         try:
             dataflow_loader = DataflowLoader(sdmx_client)
-            structure_message = await dataflow_loader.load_structure_message(urn)
+            structure_message = await dataflow_loader.load_structure_message(urn, mode="full")
         except Exception as e:
             if allow_offline:
                 msg = f"Failed to load the dataflow or its associated structures. {urn=}"
@@ -191,6 +193,104 @@ class Sdmx21DataSourceHandler(
                 )
             else:
                 raise e
+
+    async def get_dataset(
+        self,
+        entity_id: uuid.UUID,
+        title: str,
+        config: dict,
+        auth_context: AuthContext,
+        allow_offline: bool = False,
+        allow_cached: bool = False,
+    ) -> Sdmx21DataSet | SdmxOfflineDataSet:
+        with debug_timer(f"Sdmx21DataSourceHandler.get_dataset: {title}"):
+            return await self._get_dataset(
+                entity_id,
+                title,
+                config,
+                auth_context,
+                allow_offline=allow_offline,
+            )
+
+    async def get_structure_hash_and_metadata(
+        self, dataset_config: dict, auth_context: AuthContext
+    ) -> tuple[str, dict]:
+        config = self.parse_data_set_config(dataset_config)
+        _urn = self._urn_parser.parse(config.urn)
+        urn = Urn(
+            agency_id=_urn.agency_id,
+            resource_id=_urn.resource_id,
+            version=_urn.version if _urn.version else "latest",
+        )
+
+        sdmx_client = await self.create_sdmx_client(auth_context)
+
+        dataflow_loader = DataflowLoader(sdmx_client)
+        structure_message = await dataflow_loader.load_structure_message(urn, mode="shallow")
+
+        meta_json = {
+            "dimensions": self._get_dimensions_from(structure_message, urn),
+        }
+        return str(crc32_hash(str(meta_json))), meta_json
+
+    def _get_dimensions_from(
+        self, structure_message: StructureMessage21, dataflow_urn: Urn
+    ) -> list[dict[str, str]]:
+        locale = self.config.locale
+        dsd = structure_message.dataflow[dataflow_urn].structure
+
+        res: list[dict[str, str]] = []
+        for dimension in dsd.dimensions.components:
+            if dimension.concept_identity is None:
+                continue
+            scheme_urn = Urn.for_artifact(dimension.concept_identity.parent)  # type: ignore[arg-type]
+            scheme = structure_message.concept_scheme[scheme_urn]
+            concept_id = dimension.concept_identity.id
+            dimension_name = scheme.items[concept_id].name.localized_default(locale)
+            res.append({"entity_id": dimension.id, "name": dimension_name})
+        res = sorted(res, key=itemgetter("entity_id"))
+        return res
+
+    def get_structure_metadata_diff(self, old_metadata: dict | None, new_metadata: dict) -> dict:
+        if old_metadata is None:
+            return {'message': 'No previous metadata to compare.'}
+
+        try:
+            old_dimensions = {dim['entity_id']: dim for dim in old_metadata.get('dimensions', [])}
+            new_dimensions = {dim['entity_id']: dim for dim in new_metadata['dimensions']}
+            return self._compare_dimension_meta(old_dimensions, new_dimensions)
+        except Exception as e:
+            logger.warning(f"Cannot compute structure metadata diff: {e}", exc_info=True)
+            return {'message': 'Could not compute diff due to error.'}
+
+    @staticmethod
+    def _compare_dimension_meta(old: dict[str, dict], current: dict[str, dict]) -> dict:
+        result: dict[str, t.Any] = {}
+
+        new = set(current.keys()).difference(old.keys())
+        if new:
+            result['new_dimensions'] = [current[dim_id] for dim_id in new]
+
+        removed = set(old.keys()).difference(current.keys())
+        if removed:
+            result['removed_dimensions'] = [old[dim_id] for dim_id in removed]
+
+        modified = {}
+        for dim_id in set(old.keys()).intersection(current.keys()):
+            old_dim = old[dim_id]
+            current_dim = current[dim_id]
+            changes = {}
+            for field in ['name']:
+                old_value = getattr(old_dim, field, None)
+                current_value = getattr(current_dim, field, None)
+                if old_value != current_value:
+                    changes[field] = {'old': old_value, 'new': current_value}
+            if changes:
+                modified[dim_id] = changes
+        if modified:
+            result['modified_dimensions'] = modified
+
+        return result
 
     async def close(self):
         # do nothing

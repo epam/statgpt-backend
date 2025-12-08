@@ -3,7 +3,7 @@ import logging
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
-from sqlalchemy import event
+from sqlalchemy import event, text
 from sqlalchemy.ext.asyncio import (
     AsyncAttrs,
     AsyncEngine,
@@ -26,6 +26,11 @@ class Base(AsyncAttrs, DeclarativeBase):
 
 
 metadata = Base.metadata  # for Alembic migrations
+
+
+class DatabaseConnectionError(RuntimeError):
+    pass
+
 
 # The MSI token manager is used to store and update the MSI token for Postgres in the background.
 _MSI_TOKEN_MANAGER: ValueUpdater[msi.MsiTokenResponse] | None = None
@@ -96,32 +101,82 @@ class SessionMaker:
         self._engine_config = engine_config
         self._postgres_settings = PostgresSettings()
 
+    @staticmethod
+    async def _test_connection(engine: AsyncEngine) -> bool:
+        """Test if database connection is working"""
+        try:
+            async with engine.connect() as conn:
+                await conn.execute(text("SELECT 1"))
+                return True
+        except Exception as e:
+            _log.debug(f"Connection test failed: {e}")
+            return False
+
+    async def _create_engine_with_retry(self, engine_factory, description: str) -> AsyncEngine:
+        """Create engine with retry logic"""
+        max_retries = self._postgres_settings.connection_max_retries
+        retry_interval = self._postgres_settings.connection_retry_interval
+
+        for attempt in range(max_retries):
+            try:
+                _log.info(
+                    f"Attempting to create {description} engine (attempt {attempt + 1}/{max_retries})"
+                )
+                engine = await engine_factory()
+
+                # Test the connection
+                _log.debug("Testing database connection...")
+                if await self._test_connection(engine):
+                    _log.info(f"{description} engine created and connection verified")
+                    return engine
+                else:
+                    _log.warning("Connection test failed, closing engine")
+                    await engine.dispose()
+
+            except Exception as e:
+                _log.warning(
+                    f"Failed to create {description} engine (attempt {attempt + 1}/{max_retries}): {e}"
+                )
+
+            if attempt < max_retries - 1:
+                # Exponential backoff
+                sleep_time = retry_interval * (2**attempt)
+                _log.info(f"Retrying in {sleep_time:.2f} seconds...")
+                await asyncio.sleep(sleep_time)
+
+        raise DatabaseConnectionError(f"Failed to connect to database after {max_retries} attempts")
+
     async def _create_default_engine(self) -> AsyncEngine:
         _log.debug(f"Creating default engine with config: {self._engine_config}")
-        engine = create_async_engine(
-            self._postgres_settings.create_default_uri(), **self._engine_config
-        )
-        _log.debug(f"Default engine created: {engine}")
-        return engine
+
+        async def factory():
+            return create_async_engine(
+                self._postgres_settings.create_default_uri(), **self._engine_config
+            )
+
+        return await self._create_engine_with_retry(factory, "default")
 
     async def _create_msi_engine(self) -> AsyncEngine:
         _log.debug(f"Creating MSI engine with config: {self._engine_config}")
-        engine = create_async_engine(
-            self._postgres_settings.create_msi_uri(), **self._engine_config
-        )
 
         msi_token_manager = _get_msi_token_manager()
         if msi_token_manager is None or not msi_token_manager.is_initialized:
             raise RuntimeError("Cannot create engine before MSI token manager is initialized")
 
-        # event not supported for async engine - provide token must be synchronous
-        @event.listens_for(engine.sync_engine, "do_connect")
-        def provide_token(dialect, conn_rec, cargs, cparams):
-            _log.debug("Providing MSI token for database connection")
-            cparams["password"] = msi_token_manager.value.access_token
+        async def factory():
+            engine = create_async_engine(
+                self._postgres_settings.create_msi_uri(), **self._engine_config
+            )
 
-        _log.debug(f"MSI engine created: {engine}")
-        return engine
+            # event not supported for async engine - provide token must be synchronous
+            @event.listens_for(engine.sync_engine, "do_connect")
+            def provide_token(dialect, conn_rec, cargs, cparams):
+                _log.debug("Providing MSI token for database connection")
+                cparams["password"] = msi_token_manager.value.access_token
+
+            return engine
+
+        return await self._create_engine_with_retry(factory, "MSI")
 
     async def create_engine(self) -> AsyncEngine:
         _log.debug(f"Creating engine (USE_MSI={self._postgres_settings.use_msi})")

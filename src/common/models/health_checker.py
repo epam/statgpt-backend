@@ -1,13 +1,12 @@
+import asyncio
+
 from sqlalchemy import text
 
 from common.config import Versions
 from common.config import multiline_logger as logger
+from common.settings.database import PostgresSettings
 
 from .database import get_session_contex_manager
-
-
-class DatabaseConnectionError(RuntimeError):
-    pass
 
 
 class AlembicTableNotFoundError(RuntimeError):
@@ -19,16 +18,9 @@ class WrongAlembicVersionError(RuntimeError):
 
 
 class DatabaseHealthChecker:
-    @classmethod
-    async def check_connection(cls):
-        try:
-            async with get_session_contex_manager() as session:
-                await session.execute(text("SELECT 1;"))
-        except Exception as e:
-            msg = "Connection to database failed. Check if the database is running and the connection string is correct."
-            logger.error(msg)
-            logger.error(e)
-            raise DatabaseConnectionError(msg)
+
+    def __init__(self):
+        self._postgres_settings = PostgresSettings()
 
     @classmethod
     async def check_alembic_version(cls) -> None:
@@ -51,7 +43,19 @@ class DatabaseHealthChecker:
                 )
                 raise WrongAlembicVersionError("Alembic version is not correct")
 
-    @classmethod
-    async def check(cls):
-        await cls.check_connection()
-        await cls.check_alembic_version()
+    async def check(self) -> None:
+        for attempt in range(self._postgres_settings.alembic_max_retries):
+            try:
+                await self.check_alembic_version()
+            except (AlembicTableNotFoundError, WrongAlembicVersionError) as e:
+                logger.error(
+                    f"Failed to check alembic version on attempt {attempt + 1}"
+                    f"/{self._postgres_settings.alembic_max_retries}: {str(e)}"
+                )
+
+                if attempt < self._postgres_settings.alembic_max_retries - 1:
+                    sleep_time = self._postgres_settings.alembic_retry_interval * (2**attempt)
+                    logger.info(f"Retrying in {sleep_time:.2f} seconds...")
+                    await asyncio.sleep(sleep_time)
+                else:
+                    raise

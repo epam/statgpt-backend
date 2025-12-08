@@ -1,7 +1,7 @@
 from pydantic import BaseModel, Field
 
 from .base import BaseYamlModel, DbDefaultBase
-from .enums import LocaleEnum
+from .enums import ChannelIndexStatusScope, LocaleEnum
 from .model_config import LLMModelConfig
 from .onboarding import OnboardingConfig
 from .tools import (
@@ -198,3 +198,55 @@ class ChannelUpdate(BaseModel):
 
 class Channel(DbDefaultBase, ChannelBase):
     pass
+
+
+class DeduplicationStatus(BaseModel):
+    """Status information about channel deduplication requirements."""
+
+    deduplication_required: bool = Field(
+        description="Whether deduplication is required for the channel"
+    )
+    total_duplicate_count: int = Field(
+        description="Total number of duplicate documents across all dimension stores"
+    )
+    available_dimensions_duplicate_count: int = Field(
+        description="Number of duplicate documents in available dimensions store"
+    )
+    special_dimensions_duplicate_count: int = Field(
+        description="Number of duplicate documents in special dimensions store"
+    )
+    indicator_dimensions_duplicate_count: int = Field(
+        description="Number of duplicate documents in indicator dimensions store"
+    )
+
+
+class VectorStoreSizes(BaseModel):
+    """Size information about channel vector store index"""
+
+    available_dimensions_size: int = Field(
+        description="Number of documents in available dimensions store"
+    )
+    special_dimensions_size: int = Field(
+        description="Number of documents in special dimensions store"
+    )
+    indicator_dimensions_size: int = Field(
+        description="Number of documents in indicator dimensions store"
+    )
+
+
+class VectorStoreStatus(BaseModel):
+    """Status information about channel vector store index"""
+
+    deduplication: DeduplicationStatus = Field(
+        description="Deduplication status information for the channel"
+    )
+    sizes: VectorStoreSizes = Field(description="Size information for the channel vector store")
+
+
+class ChannelIndexStatus(BaseModel):
+    """Status information about channel index"""
+
+    scope: ChannelIndexStatusScope = Field(description="The scope of the channel index status")
+    vector_store: VectorStoreStatus = Field(
+        description="Vector store status information for the channel"
+    )

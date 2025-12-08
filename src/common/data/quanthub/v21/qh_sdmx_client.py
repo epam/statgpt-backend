@@ -217,8 +217,16 @@ class AsyncQuanthubClient(AsyncSdmxClient):
             headers=headers,
             json=req_body_obj.model_dump(mode='json', exclude_none=True, by_alias=True),
         ).prepare()
-        async with self._rate_limiter.availability_limiter():
-            response = await self._perform_request(req)
+
+        try:
+            async with self._rate_limiter.availability_limiter():
+                response = await self._perform_request(req)
+        except httpx.HTTPStatusError as e:
+            if e.response.status_code in [400, 404]:
+                logger.error(f"Bad request for URL {url!r}: {e.response.text}")
+                logger.info(f"Request body: {req.body!r}")
+                return StructureMessage()  # Return empty StructureMessage on bad request
+            raise
 
         resp_body_obj = QhAvailabilityResponseBody.model_validate(response.json())
         structure_msg = resp_body_obj.to_sdmx1()

@@ -6,6 +6,7 @@ import common.schemas as schemas
 from admin_portal.auth.auth_context import SystemUserAuthContext
 from admin_portal.auth.user import require_jwt_auth
 from admin_portal.services import AdminPortalDataSetService as DataSetService
+from common.utils.cancel_dependency import cancel_on_disconnect
 
 router = APIRouter(prefix="/datasets", tags=["datasets"], dependencies=[Depends(require_jwt_auth)])
 
@@ -17,6 +18,7 @@ async def get_datasets(
     data_source_id: int | None = None,
     channel_id: int | None = None,
     session: AsyncSession = Depends(models.get_session),
+    _=Depends(cancel_on_disconnect),
 ) -> schemas.ListResponse[schemas.DataSet]:
     """Returns a list of added datasets"""
 
@@ -56,6 +58,7 @@ async def register_dataset(
 async def get_dataset_by_id(
     item_id: int,
     session: AsyncSession = Depends(models.get_session),
+    _=Depends(cancel_on_disconnect),
 ) -> schemas.DataSet:
     return await DataSetService(session).get_schema_by_id(
         item_id, auth_context=SystemUserAuthContext(), allow_offline=True

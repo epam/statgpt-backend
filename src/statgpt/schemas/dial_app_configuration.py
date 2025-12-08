@@ -2,12 +2,12 @@ from datetime import datetime
 from functools import cached_property
 from zoneinfo import ZoneInfo
 
-from pydantic import ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from common.schemas.dial import ExtraAllowModel
+from statgpt.settings.dial_app import dial_app_settings
 
 
-class StatGPTConfiguration(ExtraAllowModel):
+class StatGPTConfiguration(BaseModel):
     """
     Dynamic DIAL configuration for StatGPT application.
     """
@@ -18,6 +18,10 @@ class StatGPTConfiguration(ExtraAllowModel):
         description="Timezone in IANA format, e.g. 'Europe/Berlin', 'America/New_York'. "
         "Used to interpret and display dates and times.",
         default="UTC",
+    )
+    enable_debug_attachments: bool = Field(
+        description="Enable debug attachments in the chat responses.",
+        default=dial_app_settings.dial_show_debug_attachments,
     )
 
     @field_validator('timezone')

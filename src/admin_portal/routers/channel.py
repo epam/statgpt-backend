@@ -10,12 +10,13 @@ from starlette.background import BackgroundTask
 import common.models as models
 import common.schemas as schemas
 from admin_portal.auth.auth_context import SystemUserAuthContext
-from admin_portal.auth.user import User, require_jwt_auth
+from admin_portal.auth.user import require_jwt_auth
 from admin_portal.services import AdminPortalChannelService as ChannelService
 from admin_portal.services import AdminPortalDataSetService as DataSetService
 from admin_portal.services import JobsService
 from admin_portal.settings.exim import JobsConfig
 from common.settings.dial import dial_settings
+from common.utils.cancel_dependency import cancel_on_disconnect
 
 router = APIRouter(
     prefix="/channels",
@@ -29,6 +30,7 @@ async def get_channels(
     limit: int = 100,
     offset: int = 0,
     session: AsyncSession = Depends(models.get_session),
+    _=Depends(cancel_on_disconnect),
 ) -> schemas.ListResponse[schemas.Channel]:
     """Returns a list of channels"""
 
@@ -59,7 +61,7 @@ async def create_channel(
 async def get_channel_by_id(
     item_id: int,
     session: AsyncSession = Depends(models.get_session),
-    user: User = Depends(require_jwt_auth, use_cache=False),
+    _=Depends(cancel_on_disconnect),
 ) -> schemas.Channel:
 
     return await ChannelService(session).get_schema_by_id(item_id)
@@ -119,6 +121,7 @@ async def get_jobs(
     limit: int = 100,
     offset: int = 0,
     session: AsyncSession = Depends(models.get_session),
+    _=Depends(cancel_on_disconnect),
 ) -> schemas.ListResponse[schemas.Job]:
     """Get a list of import/export jobs for the specified channel"""
 
@@ -139,6 +142,7 @@ async def get_jobs(
 async def get_job_by_id(
     job_id: int,
     session: AsyncSession = Depends(models.get_session),
+    _=Depends(cancel_on_disconnect),
 ) -> schemas.Job:
     """Get information (e.g. status) about the import/export job"""
 
@@ -149,6 +153,7 @@ async def get_job_by_id(
 async def download_job_result_by_id(
     job_id: int,
     session: AsyncSession = Depends(models.get_session),
+    _=Depends(cancel_on_disconnect),
 ) -> StreamingResponse:
     """Download the zip file with the exported channel data by job id.
 
@@ -236,6 +241,7 @@ async def get_list_of_channel_datasets(
     limit: int = 100,
     offset: int = 0,
     session: AsyncSession = Depends(models.get_session),
+    _=Depends(cancel_on_disconnect),
 ) -> schemas.ListResponse[schemas.ChannelDatasetExpanded]:
     """Returns a list of datasets for the specified channel"""
 
@@ -316,11 +322,29 @@ async def deduplicate_channel(
     )
 
 
+@router.get(path="/{channel_id}/index-status")
+async def get_index_status(
+    channel_id: int,
+    scope: schemas.ChannelIndexStatusScope,
+    session: AsyncSession = Depends(models.get_session),
+    _=Depends(cancel_on_disconnect),
+) -> schemas.ChannelIndexStatus:
+    """Get the index status for the specified channel."""
+
+    service = DataSetService(session)
+    return await service.check_index_status(
+        channel_id=channel_id,
+        auth_context=SystemUserAuthContext(),
+        scope=scope,
+    )
+
+
 @router.get("/{channel_id}/datasets/{dataset_id}")
 async def get_channel_dataset(
     channel_id: int,
     dataset_id: int,
     session: AsyncSession = Depends(models.get_session),
+    _=Depends(cancel_on_disconnect),
 ) -> schemas.ChannelDatasetExpanded:
     return await DataSetService(session).get_channel_dataset_schema(
         channel_id=channel_id, dataset_id=dataset_id, auth_context=SystemUserAuthContext()
@@ -386,6 +410,7 @@ async def get_channel_dataset_versions(
     limit: int = 100,
     offset: int = 0,
     session: AsyncSession = Depends(models.get_session),
+    _=Depends(cancel_on_disconnect),
 ) -> schemas.ListResponse[schemas.ChannelDatasetVersion]:
     """Returns a list of dataset versions for the specified channel and dataset"""
 
@@ -406,6 +431,19 @@ async def get_channel_dataset_versions(
         offset=offset,
         count=len(versions),
         total=total_count,
+    )
+
+
+@router.get(path="/{channel_id}/datasets/{dataset_id}/versions/check-latest-up-to-date")
+async def is_channel_dataset_latest_version_up_to_date(
+    channel_id: int,
+    dataset_id: int,
+    session: AsyncSession = Depends(models.get_session),
+    _=Depends(cancel_on_disconnect),
+) -> schemas.ChangesBetweenVersionAndActualData:
+    """Check if the latest completed version of the specified channel dataset is up to date."""
+    return await DataSetService(session).is_channel_dataset_latest_version_up_to_date(
+        channel_id=channel_id, dataset_id=dataset_id, auth_context=SystemUserAuthContext()
     )
 
 

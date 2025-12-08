@@ -1,5 +1,6 @@
 import typing as t
 from abc import ABC
+from collections.abc import Iterable
 
 from sdmx.model import common
 
@@ -62,7 +63,7 @@ class SdmxCodeListDimension(CategoricalDimension[DimensionCodeCategory], SdmxDim
         name: str,
         description: t.Optional[str],
         code_list: BaseSdmxCodeList,
-        available_codes: t.Iterable[str] | None = None,
+        available_codes: Iterable[str] | None = None,
         alias: str | None = None,
     ):
         SdmxDimension.__init__(self, dimension, name, description, alias=alias)
@@ -73,8 +74,6 @@ class SdmxCodeListDimension(CategoricalDimension[DimensionCodeCategory], SdmxDim
     def available_values(self) -> t.Sequence[DimensionCodeCategory]:
         if not self._available_codes:
             return self.values
-        # TODO: could probably use a simpler version
-        # return [item for item in self.values if item.query_id in self._available_codes]
         return [
             DimensionCodeCategory.from_code_category(item, self.entity_id, self._name, self._alias)
             for item in self.values

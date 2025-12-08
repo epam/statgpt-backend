@@ -3,11 +3,12 @@ from __future__ import annotations
 import typing as t
 import uuid
 from abc import ABC, abstractmethod
+from collections.abc import Sequence
 from datetime import datetime
 
 import pandas as pd
 import plotly.graph_objects as go
-from pydantic import BaseModel, ConfigDict, Field, StrictStr, alias_generators
+from pydantic import BaseModel, ConfigDict, Field, StrictStr, alias_generators, model_validator
 
 from common.auth.auth_context import AuthContext
 from common.config.utils import replace_env
@@ -89,6 +90,13 @@ class DataSetConfig(BaseModel, ABC):
     pinned_columns: t.List[str] = Field(
         description="Column names and order to pin in the data in grid", default_factory=list
     )
+
+    @model_validator(mode='after')
+    def _no_dups_in_special_dims_processor(self):
+        processor_ids = [sd.processor_id for sd in self.special_dimensions]
+        if len(processor_ids) != len(set(processor_ids)):
+            raise ValueError("Duplicate processor_id found in special_dimensions")
+        return self
 
     @abstractmethod
     def get_source_id(self) -> str:
@@ -328,7 +336,9 @@ class DataSet(BaseEntity, t.Generic[DataSetConfigType, DataSourceHandlerType], A
         pass
 
     @abstractmethod
-    async def get_indicators(self, auth_context: AuthContext) -> t.Sequence[BaseIndicator]:
+    async def get_indicators(
+        self, auth_context: AuthContext, allow_cached: bool
+    ) -> Sequence[BaseIndicator]:
         pass
 
     @abstractmethod
@@ -404,7 +414,9 @@ class OfflineDataSet(DataSet, t.Generic[DataSetConfigType, DataSourceHandlerType
     def indicator_dimensions_required_for_query(self) -> list[str]:
         return []
 
-    async def get_indicators(self, auth_context: AuthContext) -> t.Sequence[BaseIndicator]:
+    async def get_indicators(
+        self, auth_context: AuthContext, allow_cached: bool
+    ) -> Sequence[BaseIndicator]:
         return []
 
     async def availability_query(

@@ -2,6 +2,7 @@ from collections.abc import Iterable
 from typing import Any
 
 from elasticsearch import AsyncElasticsearch, helpers
+from elasticsearch.exceptions import BadRequestError
 from pydantic import BaseModel, ConfigDict, Field
 
 from common.settings.elastic import ElasticSearchSettings
@@ -102,11 +103,22 @@ class ElasticIndex:
     async def exists(self) -> bool:
         return bool(await self._client.indices.exists(index=self.name))
 
-    async def create(self):
-        await self._client.indices.create(
-            index=self._name,
-            settings=self._settings.index_settings,
-        )
+    async def create(self, ignore_if_exists: bool = True) -> None:
+        """Creates the index with the defined settings.
+
+        Args:
+            ignore_if_exists: If True, does not raise an error if the index already exists.
+        """
+        try:
+            await self._client.indices.create(
+                index=self._name,
+                settings=self._settings.index_settings,
+            )
+        except BadRequestError as ex:
+            if ignore_if_exists and ex.error == 'resource_already_exists_exception':
+                pass
+            else:
+                raise
 
     async def add(self, document: dict[str, str]) -> None:
         """Adds a JSON document to the index and makes it searchable.
@@ -189,7 +201,7 @@ class ElasticSearchFactory:
 
             if not await index.exists():
                 if allow_creation:
-                    await index.create()
+                    await index.create(ignore_if_exists=True)
                 else:
                     raise RuntimeError(f"Index '{name}' does not exist.")
 

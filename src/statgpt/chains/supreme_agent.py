@@ -4,7 +4,10 @@ from copy import deepcopy
 from datetime import datetime
 from typing import NamedTuple
 
-from aidial_sdk.chat_completion import Choice, Role
+from aidial_sdk.chat_completion import Choice, FunctionCall
+from aidial_sdk.chat_completion import Message as DialMessage
+from aidial_sdk.chat_completion import Role
+from aidial_sdk.chat_completion import ToolCall as DialToolCall
 from langchain_core.messages import AIMessage, AIMessageChunk, SystemMessage, ToolCall, ToolMessage
 from langchain_core.prompts import (
     ChatPromptTemplate,
@@ -16,9 +19,6 @@ from langchain_core.runnables import Runnable, RunnablePassthrough
 from common.auth.auth_context import AuthContext
 from common.config import multiline_logger as logger
 from common.schemas import ChannelConfig, FakeCall
-from common.schemas.dial import FunctionCall
-from common.schemas.dial import Message as DialMessage
-from common.schemas.dial import ToolCall as DialToolCall
 from common.utils import InvalidLLMStreamResponse
 from common.utils.markdown import format_as_markdown_list
 from common.utils.models import get_chat_model
@@ -243,10 +243,11 @@ class SupremeAgentExecutor:
         data_query_artifacts: dict[str, DataQueryArtifact] = {}
         assert self._channel_config.data_query is not None, "data_query must be configured"
         data_displayer = DataQueryArtifactDisplayer(
-            choice,
-            self._channel_config.data_query.details.attachments,
-            self._channel_config.data_query.details.tool_response_max_cells,
-            auth_context,
+            choice=choice,
+            config=self._channel_config.data_query.details.attachments,
+            chat_config=ChainParameters.get_configuration(inputs),
+            max_cells=self._channel_config.data_query.details.tool_response_max_cells,
+            auth_context=auth_context,
         )
 
         for i in range(self._channel_config.supreme_agent.max_agent_iterations):

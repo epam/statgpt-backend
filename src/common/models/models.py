@@ -1,7 +1,7 @@
 import uuid
 from typing import Any
 
-from sqlalchemy import ForeignKey, UniqueConstraint
+from sqlalchemy import ForeignKey, String, UniqueConstraint
 from sqlalchemy.dialects import postgresql
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -123,6 +123,11 @@ class ChannelDataset(DefaultBase):
     channel_id: Mapped[int] = mapped_column(ForeignKey("channels.id"))
     dataset_id: Mapped[int] = mapped_column(ForeignKey("datasets.id"))
 
+    clearing_status: Mapped[PreprocessingStatusEnum] = mapped_column(
+        default=PreprocessingStatusEnum.NOT_STARTED
+    )
+    """The status of the data clearing task run after reindexing is complete."""
+
     # relationships
     channel: Mapped[Channel] = relationship(back_populates="mapped_datasets")
     dataset: Mapped[DataSet] = relationship(back_populates="mapped_channels")
@@ -151,6 +156,15 @@ class ChannelDatasetVersion(DefaultBase):
 
     creation_reason: Mapped[str]
     reason_for_failure: Mapped[str | None] = mapped_column(default=None)
+
+    structure_metadata: Mapped[dict | None] = mapped_column(type_=postgresql.JSONB, default=None)
+    structure_hash: Mapped[str | None] = mapped_column(type_=String(10), default=None)
+    # Data hashes:
+    indicator_dimensions_hash: Mapped[str | None] = mapped_column(type_=String(10), default=None)
+    non_indicator_dimensions_hash: Mapped[str | None] = mapped_column(
+        type_=String(10), default=None
+    )
+    special_dimensions_hash: Mapped[str | None] = mapped_column(type_=String(10), default=None)
 
     # relationships
     channel_dataset: Mapped[ChannelDataset] = relationship(back_populates="versions")

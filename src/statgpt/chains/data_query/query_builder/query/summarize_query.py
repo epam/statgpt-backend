@@ -77,13 +77,14 @@ class SummarizeQueriesChain:
 
     def create_chain(self, inputs: dict) -> Runnable:
         auth_context = ChainParameters.get_auth_context(inputs)
+        locale = ChainParameters.get_data_service(inputs).channel_config.locale
 
         prompt_template = ChatPromptTemplate.from_messages(
             [
                 SystemMessagePromptTemplate.from_template(self._system_prompt),
                 HumanMessagePromptTemplate.from_template("{formatted_queries}"),
             ],
-        )
+        ).partial(language=locale.get_language_name())
         chat_model = get_chat_model(
             api_key=auth_context.api_key, model_config=self._llm_model_config
         ).with_structured_output(schema=QuerySummaries, method="json_schema")
@@ -94,7 +95,7 @@ class SummarizeQueriesChain:
                     RunnablePassthrough.assign(formatted_queries=self._format_queries)
                     | prompt_template
                     | chat_model
-                )
+                ),
             )
             | self._enrich_queries
         )

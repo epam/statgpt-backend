@@ -21,6 +21,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.schema import CreateTable
 from sqlalchemy.sql import text
 from sqlalchemy.sql.elements import TextClause
+from sqlalchemy.sql.expression import func
 
 from common.services.base import DbServiceBase
 from common.settings.database import PostgresSettings
@@ -169,6 +170,9 @@ class PgVectorStore(VectorStore, DbServiceBase):
         """
         lock_key = self._dataset_lock_key(dataset_id)
         async with self._lock_session() as session:
+            # Ensure session is in a clean state before acquiring lock
+            if session.in_transaction() and not session.is_active:
+                await session.rollback()
             await session.execute(
                 text("SELECT pg_advisory_lock(:lock_key)"), {"lock_key": lock_key}
             )
@@ -178,11 +182,26 @@ class PgVectorStore(VectorStore, DbServiceBase):
         return lock_key
 
     async def _release_dataset_lock(self, lock_key: int) -> None:
-        """Releases a session-level advisory lock."""
+        """Releases a session-level advisory lock.
+
+        Handles PendingRollback state to ensure lock is always released.
+        """
         async with self._lock_session() as session:
-            await session.execute(
-                text("SELECT pg_advisory_unlock(:lock_key)"), {"lock_key": lock_key}
-            )
+            try:
+                # Rollback if session is in a failed transaction state
+                if session.in_transaction() and not session.is_active:
+                    await session.rollback()
+                await session.execute(
+                    text("SELECT pg_advisory_unlock(:lock_key)"), {"lock_key": lock_key}
+                )
+            except Exception as e:
+                _log.error(f"Failed to release advisory lock (key={lock_key}): {e}")
+                # Still try to rollback to clean up the session
+                try:
+                    await session.rollback()
+                except Exception:
+                    pass
+                raise
         _log.debug(f"Released advisory lock (key={lock_key})")
 
     @asynccontextmanager
@@ -432,6 +451,122 @@ class PgVectorStore(VectorStore, DbServiceBase):
             )
         """
         )
+
+    @staticmethod
+    async def _get_duplicates(
+        session: AsyncSession, query: TextClause, params=None
+    ) -> tuple[bool, int]:
+        result = await session.execute(statement=query, params=params)
+        row = result.fetchone()
+
+        if row:
+            duplicate_count = int(row.duplicate_count)
+            has_duplicates = duplicate_count > 0
+            return (has_duplicates, duplicate_count)
+
+        return (False, 0)
+
+    async def has_duplicates(self) -> tuple[bool, int]:
+        """Checks if there are duplicate documents based on document content."""
+        document_model = await self._get_document_model()
+        metadata_model = await self._get_metadata_model()
+
+        async with self._lock_session() as session:
+            for model in [document_model, metadata_model]:
+                if not await self._check_if_table_exists(session, model.__tablename__):
+                    _log.info(f"Table {model.__tablename__!r} does not exist.")
+                    return False, 0
+
+            duplicate_check_query = text(
+                f"""
+                WITH duplicate_groups AS (
+                    SELECT d.document, COUNT(DISTINCT d.id) as doc_count
+                    FROM collections."{document_model.__tablename__}" d
+                    INNER JOIN collections."{metadata_model.__tablename__}" m ON d.id = m.document_id
+                    GROUP BY d.document
+                    HAVING COUNT(DISTINCT d.id) > 1
+                )
+                SELECT COUNT(*) as group_count,
+                       COALESCE(SUM(doc_count - 1), 0) as duplicate_count
+                FROM duplicate_groups
+                """
+            )
+
+            return await self._get_duplicates(session, duplicate_check_query, params=None)
+
+    async def has_duplicates_in_versions(self, version_ids: set[int]) -> tuple[bool, int]:
+        """Checks if there are duplicate documents based on document content.
+
+        Returns:
+            tuple[bool, int]: (has_duplicates, duplicate_count)
+        """
+        document_model = await self._get_document_model()
+        metadata_model = await self._get_metadata_model()
+
+        async with self._lock_session() as session:
+            for model in [document_model, metadata_model]:
+                if not await self._check_if_table_exists(session, model.__tablename__):
+                    _log.info(f"Table {model.__tablename__!r} does not exist.")
+                    return False, 0
+
+            # Build WHERE clause for version_ids filter
+            where_clause = ""
+            params = {}
+            if version_ids:
+                where_clause = "WHERE m.version_id = ANY(:version_ids)"
+                params = {"version_ids": list(version_ids)}
+
+            duplicate_check_query = text(
+                f"""
+                WITH duplicate_groups AS (
+                    SELECT d.document, COUNT(DISTINCT d.id) as doc_count
+                    FROM collections."{document_model.__tablename__}" d
+                    INNER JOIN collections."{metadata_model.__tablename__}" m ON d.id = m.document_id
+                    {where_clause}
+                    GROUP BY d.document
+                    HAVING COUNT(DISTINCT d.id) > 1
+                )
+                SELECT COUNT(*) as group_count,
+                       COALESCE(SUM(doc_count - 1), 0) as duplicate_count
+                FROM duplicate_groups
+                """
+            )
+
+            return await self._get_duplicates(session, duplicate_check_query, params=params)
+
+    async def get_total_size(self) -> int:
+        """Returns the total number of documents in the vector store."""
+        metadata_model = await self._get_metadata_model()
+
+        async with self._lock_session() as session:
+            if not await self._check_if_table_exists(session, metadata_model.__tablename__):
+                _log.info(f"Table {metadata_model.__tablename__!r} does not exist.")
+                return 0
+
+            size_query = select(func.count(func.distinct(metadata_model.document_id))).select_from(
+                metadata_model
+            )
+            result = await session.execute(size_query)
+            size = result.scalar_one()
+            return size
+
+    async def get_size(self, version_ids: set[int]) -> int:
+        """Returns the number of documents in the vector store."""
+        metadata_model = await self._get_metadata_model()
+
+        async with self._lock_session() as session:
+            if not await self._check_if_table_exists(session, metadata_model.__tablename__):
+                _log.info(f"Table {metadata_model.__tablename__!r} does not exist.")
+                return 0
+
+            size_query = (
+                select(func.count(func.distinct(metadata_model.document_id)))
+                .select_from(metadata_model)
+                .where(metadata_model.version_id.in_(version_ids))
+            )
+            result = await session.execute(size_query)
+            size = result.scalar_one()
+            return size
 
     async def deduplicate_by_document_content(self) -> None:
         """Removes and remaps duplicate documents based on `document` field content.
@@ -804,9 +939,13 @@ class PgVectorStore(VectorStore, DbServiceBase):
 
     async def _import_documents_from_zipfile(
         self, zip_file: zipfile.ZipFile, document_model: type[BaseDocument], file_path: str
-    ) -> int:
-        """Imports documents from Parquet file in zip archive in batches."""
+    ) -> dict[int, int]:
+        """Imports documents from Parquet file in zip archive in batches.
+
+        Returns a mapping from old document IDs to new auto-generated IDs.
+        """
         doc_count = 0
+        id_mapping: dict[int, int] = {}
 
         # Read Parquet file from zip archive
         with zip_file.open(file_path) as f:
@@ -820,7 +959,7 @@ class PgVectorStore(VectorStore, DbServiceBase):
                 for i in range(len(batch_dict['id'])):
                     try:
                         doc = document_model(
-                            id=batch_dict['id'][i],
+                            # Don't set id - let PostgreSQL auto-generate it
                             document=self._sanitize_text(batch_dict['document'][i]),
                             embeddings=(
                                 batch_dict['embeddings'][i].tolist()
@@ -836,11 +975,18 @@ class PgVectorStore(VectorStore, DbServiceBase):
                         raise ValueError(f"Corrupt document data: {e}")
 
                 self._session.add_all(doc_batch)
+                await self._session.flush()
+
+                # Map old IDs to new auto-generated IDs
+                for i, doc in enumerate(doc_batch):
+                    old_id = batch_dict['id'][i]
+                    id_mapping[old_id] = doc.id
+
                 await self._session.commit()
                 doc_count += len(doc_batch)
                 _log.info(f"Imported {doc_count} documents...")
 
-        return doc_count
+        return id_mapping
 
     async def _import_mappings_from_zipfile(
         self,
@@ -849,8 +995,13 @@ class PgVectorStore(VectorStore, DbServiceBase):
         file_path: str,
         dataset_versions: dict[uuid.UUID, int],
         data_sources: dict[uuid.UUID, int],
+        id_mapping: dict[int, int],
     ) -> int:
-        """Imports metadata mappings from Parquet file in zip archive in batches."""
+        """Imports metadata mappings from Parquet file in zip archive in batches.
+
+        Args:
+            id_mapping: Maps old document IDs to new auto-generated IDs
+        """
         mapping_count = 0
 
         # Read Parquet file from zip archive
@@ -865,6 +1016,18 @@ class PgVectorStore(VectorStore, DbServiceBase):
                 for i in range(len(batch_dict['id'])):
                     try:
                         dataset_id = uuid.UUID(batch_dict['dataset_id'][i])
+                        old_document_id = batch_dict['document_id'][i]
+
+                        # Look up new document ID
+                        new_document_id = id_mapping.get(old_document_id)
+                        if new_document_id is None:
+                            _log.error(
+                                f"Mapping references non-existent document_id={old_document_id}. "
+                                f"This indicates corrupted or mismatched export data."
+                            )
+                            raise ValueError(
+                                f"Mapping references document_id={old_document_id} which was not found in documents"
+                            )
 
                         # 'details' field processing
                         details = json.loads(batch_dict['details'][i])
@@ -876,8 +1039,8 @@ class PgVectorStore(VectorStore, DbServiceBase):
                         )
 
                         mapping = metadata_model(
-                            id=batch_dict['id'][i],
-                            document_id=batch_dict['document_id'][i],
+                            # Don't set id - let PostgreSQL auto-generate it
+                            document_id=new_document_id,  # Use new document ID
                             dataset_id=dataset_id,
                             version_id=dataset_versions[dataset_id],
                             details=details,
@@ -943,13 +1106,14 @@ class PgVectorStore(VectorStore, DbServiceBase):
             doc_count = 0
             mapping_count = 0
         else:
-            doc_count = await self._import_documents_from_zipfile(
+            id_mapping = await self._import_documents_from_zipfile(
                 zip_file, document_model, documents_path
             )
+            doc_count = len(id_mapping)
             _log.info(f"Imported {doc_count} documents")
 
             mapping_count = await self._import_mappings_from_zipfile(
-                zip_file, metadata_model, mappings_path, dataset_versions, data_sources
+                zip_file, metadata_model, mappings_path, dataset_versions, data_sources, id_mapping
             )
             _log.info(f"Imported {mapping_count} mappings")
 

@@ -1,3 +1,4 @@
+import asyncio
 import collections
 import json
 import logging
@@ -6,7 +7,7 @@ import tempfile
 import time
 import typing as t
 import uuid
-from collections.abc import Iterable
+from collections.abc import Iterable, Sequence
 from datetime import datetime
 from functools import cached_property
 
@@ -241,8 +242,8 @@ class Sdmx21DataResponse(DataResponse):
         df = df.reset_index()
         sorted_columns = []
         for column in df.columns:
-            id2name_mapping = self.dataset.map_dim_values_id_2_name(
-                value_ids=df[column].to_list(), dimension_name=column
+            id2name_mapping = self.dataset.map_component_values_id_2_name(
+                value_ids=df[column].to_list(), component_id=column
             )
             if id2name_mapping is None:
                 continue
@@ -345,16 +346,14 @@ class Sdmx21DataResponse(DataResponse):
 class Sdmx21DataSet(
     DataSet[SdmxDataSetConfig, 'Sdmx21DataSourceHandler'], BaseNameableArtefact[DataFlow]
 ):
-    _dimensions: t.Dict[str, SdmxDimension | VirtualDimension]
-    _attributes: t.Dict[str, Sdmx21Attribute]
-    _virtual_dimensions: t.Dict[str, VirtualDimension]
-    _indicator_dimensions: t.Dict[str, SdmxCodeListDimension | VirtualDimension]
+    _dimensions: dict[str, SdmxDimension | VirtualDimension]
+    _attributes: dict[str, Sdmx21Attribute]
+    _virtual_dimensions: dict[str, VirtualDimension]
+    _indicator_dimensions: dict[str, SdmxCodeListDimension | VirtualDimension]
     _indicator_dimensions_required_for_query: list[str]
     _country_dimension: SdmxCodeListDimension | VirtualDimension | None
     _fixed_indicator: FixedItem | None
-    # dimension_id -> {code_id -> code_name}
     _dim_values_id_2_name: dict[str, dict[str, str]] | None
-    _attrib_values_id_2_name: dict[str, dict[str, str]] | None
 
     def __init__(
         self,
@@ -375,10 +374,8 @@ class Sdmx21DataSet(
         self._indicator_dimensions_required_for_query = []
         self._fixed_indicator = config.fixed_indicator
         self._virtual_dimensions = {}
-        self._dim_values_id_2_name = None
-
         self._attributes = {attribute.entity_id: attribute for attribute in attributes}
-        self._attrib_values_id_2_name = None
+        self._dim_values_id_2_name = None
 
         # virtual dimensions
         for virtual_dimension_config in config.virtual_dimensions:
@@ -472,7 +469,7 @@ class Sdmx21DataSet(
             return self.config.citation.get_url()
         return None
 
-    def _indicators_from_fixed_indicator(self) -> t.Sequence[ComplexIndicator]:
+    def _indicators_from_fixed_indicator(self) -> list[ComplexIndicator]:
         if self._fixed_indicator is None:
             raise ValueError("fixed_indicator is None")
 
@@ -573,6 +570,25 @@ class Sdmx21DataSet(
 
         return series, queries_count
 
+    def _save_indicator_combinations(
+        self,
+        file_path: str,
+        series: list[dict[str, str]],
+        order: list[str],
+        virtual_indicator_dimensions: Sequence[VirtualDimension],
+    ) -> int:
+        series_df = pd.DataFrame(series)
+        series_df.sort_values(order, inplace=True)
+
+        for dim in virtual_indicator_dimensions:
+            series_df[dim.entity_id] = dim.value.entity_id
+
+        series_df.to_csv(file_path, index=False)
+        _log.info(f"{self.source_id}. Saved indicator combinations to '{file_path}'")
+        duplicates = series_df.duplicated().sum()
+
+        return duplicates
+
     async def _load_indicator_combinations_to(
         self, file_path: str, auth_context: AuthContext
     ) -> None:
@@ -591,7 +607,7 @@ class Sdmx21DataSet(
         }
 
         dim_2_avail_values_cnt_sorted = sorted(
-            {k: len(v) for k, v in avail_values.items()}.items(), key=lambda x: x[1]
+            ((k, len(v)) for k, v in avail_values.items()), key=lambda x: x[1]
         )
         _log.info(f"{self.source_id} {dim_2_avail_values_cnt_sorted=}")
         order = [x[0] for x in dim_2_avail_values_cnt_sorted]
@@ -609,43 +625,49 @@ class Sdmx21DataSet(
             f"{self.source_id}. Number of series extracted: {len(series)}. Number of queries sent: {queries_count}"
         )
 
-        elsapsed_time = time.time() - time_start
-        _log.info(f'{self.source_id}. elapsed time: {elsapsed_time :.3f} sec')
+        elapsed_time = time.time() - time_start
+        _log.info(f'{self.source_id}. elapsed time: {elapsed_time :.3f} sec')
 
         virtual_indicator_dimensions = self.virtual_indicator_dimensions()
 
-        series_df = pd.DataFrame(series)
-        series_df.sort_values(order, inplace=True)
-
-        for dim in virtual_indicator_dimensions:
-            series_df[dim.entity_id] = dim.value.entity_id
-
-        series_df.to_csv(file_path, index=False)
-        _log.info(f"{self.source_id}. Saved indicator combinations to '{file_path}'")
-
-        duplicates = series_df.duplicated().sum()
+        duplicates = await asyncio.to_thread(
+            self._save_indicator_combinations,
+            file_path,
+            series,
+            order,
+            virtual_indicator_dimensions,
+        )
         if duplicates:
             raise ValueError(
                 f"{self.source_id}. Found {duplicates} duplicates in the indicator combinations"
             )
         _log.info(f"{self.source_id}. No duplicates found in the indicator combinations")
 
-    async def _get_or_load_indicator_combinations(self, auth_context: AuthContext) -> pd.DataFrame:
+    def _read_indicator_combinations_from_file(self, file_path: str) -> pd.DataFrame:
+        _log.debug(f"{self.source_id}. Reading indicator combinations from '{file_path}'")
+        df = pd.read_csv(file_path, dtype=str, keep_default_na=False)
+        _log.debug(f"{self.source_id}. Read {len(df)} indicator combinations from '{file_path}'")
+        return df
+
+    async def _get_or_load_indicator_combinations(
+        self, auth_context: AuthContext, allow_cached: bool
+    ) -> pd.DataFrame:
         file_name = escape_invalid_filename_chars(f"{self.source_id}.csv")
 
         if cache_dir := sdmx_settings.cache_dir:
             dir_name = os.path.join(cache_dir, sdmx_settings.indicator_combinations_subdir)
             file_path = os.path.join(str(dir_name), file_name)
 
-            if not os.path.exists(file_path):
-                os.makedirs(dir_name, exist_ok=True)
+            if not allow_cached or not os.path.exists(file_path):
+                status = 'not found' if allow_cached else 'not allowed'
+                _log.info(f"{self.source_id}. Indicator combinations cache {status}.")
                 # Create cache of available indicator combinations:
-                _log.info(f"{self.source_id}. Indicator combinations cache not found.")
+                os.makedirs(dir_name, exist_ok=True)
                 await self._load_indicator_combinations_to(file_path, auth_context=auth_context)
             else:
                 _log.info(f"{self.source_id}. Getting indicator combinations from cache.")
 
-            return pd.read_csv(file_path, dtype=str, keep_default_na=False)
+            return await asyncio.to_thread(self._read_indicator_combinations_from_file, file_path)
         else:
             _log.info(
                 f"{self.source_id}. Indicator combinations cache disabled. Loading to temp dir..."
@@ -653,20 +675,21 @@ class Sdmx21DataSet(
             with tempfile.TemporaryDirectory() as tmp_dir:
                 file_path = os.path.join(tmp_dir, file_name)
                 await self._load_indicator_combinations_to(file_path, auth_context)
-                return pd.read_csv(file_path, dtype=str, keep_default_na=False)
+                return await asyncio.to_thread(
+                    self._read_indicator_combinations_from_file, file_path
+                )
 
     async def _indicators_from_dimensions(
-        self, auth_context: AuthContext
-    ) -> t.Sequence[ComplexIndicator]:
+        self, auth_context: AuthContext, allow_cached: bool
+    ) -> list[ComplexIndicator]:
         if not self._indicator_dimensions:
             raise ValueError("No indicator dimensions")
 
-        df_avail_dim_combinations = await self._get_or_load_indicator_combinations(auth_context)
+        df_avail_dim_combinations = await self._get_or_load_indicator_combinations(
+            auth_context=auth_context, allow_cached=allow_cached
+        )
 
-        # use the same columns order as in the list of indicator dimensions from dataset config.
-        # NOTE: here we rely on the order of items in the dict, which is generally a bad practice.
-        # however, it seems to work here, probably becase we don't modify the dict
-        # after the pydantic model is created. and it seems to preser the insert order of keys.
+        # Use the same columns order as in the list of indicator dimensions from dataset config.
         df_avail_dim_combinations = df_avail_dim_combinations[self._indicator_dimensions.keys()]
 
         dim_cat_id_2_model: dict[str, dict[str, CodeCategory | VirtualDimensionCategory]] = (
@@ -679,15 +702,16 @@ class Sdmx21DataSet(
             elif isinstance(dimension, VirtualDimension):
                 dim_cat_id_2_model[dimension.entity_id][dimension.value.entity_id] = dimension.value
 
-        df_indicators = df_avail_dim_combinations.apply(  # type: ignore
-            lambda row: ComplexIndicator(
+        def _create_indicator(row):
+            return ComplexIndicator(
                 CodeIndicator(dim_cat_id_2_model[dim_id][row[dim_id]])
                 for dim_id in df_avail_dim_combinations.columns
-            ),
-            axis=1,
+            )
+
+        df_indicators = await asyncio.to_thread(
+            df_avail_dim_combinations.apply, _create_indicator, axis=1  # type: ignore
         )
         indicators = df_indicators.to_list()
-
         return indicators
 
     @staticmethod
@@ -883,18 +907,22 @@ class Sdmx21DataSet(
     def indicator_dimensions_required_for_query(self) -> list[str]:
         return self._indicator_dimensions_required_for_query
 
-    async def get_indicators(self, auth_context: AuthContext) -> t.Sequence[ComplexIndicator]:
+    async def get_indicators(
+        self, auth_context: AuthContext, allow_cached: bool
+    ) -> Sequence[ComplexIndicator]:
         if self._fixed_indicator:
             return self._indicators_from_fixed_indicator()
         elif self._indicator_dimensions:
-            return await self._indicators_from_dimensions(auth_context=auth_context)
+            return await self._indicators_from_dimensions(
+                auth_context=auth_context, allow_cached=allow_cached
+            )
         else:
             raise ValueError("No indicators")
 
     def country_dimension(self) -> CategoricalDimension | None:
         return self._country_dimension
 
-    def get_dim_values_id_2_name_mapping(self) -> dict[str, dict[str, str]]:
+    def _get_dim_values_id_2_name_mapping(self) -> dict[str, dict[str, str]]:
         if self._dim_values_id_2_name is not None:
             return self._dim_values_id_2_name
 
@@ -908,32 +936,42 @@ class Sdmx21DataSet(
 
         return self._dim_values_id_2_name
 
-    def get_attrib_values_id_2_name_mapping(self) -> dict[str, dict[str, str]]:
-        if self._attrib_values_id_2_name is not None:
-            return self._attrib_values_id_2_name
-
-        self._attrib_values_id_2_name = {}
-        for attrib in self.attributes():
-            if not isinstance(attrib, Sdmx21CodeListAttribute):
-                continue
-            self._attrib_values_id_2_name[attrib.entity_id] = {
-                code.query_id: code.name for code in attrib.code_list.codes()
-            }
-
-        return self._attrib_values_id_2_name
-
-    def map_dim_values_id_2_name(
-        self, value_ids: t.Iterable[str], dimension_name: str
+    def map_component_values_id_2_name(
+        self, value_ids: Iterable[str], component_id: str
     ) -> dict[str, str] | None:
         """Map dimension or attribute ids to their corresponding names."""
-        id2name = (
-            self.get_dim_values_id_2_name_mapping() | self.get_attrib_values_id_2_name_mapping()
-        )
 
-        cur_dim_id2name = id2name.get(dimension_name)
-        if cur_dim_id2name is None:
+        component: SdmxCodeListDimension | Sdmx21CodeListAttribute
+        if component_id in self._dimensions:
+            dimension = self._dimensions[component_id]
+            if not isinstance(dimension, SdmxCodeListDimension):
+                _log.debug(
+                    "Dimension %s of dataset %s is not a code list dimension",
+                    component_id,
+                    self.short_urn,
+                )
+                return None
+            component = dimension
+        elif component_id in self._attributes:
+            attribute = self._attributes[component_id]
+            if not isinstance(attribute, Sdmx21CodeListAttribute):
+                _log.debug(
+                    "Attribute %s of dataset %s is not a code list attribute",
+                    component_id,
+                    self.short_urn,
+                )
+                return None
+            component = attribute
+        else:
+            _log.debug("Component %s not found in dataset %s", component_id, self.short_urn)
             return None
-        res = {_id: cur_dim_id2name.get(_id, '') for _id in value_ids}
+
+        code_list = component.code_list
+        res = {
+            value_id: code_list[value_id].name
+            for value_id in value_ids
+            if isinstance(value_id, str)
+        }
         return res
 
     def map_dim_queries_2_names(self, queries: dict[str, list[str]]):
@@ -942,7 +980,7 @@ class Sdmx21DataSet(
         """
         res = {}
         for dim_id, value_ids in queries.items():
-            id2name = self.map_dim_values_id_2_name(value_ids, dim_id)
+            id2name = self.map_component_values_id_2_name(value_ids, dim_id)
             if id2name is None:
                 raise ValueError(f'Unexpected dimension id: "{dim_id}"')
             res[dim_id] = id2name
@@ -969,7 +1007,9 @@ class Sdmx21DataSet(
     ) -> DataSetAvailabilityQuery:
 
         constraints = list(availability_result.constraint.values())
-        if len(constraints) != 1:
+        if len(constraints) == 0:
+            return DataSetAvailabilityQuery()  # empty query
+        elif len(constraints) != 1:
             raise ValueError("Unexpected quantity of constraints in structure message")
         constraint = constraints[0]
         if len(constraint.data_content_region) != 1:
@@ -1052,7 +1092,7 @@ class Sdmx21DataSet(
         result = self._availability_result_to_query(availability_result)
         return result
 
-    def _data_msg_to_dataframe(self, data_msg: DataMessage) -> pd.DataFrame:
+    def _data_msg_to_dataframe_sync(self, data_msg: DataMessage) -> pd.DataFrame:
         """Convert SDMX data message to Pandas DataFrame."""
 
         kwargs = {}
@@ -1067,7 +1107,10 @@ class Sdmx21DataSet(
 
         return sdmx_pandas
 
-    def _include_attributes(self, df: pd.DataFrame) -> pd.DataFrame:
+    async def _data_msg_to_dataframe(self, data_msg: DataMessage) -> pd.DataFrame:
+        return await asyncio.to_thread(self._data_msg_to_dataframe_sync, data_msg)
+
+    def _include_attributes_sync(self, df: pd.DataFrame) -> pd.DataFrame:
         if df.empty or not self.config.include_attributes:
             return df
 
@@ -1093,6 +1136,9 @@ class Sdmx21DataSet(
         # Add attributes to index
         res_df = res_df.set_index(keys=attributes, append=True)
         return res_df
+
+    async def _include_attributes(self, df: pd.DataFrame) -> pd.DataFrame:
+        return await asyncio.to_thread(self._include_attributes_sync, df)
 
     async def _query_sdmx_data(
         self, sdmx_query: SdmxDataSetQuery, auth_context: AuthContext
@@ -1149,8 +1195,8 @@ class Sdmx21DataSet(
         url = self._get_query_url(data_msg.response)  # type: ignore
 
         try:
-            sdmx_pandas = self._data_msg_to_dataframe(data_msg)
-            sdmx_pandas = self._include_attributes(sdmx_pandas)
+            sdmx_pandas = await self._data_msg_to_dataframe(data_msg)
+            sdmx_pandas = await self._include_attributes(sdmx_pandas)
         except Exception as e:
             _log.exception(e)
             return Sdmx21DataResponse(

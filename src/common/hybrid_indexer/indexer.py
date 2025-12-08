@@ -134,7 +134,7 @@ class Indexer:
         max_n_indicators: int | None,
         auth_context: AuthContext,
     ) -> None:
-        indicators = await dataset.get_indicators(auth_context=auth_context)
+        indicators = await dataset.get_indicators(auth_context=auth_context, allow_cached=True)
         if max_n_indicators is not None:
             indicators = indicators[:max_n_indicators]
 

@@ -48,10 +48,15 @@ class DialAppFactory:
             ),
         )
 
+        # dependencies = [Depends(cancel_on_disconnect)]
+        dependencies: list = []
+
         app.add_chat_completion_with_dependencies(
             "{deployment_id}",
             AppChatCompletion(),
-            heartbeat_interval=10,
+            heartbeat_interval=5,
+            chat_completion_dependencies=dependencies,
+            configuration_dependencies=dependencies,
         )
         app.include_router(service_router)
 

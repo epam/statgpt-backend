@@ -1,4 +1,4 @@
-from pydantic import Field, model_validator
+from pydantic import Field, PositiveFloat, PositiveInt, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -33,6 +33,22 @@ class PostgresSettings(BaseSettings):
     )
 
     batch_size: int = Field(default=1000, description="Batch size for vector store operations")
+
+    connection_max_retries: PositiveInt = Field(
+        default=5, description="Maximum number of connection retry attempts"
+    )
+
+    connection_retry_interval: PositiveFloat = Field(
+        default=10.0, description="Initial retry interval in seconds (uses exponential backoff)"
+    )
+
+    alembic_max_retries: PositiveInt = Field(
+        default=3, description="Maximum number of alembic version check retry attempts"
+    )
+    alembic_retry_interval: PositiveFloat = Field(
+        default=10.0,
+        description="Initial alembic retry interval in seconds (uses exponential backoff)",
+    )
 
     @model_validator(mode="after")
     def validate_config(self):

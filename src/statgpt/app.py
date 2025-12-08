@@ -7,7 +7,6 @@ statgpt_path = Path(__file__).parent.parent.absolute()
 sys.path.append(str(statgpt_path))
 
 import dotenv
-from aidial_sdk import DIALApp
 
 dotenv_path = os.path.join(os.getcwd(), ".env")
 
@@ -20,6 +19,8 @@ except Exception:
 _log = logging.getLogger(__name__)
 
 _log.info("Initializing StatGPT application")
+
+from aidial_sdk import DIALApp
 
 
 def run_dial_app(app: DIALApp):

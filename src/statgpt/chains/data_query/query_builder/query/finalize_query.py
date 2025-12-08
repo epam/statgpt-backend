@@ -329,8 +329,8 @@ class FinalizeQueryChainFactory:
             dataset: Sdmx21DataSet = datasets[dataset_id].data  # type: ignore[assignment]
             dataset_dimension_id_to_name = {}
             for dimension, dimension_query in dataset_query.dimensions_queries_dict.items():
-                id2name_mapping = dataset.map_dim_values_id_2_name(
-                    value_ids=dimension_query.values, dimension_name=dimension
+                id2name_mapping = dataset.map_component_values_id_2_name(
+                    value_ids=dimension_query.values, component_id=dimension
                 )
                 # `None` is returned if the dimension has no corresponding code list, e.g.,
                 # when it's time period dimension.

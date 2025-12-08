@@ -17,6 +17,7 @@ from common.data.sdmx.v21.ratelimiter import SdmxRateLimiterFactory
 from common.data.sdmx.v21.schemas import Urn
 from common.settings.sdmx import quanthub_settings
 from common.utils import Cache
+from common.utils.timer import debug_timer
 
 from .qh_sdmx_client import AsyncQuanthubClient
 
@@ -67,7 +68,7 @@ class QuanthubSdmx21DataSourceHandler(Sdmx21DataSourceHandler):
                 else:
                     raise e
 
-    async def get_dataset(
+    async def _get_dataset(
         self,
         entity_id: uuid.UUID,
         title: str,
@@ -110,7 +111,7 @@ class QuanthubSdmx21DataSourceHandler(Sdmx21DataSourceHandler):
 
         try:
             dataflow_loader = DataflowLoader(sdmx_client)
-            structure_message = await dataflow_loader.load_structure_message(urn)
+            structure_message = await dataflow_loader.load_structure_message(urn, mode="full")
         except Exception as e:
             if allow_offline:
                 msg = f"Failed to load the dataflow or its associated structures. {urn=}"
@@ -209,6 +210,25 @@ class QuanthubSdmx21DataSourceHandler(Sdmx21DataSourceHandler):
             logger.info(f"Cached dataset(id={entity_id}, urn={dataset_config.urn!r}).")
 
         return res
+
+    async def get_dataset(
+        self,
+        entity_id: uuid.UUID,
+        title: str,
+        config: dict,
+        auth_context: AuthContext,
+        allow_offline: bool = False,
+        allow_cached: bool = False,
+    ) -> QuanthubSdmx21DataSet | SdmxOfflineDataSet:
+        with debug_timer(f"QuanthubSdmx21DataSourceHandler.get_dataset: {title}"):
+            return await self._get_dataset(
+                entity_id,
+                title,
+                config,
+                auth_context,
+                allow_offline=allow_offline,
+                allow_cached=allow_cached,
+            )
 
     @staticmethod
     def data_source_type() -> DataSourceType:

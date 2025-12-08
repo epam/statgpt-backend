@@ -5,7 +5,7 @@ from .selection_candidates import (
     LLMSelectionCandidateBase,
     SelectedCandidates,
 )
-from .service import GitVersionResponse, SettingsResponse
+from .service import DimTypesResponse, GitVersionResponse, SettingsResponse
 from .state import ChatState
 from .tool_artifact import (
     BaseFileRagArtifact,
