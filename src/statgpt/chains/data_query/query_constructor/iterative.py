@@ -10,6 +10,7 @@ from common.data.base import (
     QueryOperator,
 )
 from common.schemas.enums import TimePeriodStrategy
+from statgpt.chains.utils import time_period_utils
 from statgpt.schemas.query_builder import ChainState
 
 from .base import BaseQueryConstructor
@@ -44,6 +45,10 @@ class IterativeQueryConstructor(BaseQueryConstructor):
             default_query = default_queries[0]
             if default_query.values:
                 if dim_type != DimensionType.CATEGORY:
+                    if dim_type == DimensionType.DATETIME:
+                        default_query = time_period_utils.get_relative_aware_time_period_query(
+                            default_query
+                        )
                     return DimensionQuery.from_default_query(default_query, dim_id), True
 
                 if availability is not None and availability.values:

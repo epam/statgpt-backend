@@ -8,7 +8,7 @@ from common.schemas.enums import AvailableDatasetsVersion
 from common.utils.models import get_chat_model
 from statgpt.chains.parameters import ChainParameters
 from statgpt.chains.tools import StatGptTool, ToolArgs
-from statgpt.default_prompts.prompts import DatasetsMetadataPrompts
+from statgpt.default_prompts import datasets_metadata_default_prompts
 from statgpt.schemas import ToolArtifact, ToolMessageState
 from statgpt.utils.formatters import DatasetsListFormatter
 
@@ -32,7 +32,7 @@ class DatasetsMetadataTool(
             AvailableDatasetsVersion.full, channel_config.locale
         )
         if not tool_config.details.system_prompt:
-            tool_config.details.system_prompt = DatasetsMetadataPrompts.METADATA_SYSTEM_PROMPT
+            tool_config.details.system_prompt = datasets_metadata_default_prompts.system_prompt
 
     @classmethod
     def get_args_schema(cls, tool_config: DatasetsMetadataToolConfig) -> type[DatasetsMetadataArgs]:

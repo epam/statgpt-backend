@@ -12,7 +12,7 @@ from common.schemas.enums import TimePeriodStrategy
 from common.utils.timer import debug_timer
 from statgpt.chains import CandidatesSelectionSimpleChainFactory
 from statgpt.chains.data_query.query_builder import utils as query_utils
-from statgpt.default_prompts import DataQueryDefaultPrompts
+from statgpt.default_prompts import data_query_default_prompts
 from statgpt.schemas.query_builder import (
     DatasetAvailabilityQueriesType,
     LLMSelectionDimensionCandidate,
@@ -34,9 +34,9 @@ class NonIndicatorsSearchChainFactory(DimensionSearchChainFactoryBase):
         self._dimensions_selection_chain_factory = CandidatesSelectionSimpleChainFactory(
             llm_model_config=self._config.llm_models.dimensions_selection_model_config,
             system_prompt=prompts.validation_system_prompt
-            or DataQueryDefaultPrompts.VALIDATION_SYSTEM_PROMPT,
+            or data_query_default_prompts.validation_system_prompt,
             user_prompt=prompts.validation_user_prompt
-            or DataQueryDefaultPrompts.VALIDATION_USER_PROMPT,
+            or data_query_default_prompts.validation_user_prompt,
             candidates_key="dimension_candidates_for_llm_selection",
         )
 

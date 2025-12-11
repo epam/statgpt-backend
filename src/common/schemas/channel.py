@@ -50,7 +50,7 @@ class OutOfScopeConfig(BaseYamlModel):
     domain: str = Field(
         description="The domain of the chat bot. Other domains are considered out of scope."
     )
-    custom_instructions: list[str] | None = Field(
+    custom_blacklist: list[str] | None = Field(
         description=(
             "List of specific topics, questions, and subject matters that the chatbot should"
             " not engage with or provide information about."
@@ -60,9 +60,9 @@ class OutOfScopeConfig(BaseYamlModel):
     use_general_topics_blacklist: bool = Field(
         default=True,
         description=(
-            "Whether to use the general topics blacklist from NotSupportedScenariosPrompts."
+            "Whether to use the general topics blacklist from guardrails_default_prompts."
             " It contains common out-of-scope topics like harmful content, prompt engineering, etc."
-            " If false, only custom_instructions will be used."
+            " If false, only custom_blacklist will be used."
         ),
     )
     start_new_conversation_message: str = Field(

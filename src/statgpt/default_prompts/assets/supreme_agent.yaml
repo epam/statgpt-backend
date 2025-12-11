@@ -140,7 +140,7 @@ systemPrompt: |-
   **General Instructions**, **No Assumptions Policy**, **No Calculations**, **Tool Usage**, **Terminology**,
   **Citations**. Check your responses against these instructions to ensure compliance.
 
-additionalContextPrompt: |-
+additionalContextWrapperSection: |-
   ## Additional Context
 
   This context should be treated as **additional information** to enhance your understanding of the domain and improve

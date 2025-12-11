@@ -18,7 +18,7 @@ from common.data.base import (
 from common.data.sdmx.common import CodeCategory, SdmxCodeListDimension
 from common.data.sdmx.common.indicator import ComplexIndicator
 from common.data.sdmx.v21.dataset import Sdmx21DataSet
-from common.prompts import IndexerPrompts
+from common.default_prompts import HybridIndexerDefaultPrompts
 from common.schemas import HybridSearchConfig
 from common.settings.hybrid_index import HybridIndexSettings
 from common.utils.elastic import ElasticIndex
@@ -88,10 +88,10 @@ class Indexer:
             api_key=models_api_key, model_config=self._config.harmonize_model_config
         ).with_structured_output(method="json_mode")
 
-        normalization_prompt = IndexerPrompts.get_normalize_prompts()
+        normalization_prompt = HybridIndexerDefaultPrompts.get_normalize_prompts()
         self._log_prompt(normalization_prompt, title='normalization prompt')
 
-        harmonization_prompt = IndexerPrompts.get_harmonize_prompts()
+        harmonization_prompt = HybridIndexerDefaultPrompts.get_harmonize_prompts()
         self._log_prompt(harmonization_prompt, title='harmonization prompt')
 
         self._normalize_chain = (

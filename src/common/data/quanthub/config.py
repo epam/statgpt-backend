@@ -60,6 +60,14 @@ class AuthGrantType(StrEnum):
     MSI = "msi"
 
 
+class UserAuthType(StrEnum):
+    FORWARD_DIAL_TOKEN = "forward_dial_token"
+    OBO_FLOW = "obo_flow"
+
+    USE_SYSTEM_USER = "use_system_user"
+    """User authorization is not used, instead all users use system authorization."""
+
+
 class GrantConfig(BaseYamlModel):
     """Abstract class"""
 
@@ -86,17 +94,20 @@ class ClientCredentialGrantConfig(GrantConfig):
 
 
 class AuthConfig(BaseYamlModel):
-    forward_dial_token: bool = Field(default=False)
-    grant_type: str
+    user_auth_type: str = Field(default="use_system_user")
+    system_auth_type: str
 
     msi: MsiGrantConfig | None = Field(default=None)
     ropc: RopcGrantConfig | None = Field(default=None)
     client_credentials: ClientCredentialGrantConfig | None = Field(default=None)
 
-    obo_flow: OboFlowConfig
+    obo_flow: OboFlowConfig | None = Field(default=None)
 
-    def get_grant_type(self) -> AuthGrantType:
-        return AuthGrantType(config_utils.replace_env(self.grant_type))
+    def get_user_auth_type(self) -> UserAuthType:
+        return UserAuthType(config_utils.replace_env(self.user_auth_type))
+
+    def get_system_auth_type(self) -> AuthGrantType:
+        return AuthGrantType(config_utils.replace_env(self.system_auth_type))
 
     def get_msi_config(self) -> MsiGrantConfig:
         if not self.msi:
@@ -124,10 +135,13 @@ class AuthConfig(BaseYamlModel):
             AuthGrantType.CLIENT_CREDENTIALS: self.client_credentials,
         }
 
-        selected_grant_type = self.get_grant_type()
+        selected_grant_type = self.get_system_auth_type()
         config_for_selected_grant_type = grant_type_config_mapping.get(selected_grant_type, None)
         if config_for_selected_grant_type is None:
             raise ValueError(f"Missing config for selected grant type: {selected_grant_type.value}")
+
+        if self.get_user_auth_type() == UserAuthType.OBO_FLOW and not self.obo_flow:
+            raise ValueError("OBO flow selected but obo_flow config is missing")
 
         return self
 

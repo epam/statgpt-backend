@@ -26,7 +26,7 @@ from statgpt.chains.data_query.data_query_artifacts_displayer import DataQueryAr
 from statgpt.chains.parameters import ChainParameters
 from statgpt.chains.tools import StatGptTool
 from statgpt.config import ChainParametersConfig, StateVarsConfig
-from statgpt.default_prompts.prompts import SupremeAgentPrompts
+from statgpt.default_prompts import supreme_agent_default_prompts
 from statgpt.schemas import FailedToolArtifact, FailedToolMessageState, ToolResponseStatus
 from statgpt.schemas.dial_app_configuration import StatGPTConfiguration
 from statgpt.schemas.tool_artifact import DataQueryArtifact
@@ -185,11 +185,11 @@ class SupremeAgent:
     def _create_system_prompt(cls, channel_config: ChannelConfig) -> str:
         if channel_config.supreme_agent.additional_context:
             return (
-                SupremeAgentPrompts.SYSTEM_PROMPT
+                supreme_agent_default_prompts.system_prompt
                 + "\n\n"
-                + SupremeAgentPrompts.ADDITIONAL_CONTEXT_PROMPT
+                + supreme_agent_default_prompts.additional_context_wrapper_section
             )
-        return SupremeAgentPrompts.SYSTEM_PROMPT
+        return supreme_agent_default_prompts.system_prompt
 
     @classmethod
     def _create_chain(

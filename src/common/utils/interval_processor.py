@@ -14,6 +14,7 @@ class IntervalType(StrEnum):
     FROM_NOW = "from_now"
     REGULAR_POSITIVE = "regular_positive"
     REGULAR_NEGATIVE = "regular_negative"
+    NOW = "now"
 
 
 class Duration(BaseModel):
@@ -23,7 +24,7 @@ class Duration(BaseModel):
 
     @model_validator(mode="after")
     def validate_duration(self) -> Self:
-        if self.years <= 0 and self.months <= 0:
+        if self.years <= 0 and self.months <= 0 and not self.interval_type == IntervalType.NOW:
             raise ValueError("Either years or months must be greater than 0")
         return self
 
@@ -83,6 +84,9 @@ class IntervalProcessor:
 
     def _parse_duration(self, interval_str: str) -> Duration:
         """Parse the interval string to get years and months"""
+
+        if interval_str == "now":
+            return Duration(years=0, months=0, interval_type=IntervalType.NOW)
 
         if match := self._last_next_pattern.match(interval_str):
             prefix = match.group("prefix")
@@ -245,3 +249,39 @@ class IntervalProcessor:
             return self._process_regular_positive(years, months, date)
         else:
             raise ValueError(f"Invalid interval format: {interval_str}")
+
+    def get_absolute_date(self, relative_datetime: str, date: datetime | None = None) -> datetime:
+        """
+        Get the relative date to the datetime
+        :param relative_datetime: The relative datetime string
+        :param date: The reference date
+        :return: datetime of relative date
+        """
+        if date is None:
+            date = datetime.now()
+
+        duration = self._parse_duration(relative_datetime)
+        years, months, interval_type = duration.years, duration.months, duration.interval_type
+
+        if interval_type == IntervalType.NOW:
+            return date
+        elif interval_type == IntervalType.TO_DATE:
+            return self._process_to_date(years, months, date, relative_datetime)[0]
+        elif interval_type == IntervalType.FROM_NOW:
+            return self._process_from_now(years, months, date, relative_datetime)[1]
+        elif interval_type == IntervalType.REGULAR_NEGATIVE:
+            return self._process_regular_negative(years, months, date)[0]
+        elif interval_type == IntervalType.REGULAR_POSITIVE:
+            return self._process_regular_positive(years, months, date)[1]
+        else:
+            raise ValueError(f"Invalid relative format: {relative_datetime}")
+
+    def get_absolute_date_str(self, relative_datetime: str, date: datetime | None = None) -> str:
+        """
+        Get the relative date to the date string
+        :param relative_datetime: The relative datetime string
+        :param date: The reference date
+        :return: iso date string
+        """
+        res = self.get_absolute_date(relative_datetime, date)
+        return res.date().isoformat()

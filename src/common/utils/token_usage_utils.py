@@ -33,14 +33,14 @@ class TokenUsageCostCalculator:
 
 class TokenUsageDisplayer:
     PRETTY_COLUMN_NAMES = {
-        'deployment': 'Deployment',
-        'model': 'Model',
-        'prompt_tokens': 'Prompt Tokens',
-        'completion_tokens': 'Completion Tokens',
-        'total_tokens': 'Total Tokens',
-        'costs': 'Total Price, $',
+        "deployment": "Deployment",
+        "model": "Model",
+        "prompt_tokens": "Prompt Tokens",
+        "completion_tokens": "Completion Tokens",
+        "total_tokens": "Total Tokens",
+        "costs": "Total Price, $",
     }
-    NA_REPLACEMENT = '-'
+    NA_REPLACEMENT = "-"
 
     @classmethod
     def as_markdown_table(cls, token_usage: list[TokenUsagePricedItem]) -> str:
@@ -63,21 +63,32 @@ class TokenUsageDisplayer:
 
         return pd.DataFrame(
             {
-                'deployment': '',
-                'model': 'TOTAL:',
-                'prompt_tokens': totals.get('prompt_tokens'),
-                'completion_tokens': totals.get('completion_tokens'),
-                'total_tokens': totals.get('total_tokens'),
-                'costs': totals.get('costs'),
+                "deployment": "",
+                "model": "TOTAL:",
+                "prompt_tokens": totals.get("prompt_tokens"),
+                "completion_tokens": totals.get("completion_tokens"),
+                "total_tokens": totals.get("total_tokens"),
+                "costs": totals.get("costs"),
             },
             index=[0],
         )
+
+    @staticmethod
+    def calculate_total_cost(token_usage: list[TokenUsagePricedItem]) -> float:
+        if not token_usage:
+            return 0.0
+        return sum(item.costs for item in token_usage if item.costs)
+
+    @staticmethod
+    def total_cost_str(token_usage: list[TokenUsagePricedItem]) -> str:
+        total_cost = TokenUsageDisplayer.calculate_total_cost(token_usage)
+        return f"{total_cost:.3f}"
 
     @classmethod
     def as_string_list(cls, token_usage: list[TokenUsagePricedItem]) -> str:
         """Convert token usage statistics to a string representation of a Markdown list."""
 
-        res = ''
+        res = ""
 
         for item in token_usage:
             res += f"### {item.model}\n"
@@ -94,14 +105,14 @@ class TokenUsageDisplayer:
         total_completion_tokens = sum(
             item.completion_tokens for item in token_usage if item.completion_tokens
         )
-        total_total_tokens = total_prompt_tokens + total_completion_tokens
-        total_costs = sum(item.costs for item in token_usage if item.costs)
+        total_total_tokens = sum(item.total_tokens for item in token_usage if item.total_tokens)
+        total_costs_str = cls.total_cost_str(token_usage)
 
-        res += '-' * 15 + '\n'
+        res += "-" * 15 + "\n"
         res += "## TOTAL:\n"
         res += f"* Prompt Tokens: {total_prompt_tokens}\n"
         res += f"* Completion Tokens: {total_completion_tokens}\n"
         res += f"* Total Tokens: {total_total_tokens}\n"
-        res += f"* Total Price, $: {total_costs:.3f}\n"
+        res += f"* Total Price, $: {total_costs_str}\n"
 
         return res

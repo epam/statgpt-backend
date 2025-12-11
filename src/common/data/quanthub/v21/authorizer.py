@@ -5,10 +5,12 @@ from common.auth.authorizer import (
     DialUserAuthorizerConfig,
     DialUserAuthorizerI,
     DialUserTokenRefreshDecorator,
+    ForwardDialTokenAuthorizer,
     SystemUserAuthorizeConfig,
     SystemUserAuthorizer,
     SystemUserAuthorizerI,
     SystemUserTokenRefreshDecorator,
+    SystemUserViaAuthorizer,
 )
 from common.auth.grants import (
     AuthorizationError,
@@ -24,7 +26,7 @@ from common.auth.grants import (
 from common.auth.msi import CachedMsiAuthorizer
 from common.auth.token_cache import GlobalTokenCache
 from common.config import logger as logger
-from common.data.quanthub.config import AuthConfig, AuthGrantType
+from common.data.quanthub.config import AuthConfig, AuthGrantType, UserAuthType
 from common.data.sdmx.common.authorizer import IAuthorizer
 from common.settings.auth import clients_spa_chat_settings, dial_chat_settings
 
@@ -35,12 +37,10 @@ class QuanthubAuthorizer(IAuthorizer):
         auth_context: AuthContext,
         system_user_authorizer: SystemUserAuthorizerI,
         dial_user_authorizer: DialUserAuthorizerI,
-        forward_dial_token: bool = False,
     ):
         self._auth_context = auth_context
         self._system_user_authorizer = system_user_authorizer
         self._dial_user_authorizer = dial_user_authorizer
-        self.forward_dial_token = forward_dial_token
 
     async def get_authorization_headers(self) -> dict[str, str]:
         """Get authorization headers for the request."""
@@ -61,50 +61,61 @@ class QuanthubAuthorizer(IAuthorizer):
                     'AuthorizationError', 'DIAL access token is required for user authorization'
                 )
 
-            if self.forward_dial_token:
-                logger.info("Forward DIAL token.")
-                return dial_token
             try:
-                logger.info("Try to authorize with dial access token.")
-                logger.debug(f"DIAL access token: {dial_token}")
                 config = DialUserAuthorizerConfig(dial_token=dial_token)
                 token = await self._dial_user_authorizer.authorize(config)
-                logger.info("Authorized with dial user token")
                 return token.access_token
             except AuthorizationError as e:
+                logger.debug(f"DIAL access token: {dial_token}")
                 logger.exception("Failed to authorize with dial token")
                 raise e
 
 
 class QuanthubAuthorizerFactory:
     @staticmethod
-    def _create_dial_user_authorizer(auth_config: AuthConfig) -> DialUserAuthorizerI:
-        ttyd_chat_config = OboFlowConfig(
-            client_id=clients_spa_chat_settings.client_id,
-            client_secret=clients_spa_chat_settings.client_secret,
-            scope=dial_chat_settings.scope,
-            oauth2_token_endpoint_url=clients_spa_chat_settings.oauth2_token_endpoint_url,
-        )
+    def _create_dial_user_authorizer(
+        auth_config: AuthConfig, system_authorizer: SystemUserAuthorizerI
+    ) -> DialUserAuthorizerI:
 
-        quanthub_config = OboFlowConfig(
-            client_id=dial_chat_settings.client_id,
-            client_secret=dial_chat_settings.client_secret,
-            scope=auth_config.obo_flow.get_target_scope(),
-            oauth2_token_endpoint_url=dial_chat_settings.oauth2_token_endpoint_url,
-        )
+        user_auth_type: UserAuthType = auth_config.get_user_auth_type()
+        if user_auth_type is UserAuthType.FORWARD_DIAL_TOKEN:
+            return ForwardDialTokenAuthorizer()
+        elif user_auth_type is UserAuthType.USE_SYSTEM_USER:
+            return SystemUserViaAuthorizer(system_authorizer)
+        elif user_auth_type is UserAuthType.OBO_FLOW:
+            if auth_config.obo_flow is None:
+                raise ValueError("OBO flow not configured for user auth")
 
-        ttyd_chat_obo_flow = OboFlow(ttyd_chat_config)
-        qh_obo_flow = OboFlow(quanthub_config)
+            ttyd_chat_config = OboFlowConfig(
+                client_id=clients_spa_chat_settings.client_id,
+                client_secret=clients_spa_chat_settings.client_secret,
+                scope=dial_chat_settings.scope,
+                oauth2_token_endpoint_url=clients_spa_chat_settings.oauth2_token_endpoint_url,
+            )
 
-        return DialUserTokenRefreshDecorator(
-            DialUserAuthorizer(ttyd_chat_obo_flow, qh_obo_flow),
-            TokenRefresh(quanthub_config),
-            GlobalTokenCache.get_or_create(),
-        )
+            quanthub_config = OboFlowConfig(
+                client_id=dial_chat_settings.client_id,
+                client_secret=dial_chat_settings.client_secret,
+                scope=auth_config.obo_flow.get_target_scope(),
+                oauth2_token_endpoint_url=dial_chat_settings.oauth2_token_endpoint_url,
+            )
+
+            ttyd_chat_obo_flow = OboFlow(ttyd_chat_config)
+            qh_obo_flow = OboFlow(quanthub_config)
+
+            return DialUserTokenRefreshDecorator(
+                DialUserAuthorizer(ttyd_chat_obo_flow, qh_obo_flow),
+                TokenRefresh(quanthub_config),
+                GlobalTokenCache.get_or_create(),
+            )
+        else:
+            raise RuntimeError(
+                f"Unexpected value for auth_config.user_auth_type: {user_auth_type}."
+            )
 
     @staticmethod
     def create_system_user_authorizer(auth_config_model: AuthConfig) -> SystemUserAuthorizerI:
-        grant_type = auth_config_model.get_grant_type()
+        grant_type = auth_config_model.get_system_auth_type()
         if grant_type == AuthGrantType.ROPC:
             logger.debug("ROPC grant selected for system user")
             ropc_config = RopcGrantConfig(
@@ -151,9 +162,6 @@ class QuanthubAuthorizerFactory:
             )
 
     def create(self, auth_context: AuthContext, auth_config: AuthConfig) -> QuanthubAuthorizer:
-        return QuanthubAuthorizer(
-            auth_context,
-            self.create_system_user_authorizer(auth_config),
-            self._create_dial_user_authorizer(auth_config),
-            auth_config.forward_dial_token,
-        )
+        system_authorizer = self.create_system_user_authorizer(auth_config)
+        user_authorizer = self._create_dial_user_authorizer(auth_config, system_authorizer)
+        return QuanthubAuthorizer(auth_context, system_authorizer, user_authorizer)

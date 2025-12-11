@@ -14,7 +14,7 @@ from common.utils.markdown import format_as_markdown_list
 from common.utils.models import get_chat_model
 from statgpt.chains.parameters import ChainParameters
 from statgpt.config import ChainParametersConfig, StateVarsConfig
-from statgpt.default_prompts import NotSupportedScenariosPrompts
+from statgpt.default_prompts import guardrails_default_prompts
 from statgpt.utils.dial_stages import optional_timed_stage
 from statgpt.utils.message_history import History
 
@@ -32,14 +32,6 @@ class OutOfScopeCheckerResponse(BaseModel):
 class OutOfScopeChecker:
     def __init__(self, channel_config: ChannelConfig):
         self._channel_config = channel_config
-
-    @staticmethod
-    def _get_checker_prompt() -> str:
-        return NotSupportedScenariosPrompts.CHECKER_PROMPT
-
-    @staticmethod
-    def _get_response_prompt() -> str:
-        return NotSupportedScenariosPrompts.RESPONSE_PROMPT
 
     def _get_tool_description(self) -> str:
         return json.dumps(
@@ -119,23 +111,25 @@ class OutOfScopeChecker:
             chat_bot_language_instructions=language_instructions,
         )
 
-        topics_blacklist = []
+        blacklist = []
         if self._channel_config.out_of_scope.use_general_topics_blacklist:
-            topics_blacklist += NotSupportedScenariosPrompts.GENERAL_TOPICS_BLACKLIST
-        if self._channel_config.out_of_scope.custom_instructions:
-            topics_blacklist += self._channel_config.out_of_scope.custom_instructions
-        params["custom_instructions"] = (
+            blacklist += guardrails_default_prompts.general_topics_blacklist
+        if self._channel_config.out_of_scope.custom_blacklist:
+            blacklist += self._channel_config.out_of_scope.custom_blacklist
+        params["blacklist"] = (
             (
                 "# The following topics and questions are strictly OUT OF SCOPE:  \n"
-                + format_as_markdown_list(topics_blacklist, list_type="ordered")
+                + format_as_markdown_list(blacklist, list_type="ordered")
             )
-            if topics_blacklist
+            if blacklist
             else ""
         )
 
-        prompt_template = ChatPromptTemplate.from_messages(
+        checker_prompt = ChatPromptTemplate.from_messages(
             [
-                SystemMessagePromptTemplate.from_template(self._get_checker_prompt()),
+                SystemMessagePromptTemplate.from_template(
+                    guardrails_default_prompts.checker_prompt
+                ),
                 MessagesPlaceholder(variable_name="chat_history"),
             ]
         ).partial(**params)
@@ -145,7 +139,7 @@ class OutOfScopeChecker:
             model_config=self._channel_config.supreme_agent.llm_model_config,
         )
 
-        chain = prompt_template | model.with_structured_output(
+        checker_chain = checker_prompt | model.with_structured_output(
             OutOfScopeCheckerResponse, method="json_schema"
         )
 
@@ -153,7 +147,7 @@ class OutOfScopeChecker:
         with optional_timed_stage(
             choice, "[DEBUG] Guardrails: Relevancy", enabled=show_debug_stages
         ) as stage:
-            response: OutOfScopeCheckerResponse = await chain.ainvoke({})  # type: ignore[assignment]
+            response: OutOfScopeCheckerResponse = await checker_chain.ainvoke({})  # type: ignore[assignment]
             if stage:
                 if response.out_of_scope:
                     stage.append_content(
@@ -184,16 +178,18 @@ class OutOfScopeChecker:
         # tell user that the request is out of scope
 
         params["out_of_scope_reasoning"] = response.reasoning
-        prompt_template = ChatPromptTemplate.from_messages(
+        response_prompt = ChatPromptTemplate.from_messages(
             [
-                SystemMessagePromptTemplate.from_template(self._get_response_prompt()),
+                SystemMessagePromptTemplate.from_template(
+                    guardrails_default_prompts.response_prompt
+                ),
                 MessagesPlaceholder(variable_name="chat_history"),
             ]
         ).partial(**params)
 
-        chain = prompt_template | model
+        response_chain = response_prompt | model
 
-        async for chunk in chain.astream(inputs):
+        async for chunk in response_chain.astream(inputs):
             choice.append_content(chunk.content)  # type: ignore[union-attr]
 
         return inputs

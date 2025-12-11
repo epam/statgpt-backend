@@ -29,10 +29,10 @@ class DataQueryPrompts(BaseYamlModel):
     group_expander_fallback_prompt: str | None = Field(default=None)
     normalization_prompt: str | None = Field(default=None)
     named_entities_prompt: str | None = Field(default=None)
-    dataset_selection_prompts: SystemUserPrompt | None = Field(default=None)
     indicators_selection_system_prompt: str | None = Field(default=None)
     validation_system_prompt: str | None = Field(default=None)
     validation_user_prompt: str | None = Field(default=None)
+    dataset_selection_prompt: SystemUserPrompt | None = Field(default=None)
     incomplete_queries_prompt: str | None = Field(default=None)
     summarize_queries_prompt: str | None = Field(default=None)
 

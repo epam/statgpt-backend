@@ -1,0 +1,53 @@
+normalize:
+  systemPrompt: |-
+    You are an expert in statistical indicators.
+    As an output provide normalized input together with instruction steps' reasoning as JSON object
+    {{"reasoning": list[str], "normalized": str}}.
+    Only JSON, no markdown
+
+  userPrompt: |-
+    Instruction steps:
+    - resolve all acronyms, keeping original value in round squares if it is not already resolved in input
+    - append well-known terms with its well-known acronyms in round squares if it is not present in input
+    - normalize usage of percentage: %, percent, percentage - use "percent"
+    - normalize usage of currencies: united states dollars, us$, us dollars - use "dollar".
+      Note, dollar here was an example only, no need to convert all currencies to "dollar"
+    - you MUST provide output in the SAME LANGUAGE as input.
+    This applies to whole "normalized" content, including abbreviations!
+
+    Input:
+    {input}
+
+    Examples:
+    - if input is exactly "Lending interest rate (%)" then expected normalized "Lending interest rate (percent)"
+    - if input contains "consumer price index (cpi)" then normalized should contain "consumer price index (cpi)"
+    - if input contains "GDP" then normalized should contain "Gross Domestic Product (GDP)"
+    - if input contains "Gross Domestic Product" then normalized should contain "Gross Domestic Product (GDP)"
+    - if input contains "gross domestic product at market prices" then normalized should contain "gross domestic product (gdp) at market prices"
+    - if input is exactly "PPP conversion factor, GDP (LCU per international $)" then expected normalized "Purchasing Power Parity (PPP) conversion factor, Gross Domestic Product (GDP) (Local Currency Units (LCU) per international dollar)"
+
+harmonize:
+  systemPrompt: |-
+    You are semantic search engine over statistical indicators.
+    As an output provide indicator primary part together with instruction steps' reasoning as JSON object {{"primary": "", "reasoning": []}}.
+    Only JSON, no markdown
+
+  userPrompt: |-
+    Instruction steps:
+    - review indicators to get some context of how indicator names are built
+    - usually primary part is got repeated in multiple indicators
+    - usually indicator name begins with primary part
+    - usually indicator name consists of 1 primary part
+    - sometimes punctuation like comma or squares is used to separate indicator components. So primary part will ends on a punctuation in this case, potentially last one or just before the last one
+    - extract indicator's primary part from the statement
+
+    Statement:
+    {statement}
+
+    Indicators:
+    {indicators}
+
+    Examples:
+    - if statement is "Lending interest rate (%)" then expected primary is "lending interest rate"
+    - if statement is "PPP conversion factor, GDP (LCU per international $)" then expected primary is "PPP conversion factor, GDP"
+    - if statement is "Gross domestic product (GDP), Constant prices, Per capita, Purchasing power parity (PPP) international dollar" then expected primary is "Gross domestic product (GDP), Constant prices, Per capita"

@@ -51,6 +51,39 @@ class DialUserAuthorizer(DialUserAuthorizerI):
         return qh_token_result
 
 
+class ForwardedToken(TokenResponseI):
+    def __init__(self, token: str):
+        self._access_token = token
+
+    @property
+    def access_token(self) -> str:
+        return self._access_token
+
+    @property
+    def expires_at(self) -> int:
+        return 0  # No expiration info
+
+    @property
+    def refresh_token(self) -> str | None:
+        return None  # No refresh token
+
+
+class ForwardDialTokenAuthorizer(DialUserAuthorizerI):
+    async def authorize(self, config: DialUserAuthorizerConfig) -> TokenResponseI:
+        logger.info("Forwarding DIAL token as is")
+        return ForwardedToken(config.dial_token)
+
+
+class SystemUserViaAuthorizer(DialUserAuthorizerI):
+    """Dial user authorizer that delegates to system user authorizer."""
+
+    def __init__(self, authorizer: SystemUserAuthorizerI):
+        self._authorizer = authorizer
+
+    async def authorize(self, config: DialUserAuthorizerConfig) -> TokenResponseI:
+        return await self._authorizer.authorize(SystemUserAuthorizeConfig())
+
+
 class SystemUserAuthorizer(SystemUserAuthorizerI):
     def __init__(self, grant: AuthGrantI):
         self.grant = grant

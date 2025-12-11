@@ -247,9 +247,11 @@ class Sdmx21DataResponse(DataResponse):
             )
             if id2name_mapping is None:
                 continue
+            id2name_imputed = {id_: name or id_ for id_, name in id2name_mapping.items()}
+
             id_column = column  # ToDo: consider adding _ID suffix
             name_column = f"{column}_Name"
-            df[name_column] = df[column].map(id2name_mapping, na_action='ignore')
+            df[name_column] = df[column].map(id2name_imputed, na_action='ignore')
             for c in (id_column, name_column):
                 sorted_columns.append(c)
         # append columns that were not enriched
@@ -938,7 +940,7 @@ class Sdmx21DataSet(
 
     def map_component_values_id_2_name(
         self, value_ids: Iterable[str], component_id: str
-    ) -> dict[str, str] | None:
+    ) -> dict[str, str | None] | None:
         """Map dimension or attribute ids to their corresponding names."""
 
         component: SdmxCodeListDimension | Sdmx21CodeListAttribute
@@ -968,19 +970,21 @@ class Sdmx21DataSet(
 
         code_list = component.code_list
         res = {
-            value_id: code_list[value_id].name
+            value_id: code_list[value_id].name if value_id in code_list else None
             for value_id in value_ids
             if isinstance(value_id, str)
         }
         return res
 
-    def map_dim_queries_2_names(self, queries: dict[str, list[str]]):
+    def map_dim_queries_2_names(
+        self, queries: dict[str, list[str]]
+    ) -> dict[str, dict[str, str | None]]:
         """
-        queries: {dimension_id: [list of value_ids]}
+        queries: {dimension_id: [list of term_ids]}
         """
-        res = {}
-        for dim_id, value_ids in queries.items():
-            id2name = self.map_component_values_id_2_name(value_ids, dim_id)
+        res: dict[str, dict[str, str | None]] = {}
+        for dim_id, term_ids in queries.items():
+            id2name = self.map_component_values_id_2_name(term_ids, component_id=dim_id)
             if id2name is None:
                 raise ValueError(f'Unexpected dimension id: "{dim_id}"')
             res[dim_id] = id2name

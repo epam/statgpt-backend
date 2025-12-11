@@ -7,18 +7,17 @@ from collections.abc import Generator
 from typing import Any, NamedTuple
 
 from aidial_sdk.chat_completion import Stage
-from langchain_core.prompts import ChatPromptTemplate
 from pydantic import BaseModel
 
 from common.config.logging import logger
 from common.data.base import DimensionQuery, QueryOperator
 from common.hybrid_indexer.schemas import IndicatorIndex, MatchingIndex
-from common.prompts import IndexerPrompts
 from common.schemas import HybridSearchConfig
 from common.utils import async_utils
 from common.utils.elastic import ElasticIndex, SearchResult
 from common.utils.models import get_chat_model
 from common.vectorstore import ScoredVectorStoreDocument, VectorStore
+from statgpt.default_prompts import hybrid_search_default_prompts
 from statgpt.schemas.query_builder import (
     DatasetAvailabilityQueriesType,
     DateTimeQueryResponse,
@@ -221,7 +220,7 @@ class HybridSearcher:
 
         async def _relevance_candidates(self, query: str, items):
             items_str = self._format_relevance_items(items)
-            output = await self._outer._relevance_chain.ainvoke(
+            output = await self._outer._relevancy_chain.ainvoke(
                 {"statement": query.lower(), "items": items_str}
             )
             return output['relevance']
@@ -725,24 +724,20 @@ class HybridSearcher:
         self._indicators_index = indicators_index
         self._vectorstore = vectorstore
 
-        self._normalize_chain = (
-            IndexerPrompts.get_search_normalize_prompts()
+        self._normalization_chain = (
+            hybrid_search_default_prompts.normalization_prompt.get_template()
             | self._llm.with_structured_output(method="json_mode")
         )
         self._separate_subjects_chain = (
-            IndexerPrompts.get_separate_subjects_prompts()
+            hybrid_search_default_prompts.separate_subjects_prompt.get_template()
             | self._llm.with_structured_output(method="json_mode")
         )
-        if system_user_prompt := config.prompts.relevancy_prompts:
-            prompt = ChatPromptTemplate.from_messages(
-                [
-                    ("system", system_user_prompt.system_message),
-                    ("human", system_user_prompt.user_message),
-                ],
-            )
-        else:
-            prompt = IndexerPrompts.get_relevance_prompts()
-        self._relevance_chain = prompt | self._llm.with_structured_output(method="json_mode")
+        relevancy_prompt = (
+            config.prompts.relevancy_prompts or hybrid_search_default_prompts.relevancy_prompt
+        )
+        self._relevancy_chain = relevancy_prompt.get_template() | self._llm.with_structured_output(
+            method="json_mode"
+        )
 
     @property
     def config(self) -> HybridSearchConfig:
@@ -804,7 +799,7 @@ class HybridSearcher:
             forbidden_to_remove_str = f"Forbidden to remove words:\n{forbidden_to_remove_str}\n"
             forbidden_step = "- do not remove forbidden to remove words from the input if they are present in input"
 
-        output = await self._normalize_chain.ainvoke(
+        output = await self._normalization_chain.ainvoke(
             {
                 "removal_step": removal_step,
                 "forbidden_step": forbidden_step,

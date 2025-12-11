@@ -1,4 +1,4 @@
-datasetsMetadataSystemPrompt: >-
+systemPrompt: >-
   You are an expert in statistics and SDMX. You are provided with context of the dataset metadata.
   Your task is to answer queries that can be answered using this metadata.
 
