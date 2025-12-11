@@ -1,6 +1,6 @@
 [project]
 name = "statgpt"
-version = "1.1.2"
+version = "0.2.0"
 description = "StatGPT: Platform for talking to Official Statistics data & SDMX"
 readme = "README.md"
 requires-python = ">=3.11,<3.12"
@@ -129,7 +129,6 @@ plugins = ["pydantic.mypy"]
 ignore_missing_imports = true
 
 [tool.poetry]
-package-mode = false
 requires-poetry = '>=2.0.0,<3.0.0'
 
 [tool.poetry.requires-plugins]
