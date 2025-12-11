@@ -14,8 +14,9 @@ from statgpt.chains.data_query.parameters import DataQueryParameters
 from statgpt.chains.data_query.query_builder import utils as query_utils
 from statgpt.chains.data_query.query_constructor import QueryConstructorFactory
 from statgpt.chains.parameters import ChainParameters
+from statgpt.chains.utils import time_period_utils
 from statgpt.config import ChainParametersConfig, StateVarsConfig
-from statgpt.default_prompts import DataQueryDefaultPrompts
+from statgpt.default_prompts import data_query_default_prompts
 from statgpt.schemas.query_builder import (
     ChainState,
     DatasetAvailabilityQueriesType,
@@ -48,7 +49,7 @@ class FinalizeQueryChainFactory:
         self._summarize_queries_chain = SummarizeQueriesChain(
             llm_model_config=self._config.llm_models.summarize_queries_model_config,
             system_prompt=prompts.summarize_queries_prompt
-            or DataQueryDefaultPrompts.SUMMARIZE_QUERIES_PROMPT,
+            or data_query_default_prompts.summarize_queries_prompt,
         )
         self._execute_query_chain = ExecuteQueryChain(
             stages_config=self._config.stages_config,
@@ -64,7 +65,7 @@ class FinalizeQueryChainFactory:
         self._incomplete_queries_chain = IncompleteQueriesChain(
             llm_model_config=self._config.llm_models.incomplete_queries_model_config,
             system_prompt=prompts.incomplete_queries_prompt
-            or DataQueryDefaultPrompts.INCOMPLETE_QUERIES_PROMPT,
+            or data_query_default_prompts.incomplete_queries_prompt,
         )
         self._invalid_time_period_chain = InvalidSelectedTimePeriodChain(
             message=messages.invalid_time_period
@@ -184,17 +185,20 @@ class FinalizeQueryChainFactory:
     @staticmethod
     def _time_query_to_values(query: Query) -> tuple[str | None, str | None]:
         if query.operator == query_utils.QueryOperator.BETWEEN and len(query.values) == 2:
-            return query.values[0], query.values[1]
+            return (
+                time_period_utils.get_relative_aware_time_period(query.values[0]),
+                time_period_utils.get_relative_aware_time_period(query.values[1]),
+            )
         if (
             query.operator == query_utils.QueryOperator.GREATER_THAN_OR_EQUALS
             and len(query.values) == 1
         ):
-            return query.values[0], None
+            return time_period_utils.get_relative_aware_time_period(query.values[0]), None
         if (
             query.operator == query_utils.QueryOperator.LESS_THAN_OR_EQUALS
             and len(query.values) == 1
         ):
-            return None, query.values[0]
+            return None, time_period_utils.get_relative_aware_time_period(query.values[0])
         raise ValueError(f"Unsupported time query format: {query!r}")
 
     def _apply_default_time_period_if_possible(
@@ -223,7 +227,8 @@ class FinalizeQueryChainFactory:
                 continue
 
             default_time_period_query = DimensionQuery.from_default_query(
-                time_period_default[0], dimension_id="TIME_PERIOD"
+                time_period_utils.get_relative_aware_time_period_query(time_period_default[0]),
+                dimension_id="TIME_PERIOD",
             )
 
             available_start, available_end = ava_query.time_period_start, ava_query.time_period_end
@@ -321,13 +326,15 @@ class FinalizeQueryChainFactory:
             return self._apply_default_time_period_if_possible(ava_queries, chain_state)
 
     def _map_dimension_ids_to_names(self, inputs: dict) -> DatasetDimensionTermNameType:
-        dataset_to_dimension_id_to_name = {}
+        terms_id2name: DatasetDimensionTermNameType = {}
         chain_state = ChainState(**inputs)
         datasets = chain_state.datasets_dict
         dataset_queries = chain_state.dataset_queries
+
         for dataset_id, dataset_query in dataset_queries.items():
             dataset: Sdmx21DataSet = datasets[dataset_id].data  # type: ignore[assignment]
-            dataset_dimension_id_to_name = {}
+            dataset_terms_id2name: dict[str, dict[str, str]] = {}
+
             for dimension, dimension_query in dataset_query.dimensions_queries_dict.items():
                 id2name_mapping = dataset.map_component_values_id_2_name(
                     value_ids=dimension_query.values, component_id=dimension
@@ -336,9 +343,11 @@ class FinalizeQueryChainFactory:
                 # when it's time period dimension.
                 if id2name_mapping is None:
                     continue
-                dataset_dimension_id_to_name[dimension] = id2name_mapping
-            dataset_to_dimension_id_to_name[dataset_id] = dataset_dimension_id_to_name
-        return dataset_to_dimension_id_to_name
+                id2name_imputed = {id_: name or id_ for id_, name in id2name_mapping.items()}
+                dataset_terms_id2name[dimension] = id2name_imputed
+            terms_id2name[dataset_id] = dataset_terms_id2name
+
+        return terms_id2name
 
     async def _route_based_on_data_query_status(self, inputs: dict) -> Runnable:
         state = ChainParameters.get_state(inputs)

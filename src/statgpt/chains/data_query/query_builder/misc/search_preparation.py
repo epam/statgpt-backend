@@ -9,7 +9,7 @@ from common.data.sdmx.common import DimensionVirtualCodeCategory
 from common.schemas import DataQueryDetails
 from common.schemas.data_query_tool import DataQueryPrompts
 from statgpt.chains.utils import dataset_utils
-from statgpt.default_prompts import DataQueryDefaultPrompts
+from statgpt.default_prompts import data_query_default_prompts
 from statgpt.schemas.query_builder import (
     ChainState,
     LLMSelectionDimensionCandidate,
@@ -33,28 +33,29 @@ class SearchPreparationChainFactory:
 
         self._datetime_chain = DateTimeDimensionChain(
             llm_model_config=self._config.llm_models.time_period_model_config,
-            system_prompt=prompts.datetime_prompt or DataQueryDefaultPrompts.DATETIME_PROMPT,
+            system_prompt=prompts.datetime_prompt or data_query_default_prompts.datetime_prompt,
         )
         # self._group_expander_chain = GroupExpanderChain(
         #     llm_model_config=self._config.llm_models.group_expander_model_config,
-        #     system_prompt=prompts.group_expander_prompt or DefaultPrompts.GROUP_EXPANDER_PROMPT,
+        #     system_prompt=prompts.group_expander_prompt
+        #     or data_query_default_prompts.group_expander_prompt,
         #     fallback_prompt=prompts.group_expander_fallback_prompt
-        #     or DefaultPrompts.GROUP_EXPANDER_FALLBACK_PROMPT,
+        #     or data_query_default_prompts.group_expander_fallback_prompt,
         # )
         self._normalization_chain = NormalizationChain(
             llm_model_config=self._config.llm_models.query_normalization_model_config,
             system_prompt=prompts.normalization_prompt
-            or DataQueryDefaultPrompts.NORMALIZATION_PROMPT,
+            or data_query_default_prompts.normalization_prompt,
         )
         self._named_entities_chain = NamedEntitiesChain(
             llm_model_config=self._config.llm_models.named_entities_model_config,
             system_prompt=prompts.named_entities_prompt
-            or DataQueryDefaultPrompts.NAMED_ENTITIES_PROMPT,
+            or data_query_default_prompts.named_entities_prompt,
         )
         self._datasets_selection_chain = DataSetsSelectionChain(
             llm_model_config=self._config.llm_models.datasets_selection_model_config,
-            system_user_prompt=prompts.dataset_selection_prompts
-            or DataQueryDefaultPrompts.DATASET_SELECTION_PROMPTS,
+            system_user_prompt=prompts.dataset_selection_prompt
+            or data_query_default_prompts.dataset_selection_prompt,
         )
 
     @staticmethod

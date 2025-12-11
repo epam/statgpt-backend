@@ -86,12 +86,14 @@ class DatasetDimQueriesSimpleDictFormatter:
         query_id2name_mapping = dataset.map_dim_queries_2_names(query)
         lines = []
 
-        # NOTE: we assume the query is valid
-        for dim_id, values_id2name in query_id2name_mapping.items():
+        for dim_id, terms_id2name in query_id2name_mapping.items():
+            terms_mapping_imputed = {id_: name or id_ for id_, name in terms_id2name.items()}
             lines.append(f'* {dim_id}:')
             lines.extend(
-                f'\t* [{value_id}] {value_name}' for value_id, value_name in values_id2name.items()
+                f'\t* [{term_id}] {term_name}'
+                for term_id, term_name in terms_mapping_imputed.items()
             )
+
         if n_tabs > 0:
             prefix = '\t' * n_tabs
             lines = [f'{prefix}{line}' for line in lines]

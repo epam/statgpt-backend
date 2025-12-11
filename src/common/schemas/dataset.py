@@ -13,7 +13,7 @@ class Status(BaseModel):
 
 
 class DataSetBase(BaseModel):
-    id_: uuid.UUID
+    id_: uuid.UUID = Field(default_factory=uuid.uuid4, description="The uuid of the dataset")
     title: str
     data_source_id: int
     details: dict[str, Any] = Field(default_factory=dict, description="Details as a JSON object")

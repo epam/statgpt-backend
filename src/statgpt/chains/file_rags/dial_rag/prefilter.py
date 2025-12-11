@@ -11,7 +11,7 @@ from langchain_openai import AzureChatOpenAI
 
 from common import utils
 from common.config import multiline_logger as logger
-from statgpt.default_prompts import DialRagPrompts
+from statgpt.default_prompts import rag_prefilter_default_prompts
 from statgpt.schemas.file_rags.dial_rag import (
     DialRagMetadata,
     LastNPublicationsFilter,
@@ -86,7 +86,7 @@ class PreFilterBuilder:
     def _create_prefilter_chain(self) -> RunnableSerializable:
         date_chain = SingleFilterChainBuilder.create_chain(
             llm=self._llm,
-            system_prompt=DialRagPrompts.PREFILTER_SYSTEM_PROMPT_DATE,
+            system_prompt=rag_prefilter_default_prompts.date_system_prompt,
             output_type=TimePeriodFilter,
             partials={
                 "current_date_long": utils.get_today_date_long(),
@@ -95,12 +95,12 @@ class PreFilterBuilder:
         )
         latest_chain = SingleFilterChainBuilder.create_chain(
             llm=self._llm,
-            system_prompt=DialRagPrompts.PREFILTER_SYSTEM_PROMPT_LATEST,
+            system_prompt=rag_prefilter_default_prompts.latest_system_prompt,
             output_type=LatestFilter,
         )
         publication_types_chain = SingleFilterChainBuilder.create_chain(
             llm=self._llm,
-            system_prompt=DialRagPrompts.PREFILTER_SYSTEM_PROMPT_PUBLICATIONS,
+            system_prompt=rag_prefilter_default_prompts.publication_types_system_prompt,
             output_type=PublicationTypesFilter,
             partials={
                 "available_publication_types": list(self._metadata.publication_types),
@@ -108,7 +108,7 @@ class PreFilterBuilder:
         )
         last_n_publications_chain = SingleFilterChainBuilder.create_chain(
             llm=self._llm,
-            system_prompt=DialRagPrompts.PREFILTER_SYSTEM_PROMPT_LAST_N_PUBLICATIONS,
+            system_prompt=rag_prefilter_default_prompts.last_n_publications_system_prompt,
             output_type=LastNPublicationsFilter,
         )
         chain = RunnableParallel(

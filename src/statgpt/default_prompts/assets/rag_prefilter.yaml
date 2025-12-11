@@ -1,4 +1,4 @@
-prefilterSystemPromptDate: >-
+dateSystemPrompt: >-
     Only set publication date filters when the query **explicitly requires filtering publications by their publication date**.
     For all instructions below please assume the current date is {current_date_long}.
 
@@ -112,8 +112,7 @@ prefilterSystemPromptDate: >-
     - "What was Inflation forecast for Germany in year 2019 and what were the underlying drivers?" → start=", end="2019-12-31"
       The query asks for the inflation forecast for 2019, so we use end_date set to the end of 2019.
 
-
-prefilterSystemPromptLatest: >-
+latestSystemPrompt: >-
     Set the "latest" filter when the query requires the **most current perspective, analysis, or ranking**, or when the answer could change with new publications (e.g., rankings, distributions, top N, evolving topics), even if not explicitly stated.
 
     DO set "latest" if:
@@ -210,7 +209,7 @@ prefilterSystemPromptLatest: >-
     - "reasons for revising GDP forecast for UK from last quarter" -> is_latest=true
         Same as previous example, but rephrased.
 
-prefilterSystemPromptPublicationTypes: >-
+publicationTypesSystemPrompt: >-
     Your task is to help the user to find the right publication by narrowing down the search results.
 
     You must fill in a publication type field in the filter object that selects publications.
@@ -224,7 +223,7 @@ prefilterSystemPromptPublicationTypes: >-
       - "what are the main takeaways of 2021 from economic outlook?" -> {{"publication_types": ["Economic Outlook"]}}
       - "what are the main takeaways of the last sigma report?" -> {{"publication_types": ["sigma"]}}
 
-prefilterSystemPromptLastNPublications: >-
+lastNPublicationsSystemPrompt: >-
     You must fill in a last_n_publications field in a filter object that selects publications.
     This field is used to limit the number of publications returned by the search and indicate that newer publications are preferred.
 

@@ -7,7 +7,7 @@ from common.utils import async_utils
 from statgpt.chains.data_query.query_builder.indicator_selection.base import (
     SemanticIndicatorSelectionBase,
 )
-from statgpt.default_prompts import DataQueryDefaultPrompts
+from statgpt.default_prompts import data_query_default_prompts
 from statgpt.schemas.query_builder import (
     ChainState,
     IndicatorsSearchResult,
@@ -48,13 +48,13 @@ class IndicatorSelectionSemanticV1ChainFactory(SemanticIndicatorSelectionBase):
     def _get_system_prompt(self) -> str:
         return (
             self._config.prompts.indicators_selection_system_prompt
-            or DataQueryDefaultPrompts.INDICATORS_SELECTION_SYSTEM_PROMPT
+            or data_query_default_prompts.indicators_selection_system_prompt
         )
 
     def _get_validation_user_prompt(self) -> str:
         return (
             self._config.prompts.validation_user_prompt
-            or DataQueryDefaultPrompts.VALIDATION_USER_PROMPT
+            or data_query_default_prompts.validation_user_prompt
         )
 
     def get_indicator_selection_chain_factory(self):

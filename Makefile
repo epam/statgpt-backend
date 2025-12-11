@@ -19,9 +19,9 @@ install_dev: init_venv
 	poetry install --with dev
 
 format: install_dev
-	autoflake ${SRC_DIRS}
-	black ${SRC_DIRS}
-	isort ${SRC_DIRS}
+	poetry run autoflake ${SRC_DIRS}
+	poetry run black ${SRC_DIRS}
+	poetry run isort ${SRC_DIRS}
 
 lint: install_dev
 	poetry check --lock
@@ -36,13 +36,13 @@ install_pre_commit_hooks:
 	pre-commit install
 
 db_migrate:
-	alembic -c src/alembic.ini upgrade head
+	poetry run alembic -c src/alembic.ini upgrade head
 
 db_downgrade:
-	alembic -c src/alembic.ini downgrade -1
+	poetry run alembic -c src/alembic.ini downgrade -1
 
 db_autogenerate:
-	alembic -c src/alembic.ini revision --autogenerate -m "$(MESSAGE)"
+	poetry run alembic -c src/alembic.ini revision --autogenerate -m "$(MESSAGE)"
 
 test_db_migrate: export PGVECTOR_HOST=$(TEST_DATABASE_HOST)
 test_db_migrate: export PGVECTOR_PORT=$(TEST_DATABASE_PORT)

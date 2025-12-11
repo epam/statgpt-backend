@@ -23,7 +23,7 @@ checkerPrompt: |-
    Follow this **language guidance** strictly:
    {chat_bot_language_instructions}
 
-   {custom_instructions}
+   {blacklist}
 
    # Tools available for the Main Chatbot
 
@@ -97,7 +97,7 @@ responsePrompt: |-
 
    Failure to follow these instructions may result in miscommunication and confusion.
 
-   {custom_instructions}
+   {blacklist}
 
    # Main Chatbot Description
 
