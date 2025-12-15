@@ -21,9 +21,9 @@ COPY poetry.lock .
 RUN poetry export -f requirements.txt --without-hashes | pip install $PIP_ARGS -r /dev/stdin
 
 # Copy source code
-COPY ./src/alembic.ini $APP_HOME/alembic.ini
-COPY ./src/admin_portal $APP_HOME/admin_portal
-COPY ./src/common $APP_HOME/common
+COPY ./alembic.ini $APP_HOME/alembic.ini
+COPY ./statgpt/admin $APP_HOME/statgpt/admin
+COPY ./statgpt/common $APP_HOME/statgpt/common
 
 # create the app user and chown workdir to the app user
 RUN adduser -u 5678 --system --disabled-password --gecos "" app && chown -R app $APP_HOME
@@ -32,4 +32,4 @@ USER app
 ENV WEB_CONCURRENCY=1
 ENV PYDANTIC_V2=True
 
-CMD ["sh", "admin_portal/admin.sh"]
+CMD ["sh", "statgpt/admin/admin.sh"]

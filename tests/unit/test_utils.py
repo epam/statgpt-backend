@@ -4,9 +4,9 @@ from datetime import date
 
 import pytest
 
-from common import utils as common_utils
-from common.config import utils as common_config_utils
-from statgpt import utils as statgpt_utils
+from statgpt.app import utils as statgpt_utils
+from statgpt.common import utils as common_utils
+from statgpt.common.config import utils as common_config_utils
 
 
 @pytest.mark.parametrize(

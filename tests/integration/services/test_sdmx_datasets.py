@@ -3,17 +3,17 @@ import uuid
 import pytest
 import pytest_asyncio  # noqa: F401
 
-from admin_portal.auth.auth_context import SystemUserAuthContext
-from admin_portal.services import AdminPortalChannelService as ChannelService
-from admin_portal.services import AdminPortalDataSetService as DataSetService
-from admin_portal.services import AdminPortalDataSourceService as DataSourceService
-from admin_portal.services.dataset import (
+from statgpt.admin.auth.auth_context import SystemUserAuthContext
+from statgpt.admin.services import AdminPortalChannelService as ChannelService
+from statgpt.admin.services import AdminPortalDataSetService as DataSetService
+from statgpt.admin.services import AdminPortalDataSourceService as DataSourceService
+from statgpt.admin.services.dataset import (
     clear_channel_dataset_data_in_background_task,
     reload_indicators_in_background_task,
 )
-from common import schemas
-from common.data.base import DatasetCitation, IndexerConfig, IndexerIndicatorConfig
-from common.settings.langchain import langchain_settings
+from statgpt.common import schemas
+from statgpt.common.data.base import DatasetCitation, IndexerConfig, IndexerIndicatorConfig
+from statgpt.common.settings.langchain import langchain_settings
 
 from .mocks import BackgroundTasksMock
 

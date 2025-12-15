@@ -20,9 +20,9 @@ Application is written in Python 3.11 and uses the following main technologies:
 
 ## Project structure
 
-* `src/admin_portal` — backend of the administrator portal which allows the user to add and update data.
-* `src/common` — common code used in the `admin_portal` and `statgpt` applications.
-* `src/statgpt` — main application that generates response using LLMs and based on data prepared by `admin_portal`.
+* `statgpt/admin` — backend of the administrator part which allows the user to add and update data.
+* `statgpt/common` — common code used in the `statgpt.admin` and `statgpt.app` applications.
+* `statgpt/app` — main application that generates response using LLMs and based on data prepared by `statgpt.admin`.
 * `tests` - unit and integration tests.
 * `docker` - Dockerfiles for building docker images.
 
@@ -31,9 +31,9 @@ Application is written in Python 3.11 and uses the following main technologies:
 The applications are configured using environment variables. The environment variables are described in the following
 files:
 
-* [Common environment variables](src/common/README.md#environment-variables) - used in both applications
-* [Admin Backend environment variables](src/admin_portal/README.md#environment-variables)
-* [Chat Backend environment variables](src/statgpt/README.md#environment-variables)
+* [Common environment variables](statgpt/common/README.md#environment-variables) - used in both applications
+* [Admin Backend environment variables](statgpt/admin/README.md#environment-variables)
+* [Main App environment variables](statgpt/app/README.md#environment-variables)
 
 ## Local Setup
 
@@ -173,7 +173,7 @@ make generate_dial_config
 
     * or using Docker:
         1) Set `ADMIN_MODE=ALEMBIC_UPGRADE` in the `.env` file
-        2) Run `admin_portal` from `docker-compose.yml`
+        2) Run `admin_backend` from `docker-compose.yml`
 
 3. Run Admin backend (if you want to initialize or update data):
 

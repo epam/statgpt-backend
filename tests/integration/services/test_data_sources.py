@@ -3,12 +3,12 @@ import pytest_asyncio  # noqa: F401
 from fastapi import HTTPException
 from sqlalchemy import select
 
-from admin_portal.services import AdminPortalDataSourceService as DataSourceService
-from common import schemas
-from common.data.sdmx import Sdmx21DataSourceHandler, SdmxDataSourceConfig
-from common.data.sdmx.common.config import SdmxHeaders, SdmxSupport
-from common.models import DataSourceType
-from common.services import DataSourceTypeService
+from statgpt.admin.services import AdminPortalDataSourceService as DataSourceService
+from statgpt.common import schemas
+from statgpt.common.data.sdmx import Sdmx21DataSourceHandler, SdmxDataSourceConfig
+from statgpt.common.data.sdmx.common.config import SdmxHeaders, SdmxSupport
+from statgpt.common.models import DataSourceType
+from statgpt.common.services import DataSourceTypeService
 
 # ~~~~~ Data Source Type Tests ~~~~~
 

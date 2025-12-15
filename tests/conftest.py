@@ -15,7 +15,7 @@ try:
 except Exception:
     pass
 
-from common.models.database import SessionMaker
+from statgpt.common.models.database import SessionMaker
 
 
 @pytest_asyncio.fixture
@@ -37,7 +37,7 @@ async def session(async_session_factory):
 
 # @pytest_asyncio.fixture
 # async def mock_async_session_factory(monkeypatch, async_session_factory):
-#     from common.models import database
+#     from statgpt.common.models import database
 #
 #     @asynccontextmanager
 #     async def get_session_contex_manager_mock():

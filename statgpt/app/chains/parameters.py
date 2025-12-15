@@ -1,0 +1,99 @@
+import typing as t
+from datetime import datetime
+
+from aidial_sdk.chat_completion import Choice, Request, Stage
+
+from statgpt.app.config import ChainParametersConfig
+from statgpt.app.schemas.dial_app_configuration import StatGPTConfiguration
+from statgpt.app.schemas.file_rags.dial_rag import RagFilterDial
+from statgpt.app.services.chat_facade import ChannelServiceFacade, VersionedDataSet
+from statgpt.app.utils.message_history import History
+from statgpt.common.auth.auth_context import AuthContext
+from statgpt.common.data.base import DataResponse, DataSetQuery, DimensionQuery
+
+
+class ChainParameters:
+    @staticmethod
+    def skip_out_of_scope_check(inputs: dict) -> bool:
+        return inputs[ChainParametersConfig.SKIP_OUT_OF_SCOPE_CHECK]
+
+    @staticmethod
+    def is_out_of_scope(inputs: dict) -> bool | None:
+        return inputs[ChainParametersConfig.OUT_OF_SCOPE]
+
+    @staticmethod
+    def get_out_of_scope_reasoning(inputs: dict) -> str | None:
+        return inputs[ChainParametersConfig.OUT_OF_SCOPE_REASONING]
+
+    @staticmethod
+    def get_request(data: dict) -> Request:
+        return data[ChainParametersConfig.REQUEST]
+
+    @staticmethod
+    def get_configuration(data: dict) -> StatGPTConfiguration:
+        return data[ChainParametersConfig.CONFIGURATION]
+
+    @staticmethod
+    def get_query(data: dict) -> str:
+        return data[ChainParametersConfig.QUERY]
+
+    @staticmethod
+    def get_target_prefilter(data: dict) -> RagFilterDial | None:
+        return data[ChainParametersConfig.TARGET_PREFILTER]
+
+    @staticmethod
+    def get_auth_context(data: dict) -> AuthContext:
+        return data[ChainParametersConfig.AUTH_CONTEXT]
+
+    @staticmethod
+    def get_choice(data: dict) -> Choice:
+        return data[ChainParametersConfig.CHOICE]
+
+    @staticmethod
+    def get_target(data: dict) -> Stage:
+        return data[ChainParametersConfig.TARGET]
+
+    @staticmethod
+    def get_history(data: dict) -> History:
+        return data[ChainParametersConfig.HISTORY]
+
+    @staticmethod
+    def get_data_service(data: dict) -> ChannelServiceFacade:
+        return data[ChainParametersConfig.DATA_SERVICE]
+
+    @staticmethod
+    def get_datasets_dict(data: dict) -> dict[str, VersionedDataSet]:
+        """Mapping between dataset id and versioned dataset object"""
+        return data[ChainParametersConfig.DATASETS_DICT]
+
+    @staticmethod
+    def get_dataset_dimension_queries(data: dict) -> dict[str, list[DimensionQuery]]:
+        return data[ChainParametersConfig.DATASET_DIMENSION_QUERIES]
+
+    @staticmethod
+    def get_dataset_queries_formatted_str(data: dict) -> str:
+        return data[ChainParametersConfig.DATASET_QUERIES_FORMATTED_STR]
+
+    @staticmethod
+    def get_dataset_queries(data: dict) -> t.Dict[str, DataSetQuery]:
+        return data[ChainParametersConfig.DATASET_QUERIES]
+
+    @staticmethod
+    def get_data_responses(data: dict) -> dict[str, DataResponse | None] | None:
+        return data.get(ChainParametersConfig.DATA_RESPONSES)
+
+    @staticmethod
+    def get_performance_stage(data: dict) -> Stage:
+        return data[ChainParametersConfig.PERFORMANCE_STAGE]
+
+    @staticmethod
+    def get_start_of_request(data: dict) -> datetime:
+        return data[ChainParametersConfig.START_OF_REQUEST]
+
+    @staticmethod
+    def get_state(data: dict) -> dict[str, t.Any]:
+        return data[ChainParametersConfig.STATE]
+
+    @staticmethod
+    def get_summarized_data_query(data: dict) -> str:
+        return data[ChainParametersConfig.SUMMARIZED_DATA_QUERY]

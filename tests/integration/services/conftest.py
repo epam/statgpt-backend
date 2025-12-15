@@ -2,9 +2,9 @@ import pytest  # noqa: F401
 import pytest_asyncio
 from sqlalchemy import text
 
-from common import models
-from common.data.quanthub.v21.qh_sdmx_client import AsyncQuanthubClient
-from common.data.quanthub.v21.sdmx_extensions import __apply_sdmx_extensions
+from statgpt.common import models
+from statgpt.common.data.quanthub.v21.qh_sdmx_client import AsyncQuanthubClient
+from statgpt.common.data.quanthub.v21.sdmx_extensions import __apply_sdmx_extensions
 
 from .mocks import AsyncSdmxClientMock
 

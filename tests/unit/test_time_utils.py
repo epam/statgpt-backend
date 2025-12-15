@@ -3,7 +3,7 @@ from unittest.mock import patch
 
 import pytest
 
-from common.utils.time_utils import (
+from statgpt.common.utils.time_utils import (
     format_date_long,
     get_time_period_bounds,
     get_today_date_long,
@@ -91,19 +91,19 @@ def test_get_time_period_bounds_invalid_format():
 
 
 class TestGetTsNowStr:
-    @patch("common.utils.time_utils.datetime")
+    @patch("statgpt.common.utils.time_utils.datetime")
     def test_default_format(self, mock_datetime):
         mock_datetime.now.return_value = datetime(2023, 10, 15, 14, 30, 45)
         result = get_ts_now_str()
         assert result == "20231015-143045"
 
-    @patch("common.utils.time_utils.datetime")
+    @patch("statgpt.common.utils.time_utils.datetime")
     def test_custom_format(self, mock_datetime):
         mock_datetime.now.return_value = datetime(2023, 10, 15, 14, 30, 45)
         result = get_ts_now_str(ts_format="%Y-%m-%d")
         assert result == "2023-10-15"
 
-    @patch("common.utils.time_utils.datetime")
+    @patch("statgpt.common.utils.time_utils.datetime")
     def test_different_datetime(self, mock_datetime):
         mock_datetime.now.return_value = datetime(2000, 1, 1, 0, 0, 0)
         result = get_ts_now_str()
@@ -111,7 +111,7 @@ class TestGetTsNowStr:
 
 
 class TestGetTsUtcnow:
-    @patch("common.utils.time_utils.datetime")
+    @patch("statgpt.common.utils.time_utils.datetime")
     def test_returns_utc_datetime(self, mock_datetime):
         utc_time = datetime(2023, 10, 15, 14, 30, 45, tzinfo=timezone.utc)
         mock_datetime.now.return_value = utc_time
@@ -121,13 +121,13 @@ class TestGetTsUtcnow:
 
 
 class TestGetTsUtcnowStr:
-    @patch("common.utils.time_utils.get_ts_utcnow")
+    @patch("statgpt.common.utils.time_utils.get_ts_utcnow")
     def test_default_format(self, mock_get_ts_utcnow):
         mock_get_ts_utcnow.return_value = datetime(2023, 10, 15, 14, 30, 45, tzinfo=timezone.utc)
         result = get_ts_utcnow_str()
         assert result == "20231015-143045"
 
-    @patch("common.utils.time_utils.get_ts_utcnow")
+    @patch("statgpt.common.utils.time_utils.get_ts_utcnow")
     def test_custom_format(self, mock_get_ts_utcnow):
         mock_get_ts_utcnow.return_value = datetime(2023, 10, 15, 14, 30, 45, tzinfo=timezone.utc)
         result = get_ts_utcnow_str(ts_format="%Y/%m/%d %H:%M")
@@ -180,13 +180,13 @@ class TestFormatDateLong:
 
 
 class TestGetTodayDateLong:
-    @patch("common.utils.time_utils.date")
+    @patch("statgpt.common.utils.time_utils.date")
     def test_returns_todays_date_formatted(self, mock_date):
         mock_date.today.return_value = date(2023, 10, 15)
         result = get_today_date_long()
         assert result == "15 October 2023"
 
-    @patch("common.utils.time_utils.date")
+    @patch("statgpt.common.utils.time_utils.date")
     def test_different_date(self, mock_date):
         mock_date.today.return_value = date(2024, 1, 1)
         result = get_today_date_long()

@@ -1,8 +1,7 @@
 from unittest.mock import Mock, patch
 
-from common.data.base import DataSet, DataSetQuery, DimensionQuery, QueryOperator
-from statgpt.services.chat_facade import VersionedDataSet
-from statgpt.utils.datetime_adjuster import (
+from statgpt.app.services.chat_facade import VersionedDataSet
+from statgpt.app.utils.datetime_adjuster import (
     FrequencyEnum,
     _adjust_end_date,
     _adjust_start_date,
@@ -11,6 +10,7 @@ from statgpt.utils.datetime_adjuster import (
     _frequency_query_to_value,
     expand_time_range,
 )
+from statgpt.common.data.base import DataSet, DataSetQuery, DimensionQuery, QueryOperator
 
 
 class TestFrequencyEnum:
@@ -50,7 +50,7 @@ class TestDateTimeQueryToValues:
         query = DimensionQuery(
             dimension_id="time", operator=QueryOperator.IN, values=["2023-01-01"]
         )
-        with patch('statgpt.utils.datetime_adjuster._log') as mock_log:
+        with patch('statgpt.app.utils.datetime_adjuster._log') as mock_log:
             start, end = _date_time_query_to_values(query)
             assert start is None
             assert end is None
@@ -88,14 +88,14 @@ class TestFrequencyQueryToValue:
 
     def test_unsupported_operator(self):
         query = DimensionQuery(dimension_id="freq", operator=QueryOperator.BETWEEN, values=["A"])
-        with patch('statgpt.utils.datetime_adjuster._log') as mock_log:
+        with patch('statgpt.app.utils.datetime_adjuster._log') as mock_log:
             freq = _frequency_query_to_value(query)
             assert freq is None
             mock_log.warning.assert_called_once()
 
     def test_unsupported_frequency_values(self):
         query = DimensionQuery(dimension_id="freq", operator=QueryOperator.IN, values=["X", "Y"])
-        with patch('statgpt.utils.datetime_adjuster._log') as mock_log:
+        with patch('statgpt.app.utils.datetime_adjuster._log') as mock_log:
             freq = _frequency_query_to_value(query)
             assert freq is None
             mock_log.warning.assert_called_once()
@@ -130,13 +130,13 @@ class TestAdjustStartDate:
         assert result == "2023-06-15"
 
     def test_invalid_date_format(self):
-        with patch('statgpt.utils.datetime_adjuster._log') as mock_log:
+        with patch('statgpt.app.utils.datetime_adjuster._log') as mock_log:
             result = _adjust_start_date("invalid-date", FrequencyEnum.ANNUAL)
             assert result == "invalid-date"
             mock_log.warning.assert_called_once()
 
     def test_unsupported_frequency(self):
-        with patch('statgpt.utils.datetime_adjuster._log') as mock_log:
+        with patch('statgpt.app.utils.datetime_adjuster._log') as mock_log:
             result = _adjust_start_date("2023-06-15", "X")
             assert result == "2023-06-15"
             mock_log.warning.assert_called_once()
@@ -189,13 +189,13 @@ class TestAdjustEndDate:
         assert result == "2023-06-15"
 
     def test_invalid_date_format(self):
-        with patch('statgpt.utils.datetime_adjuster._log') as mock_log:
+        with patch('statgpt.app.utils.datetime_adjuster._log') as mock_log:
             result = _adjust_end_date("invalid-date", FrequencyEnum.ANNUAL)
             assert result == "invalid-date"
             mock_log.warning.assert_called_once()
 
     def test_unsupported_frequency(self):
-        with patch('statgpt.utils.datetime_adjuster._log') as mock_log:
+        with patch('statgpt.app.utils.datetime_adjuster._log') as mock_log:
             result = _adjust_end_date("2023-06-15", "X")
             assert result == "2023-06-15"
             mock_log.warning.assert_called_once()
@@ -306,7 +306,7 @@ class TestExpandTimeRangeQuery:
 
 
 class TestExpandTimeRange:
-    @patch('statgpt.utils.datetime_adjuster.ChainState')
+    @patch('statgpt.app.utils.datetime_adjuster.ChainState')
     def test_expand_time_range_function(self, mock_chain_state):
         # Setup mock data
         versioned_dataset = Mock(spec=VersionedDataSet)

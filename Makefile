@@ -1,6 +1,6 @@
 POETRY_PYTHON ?= $(if $(pythonLocation),$(pythonLocation)/bin/python,python3)
-SRC_DIRS = src scripts tests
-MYPY_DIRS = src/common src/admin_portal src/statgpt
+SRC_DIRS = statgpt scripts tests
+MYPY_DIRS = statgpt
 
 -include .env
 export
