@@ -7,8 +7,9 @@ from aidial_sdk.chat_completion import Choice
 
 from common.auth.auth_context import AuthContext
 from common.schemas.onboarding import PredefinedDataQueryResponse, PredefinedTextResponse
-from common.schemas.query import JsonQueryMetadata, JsonQueryWithMetadata
+from common.schemas.query import JsonQuery, JsonQueryMetadata, JsonQueryWithMetadata
 from common.utils import MediaTypes
+from statgpt.chains.utils import time_period_utils
 
 from .chat_facade import ChannelServiceFacade
 
@@ -72,7 +73,7 @@ class PredefinedDataQueryResponseAppender(BaseResponseAppender[PredefinedDataQue
             dataset_url=dataset.dataset_url,
         )
         json_query = JsonQueryWithMetadata.from_query(
-            query=self._response.query,
+            query=self._get_relative_time_period_aware_query(self._response.query),
             metadata=json_query_metadata,
         ).model_dump(by_alias=True)
         json_query_content = json.dumps(json_query)
@@ -90,6 +91,15 @@ class PredefinedDataQueryResponseAppender(BaseResponseAppender[PredefinedDataQue
     ) -> None:
         await self._append_json_query_attachment(choice, channel_service, auth_context)
         choice.append_content(self._response.text)
+
+    def _get_relative_time_period_aware_query(self, query: JsonQuery) -> JsonQuery:
+        for filter in query.filters:
+            if filter.component_code == "TIME_PERIOD":
+                filter.values = [
+                    time_period_utils.get_relative_aware_time_period(value)
+                    for value in filter.values
+                ]
+        return query
 
 
 class NoOpResponseAppender(BaseResponseAppender[None]):

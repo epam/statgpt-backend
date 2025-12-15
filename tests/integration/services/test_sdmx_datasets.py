@@ -12,8 +12,7 @@ from admin_portal.services.dataset import (
     reload_indicators_in_background_task,
 )
 from common import schemas
-from common.data.base import DatasetCitation, IndexerConfig
-from common.data.base.dataset import IndexerIndicatorConfig
+from common.data.base import DatasetCitation, IndexerConfig, IndexerIndicatorConfig
 from common.settings.langchain import langchain_settings
 
 from .mocks import BackgroundTasksMock
@@ -72,6 +71,16 @@ async def get_channel(
 # ~~~~~ Dataset Tests ~~~~~
 
 
+DIMENSIONS = {
+    "INDEX_TYPE": {"dimensionType": "INDICATOR", "isRequired": True},
+    "COICOP_1999": {"dimensionType": "INDICATOR"},
+    "TYPE_OF_TRANSFORMATION": {"dimensionType": "INDICATOR"},
+    "COUNTRY": {"dimensionType": "NON_INDICATOR", "subtype": "REGION"},
+    "FREQUENCY": {"dimensionType": "NON_INDICATOR", "subtype": "FREQUENCY"},
+    "TIME_PERIOD": {"dimensionType": "TIME_PERIOD"},
+}
+
+
 @pytest.mark.asyncio
 async def test_create_dataset(session, clear_all, sdmx_clint_mock):
     data_source = await get_data_source(session)
@@ -85,7 +94,7 @@ async def test_create_dataset(session, clear_all, sdmx_clint_mock):
             data_source_id=data_source.id,
             details={
                 'urn': 'IMF.STA:CPI(4.0.0)',
-                'indicatorDimensions': ['INDEX_TYPE', 'COICOP_1999', 'TYPE_OF_TRANSFORMATION'],
+                'dimensions': DIMENSIONS,
                 'useTitleFromSrc': True,
             },
         ),
@@ -95,13 +104,13 @@ async def test_create_dataset(session, clear_all, sdmx_clint_mock):
     assert dataset.id_ == random_uuid
     assert dataset.data_source_id == data_source.id
     assert dataset.details['urn'] == 'IMF.STA:CPI(4.0.0)'
-    assert dataset.details['indicatorDimensions'] == [
-        'INDEX_TYPE',
-        'COICOP_1999',
-        'TYPE_OF_TRANSFORMATION',
-    ]
     assert dataset.details['citation'] is None
     assert dataset.details['indexer'] is None
+
+    assert len(dataset.details['dimensions']) == len(DIMENSIONS)
+    for dim_id, dim_config in DIMENSIONS.items():
+        for key, value in dim_config.items():
+            assert dataset.details['dimensions'][dim_id][key] == value
 
     assert dataset.title == "Consumer Price Index (CPI)"
     assert dataset.description.startswith(
@@ -134,7 +143,7 @@ async def test_update_dataset(session, clear_all, sdmx_clint_mock):
             data_source_id=data_source.id,
             details={
                 'urn': 'IMF.STA:CPI(4.0.0)',
-                'indicatorDimensions': ['INDEX_TYPE', 'COICOP_1999', 'TYPE_OF_TRANSFORMATION'],
+                'dimensions': DIMENSIONS,
                 'useTitleFromSrc': False,
             },
         ),
@@ -164,9 +173,9 @@ async def test_update_dataset(session, clear_all, sdmx_clint_mock):
             title='CPI Updated',
             details={
                 'urn': 'IMF.STA:CPI(3.0.1)',
-                'indicatorDimensions': ['INDEX_TYPE', 'COICOP_1999', 'TYPE_OF_TRANSFORMATION'],
-                'citation': citation.model_dump(),
-                'indexer': indexer_config.model_dump(),
+                'dimensions': DIMENSIONS,
+                'citation': citation.model_dump(by_alias=True),
+                'indexer': indexer_config.model_dump(by_alias=True),
                 'useTitleFromSrc': False,
             },
         ),
@@ -176,7 +185,7 @@ async def test_update_dataset(session, clear_all, sdmx_clint_mock):
     assert dataset.id_ == random_uuid
     assert dataset.title == 'CPI Updated'
     assert dataset.details['urn'] == 'IMF.STA:CPI(3.0.1)'
-    assert dataset.details['citation'] == citation.model_dump()
+    assert dataset.details['citation'] == citation.model_dump(by_alias=True)
     assert dataset.details['indexer'] == indexer_config.model_dump(by_alias=True)
 
     res = await dataset_service.get_schema_by_id(dataset.id, auth_context=SystemUserAuthContext())
@@ -206,10 +215,7 @@ async def test_get_list_and_count(session, clear_all, sdmx_clint_mock):
             id_=random_uuid1,
             title='CPI v4.0.0',
             data_source_id=data_source.id,
-            details={
-                'urn': 'IMF.STA:CPI(4.0.0)',
-                'indicatorDimensions': ['INDEX_TYPE', 'COICOP_1999', 'TYPE_OF_TRANSFORMATION'],
-            },
+            details={'urn': 'IMF.STA:CPI(4.0.0)', 'dimensions': DIMENSIONS},
         ),
         auth_context=SystemUserAuthContext(),
     )
@@ -228,10 +234,7 @@ async def test_get_list_and_count(session, clear_all, sdmx_clint_mock):
             id_=random_uuid2,
             title='CPI v3.0.1',
             data_source_id=data_source.id,
-            details={
-                'urn': 'IMF.STA:CPI(3.0.1)',
-                'indicatorDimensions': ['INDEX_TYPE', 'COICOP_1999', 'TYPE_OF_TRANSFORMATION'],
-            },
+            details={'urn': 'IMF.STA:CPI(3.0.1)', 'dimensions': DIMENSIONS},
         ),
         auth_context=SystemUserAuthContext(),
     )
@@ -261,10 +264,7 @@ async def test_create_channel_dataset(session, clear_all, sdmx_clint_mock):
             id_=random_uuid,
             title='CPI',
             data_source_id=data_source.id,
-            details={
-                'urn': 'IMF.STA:CPI(4.0.0)',
-                'indicatorDimensions': ['INDEX_TYPE', 'COICOP_1999', 'TYPE_OF_TRANSFORMATION'],
-            },
+            details={'urn': 'IMF.STA:CPI(4.0.0)', 'dimensions': DIMENSIONS},
         ),
         auth_context=SystemUserAuthContext(),
     )
@@ -303,10 +303,7 @@ async def test_get_channel_datasets_and_count(session, clear_all, sdmx_clint_moc
             id_=random_uuid1,
             title='CPI v4.0.0',
             data_source_id=data_source.id,
-            details={
-                'urn': 'IMF.STA:CPI(4.0.0)',
-                'indicatorDimensions': ['INDEX_TYPE', 'COICOP_1999', 'TYPE_OF_TRANSFORMATION'],
-            },
+            details={'urn': 'IMF.STA:CPI(4.0.0)', 'dimensions': DIMENSIONS},
         ),
         auth_context=SystemUserAuthContext(),
     )
@@ -329,10 +326,7 @@ async def test_get_channel_datasets_and_count(session, clear_all, sdmx_clint_moc
             id_=random_uuid2,
             title='CPI v3.0.1',
             data_source_id=data_source.id,
-            details={
-                'urn': 'IMF.STA:CPI(3.0.1)',
-                'indicatorDimensions': ['INDEX_TYPE', 'COICOP_1999', 'TYPE_OF_TRANSFORMATION'],
-            },
+            details={'urn': 'IMF.STA:CPI(3.0.1)', 'dimensions': DIMENSIONS},
         ),
         auth_context=SystemUserAuthContext(),
     )
@@ -389,10 +383,7 @@ async def test_reload_indicators(session, clear_all, sdmx_clint_mock):
             id_=random_uuid,
             title='CPI',
             data_source_id=data_source.id,
-            details={
-                'urn': 'IMF.STA:CPI(4.0.0)',
-                'indicatorDimensions': ['INDEX_TYPE', 'COICOP_1999', 'TYPE_OF_TRANSFORMATION'],
-            },
+            details={'urn': 'IMF.STA:CPI(4.0.0)', 'dimensions': DIMENSIONS},
         ),
         auth_context=SystemUserAuthContext(),
     )
@@ -459,10 +450,7 @@ async def test_reload_all_indicators(session, clear_all, sdmx_clint_mock):
             id_=random_uuid1,
             title='CPI v4.0.0',
             data_source_id=data_source.id,
-            details={
-                'urn': 'IMF.STA:CPI(4.0.0)',
-                'indicatorDimensions': ['INDEX_TYPE', 'COICOP_1999', 'TYPE_OF_TRANSFORMATION'],
-            },
+            details={'urn': 'IMF.STA:CPI(4.0.0)', 'dimensions': DIMENSIONS},
         ),
         auth_context=SystemUserAuthContext(),
     )
@@ -472,10 +460,7 @@ async def test_reload_all_indicators(session, clear_all, sdmx_clint_mock):
             id_=random_uuid2,
             title='CPI v3.0.1',
             data_source_id=data_source.id,
-            details={
-                'urn': 'IMF.STA:CPI(3.0.1)',
-                'indicatorDimensions': ['INDEX_TYPE', 'COICOP_1999', 'TYPE_OF_TRANSFORMATION'],
-            },
+            details={'urn': 'IMF.STA:CPI(3.0.1)', 'dimensions': DIMENSIONS},
         ),
         auth_context=SystemUserAuthContext(),
     )

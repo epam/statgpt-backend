@@ -1,6 +1,6 @@
 from pydantic import BaseModel, Field
 
-from common.data.base.dimension import DimensionProcessingType
+from common.data.base import DimensionType
 
 
 class GitVersionResponse(BaseModel):
@@ -16,6 +16,6 @@ class SettingsResponse(BaseModel):
 class DimTypesResponse(BaseModel):
     channel_name: str
     n_datasets: int
-    dataset_dim_types: dict[str, dict[str, DimensionProcessingType]] = Field(
+    dataset_dim_types: dict[str, dict[str, DimensionType]] = Field(
         default_factory=dict, description="dataset -> dimension -> types mapping"
     )

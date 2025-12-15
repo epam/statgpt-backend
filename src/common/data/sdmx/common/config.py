@@ -1,8 +1,7 @@
 import logging
-import typing as t
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, alias_generators
+from pydantic import BaseModel, Field
 
 from common.config import utils as config_utils
 from common.data.base import DataSetConfig, DataSetHierarchyConfig, DataSourceConfig
@@ -154,41 +153,11 @@ class SdmxDataSourceConfig(DataSourceConfig):
         return self.sdmx_config.name
 
 
-class FixedItem(BaseModel):
-    # TODO: probably use other existing abstraction
-    id: str
-    name: str
-    description: str | None
-
-
 class SdmxDataSetConfig(DataSetConfig):
     use_title_from_src: bool = Field(
         default=False, description="Whether to use the title obtained from the source"
     )
     urn: str = Field(description="The URN of the dataset")
-    indicator_dimensions: list[str] = Field(description="The list of indicator dimensions")
-    indicator_dimensions_required_for_query: list[str] = Field(
-        default=[],
-        description=(
-            "The list of indicator dimensions required to build a query. "
-            "Used to filter out queries without these dimensions. See the detailed logic in the code"
-        ),
-    )
-    country_dimension: str | None = Field(None, description="The main country dimension")
-    country_dimension_alias: str | None = Field(
-        None, description="The alias of the main country dimension"
-    )
-    frequency_dimension: str = Field(
-        default='FREQUENCY', description="Identifier of the frequency dimension"
-    )
-    dimension_all_values: dict[str, FixedItem] = Field(
-        default_factory=dict,
-        description=(
-            "Dictionary of special dimension values - 'All-values' which are used to set '*' filter in the query "
-            "for the dimension. Keys are dimension IDs, values are FixedItem objects."
-        ),
-    )
-    fixed_indicator: FixedItem | None = Field(default=None)
     include_attributes: list[str] | None = Field(
         default=None, description="List of attributes to add to the query results table"
     )
@@ -204,13 +173,3 @@ class SdmxDataSetConfig(DataSetConfig):
 
     def get_source_id(self) -> str:
         return self.urn
-
-    def get_dimension_aliases(self) -> t.Dict[str, str]:
-        if not self.country_dimension_alias or not self.country_dimension:
-            return self.dimension_aliases
-        return {
-            self.country_dimension: self.country_dimension_alias,
-            **self.dimension_aliases,
-        }
-
-    model_config = ConfigDict(alias_generator=alias_generators.to_camel, populate_by_name=True)

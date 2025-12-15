@@ -15,6 +15,7 @@ from common.data.base import (
     DataSourceHandler,
     DataSourceType,
     DefaultDatasetHierarchyCreator,
+    DimensionType,
     VirtualDimensionCategory,
 )
 from common.data.sdmx.common import (
@@ -23,12 +24,18 @@ from common.data.sdmx.common import (
     SdmxConstants,
     SdmxDataSetConfig,
     SdmxDataSourceConfig,
+    SdmxDimension,
     UrnParser,
 )
 from common.data.sdmx.v21.dataflow_loader import DataflowLoader
-from common.data.sdmx.v21.dataset import Sdmx21DataSet, SdmxOfflineDataSet
+from common.data.sdmx.v21.dataset import (
+    InvalidConfigurationError,
+    Sdmx21DataSet,
+    SdmxOfflineDataSet,
+)
 from common.data.sdmx.v21.dimensions_creator import DimensionsCreator
 from common.data.sdmx.v21.sdmx_client import AsyncSdmxClient
+from common.schemas.dataset import Status
 from common.utils import crc32_hash
 from common.utils.timer import debug_timer
 
@@ -99,8 +106,7 @@ class Sdmx21DataSourceHandler(
                 name=dataflow.name[self._config.locale],
                 description=dataflow.description.localizations.get(self._config.locale),
                 details=SdmxDataSetConfig(
-                    urn=self._urn_parser.parse(dataflow.urn).get_short_urn(),
-                    indicatorDimensions=["INDICATOR"],  # type: ignore
+                    urn=self._urn_parser.parse(dataflow.urn).get_short_urn()
                 ).model_dump(by_alias=True),
             )
             for dataflow in dataflows
@@ -109,6 +115,39 @@ class Sdmx21DataSourceHandler(
     @property
     def entity_id(self) -> str:
         return self._config.get_id()
+
+    def _validate_dataset_config(
+        self, config: SdmxDataSetConfig, dimensions: list[SdmxDimension]
+    ) -> None:
+        problems = []
+
+        dimensions_dict = {dim.entity_id: dim for dim in dimensions}
+
+        for dim_id, dim_config in config.dimensions.items():
+            if dim_config.virtual:
+                continue  # Skip virtual dimensions
+
+            dimension = dimensions_dict.get(dim_id)
+            if dimension is None:
+                problems.append(
+                    f"{dim_config.dimension_type} dimension with id={dim_id!r} not found in the dataflow."
+                )
+                continue
+
+            if dim_config.type is DimensionType.TIME_PERIOD and not dimension.is_time_dimension:
+                problems.append(
+                    f"Dimension with id={dim_id!r} is configured as time period dimension,"
+                    f" but it is not a time dimension in the dataflow."
+                )
+
+        for dim in dimensions_dict.keys():
+            if dim not in config.dimensions:
+                problems.append(
+                    f"Dimension with id={dim!r} is present in the dataflow but not configured in the dataset configuration."
+                )
+
+        if problems:
+            raise ValueError("Dataset configuration validation failed:\n" + "\n".join(problems))
 
     async def _get_dataset(
         self,
@@ -126,9 +165,8 @@ class Sdmx21DataSourceHandler(
             if allow_offline:
                 msg = f"Failed to parse the URN={dataset_config.urn!r} from the dataset configuration."
                 logger.exception(msg)
-                return SdmxOfflineDataSet(
-                    entity_id, title, dataset_config, self, status_details=msg
-                )
+                status = Status(status='offline', details=msg)
+                return SdmxOfflineDataSet(entity_id, title, dataset_config, self, status)
             else:
                 raise e
 
@@ -147,9 +185,8 @@ class Sdmx21DataSourceHandler(
             if allow_offline:
                 msg = f"Failed to load the dataflow or its associated structures. {urn=}"
                 logger.exception(msg)
-                return SdmxOfflineDataSet(
-                    entity_id, title, dataset_config, self, status_details=msg
-                )
+                status = Status(status='offline', details=msg)
+                return SdmxOfflineDataSet(entity_id, title, dataset_config, self, status)
             else:
                 raise e
 
@@ -162,9 +199,8 @@ class Sdmx21DataSourceHandler(
             if allow_offline:
                 msg = "Failed to create dimensions from the loaded structure message."
                 logger.exception(msg)
-                return SdmxOfflineDataSet(
-                    entity_id, title, dataset_config, self, status_details=msg
-                )
+                status = Status(status='offline', details=msg)
+                return SdmxOfflineDataSet(entity_id, title, dataset_config, self, status)
             else:
                 raise e
 
@@ -180,17 +216,20 @@ class Sdmx21DataSourceHandler(
                 dimensions=dimensions,
                 attributes=dataflow.structure.attributes,
             )
+        except InvalidConfigurationError as e:
+            if allow_offline:
+                msg = f"Invalid dataset(urn={dataset_config.urn!r}) configuration: {e}"
+                logger.warning(msg)
+                status = Status(status='invalid_config', details=msg)
+                return SdmxOfflineDataSet(entity_id, title, dataset_config, self, status)
+            else:
+                raise e
         except Exception as e:
             if allow_offline:
                 msg = "Failed to create dataset class."
                 logger.exception(f"{msg}. See exception details below.")
-                msg += (
-                    " Probably there is a mistake in configuration."
-                    " For example, the indicator dimension name is incorrect."
-                )
-                return SdmxOfflineDataSet(
-                    entity_id, title, dataset_config, self, status_details=msg
-                )
+                status = Status(status='offline', details=msg)
+                return SdmxOfflineDataSet(entity_id, title, dataset_config, self, status)
             else:
                 raise e
 

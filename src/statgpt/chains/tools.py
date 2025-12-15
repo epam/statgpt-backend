@@ -10,7 +10,8 @@ from statgpt.schemas import ToolArtifact
 
 
 class ToolRegistry(MutableMapping):
-    def __init__(self):
+
+    def __init__(self) -> None:
         self._mapping: dict[ToolTypes, type[StatGptTool]] = {}
 
     def __setitem__(self, tool_type: ToolTypes, factory: type['StatGptTool']) -> None:

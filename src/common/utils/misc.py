@@ -3,10 +3,9 @@ import base64
 import hashlib
 import itertools
 import subprocess
-import typing as t
 import uuid
 import zlib
-from collections.abc import Iterable
+from collections.abc import Generator, Iterable
 
 
 def batched(iterable: Iterable, n: int):
@@ -36,15 +35,15 @@ def crc32_hash(data: str) -> int:
     return zlib.crc32(data.encode("utf-8")) & 0xFFFFFFFF
 
 
-def crc32_hash_incremental(values: list[str]) -> int:
+def crc32_hash_incremental(values: Iterable[str]) -> int:
     """
-    Compute CRC32 hash incrementally from a list of strings.
+    Compute CRC32 hash incrementally from an iterable of strings.
 
     This avoids creating a large intermediate string, reducing memory usage
     and making the operation more efficient for large lists.
 
     Args:
-        values: Sorted list of strings to hash
+        values: iterable of strings to hash (in sorted order)
 
     Returns:
         CRC32 hash as a positive integer
@@ -122,13 +121,13 @@ def get_file_hash(fp: str, hashfunc_factory=hashlib.md5, chunk_size=1024 * 1024)
     return hashfunc.hexdigest()
 
 
-def argparse_parse_int_or_none(val: str) -> t.Optional[int]:
+def argparse_parse_int_or_none(val: str) -> int | None:
     if not val:
         return None
     return int(val)
 
 
-def string_split_snowball(s: str, sep: str) -> t.Generator[str, None, None]:
+def string_split_snowball(s: str, sep: str) -> Generator[str, None, None]:
     """
     'a/b/c', '/' -> ['a', 'a/b', 'a/b/c']
     'abc', '/' -> ['abc']
