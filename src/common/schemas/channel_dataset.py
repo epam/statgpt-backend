@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, computed_field
 
 from .base import DbDefaultBase
 from .dataset import DataSet
@@ -28,6 +28,9 @@ class ChannelDatasetVersion(DbDefaultBase):
             " if the rollback version was also a rollback to a previous version."
         )
     )
+    indicators_config_hash: str | None
+    non_indicators_config_hash: str | None
+    special_dimensions_config_hash: str | None
     structure_metadata: dict | None
     structure_hash: str | None
     indicator_dimensions_hash: str | None
@@ -75,6 +78,10 @@ class BaseChange(BaseModel):
     actual_hash: str | None
 
 
+class ConfigChange(BaseChange):
+    pass
+
+
 class DataChange(BaseChange):
     pass
 
@@ -84,12 +91,21 @@ class StructureChange(BaseChange):
 
 
 class ChangesBetweenVersionAndActualData(BaseModel):
+    config_changes: list[ConfigChange] = Field(
+        description=(
+            "List of changes between the config of the dataset used during the indexing"
+            " of the latest completed version and the actual config."
+        )
+    )
     data_changes: list[DataChange] = Field(
         description="List of changes between the indexed data of the latest completed version and the actual data."
-    )
-    has_changes: bool = Field(
-        description="Indicates whether there are any changes between the version data and the actual data."
     )
     structure_change: StructureChange | None = Field(
         description="Details about the structure change, if any."
     )
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def has_changes(self) -> bool:
+        """Indicates whether there are any changes between the latest completed version and the actual data/config."""
+        return bool(self.config_changes or self.data_changes or self.structure_change)

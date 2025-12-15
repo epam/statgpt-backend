@@ -1,5 +1,9 @@
-from common.data.base import DataSetAvailabilityQuery, DimensionQuery, QueryOperator
-from common.data.sdmx.common.config import FixedItem
+from common.data.base import (
+    DataSetAvailabilityQuery,
+    DimensionQuery,
+    QueryOperator,
+    VirtualDimensionValue,
+)
 from statgpt.chains.data_query.parameters import DataQueryParameters
 from statgpt.chains.parameters import ChainParameters
 from statgpt.schemas.query_builder import (
@@ -23,7 +27,7 @@ def filter_empty_dataset_availability_queries(queries: DatasetAvailabilityQuerie
 def dimension_candidates_to_queries(
     candidates: list[ScoredDimensionCandidate],
     date_time_query: DimensionQuery | None = None,
-    dataset_2_dim_2_all_values_term: dict[str, dict[str, FixedItem]] | None = None,
+    dataset_2_dim_2_all_values_term: dict[str, dict[str, VirtualDimensionValue]] | None = None,
     dataset_ids_to_be_present: list[str] | None = None,
 ) -> DatasetAvailabilityQueriesType:
     candidates_grouped: dict[str, dict[str, set[ScoredDimensionCandidate]]] = {}

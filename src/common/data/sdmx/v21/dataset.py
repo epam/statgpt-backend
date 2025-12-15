@@ -29,6 +29,7 @@ from common.data.base import (
     DataSetAvailabilityQuery,
     DataSetQuery,
     Dimension,
+    DimensionDataType,
     DimensionQuery,
     DimensionType,
     OfflineDataSet,
@@ -42,7 +43,6 @@ from common.data.sdmx.common import (
     CodeCategory,
     CodeIndicator,
     ComplexIndicator,
-    FixedItem,
     SdmxCodeListDimension,
     SdmxDataSetConfig,
     SdmxDimension,
@@ -83,6 +83,10 @@ class SdmxOfflineDataSet(OfflineDataSet[SdmxDataSetConfig, 'Sdmx21DataSourceHand
     @property
     def description(self) -> str:
         return ''
+
+
+class InvalidConfigurationError(Exception):
+    pass
 
 
 class Sdmx21DataResponse(DataResponse):
@@ -354,7 +358,6 @@ class Sdmx21DataSet(
     _indicator_dimensions: dict[str, SdmxCodeListDimension | VirtualDimension]
     _indicator_dimensions_required_for_query: list[str]
     _country_dimension: SdmxCodeListDimension | VirtualDimension | None
-    _fixed_indicator: FixedItem | None
     _dim_values_id_2_name: dict[str, dict[str, str]] | None
 
     def __init__(
@@ -374,68 +377,68 @@ class Sdmx21DataSet(
         self._dimensions = {dimension.entity_id: dimension for dimension in dimensions}
         self._indicator_dimensions = {}
         self._indicator_dimensions_required_for_query = []
-        self._fixed_indicator = config.fixed_indicator
         self._virtual_dimensions = {}
         self._attributes = {attribute.entity_id: attribute for attribute in attributes}
         self._dim_values_id_2_name = None
+        self._country_dimension = None
 
-        # virtual dimensions
-        for virtual_dimension_config in config.virtual_dimensions:
-            dimension = VirtualDimension(virtual_dimension_config)
-            self._virtual_dimensions[dimension.entity_id] = dimension
-            self._dimensions[dimension.entity_id] = dimension
+        # Add virtual dimensions
+        for dim_id, dim_conf in config.dimensions.items():
+            if dim_conf.virtual is not None:
+                dimension = VirtualDimension(dim_id, dim_conf.virtual, alias=dim_conf.alias)
+                self._virtual_dimensions[dimension.entity_id] = dimension
+                self._dimensions[dimension.entity_id] = dimension
 
-        if indicator_dimensions := config.indicator_dimensions:
-            if self._fixed_indicator is not None:
-                raise ValueError(
-                    "fixed_indicator must not be provided if indicator_dimensions are present"
-                )
-            _log.debug(f"dataset {self.entity_id}: using provided {indicator_dimensions=}")
-            for dim_id in indicator_dimensions:
+        self._validate_config_and_dimensions(config, self._dimensions)
+
+        # Set indicator dimensions
+        for dim_id, dim_conf in config.dimensions.items():
+            if dim_conf.type == DimensionType.INDICATOR:
                 indicator_dimension = self._dimensions[dim_id]
                 if not isinstance(indicator_dimension, SdmxCodeListDimension) and not isinstance(
                     indicator_dimension, VirtualDimension
                 ):
-                    raise TypeError(
+                    raise InvalidConfigurationError(
                         f"Indicator dimension must be code list dimension or virtual dimension: {indicator_dimension}"
                     )
                 self._indicator_dimensions[dim_id] = indicator_dimension
-        else:
-            if self._fixed_indicator is None:
-                raise ValueError("either indicator_dimensions or fixed_indicator must be provided")
-            _log.info(f"dataset {self.entity_id}: using fixed indicator: {self._fixed_indicator}")
-
-        # indicator dimensions required for query
-        diff = list(
-            set(config.indicator_dimensions_required_for_query).difference(
-                self._indicator_dimensions.keys()
-            )
-        )
-        if diff:
-            # check if we specified a fixed indicator
-            if (
-                len(diff) == 1
-                and self._fixed_indicator is not None
-                and diff[0] == self._fixed_indicator.id
-            ):
-                # we specified a fixed indicator
-                self._indicator_dimensions_required_for_query = [diff[0]]
-            else:
-                raise ValueError(f"specified invalid indicators required for query: {diff} ")
-        else:
-            self._indicator_dimensions_required_for_query = list(
-                config.indicator_dimensions_required_for_query
-            )
 
         if country_dimension_id := config.country_dimension:
             country_dimension = self._dimensions[country_dimension_id]
             if not isinstance(country_dimension, SdmxCodeListDimension | VirtualDimension):
-                raise TypeError(
+                raise InvalidConfigurationError(
                     f"Country dimension must be code list dimension or virtual dimension: {country_dimension}"
                 )
             self._country_dimension = country_dimension
         else:
             self._country_dimension = None
+
+    @staticmethod
+    def _validate_config_and_dimensions(
+        config: SdmxDataSetConfig, dimensions: dict[str, SdmxDimension | VirtualDimension]
+    ) -> None:
+        """Validate that the dataset is properly configured and raises `InvalidConfigurationError` if not."""
+
+        not_found_dimensions = [
+            dim_id for dim_id in config.dimensions.keys() if dim_id not in dimensions
+        ]
+        not_configured_dimensions = [
+            dim_id for dim_id in dimensions.keys() if dim_id not in config.dimensions
+        ]
+
+        errors = []
+        if not_found_dimensions:
+            errors.append(
+                f"Dimensions is configured but not found in the dataset: {not_found_dimensions}."
+            )
+        if not_configured_dimensions:
+            errors.append(
+                f"Dimensions is found in the dataset but not configured: {not_configured_dimensions}."
+            )
+        if errors:
+            raise InvalidConfigurationError(" ".join(errors))
+
+        return None
 
     async def updated_at(self, auth_context: AuthContext) -> datetime | None:
         if self.config.citation:
@@ -470,27 +473,6 @@ class Sdmx21DataSet(
         if self.config.citation and self.config.citation.url:
             return self.config.citation.get_url()
         return None
-
-    def _indicators_from_fixed_indicator(self) -> list[ComplexIndicator]:
-        if self._fixed_indicator is None:
-            raise ValueError("fixed_indicator is None")
-
-        # create a stub code to initialize CodeIndicator.
-        # example of a correct URN:
-        # urn:sdmx:org.sdmx.infomodel.codelist.Code=IMF_STA:CL_CPI_ANALYTICS_REPORTS_COUNTRY(1.0.0).512
-        provider = self.entity_id.split(":")[0]
-        urn = (
-            f"urn:sdmx:org.sdmx.infomodel.codelist.Code={provider}:CL_STUB_INDICATOR(1.0.0)"
-            f".{self._fixed_indicator.id}"
-        )
-        code = sdmx.model.common.Code(
-            id=self._fixed_indicator.id,
-            urn=urn,
-            name=self._fixed_indicator.name,
-            description=self._fixed_indicator.description,
-        )
-        code_category = CodeCategory(code=code, locale="en")
-        return [ComplexIndicator([CodeIndicator(code_category)])]
 
     async def _get_available_series(
         self,
@@ -684,8 +666,6 @@ class Sdmx21DataSet(
     async def _indicators_from_dimensions(
         self, auth_context: AuthContext, allow_cached: bool
     ) -> list[ComplexIndicator]:
-        if not self._indicator_dimensions:
-            raise ValueError("No indicator dimensions")
 
         df_avail_dim_combinations = await self._get_or_load_indicator_combinations(
             auth_context=auth_context, allow_cached=allow_cached
@@ -784,7 +764,7 @@ class Sdmx21DataSet(
 
     def _evaluate_data_query_status(
         self, data_query: DataSetQuery
-    ) -> t.Tuple[SdmxQueryReadinessStatus, list[str]]:
+    ) -> tuple[SdmxQueryReadinessStatus, list[str]]:
         status = SdmxQueryReadinessStatus.READY
         missing_dimensions = []
         dimension_queries = data_query.dimensions_queries_dict
@@ -806,7 +786,7 @@ class Sdmx21DataSet(
         if isinstance(dimension, VirtualDimension):
             # virtual dimensions are not used in queries
             return
-        elif dimension.dimension_type == DimensionType.CATEGORY:
+        elif dimension.dimension_type == DimensionDataType.CATEGORY:
             self._append_category_query(query, dimension, result)
         elif dimension.is_time_dimension:
             self._append_time_dimension_query(query, result)
@@ -821,7 +801,7 @@ class Sdmx21DataSet(
             if isinstance(dimension, VirtualDimension):
                 # virtual dimensions are not used in queries
                 continue
-            if dimension.dimension_type == DimensionType.CATEGORY:
+            if dimension.dimension_type == DimensionDataType.CATEGORY:
                 self._append_category_query(dimension_query, dimension, result)
         # appending datetime queries at the end, so we can use the value for frequency
         for dimension_query in query.dimensions_queries:
@@ -850,7 +830,7 @@ class Sdmx21DataSet(
                 self._append_time_dimension_query(dimension_query, result)
             if not dimension_query.values:
                 continue
-            if dimension.dimension_type == DimensionType.CATEGORY:
+            if dimension.dimension_type == DimensionDataType.CATEGORY:
                 self._append_category_query(dimension_query, dimension, result)
 
         return result
@@ -871,28 +851,20 @@ class Sdmx21DataSet(
     def attributes(self) -> t.Sequence[Sdmx21Attribute]:
         return list(self._attributes.values())
 
-    def non_virtual_dimensions(self) -> t.Sequence[SdmxDimension]:
-        return [dim for dim in self.dimensions() if not isinstance(dim, VirtualDimension)]
-
     def non_indicator_dimensions(self) -> list[SdmxDimension | VirtualDimension]:
-        special_dimensions = set(sd.dimension_id for sd in self._config.special_dimensions)
         return [
-            dimension
-            for dimension in self.dimensions()
-            if (dimension.entity_id not in self._indicator_dimensions)
-            and (dimension.entity_id not in special_dimensions)
+            self._dimensions[dim_id] for dim_id, dim_conf in self._config.non_indicator_dimensions
         ]
 
     def special_dimensions(self) -> dict[str, Dimension]:
         return {
-            special_dimension.processor_id: self._dimensions[special_dimension.dimension_id]
-            for special_dimension in self._config.special_dimensions
+            dim_conf.processor_id: self._dimensions[dim_id]
+            for dim_id, dim_conf in self._config.special_dimensions
         }
 
     def indicator_dimensions(
         self, non_virtual: bool = False
-    ) -> t.Sequence[SdmxCodeListDimension | VirtualDimension]:
-        # TODO: does not support fixed indicator
+    ) -> Sequence[SdmxCodeListDimension | VirtualDimension]:
         if non_virtual:
             return [
                 dim
@@ -912,14 +884,9 @@ class Sdmx21DataSet(
     async def get_indicators(
         self, auth_context: AuthContext, allow_cached: bool
     ) -> Sequence[ComplexIndicator]:
-        if self._fixed_indicator:
-            return self._indicators_from_fixed_indicator()
-        elif self._indicator_dimensions:
-            return await self._indicators_from_dimensions(
-                auth_context=auth_context, allow_cached=allow_cached
-            )
-        else:
-            raise ValueError("No indicators")
+        return await self._indicators_from_dimensions(
+            auth_context=auth_context, allow_cached=allow_cached
+        )
 
     def country_dimension(self) -> CategoricalDimension | None:
         return self._country_dimension
@@ -946,6 +913,13 @@ class Sdmx21DataSet(
         component: SdmxCodeListDimension | Sdmx21CodeListAttribute
         if component_id in self._dimensions:
             dimension = self._dimensions[component_id]
+            if isinstance(dimension, VirtualDimension):
+                value_ids_list = list(value_ids)
+                if len(value_ids_list) != 1 or dimension.value.entity_id != value_ids_list[0]:
+                    raise ValueError(
+                        f"Inappropriate value ids for virtual dimension {component_id!r}: {value_ids_list!r}"
+                    )
+                return {dimension.value.entity_id: dimension.value.name}
             if not isinstance(dimension, SdmxCodeListDimension):
                 _log.debug(
                     "Dimension %s of dataset %s is not a code list dimension",

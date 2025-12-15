@@ -1,16 +1,9 @@
-import typing as t
 from abc import ABC, abstractmethod
 
 from langchain_core.documents import Document
-from pydantic import BaseModel
 
 from .base import BaseEntity, EntityType
-
-
-class VirtualDimensionValue(BaseModel):
-    id: str
-    name: str
-    description: str | None
+from .config import VirtualDimensionValue
 
 
 class Category(BaseEntity, ABC):
@@ -129,5 +122,5 @@ class VirtualDimensionCategory(DimensionCategory):
         return self._name
 
     @property
-    def description(self) -> t.Optional[str]:
+    def description(self) -> str | None:
         return self._description

@@ -1,16 +1,8 @@
 from .attribute import Attribute, CategoricalAttribute, StringAttribute
 from .base import BaseEntity
 from .category import Category, DimensionCategory, VirtualDimensionCategory
-from .dataset import (
-    DataResponse,
-    DataResponseStatus,
-    DataSet,
-    DatasetCitation,
-    DataSetConfig,
-    IndexerConfig,
-    OfflineDataSet,
-    SpecialDimension,
-)
+from .config import DatasetCitation, IndexerConfig, IndexerIndicatorConfig, VirtualDimensionValue
+from .dataset import DataResponse, DataResponseStatus, DataSet, DataSetConfig, OfflineDataSet
 from .dataset_hierarchy import (
     DatasetHierarchy,
     DatasetHierarchyCreatorABC,
@@ -25,6 +17,13 @@ from .datasource import (
     DataSourceType,
 )
 from .dimension import CategoricalDimension, DateTimeDimension, Dimension, VirtualDimension
-from .enums import AttributeType, DimensionType, EntityType, QueryOperator
+from .enums import (
+    AttributeType,
+    DimensionDataType,
+    DimensionType,
+    EntityType,
+    QueryOperator,
+    SpecialNonIndicatorDimensions,
+)
 from .indicator import BaseIndicator
 from .query import DataSetAvailabilityQuery, DataSetQuery, DimensionQuery, Query  # , IndicatorQuery

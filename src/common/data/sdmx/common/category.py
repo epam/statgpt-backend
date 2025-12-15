@@ -4,10 +4,9 @@ from abc import ABC
 from langchain_core.documents import Document
 from sdmx.model import common as sdmx_common
 
-from common.data.base import Category, DimensionCategory
+from common.data.base import Category, DimensionCategory, VirtualDimensionValue
 
 from .base import BaseNameableArtefact
-from .config import FixedItem
 from .constants import SdmxConstants
 
 
@@ -99,11 +98,11 @@ class DimensionVirtualCodeCategory(SdmxDimensionCategory):
     SDMX codelist.
     """
 
-    fixed_item: FixedItem
+    fixed_item: VirtualDimensionValue
 
     def __init__(
         self,
-        fixed_item: FixedItem,
+        fixed_item: VirtualDimensionValue,
         dimension_id: str,
         dimension_name: str,
         dimension_alias: str | None = None,
@@ -150,7 +149,7 @@ class DimensionVirtualCodeCategory(SdmxDimensionCategory):
         dimension_id = document.metadata[SdmxConstants.METADATA_DIMENSION_ID]
         dimension_name = document.metadata[SdmxConstants.METADATA_DIMENSION_NAME]
         dimension_alias = document.metadata.get(SdmxConstants.METADATA_DIMENSION_ALIAS, None)
-        fixed_item = FixedItem(
+        fixed_item = VirtualDimensionValue(
             id=document.metadata[SdmxConstants.METADATA_VIRTUAL_DIMENSION_VALUE_ID],
             name=document.metadata[SdmxConstants.METADATA_VIRTUAL_DIMENSION_VALUE_NAME],
             description=document.metadata.get(

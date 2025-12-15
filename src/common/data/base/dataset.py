@@ -1,111 +1,28 @@
 from __future__ import annotations
 
-import typing as t
 import uuid
 from abc import ABC, abstractmethod
 from collections.abc import Sequence
 from datetime import datetime
+from typing import TYPE_CHECKING, Generic, TypeVar
 
 import pandas as pd
 import plotly.graph_objects as go
-from pydantic import BaseModel, ConfigDict, Field, StrictStr, alias_generators, model_validator
+from pydantic import BaseModel, Field
 
 from common.auth.auth_context import AuthContext
-from common.config.utils import replace_env
 from common.schemas.dataset import Status
 from common.schemas.enums import DataParsingStatus, DataRequestStatus
 
 from .attribute import Attribute
 from .base import BaseEntity, EntityType
-from .dimension import Dimension, VirtualDimension, VirtualDimensionConfig
+from .config import DataSetConfig
+from .dimension import Dimension
 from .indicator import BaseIndicator
-from .query import DataSetAvailabilityQuery, DataSetQuery, Query
+from .query import DataSetAvailabilityQuery, DataSetQuery
 
-if t.TYPE_CHECKING:
+if TYPE_CHECKING:
     from common.data.base.datasource import DataSourceHandler
-
-
-class DatasetCitation(BaseModel):
-    provider: StrictStr | None = Field(default=None)
-    last_updated: StrictStr | None = Field(default=None)
-    url: StrictStr | None = Field(default=None)
-    description: StrictStr | None = Field(default=None)
-
-    def get_url(self) -> str | None:
-        if self.url:
-            return replace_env(self.url)
-        return None
-
-
-class IndexerIndicatorAnnotationConfig(BaseModel):
-    description: str = Field(description="annotation name to get indicator description", default="")
-
-    model_config = ConfigDict(alias_generator=alias_generators.to_camel, populate_by_name=True)
-
-
-class IndexerIndicatorConfig(BaseModel):
-    unpack: bool = Field(default=False)
-    use_code_list_description: bool = Field(default=False)
-    super_primary: bool = Field(default=False)
-
-    annotations: IndexerIndicatorAnnotationConfig | None = Field(default=None)
-
-
-model_config = ConfigDict(alias_generator=alias_generators.to_camel, populate_by_name=True)
-
-
-class IndexerConfig(BaseModel):
-    description: str = Field(description="dataset_description", default="")
-
-    indicator: IndexerIndicatorConfig = Field(
-        description="indicator_config", default_factory=IndexerIndicatorConfig
-    )
-
-    model_config = ConfigDict(alias_generator=alias_generators.to_camel, populate_by_name=True)
-
-
-class SpecialDimension(BaseModel):
-    dimension_id: str = Field()
-    processor_id: str = Field()
-
-
-class DataSetConfig(BaseModel, ABC):
-    is_official: bool = Field(default=False)
-    dimension_default_queries: t.Dict[str, t.List[Query]] = Field(
-        description="Default queries for each dimension if any",
-        default_factory=dict,
-    )
-    citation: DatasetCitation | None = Field(default=None)
-    indexer: IndexerConfig | None = Field(default=None)
-    special_dimensions: list[SpecialDimension] = Field(
-        default_factory=list, description="The list of dimensions which require a special handling"
-    )
-    virtual_dimensions: t.List[VirtualDimensionConfig] = Field(
-        description="The list of virtual dimensions (e.g. Country for datasets by national agencies)",
-        default_factory=list,
-    )
-    dimension_aliases: t.Dict[str, str] = Field(
-        description="Mapping of dimension IDs to their aliases", default_factory=dict
-    )
-    pinned_columns: t.List[str] = Field(
-        description="Column names and order to pin in the data in grid", default_factory=list
-    )
-
-    @model_validator(mode='after')
-    def _no_dups_in_special_dims_processor(self):
-        processor_ids = [sd.processor_id for sd in self.special_dimensions]
-        if len(processor_ids) != len(set(processor_ids)):
-            raise ValueError("Duplicate processor_id found in special_dimensions")
-        return self
-
-    @abstractmethod
-    def get_source_id(self) -> str:
-        pass
-
-    def get_dimension_aliases(self) -> t.Dict[str, str]:
-        return self.dimension_aliases
-
-    model_config = ConfigDict(alias_generator=alias_generators.to_camel, populate_by_name=True)
 
 
 class DataResponseStatus(BaseModel):
@@ -227,11 +144,11 @@ class DataResponse(ABC):
         """Return the time period covered by the data in this response as a tuple of (start, end)."""
 
 
-DataSetConfigType = t.TypeVar("DataSetConfigType", bound=DataSetConfig)
-DataSourceHandlerType = t.TypeVar("DataSourceHandlerType", bound='DataSourceHandler')
+DataSetConfigType = TypeVar("DataSetConfigType", bound=DataSetConfig)
+DataSourceHandlerType = TypeVar("DataSourceHandlerType", bound='DataSourceHandler')
 
 
-class DataSet(BaseEntity, t.Generic[DataSetConfigType, DataSourceHandlerType], ABC):
+class DataSet(BaseEntity, Generic[DataSetConfigType, DataSourceHandlerType], ABC):
     _config: DataSetConfigType
     _datasource: DataSourceHandlerType
 
@@ -293,7 +210,7 @@ class DataSet(BaseEntity, t.Generic[DataSetConfigType, DataSourceHandlerType], A
         pass
 
     @abstractmethod
-    def dimensions(self) -> t.Sequence[Dimension]:
+    def dimensions(self) -> Sequence[Dimension]:
         pass
 
     @abstractmethod
@@ -309,14 +226,11 @@ class DataSet(BaseEntity, t.Generic[DataSetConfigType, DataSourceHandlerType], A
         pass
 
     @abstractmethod
-    def attributes(self) -> t.Sequence[Attribute]:
+    def attributes(self) -> Sequence[Attribute]:
         pass
 
-    def non_virtual_dimensions(self) -> t.Sequence[Dimension]:
-        return [dim for dim in self.dimensions() if not isinstance(dim, VirtualDimension)]
-
     @abstractmethod
-    def non_indicator_dimensions(self) -> t.Sequence[Dimension]:
+    def non_indicator_dimensions(self) -> Sequence[Dimension]:
         pass
 
     @abstractmethod
@@ -324,11 +238,11 @@ class DataSet(BaseEntity, t.Generic[DataSetConfigType, DataSourceHandlerType], A
         pass
 
     @abstractmethod
-    def indicator_dimensions(self, non_virtual: bool = False) -> t.Sequence[Dimension]:
+    def indicator_dimensions(self, non_virtual: bool = False) -> Sequence[Dimension]:
         pass
 
     @abstractmethod
-    def virtual_indicator_dimensions(self) -> t.Sequence[Dimension]:
+    def virtual_indicator_dimensions(self) -> Sequence[Dimension]:
         pass
 
     @abstractmethod
@@ -352,7 +266,7 @@ class DataSet(BaseEntity, t.Generic[DataSetConfigType, DataSourceHandlerType], A
         pass
 
 
-class OfflineDataSet(DataSet, t.Generic[DataSetConfigType, DataSourceHandlerType], ABC):
+class OfflineDataSet(DataSet, Generic[DataSetConfigType, DataSourceHandlerType], ABC):
     """Class for cases where dataset loading failed"""
 
     def __init__(
@@ -361,14 +275,14 @@ class OfflineDataSet(DataSet, t.Generic[DataSetConfigType, DataSourceHandlerType
         title: str,
         config: DataSetConfigType,
         datasource: DataSourceHandlerType,
-        status_details: str = "",
+        status: Status,
     ):
         super().__init__(entity_id, title, config, datasource)
-        self._status_details = status_details
+        self._status = status
 
     @property
     def status(self) -> Status:
-        return Status(status='offline', details=self._status_details)
+        return self._status
 
     @property
     def default_value_codes(self) -> list[str]:
@@ -394,9 +308,6 @@ class OfflineDataSet(DataSet, t.Generic[DataSetConfigType, DataSourceHandlerType
         return []
 
     def dimensions_by_concept_name(self, concept_name) -> list[Dimension]:
-        return []
-
-    def non_virtual_dimensions(self) -> list[Dimension]:
         return []
 
     def non_indicator_dimensions(self) -> list[Dimension]:

@@ -4,8 +4,8 @@ from common.data.base import (
     DataSet,
     DataSetAvailabilityQuery,
     DataSetQuery,
+    DimensionDataType,
     DimensionQuery,
-    DimensionType,
     Query,
     QueryOperator,
 )
@@ -27,7 +27,7 @@ class SimpleQueryConstructor(BaseQueryConstructor):
     @staticmethod
     def _set_dimension_query_from_default_or_available_values(
         dim_id: str,
-        dim_type: DimensionType,
+        dim_type: DimensionDataType,
         dataset_id: str,
         default_queries: list[Query] | None,
         default_value_codes: list[str],
@@ -41,8 +41,8 @@ class SimpleQueryConstructor(BaseQueryConstructor):
         if default_queries:
             default_query = default_queries[0]
             if default_query.values:
-                if dim_type != DimensionType.CATEGORY:
-                    if dim_type == DimensionType.DATETIME:
+                if dim_type != DimensionDataType.CATEGORY:
+                    if dim_type == DimensionDataType.DATETIME:
                         default_query = time_period_utils.get_relative_aware_time_period_query(
                             default_query
                         )
@@ -83,7 +83,7 @@ class SimpleQueryConstructor(BaseQueryConstructor):
                 'Will try to auto-set dimension queries using availability data.'
             )
 
-        if dim_type != DimensionType.CATEGORY:
+        if dim_type != DimensionDataType.CATEGORY:
             _log.debug(
                 f'Can\'t auto-set query for "{dim_id}" dimension '
                 f'in "{dataset_id}" dataset, since it\'s not a categorical dimension.'
@@ -159,7 +159,6 @@ class SimpleQueryConstructor(BaseQueryConstructor):
         chain_state: ChainState,
     ) -> DataSetQuery:
         dataset_id = dataset.entity_id
-        ds_default_queries = dataset.config.dimension_default_queries
         ds_dimension_queries: dict[str, DimensionQuery] = {
             d.dimension_id: d for d in ds_query.dimensions_queries
         }
@@ -170,10 +169,12 @@ class SimpleQueryConstructor(BaseQueryConstructor):
             if dim_id in ds_dimension_queries:
                 continue
 
-            default_queries = ds_default_queries.get(dim_id)
+            dimension_config = dataset.config.dimensions[dim_id]
+            default_queries = dimension_config.default_queries
+
             availability = ds_availability_query.dimensions_queries_dict.get(dim_id)
 
-            if dimension.dimension_type == DimensionType.DATETIME:
+            if dimension.dimension_type == DimensionDataType.DATETIME:
                 if self._config.time_period_strategy is TimePeriodStrategy.AFTER:
                     _log.info("Skipping setting time dimension query (AFTER strategy)")
                     continue

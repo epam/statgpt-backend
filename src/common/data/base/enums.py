@@ -16,9 +16,26 @@ class AttributeType(StrEnum):
     STRING = "string"
 
 
-class DimensionType(StrEnum):
+class DimensionDataType(StrEnum):
     CATEGORY = "category"
     DATETIME = "datetime"
+
+
+class DimensionType(StrEnum):
+    INDICATOR = "INDICATOR"
+    SPECIAL = "SPECIAL"
+    NON_INDICATOR = "NON_INDICATOR"
+
+    TIME_PERIOD = "TIME_PERIOD"
+    """The time period dimension of the dataset"""
+
+
+class SpecialNonIndicatorDimensions(StrEnum):
+    FREQUENCY = "FREQUENCY"
+    """The frequency dimension of the dataset"""
+
+    REGION = "REGION"
+    "The main Country/Region/ReferenceArea dimension of the dataset"
 
 
 class QueryOperator(StrEnum):
