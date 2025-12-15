@@ -216,7 +216,8 @@ class FinalizeQueryChainFactory:
                 result[dataset_id] = dataset_query
                 continue
 
-            time_period_default = dataset.config.dimension_default_queries.get("TIME_PERIOD")
+            dim_id, dim_config = dataset.config.time_period_dimension
+            time_period_default = dim_config.default_queries
             if not time_period_default:
                 result[dataset_id] = dataset_query
                 continue

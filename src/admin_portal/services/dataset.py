@@ -19,6 +19,7 @@ from admin_portal.settings.exim import ExImSettings, JobsConfig
 from common import utils
 from common.auth.auth_context import AuthContext
 from common.data import base
+from common.data.base.config import ConfigHashes
 from common.data.base.dataset import DataSetConfigType
 from common.hybrid_indexer import Indexer
 from common.schemas import ChannelIndexStatusScope, HybridSearchConfig
@@ -743,11 +744,15 @@ class AdminPortalDataSetService(DataSetService):
     async def _set_version_hashes_and_metadata(
         self,
         item: models.ChannelDatasetVersion,
+        config_hashes: ConfigHashes,
         structure_hash: str,
         structure_metadata: dict,
         data_hashes: _DataHashes,
     ) -> None:
         """Sets the structure and data hashes for the given channel dataset version."""
+        item.indicators_config_hash = config_hashes.indicator_hash
+        item.non_indicators_config_hash = config_hashes.non_indicator_hash
+        item.special_dimensions_config_hash = config_hashes.special_hash
         item.structure_metadata = structure_metadata
         item.structure_hash = structure_hash
         item.indicator_dimensions_hash = data_hashes.indicator_dimensions_hash
@@ -819,6 +824,9 @@ class AdminPortalDataSetService(DataSetService):
             )
 
         handler = await self._get_handler(dataset_db.source_id)
+        config = handler.parse_data_set_config(dataset_db.details)
+
+        config_changes = self._get_config_changes(version, config.indexing_hashes)
 
         structure_hash, meta = await handler.get_structure_hash_and_metadata(
             dataset_config=dataset_db.details, auth_context=auth_context
@@ -856,10 +864,33 @@ class AdminPortalDataSetService(DataSetService):
             data_changes = self._get_data_changes(version, data_hashes)
 
         return schemas.ChangesBetweenVersionAndActualData(
-            has_changes=structure_change is not None or len(data_changes) != 0,
+            config_changes=config_changes,
             data_changes=data_changes,
             structure_change=structure_change,
         )
+
+    @staticmethod
+    def _get_config_changes(
+        version: schemas.ChannelDatasetVersion, config_hashes: ConfigHashes
+    ) -> list[schemas.ConfigChange]:
+        iterable = [
+            ('Indicator', version.indicators_config_hash, config_hashes.indicator_hash),
+            ('Special', version.special_dimensions_config_hash, config_hashes.special_hash),
+            (
+                'Non-indicator',
+                version.non_indicators_config_hash,
+                config_hashes.non_indicator_hash,
+            ),
+        ]
+        return [
+            schemas.ConfigChange(
+                message=f"The configuration for the {name} dimensions has changed.",
+                last_version_hash=old_hash,
+                actual_hash=new_hash,
+            )
+            for name, old_hash, new_hash in iterable
+            if old_hash != new_hash
+        ]
 
     @staticmethod
     def _get_data_changes(
@@ -1408,12 +1439,13 @@ class AdminPortalDataSetService(DataSetService):
             )
 
             if reindex_dimensions or (reindex_indicators and not harmonize_indicator):
+                config_hashes = dataset.config.indexing_hashes
                 structure_hash, meta = await handler.get_structure_hash_and_metadata(
                     dataset_config=db_dataset.details, auth_context=auth_context
                 )
                 data_hashes = await self._get_data_hashes(dataset, auth_context, allow_cached=True)
                 await self._set_version_hashes_and_metadata(
-                    version, structure_hash, meta, data_hashes
+                    version, config_hashes, structure_hash, meta, data_hashes
                 )
 
             vector_store_factory = VectorStoreFactory(session=self._session)

@@ -9,7 +9,6 @@ from .codelist import BaseSdmxCodeList, InMemoryCodeList
 from .config import (
     CategorySchemaDataSetHierarchyConfig,
     DefaultDataSetHierarchyConfig,
-    FixedItem,
     SdmxDataSetConfig,
     SdmxDataSourceConfig,
 )

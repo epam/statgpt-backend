@@ -1,22 +1,13 @@
 import json
 import typing as t
 from abc import ABC, abstractmethod
-from enum import StrEnum
-
-from pydantic import BaseModel, Field
 
 from .base import BaseEntity, EntityType
-from .category import Category, VirtualDimensionCategory, VirtualDimensionValue
-from .enums import DimensionType, QueryOperator
+from .category import Category, VirtualDimensionCategory
+from .config import VirtualDimensionConfig
+from .enums import DimensionDataType, QueryOperator
 
 DimensionValueType = t.TypeVar("DimensionValueType")
-
-
-class VirtualDimensionConfig(BaseModel):
-    id: str = Field(description="The ID of the virtual dimension")
-    name: str = Field(description="The name of the virtual dimension")
-    description: str | None = Field(description="The description of the virtual dimension")
-    value: VirtualDimensionValue = Field(description="The value of the virtual dimension")
 
 
 class Dimension(BaseEntity, t.Generic[DimensionValueType], ABC):
@@ -33,7 +24,7 @@ class Dimension(BaseEntity, t.Generic[DimensionValueType], ABC):
 
     @property
     @abstractmethod
-    def dimension_type(self) -> DimensionType:
+    def dimension_type(self) -> DimensionDataType:
         pass
 
     @property
@@ -67,8 +58,8 @@ class CategoricalDimension(Dimension[CategoryType], t.Generic[CategoryType], ABC
         super().__init__()
 
     @property
-    def dimension_type(self) -> DimensionType:
-        return DimensionType.CATEGORY
+    def dimension_type(self) -> DimensionDataType:
+        return DimensionDataType.CATEGORY
 
     @property
     @abstractmethod
@@ -111,9 +102,14 @@ class VirtualDimension(CategoricalDimension[VirtualDimensionCategory]):
     _description: t.Optional[str]
     _value: VirtualDimensionCategory
 
-    def __init__(self, virtual_dimension_config: VirtualDimensionConfig, alias: str | None = None):
+    def __init__(
+        self,
+        dimension_id: str,
+        virtual_dimension_config: VirtualDimensionConfig,
+        alias: str | None = None,
+    ):
         super().__init__()
-        self._id = virtual_dimension_config.id
+        self._id = dimension_id
         self._name = virtual_dimension_config.name
         self._alias = alias
         self._description = virtual_dimension_config.description
@@ -172,8 +168,8 @@ class DateTimeDimension(Dimension[str], ABC):
         super().__init__()
 
     @property
-    def dimension_type(self) -> DimensionType:
-        return DimensionType.DATETIME
+    def dimension_type(self) -> DimensionDataType:
+        return DimensionDataType.DATETIME
 
     def available_operators(self) -> t.List[QueryOperator]:
         # NOTE: does EQUALS operator make sense?
@@ -183,12 +179,3 @@ class DateTimeDimension(Dimension[str], ABC):
             QueryOperator.LESS_THAN_OR_EQUALS,
             QueryOperator.BETWEEN,
         ]
-
-
-class DimensionProcessingType(StrEnum):
-    """Dimension classification for processing purposes"""
-
-    INDICATOR = 'INDICATOR'
-    NONINDICATOR = 'NONINDICATOR'
-    SPECIAL = 'SPECIAL'
-    TIME_PERIOD = 'TIME_PERIOD'

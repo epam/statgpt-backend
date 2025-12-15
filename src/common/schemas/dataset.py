@@ -8,7 +8,9 @@ from .data_source import DataSource
 
 
 class Status(BaseModel):
-    status: Literal['online', 'offline'] = Field(description="The status of the dataset")
+    status: Literal['online', 'offline', 'invalid_config'] = Field(
+        description="The status of the dataset"
+    )
     details: str = Field(description="The details of the dataset status", default="")
 
 

@@ -11,10 +11,11 @@ from common.data.quanthub.v21.dataset import QuanthubSdmx21DataSet
 from common.data.sdmx import Sdmx21DataSourceHandler
 from common.data.sdmx.v21.attributes_creator import Sdmx21AttributesCreator
 from common.data.sdmx.v21.dataflow_loader import DataflowLoader
-from common.data.sdmx.v21.dataset import SdmxOfflineDataSet
+from common.data.sdmx.v21.dataset import InvalidConfigurationError, SdmxOfflineDataSet
 from common.data.sdmx.v21.dimensions_creator import DimensionsCreator
 from common.data.sdmx.v21.ratelimiter import SdmxRateLimiterFactory
 from common.data.sdmx.v21.schemas import Urn
+from common.schemas.dataset import Status
 from common.settings.sdmx import quanthub_settings
 from common.utils import Cache
 from common.utils.timer import debug_timer
@@ -95,9 +96,8 @@ class QuanthubSdmx21DataSourceHandler(Sdmx21DataSourceHandler):
             if allow_offline:
                 msg = f"Failed to parse the URN={dataset_config.urn!r} from the dataset configuration."
                 logger.exception(msg)
-                return SdmxOfflineDataSet(
-                    entity_id, title, dataset_config, self, status_details=msg
-                )
+                status = Status(status='offline', details=msg)
+                return SdmxOfflineDataSet(entity_id, title, dataset_config, self, status)
             else:
                 raise e
 
@@ -116,9 +116,8 @@ class QuanthubSdmx21DataSourceHandler(Sdmx21DataSourceHandler):
             if allow_offline:
                 msg = f"Failed to load the dataflow or its associated structures. {urn=}"
                 logger.exception(msg)
-                return SdmxOfflineDataSet(
-                    entity_id, title, dataset_config, self, status_details=msg
-                )
+                status = Status(status='offline', details=msg)
+                return SdmxOfflineDataSet(entity_id, title, dataset_config, self, status)
             else:
                 raise e
 
@@ -131,9 +130,8 @@ class QuanthubSdmx21DataSourceHandler(Sdmx21DataSourceHandler):
             if allow_offline:
                 msg = "Failed to create dimensions from the loaded structure message."
                 logger.exception(msg)
-                return SdmxOfflineDataSet(
-                    entity_id, title, dataset_config, self, status_details=msg
-                )
+                status = Status(status='offline', details=msg)
+                return SdmxOfflineDataSet(entity_id, title, dataset_config, self, status)
             else:
                 raise e
 
@@ -146,9 +144,8 @@ class QuanthubSdmx21DataSourceHandler(Sdmx21DataSourceHandler):
             if allow_offline:
                 msg = "Failed to create attributes from the loaded structure message."
                 logger.exception(msg)
-                return SdmxOfflineDataSet(
-                    entity_id, title, dataset_config, self, status_details=msg
-                )
+                status = Status(status='offline', details=msg)
+                return SdmxOfflineDataSet(entity_id, title, dataset_config, self, status)
             else:
                 raise e
 
@@ -189,17 +186,20 @@ class QuanthubSdmx21DataSourceHandler(Sdmx21DataSourceHandler):
                 attribute_values=attribute_values,
                 annotations=annotations,
             )
+        except InvalidConfigurationError as e:
+            if allow_offline:
+                msg = f"Invalid dataset(urn={dataset_config.urn!r}) configuration: {e}"
+                logger.warning(msg)
+                status = Status(status='invalid_config', details=msg)
+                return SdmxOfflineDataSet(entity_id, title, dataset_config, self, status)
+            else:
+                raise e
         except Exception as e:
             if allow_offline:
                 msg = "Failed to create dataset class."
                 logger.exception(f"{msg}. See exception details below.")
-                msg += (
-                    " Probably there is a mistake in configuration."
-                    " For example, the indicator dimension name is incorrect."
-                )
-                return SdmxOfflineDataSet(
-                    entity_id, title, dataset_config, self, status_details=msg
-                )
+                status = Status(status='offline', details=msg)
+                return SdmxOfflineDataSet(entity_id, title, dataset_config, self, status)
             else:
                 raise e
 
