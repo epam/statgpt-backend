@@ -6,7 +6,7 @@ repos:
         exclude: .gitlab-ci.yml
       - id: end-of-file-fixer
       - id: trailing-whitespace
-        exclude: src/common/prompts/assets/indexer.yaml
+        exclude: statgpt/common/default_prompts/assets/hybrid_indexer.yaml
   - repo: https://github.com/PyCQA/autoflake
     rev: v2.3.1
     hooks:

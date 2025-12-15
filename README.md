@@ -212,7 +212,7 @@ This command will set up the git hook scripts.
 > It is *always* necessary to manually review and correct the **candidate migrations** that autogenerate produces.
 
 **(!)** After creating a new migration, it is necessary to update the `ALEMBIC_TARGET_VERSION` in the
-`src/common/config/version.py` file to the new version.
+`statgpt/common/config/version.py` file to the new version.
 
  ```bash
  make db_autogenerate MESSAGE="Your message"
