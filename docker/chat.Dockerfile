@@ -21,8 +21,8 @@ COPY poetry.lock .
 RUN poetry export -f requirements.txt --without-hashes | pip install $PIP_ARGS -r /dev/stdin
 
 # Copy source code
-COPY ./src/statgpt $APP_HOME/statgpt
-COPY ./src/common $APP_HOME/common
+COPY ./statgpt/app $APP_HOME/statgpt/app
+COPY ./statgpt/common $APP_HOME/statgpt/common
 
 # create the app user and chown workdir to the app user
 RUN adduser -u 5678 --system --disabled-password --gecos "" app && chown -R app $APP_HOME
@@ -34,4 +34,4 @@ ENV PYDANTIC_V2=True
 
 EXPOSE 5000
 
-CMD ["uvicorn", "statgpt.app:app", "--host", "0.0.0.0", "--port", "5000", "--lifespan", "on"]
+CMD ["uvicorn", "statgpt.app.app:app", "--host", "0.0.0.0", "--port", "5000", "--lifespan", "on"]

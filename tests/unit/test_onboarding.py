@@ -1,7 +1,11 @@
 import pytest
 
-from common.schemas.onboarding import OnboardingConfig, OnboardingTopic, PredefinedTextResponse
-from statgpt.services.onboarding import OnboardingService, OnboardingState
+from statgpt.app.services.onboarding import OnboardingService, OnboardingState
+from statgpt.common.schemas.onboarding import (
+    OnboardingConfig,
+    OnboardingTopic,
+    PredefinedTextResponse,
+)
 
 
 @pytest.fixture

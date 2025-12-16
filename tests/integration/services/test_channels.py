@@ -2,11 +2,11 @@ import pytest
 from fastapi import HTTPException
 from sqlalchemy.exc import NoResultFound
 
-from admin_portal.auth.auth_context import SystemUserAuthContext
-from admin_portal.services import AdminPortalChannelService as ChannelService
-from common import schemas
-from common.schemas.data_query_tool import DataQueryPrompts
-from common.settings.langchain import langchain_settings
+from statgpt.admin.auth.auth_context import SystemUserAuthContext
+from statgpt.admin.services import AdminPortalChannelService as ChannelService
+from statgpt.common import schemas
+from statgpt.common.schemas.data_query_tool import DataQueryPrompts
+from statgpt.common.settings.langchain import langchain_settings
 
 # ~~~~~ Channel Tests ~~~~~
 

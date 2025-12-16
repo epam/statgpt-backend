@@ -1,6 +1,6 @@
 import pytest
 
-from common.data.base.query import DataSetAvailabilityQuery, Query, QueryOperator
+from statgpt.common.data.base.query import DataSetAvailabilityQuery, Query, QueryOperator
 
 
 @pytest.mark.parametrize(

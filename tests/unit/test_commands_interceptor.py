@@ -1,6 +1,6 @@
 import pytest
 
-from statgpt.utils.message_interceptors.commands_interceptor import InterceptableCommand
+from statgpt.app.utils.message_interceptors.commands_interceptor import InterceptableCommand
 
 
 @pytest.fixture

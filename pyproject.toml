@@ -1,6 +1,6 @@
 [project]
 name = "statgpt"
-version = "1.1.2"
+version = "0.2.0"
 description = "StatGPT: Platform for talking to Official Statistics data & SDMX"
 readme = "README.md"
 requires-python = ">=3.11,<3.12"
@@ -68,7 +68,7 @@ line_length = 100
 # Src Paths: Add an explicitly defined source path
 # (modules within src paths have their imports automatically categorized as first_party).
 # see also: https://github.com/PyCQA/isort/issues/1147
-src_paths = ["src"]
+src_paths = ["statgpt"]
 
 [tool.black]
 line-length = 100
@@ -121,15 +121,12 @@ exclude = [
     '__pycache__'
 ]
 
-[tool.pytest.ini_options]
-pythonpath = ["src"]
-
 [tool.mypy]
 plugins = ["pydantic.mypy"]
 ignore_missing_imports = true
 
 [tool.poetry]
-package-mode = false
+package-mode = true
 requires-poetry = '>=2.0.0,<3.0.0'
 
 [tool.poetry.requires-plugins]

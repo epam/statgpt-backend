@@ -3,7 +3,7 @@
 import ast
 from pathlib import Path
 
-from src.common.config.versions import Versions
+from statgpt.common.config.versions import Versions
 
 
 def extract_revision_from_migration(file_path: Path) -> str:
@@ -48,7 +48,7 @@ def get_latest_migration_revision() -> str:
         FileNotFoundError: If no migration files are found
     """
     base_dir = Path(__file__).parent.parent.parent
-    versions_dir = base_dir / "src" / "admin_portal" / "alembic" / "versions"
+    versions_dir = base_dir / "statgpt" / "admin" / "alembic" / "versions"
 
     if not versions_dir.exists():
         raise FileNotFoundError(f"Alembic versions directory not found: {versions_dir}")
@@ -73,7 +73,7 @@ class TestAlembicVersion:
         assert configured_version == latest_revision, (
             f"ALEMBIC_TARGET_VERSION ({configured_version}) does not match "
             f"the latest migration revision ({latest_revision}). "
-            f"Please update ALEMBIC_TARGET_VERSION in src/common/config/versions.py"
+            f"Please update ALEMBIC_TARGET_VERSION in statgpt/common/config/versions.py"
         )
 
     def test_configured_version_not_unknown(self):

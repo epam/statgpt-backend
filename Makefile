@@ -1,6 +1,6 @@
 POETRY_PYTHON ?= $(if $(pythonLocation),$(pythonLocation)/bin/python,python3)
-SRC_DIRS = src scripts tests
-MYPY_DIRS = src/common src/admin_portal src/statgpt
+SRC_DIRS = statgpt scripts tests
+MYPY_DIRS = statgpt scripts
 
 -include .env
 export
@@ -31,25 +31,26 @@ lint: install_dev
 	poetry run autoflake ${SRC_DIRS} --check
 	# for now we only check data abstractions and services packages
 	poetry run mypy --show-error-codes ${MYPY_DIRS}
+	poetry run python scripts/check_imports.py
 
 install_pre_commit_hooks:
 	pre-commit install
 
 db_migrate:
-	poetry run alembic -c src/alembic.ini upgrade head
+	poetry run alembic -c alembic.ini upgrade head
 
 db_downgrade:
-	poetry run alembic -c src/alembic.ini downgrade -1
+	poetry run alembic -c alembic.ini downgrade -1
 
 db_autogenerate:
-	poetry run alembic -c src/alembic.ini revision --autogenerate -m "$(MESSAGE)"
+	poetry run alembic -c alembic.ini revision --autogenerate -m "$(MESSAGE)"
 
 test_db_migrate: export PGVECTOR_HOST=$(TEST_DATABASE_HOST)
 test_db_migrate: export PGVECTOR_PORT=$(TEST_DATABASE_PORT)
 test_db_migrate: export PGVECTOR_DATABASE=$(TEST_DATABASE)
 test_db_migrate: export ELASTIC_CONNECTION_STRING=$(TEST_ELASTIC_CONNECTION_STRING)
 test_db_migrate: install_dev
-	poetry run alembic -c src/alembic.ini upgrade head
+	poetry run alembic -c alembic.ini upgrade head
 
 test_unit: export PGVECTOR_HOST=$(TEST_DATABASE_HOST)
 test_unit: export PGVECTOR_PORT=$(TEST_DATABASE_PORT)
@@ -109,7 +110,7 @@ endif
 
 extract_messages: check_gettext
 	@echo "Extracting translatable strings from formatters..."
-	@cd src/statgpt/utils/formatters && \
+	@cd statgpt/app/utils/formatters && \
 	xgettext -d dataset -o locales/dataset.pot \
 		--language=Python \
 		--keyword=_ \
@@ -119,13 +120,13 @@ extract_messages: check_gettext
 
 update_messages: check_gettext
 	@echo "Updating .po files from template..."
-	@cd src/statgpt/utils/formatters/locales && \
+	@cd statgpt/app/utils/formatters/locales && \
 	msgmerge --update en/LC_MESSAGES/dataset.po dataset.pot && \
 	msgmerge --update uk/LC_MESSAGES/dataset.po dataset.pot
 
 compile_messages: check_gettext
 	@echo "Compiling .po files to .mo files..."
-	@cd src/statgpt/utils/formatters/locales && \
+	@cd statgpt/app/utils/formatters/locales && \
 	msgfmt -o en/LC_MESSAGES/dataset.mo en/LC_MESSAGES/dataset.po && \
 	msgfmt -o uk/LC_MESSAGES/dataset.mo uk/LC_MESSAGES/dataset.po
 

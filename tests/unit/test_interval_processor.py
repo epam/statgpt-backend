@@ -3,7 +3,7 @@ from datetime import datetime
 import pytest
 from freezegun import freeze_time
 
-from common.utils.interval_processor import IntervalProcessor
+from statgpt.common.utils.interval_processor import IntervalProcessor
 
 
 @pytest.fixture
