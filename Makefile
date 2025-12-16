@@ -1,6 +1,6 @@
 POETRY_PYTHON ?= $(if $(pythonLocation),$(pythonLocation)/bin/python,python3)
 SRC_DIRS = statgpt scripts tests
-MYPY_DIRS = statgpt
+MYPY_DIRS = statgpt scripts
 
 -include .env
 export
@@ -31,6 +31,7 @@ lint: install_dev
 	poetry run autoflake ${SRC_DIRS} --check
 	# for now we only check data abstractions and services packages
 	poetry run mypy --show-error-codes ${MYPY_DIRS}
+	poetry run python scripts/check_imports.py
 
 install_pre_commit_hooks:
 	pre-commit install
