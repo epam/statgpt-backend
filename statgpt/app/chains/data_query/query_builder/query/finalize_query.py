@@ -354,8 +354,8 @@ class FinalizeQueryChainFactory:
         state = ChainParameters.get_state(inputs)
         skip = state.get(StateVarsConfig.CMD_SKIP_DATA_QUERY_SUMMARIZATION, False)
         if skip:
-            query = ChainParameters.get_query(inputs)
-            response = f"<call to Query_Data was skipped for debug purposes>\n\n {query!r}"
+            # to save generation tokens we simply say that tool failed
+            response = "tool failed to generate string response"
             return RunnablePassthrough.assign(
                 **{DataQueryParameters.RESPONSE_FIELD: lambda _: response}
             )
