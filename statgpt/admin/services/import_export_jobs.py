@@ -9,6 +9,7 @@ from typing import BinaryIO
 
 import httpx
 from fastapi import BackgroundTasks, HTTPException, UploadFile, status
+from pydantic import BaseModel, ValidationError
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql.expression import func
@@ -25,6 +26,13 @@ from .dataset import AdminPortalDataSetService as DataSetService
 from .glossary_of_terms import AdminPortalGlossaryOfTermsService as GlossaryOfTermsService
 
 _log = logging.getLogger(__name__)
+
+
+class ExportMetadata(BaseModel):
+    export_start_datetime: str
+    export_finish_datetime: str
+    scope: schemas.ExportScope = schemas.ExportScope.FULL
+    deployment_id: str
 
 
 class JobsService:
@@ -134,7 +142,11 @@ class JobsService:
         await self._session.refresh(job)
 
     async def create_export_job(
-        self, background_tasks: BackgroundTasks, channel_id: int, auth_context: AuthContext
+        self,
+        background_tasks: BackgroundTasks,
+        channel_id: int,
+        scope: schemas.ExportScope,
+        auth_context: AuthContext,
     ) -> schemas.Job:
         channel_service = ChannelService(self._session)
         channel_db = await channel_service.get_model_by_id(channel_id)
@@ -147,7 +159,7 @@ class JobsService:
         self._session.add(job)
         await self._session.commit()
 
-        background_tasks.add_task(export_channel_in_background_task, job.id, auth_context)
+        background_tasks.add_task(export_channel_in_background_task, job.id, scope, auth_context)
         await self._update_job_status(job, schemas.PreprocessingStatusEnum.QUEUED)
 
         return schemas.Job.model_validate(job, from_attributes=True)
@@ -206,33 +218,36 @@ class JobsService:
 
     @staticmethod
     async def _export_data_to_folder(
-        channel_id: int, data_dir: str, auth_context: AuthContext
+        channel_id: int, data_dir: str, scope: schemas.ExportScope, auth_context: AuthContext
     ) -> str:
         """Export channel data including datasets and embeddings to the folder."""
 
         async with models.get_readonly_session_contex_manager() as session:
             channel_service = ChannelService(session)
             channel_db = await channel_service.export_channel_to_folder(
-                channel_id, data_dir, auth_context
+                channel_id, data_dir, scope=scope, auth_context=auth_context
             )
 
-            glossary_service = GlossaryOfTermsService(session)
-            await glossary_service.export_glossary_to_folder(channel_db, data_dir)
+            if scope is schemas.ExportScope.CONFIGS or scope is schemas.ExportScope.FULL:
+                glossary_service = GlossaryOfTermsService(session)
+                await glossary_service.export_glossary_to_folder(channel_db, data_dir)
 
             dataset_service = DataSetService(session)
-            await dataset_service.export_datasets(channel_db, data_dir, auth_context=auth_context)
-
-            export_name = (
-                f"{channel_db.deployment_id}-{datetime.now().strftime('%Y-%m-%dT%H-%M-%S.%f')}"
+            await dataset_service.export_datasets(
+                channel_db, data_dir, scope=scope, auth_context=auth_context
             )
-            return export_name
 
-    async def export_channel_in_background(self, job_id: int, auth_context: AuthContext) -> None:
+            return channel_db.deployment_id
+
+    async def export_channel_in_background(
+        self, job_id: int, scope: schemas.ExportScope, auth_context: AuthContext
+    ) -> None:
         _log.info(f"Exporting channel data to zip file. Job id={job_id}")
         job: models.Job = await self.get_job_model_by_id(job_id)
         await self._update_job_status(job, schemas.PreprocessingStatusEnum.IN_PROGRESS)
 
         try:
+            export_start_datetime = datetime.now().isoformat()
             with tempfile.TemporaryDirectory() as tmp_dir:
                 # folder for channel data before zipping:
                 data_dir = os.path.join(tmp_dir, "data")
@@ -240,9 +255,22 @@ class JobsService:
 
                 if not job.channel_id:
                     raise ValueError("Job must have a channel_id to export data")
-                archive_name = await self._export_data_to_folder(
-                    job.channel_id, data_dir, auth_context=auth_context
+                deployment_id = await self._export_data_to_folder(
+                    job.channel_id, data_dir, scope=scope, auth_context=auth_context
                 )
+
+                archive_name = f"{deployment_id}-{datetime.now().strftime('%Y-%m-%dT%H-%M-%S.%f')}"
+
+                export_finish_datetime = datetime.now().isoformat()
+                metadata = ExportMetadata(
+                    export_start_datetime=export_start_datetime,
+                    export_finish_datetime=export_finish_datetime,
+                    scope=scope,
+                    deployment_id=deployment_id,
+                )
+                metadata_path = os.path.join(data_dir, "metadata.json")
+                with open(metadata_path, "w", encoding="utf-8") as meta_file:
+                    meta_file.write(metadata.model_dump_json(indent=2))
 
                 res_file_path = os.path.abspath(os.path.join(tmp_dir, archive_name))
                 _log.info(f"Compressing {data_dir} to {res_file_path}.zip (non-blocking)")
@@ -317,16 +345,34 @@ class JobsService:
         """Import channel data including datasets and embeddings from the zip file."""
 
         async with models.get_session_contex_manager() as session:
+            deployment_id = None
+            scope = schemas.ExportScope.FULL
+            try:
+                with zip_file.open("metadata.json") as meta_file:
+                    metadata = ExportMetadata.model_validate_json(meta_file.read())
+                    deployment_id = metadata.deployment_id
+                    scope = metadata.scope
+            except KeyError:
+                _log.info("metadata.json is absent in import zip; proceeding with defaults")
+            except ValidationError as e:
+                _log.warning(
+                    "Invalid metadata.json in import zip; proceeding with defaults.", exc_info=e
+                )
+
             channel_service = ChannelService(session)
             channel_db = await channel_service.import_channel_from_zip(
-                zip_file, clean_up, auth_context
+                zip_file,
+                clean_up,
+                scope=scope,
+                deployment_id=deployment_id,
+                auth_context=auth_context,
             )
 
             job.channel_id = channel_db.id
             await self._update_job_status(job, schemas.PreprocessingStatusEnum.IN_PROGRESS)
-
-            glossary_service = GlossaryOfTermsService(session)
-            await glossary_service.import_glossary_from_zip(zip_file, channel_db.id)
+            if scope.includes_configs():
+                glossary_service = GlossaryOfTermsService(session)
+                await glossary_service.import_glossary_from_zip(zip_file, channel_db.id)
 
             dataset_service = DataSetService(session)
             await dataset_service.import_datasets_and_data_sources_from_zip(
@@ -334,6 +380,7 @@ class JobsService:
                 zip_file,
                 update_datasets,
                 update_data_sources,
+                scope=scope,
                 auth_context=auth_context,
             )
 
@@ -379,11 +426,15 @@ class JobsService:
         _log.info(f"Channel(id={channel_id}) imported successfully. Job id={job_id}")
 
 
-async def export_channel_in_background_task(job_id: int, auth_context: AuthContext) -> None:
+async def export_channel_in_background_task(
+    job_id: int, scope: schemas.ExportScope, auth_context: AuthContext
+) -> None:
     try:
         async with models.get_session_contex_manager() as session:
             service = JobsService(session)
-            await service.export_channel_in_background(job_id=job_id, auth_context=auth_context)
+            await service.export_channel_in_background(
+                job_id=job_id, scope=scope, auth_context=auth_context
+            )
     except Exception as e:
         _log.exception(e)
 

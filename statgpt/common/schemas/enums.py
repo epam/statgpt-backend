@@ -20,6 +20,25 @@ class JobType(StrEnum):
     IMPORT = "IMPORT"
 
 
+class ExportScope(StrEnum):
+    FULL = "full"
+    CONFIGS = "configs"
+    INDEXES = "indexes"
+    DIAL_FILES = "dial_files"
+
+    def includes_configs(self) -> bool:
+        """Check if this scope includes configuration export."""
+        return self is ExportScope.CONFIGS or self is ExportScope.FULL
+
+    def includes_indexes(self) -> bool:
+        """Check if this scope includes indexes export."""
+        return self is ExportScope.INDEXES or self is ExportScope.FULL
+
+    def includes_dial_files(self) -> bool:
+        """Check if this scope includes DIAL files export."""
+        return self is ExportScope.DIAL_FILES or self is ExportScope.FULL
+
+
 class ToolTypes(StrEnum):
     AVAILABLE_DATASETS = "AVAILABLE_DATASETS"
     DATASETS_METADATA = "DATASETS_METADATA"

@@ -214,7 +214,11 @@ class AdminPortalDataSetService(DataSetService):
         utils.write_yaml({'data': data}, datasets_file)
 
     async def export_datasets(
-        self, channel: models.Channel, res_dir: str, auth_context: AuthContext
+        self,
+        channel: models.Channel,
+        res_dir: str,
+        scope: schemas.ExportScope,
+        auth_context: AuthContext,
     ) -> None:
         channel_config = schemas.ChannelConfig.model_validate(channel.details)
 
@@ -226,9 +230,12 @@ class AdminPortalDataSetService(DataSetService):
             allow_offline=True,
         )
 
-        data_sources = self._export_datasets_config(datasets, res_dir)
+        if scope.includes_configs():
+            data_sources = self._export_datasets_config(datasets, res_dir)
+            await DataSourceService.export_data_sources(data_sources.values(), res_dir)
 
-        await DataSourceService.export_data_sources(data_sources.values(), res_dir)
+        if not scope.includes_indexes():
+            return
 
         channel_datasets = await self.get_channel_dataset_models(
             limit=None, offset=0, channel_id=channel.id
@@ -236,6 +243,7 @@ class AdminPortalDataSetService(DataSetService):
         latest_completed_versions = await self._get_latest_successful_dataset_version(
             channel_dataset_ids=[cd.id for cd in channel_datasets]
         )
+
         versions = {
             next(d.id_ for d in datasets if d.id == ds_id): version.last_completed_version
             for ds_id, version in latest_completed_versions.items()
@@ -419,7 +427,7 @@ class AdminPortalDataSetService(DataSetService):
                 version = versions[dataset.id]
 
                 file_name = self._get_elasticsearch_store_file_name(dataset)
-                file_path = os.path.join(folder, file_name)
+                file_path = f"{folder}/{file_name}"
 
                 if file_path not in zip_file.namelist():
                     _log.warning(f"File '{file_path}' not found in the zip archive")
@@ -448,42 +456,96 @@ class AdminPortalDataSetService(DataSetService):
         zip_file: zipfile.ZipFile,
         update_datasets: bool,
         update_data_sources: bool,
+        scope: schemas.ExportScope,
         auth_context: AuthContext,
     ) -> None:
-        channel_config = schemas.ChannelConfig.model_validate(channel_db.details)
-
-        source_service = DataSourceService(self._session)
-        data_sources = await source_service.import_data_sources_from_zip(
-            zip_file, update_data_sources
+        datasets = await self._import_or_load_datasets(
+            zip_file, channel_db, update_datasets, update_data_sources, scope, auth_context
         )
 
-        datasets = await self._import_datasets(
-            zip_file, data_sources, update_datasets, auth_context=auth_context  # type: ignore
-        )
-        await self._add_datasets_to_channel(channel_id=channel_db.id, datasets=datasets)
-        versions = await self._import_datasets_versions(
-            zip_file, datasets, channel_id=channel_db.id
+        if scope.includes_indexes():
+            channel_config = schemas.ChannelConfig.model_validate(channel_db.details)
+            versions = await self._import_datasets_versions(
+                zip_file, datasets, channel_id=channel_db.id
+            )
+            await self._import_indexes(
+                zip_file, channel_db, datasets, versions, channel_config, auth_context
+            )
+            await self._mark_versions_completed(versions)
+
+        await self._session.commit()
+
+    async def _import_or_load_datasets(
+        self,
+        zip_file: zipfile.ZipFile,
+        channel_db: models.Channel,
+        update_datasets: bool,
+        update_data_sources: bool,
+        scope: schemas.ExportScope,
+        auth_context: AuthContext,
+    ) -> list[schemas.DataSet]:
+        if scope.includes_configs():
+            source_service = DataSourceService(self._session)
+            data_sources = await source_service.import_data_sources_from_zip(
+                zip_file, update_data_sources
+            )
+            datasets = await self._import_datasets(
+                zip_file, data_sources, update_datasets, auth_context=auth_context  # type: ignore
+            )
+            await self._add_datasets_to_channel(channel_id=channel_db.id, datasets=datasets)
+            return datasets
+
+        return await self.get_datasets_schemas(
+            limit=None,
+            offset=0,
+            channel_id=channel_db.id,
+            auth_context=auth_context,
+            allow_offline=True,
         )
 
+    async def _import_indexes(
+        self,
+        zip_file: zipfile.ZipFile,
+        channel_db: models.Channel,
+        datasets: list[schemas.DataSet],
+        versions: dict[int, models.ChannelDatasetVersion],
+        channel_config: schemas.ChannelConfig,
+        auth_context: AuthContext,
+    ) -> None:
         await self._import_vector_store_tables(
             zip_file, channel_db, datasets, versions, auth_context
         )
+        await self._import_elastic_data_if_needed(
+            zip_file, channel_db, datasets, versions, channel_config
+        )
 
+    async def _import_elastic_data_if_needed(
+        self,
+        zip_file: zipfile.ZipFile,
+        channel_db: models.Channel,
+        datasets: list[schemas.DataSet],
+        versions: dict[int, models.ChannelDatasetVersion],
+        channel_config: schemas.ChannelConfig,
+    ) -> None:
         if channel_config.data_query is None:
             _log.info("No data query configured, skipping data import")
-        else:
-            indexer_version = channel_config.data_query.details.indexer_version
-            _log.info(f"Indexer version: {indexer_version}")
-            if indexer_version == schemas.IndexerVersion.hybrid:
-                await self._import_elastic_data(zip_file, channel_db, datasets, versions)
-            else:
-                _log.info("Skipping importing elastic data")
+            return
 
+        indexer_version = channel_config.data_query.details.indexer_version
+        _log.info(f"Indexer version: {indexer_version}")
+
+        if indexer_version == schemas.IndexerVersion.hybrid:
+            await self._import_elastic_data(zip_file, channel_db, datasets, versions)
+        else:
+            _log.info("Skipping importing elastic data")
+
+    async def _mark_versions_completed(
+        self, versions: dict[int, models.ChannelDatasetVersion]
+    ) -> None:
         for item in versions.values():
             await self._update_channel_dataset_version_status(
                 item, new_status=StatusEnum.COMPLETED, do_commit=False
             )
-        await self._session.commit()
 
     async def _parse_details_field(
         self, handler: base.DataSourceHandler, details: dict[str, Any]
