@@ -99,7 +99,8 @@ class CommandsInterceptor(BaseMessageInterceptor):
         return messages
 
     def process_query(self, query: str) -> str:
-        """Remove commands from the query. Used in eval pipeline."""
+        """Simply remove commands from the query, without updating state"""
+        query_upd = query
         for cmd in self._commands:
-            query = cmd.process_query(query=query, state=None)
-        return query
+            query_upd = cmd.process_query(query=query_upd, state=None)
+        return query_upd

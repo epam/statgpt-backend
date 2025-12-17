@@ -114,8 +114,7 @@ class ToolCaller:
                 )
                 if skip_tools_execution:
                     return ToolMessage(
-                        # to save generation tokens we simply say that tool failed
-                        content="Failed to execute tool due to technical error",
+                        content="tool execution skipped due to configuration",
                         tool_call_id=tool_call["id"],
                         status=ToolResponseStatus.SUCCESS.value,
                         artifact=ToolArtifact(state=ToolMessageState(type=tool.tool_type)),
