@@ -1,8 +1,9 @@
 from langchain_core.prompts import ChatPromptTemplate
-from langchain_core.runnables import Runnable
+from langchain_core.runnables import Runnable, RunnableLambda, RunnablePassthrough
 
 from statgpt.app.chains.parameters import ChainParameters
 from statgpt.app.schemas.query_builder import (
+    ChainState,
     DataSetsSelectionChainResponse,
     DataSetsSelectionLLMResponse,
 )
@@ -81,5 +82,41 @@ class DataSetsSelectionChain:
                 rewritten_query=llm_response.rewritten_query,
             )
 
-        chain = prompt_template | llm | _create_chain_output
+        selection_chain = prompt_template | llm | _create_chain_output
+        chain = RunnablePassthrough.assign(
+            datasets_selection_response=selection_chain,
+        ) | RunnableLambda(self._apply_dataset_selection_response)
         return chain
+
+    @staticmethod
+    def _apply_dataset_selection_response(inputs: dict) -> dict:
+        """
+        1. Filter datasets by selected IDs
+        2. Update normalized query
+        """
+
+        chain_state = ChainState(**inputs)
+        datasets_selection_response = chain_state.datasets_selection_response
+        versioned_datasets_dict = chain_state.versioned_datasets_dict
+
+        if not datasets_selection_response.dataset_ids:
+            logger.info('LLM selected no datasets. Using all available datasets.')
+            datasets_selection_response.dataset_ids = [
+                ds_id for ds_id in versioned_datasets_dict.keys()
+            ]
+        else:
+            datasets_selection_response.dataset_ids = [
+                ds_id
+                for ds_id in datasets_selection_response.dataset_ids
+                if ds_id in versioned_datasets_dict
+            ]
+
+        inputs['datasets_selection_response'] = datasets_selection_response
+        datasets_dict = {
+            ds_id: versioned_datasets_dict[ds_id]
+            for ds_id in datasets_selection_response.dataset_ids
+            if ds_id in versioned_datasets_dict
+        }
+        inputs['datasets_dict'] = datasets_dict
+        inputs['normalized_query'] = datasets_selection_response.rewritten_query
+        return inputs

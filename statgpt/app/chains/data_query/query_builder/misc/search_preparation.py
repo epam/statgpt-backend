@@ -2,7 +2,7 @@ from itertools import groupby
 from operator import attrgetter
 
 from aidial_sdk.chat_completion import Stage
-from langchain_core.runnables import Runnable, RunnableConfig, RunnablePassthrough
+from langchain_core.runnables import Runnable, RunnableConfig, RunnableLambda, RunnablePassthrough
 
 from statgpt.app.chains.utils import dataset_utils
 from statgpt.app.default_prompts import data_query_default_prompts
@@ -57,33 +57,6 @@ class SearchPreparationChainFactory:
             system_user_prompt=prompts.dataset_selection_prompt
             or data_query_default_prompts.dataset_selection_prompt,
         )
-
-    @staticmethod
-    def _apply_dataset_selection_response(inputs: dict):
-        """
-        1. Filter datasets by selected IDs
-        2. Update normalized query
-        """
-
-        chain_state = ChainState(**inputs)
-        datasets_selection_response = chain_state.datasets_selection_response
-        versioned_datasets_dict = chain_state.versioned_datasets_dict
-
-        if not (selected_dataset_ids := datasets_selection_response.dataset_ids):
-            logger.info('LLM selected no datasets. Using all available datasets.')
-            inputs['datasets_dict'] = versioned_datasets_dict
-        else:
-            selected_dataset_ids_set = set(selected_dataset_ids)
-            datasets_dict = {
-                ds_id: ds
-                for ds_id, ds in versioned_datasets_dict.items()
-                if ds_id in selected_dataset_ids_set
-            }
-            inputs['datasets_dict'] = datasets_dict
-        # update 'normalized_query'
-        inputs['normalized_query'] = datasets_selection_response.rewritten_query
-
-        return inputs
 
     @staticmethod
     def _get_country_named_entities(inputs: dict) -> list[NamedEntity]:
@@ -209,7 +182,7 @@ class SearchPreparationChainFactory:
                     datasets_selection_response=self._datasets_selection_chain.create_chain
                 )
                 # NOTE: here we overwrite "normalized_query" field
-                | self._apply_dataset_selection_response
+                | RunnableLambda(self._datasets_selection_chain.create_chain)   # type: ignore[arg-type]
             ).with_config(
                 config=RunnableConfig(
                     callbacks=[
