@@ -9,7 +9,6 @@ from statgpt.app.chains.file_rags.base import BaseRAGFactory
 from statgpt.app.chains.file_rags.dial_rag.metadata_loader import DialRagMetadataLoader
 from statgpt.app.chains.file_rags.dial_rag.prefilter import PreFilterBuilder
 from statgpt.app.chains.parameters import ChainParameters
-from statgpt.app.config import StateVarsConfig
 from statgpt.app.schemas import DialRagArtifact, DialRagState
 from statgpt.app.schemas.file_rags.dial_rag import DialRagMetadata, PreFilterResponse
 from statgpt.app.settings.dial_rag import dial_rag_settings
@@ -186,7 +185,7 @@ class DialRagAgentFactory(BaseRAGFactory):
         )
 
         state = ChainParameters.get_state(inputs)
-        skip = state.get(StateVarsConfig.CMD_RAG_PREFILTER_ONLY, False)
+        skip = state.cmd_rag_prefilter_only
 
         if skip:
             inputs[self.FIELD_RESPONSE] = (
@@ -220,7 +219,7 @@ class DialRagAgentFactory(BaseRAGFactory):
             choice,
             deployment=self._tool_config.details.deployment_id,
             stream_content=False,
-            show_debug_stages=state.get(StateVarsConfig.SHOW_DEBUG_STAGES, False),
+            show_debug_stages=state.show_debug_stages,
             stages_config=self._tool_config.details.stages_config,
         )
         with dial_streamer:

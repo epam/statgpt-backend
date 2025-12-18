@@ -1,11 +1,11 @@
 import logging
-import typing as t
 
 from aidial_sdk.chat_completion import Message as DialMessage
 from aidial_sdk.chat_completion import Role
 from aidial_sdk.exceptions import InvalidRequestError
 from pydantic import ValidationError
 
+from statgpt.app.schemas.state import State
 from statgpt.app.services.chat_facade import ChannelServiceFacade
 from statgpt.common.schemas.query import JsonQuery
 
@@ -19,7 +19,7 @@ class SystemMessageInterceptor(BaseMessageInterceptor):
         self._data_service = data_service
 
     async def process_messages(
-        self, messages: list[DialMessage], state: dict[str, t.Any]
+        self, messages: list[DialMessage], state: State
     ) -> list[DialMessage]:
         result = []
 

@@ -6,7 +6,6 @@ from statgpt.app.chains.data_query.query_builder.indicator_selection.base import
     SemanticIndicatorSelectionBase,
 )
 from statgpt.app.chains.parameters import ChainParameters
-from statgpt.app.config import StateVarsConfig
 from statgpt.app.schemas.query_builder import (
     ChainState,
     DatasetAvailabilityQueriesType,
@@ -134,7 +133,7 @@ class IndicatorSelectionSemanticV2ChainFactory(SemanticIndicatorSelectionBase):
     async def _show_indicator_queries_stage(inputs: dict) -> dict:
         indicator_queries: DatasetAvailabilityQueriesType = inputs['llm_indicator_queries']
         state = ChainParameters.get_state(inputs)
-        show_debug_stages = state.get(StateVarsConfig.SHOW_DEBUG_STAGES, False)
+        show_debug_stages = state.show_debug_stages
         with optional_timed_stage(
             choice=ChainParameters.get_choice(inputs),
             name="[DEBUG] Indicator Queries",

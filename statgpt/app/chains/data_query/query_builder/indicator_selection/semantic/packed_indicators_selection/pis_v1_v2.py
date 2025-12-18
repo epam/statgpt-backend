@@ -12,7 +12,6 @@ from statgpt.app.chains.data_query.query_builder.indicator_selection.format_util
     DatasetDimQueriesSimpleDictFormatter,
 )
 from statgpt.app.chains.parameters import ChainParameters
-from statgpt.app.config import StateVarsConfig
 from statgpt.app.schemas.query_builder import (
     ChainState,
     DatasetDimensionTermNameType,
@@ -189,7 +188,7 @@ candidates:
 
         async def populate_stage(self, inputs: dict) -> None:
             state = ChainParameters.get_state(inputs)
-            if not state.get(StateVarsConfig.SHOW_DEBUG_STAGES):
+            if not state.show_debug_stages:
                 return
 
             logger.info(f'{type(self).__name__}.populate_stage()')
@@ -251,7 +250,7 @@ candidates:
         """
         choice = ChainParameters.get_choice(inputs)
         state = ChainParameters.get_state(inputs)
-        show_debug_stages = state.get(StateVarsConfig.SHOW_DEBUG_STAGES) or False
+        show_debug_stages = state.show_debug_stages
 
         # it's a debug stage
         if not show_debug_stages:
@@ -489,7 +488,7 @@ it is especially true for dimension values like "all", "total", "all maturities"
         async def populate_stage(self, inputs: dict) -> None:
             state = ChainParameters.get_state(inputs)
             data_service = ChainParameters.get_data_service(inputs)
-            if not state.get(StateVarsConfig.SHOW_DEBUG_STAGES):
+            if not state.show_debug_stages:
                 return
 
             # TODO: error handling and the rest of stuff?

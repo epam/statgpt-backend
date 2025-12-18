@@ -3,6 +3,7 @@ from datetime import datetime
 from aidial_sdk.chat_completion import Choice
 from pydantic import BaseModel, ConfigDict, Field
 
+from statgpt.app.schemas.state import State
 from statgpt.app.services.chat_facade import ChannelServiceFacade
 from statgpt.common.auth.auth_context import AuthContext
 
@@ -39,7 +40,7 @@ class ChainParameters(BaseModel):
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
-    state: dict = Field(description='global app state')
+    state: State = Field(description='global app state')
     # NOTE: 'request' is pydantic v1 currently - can't use it here
     # request: Request = Field(description="dial request instance")
     choice: Choice = Field(description="dial choice instance")

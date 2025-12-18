@@ -6,6 +6,7 @@ from aidial_sdk.chat_completion import Choice, Request, Stage
 from statgpt.app.config import ChainParametersConfig
 from statgpt.app.schemas.dial_app_configuration import StatGPTConfiguration
 from statgpt.app.schemas.file_rags.dial_rag import RagFilterDial
+from statgpt.app.schemas.state import State
 from statgpt.app.services.chat_facade import ChannelServiceFacade, VersionedDataSet
 from statgpt.app.utils.message_history import History
 from statgpt.common.auth.auth_context import AuthContext
@@ -91,7 +92,7 @@ class ChainParameters:
         return data[ChainParametersConfig.START_OF_REQUEST]
 
     @staticmethod
-    def get_state(data: dict) -> dict[str, t.Any]:
+    def get_state(data: dict) -> State:
         return data[ChainParametersConfig.STATE]
 
     @staticmethod

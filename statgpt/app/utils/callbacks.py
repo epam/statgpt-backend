@@ -7,7 +7,6 @@ from langchain_core.callbacks.base import AsyncCallbackHandler
 from langchain_core.runnables import RunnableConfig
 
 from statgpt.app.chains.parameters import ChainParameters
-from statgpt.app.config import StateVarsConfig
 from statgpt.app.settings.dial_app import dial_app_settings
 from statgpt.common.config import multiline_logger as logger
 
@@ -49,7 +48,7 @@ class StageCallback(AsyncCallbackHandler):
 
         choice = ChainParameters.get_choice(inputs)
         state = ChainParameters.get_state(inputs)
-        self._show_debug_stages = state.get(StateVarsConfig.SHOW_DEBUG_STAGES) or False
+        self._show_debug_stages = state.show_debug_stages
         if self._debug_only and not self._show_debug_stages:
             logger.info(f"Skipping debug stage: {self._stage_name}")
             return

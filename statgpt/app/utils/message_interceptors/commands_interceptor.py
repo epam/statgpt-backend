@@ -1,11 +1,10 @@
 import re
-import typing as t
 
 from aidial_sdk.chat_completion import Message as DialMessage
 from aidial_sdk.chat_completion import Role
 from pydantic import BaseModel
 
-from statgpt.app.config import StateVarsConfig
+from statgpt.app.schemas.state import State
 from statgpt.app.settings.dial_app import dial_app_settings
 from statgpt.common.config import multiline_logger as logger
 
@@ -20,7 +19,7 @@ class InterceptableCommand(BaseModel):
     def re_pattern(self) -> str:
         return rf'!{self.command}(\s+)'
 
-    def process_query(self, query: str, state: dict | None) -> str:
+    def process_query(self, query: str, state: State | None) -> str:
         match = re.search(self.re_pattern, query)
         if not match:
             return query
@@ -28,7 +27,7 @@ class InterceptableCommand(BaseModel):
         # at least one command instance found
 
         if state is not None:
-            state[self.state_var] = True
+            setattr(state, self.state_var, True)
 
         # remove all command instances from the query
         query_edited = re.sub(self.re_pattern, '', query)
@@ -44,32 +43,20 @@ class CommandsInterceptor(BaseMessageInterceptor):
     def create_default(cls) -> 'CommandsInterceptor':
         commands = [
             InterceptableCommand(
-                command='show_debug_stages',
-                state_var=StateVarsConfig.SHOW_DEBUG_STAGES,
+                command=State.SHOW_DEBUG_STAGES,
+                state_var=State.SHOW_DEBUG_STAGES,
             ),
         ]
+
         if dial_app_settings.enable_dev_commands:
-            logger.info("CommandsInterceptor: dev commands enabled")
-            commands += [
-                InterceptableCommand(
-                    command='out_of_scope_only',
-                    state_var=StateVarsConfig.CMD_OUT_OF_SCOPE_ONLY,
-                ),
-                InterceptableCommand(
-                    command='rag_prefilter_only',
-                    state_var=StateVarsConfig.CMD_RAG_PREFILTER_ONLY,
-                ),
-                InterceptableCommand(
-                    command='skip_data_query_summarization',
-                    state_var=StateVarsConfig.CMD_SKIP_DATA_QUERY_SUMMARIZATION,
-                ),
-            ]
+            for command, state_var in State.get_intercaptable_commands():
+                commands.append(InterceptableCommand(command=command, state_var=state_var))
         else:
             logger.info("CommandsInterceptor: dev commands disabled")
         return cls(commands=commands)
 
     async def process_messages(
-        self, messages: list[DialMessage], state: dict[str, t.Any]
+        self, messages: list[DialMessage], state: State
     ) -> list[DialMessage]:
         """
         1. for last user message, remove commands and update state

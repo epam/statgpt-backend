@@ -8,7 +8,7 @@ from langchain_core.runnables import Runnable, RunnableConfig, RunnableLambda, R
 from pydantic import Field
 
 import statgpt.app.chains.data_query.query_builder.utils as query_utils
-from statgpt.app.config import ChainParameters, StateVarsConfig
+from statgpt.app.config import ChainParameters
 from statgpt.app.schemas import LLMSelectionCandidateBase, SelectedCandidates
 from statgpt.app.schemas.query_builder import (
     DatasetAvailabilityQueriesType,
@@ -98,7 +98,7 @@ class LHCLInnerSelectionChainFactory:
 
     def _display_formatted_candidates_in_stage(self, inputs: dict) -> dict:
         chain_state = LHCLChainState(**inputs)
-        show_debug_stages = chain_state.state.get(StateVarsConfig.SHOW_DEBUG_STAGES)
+        show_debug_stages = chain_state.state.show_debug_stages
 
         if not show_debug_stages:
             return inputs
@@ -133,7 +133,7 @@ class LHCLInnerSelectionChainFactory:
 
     def _display_llm_response_in_stage(self, inputs: dict) -> dict:
         chain_state = LHCLChainState(**inputs)
-        show_debug_stages = chain_state.state.get(StateVarsConfig.SHOW_DEBUG_STAGES)
+        show_debug_stages = chain_state.state.show_debug_stages
 
         if not show_debug_stages:
             return inputs

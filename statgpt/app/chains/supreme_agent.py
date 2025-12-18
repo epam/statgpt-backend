@@ -19,7 +19,7 @@ from langchain_core.runnables import Runnable, RunnablePassthrough
 from statgpt.app.chains.data_query.data_query_artifacts_displayer import DataQueryArtifactDisplayer
 from statgpt.app.chains.parameters import ChainParameters
 from statgpt.app.chains.tools import StatGptTool
-from statgpt.app.config import ChainParametersConfig, StateVarsConfig
+from statgpt.app.config import ChainParametersConfig
 from statgpt.app.default_prompts import supreme_agent_default_prompts
 from statgpt.app.schemas import FailedToolArtifact, FailedToolMessageState, ToolResponseStatus
 from statgpt.app.schemas.dial_app_configuration import StatGPTConfiguration
@@ -230,7 +230,7 @@ class SupremeAgentExecutor:
         history = ChainParameters.get_history(inputs)
         state = ChainParameters.get_state(inputs)
         configuration = ChainParameters.get_configuration(inputs)
-        debug = state.get(StateVarsConfig.SHOW_DEBUG_STAGES, False)
+        debug = state.show_debug_stages
 
         tool_executor = ToolCaller.from_config(self._channel_config)
         supreme_agent = SupremeAgent.create(

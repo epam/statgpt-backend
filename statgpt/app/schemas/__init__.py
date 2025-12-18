@@ -6,7 +6,7 @@ from .selection_candidates import (
     SelectedCandidates,
 )
 from .service import DimTypesResponse, GitVersionResponse, SettingsResponse
-from .state import ChatState
+from .state import State
 from .tool_artifact import (
     BaseFileRagArtifact,
     DataQueryArtifact,

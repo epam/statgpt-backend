@@ -10,14 +10,14 @@ from langchain_core.runnables import Runnable, RunnableLambda
 from pydantic import BaseModel, Field
 
 from statgpt.app.chains.parameters import ChainParameters
-from statgpt.app.config import ChainParametersConfig, StateVarsConfig
+from statgpt.app.config import ChainParametersConfig
 from statgpt.app.default_prompts import guardrails_default_prompts
+from statgpt.app.schemas.state import State
 from statgpt.app.utils.dial_stages import optional_timed_stage
 from statgpt.app.utils.message_history import History
 from statgpt.common.schemas import ChannelConfig
 from statgpt.common.utils.markdown import format_as_markdown_list
 from statgpt.common.utils.models import get_chat_model
-
 
 class OutOfScopeCheckerResponse(BaseModel):
     reasoning: str = Field(
@@ -44,7 +44,8 @@ class OutOfScopeChecker:
         count: int = 0
         for msg in history.get_ai_messages():
             if msg.custom_content and msg.custom_content.state:
-                if msg.custom_content.state.get(StateVarsConfig.OUT_OF_SCOPE, False) is True:
+                state = State.model_validate(msg.custom_content.state)
+                if state.out_of_scope:
                     count += 1
         return count
 
@@ -66,8 +67,8 @@ class OutOfScopeChecker:
 
     async def _stream_response(self, inputs: dict) -> dict:
         state = ChainParameters.get_state(inputs)
-        oos_only = state.get(StateVarsConfig.CMD_OUT_OF_SCOPE_ONLY, False)
-        tool_calls = state.get(StateVarsConfig.DIRECT_TOOL_CALLS, [])
+        oos_only = state.cmd_out_of_scope_only
+        tool_calls = state.direct_tool_calls
 
         skip = ChainParameters.skip_out_of_scope_check(inputs)
         if skip or self._channel_config.out_of_scope is None:
@@ -143,7 +144,7 @@ class OutOfScopeChecker:
             OutOfScopeCheckerResponse, method="json_schema"
         )
 
-        show_debug_stages = state.get(StateVarsConfig.SHOW_DEBUG_STAGES, False)
+        show_debug_stages = state.show_debug_stages
         with optional_timed_stage(
             choice, "[DEBUG] Guardrails: Relevancy", enabled=show_debug_stages
         ) as stage:

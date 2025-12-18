@@ -6,7 +6,7 @@ from statgpt.app.chains.data_query.query_builder import utils as query_utils
 from statgpt.app.chains.data_query.query_constructor import QueryConstructorFactory
 from statgpt.app.chains.parameters import ChainParameters
 from statgpt.app.chains.utils import time_period_utils
-from statgpt.app.config import ChainParametersConfig, StateVarsConfig
+from statgpt.app.config import ChainParametersConfig
 from statgpt.app.default_prompts import data_query_default_prompts
 from statgpt.app.schemas.query_builder import (
     ChainState,
@@ -352,7 +352,7 @@ class FinalizeQueryChainFactory:
 
     async def _route_based_on_data_query_status(self, inputs: dict) -> Runnable:
         state = ChainParameters.get_state(inputs)
-        skip = state.get(StateVarsConfig.CMD_SKIP_DATA_QUERY_SUMMARIZATION, False)
+        skip = state.cmd_skip_data_query_summarization
         if skip:
             query = ChainParameters.get_query(inputs)
             response = f"<call to Query_Data was skipped for debug purposes>\n\n {query!r}"
