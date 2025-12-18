@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 
-from langchain_core.output_parsers import PydanticOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.runnables import Runnable, RunnableLambda, RunnablePassthrough
 from pydantic import BaseModel, Field, model_validator
@@ -139,8 +138,6 @@ You are expert in Economics and SDMX helping user to build a data query for sdmx
 You are provided with the user query and a yaml containing list of available dimension values for each available dataset.
 Your task is to build SDMX query ONLY FROM the provided dimension values required in the use query, query may be empty.
 
-{format_instructions}
-
 ## FLOW
 1. relevancy summary.
 analyze provided available dimension values.
@@ -229,13 +226,6 @@ candidates:
                 ("human", self.USER_PROMPT),
             ],
         )
-        parser: PydanticOutputParser[LLMResponseBase] = PydanticOutputParser(
-            pydantic_object=self._llm_response_class
-        )
-        self._prompt_template = self._prompt_template.partial(
-            format_instructions=parser.get_format_instructions()
-        )
-
         self._candidates_key = candidates_key
         self._llm_api_base = llm_api_base or dial_settings.url
         self._llm_model_config = llm_model_config

@@ -1,4 +1,3 @@
-from langchain_core.output_parsers import PydanticOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.runnables import Runnable, RunnableLambda, RunnablePassthrough
 
@@ -47,27 +46,21 @@ class CandidatesSelectionSimpleChainFactory(BatchedSelectionInnerChainFactory):
 
         auth_context = ChainParameters.get_auth_context(inputs)
 
-        parser: PydanticOutputParser[SelectedCandidates] = PydanticOutputParser(
-            pydantic_object=SelectedCandidates
-        )
         prompt_template = ChatPromptTemplate.from_messages(
             [
                 ("system", self._system_prompt),
                 ("human", self._user_prompt),
             ],
-        ).partial(format_instructions=parser.get_format_instructions())
+        )
+        llm = get_chat_model(
+            api_key=auth_context.api_key,
+            model_config=self._llm_model_config,
+        ).with_structured_output(schema=SelectedCandidates, method="json_schema")
 
         chain = (
             RunnablePassthrough.assign(selection_candidates_formatted=self._format_candidates)
             | self._display_formatted_candidates_in_stage
-            | RunnablePassthrough.assign(
-                parsed_response=prompt_template
-                | get_chat_model(
-                    api_key=auth_context.api_key,
-                    model_config=self._llm_model_config,
-                )
-                | parser
-            )
+            | RunnablePassthrough.assign(parsed_response=prompt_template | llm)
             | self._remove_hallucinations
             | self._display_llm_response_in_stage
             | self._get_llm_response
