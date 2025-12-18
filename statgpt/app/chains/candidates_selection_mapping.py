@@ -73,9 +73,7 @@ class CandidatesSelectionMappingChainFactory(BatchedSelectionInnerChainFactory):
         chain = (
             RunnablePassthrough.assign(selection_candidates_formatted=self._format_candidates)
             | RunnablePassthrough.assign(
-                parsed_response=prompt_template
-                | llm
-                | self._complex_indicator_indicator_fix
+                parsed_response=prompt_template | llm | self._complex_indicator_indicator_fix
             )
             | self._remove_hallucinations
             | itemgetter("parsed_response")

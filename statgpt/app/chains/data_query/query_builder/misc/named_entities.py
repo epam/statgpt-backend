@@ -44,7 +44,9 @@ class NamedEntitiesChain:
             model_config=self._llm_model_config,
         ).with_structured_output(schema=NamedEntitiesResponse, method="json_schema")
 
-        chain = RunnablePassthrough.assign(entity_types=self.get_entity_types) | prompt_template | llm
+        chain = (
+            RunnablePassthrough.assign(entity_types=self.get_entity_types) | prompt_template | llm
+        )
         logger.info(
             f"{self.__class__.__name__} using LLM model: {self._llm_model_config.deployment.deployment_id}"
         )
