@@ -19,6 +19,7 @@ from statgpt.common.schemas import ChannelConfig
 from statgpt.common.utils.markdown import format_as_markdown_list
 from statgpt.common.utils.models import get_chat_model
 
+
 class OutOfScopeCheckerResponse(BaseModel):
     reasoning: str = Field(
         description="Short and concise reasoning for the out of scope decision."

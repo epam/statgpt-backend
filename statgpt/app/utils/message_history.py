@@ -14,12 +14,12 @@ from langchain_core.messages import (
 from langchain_core.messages import ToolCall as LangChainToolCall
 from langchain_core.messages import ToolMessage
 
-from statgpt.common.config import multiline_logger as logger
 from statgpt.app.schemas.state import State, StatGPTMessage
 from statgpt.app.schemas.tool_artifact import ToolArtifact
 from statgpt.app.services.chat_facade import ChannelServiceFacade
 from statgpt.app.utils.message_interceptors.commands_interceptor import CommandsInterceptor
 from statgpt.app.utils.message_interceptors.system_msg_interceptor import SystemMessageInterceptor
+from statgpt.common.config import multiline_logger as logger
 
 
 def dial_tool_call_to_langchain_tool_call(tool_call: DialToolCall) -> LangChainToolCall:
