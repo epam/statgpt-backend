@@ -69,29 +69,40 @@ class DetailedDatasetFormatter(SimpleDatasetFormatter):
 
     def _append_attributes(self, dataset: DataSet, result: list[str]) -> None:
         attributes = dataset.attributes()
-        if attributes:
-            base_tabs = '\t' * self.config.list_level
-            result.append(f'{base_tabs}- {self._("Attributes")} ({len(attributes)})')
+        if not attributes:
+            return
 
-            for attr in attributes:
-                attr_name = attr.name if hasattr(attr, 'name') else str(attr)
-                attr_id = attr.entity_id if hasattr(attr, 'entity_id') else ''
+        base_tabs = '\t' * self.config.list_level
+        attribute_tabs = '\t' * (self.config.list_level + 1)
+        attribute_details_tabs = '\t' * (self.config.list_level + 2)
+        str_groups = []
 
-                attribute_tabs = '\t' * (self.config.list_level + 1)
-                if attr_id:
-                    result.append(
-                        f'{attribute_tabs}- **{attr_name}** [{attr_id}] - {self._("Type")}: {attr.attribute_type}'
-                    )
-                else:
-                    result.append(
-                        f'{attribute_tabs}- **{attr_name}** - {self._("Type")}: {attr.attribute_type}'
-                    )
+        for attr in attributes:
+            attr_group = []
+            attr_name = attr.name if hasattr(attr, 'name') else str(attr)
+            attr_id = attr.entity_id if hasattr(attr, 'entity_id') else ''
 
-                attribute_details_tabs = '\t' * (self.config.list_level + 2)
-                if attr.description:
-                    result.append(
-                        f'{attribute_details_tabs}- {self._("Description")}: {attr.description}'
-                    )
+            if not attr_id or not hasattr(dataset, '_get_attribute_value_by_id'):
+                continue
+
+            attr_value = dataset._get_attribute_value_by_id(attr_id)
+            if not attr_value:
+                continue
+
+            attr_group.append(
+                f'{attribute_tabs}- **{attr_name}** [{attr_id}] - {self._("Type")}: {attr.attribute_type}'
+            )
+            attr_group.append(f'{attribute_details_tabs}- {self._("Values")}: {attr_value}')
+
+            if attr.description:
+                attr_group.append(
+                    f'{attribute_details_tabs}- {self._("Description")}: {attr.description}'
+                )
+            str_groups.append(attr_group)
+
+        result.append(f'{base_tabs}- {self._("Attributes")} ({len(str_groups)})')
+        for group in str_groups:
+            result.extend(group)
 
     async def format(self, dataset: DataSet) -> str:
         result: list[str] = []
