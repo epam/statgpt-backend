@@ -17,17 +17,30 @@ class WebSearchAgentTool(StatGptTool[WebSearchToolConfig], tool_type=ToolTypes.W
     def __init__(self, tool_config: WebSearchToolConfig, channel_config: ChannelConfig, **kwargs):
         super().__init__(tool_config, channel_config, **kwargs)
 
-        kwargs = dict(
-            deployment_id=tool_config.details.deployment_id,
-            stages_config=tool_config.details.stages_config,
-            system_prompt=tool_config.details.system_prompt,
-            stream_content=True,
-            attachments_metadata=False,
-        )
+        deployment_id = tool_config.details.deployment_id
+        if deployment_id is None:
+            raise ValueError("`web_search_agent.details.deployment_id` must be set")
+
+        stages_config = tool_config.details.stages_config
+        system_prompt = tool_config.details.system_prompt
+        configuration = tool_config.details.configuration
+
         if tool_config.details.urls_only:
-            self._response_producer: ResponseProducerABC = UrlOnlyResponseProducer(**kwargs)
+            self._response_producer: ResponseProducerABC = UrlOnlyResponseProducer(
+                deployment_id=deployment_id,
+                stages_config=stages_config,
+                system_prompt=system_prompt,
+                configuration=configuration,
+            )
         else:
-            self._response_producer = RagResponseProducer(**kwargs)
+            self._response_producer = RagResponseProducer(
+                deployment_id=deployment_id,
+                stages_config=stages_config,
+                system_prompt=system_prompt,
+                configuration=configuration,
+                stream_content=True,
+                attachments_metadata=False,
+            )
 
     @classmethod
     def get_args_schema(cls, tool_config: WebSearchToolConfig) -> type[WebSearchArgs]:
