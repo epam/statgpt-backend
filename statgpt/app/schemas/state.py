@@ -32,7 +32,7 @@ class State(BaseModel):
     model_config = ConfigDict(validate_assignment=True, extra="forbid")
 
     @classmethod
-    def init_state(cls, request: Request) -> "State":
+    def init_from_request(cls, request: Request) -> "State":
         if len(request.messages) < 2:
             return cls()
 

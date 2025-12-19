@@ -9,7 +9,7 @@ from aidial_sdk.exceptions import HTTPException as DIALException
 
 from statgpt.app.chains import MainChainFactory
 from statgpt.app.chains.parameters import ChainParameters
-from statgpt.app.config import ChainParametersConfig as ParamsConfig
+from statgpt.app.config import ChainParametersConfig
 from statgpt.app.schemas.dial_app_configuration import StatGPTConfiguration
 from statgpt.app.schemas.state import State
 from statgpt.app.security import create_auth_context
@@ -101,14 +101,14 @@ class ChannelCompletion(ChatCompletion):
                 return
 
             inputs = {
-                ParamsConfig.REQUEST: request,
-                ParamsConfig.AUTH_CONTEXT: auth_context,
-                ParamsConfig.CHOICE: choice,
-                ParamsConfig.DATA_SERVICE: service,
-                ParamsConfig.STATE: State.init_state(request),
-                ParamsConfig.SKIP_OUT_OF_SCOPE_CHECK: dial_app_settings.skip_out_of_scope_check,
-                ParamsConfig.START_OF_REQUEST: start_time,
-                ParamsConfig.CONFIGURATION: configuration,
+                ChainParametersConfig.REQUEST: request,
+                ChainParametersConfig.AUTH_CONTEXT: auth_context,
+                ChainParametersConfig.CHOICE: choice,
+                ChainParametersConfig.DATA_SERVICE: service,
+                ChainParametersConfig.STATE: State.init_from_request(request),
+                ChainParametersConfig.SKIP_OUT_OF_SCOPE_CHECK: dial_app_settings.skip_out_of_scope_check,
+                ChainParametersConfig.START_OF_REQUEST: start_time,
+                ChainParametersConfig.CONFIGURATION: configuration,
             }
 
             callbacks: list = []
@@ -122,7 +122,7 @@ class ChannelCompletion(ChatCompletion):
                     name = '[DEBUG] Performance of request'
                     debug = state.show_debug_stages
                     with optional_timed_stage(choice=choice, name=name, enabled=debug) as stage:
-                        inputs[ParamsConfig.PERFORMANCE_STAGE] = stage
+                        inputs[ChainParametersConfig.PERFORMANCE_STAGE] = stage
                         chains_response: dict = await chain.ainvoke(
                             inputs, config={'callbacks': callbacks}  # type: ignore[typeddict-item]
                         )
