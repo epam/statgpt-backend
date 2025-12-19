@@ -21,6 +21,10 @@ class InterceptableCommand(BaseModel):
         return rf'!{self.command}(\s+)'
 
     def process_query(self, query: str, state: dict | None) -> str:
+        """
+        To correctly parse command, it must have a space afterwards, refer to the regex pattern used
+        for matching and defined in the `re_pattern` property.
+        """
         match = re.search(self.re_pattern, query)
         if not match:
             return query
@@ -41,14 +45,14 @@ class CommandsInterceptor(BaseMessageInterceptor):
         self._commands = commands
 
     @classmethod
-    def create_default(cls) -> 'CommandsInterceptor':
+    def create_default(cls, force_all_commands: bool = False) -> 'CommandsInterceptor':
         commands = [
             InterceptableCommand(
                 command='show_debug_stages',
                 state_var=StateVarsConfig.SHOW_DEBUG_STAGES,
             ),
         ]
-        if dial_app_settings.enable_dev_commands:
+        if dial_app_settings.enable_dev_commands or force_all_commands:
             logger.info("CommandsInterceptor: dev commands enabled")
             commands += [
                 InterceptableCommand(
@@ -62,6 +66,10 @@ class CommandsInterceptor(BaseMessageInterceptor):
                 InterceptableCommand(
                     command='skip_data_query_summarization',
                     state_var=StateVarsConfig.CMD_SKIP_DATA_QUERY_SUMMARIZATION,
+                ),
+                InterceptableCommand(
+                    command='skip_tools_execution',
+                    state_var=StateVarsConfig.CMD_SKIP_TOOLS_EXECUTION,
                 ),
             ]
         else:
@@ -89,3 +97,10 @@ class CommandsInterceptor(BaseMessageInterceptor):
                 msg.content = msg_edited
 
         return messages
+
+    def process_query(self, query: str) -> str:
+        """Simply remove commands from the query, without updating state"""
+        query_upd = query
+        for cmd in self._commands:
+            query_upd = cmd.process_query(query=query_upd, state=None)
+        return query_upd
