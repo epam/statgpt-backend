@@ -131,9 +131,7 @@ class WebSearchDetails(BaseToolDetails):
 
 
 class WebSearchAgentDetails(BaseToolDetails):
-    deployment_id: str | None = Field(
-        default=None, description="The DIAL deployment_id of the web search agent"
-    )
+    deployment_id: str = Field(description="The DIAL deployment_id of the web search agent")
     configuration: dict[str, Any] | None = Field(
         default=None, description="The configuration for the web search agent"
     )

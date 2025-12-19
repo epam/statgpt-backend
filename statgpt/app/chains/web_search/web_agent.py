@@ -18,9 +18,6 @@ class WebSearchAgentTool(StatGptTool[WebSearchToolConfig], tool_type=ToolTypes.W
         super().__init__(tool_config, channel_config, **kwargs)
 
         deployment_id = tool_config.details.deployment_id
-        if deployment_id is None:
-            raise ValueError("`web_search_agent.details.deployment_id` must be set")
-
         stages_config = tool_config.details.stages_config
         system_prompt = tool_config.details.system_prompt
         configuration = tool_config.details.configuration
