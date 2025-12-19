@@ -182,7 +182,7 @@ class SearchPreparationChainFactory:
                     datasets_selection_response=self._datasets_selection_chain.create_chain
                 )
                 # NOTE: here we overwrite "normalized_query" field
-                | RunnableLambda(self._datasets_selection_chain.create_chain)   # type: ignore[arg-type]
+                | RunnableLambda(self._datasets_selection_chain.create_chain)  # type: ignore[arg-type]
             ).with_config(
                 config=RunnableConfig(
                     callbacks=[
