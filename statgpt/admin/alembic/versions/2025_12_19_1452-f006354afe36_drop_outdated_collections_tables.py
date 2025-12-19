@@ -33,7 +33,7 @@ BEGIN
   FOR r IN
     SELECT schemaname, tablename
     FROM pg_tables
-    WHERE schemaname IN ('collections', 'public')
+    WHERE schemaname = 'collections'
       AND (
         tablename = '_names'
         OR tablename ~ '^c_[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
