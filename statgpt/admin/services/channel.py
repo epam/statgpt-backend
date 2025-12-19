@@ -164,29 +164,56 @@ class AdminPortalChannelService(ChannelService):
             _log.exception(f"Failed to clear Elastic index {index_name!r}")
 
     async def export_channel_to_folder(
-        self, channel_id: int, folder_path: str, auth_context: AuthContext
+        self,
+        channel_id: int,
+        folder_path: str,
+        scope: schemas.ExportScope,
+        auth_context: AuthContext,
     ) -> models.Channel:
         channel_db = await self.get_model_by_id(channel_id)
         channel_schema = ChannelSerializer.db_to_schema(channel_db)
 
+        if scope.includes_configs():
+            channel_file = os.path.join(folder_path, JobsConfig.CHANNEL_FILE)
+            channel_data = channel_schema.model_dump(mode="json", include=JobsConfig.CHANNEL_FIELDS)
+            utils.write_yaml(channel_data, channel_file)
+
         if (
-            channel_schema.details.plain_content
+            scope.includes_dial_files()
+            and channel_schema.details.plain_content
             and channel_schema.details.plain_content.details.file_path
         ):
             await self._export_dial_file_to_folder(
-                channel_schema.details.plain_content.details.file_path, folder_path, auth_context
+                channel_schema.details.plain_content.details.file_path,
+                folder_path,
+                auth_context,
             )
 
-        channel_file = os.path.join(folder_path, JobsConfig.CHANNEL_FILE)
-        channel_data = channel_schema.model_dump(mode="json", include=JobsConfig.CHANNEL_FIELDS)
-        utils.write_yaml(channel_data, channel_file)
         return channel_db
 
     async def import_channel_from_zip(
-        self, zip_file: zipfile.ZipFile, clean_up: bool, auth_context: AuthContext
+        self,
+        zip_file: zipfile.ZipFile,
+        clean_up: bool,
+        scope: schemas.ExportScope,
+        deployment_id: str | None,
+        auth_context: AuthContext,
     ) -> models.Channel:
-        _log.info("Uploading DIAL files for channel import")
+        if scope.includes_dial_files():
+            await self._import_dial_files_from_zip(zip_file, auth_context)
 
+        if scope.includes_configs():
+            channel_data = await self._load_channel_data_from_zip(zip_file)
+            if clean_up:
+                await self._cleanup_existing_channel(channel_data.deployment_id, auth_context)
+            return await self._create_channel_model(channel_data)
+
+        return await self._get_existing_channel_by_deployment_id(deployment_id)
+
+    async def _import_dial_files_from_zip(
+        self, zip_file: zipfile.ZipFile, auth_context: AuthContext
+    ) -> None:
+        _log.info("Uploading DIAL files for channel import")
         with tempfile.TemporaryDirectory() as temp_dir:
             members = [
                 name
@@ -204,23 +231,33 @@ class AdminPortalChannelService(ChannelService):
                         file_path, dial_file_path, auth_context
                     )
 
+    async def _load_channel_data_from_zip(self, zip_file: zipfile.ZipFile) -> schemas.ChannelBase:
         with zip_file.open(JobsConfig.CHANNEL_FILE) as channel_file:
             channel_data_json = yaml.safe_load(channel_file.read())
 
         channel_data = schemas.ChannelBase.model_validate(channel_data_json)
         _log.info(f"Importing channel: {channel_data!r}")
+        return channel_data
 
-        if clean_up:
-            try:
-                existing_channel = await self.get_channel_by_deployment_id(
-                    channel_data.deployment_id
-                )
-            except NoResultFound:
-                pass  # No channel found, nothing to delete
-            else:
-                await self.delete(existing_channel.id, auth_context=auth_context)
+    async def _cleanup_existing_channel(
+        self, deployment_id: str, auth_context: AuthContext
+    ) -> None:
+        try:
+            existing_channel = await self.get_channel_by_deployment_id(deployment_id)
+        except NoResultFound:
+            pass  # No channel found, nothing to delete
+        else:
+            await self.delete(existing_channel.id, auth_context=auth_context)
 
-        return await self._create_channel_model(channel_data)
+    async def _get_existing_channel_by_deployment_id(
+        self, deployment_id: str | None
+    ) -> models.Channel:
+        if deployment_id is None:
+            raise ValueError("deployment_id is required when importing indexes only.")
+        try:
+            return await self.get_channel_by_deployment_id(deployment_id)
+        except NoResultFound:
+            raise ValueError(f"Channel with deployment_id {deployment_id} not found during import.")
 
     async def deduplicate_channel_dimensions(
         self, channel_id: int, auth_context: AuthContext

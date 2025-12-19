@@ -71,6 +71,7 @@ async def get_channel_by_id(
 async def export_channel(
     background_tasks: BackgroundTasks,
     channel_id: int,
+    scope: schemas.ExportScope = Query(default=schemas.ExportScope.FULL),
     session: AsyncSession = Depends(models.get_session),
 ) -> schemas.Job:
     """Create a background job to export channel data to a zip file.
@@ -78,7 +79,7 @@ async def export_channel(
     """
 
     return await JobsService(session).create_export_job(
-        background_tasks, channel_id, auth_context=SystemUserAuthContext()
+        background_tasks, channel_id, scope=scope, auth_context=SystemUserAuthContext()
     )
 
 
