@@ -20,6 +20,10 @@ class InterceptableCommand(BaseModel):
         return rf'!{self.command}(\s+)'
 
     def process_query(self, query: str, state: State | None) -> str:
+        """
+        To correctly parse command, it must have a space afterwards, refer to the regex pattern used
+        for matching and defined in the `re_pattern` property.
+        """
         match = re.search(self.re_pattern, query)
         if not match:
             return query
@@ -40,7 +44,7 @@ class CommandsInterceptor(BaseMessageInterceptor):
         self._commands = commands
 
     @classmethod
-    def create_default(cls) -> 'CommandsInterceptor':
+    def create_default(cls, force_all_commands: bool = False) -> 'CommandsInterceptor':
         commands = [
             InterceptableCommand(
                 command=State.SHOW_DEBUG_STAGES,
@@ -48,7 +52,7 @@ class CommandsInterceptor(BaseMessageInterceptor):
             ),
         ]
 
-        if dial_app_settings.enable_dev_commands:
+        if dial_app_settings.enable_dev_commands or force_all_commands:
             for command, state_var in State.get_intercaptable_commands():
                 commands.append(InterceptableCommand(command=command, state_var=state_var))
         else:
@@ -76,3 +80,10 @@ class CommandsInterceptor(BaseMessageInterceptor):
                 msg.content = msg_edited
 
         return messages
+
+    def process_query(self, query: str) -> str:
+        """Simply remove commands from the query, without updating state"""
+        query_upd = query
+        for cmd in self._commands:
+            query_upd = cmd.process_query(query=query_upd, state=None)
+        return query_upd

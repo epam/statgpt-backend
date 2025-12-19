@@ -351,18 +351,8 @@ class FinalizeQueryChainFactory:
         return terms_id2name
 
     async def _route_based_on_data_query_status(self, inputs: dict) -> Runnable:
-        state = ChainParameters.get_state(inputs)
-        skip = state.cmd_skip_data_query_summarization
-        if skip:
-            query = ChainParameters.get_query(inputs)
-            response = f"<call to Query_Data was skipped for debug purposes>\n\n {query!r}"
-            return RunnablePassthrough.assign(
-                **{DataQueryParameters.RESPONSE_FIELD: lambda _: response}
-            )
-
         chain_state = ChainState(**inputs)
         dataset_queries = chain_state.dataset_queries
-
         auth_context = ChainParameters.get_auth_context(inputs)
 
         if not dataset_queries:  # todo: use missing dimensions to ask question to user
@@ -379,6 +369,18 @@ class FinalizeQueryChainFactory:
             # Currently we don't differentiate between these cases,
             # and the message shown to user is misleading.
             return await self._no_data_chain.create_chain(inputs)
+
+        global_state = ChainParameters.get_state(inputs)
+        skip = global_state.cmd_skip_data_query_summarization
+        if skip:
+            response = (
+                "data queries constructed. "
+                "queries were not executed, their status (valid/invalid) is unknown, "
+                "because data query post-processing is disabled in config"
+            )
+            return RunnablePassthrough.assign(
+                **{DataQueryParameters.RESPONSE_FIELD: lambda _: response}
+            )
 
         valid_queries = {ds_id: dq for ds_id, dq in dataset_queries.items() if dq.is_valid}
 

@@ -25,6 +25,7 @@ from .dataset import DataSet, DataSetBase, DataSetDescriptor, DataSetUpdate
 from .enums import (
     ChannelIndexStatusScope,
     DecoderOfLatestEnum,
+    ExportScope,
     IndexerVersion,
     IndicatorSelectionVersion,
     JobType,

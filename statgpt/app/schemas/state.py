@@ -21,7 +21,7 @@ class State(BaseModel):
     cmd_skip_data_query_summarization: bool = Field(
         default=dial_app_settings.cmd_skip_data_query_summarization
     )
-
+    cmd_skip_tools_execution: bool = Field(default=dial_app_settings.cmd_skip_tools_execution)
     out_of_scope: bool | None = Field(default=None)
     out_of_scope_reasoning: str | None = Field(default=None)
 
@@ -34,7 +34,7 @@ class State(BaseModel):
     @classmethod
     def init_state(cls, request: Request) -> "State":
         if len(request.messages) < 2:
-            return State()
+            return cls()
 
         last_response = request.messages[-2]
         if custom_content := last_response.custom_content:

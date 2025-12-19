@@ -21,7 +21,13 @@ from statgpt.app.chains.parameters import ChainParameters
 from statgpt.app.chains.tools import StatGptTool
 from statgpt.app.config import ChainParametersConfig
 from statgpt.app.default_prompts import supreme_agent_default_prompts
-from statgpt.app.schemas import FailedToolArtifact, FailedToolMessageState, ToolResponseStatus
+from statgpt.app.schemas import (
+    FailedToolArtifact,
+    FailedToolMessageState,
+    ToolArtifact,
+    ToolMessageState,
+    ToolResponseStatus,
+)
 from statgpt.app.schemas.dial_app_configuration import StatGPTConfiguration
 from statgpt.app.schemas.tool_artifact import DataQueryArtifact
 from statgpt.app.utils.dial_stages import optional_delayed_timed_stage, optional_timed_stage
@@ -32,6 +38,8 @@ from statgpt.common.schemas import ChannelConfig, FakeCall
 from statgpt.common.utils import InvalidLLMStreamResponse
 from statgpt.common.utils.markdown import format_as_markdown_list
 from statgpt.common.utils.models import get_chat_model
+
+FAKE_TOOL_STAGE_PREFIX = '[FAKE TOOL] '
 
 
 class ToolCaller:
@@ -99,6 +107,17 @@ class ToolCaller:
             ) as tool_result_stage:
                 inputs[ChainParametersConfig.TARGET] = tool_result_stage
                 # logger.info(f"{tool_call=}")
+                state = ChainParameters.get_state(inputs)
+                skip_tools_execution = (
+                    state.cmd_skip_tools_execution and prefix != FAKE_TOOL_STAGE_PREFIX
+                )
+                if skip_tools_execution:
+                    return ToolMessage(
+                        content="tool execution skipped due to configuration",
+                        tool_call_id=tool_call["id"],
+                        status=ToolResponseStatus.SUCCESS.value,
+                        artifact=ToolArtifact(state=ToolMessageState(type=tool.tool_type)),
+                    )
                 try:
                     tool_msg: ToolMessage = await tool.ainvoke(tool_call)
                 except Exception as e:
@@ -250,6 +269,9 @@ class SupremeAgentExecutor:
             auth_context=auth_context,
         )
 
+        state = ChainParameters.get_state(inputs)
+        skip_tools_execution = state.cmd_skip_tools_execution
+
         for i in range(self._channel_config.supreme_agent.max_agent_iterations):
             name = f"[DEBUG] Supreme Agent run {i + 1}"
             with optional_timed_stage(choice=choice, name=name, enabled=debug):
@@ -278,6 +300,12 @@ class SupremeAgentExecutor:
                         tool_data_query_artifacts
                     )
                     history.add_tool_message(SystemMessage(content=content))
+
+                if skip_tools_execution:
+                    logger.info(
+                        "Further supreme agent runs are skipped due to tools execution skip"
+                    )
+                    return ""
             elif response.finished:
                 if response.first_token_time is not None:
                     self._log_performance(inputs, response.start_time, response.first_token_time)
@@ -322,7 +350,7 @@ class SupremeAgentExecutor:
                         last_msg.tool_calls[0],
                         inputs,
                         show_stage=show_stages,
-                        prefix='[FAKE TOOL] ',
+                        prefix=FAKE_TOOL_STAGE_PREFIX,
                     )
                 )
 
