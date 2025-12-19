@@ -14,6 +14,8 @@ from statgpt.common.data.base import DataResponse, DataSetQuery, DimensionQuery
 
 
 class ChainParameters:
+    """Methods to access fields of chain context stored as dict"""
+
     @staticmethod
     def skip_out_of_scope_check(inputs: dict) -> bool:
         return inputs[ChainParametersConfig.SKIP_OUT_OF_SCOPE_CHECK]

@@ -8,7 +8,7 @@ from langchain_core.runnables import Runnable, RunnableConfig, RunnableLambda, R
 from pydantic import Field
 
 import statgpt.app.chains.data_query.query_builder.utils as query_utils
-from statgpt.app.config import ChainParameters
+from statgpt.app.config import ChainContext
 from statgpt.app.schemas import LLMSelectionCandidateBase, SelectedCandidates
 from statgpt.app.schemas.query_builder import (
     DatasetAvailabilityQueriesType,
@@ -45,7 +45,7 @@ class LLMCandidateLHCL(LLMSelectionDimensionCandidate):
         return cls._format_df(df)
 
 
-class LHCLChainState(ChainParameters):
+class LHCLChainState(ChainContext):
     # data query fields
     normalized_query: str = Field(default="", description="Summarized conversation")
     datasets_dict: dict[str, VersionedDataSet] = Field(default_factory=dict)

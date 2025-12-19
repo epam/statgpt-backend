@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from aidial_sdk.chat_completion import Choice
+from aidial_sdk.chat_completion import Choice, Request
 from pydantic import BaseModel, ConfigDict, Field
 
 from statgpt.app.schemas.state import State
@@ -9,7 +9,7 @@ from statgpt.common.auth.auth_context import AuthContext
 
 
 class ChainParametersConfig:
-    """Keys to access artifacts shared between different chains/agents."""
+    """Keys to access fields of chain context stored as dict"""
 
     STATE = "state"
     REQUEST = "request"
@@ -19,8 +19,8 @@ class ChainParametersConfig:
     QUERY = "query"
     SKIP_OUT_OF_SCOPE_CHECK = "skip_out_of_scope_check"
     START_OF_REQUEST = "start_of_request"
-    CONFIGURATION = "configuration"
 
+    CONFIGURATION = "configuration"
     TARGET_PREFILTER = "target_prefilter"
     DATASETS_DICT = "datasets_dict"
     DATASET_DIMENSION_QUERIES = "dataset_dimension_queries"
@@ -35,14 +35,13 @@ class ChainParametersConfig:
     PERFORMANCE_STAGE = "performance_stage"
 
 
-class ChainParameters(BaseModel):
-    """artifacts shared between different chains/agents."""
+class ChainContext(BaseModel):
+    """Artifacts shared between different chains/agents"""
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     state: State = Field(description='global app state')
-    # NOTE: 'request' is pydantic v1 currently - can't use it here
-    # request: Request = Field(description="dial request instance")
+    request: Request = Field(description="dial request instance")
     choice: Choice = Field(description="dial choice instance")
     auth_context: AuthContext
     data_service: ChannelServiceFacade
