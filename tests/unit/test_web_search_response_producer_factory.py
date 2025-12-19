@@ -1,4 +1,3 @@
-import statgpt.app.chains.web_search  # noqa: F401
 from statgpt.app.chains.tools import StatGptTool
 from statgpt.app.chains.web_search.response_producer import (
     RagResponseProducer,
