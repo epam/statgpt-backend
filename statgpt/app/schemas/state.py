@@ -10,7 +10,6 @@ from langchain_core.messages import ToolMessage
 from pydantic import BaseModel, ConfigDict, Field, computed_field
 
 from statgpt.app.settings.dial_app import dial_app_settings
-from statgpt.common.config import multiline_logger as logger
 
 StatGPTMessage = Annotated[ToolMessage | AIMessage | SystemMessage, Field(discriminator="type")]
 
@@ -58,8 +57,6 @@ class State(BaseModel):
                             command=field_name.removeprefix(cls.CMD_PREFIX), state_var=field_name
                         )
                     )
-        else:
-            logger.info("Interceptable Commands: dev commands disabled")
         return commands
 
     @property
