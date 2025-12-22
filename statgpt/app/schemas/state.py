@@ -46,7 +46,8 @@ class State(BaseModel):
     def get_intercaptable_commands(cls) -> list[tuple[str, str]]:
         commands = []
         for field_name, _ in State.model_fields.items():
-            commands.append((field_name.replace(cls.CMD_PREFIX, ""), field_name))
+            if field_name.startswith(cls.CMD_PREFIX):
+                commands.append((field_name.replace(cls.CMD_PREFIX, ""), field_name))
         return commands
 
     @property
