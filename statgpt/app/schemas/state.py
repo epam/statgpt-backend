@@ -7,13 +7,13 @@ from langchain_core.messages import ToolMessage
 from pydantic import BaseModel, ConfigDict, Field, computed_field
 
 from statgpt.app.settings.dial_app import dial_app_settings
+from statgpt.common.config import multiline_logger as logger
 
 StatGPTMessage = Annotated[ToolMessage | AIMessage | SystemMessage, Field(discriminator="type")]
 
 
 class State(BaseModel):
     CMD_PREFIX: ClassVar[str] = 'cmd_'
-    SHOW_DEBUG_STAGES: ClassVar[str] = "show_debug_stages"
 
     show_debug_stages: bool = Field(default=dial_app_settings.dial_show_debug_stages)
     cmd_out_of_scope_only: bool = Field(default=dial_app_settings.cmd_out_of_scope_only)
@@ -43,11 +43,14 @@ class State(BaseModel):
             return cls()
 
     @classmethod
-    def get_intercaptable_commands(cls) -> list[tuple[str, str]]:
-        commands = []
-        for field_name, _ in State.model_fields.items():
-            if field_name.startswith(cls.CMD_PREFIX):
-                commands.append((field_name.replace(cls.CMD_PREFIX, ""), field_name))
+    def get_intercaptable_commands(cls, include_dev_commands: bool) -> list[tuple[str, str]]:
+        commands = [("show_debug_stages", "show_debug_stages")]
+        if include_dev_commands:
+            for field_name, _ in State.model_fields.items():
+                if field_name.startswith(cls.CMD_PREFIX):
+                    commands.append((field_name.replace(cls.CMD_PREFIX, ""), field_name))
+        else:
+            logger.info("Interceptable Commands: dev commands disabled")
         return commands
 
     @property

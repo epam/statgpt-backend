@@ -6,7 +6,6 @@ from pydantic import BaseModel
 
 from statgpt.app.schemas.state import State
 from statgpt.app.settings.dial_app import dial_app_settings
-from statgpt.common.config import multiline_logger as logger
 
 from .base import BaseMessageInterceptor
 
@@ -45,18 +44,12 @@ class CommandsInterceptor(BaseMessageInterceptor):
 
     @classmethod
     def create_default(cls, force_all_commands: bool = False) -> 'CommandsInterceptor':
-        commands = [
-            InterceptableCommand(
-                command=State.SHOW_DEBUG_STAGES,
-                state_var=State.SHOW_DEBUG_STAGES,
-            ),
-        ]
-
-        if dial_app_settings.enable_dev_commands or force_all_commands:
-            for command, state_var in State.get_intercaptable_commands():
-                commands.append(InterceptableCommand(command=command, state_var=state_var))
-        else:
-            logger.info("CommandsInterceptor: dev commands disabled")
+        commands = []
+        include_dev_commands = dial_app_settings.enable_dev_commands or force_all_commands
+        for command, state_var in State.get_intercaptable_commands(
+            include_dev_commands=include_dev_commands
+        ):
+            commands.append(InterceptableCommand(command=command, state_var=state_var))
         return cls(commands=commands)
 
     async def process_messages(
