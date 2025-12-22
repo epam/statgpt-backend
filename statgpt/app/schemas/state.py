@@ -1,3 +1,6 @@
+from __future__ import annotations
+
+import re
 from typing import Annotated, ClassVar
 
 from aidial_sdk.chat_completion import Request
@@ -43,12 +46,18 @@ class State(BaseModel):
             return cls()
 
     @classmethod
-    def get_intercaptable_commands(cls, include_dev_commands: bool) -> list[tuple[str, str]]:
-        commands = [("show_debug_stages", "show_debug_stages")]
+    def get_intercaptable_commands(cls, include_dev_commands: bool) -> list[InterceptableCommand]:
+        commands = [
+            InterceptableCommand(command="show_debug_stages", state_var="show_debug_stages")
+        ]
         if include_dev_commands:
             for field_name, _ in State.model_fields.items():
                 if field_name.startswith(cls.CMD_PREFIX):
-                    commands.append((field_name.replace(cls.CMD_PREFIX, ""), field_name))
+                    commands.append(
+                        InterceptableCommand(
+                            command=field_name.removeprefix(cls.CMD_PREFIX), state_var=field_name
+                        )
+                    )
         else:
             logger.info("Interceptable Commands: dev commands disabled")
         return commands
@@ -59,3 +68,31 @@ class State(BaseModel):
         return any(
             msg.status == "error" for msg in self.tool_messages if isinstance(msg, ToolMessage)
         )
+
+
+class InterceptableCommand(BaseModel):
+    command: str
+    state_var: str
+
+    @property
+    def re_pattern(self) -> str:
+        return rf'!{self.command}(\s+)'
+
+    def process_query(self, query: str, state: State | None) -> str:
+        """
+        To correctly parse command, it must have a space afterwards, refer to the regex pattern used
+        for matching and defined in the `re_pattern` property.
+        """
+        match = re.search(self.re_pattern, query)
+        if not match:
+            return query
+
+        # at least one command instance found
+
+        if state is not None:
+            setattr(state, self.state_var, True)
+
+        # remove all command instances from the query
+        query_edited = re.sub(self.re_pattern, '', query)
+        query_edited = query_edited.strip()
+        return query_edited
