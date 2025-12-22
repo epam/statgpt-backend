@@ -92,6 +92,12 @@ class DialAppSettings(BaseSettings):
         description="Skip data query summarization step",
     )
 
+    cmd_skip_tools_execution: bool = Field(
+        default=False,
+        alias="CMD_SKIP_TOOLS_EXECUTION",
+        description="Skip tools execution step",
+    )
+
     eval_dial_role: Optional[str] = Field(
         default=None, alias="EVAL_DIAL_ROLE", description="DIAL role for evaluation"
     )

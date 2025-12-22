@@ -163,6 +163,7 @@ class ChannelCompletion(ChatCompletion):
             StateVarsConfig.CMD_OUT_OF_SCOPE_ONLY: dial_app_settings.cmd_out_of_scope_only,
             StateVarsConfig.CMD_RAG_PREFILTER_ONLY: dial_app_settings.cmd_rag_prefilter_only,
             StateVarsConfig.CMD_SKIP_DATA_QUERY_SUMMARIZATION: dial_app_settings.cmd_skip_data_query_summarization,
+            StateVarsConfig.CMD_SKIP_TOOLS_EXECUTION: dial_app_settings.cmd_skip_tools_execution,
         }
 
         if len(request.messages) < 2:
