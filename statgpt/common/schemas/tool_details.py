@@ -108,9 +108,7 @@ class WebSearchDetails(BaseToolDetails):
             description="The list of allowed domains for the web search tool"
         )
 
-    deployment_id: str | None = Field(
-        default=None, description="The DIAL deployment_id to use for the web search tool"
-    )
+    deployment_id: str = Field(description="The DIAL deployment_id of the web search agent")
     domains: Domains | None = Field(
         default=None, description="The list of allowed domains for the web search tool"
     )
@@ -131,9 +129,7 @@ class WebSearchDetails(BaseToolDetails):
 
 
 class WebSearchAgentDetails(BaseToolDetails):
-    deployment_id: str | None = Field(
-        default=None, description="The DIAL deployment_id of the web search agent"
-    )
+    deployment_id: str = Field(description="The DIAL deployment_id of the web search agent")
     configuration: dict[str, Any] | None = Field(
         default=None, description="The configuration for the web search agent"
     )
