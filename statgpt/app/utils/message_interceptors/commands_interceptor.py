@@ -17,7 +17,7 @@ class CommandsInterceptor(BaseMessageInterceptor):
     @classmethod
     def create_default(cls, force_all_commands: bool = False) -> t.Self:
         include_dev_commands = dial_app_settings.enable_dev_commands or force_all_commands
-        if include_dev_commands:
+        if not include_dev_commands:
             logger.info("CommandsInterceptor: dev commands disabled")
         commands = State.get_intercaptable_commands(include_dev_commands=include_dev_commands)
         return cls(commands=commands)
