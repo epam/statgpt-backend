@@ -6,16 +6,10 @@ from langchain_core.runnables import Runnable, RunnableConfig, RunnablePassthrou
 
 from statgpt.app.chains.utils import dataset_utils
 from statgpt.app.default_prompts import data_query_default_prompts
-from statgpt.app.schemas.query_builder import (
-    ChainState,
-    LLMSelectionDimensionCandidate,
-    NamedEntitiesResponse,
-    NamedEntity,
-)
+from statgpt.app.schemas.query_builder import ChainState, NamedEntitiesResponse, NamedEntity
 from statgpt.app.utils.callbacks import StageCallback
 from statgpt.app.utils.formatters import DatasetFormatterConfig, DatasetsListFormatter
 from statgpt.common.config import multiline_logger as logger
-from statgpt.common.data.sdmx.common import DimensionVirtualCodeCategory
 from statgpt.common.schemas import DataQueryDetails
 from statgpt.common.schemas.data_query_tool import DataQueryPrompts
 
@@ -59,33 +53,6 @@ class SearchPreparationChainFactory:
         )
 
     @staticmethod
-    def _apply_dataset_selection_response(inputs: dict):
-        """
-        1. Filter datasets by selected IDs
-        2. Update normalized query
-        """
-
-        chain_state = ChainState(**inputs)
-        datasets_selection_response = chain_state.datasets_selection_response
-        versioned_datasets_dict = chain_state.versioned_datasets_dict
-
-        if not (selected_dataset_ids := datasets_selection_response.dataset_ids):
-            logger.info('LLM selected no datasets. Using all available datasets.')
-            inputs['datasets_dict'] = versioned_datasets_dict
-        else:
-            selected_dataset_ids_set = set(selected_dataset_ids)
-            datasets_dict = {
-                ds_id: ds
-                for ds_id, ds in versioned_datasets_dict.items()
-                if ds_id in selected_dataset_ids_set
-            }
-            inputs['datasets_dict'] = datasets_dict
-        # update 'normalized_query'
-        inputs['normalized_query'] = datasets_selection_response.rewritten_query
-
-        return inputs
-
-    @staticmethod
     def _get_country_named_entities(inputs: dict) -> list[NamedEntity]:
         chain_state = ChainState(**inputs)
         country_named_entity_type = chain_state.data_service.get_country_named_entity_type()
@@ -102,41 +69,31 @@ class SearchPreparationChainFactory:
         return country_entities
 
     @staticmethod
-    def _add_all_values_to_nonindicator_candidates(
-        inputs: dict,
-    ) -> list[LLMSelectionDimensionCandidate]:
+    def _apply_datasets_selection_response(inputs: dict) -> dict:
         """
-        Append 'All values' candidates for non-indicator dimensions.
-        This is used to allow LLM to select all values for non-indicator dimensions.
+        1. Apply datasets filter
+        2. Remove datasets filter from normalized query
         """
+
         chain_state = ChainState(**inputs)
-        dimension_candidates = chain_state.dimension_candidates_for_llm_selection
-        datasets_dict = chain_state.datasets_dict
-        index = len(dimension_candidates)
-        for versioned_ds in datasets_dict.values():
-            ds = versioned_ds.data
-            dimensions = {dim.entity_id: dim for dim in ds.non_indicator_dimensions()}
-            for dim_id, fixed_item in ds.config.dimension_all_values.items():
-                if dim_id not in dimensions:
-                    # skip indicator dimensions
-                    continue
-                dimension = dimensions[dim_id]
-                # NOTE: we assume there are no such terms already present in dimension_candidates
-                dimension_candidates.append(
-                    LLMSelectionDimensionCandidate(
-                        score=1.0,
-                        dataset_id=ds.entity_id,
-                        dimension_category=DimensionVirtualCodeCategory(
-                            fixed_item=fixed_item,
-                            dimension_id=dimension.entity_id,
-                            dimension_name=dimension.name,
-                            dimension_alias=dimension.alias,
-                        ),
-                        index=index,
-                    )
-                )
-                index += 1
-        return dimension_candidates
+        datasets_selection_response = chain_state.datasets_selection_response
+        versioned_datasets_dict = chain_state.versioned_datasets_dict
+
+        if not (selected_datasets := datasets_selection_response.dataset_ids):
+            # no datasets filter detected
+            inputs['datasets_dict'] = versioned_datasets_dict
+        else:
+            # selected_datasets should already have hallucinations removed,
+            # but let's use defensive programming and check again
+            inputs['datasets_dict'] = {
+                ds_id: versioned_datasets_dict[ds_id]
+                for ds_id in selected_datasets
+                if ds_id in versioned_datasets_dict
+            }
+
+        inputs['normalized_query'] = datasets_selection_response.rewritten_query
+
+        return inputs
 
     async def _populate_normalization(self, stage: Stage, inputs: dict):
         normalized_query = inputs.get("normalized_query", "")
@@ -203,13 +160,11 @@ class SearchPreparationChainFactory:
             ).with_config(config=RunnableConfig(callbacks=[normalizing_query_stage_callback]))
             # save 'normalized_query' to separate variable, since it will be overwritten later
             | RunnablePassthrough.assign(normalized_query_raw=lambda d: d["normalized_query"])
-            # detect specified datasets and remove them from normalized query
             | (
                 RunnablePassthrough.assign(
                     datasets_selection_response=self._datasets_selection_chain.create_chain
                 )
-                # NOTE: here we overwrite "normalized_query" field
-                | self._apply_dataset_selection_response
+                | self._apply_datasets_selection_response
             ).with_config(
                 config=RunnableConfig(
                     callbacks=[

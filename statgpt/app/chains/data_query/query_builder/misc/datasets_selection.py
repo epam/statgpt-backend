@@ -1,4 +1,3 @@
-from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.runnables import Runnable
 
 from statgpt.app.chains.parameters import ChainParameters
@@ -8,7 +7,7 @@ from statgpt.app.schemas.query_builder import (
 )
 from statgpt.app.services.chat_facade import VersionedDataSet
 from statgpt.app.utils.formatters import DatasetFormatterConfig, IndexedDatasetsListFormatter
-from statgpt.common.config import logger
+from statgpt.common.data.base import DataSet
 from statgpt.common.schemas import LLMModelConfig
 from statgpt.common.schemas.base import SystemUserPrompt
 from statgpt.common.schemas.enums import LocaleEnum
@@ -23,18 +22,34 @@ class DataSetsSelectionChain:
         system_user_prompt: SystemUserPrompt,
         llm_api_base: str | None = None,
     ):
-        self._system_prompt = system_user_prompt.system_message
-        self._user_prompt = system_user_prompt.user_message
+        self._system_user_prompt = system_user_prompt
         self._llm_api_base = llm_api_base or dial_settings.url
         self._llm_model_config = llm_model_config
+
+    @staticmethod
+    def _postprocess_llm_response(
+        llm_response: DataSetsSelectionLLMResponse, ix2dataset: dict[int, DataSet]
+    ) -> DataSetsSelectionChainResponse:
+        """
+        Convert LLM response to chain response.
+        Specifically, convert dataset indexes to dataset IDs.
+        NOTE: also removes hallucinations.
+        """
+        dataset_ids = set()
+        for index in llm_response.dataset_indexes:
+            if dataset := ix2dataset.get(index):
+                dataset_ids.add(dataset.entity_id)
+
+        return DataSetsSelectionChainResponse(
+            dataset_ids=list(dataset_ids),
+            rewritten_query=llm_response.rewritten_query,
+        )
 
     async def create_chain(self, inputs: dict) -> Runnable:
         versioned_datasets_dict: dict[str, VersionedDataSet] = inputs["versioned_datasets_dict"]
         auth_context = ChainParameters.get_auth_context(inputs)
 
-        ordered_datasets = {
-            i: d.data for i, d in enumerate(versioned_datasets_dict.values(), start=1)
-        }
+        ix2dataset = {i: d.data for i, d in enumerate(versioned_datasets_dict.values(), start=1)}
 
         formatter = IndexedDatasetsListFormatter(
             DatasetFormatterConfig(
@@ -49,37 +64,15 @@ class DataSetsSelectionChain:
             ),
             auth_context=auth_context,
         )
-        datasets_list = await formatter.format(ordered_datasets)
+        datasets_list = await formatter.format(ix2dataset)
 
-        prompt_template = ChatPromptTemplate.from_messages(
-            [
-                ("system", self._system_prompt),
-                ("human", self._user_prompt),
-            ],
-        ).partial(datasets_list=datasets_list)
+        prompt = self._system_user_prompt.get_template().partial(datasets_list=datasets_list)
 
         llm = get_chat_model(
             api_key=auth_context.api_key,
             azure_endpoint=self._llm_api_base,
             model_config=self._llm_model_config,
         ).with_structured_output(DataSetsSelectionLLMResponse, method='json_schema')
-        logger.info(
-            f"{self.__class__.__name__} using LLM model: {self._llm_model_config.deployment.deployment_id}"
-        )
 
-        def _create_chain_output(
-            llm_response: DataSetsSelectionLLMResponse,
-        ) -> DataSetsSelectionChainResponse:
-            """Convert LLM response to chain response for backward compatibility."""
-            dataset_ids = []
-            for idx in llm_response.dataset_indexes:
-                if dataset := ordered_datasets.get(idx):
-                    dataset_ids.append(dataset.entity_id)
-
-            return DataSetsSelectionChainResponse(
-                dataset_ids=dataset_ids,
-                rewritten_query=llm_response.rewritten_query,
-            )
-
-        chain = prompt_template | llm | _create_chain_output
+        chain = prompt | llm | (lambda x: self._postprocess_llm_response(x, ix2dataset=ix2dataset))
         return chain
