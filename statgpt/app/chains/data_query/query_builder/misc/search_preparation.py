@@ -114,25 +114,28 @@ class SearchPreparationChainFactory:
     @staticmethod
     def _apply_datasets_selection_response(inputs: dict) -> dict:
         """
-        1. Filter datasets by selected IDs
-        2. Update normalized query
+        1. Apply datasets filter
+        2. Remove datasets filter from normalized query
         """
 
         chain_state = ChainState(**inputs)
         datasets_selection_response = chain_state.datasets_selection_response
         versioned_datasets_dict = chain_state.versioned_datasets_dict
 
-        if not datasets_selection_response.dataset_ids:
-            datasets_selection_response.dataset_ids = list(versioned_datasets_dict)
+        if not (selected_datasets := datasets_selection_response.dataset_ids):
+            # no datasets filter detected
+            inputs['datasets_dict'] = versioned_datasets_dict
+        else:
+            # selected_datasets should already have hallucinations removed,
+            # but let's use defensive programming and check again
+            inputs['datasets_dict'] = {
+                ds_id: versioned_datasets_dict[ds_id]
+                for ds_id in selected_datasets
+                if ds_id in versioned_datasets_dict
+            }
 
-        inputs['datasets_selection_response'] = datasets_selection_response
-        datasets_dict = {
-            ds_id: versioned_datasets_dict[ds_id]
-            for ds_id in datasets_selection_response.dataset_ids
-            if ds_id in versioned_datasets_dict
-        }
-        inputs['datasets_dict'] = datasets_dict
         inputs['normalized_query'] = datasets_selection_response.rewritten_query
+
         return inputs
 
     async def _populate_normalization(self, stage: Stage, inputs: dict):
@@ -200,9 +203,7 @@ class SearchPreparationChainFactory:
             ).with_config(config=RunnableConfig(callbacks=[normalizing_query_stage_callback]))
             # save 'normalized_query' to separate variable, since it will be overwritten later
             | RunnablePassthrough.assign(normalized_query_raw=lambda d: d["normalized_query"])
-            # detect specified datasets and remove them from normalized query
             | (
-                # NOTE: here we overwrite "normalized_query" field
                 RunnablePassthrough.assign(
                     datasets_selection_response=self._datasets_selection_chain.create_chain
                 )
