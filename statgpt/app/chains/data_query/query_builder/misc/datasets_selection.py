@@ -1,9 +1,8 @@
 from langchain_core.prompts import ChatPromptTemplate
-from langchain_core.runnables import Runnable, RunnableLambda, RunnablePassthrough
+from langchain_core.runnables import Runnable
 
 from statgpt.app.chains.parameters import ChainParameters
 from statgpt.app.schemas.query_builder import (
-    ChainState,
     DataSetsSelectionChainResponse,
     DataSetsSelectionLLMResponse,
 )
@@ -68,55 +67,19 @@ class DataSetsSelectionChain:
             f"{self.__class__.__name__} using LLM model: {self._llm_model_config.deployment.deployment_id}"
         )
 
-        def _create_chain_output(
+        def _postprocess_llm_response(
             llm_response: DataSetsSelectionLLMResponse,
         ) -> DataSetsSelectionChainResponse:
             """Convert LLM response to chain response for backward compatibility."""
-            dataset_ids = []
+            dataset_ids = set()
             for idx in llm_response.dataset_indexes:
                 if dataset := ordered_datasets.get(idx):
-                    dataset_ids.append(dataset.entity_id)
+                    dataset_ids.add(dataset.entity_id)
 
             return DataSetsSelectionChainResponse(
-                dataset_ids=dataset_ids,
+                dataset_ids=list(dataset_ids),
                 rewritten_query=llm_response.rewritten_query,
             )
 
-        selection_chain = prompt_template | llm | _create_chain_output
-        chain = RunnablePassthrough.assign(
-            datasets_selection_response=selection_chain,
-        ) | RunnableLambda(self._apply_dataset_selection_response)
+        chain = prompt_template | llm | _postprocess_llm_response
         return chain
-
-    @staticmethod
-    def _apply_dataset_selection_response(inputs: dict) -> dict:
-        """
-        1. Filter datasets by selected IDs
-        2. Update normalized query
-        """
-
-        chain_state = ChainState(**inputs)
-        datasets_selection_response = chain_state.datasets_selection_response
-        versioned_datasets_dict = chain_state.versioned_datasets_dict
-
-        if not datasets_selection_response.dataset_ids:
-            logger.info('LLM selected no datasets. Using all available datasets.')
-            datasets_selection_response.dataset_ids = [
-                ds_id for ds_id in versioned_datasets_dict.keys()
-            ]
-        else:
-            datasets_selection_response.dataset_ids = [
-                ds_id
-                for ds_id in datasets_selection_response.dataset_ids
-                if ds_id in versioned_datasets_dict
-            ]
-
-        inputs['datasets_selection_response'] = datasets_selection_response
-        datasets_dict = {
-            ds_id: versioned_datasets_dict[ds_id]
-            for ds_id in datasets_selection_response.dataset_ids
-            if ds_id in versioned_datasets_dict
-        }
-        inputs['datasets_dict'] = datasets_dict
-        inputs['normalized_query'] = datasets_selection_response.rewritten_query
-        return inputs

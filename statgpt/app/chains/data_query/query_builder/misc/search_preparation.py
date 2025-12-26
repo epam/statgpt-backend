@@ -2,7 +2,7 @@ from itertools import groupby
 from operator import attrgetter
 
 from aidial_sdk.chat_completion import Stage
-from langchain_core.runnables import Runnable, RunnableConfig, RunnableLambda, RunnablePassthrough
+from langchain_core.runnables import Runnable, RunnableConfig, RunnablePassthrough
 
 from statgpt.app.chains.utils import dataset_utils
 from statgpt.app.default_prompts import data_query_default_prompts
@@ -111,6 +111,30 @@ class SearchPreparationChainFactory:
                 index += 1
         return dimension_candidates
 
+    @staticmethod
+    def _apply_datasets_selection_response(inputs: dict) -> dict:
+        """
+        1. Filter datasets by selected IDs
+        2. Update normalized query
+        """
+
+        chain_state = ChainState(**inputs)
+        datasets_selection_response = chain_state.datasets_selection_response
+        versioned_datasets_dict = chain_state.versioned_datasets_dict
+
+        if not datasets_selection_response.dataset_ids:
+            datasets_selection_response.dataset_ids = list(versioned_datasets_dict)
+
+        inputs['datasets_selection_response'] = datasets_selection_response
+        datasets_dict = {
+            ds_id: versioned_datasets_dict[ds_id]
+            for ds_id in datasets_selection_response.dataset_ids
+            if ds_id in versioned_datasets_dict
+        }
+        inputs['datasets_dict'] = datasets_dict
+        inputs['normalized_query'] = datasets_selection_response.rewritten_query
+        return inputs
+
     async def _populate_normalization(self, stage: Stage, inputs: dict):
         normalized_query = inputs.get("normalized_query", "")
         if normalized_query:
@@ -178,11 +202,11 @@ class SearchPreparationChainFactory:
             | RunnablePassthrough.assign(normalized_query_raw=lambda d: d["normalized_query"])
             # detect specified datasets and remove them from normalized query
             | (
+                # NOTE: here we overwrite "normalized_query" field
                 RunnablePassthrough.assign(
                     datasets_selection_response=self._datasets_selection_chain.create_chain
                 )
-                # NOTE: here we overwrite "normalized_query" field
-                | RunnableLambda(self._datasets_selection_chain.create_chain)  # type: ignore[arg-type]
+                | self._apply_datasets_selection_response
             ).with_config(
                 config=RunnableConfig(
                     callbacks=[
