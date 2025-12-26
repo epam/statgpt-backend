@@ -21,7 +21,7 @@ resolutions:
     - message: ".*PyPI::tiktoken:0\\.9\\.0.*"
       reason: "CANT_FIX_EXCEPTION"
       comment: "MIT License: https://github.com/openai/tiktoken/blob/0.11.0/LICENSE"
-    - message: ".*PyPI::urllib3:2\\.4\\.0.*"
+    - message: ".*PyPI::urllib3:2\\.6\\.2.*"
       reason: "CANT_FIX_EXCEPTION"
       comment: "MIT License: https://github.com/urllib3/urllib3/blob/2.5.0/LICENSE.txt"
     - message: ".*PyPI::typing-extensions:4\\.14\\.0.*"
