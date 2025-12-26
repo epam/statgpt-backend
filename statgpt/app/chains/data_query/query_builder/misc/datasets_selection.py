@@ -28,7 +28,7 @@ class DataSetsSelectionChain:
 
     @staticmethod
     def _postprocess_llm_response(
-        llm_response: DataSetsSelectionLLMResponse, ix2dataset_order: dict[int, DataSet]
+        llm_response: DataSetsSelectionLLMResponse, ix2dataset: dict[int, DataSet]
     ) -> DataSetsSelectionChainResponse:
         """
         Convert LLM response to chain response.
@@ -36,8 +36,8 @@ class DataSetsSelectionChain:
         NOTE: also removes hallucinations.
         """
         dataset_ids = set()
-        for idx in llm_response.dataset_indexes:
-            if dataset := ix2dataset_order.get(idx):
+        for index in llm_response.dataset_indexes:
+            if dataset := ix2dataset.get(index):
                 dataset_ids.add(dataset.entity_id)
 
         return DataSetsSelectionChainResponse(
@@ -49,9 +49,7 @@ class DataSetsSelectionChain:
         versioned_datasets_dict: dict[str, VersionedDataSet] = inputs["versioned_datasets_dict"]
         auth_context = ChainParameters.get_auth_context(inputs)
 
-        ix2dataset_order = {
-            i: d.data for i, d in enumerate(versioned_datasets_dict.values(), start=1)
-        }
+        ix2dataset = {i: d.data for i, d in enumerate(versioned_datasets_dict.values(), start=1)}
 
         formatter = IndexedDatasetsListFormatter(
             DatasetFormatterConfig(
@@ -66,7 +64,7 @@ class DataSetsSelectionChain:
             ),
             auth_context=auth_context,
         )
-        datasets_list = await formatter.format(ix2dataset_order)
+        datasets_list = await formatter.format(ix2dataset)
 
         prompt = self._system_user_prompt.get_template().partial(datasets_list=datasets_list)
 
@@ -76,9 +74,5 @@ class DataSetsSelectionChain:
             model_config=self._llm_model_config,
         ).with_structured_output(DataSetsSelectionLLMResponse, method='json_schema')
 
-        chain = (
-            prompt
-            | llm
-            | (lambda x: self._postprocess_llm_response(x, ix2dataset_order=ix2dataset_order))
-        )
+        chain = prompt | llm | (lambda x: self._postprocess_llm_response(x, ix2dataset=ix2dataset))
         return chain
