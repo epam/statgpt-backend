@@ -6,16 +6,10 @@ from langchain_core.runnables import Runnable, RunnableConfig, RunnablePassthrou
 
 from statgpt.app.chains.utils import dataset_utils
 from statgpt.app.default_prompts import data_query_default_prompts
-from statgpt.app.schemas.query_builder import (
-    ChainState,
-    LLMSelectionDimensionCandidate,
-    NamedEntitiesResponse,
-    NamedEntity,
-)
+from statgpt.app.schemas.query_builder import ChainState, NamedEntitiesResponse, NamedEntity
 from statgpt.app.utils.callbacks import StageCallback
 from statgpt.app.utils.formatters import DatasetFormatterConfig, DatasetsListFormatter
 from statgpt.common.config import multiline_logger as logger
-from statgpt.common.data.sdmx.common import DimensionVirtualCodeCategory
 from statgpt.common.schemas import DataQueryDetails
 from statgpt.common.schemas.data_query_tool import DataQueryPrompts
 
@@ -73,43 +67,6 @@ class SearchPreparationChainFactory:
             f'Found {len(country_entities)} {country_named_entity_type} named entities: {country_entities}'
         )
         return country_entities
-
-    @staticmethod
-    def _add_all_values_to_nonindicator_candidates(
-        inputs: dict,
-    ) -> list[LLMSelectionDimensionCandidate]:
-        """
-        Append 'All values' candidates for non-indicator dimensions.
-        This is used to allow LLM to select all values for non-indicator dimensions.
-        """
-        chain_state = ChainState(**inputs)
-        dimension_candidates = chain_state.dimension_candidates_for_llm_selection
-        datasets_dict = chain_state.datasets_dict
-        index = len(dimension_candidates)
-        for versioned_ds in datasets_dict.values():
-            ds = versioned_ds.data
-            dimensions = {dim.entity_id: dim for dim in ds.non_indicator_dimensions()}
-            for dim_id, fixed_item in ds.config.dimension_all_values.items():
-                if dim_id not in dimensions:
-                    # skip indicator dimensions
-                    continue
-                dimension = dimensions[dim_id]
-                # NOTE: we assume there are no such terms already present in dimension_candidates
-                dimension_candidates.append(
-                    LLMSelectionDimensionCandidate(
-                        score=1.0,
-                        dataset_id=ds.entity_id,
-                        dimension_category=DimensionVirtualCodeCategory(
-                            fixed_item=fixed_item,
-                            dimension_id=dimension.entity_id,
-                            dimension_name=dimension.name,
-                            dimension_alias=dimension.alias,
-                        ),
-                        index=index,
-                    )
-                )
-                index += 1
-        return dimension_candidates
 
     @staticmethod
     def _apply_datasets_selection_response(inputs: dict) -> dict:
