@@ -1,6 +1,5 @@
 from langchain_core.runnables import Runnable
 
-from common.data.base import DataSet
 from statgpt.app.chains.parameters import ChainParameters
 from statgpt.app.schemas.query_builder import (
     DataSetsSelectionChainResponse,
@@ -8,6 +7,7 @@ from statgpt.app.schemas.query_builder import (
 )
 from statgpt.app.services.chat_facade import VersionedDataSet
 from statgpt.app.utils.formatters import DatasetFormatterConfig, IndexedDatasetsListFormatter
+from statgpt.common.data.base import DataSet
 from statgpt.common.schemas import LLMModelConfig
 from statgpt.common.schemas.base import SystemUserPrompt
 from statgpt.common.schemas.enums import LocaleEnum
