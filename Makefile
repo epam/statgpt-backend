@@ -18,6 +18,9 @@ init_venv:
 install_dev: init_venv
 	poetry install --with dev
 
+install_all: init_venv
+	poetry install --with dev,experiments
+
 format: install_dev
 	poetry run autoflake ${SRC_DIRS}
 	poetry run black ${SRC_DIRS}
