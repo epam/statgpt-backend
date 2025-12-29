@@ -30,6 +30,7 @@ dependencies = [
 
     # LLM & AI
     'langchain (>=0.3.4,<0.4.0)',                # LLM orchestration framework
+    'langchain-core (>=0.3.81,<0.4.0)',          # Core LangChain functionality
     'langchain-openai (>=0.2.3,<0.3.0)',         # OpenAI LangChain integration
     'langchain-community (>=0.3.27,<0.4.0)',     # Community LangChain tools
     'openai (>=1.52.0,<2.0.0)',                  # OpenAI API client
