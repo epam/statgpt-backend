@@ -1,10 +1,32 @@
 services:
 
+  #----- StatGPT services -----#
+
+  gtdc-portal:
+    image: epam/statgpt-global-trusted-data-commons:development
+    ports:
+      - "4300:3000"
+    depends_on:
+      - ai-dial-core
+    environment:
+      APPLICATION_ORIGIN: "http://localhost:4300"
+      DIAL_API_URL: "http://ai-dial-core:8080"
+      DIAL_API_KEY: ${DIAL_API_KEY}
+      DIAL_API_VERSION : "2025-01-01-preview"
+      EN_MODEL: ${STATGPT_DEV_DEPLOYMENT}
+      DEFAULT_MODEL: ${STATGPT_DEV_DEPLOYMENT}
+      SDMX_API_URL: "https://api.imf.org/external"
+      CONSTRAINS_SDMX_API_URL: "https://data.imf.org/platform/rest/v1/registry/"
+      NEXTAUTH_SECRET: "placeholder"
+      NEXTAUTH_URL: "placeholder"
+
+  #----- Data & storage services -----#
+
   vectordb:
     hostname: vectordb
     image: pgvector/pgvector:pg14
     ports:
-      - "5433:5432"
+      - "5432:5432"
     restart: always
     environment:
       - POSTGRES_DB=${PGVECTOR_DATABASE}
@@ -15,5 +37,84 @@ services:
       - ${INIT_SQL_PATH:-./scripts/init.sql}:/docker-entrypoint-initdb.d/init.sql
       - postgres-data:/var/lib/postgresql/data
 
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.14.0
+    ports:
+      - "9200:9200"
+    environment:
+      xpack.security.enabled: false
+      xpack.security.enrollment.enabled: false
+      discovery.type: single-node
+      node.name: es-node-01
+    volumes:
+      - elastic-data:/usr/share/elasticsearch/data
+
+  redis:
+    image: redis:7.4.1-alpine3.20
+    restart: always
+    ports:
+      - "6379:6379"
+    mem_limit: 2200M
+    command: >
+      redis-server
+      --maxmemory 2000mb
+      --maxmemory-policy volatile-lfu
+      --save ""
+      --appendonly no
+      --loglevel warning
+
+  #----- AI DIAL services -----#
+
+  ai-dial-core:
+    user: ${UID:-root}
+    ports:
+      - "8080:8080"
+    image: epam/ai-dial-core:latest
+    environment:
+      'AIDIAL_SETTINGS': '/opt/settings/settings.json'
+      'JAVA_OPTS': '-Dgflog.config=/opt/settings/gflog.xml'
+      'LOG_DIR': '/app/log'
+      'STORAGE_DIR': '/app/data'
+      'aidial.config.files': '["/opt/config/config.json"]'
+      'aidial.storage.overrides': '{ "jclouds.filesystem.basedir": "data" }'
+      'aidial.redis.singleServerConfig.address': 'redis://redis:6379'
+    depends_on:
+      - redis
+    volumes:
+      - ${DIAL_DIR:-.}/dial/core/settings:/opt/settings
+      - ${DIAL_DIR:-.}/dial/core/config:/opt/config
+      - ${DIAL_DIR:-.}/dial/core/logs:/app/log
+      - ${DIAL_DIR:-.}/dial/core/data:/app/data
+
+  ai-dial-adapter-dial:
+    image: epam/ai-dial-adapter-dial:latest
+    ports:
+      - "5000"
+    environment:
+      DIAL_URL: "http://ai-dial-core:8080"
+      LOG_LEVEL: "INFO"
+
+  ai-dial-chat:
+    ports:
+      - "3000:3000"
+    image: epam/ai-dial-chat:latest
+    depends_on:
+      - ai-dial-themes
+      - ai-dial-core
+    environment:
+      NEXTAUTH_SECRET: "secret"
+      THEMES_CONFIG_HOST: "http://ai-dial-themes:8080"
+      DIAL_API_HOST: "http://ai-dial-core:8080"
+      DIAL_API_KEY: ${DIAL_API_KEY}
+      ENABLED_FEATURES: "conversations-section,prompts-section,top-settings,top-clear-conversation,top-chat-info,top-chat-model-settings,empty-chat-settings,header,footer,request-api-key,report-an-issue,likes,conversations-sharing,input-files,attachments-manager,prompts-sharing,prompts-publishing,conversations-publishing,custom-logo,input-links,custom-applications,message-templates,marketplace,quick-apps,code-apps,applications-sharing,marketplace-table-view"
+      KEEP_ALIVE_TIMEOUT: ${CHAT_KEEP_ALIVE_TIMEOUT:-20000}
+      AUTH_DISABLED: "true"
+
+  ai-dial-themes:
+    image: epam/ai-dial-chat-themes:latest
+    ports:
+      - "3001:8080"
+
 volumes:
   postgres-data:
+  elastic-data:
