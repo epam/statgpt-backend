@@ -2,6 +2,7 @@
 
 import asyncio
 import sys
+from importlib.metadata import version
 from pathlib import Path
 
 from prompt_toolkit import PromptSession
@@ -13,8 +14,14 @@ from statgpt.cli.completer import StatGPTCompleter
 from statgpt.cli.shared.auth import get_token_info, is_logged_in
 from statgpt.cli.shared.console import console, print_banner, print_error
 
-# CLI version
-__version__ = "1.0.0"
+
+def _get_version() -> str:
+    """Get CLI version from package metadata."""
+    try:
+        return version("statgpt")
+    except Exception:
+        return "unknown"
+
 
 # Prompt style
 PROMPT_STYLE = Style.from_dict(
@@ -111,7 +118,7 @@ class REPL:
             return True
 
         if cmd == "version":
-            console.print(f"StatGPT CLI v{__version__}")
+            console.print(f"StatGPT CLI v{_get_version()}")
             return True
 
         return False
@@ -121,7 +128,7 @@ class REPL:
         self._session = self._setup_session()
         self._running = True
 
-        print_banner(__version__)
+        print_banner(_get_version())
         _print_auth_status()
         console.print()
 

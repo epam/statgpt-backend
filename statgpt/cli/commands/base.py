@@ -255,6 +255,8 @@ class CommandRegistry:
         Returns:
             List of (completion, description) tuples
         """
+        # Check if text ends with space (user wants subcommand completions)
+        ends_with_space = text.endswith(" ")
         text = text.strip().lower()
         completions = []
 
@@ -269,6 +271,14 @@ class CommandRegistry:
         parts = text.split(maxsplit=1)
 
         if len(parts) == 1:
+            # Check if this is a complete group name followed by space
+            if ends_with_space and text in self._groups:
+                # Show all subcommands of this group
+                group = self._groups[text]
+                for cmd in group.commands.values():
+                    completions.append((cmd.name, cmd.description))
+                return completions
+
             # Complete command or group name
             for cmd in self._commands.values():
                 if cmd.name.lower().startswith(text):

@@ -39,6 +39,9 @@ class StatGPTCompleter(Completer):
                     if len(typed_parts) == 2:
                         start_pos = -len(typed_parts[1])
                         name = name.split()[-1]  # Only complete the subcommand part
+                elif " " not in name and text.endswith(" "):
+                    # Subcommand completion after "group " - insert at cursor
+                    start_pos = 0
             else:
                 start_pos = 0
 
