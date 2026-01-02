@@ -1,0 +1,18 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(make format:*)",
+      "Bash(make lint:*)",
+      "Bash(make mypy:*)",
+      "Bash(make test_unit:*)"
+    ],
+    "deny": [
+      "Read(./.env)"
+    ],
+    "ask": []
+  },
+  "outputStyle": "direct",
+  "enabledPlugins": {
+    "pyright-lsp@claude-plugins-official": true
+  }
+}

@@ -4,9 +4,9 @@ repos:
     hooks:
       - id: check-yaml
         exclude: .gitlab-ci.yml
+      - id: end-of-file-fixer
       - id: trailing-whitespace
         exclude: statgpt/common/default_prompts/assets/hybrid_indexer.yaml
-      - id: end-of-file-fixer
   - repo: https://github.com/PyCQA/autoflake
     rev: v2.3.1
     hooks:

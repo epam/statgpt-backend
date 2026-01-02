@@ -16,15 +16,18 @@ init_venv:
 	poetry env use .venv/bin/python
 
 install_dev: init_venv
-	poetry install --with dev
+	poetry install --with cli,dev
 
 install_all: init_venv
-	poetry install --with dev,experiments
+	poetry install --with cli,dev,experiments
 
 format: install_dev
 	poetry run autoflake ${SRC_DIRS}
 	poetry run black ${SRC_DIRS}
 	poetry run isort ${SRC_DIRS}
+
+mypy: install_dev
+	poetry run mypy --show-error-codes ${MYPY_DIRS} ${ARGS}
 
 lint: install_dev
 	poetry check --lock
@@ -35,6 +38,9 @@ lint: install_dev
 	# for now we only check data abstractions and services packages
 	poetry run mypy --show-error-codes ${MYPY_DIRS}
 	poetry run python scripts/check_imports.py
+
+statgpt_cli: install_dev
+	poetry run python -m statgpt.cli $(ARGS)
 
 install_pre_commit_hooks:
 	pre-commit install

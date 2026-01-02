@@ -23,6 +23,7 @@ Application is written in Python 3.11 and uses the following main technologies:
 * `statgpt/admin` — backend of the administrator part which allows the user to add and update data.
 * `statgpt/common` — common code used in the `statgpt.admin` and `statgpt.app` applications.
 * `statgpt/app` — main application that generates response using LLMs and based on data prepared by `statgpt.admin`.
+* `statgpt/cli` — command-line interface (CLI) for managing various aspects of StatGPT.
 * `tests` - unit and integration tests.
 * `docker` - Dockerfiles for building docker images.
 
@@ -34,6 +35,7 @@ files:
 * [Common environment variables](statgpt/common/README.md#environment-variables) - used in both applications
 * [Admin Backend environment variables](statgpt/admin/README.md#environment-variables)
 * [Main App environment variables](statgpt/app/README.md#environment-variables)
+* [CLI environment variables](statgpt/cli/README.md#environment-variables)
 
 ## Local Setup
 

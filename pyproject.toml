@@ -176,6 +176,19 @@ langgraph = "^0.4.3"
 opik = "^1.7.23"
 pdfplumber = "^0.11.6"
 
+[tool.poetry.group.cli]
+optional = true
+
+[tool.poetry.group.cli.dependencies]
+prompt-toolkit = "^3.0.48"
+questionary = "^2.1.0"
+rich = "^13.9.4"
+msal = "^1.31.0"
+httpx = "^0.28.1"
+
+[tool.poetry.scripts]
+statgpt = "statgpt.cli:main"
+
 [[tool.poetry.source]]
 name = "pytorch_cpu"
 url = "https://download.pytorch.org/whl/cpu"
