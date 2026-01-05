@@ -1,31 +1,22 @@
 # StatGPT CLI
 
-Interactive command-line interface for StatGPT administration and content management.
+Interactive command-line interface for StatGPT administration and content management. Alternative to using the Admin
+API directly and to [Admin web interface](https://github.com/epam/statgpt-admin-frontend).
+
+## Prerequisites
+
+Before using the CLI:
+
+1. **Admin backend running** - Start with `make statgpt_admin`
+2. **Environment variables** - Set required variables (see [Environment Variables](#environment-variables))
 
 ## Quick Start
 
 ```bash
-# 1. Install CLI dependencies
-poetry install --with cli
-
-# 2. Configure minimum required settings
-export STATGPT_CLI_ADMIN_URL=http://localhost:8000
-
-# 3. Start the interactive CLI
-statgpt
+make statgpt_cli
 ```
 
-## Installation
-
-**Prerequisites:** Python 3.11+, Poetry, access to StatGPT Admin API
-
-```bash
-poetry install --with cli
-```
-
-The CLI uses a separate Poetry dependency group to avoid mixing with production dependencies.
-
-### Interactive Features
+## Interactive Features
 
 - **Tab Completion**: Press Tab to see available commands and autocomplete
 - **Command History**: Use Up/Down arrows to navigate command history
