@@ -37,6 +37,7 @@ PROMPT_STYLE = Style.from_dict(
 
 def _get_history_path() -> Path:
     """Get path to command history file."""
+    # Lazy import to avoid circular dependency with settings module
     from statgpt.cli.shared.settings import cli_settings
 
     history_dir = Path(cli_settings.cli_data_dir)

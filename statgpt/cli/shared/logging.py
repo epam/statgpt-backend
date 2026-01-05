@@ -15,6 +15,7 @@ def setup_logging() -> logging.Logger:
     Returns:
         The root CLI logger
     """
+    # Lazy import to avoid circular dependency with settings module
     from statgpt.cli.shared.settings import cli_settings
 
     # Create logger

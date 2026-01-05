@@ -109,6 +109,7 @@ def login(method: LoginMethod, force: bool = False) -> AuthResult:
         AuthenticationError: If authentication fails
         AuthConfigError: If provider is not configured
     """
+    # Lazy imports to avoid circular dependency with console/settings modules
     from statgpt.cli.shared.console import print_info
     from statgpt.cli.shared.settings import cli_settings
 
@@ -150,6 +151,7 @@ def _try_refresh_token() -> AuthResult | None:
     Returns:
         AuthResult if refresh successful, None otherwise
     """
+    # Lazy import to avoid circular dependency with settings module
     from statgpt.cli.shared.settings import cli_settings
 
     _log = logging.getLogger(__name__)
@@ -218,6 +220,7 @@ def get_auth_headers(method: LoginMethod | None) -> dict[str, str]:
     if method is None:
         return {}
 
+    # Lazy imports to avoid circular dependency with console module
     from statgpt.cli.shared.console import print_error, print_info
 
     try:

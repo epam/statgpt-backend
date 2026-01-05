@@ -19,6 +19,7 @@ from statgpt.cli.shared import (
     select_clients_interactive,
     select_datasets_interactive,
 )
+from statgpt.common import utils
 from statgpt.common.schemas import (
     Channel,
     ChannelDatasetExpanded,
@@ -26,6 +27,7 @@ from statgpt.common.schemas import (
     DataSource,
     GlossaryTerm,
 )
+from statgpt.common.utils import dial_core_factory
 
 # ============================================================================
 # Content Init Command
@@ -80,8 +82,6 @@ def _confirm_full_init(clients: list[str], components: set[str]) -> bool:
 
 def _load_available_datasets(client_config_dir: str) -> list[tuple[str, str]]:
     """Load dataset URNs from config files."""
-    from statgpt.common import utils
-
     datasets_dir = os.path.join(client_config_dir, "datasets")
     if not os.path.exists(datasets_dir):
         return []
@@ -229,8 +229,6 @@ async def _process_client(
     components: set[str],
 ) -> None:
     """Process a single client configuration."""
-    from statgpt.common import utils
-
     # Load configurations
     tools_cfg = utils.read_yaml(f"{client_config_dir}/tools.yaml")
     channel_cfg = utils.read_yaml(f"{client_config_dir}/channels.yaml")
@@ -282,8 +280,6 @@ async def _upload_dial_files(dial_files_dir: str) -> None:
         print_warning("DIAL credentials not configured, skipping file upload")
         return
 
-    from statgpt.common.utils import dial_core_factory
-
     print_info("Uploading files to DIAL...")
 
     async with dial_core_factory(dial_url, dial_api_key) as dial:
@@ -324,8 +320,6 @@ async def _process_channels(
     glossaries_dir: str,
 ) -> dict[str, Channel]:
     """Process channel configurations."""
-    from statgpt.common import utils
-
     print_info("Processing channels...")
 
     existing = {ch.deployment_id: ch for ch in await client.get_channels()}
@@ -470,8 +464,6 @@ async def _process_datasets(
     dataset_ids: set[str] | None,
 ) -> None:
     """Process dataset configurations."""
-    from statgpt.common import utils
-
     print_info("Processing datasets...")
 
     datasets_dir = os.path.join(client_config_dir, "datasets")
