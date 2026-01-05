@@ -5,11 +5,6 @@ from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
-class AppMode(StrEnum):
-    LOCAL = "LOCAL"
-    DIAL = "DIAL"
-
-
 class DialAuthMode(StrEnum):
     USER_TOKEN = "user_token"
     """User token is passed to the DIAL API calls"""
