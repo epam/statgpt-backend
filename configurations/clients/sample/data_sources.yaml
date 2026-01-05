@@ -1,0 +1,19 @@
+dataSources:
+
+  - title: IMF_SDMX21
+    description: "Public IMF SDMX 21 Registry."
+    type: "QH_SDMX21"
+    details:
+      authEnabled: false
+      apiKey: ""
+      annotationsUrl: "https://api.imf.org/external/sdmx/3.0"
+      availabilityViaPostUrl: null
+      dataExplorerUrl: "https://data.imf.org/en/Data-Explorer"
+      sdmx1Source: "IMF_DATA"
+      sdmxConfig:
+        id: "IMF_SDMX21"
+        name: "Public IMF SDMX 21 Registry"
+        url: "https://api.imf.org/external/sdmx/2.1"
+        headers:
+          data:
+            accept: "Text/JSON"

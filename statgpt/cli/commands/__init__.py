@@ -3,7 +3,6 @@
 from statgpt.cli.commands.auth import auth_group
 from statgpt.cli.commands.base import Command, CommandGroup, CommandRegistry
 from statgpt.cli.commands.channel import channel_group
-from statgpt.cli.commands.config import config_group
 from statgpt.cli.commands.content import content_group
 from statgpt.cli.commands.settings import settings_command
 
@@ -13,7 +12,6 @@ __all__ = [
     "CommandRegistry",
     "auth_group",
     "channel_group",
-    "config_group",
     "content_group",
     "settings_command",
 ]
@@ -30,6 +28,5 @@ def create_registry() -> CommandRegistry:
     registry.register_group(auth_group)
     registry.register_group(channel_group)
     registry.register_group(content_group)
-    registry.register_group(config_group)
 
     return registry

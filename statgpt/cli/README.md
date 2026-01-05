@@ -17,53 +17,13 @@ statgpt
 
 ## Installation
 
-### Prerequisites
-
-- Python 3.11+
-- Poetry package manager
-- Access to StatGPT Admin API
-
-### Install CLI Dependencies
-
-The CLI uses a separate Poetry dependency group to avoid mixing with production dependencies:
+**Prerequisites:** Python 3.11+, Poetry, access to StatGPT Admin API
 
 ```bash
 poetry install --with cli
 ```
 
-### Verify Installation
-
-```bash
-# Using the entry point
-statgpt
-
-# Or as a Python module
-python -m statgpt.cli
-```
-
-You should see:
-
-```
-╭─────────────────────────────────────────────────────╮
-│                    StatGPT CLI                      │
-│         Type 'help' for available commands          │
-╰─────────────────────────────────────────────────────╯
-statgpt>
-```
-
-## Usage
-
-### Starting the CLI
-
-```bash
-statgpt
-```
-
-Or run as a Python module:
-
-```bash
-python -m statgpt.cli
-```
+The CLI uses a separate Poetry dependency group to avoid mixing with production dependencies.
 
 ### Interactive Features
 
@@ -74,297 +34,157 @@ python -m statgpt.cli
 
 ### Built-in Commands
 
-| Command          | Description                                 |
-|------------------|---------------------------------------------|
-| `help`           | Show available commands                     |
-| `help <command>` | Show detailed help for a command            |
-| `settings`       | Show current CLI settings and their sources |
-| `exit` / `quit`  | Exit the CLI                                |
+| Command          | Description                      |
+|------------------|----------------------------------|
+| `help`           | Show available commands          |
+| `help <command>` | Show detailed help for a command |
+| `exit` / `quit`  | Exit the CLI                     |
 
 ## Commands
 
-### Authentication
+| Command               | Description                           |
+|-----------------------|---------------------------------------|
+| `auth login`          | Authenticate with admin API           |
+| `auth logout`         | Clear cached authentication token     |
+| `auth status`         | Show current authentication status    |
+| `channel list`        | List all available channels           |
+| `channel import`      | Import channel from zip archive       |
+| `channel status`      | Show dataset preprocessing status     |
+| `channel reindex`     | Reindex dataset embeddings            |
+| `channel deduplicate` | Deduplicate embeddings for a channel  |
+| `content init`        | Initialize content from config files  |
+| `settings`            | Show current CLI settings and sources |
 
-The CLI caches authentication tokens to avoid repeated logins. Tokens are stored in `~/.statgpt/token_cache.json` with restricted permissions.
-
-#### `auth login`
-
-Authenticate with the admin API and cache the token.
+### auth login
 
 ```
 statgpt> auth login --method interactive
 ```
 
-Options:
+- `--method` - `interactive` (browser-based) or `system_user` (credentials)
 
-- `--method` - Authentication method: `interactive` (browser-based) or `system_user` (credentials)
-
-#### `auth logout`
-
-Clear the cached authentication token.
-
-```
-statgpt> auth logout
-```
-
-#### `auth status`
-
-Show current authentication status.
-
-```
-statgpt> auth status
-```
-
-### Channel Management
-
-#### `channel list`
-
-List all available channels.
-
-```
-statgpt> channel list
-```
-
-#### `channel import`
-
-Import a channel from a zip archive.
+### channel import
 
 ```
 statgpt> channel import --file /path/to/channel.zip --clean
 ```
 
-Options:
+| Option                  | Description                              |
+|-------------------------|------------------------------------------|
+| `--file`                | Path to zip archive (prompts if omitted) |
+| `--clean`               | Clean existing data before import        |
+| `--update-datasets`     | Update existing datasets                 |
+| `--update-data-sources` | Update existing data sources             |
 
-- `--file` - Path to the zip archive (prompts if not provided)
-- `--clean` - Clean existing channel data before import
-- `--update-datasets` - Update existing datasets
-- `--update-data-sources` - Update existing data sources
-- `--admin-url` - Override Admin API URL
-
-#### `channel status`
-
-Show preprocessing status of datasets for a specific channel.
+### channel status
 
 ```
-statgpt> channel status -c my-deployment-id
-statgpt> channel status --output-path report.csv
+statgpt> channel status -c my-deployment-id -o report.csv
 ```
 
-Options:
+| Option              | Description                                    |
+|---------------------|------------------------------------------------|
+| `-c, --channel`     | Channel deployment ID (interactive if omitted) |
+| `-o, --output-path` | Export status report to CSV file               |
 
-- `-c, --channel` - Channel deployment ID (prompts interactively if not provided)
-- `-o, --output-path` - Export status report to CSV file
-
-#### `channel reindex`
-
-Reindex dataset embeddings for a channel.
+### channel reindex
 
 ```
-statgpt> channel reindex --channel my-channel --mode all
+statgpt> channel reindex -c my-channel --mode all
 ```
 
-Options:
+| Option          | Description                              |
+|-----------------|------------------------------------------|
+| `-c, --channel` | Channel deployment ID                    |
+| `--mode`        | `all`, `channel`, or `dataset`           |
+| `--dataset-urn` | Dataset URN (required when mode=dataset) |
 
-- `-c, --channel` - Channel deployment ID (prompts if not provided)
-- `--mode` - Reindex mode: `all`, `channel`, or `dataset`
-- `--dataset-urn` - Dataset URN (required when mode=dataset)
-
-#### `channel deduplicate`
-
-Deduplicate embeddings for a channel.
+### content init
 
 ```
-statgpt> channel deduplicate -c my-channel
+statgpt> content init                             # interactive client selection
+statgpt> content init --client-id my-client       # specific client
+statgpt> content init --only channels,glossaries  # specific components
+statgpt> content init -y                          # skip all prompts
 ```
 
-Options:
+| Option        | Description                                                              |
+|---------------|--------------------------------------------------------------------------|
+| `--client-id` | Comma-separated client IDs (interactive selection if omitted)            |
+| `--datasets`  | Comma-separated dataset URNs to process                                  |
+| `-o, --only`  | Components: `channels`, `datasources`, `datasets`, `glossaries`, `files` |
+| `-y, --yes`   | Skip all confirmation prompts                                            |
 
-- `-c, --channel` - Channel deployment ID (prompts if not provided)
+**Notes:**
 
-### Content Management
-
-#### `content init`
-
-Initialize channels, data sources, datasets, and glossaries from configuration files.
-
-```
-statgpt> content init --client-id my-client --skip-glossaries
-```
-
-Options:
-
-- `--client-id` - Comma-separated list of client IDs to process
-- `--datasets` - Comma-separated list of dataset URNs to process
-- `--skip-data` - Skip data sources and datasets processing
-- `--skip-glossaries` - Skip glossary terms processing
-- `--skip-dial-files` - Skip uploading files to DIAL
-
-### Configuration
-
-#### `config generate`
-
-Generate DIAL Core configuration from remote DIAL deployments.
-
-```
-statgpt> config generate --template template.json --config output.json
-```
-
-Options:
-
-- `--template` - Path to the template JSON file (required)
-- `--config` - Path to output configuration file (required)
-- `--applications` - Comma-separated list of application IDs to include
-
-### Utilities
-
-#### `settings`
-
-Display current CLI settings and their sources.
-
-```
-statgpt> settings
-```
-
-Shows all configured settings with indicators for:
-
-- `(env)` - Value set via environment variable
-- `(default)` - Using default value
-- `(not set)` - Required but not configured
+- Specifying `datasets` automatically includes `datasources` (dependency)
+- Interactive selectors: arrow keys to navigate, space to toggle, enter to confirm
 
 ## Environment Variables
 
-All CLI environment variables are prefixed with `STATGPT_CLI_` to avoid conflicts with application settings.
+All variables are prefixed with `STATGPT_CLI_`.
 
-### Admin API
-
-| Variable                | Required | Description                  | Default                 |
-|-------------------------|:--------:|------------------------------|-------------------------|
-| `STATGPT_CLI_ADMIN_URL` |    No    | URL of the StatGPT Admin API | `http://localhost:8000` |
-
-### Content Initialization
-
-| Variable                     | Required | Description                               | Default   |
-|------------------------------|:--------:|-------------------------------------------|-----------|
-| `STATGPT_CLI_CONFIG_DIR`     |   Yes*   | Path to the configuration directory       | -         |
-| `STATGPT_CLI_MAX_EMBEDDINGS` |    No    | Maximum embeddings for reindex operations | unlimited |
+| Variable                   | Required | Description                         | Default                 |
+|----------------------------|:--------:|-------------------------------------|-------------------------|
+| **Admin API**              |          |                                     |                         |
+| `ADMIN_URL`                |    No    | StatGPT Admin API URL               | `http://localhost:8000` |
+| **Content Init**           |          |                                     |                         |
+| `CONFIG_DIR`               |   Yes*   | Configuration directory path        | -                       |
+| `MAX_EMBEDDINGS`           |    No    | Max embeddings for reindex          | unlimited               |
+| **DIAL Integration**       |          |                                     |                         |
+| `DIAL_URL`                 |    No    | DIAL URL for file uploads           | -                       |
+| `DIAL_API_KEY`             |    No    | DIAL API key                        | -                       |
+| **Authentication**         |          |                                     |                         |
+| `AUTH_PROVIDER`            |    No    | Auth provider (`azure`, etc.)       | `azure`                 |
+| `AUTH_AZURE_CLIENT_ID`     |  Yes**   | Azure application/client ID         | -                       |
+| `AUTH_AZURE_AUTHORITY`     |  Yes**   | Authority URL (includes tenant)     | -                       |
+| `AUTH_AZURE_SCOPE`         |  Yes**   | Token scope                         | -                       |
+| `AUTH_AZURE_CLIENT_SECRET` |  Yes***  | Client secret (system_user only)    | -                       |
+| `AUTH_AZURE_USERNAME`      |  Yes***  | Username (system_user only)         | -                       |
+| `AUTH_AZURE_PASSWORD`      |  Yes***  | Password (system_user only)         | -                       |
+| **General**                |          |                                     |                         |
+| `LOG_LEVEL`                |    No    | `DEBUG`, `INFO`, `WARNING`, `ERROR` | `INFO`                  |
+| `DATA_DIR`                 |    No    | CLI data directory                  | `~/.statgpt`            |
 
 \* Required for `content init` command
+\** Required for `auth login`
+\*** Required for `auth login --method system_user`
 
-### DIAL Integration
+## Data Directory
 
-| Variable                          | Required | Description                               | Default |
-|-----------------------------------|:--------:|-------------------------------------------|---------|
-| `STATGPT_CLI_DIAL_URL`            |    No    | DIAL URL for file uploads                 | -       |
-| `STATGPT_CLI_DIAL_API_KEY`        |    No    | DIAL API key for file uploads             | -       |
-| `STATGPT_CLI_REMOTE_DIAL_URL`     |   Yes*   | Remote DIAL URL for config generation     | -       |
-| `STATGPT_CLI_REMOTE_DIAL_API_KEY` |   Yes*   | Remote DIAL API key for config generation | -       |
+The CLI stores persistent data in `~/.statgpt/` (configurable via `STATGPT_CLI_DATA_DIR`):
 
-\* Required for `config generate` command
-
-### Authentication
-
-The CLI supports pluggable authentication providers. Set `STATGPT_CLI_AUTH_PROVIDER` to select the provider.
-
-| Variable                    | Required | Description                             | Default |
-|-----------------------------|:--------:|-----------------------------------------|---------|
-| `STATGPT_CLI_AUTH_PROVIDER` |    No    | Authentication provider (`azure`, etc.) | `azure` |
-
-#### Azure Entra ID Provider
-
-| Variable                               | Required | Description                                                        | Default |
-|----------------------------------------|:--------:|--------------------------------------------------------------------|---------|
-| `STATGPT_CLI_AUTH_AZURE_CLIENT_ID`     |   Yes*   | Azure application/client ID                                        | -       |
-| `STATGPT_CLI_AUTH_AZURE_AUTHORITY`     |   Yes*   | Authority URL (e.g., `https://login.microsoftonline.com/{tenant}`) | -       |
-| `STATGPT_CLI_AUTH_AZURE_SCOPE`         |   Yes*   | Token scope                                                        | -       |
-| `STATGPT_CLI_AUTH_AZURE_CLIENT_SECRET` |  Yes**   | Client secret                                                      | -       |
-| `STATGPT_CLI_AUTH_AZURE_USERNAME`      |  Yes**   | System user username                                               | -       |
-| `STATGPT_CLI_AUTH_AZURE_PASSWORD`      |  Yes**   | System user password                                               | -       |
-
-\* Required when using `auth login --method interactive` or `auth login --method system_user`
-\** Required when using `auth login --method system_user`
-
-#### Adding New Providers
-
-To add a new authentication provider (e.g., Keycloak):
-
-1. Create `statgpt/cli/shared/auth/keycloak.py` implementing `AuthProvider`
-2. Add provider-specific settings to `CLISettings` with `auth_keycloak_*` prefix
-3. Register the provider in `statgpt/cli/shared/auth/__init__.py`
-
-```python
-from statgpt.cli.shared.auth.base import AuthProvider
-
-
-class KeycloakProvider(AuthProvider):
-    @property
-    def name(self) -> str:
-        return "keycloak"
-
-    def validate_config(self, settings, interactive: bool) -> None:
-        # Check required settings
-        ...
-
-    def interactive_login(self, settings) -> str:
-        # Return access token
-        ...
-
-    def system_user_login(self, settings) -> str:
-        # Return access token
-        ...
-```
-
-### General
-
-| Variable                | Required | Description                                                     | Default |
-|-------------------------|:--------:|-----------------------------------------------------------------|---------|
-| `STATGPT_CLI_LOG_LEVEL` |    No    | Logging level (`DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL`) | `INFO`  |
-
-## Configuration File
-
-The CLI stores command history in `~/.statgpt/cli_history`.
+| File               | Description                                           |
+|--------------------|-------------------------------------------------------|
+| `cli_history`      | Command history for up/down arrow navigation          |
+| `token_cache.json` | Cached authentication tokens (restricted permissions) |
 
 ## Example Workflows
 
 ### Initial Setup
 
 ```bash
-# Set up environment
 export STATGPT_CLI_ADMIN_URL=http://localhost:8000
 export STATGPT_CLI_CONFIG_DIR=/path/to/config
-export STATGPT_CLI_DIAL_URL=http://dial:8080
-export STATGPT_CLI_DIAL_API_KEY=your-api-key
-
-# For authentication (if using Azure)
 export STATGPT_CLI_AUTH_AZURE_CLIENT_ID=your-client-id
 export STATGPT_CLI_AUTH_AZURE_AUTHORITY=https://login.microsoftonline.com/your-tenant
 export STATGPT_CLI_AUTH_AZURE_SCOPE=api://your-app/.default
 
-# Start CLI
 statgpt
 ```
 
-### Authentication Workflow
+### Content Initialization
 
 ```
-statgpt> auth login --method interactive    # Login once (opens browser)
-statgpt> auth status                        # Check token status
-statgpt> channel import --file export.zip   # Uses cached token automatically
-statgpt> channel status                     # Uses cached token automatically
-statgpt> auth logout                        # Clear token when done
+statgpt> auth login
+statgpt> settings                           # verify configuration
+statgpt> content init --client-id my-client
+statgpt> channel status -c my-channel
+statgpt> channel reindex -c my-channel --mode all
+statgpt> channel deduplicate -c my-channel
 ```
 
-### Content Initialization Workflow
-
-```
-statgpt> auth login                         # Login first
-statgpt> settings                           # Verify configuration
-statgpt> content init --client-id my-client # Initialize all content
-statgpt> channel status -c my-channel       # Check dataset status
-statgpt> channel reindex -c my-channel --mode all  # Reindex datasets
-statgpt> channel deduplicate -c my-channel  # Deduplicate if needed
-```
-
-### Channel Import Workflow
+### Channel Import
 
 ```
 statgpt> auth login --method interactive
@@ -373,65 +193,9 @@ statgpt> channel import --file export.zip --clean
 
 ## Troubleshooting
 
-### "Module not found" errors
-
-Ensure CLI dependencies are installed:
-
-```bash
-poetry install --with cli
-```
-
-### Authentication failures
-
-1. Check required environment variables are set:
-   ```
-   statgpt> settings
-   ```
-
-2. For Azure Entra ID, verify:
-    - Client ID is correct
-    - Authority URL includes your tenant ID
-    - Scope matches your API registration
-
-### Connection refused
-
-Verify the Admin API is running and accessible:
-
-```bash
-curl http://localhost:8000/health
-```
-
-### Command not recognized
-
-Use `help` to see available commands:
-
-```
-statgpt> help
-```
-
-## Architecture
-
-```
-statgpt/cli/
-├── __init__.py          # Main entry point
-├── __main__.py          # Module runner support
-├── repl.py              # Interactive REPL with prompt_toolkit
-├── completer.py         # Tab completion
-├── commands/            # Command implementations
-│   ├── base.py          # Command infrastructure
-│   ├── auth.py          # auth login/logout/status
-│   ├── channel.py       # channel list/import/status/deduplicate/reindex
-│   ├── content.py       # content init
-│   ├── config.py        # config generate
-│   └── settings.py      # settings display
-└── shared/              # Shared utilities
-    ├── admin_client.py  # Admin API HTTP client
-    ├── console.py       # Rich console helpers
-    ├── logging.py       # Logging configuration
-    ├── settings.py      # Pydantic settings
-    ├── token_cache.py   # Token caching for auth
-    └── auth/            # Authentication providers
-        ├── base.py      # AuthProvider ABC, AuthResult
-        ├── azure.py     # Azure Entra ID
-        └── __init__.py  # Provider registry
-```
+| Problem                 | Solution                                              |
+|-------------------------|-------------------------------------------------------|
+| Module not found        | Run `poetry install --with cli`                       |
+| Authentication failures | Check `settings` command, verify Azure config         |
+| Connection refused      | Verify Admin API: `curl http://localhost:8000/health` |
+| Command not recognized  | Run `help` to see available commands                  |

@@ -1,0 +1,59 @@
+domain,term,definition,source
+Macro,CPI inflation,"A sustained increase in the general price level, often measured by an index of consumer prices",StatGPT
+Macro,Wages,"Rates paid per employee on hourly, daily, weekly, monthly or annual basis in the total economy",StatGPT
+Macro,Real GDP growth rate,"Annual change in goods and services produced in an economy after adjusting for inflation, expressed in percentage terms",StatGPT
+Macro,Real GDP growth level,"Annual change in goods and services produced in an economy after adjusting for inflation, expressed in volume terms",StatGPT
+Macro,Nominal GDP growth rate,"Annual change in goods and services produced in an economy without adjusting for inflation, expressed in percentage terms",StatGPT
+Macro,Nominal GDP growth level,"Annual change in goods and services produced in an economy without adjusting for inflation, expressed in volume terms",StatGPT
+Macro,Central bank policy rate,Rate used by central bank to implement or signal its monetary policy stance. It is most commonly set by the central banks policy making committees (e.g. Fed Open Market Committee),StatGPT
+Macro,10-year sovereign bond yield,"Long-term interest rates implied by the prices at which the government bonds maturing in 10 years are traded on financial markets, not the interest rates at which the loans were issued",StatGPT
+Macro,Harmonised Index of Consumer Prices (HICP),"The harmonised index of consumer prices, abbreviated as HICP, is the consumer price index as it is calculated in the European Union (EU), according to a harmonised approach and a single set of definitions. It is mainly used to measure inflation.",StatGPT
+Macro,Headline inflation," “Headline” PCE refers to the all-items PCE index (that is, the index including all items of personal consumption expenditure, excluding non",Dallas Federal Reserve
+Macro,Core inflation,“Core” PCE refers to the index excluding food and energy items.,Dallas Federal Reserve
+Macro,Producer price index,"The (industrial) producer price index, abbreviated as PPI and also called output price index, is a business-cycle indicator showing the development of transaction prices for the monthly industrial output of economic activ",StatGPT
+Macro,Wage index,Wage Rate Index Numbers depict movement of relative change experienced in the wage rates over a period of time.,Government of India
+Macro,Fiscal deficit,"The shortfall when a government spends more than it earns in a given period, typically measured as a percentage of GDP",StatGPT
+Macro,Trade surplus,"A situation in which a country's exports exceed its imports, resulting in a positive trade balance",StatGPT
+Macro,Trade deficit,"A situation in which a country's imports exceed its exports, resulting in a negative trade balance",StatGPT
+Macro,Foreign Direct Investment (FDI),"Investment made by a company or individual in one country in business interests in another country",StatGPT
+Macro,Current account balance,"The sum of the trade balance (exports minus imports), net income from abroad, and net current transfers",StatGPT
+Macro,Exchange rate,"The value of one country's currency in terms of another currency",StatGPT
+Macro,Monetary policy,"Actions taken by a central bank to shape economic conditions through interest rates and money supply",StatGPT
+Macro,Fiscal policy,"Government decisions on taxation and spending to influence economic activity",StatGPT
+Macro,Unemployment rate,"The percentage of the labor force that is without work but is available for and actively seeking employment",StatGPT
+Macro,Labor force participation rate,"The percentage of the working-age population that is part of the labor force",StatGPT
+Macro,Gini coefficient,"A measure of income inequality within a population, ranging from 0 (perfect equality) to 1 (maximum inequality)",StatGPT
+Macro,Consumer confidence index,"An economic indicator measuring the degree of optimism or pessimism that consumers feel about the overall state of the economy",StatGPT
+Macro,Business confidence index,"An economic indicator measuring the optimism or pessimism of firms about future business conditions",StatGPT
+Macro,Public debt,"The total amount of money that a government owes to creditors",StatGPT
+Macro,External debt,"The total debt a country owes to foreign creditors",StatGPT
+Macro,Capital account,"The section of a nation's balance of payments that records the flow of capital in and out of the country",StatGPT
+Macro,Floating exchange rate,"A system in which the value of a currency is determined by supply and demand in foreign exchange markets",StatGPT
+Macro,Fixed exchange rate,"A system in which a currency's value is tied to another currency or a basket of currencies",StatGPT
+Macro,Money supply (M2),"Amount of money in circulation, including cash, deposits, and close substitutes for money",StatGPT
+Macro,Quantitative easing,"A monetary policy whereby a central bank purchases government securities or other securities to increase the money supply",StatGPT
+Macro,Stagflation,"A situation in which an economy experiences stagnant growth, high unemployment, and high inflation simultaneously",StatGPT
+Macro,Hyperinflation,"Extremely high and typically accelerating inflation, often associated with a collapse in a country's economy",StatGPT
+Macro,Deflation,"A decrease in the general price level of goods and services, often associated with reduced consumer spending",StatGPT
+Macro,Debt-to-GDP ratio,"A measure of a country's debt in relation to its gross domestic product",StatGPT
+Macro,Primary fiscal surplus,"The fiscal surplus excluding interest payments on government debt",StatGPT
+Macro,Phillips curve,"The supposed inverse relationship between the rate of unemployment and the rate of inflation in an economy",StatGPT
+Macro,Natural rate of unemployment (NAIRU),"The level of unemployment consistent with a stable inflation rate",StatGPT
+Macro,Output gap,"The difference between an economy's actual output and its potential output",StatGPT
+Macro,Structural unemployment,"Long-term unemployment caused by shifts in the structure of an economy",StatGPT
+Macro,Seasonally adjusted data,"Data that have been modified to account for seasonal variations in economic activity",StatGPT
+Macro,Taylor rule,"A formula used to predict or guide central bank interest rate decisions based on inflation and economic output",StatGPT
+Macro,Credit-to-GDP gap,"The difference between a country's credit-to-GDP ratio and its long-term trend, used to assess financial stability risks",StatGPT
+Macro,Shadow banking system,"Non-bank financial intermediaries providing services similar to traditional banks but outside regular regulatory oversight",StatGPT
+Macro,Trade-weighted exchange rate,"An index measuring the value of a currency relative to a basket of other currencies weighted by their trade importance",StatGPT
+Statistics,Mean absolute deviation (MAD),"A statistical measure of the average absolute deviation of observed values from the mean",StatGPT
+Statistics,Standard deviation,"A measure of the dispersion or spread of a set of values, indicating how much they deviate from the mean",StatGPT
+Statistics,Variance,"The average of the squared differences between observed values and the mean, showing data dispersion",StatGPT
+Statistics,Median,"The middle value in a data set when the data is arranged in ascending or descending order",StatGPT
+Statistics,Mode,"The most frequently occurring value in a data set",StatGPT
+Statistics,Regression analysis,"A statistical method for estimating the relationship between variables",StatGPT
+Statistics,P-value,"The probability of obtaining an observed effect, assuming that the null hypothesis is true",StatGPT
+Statistics,Coefficient of determination (R-squared),"A statistical measure representing the proportion of variance for a dependent variable explained by an independent variable",StatGPT
+Statistics,Time series,"A sequence of data points collected or recorded at specific time intervals",StatGPT
+Statistics,Confidence interval,"A range of values within which a population parameter is estimated to lie, with a specified level of certainty",StatGPT
+Statistics,Random sampling,"A sampling method where each member of a population has an equal chance of being selected",StatGPT

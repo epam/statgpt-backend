@@ -5,12 +5,14 @@ from contextlib import asynccontextmanager
 from typing import Any, AsyncGenerator
 
 import httpx
+import requests
 from pydantic import TypeAdapter
 
 from statgpt.cli.shared.auth import get_cached_token
 from statgpt.cli.shared.settings import cli_settings
 from statgpt.common.schemas import (
     Channel,
+    ChannelDatasetBase,
     ChannelDatasetExpanded,
     ChannelIndexStatus,
     DataSet,
@@ -260,13 +262,11 @@ class AdminClient:
         resp.raise_for_status()
         return DataSet.model_validate(resp.json())
 
-    async def add_dataset_to_channel(
-        self, channel_id: int, dataset_id: int
-    ) -> ChannelDatasetExpanded:
+    async def add_dataset_to_channel(self, channel_id: int, dataset_id: int) -> ChannelDatasetBase:
         """Add a dataset to a channel."""
         resp = await self._client.post(self._url(f"/channels/{channel_id}/datasets/{dataset_id}"))
         resp.raise_for_status()
-        return ChannelDatasetExpanded.model_validate(resp.json())
+        return ChannelDatasetBase.model_validate(resp.json())
 
     async def create_glossary_terms_bulk(
         self, channel_id: int, terms: list[dict[str, Any]]
@@ -290,8 +290,6 @@ class AdminClient:
 
         Note: Uses requests library as httpx doesn't support DELETE with body.
         """
-        import requests
-
         resp = requests.delete(
             f"{self._base_url}{URL_PREFIX}/terms/bulk",
             json=term_ids,

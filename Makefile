@@ -141,3 +141,7 @@ compile_messages: check_gettext
 
 # Convenience command to compile messages after changes
 locales: compile_messages
+
+# Utility to generate UUIDs
+generate_uuid:
+	python -c "from uuid import uuid4; print(uuid4())"

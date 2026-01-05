@@ -1,6 +1,7 @@
 """Channel commands for StatGPT CLI."""
 
 import asyncio
+import csv
 import os
 from collections import Counter
 
@@ -172,8 +173,6 @@ def _export_status_csv(
     output_path: str,
 ) -> None:
     """Export status to CSV file."""
-    import csv
-
     os.makedirs(os.path.dirname(output_path) or ".", exist_ok=True)
 
     # Collect all hash columns from the data

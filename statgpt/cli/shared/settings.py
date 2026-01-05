@@ -1,5 +1,6 @@
 """CLI Settings module with environment variable configuration."""
 
+import os
 from typing import Literal
 
 from pydantic import Field
@@ -40,16 +41,6 @@ class CLISettings(BaseSettings):
     dial_api_key: str | None = Field(
         default=None,
         description="DIAL API key for file uploads",
-    )
-
-    # Remote DIAL settings (for config generation)
-    remote_dial_url: str | None = Field(
-        default=None,
-        description="Remote DIAL URL for config generation",
-    )
-    remote_dial_api_key: str | None = Field(
-        default=None,
-        description="Remote DIAL API key for config generation",
     )
 
     # Reindex settings
@@ -127,8 +118,6 @@ class CLISettings(BaseSettings):
         Returns:
             Configured data_dir or ~/.statgpt if not set
         """
-        import os
-
         if self.data_dir:
             return os.path.expanduser(self.data_dir)
         return os.path.expanduser("~/.statgpt")
@@ -142,8 +131,6 @@ class CLISettings(BaseSettings):
             'not set' if None and no default
         """
         env_var = f"STATGPT_CLI_{field_name.upper()}"
-        import os
-
         if os.environ.get(env_var) is not None:
             return "env"
 

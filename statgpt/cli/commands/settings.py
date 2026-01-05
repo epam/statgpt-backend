@@ -129,16 +129,6 @@ async def settings_handler() -> None:
         _format_value(cli_settings.dial_api_key, is_secret=True),
         _format_source(cli_settings.get_setting_source("dial_api_key")),
     )
-    dial_table.add_row(
-        "remote_dial_url",
-        _format_value(cli_settings.remote_dial_url),
-        _format_source(cli_settings.get_setting_source("remote_dial_url")),
-    )
-    dial_table.add_row(
-        "remote_dial_api_key",
-        _format_value(cli_settings.remote_dial_api_key, is_secret=True),
-        _format_source(cli_settings.get_setting_source("remote_dial_api_key")),
-    )
 
     # General section
     general_table = _create_settings_section("General")

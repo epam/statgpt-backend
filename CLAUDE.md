@@ -81,7 +81,6 @@ See `statgpt/cli/README.md` for full documentation.
 | `channel deduplicate` | Deduplicate embeddings for a channel |
 | `channel reindex` | Reindex dataset embeddings for a channel |
 | `content init` | Initialize channels, data sources, datasets, glossaries |
-| `config generate` | Generate DIAL Core configuration |
 | `settings` | Show current CLI settings |
 
 ## Architecture Overview
@@ -119,6 +118,7 @@ statgpt/
 │   ├── services/        # Shared services
 │   └── schemas/         # Shared Pydantic models
 └── cli/                 # Interactive command-line interface
+    ├── __init__.py      # Package init
     ├── __main__.py      # Entry point
     ├── repl.py          # Interactive REPL with prompt_toolkit
     ├── completer.py     # Tab completion
@@ -127,12 +127,13 @@ statgpt/
     │   ├── auth.py      # auth login/logout/status
     │   ├── channel.py   # channel list/import/status/deduplicate/reindex
     │   ├── content.py   # content init
-    │   ├── config.py    # config generate
     │   └── settings.py  # settings command
     └── shared/          # Shared utilities
-        ├── console.py       # Rich console output helpers
-        ├── settings.py      # CLI settings (Pydantic)
         ├── admin_client.py  # Admin API client
+        ├── console.py       # Rich console output helpers
+        ├── logging.py       # Logging configuration
+        ├── prompts.py       # Interactive prompts (checkbox selector)
+        ├── settings.py      # CLI settings (Pydantic)
         ├── token_cache.py   # Token caching
         └── auth/            # Pluggable authentication providers
             ├── base.py      # Auth provider interface

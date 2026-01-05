@@ -3,29 +3,107 @@
 import os
 from typing import Any
 
+from rich.panel import Panel
+from rich.prompt import Confirm
+
 from statgpt.cli.commands.base import Command, CommandArg, CommandGroup
 from statgpt.cli.shared import (
     AdminClient,
     cli_settings,
+    console,
     get_admin_client,
     print_error,
     print_info,
     print_success,
     print_warning,
+    select_clients_interactive,
+    select_datasets_interactive,
 )
-from statgpt.common.schemas import Channel, DataSet, DataSource, GlossaryTerm
+from statgpt.common.schemas import (
+    Channel,
+    ChannelDatasetExpanded,
+    DataSet,
+    DataSource,
+    GlossaryTerm,
+)
 
 # ============================================================================
 # Content Init Command
 # ============================================================================
 
+VALID_COMPONENTS = {"channels", "datasources", "datasets", "glossaries", "files"}
+
+
+def _parse_components(only: str | None) -> set[str]:
+    """Parse and validate component list from --only flag."""
+    if not only:
+        return VALID_COMPONENTS.copy()
+
+    components = {c.strip().lower() for c in only.split(",") if c.strip()}
+
+    invalid = components - VALID_COMPONENTS
+    if invalid:
+        raise ValueError(
+            f"Invalid components: {', '.join(invalid)}. "
+            f"Valid: {', '.join(sorted(VALID_COMPONENTS))}"
+        )
+
+    # datasets implies datasources
+    if "datasets" in components:
+        components.add("datasources")
+
+    return components
+
+
+def _confirm_full_init(clients: list[str], components: set[str]) -> bool:
+    """Show confirmation dialog for full content initialization."""
+    component_lines = []
+    if "files" in components:
+        component_lines.append("  • Files (DIAL uploads)")
+    if "channels" in components:
+        component_lines.append("  • Channels")
+    if "glossaries" in components:
+        component_lines.append("  • Glossaries")
+    if "datasources" in components:
+        component_lines.append("  • Data sources")
+    if "datasets" in components:
+        component_lines.append("  • Datasets")
+
+    content = (
+        "[bold]You are about to initialize:[/bold]\n\n"
+        f"{chr(10).join(component_lines)}\n\n"
+        f"[bold]Clients:[/bold] {', '.join(clients)}"
+    )
+    console.print(Panel(content, title="Content Initialization", border_style="yellow"))
+    return Confirm.ask("Proceed?", default=False)
+
+
+def _load_available_datasets(client_config_dir: str) -> list[tuple[str, str]]:
+    """Load dataset URNs from config files."""
+    from statgpt.common import utils
+
+    datasets_dir = os.path.join(client_config_dir, "datasets")
+    if not os.path.exists(datasets_dir):
+        return []
+
+    datasets: list[tuple[str, str]] = []
+    for filename in os.listdir(datasets_dir):
+        if not filename.endswith(".yaml"):
+            continue
+        cfg = utils.read_yaml(os.path.join(datasets_dir, filename))
+        for ds in cfg.get("dataSets", []):
+            urn = ds.get("details", {}).get("urn", "")
+            title = ds.get("title", urn)
+            if urn:
+                datasets.append((urn, f"{title}"))
+    return sorted(datasets, key=lambda x: x[1])
+
 
 async def init_handler(
     client_id: str | None = None,
     datasets: str | None = None,
-    skip_data: bool = False,
-    skip_glossaries: bool = False,
-    skip_dial_files: bool = False,
+    only: str | None = None,
+    yes: bool = False,
 ) -> None:
     """Initialize content (channels, data sources, datasets, glossaries)."""
     config_dir = cli_settings.config_dir
@@ -37,33 +115,80 @@ async def init_handler(
         print_error(f"Config directory not found: {config_dir}")
         return
 
-    # Parse client IDs
-    client_ids: set[str] | None = None
-    if client_id:
-        client_ids = {cid.strip() for cid in client_id.split(",") if cid.strip()}
+    # Parse components
+    try:
+        components = _parse_components(only)
+    except ValueError as e:
+        print_error(str(e))
+        return
 
-    # Parse dataset IDs
-    dataset_ids: set[str] | None = None
-    if datasets:
-        dataset_ids = {did.strip() for did in datasets.split(",") if did.strip()}
-
-    # Find clients
+    # Find available clients
     clients_dir = os.path.join(config_dir, "clients")
     if not os.path.exists(clients_dir):
         print_error(f"Clients directory not found: {clients_dir}")
         return
 
-    available_clients = [
-        d
-        for d in os.listdir(clients_dir)
-        if os.path.isdir(os.path.join(clients_dir, d)) and (not client_ids or d in client_ids)
+    all_available_clients = [
+        d for d in os.listdir(clients_dir) if os.path.isdir(os.path.join(clients_dir, d))
     ]
 
-    if not available_clients:
+    if not all_available_clients:
         print_error(f"No clients found in {clients_dir}")
         return
 
-    print_info(f"Found clients: {', '.join(available_clients)}")
+    # Client selection
+    client_ids: set[str] | None = None
+    if client_id:
+        # Parse from CLI argument
+        client_ids = {cid.strip() for cid in client_id.split(",") if cid.strip()}
+    elif not yes:
+        # Interactive selection
+        client_ids = await select_clients_interactive(all_available_clients)
+        if client_ids is not None and len(client_ids) == 0:
+            print_info("No clients selected. Aborted.")
+            return
+
+    # Filter clients by selection
+    if client_ids is None:
+        available_clients = all_available_clients
+    else:
+        available_clients = [c for c in all_available_clients if c in client_ids]
+        if not available_clients:
+            print_error("No matching clients found")
+            return
+
+    # Parse dataset IDs from CLI argument
+    dataset_ids: set[str] | None = None
+    if datasets:
+        dataset_ids = {did.strip() for did in datasets.split(",") if did.strip()}
+        print_info(f"Processing datasets: {', '.join(sorted(dataset_ids))}")
+    elif "datasets" in components and not yes:
+        # Ask if user wants to select specific datasets
+        # First, collect all available datasets from selected clients
+        available_datasets: list[tuple[str, str]] = []
+        for c in available_clients:
+            client_config_dir = os.path.join(clients_dir, c)
+            available_datasets.extend(_load_available_datasets(client_config_dir))
+
+        if available_datasets:
+            # Remove duplicates and sort
+            available_datasets = sorted(set(available_datasets), key=lambda x: x[1])
+
+            if Confirm.ask("Would you like to select specific datasets?", default=False):
+                selected = await select_datasets_interactive(available_datasets)
+                if not selected:
+                    print_info("No datasets selected. Aborted.")
+                    return
+                dataset_ids = selected
+                print_info(f"Selected {len(dataset_ids)} datasets")
+
+    # Confirmation for full init (when no --only specified)
+    if not only and not yes:
+        if not _confirm_full_init(available_clients, components):
+            print_info("Aborted.")
+            return
+
+    print_info(f"Processing clients: {', '.join(available_clients)}")
 
     async with get_admin_client() as client:
         if not await client.health_check():
@@ -72,7 +197,7 @@ async def init_handler(
 
         # Get existing data for updates
         existing_datasets: dict[str, DataSet] = {}
-        if not skip_data:
+        if "datasets" in components:
             all_datasets = await client.get_datasets()
             existing_datasets = {str(ds.id_): ds for ds in all_datasets}
 
@@ -87,9 +212,7 @@ async def init_handler(
                     client_config_dir=client_config_dir,
                     existing_datasets=existing_datasets,
                     dataset_ids=dataset_ids,
-                    skip_data=skip_data,
-                    skip_glossaries=skip_glossaries,
-                    skip_dial_files=skip_dial_files,
+                    components=components,
                 )
                 print_success(f"Client {client_name} processed successfully")
             except Exception as e:
@@ -103,15 +226,12 @@ async def _process_client(
     client_config_dir: str,
     existing_datasets: dict[str, DataSet],
     dataset_ids: set[str] | None,
-    skip_data: bool,
-    skip_glossaries: bool,
-    skip_dial_files: bool,
+    components: set[str],
 ) -> None:
     """Process a single client configuration."""
     from statgpt.common import utils
 
     # Load configurations
-    data_sources_cfg = utils.read_yaml(f"{client_config_dir}/data_sources.yaml")
     tools_cfg = utils.read_yaml(f"{client_config_dir}/tools.yaml")
     channel_cfg = utils.read_yaml(f"{client_config_dir}/channels.yaml")
     onboarding_cfg = utils.optional_read_yaml(f"{client_config_dir}/onboarding.yaml")
@@ -120,33 +240,37 @@ async def _process_client(
     dial_files_dir = f"{client_config_dir}/dial_files"
 
     # Upload DIAL files
-    if os.path.exists(dial_files_dir) and not skip_dial_files:
-        await _upload_dial_files(dial_files_dir)
-    elif not os.path.exists(dial_files_dir):
-        print_info(f"No DIAL files directory found at {dial_files_dir}")
+    if "files" in components:
+        if os.path.exists(dial_files_dir):
+            await _upload_dial_files(dial_files_dir)
+        else:
+            print_info(f"No DIAL files directory found at {dial_files_dir}")
 
     # Process channels
-    channels = await _process_channels(
-        admin_client, channel_cfg, tools_cfg, onboarding_cfg, skip_glossaries, glossaries_dir
-    )
-
-    if skip_data:
-        print_info("Skipping data sources and datasets processing")
-        return
+    channels: dict[str, Channel] = {}
+    if "channels" in components:
+        process_glossaries = "glossaries" in components
+        channels = await _process_channels(
+            admin_client, channel_cfg, tools_cfg, onboarding_cfg, process_glossaries, glossaries_dir
+        )
 
     # Process data sources
-    data_sources = await _process_data_sources(admin_client, data_sources_cfg)
+    data_sources: dict[str, DataSource] = {}
+    if "datasources" in components:
+        data_sources_cfg = utils.read_yaml(f"{client_config_dir}/data_sources.yaml")
+        data_sources = await _process_data_sources(admin_client, data_sources_cfg)
 
     # Process datasets
-    await _process_datasets(
-        admin_client,
-        client_id,
-        client_config_dir,
-        data_sources,
-        channels,
-        existing_datasets,
-        dataset_ids,
-    )
+    if "datasets" in components:
+        await _process_datasets(
+            admin_client,
+            client_id,
+            client_config_dir,
+            data_sources,
+            channels,
+            existing_datasets,
+            dataset_ids,
+        )
 
 
 async def _upload_dial_files(dial_files_dir: str) -> None:
@@ -196,7 +320,7 @@ async def _process_channels(
     channel_cfg: dict[str, Any],
     tools_cfg: dict[str, Any],
     onboarding_cfg: dict[str, Any] | None,
-    skip_glossaries: bool,
+    process_glossaries: bool,
     glossaries_dir: str,
 ) -> dict[str, Channel]:
     """Process channel configurations."""
@@ -227,7 +351,7 @@ async def _process_channels(
 
         # Process glossary
         glossary_file = ch_cfg.get("glossary")
-        if not skip_glossaries and glossary_file:
+        if process_glossaries and glossary_file:
             glossary_path = os.path.join(glossaries_dir, glossary_file)
             if os.path.exists(glossary_path):
                 terms = utils.read_csv_as_dict_list(glossary_path)
@@ -347,7 +471,6 @@ async def _process_datasets(
 ) -> None:
     """Process dataset configurations."""
     from statgpt.common import utils
-    from statgpt.common.schemas import ChannelDatasetExpanded
 
     print_info("Processing datasets...")
 
@@ -422,18 +545,14 @@ init_command = Command(
             description="Comma-separated list of dataset URNs to process",
         ),
         CommandArg(
-            name="skip-data",
-            description="Skip data sources and datasets processing",
-            is_flag=True,
+            name="only",
+            short_name="o",
+            description="Components to process: channels,datasources,datasets,glossaries,files",
         ),
         CommandArg(
-            name="skip-glossaries",
-            description="Skip glossary terms processing",
-            is_flag=True,
-        ),
-        CommandArg(
-            name="skip-dial-files",
-            description="Skip uploading files to DIAL",
+            name="yes",
+            short_name="y",
+            description="Skip confirmation prompt",
             is_flag=True,
         ),
     ],

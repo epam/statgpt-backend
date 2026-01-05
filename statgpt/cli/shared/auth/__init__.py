@@ -23,6 +23,7 @@ Adding a new provider:
     4. Add settings to CLISettings with auth_keycloak_* prefix
 """
 
+import logging
 from typing import Literal
 
 from statgpt.cli.shared.auth.azure import AzureEntraIDProvider
@@ -149,8 +150,6 @@ def _try_refresh_token() -> AuthResult | None:
     Returns:
         AuthResult if refresh successful, None otherwise
     """
-    import logging
-
     from statgpt.cli.shared.settings import cli_settings
 
     _log = logging.getLogger(__name__)
