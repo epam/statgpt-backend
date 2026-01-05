@@ -32,6 +32,7 @@ from statgpt.cli.shared.logging import get_logger, setup_logging
 from statgpt.cli.shared.prompts import (
     select_clients_interactive,
     select_datasets_interactive,
+    select_item_interactive,
     select_items_interactive,
 )
 from statgpt.cli.shared.settings import CLISettings, cli_settings
@@ -69,6 +70,7 @@ __all__ = [
     "setup_logging",
     "get_logger",
     # Prompts
+    "select_item_interactive",
     "select_items_interactive",
     "select_clients_interactive",
     "select_datasets_interactive",

@@ -159,6 +159,164 @@ class CheckboxSelector:
         return self._result or []
 
 
+class RadioSelector:
+    """Interactive radio selector for single item selection with optional filtering."""
+
+    def __init__(
+        self,
+        items: list[tuple[str, str]],
+        title: str = "Select item",
+        filter_enabled: bool = False,
+    ):
+        """
+        Initialize radio selector.
+
+        Args:
+            items: List of (value, label) tuples
+            title: Title shown at the top
+            filter_enabled: Whether to show filter input
+        """
+        self._items = items
+        self._title = title
+        self._filter_enabled = filter_enabled
+        self._cursor = 0
+        self._filter_text = ""
+        self._filtered_items: list[tuple[str, str]] = list(items)
+        self._result: str | None = None
+        self._cancelled = False
+
+    def _get_filtered_items(self) -> list[tuple[str, str]]:
+        """Get items filtered by current filter text."""
+        if not self._filter_text:
+            return list(self._items)
+        filter_lower = self._filter_text.lower()
+        return [
+            (value, label)
+            for value, label in self._items
+            if filter_lower in label.lower() or filter_lower in value.lower()
+        ]
+
+    def _get_display_text(self) -> list[tuple[str, str]]:
+        """Generate formatted text for display."""
+        lines: list[tuple[str, str]] = []
+
+        # Title
+        lines.append(("class:title", f" {self._title}\n"))
+        lines.append(("", "─" * 60 + "\n"))
+
+        # Filter input (if enabled)
+        if self._filter_enabled:
+            lines.append(("class:label", " Filter: "))
+            lines.append(("class:filter", self._filter_text))
+            lines.append(("class:cursor", "█\n"))
+            lines.append(("", "─" * 60 + "\n"))
+
+        # Items
+        self._filtered_items = self._get_filtered_items()
+        if not self._filtered_items:
+            lines.append(("class:dim", " No matching items\n"))
+        else:
+            for i, (_, label) in enumerate(self._filtered_items):
+                is_cursor = i == self._cursor
+                radio = "(●)" if is_cursor else "( )"
+
+                if is_cursor:
+                    lines.append(("class:cursor-line", f" > {radio} {label}\n"))
+                else:
+                    lines.append(("", f"   {radio} {label}\n"))
+
+        # Help
+        lines.append(("", "─" * 60 + "\n"))
+        lines.append(("class:dim", " Enter: select | Ctrl+C: cancel\n"))
+
+        return lines
+
+    async def run(self) -> str | None:
+        """Run the interactive selector and return selected value."""
+        kb = KeyBindings()
+
+        @kb.add("up")
+        def _(event):
+            if self._cursor > 0:
+                self._cursor -= 1
+
+        @kb.add("down")
+        def _(event):
+            if self._cursor < len(self._filtered_items) - 1:
+                self._cursor += 1
+
+        @kb.add("enter")
+        def _(event):
+            if self._filtered_items:
+                self._result = self._filtered_items[self._cursor][0]
+            event.app.exit()
+
+        @kb.add("c-c")
+        def _(event):
+            self._cancelled = True
+            event.app.exit()
+
+        @kb.add("backspace")
+        def _(event):
+            if self._filter_enabled and self._filter_text:
+                self._filter_text = self._filter_text[:-1]
+                self._cursor = 0
+
+        @kb.add("<any>")
+        def _(event):
+            if self._filter_enabled:
+                char = event.data
+                if char.isprintable() and len(char) == 1:
+                    self._filter_text += char
+                    self._cursor = 0
+
+        style = Style.from_dict(
+            {
+                "title": "bold cyan",
+                "label": "bold",
+                "filter": "fg:yellow",
+                "cursor": "fg:yellow",
+                "cursor-line": "bg:#333333 bold",
+                "dim": "fg:#888888",
+            }
+        )
+
+        def get_formatted_text():
+            return self._get_display_text()
+
+        layout = Layout(Window(content=FormattedTextControl(get_formatted_text), wrap_lines=True))
+
+        app: Application[None] = Application(
+            layout=layout,
+            key_bindings=kb,
+            style=style,
+            full_screen=False,
+        )
+
+        await app.run_async()
+        return None if self._cancelled else self._result
+
+
+async def select_item_interactive(
+    items: list[tuple[str, str]],
+    title: str = "Select item",
+    filter_enabled: bool = False,
+) -> str | None:
+    """
+    Show interactive single-item selection.
+
+    Args:
+        items: List of (value, label) tuples
+        title: Title shown at the top
+        filter_enabled: Whether to show filter input for searching
+
+    Returns:
+        Selected value, or None if cancelled
+    """
+    selector = RadioSelector(items, title, filter_enabled)
+    return await selector.run()
+
+
 async def select_items_interactive(
     items: list[tuple[str, str]],
     title: str = "Select items",

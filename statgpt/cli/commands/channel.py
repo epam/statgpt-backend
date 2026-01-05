@@ -17,6 +17,7 @@ from statgpt.cli.shared import (
     print_error,
     print_info,
     print_success,
+    select_item_interactive,
 )
 from statgpt.common.schemas import Channel, ChannelDatasetExpanded, ChannelDatasetVersion, DataSet
 
@@ -124,23 +125,23 @@ async def import_handler(
 
 
 async def _select_channel_interactive(channels: list[Channel]) -> Channel | None:
-    """Interactive channel selection."""
-    choices = [
-        questionary.Choice(
-            title=f"{ch.deployment_id} - {ch.title}",
-            value=ch,
-        )
+    """Interactive channel selection with filtering."""
+    # Create mapping for lookup after selection
+    channel_map = {ch.deployment_id: ch for ch in channels}
+    items = [
+        (ch.deployment_id, f"{ch.deployment_id} - {ch.title}")
         for ch in sorted(channels, key=lambda ch: ch.deployment_id)
     ]
 
-    result = await asyncio.get_event_loop().run_in_executor(
-        None,
-        lambda: questionary.select(
-            "Select channel:",
-            choices=choices,
-        ).ask(),
+    selected = await select_item_interactive(
+        items,
+        title="Select Channel (type to filter)",
+        filter_enabled=True,
     )
-    return result
+
+    if not selected:
+        return None
+    return channel_map.get(selected)
 
 
 def _get_status_style(status: str) -> str:
@@ -453,41 +454,32 @@ async def _select_reindex_mode_interactive(datasets: list[DataSet], channel: Cha
     console.print(table)
     console.print()
 
-    choices = [
-        questionary.Choice("Reindex all datasets", value="all"),
-        questionary.Choice("Reindex entire channel (slower)", value="channel"),
-        questionary.Choice("Reindex specific dataset", value="dataset"),
+    items = [
+        ("all", "Reindex all datasets"),
+        ("channel", "Reindex entire channel (slower)"),
+        ("dataset", "Reindex specific dataset"),
     ]
 
-    result = await asyncio.get_event_loop().run_in_executor(
-        None,
-        lambda: questionary.select(
-            "Select reindex mode:",
-            choices=choices,
-        ).ask(),
+    return await select_item_interactive(
+        items,
+        title="Select Reindex Mode",
+        filter_enabled=False,
     )
-    return result
 
 
 async def _select_dataset_interactive(datasets: list[DataSet]) -> str | None:
-    """Interactive dataset selection."""
-    choices = [
-        questionary.Choice(
-            title=f"{ds.details.get('urn', 'N/A')} - {ds.title}",
-            value=ds.details.get("urn"),
-        )
+    """Interactive dataset selection with filtering."""
+    items = [
+        (ds.details.get("urn", ""), f"{ds.details.get('urn', 'N/A')} - {ds.title}")
         for ds in datasets
         if ds.details.get("urn")
     ]
 
-    result = await asyncio.get_event_loop().run_in_executor(
-        None,
-        lambda: questionary.select(
-            "Select dataset:",
-            choices=choices,
-        ).ask(),
+    return await select_item_interactive(
+        items,
+        title="Select Dataset (type to filter)",
+        filter_enabled=True,
     )
-    return result
 
 
 async def reindex_handler(
