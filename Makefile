@@ -54,6 +54,12 @@ db_downgrade:
 db_autogenerate:
 	poetry run alembic -c alembic.ini revision --autogenerate -m "$(MESSAGE)"
 
+admin:
+	poetry run python -m statgpt.admin.app $(ARGS)
+
+app:
+	poetry run python -m statgpt.app.app $(ARGS)
+
 test_db_migrate: export PGVECTOR_HOST=$(TEST_DATABASE_HOST)
 test_db_migrate: export PGVECTOR_PORT=$(TEST_DATABASE_PORT)
 test_db_migrate: export PGVECTOR_DATABASE=$(TEST_DATABASE)

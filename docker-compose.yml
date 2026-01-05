@@ -84,7 +84,7 @@ services:
       - ${DIAL_DIR:-.}/dial/core/settings:/opt/settings
       - ${DIAL_DIR:-.}/dial/core/config:/opt/config
       - ${DIAL_DIR:-.}/dial/core/logs:/app/log
-      - ${DIAL_DIR:-.}/dial/core/data:/app/data
+      - ai-dial-core-data:/app/data
 
   ai-dial-adapter-dial:
     image: epam/ai-dial-adapter-dial:latest
@@ -118,3 +118,4 @@ services:
 volumes:
   postgres-data:
   elastic-data:
+  ai-dial-core-data:

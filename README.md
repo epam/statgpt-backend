@@ -154,9 +154,7 @@ detailed information about environment variables.
 
 #### 6. Create `dial_conf/core/config.json` file by running python script
 
-```bash
-make generate_dial_config
-```
+_Not implemented yet, TODO: create a script that generates config based on .env variables_
 
 ## Run StatGPT locally
 
@@ -167,21 +165,43 @@ make generate_dial_config
     ```
 
 2. Apply `alembic` migrations:
-    * locally:
 
-        ```bash
-        make db_migrate
-        ```
-
-    * or using Docker:
-        1) Set `ADMIN_MODE=ALEMBIC_UPGRADE` in the `.env` file
-        2) Run `admin_backend` from `docker-compose.yml`
+   ```bash
+   make db_migrate
+   ```
 
 3. Run Admin backend (if you want to initialize or update data):
 
-    ```bash
-    make run_admin
-    ```
+   ```bash
+   make admin
+   ```
+
+4. Run StatGPT application:
+
+   ```bash
+   make app
+   ```
+
+5. Initialize sample content (optional):
+
+   ```bash
+   # Install CLI dependencies
+   poetry install --with cli
+
+   # Set config directory (contains sample client config)
+   export STATGPT_CLI_CONFIG_DIR=./config
+
+   # Run CLI and initialize sample client
+   statgpt
+   ```
+
+   Then in the CLI:
+
+   ```
+   statgpt> content init --client-id sample -y
+   ```
+
+   See [CLI documentation](statgpt/cli/README.md) for more commands.
 
 ## Utils for Development
 
