@@ -173,33 +173,35 @@ _Not implemented yet, TODO: create a script that generates config based on .env 
 3. Run Admin backend (if you want to initialize or update data):
 
    ```bash
-   make admin
+   make statgpt_admin
    ```
 
 4. Run StatGPT application:
 
    ```bash
-   make app
+   make statgpt_app
    ```
 
 5. Initialize sample content (optional):
 
    ```bash
-   # Install CLI dependencies
-   poetry install --with cli
-
-   # Set config directory (contains sample client config)
-   export STATGPT_CLI_CONFIG_DIR=./config
-
    # Run CLI and initialize sample client
-   statgpt
+   make statgpt_cli
    ```
 
    Then in the CLI:
 
    ```
    statgpt> content init --client-id sample -y
+   statgpt> channel reindex -c statgpt-sample --mode all
    ```
+
+   Wait till reindexing is finished (check status using `channel status` command in CLI). After that run deduplication:
+
+   ```
+   statgpt> channel deduplicate -c statgpt-sample
+   ```
+
 
    See [CLI documentation](statgpt/cli/README.md) for more commands.
 

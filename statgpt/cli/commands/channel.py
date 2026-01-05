@@ -651,7 +651,7 @@ reindex_command = Command(
         ),
         CommandArg(
             name="mode",
-            description="Reindex mode",
+            description="Reindex mode (all/channel/dataset)",
             choices=["all", "channel", "dataset"],
         ),
         CommandArg(

@@ -42,6 +42,12 @@ lint: install_dev
 statgpt_cli: install_dev
 	poetry run python -m statgpt.cli $(ARGS)
 
+statgpt_admin:
+	poetry run python -m statgpt.admin.app $(ARGS)
+
+statgpt_app:
+	poetry run python -m statgpt.app.app $(ARGS)
+
 install_pre_commit_hooks:
 	pre-commit install
 
@@ -53,12 +59,6 @@ db_downgrade:
 
 db_autogenerate:
 	poetry run alembic -c alembic.ini revision --autogenerate -m "$(MESSAGE)"
-
-admin:
-	poetry run python -m statgpt.admin.app $(ARGS)
-
-app:
-	poetry run python -m statgpt.app.app $(ARGS)
 
 test_db_migrate: export PGVECTOR_HOST=$(TEST_DATABASE_HOST)
 test_db_migrate: export PGVECTOR_PORT=$(TEST_DATABASE_PORT)
