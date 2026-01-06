@@ -2,6 +2,7 @@
 
 import logging
 import sys
+from datetime import date
 from pathlib import Path
 
 from statgpt.cli.settings import cli_settings
@@ -11,7 +12,7 @@ def setup_logging() -> logging.Logger:
     """Set up logging for the CLI.
 
     Configures logging to write to:
-    - File: {cli_data_dir}/cli.log (always at DEBUG level for diagnostics)
+    - File: {cli_data_dir}/logs/cli-YYYY-MM-DD.log (always at DEBUG level)
     - Console: stderr (at configured LOG_LEVEL, only for WARNING+)
 
     Returns:
@@ -21,20 +22,21 @@ def setup_logging() -> logging.Logger:
     # Create logger
     logger = logging.getLogger("statgpt.cli")
     logger.setLevel(logging.DEBUG)  # Capture all levels, handlers filter
+    logger.propagate = False  # Don't propagate to root logger (common/config/logging.py)
 
     # Clear any existing handlers
     logger.handlers.clear()
 
-    # Create log directory
-    log_dir = Path(cli_settings.cli_data_dir)
-    log_dir.mkdir(mode=0o700, exist_ok=True)
-    log_file = log_dir / "cli.log"
+    # Create logs directory
+    log_dir = Path(cli_settings.cli_data_dir) / "logs"
+    log_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
+    log_file = log_dir / f"cli-{date.today().isoformat()}.log"
 
     # File handler - always DEBUG level for diagnostics
     file_handler = logging.FileHandler(log_file, encoding="utf-8")
     file_handler.setLevel(logging.DEBUG)
     file_formatter = logging.Formatter(
-        "%(asctime)s %(levelname)-8s %(name)s - %(message)s",
+        "%(levelname)-8s | %(asctime)s | %(process)d | %(name)s | %(message)s",
         datefmt="%Y-%m-%d %H:%M:%S",
     )
     file_handler.setFormatter(file_formatter)
