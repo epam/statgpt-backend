@@ -6,7 +6,6 @@ import os
 from collections import Counter
 
 import questionary
-from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich.table import Table
 
 from statgpt.cli.commands.base import Command, CommandArg, CommandGroup
@@ -18,6 +17,7 @@ from statgpt.cli.shared import (
     print_info,
     print_success,
     select_item_interactive,
+    spinner_status,
 )
 from statgpt.common.schemas import Channel, ChannelDatasetExpanded, ChannelDatasetVersion, DataSet
 
@@ -82,13 +82,7 @@ async def import_handler(
             return
 
         # Start import
-        with Progress(
-            SpinnerColumn(),
-            TextColumn("[progress.description]{task.description}"),
-            console=console,
-        ) as progress:
-            task = progress.add_task("Starting import...", total=None)
-
+        with spinner_status("Starting import...") as status:
             try:
                 job = await client.import_channel(
                     file_path=file,
@@ -102,7 +96,7 @@ async def import_handler(
                 # Poll for completion
                 while True:
                     job_status = await client.get_import_job_status(str(job_id))
-                    progress.update(task, description=f"Import status: {job_status.status}")
+                    status.update(f"Import status: {job_status.status}")
 
                     if job_status.status == "COMPLETED":
                         print_success(f"Channel imported successfully! ID: {job_status.channel_id}")
@@ -233,12 +227,7 @@ async def status_handler(
                 return
 
         # Fetch datasets for channel
-        with Progress(
-            SpinnerColumn(),
-            TextColumn("[progress.description]{task.description}"),
-            console=console,
-        ) as progress:
-            progress.add_task("Fetching data...", total=None)
+        with spinner_status("Fetching data..."):
             ch_datasets = await client.get_channel_datasets(selected_channel.id)
             index_status = await client.get_channel_index_status(selected_channel.id)
 
@@ -339,12 +328,7 @@ async def list_handler() -> None:
             print_error("Admin API is not available.")
             return
 
-        with Progress(
-            SpinnerColumn(),
-            TextColumn("[progress.description]{task.description}"),
-            console=console,
-        ) as progress:
-            progress.add_task("Fetching channels...", total=None)
+        with spinner_status("Fetching channels..."):
             channels = await client.get_channels()
 
             # Count datasets per channel in parallel
@@ -408,12 +392,7 @@ async def deduplicate_handler(channel: str | None = None) -> None:
 
         print_info(f"Deduplicating channel: {selected_channel.title}")
 
-        with Progress(
-            SpinnerColumn(),
-            TextColumn("[progress.description]{task.description}"),
-            console=console,
-        ) as progress:
-            progress.add_task("Deduplicating embeddings...", total=None)
+        with spinner_status("Deduplicating embeddings..."):
             await client.deduplicate_channel(selected_channel.id)
 
         print_success("Deduplication completed")
@@ -526,16 +505,12 @@ async def reindex_handler(
         # Reindex
         max_embeddings = cli_settings.max_embeddings
 
-        with Progress(
-            SpinnerColumn(),
-            TextColumn("[progress.description]{task.description}"),
-            console=console,
-        ) as progress:
-            if dataset_ids:
-                progress.add_task(f"Reindexing {len(dataset_ids)} dataset(s)...", total=None)
-            else:
-                progress.add_task("Reindexing all datasets in channel...", total=None)
+        if dataset_ids:
+            msg = f"Reindexing {len(dataset_ids)} dataset(s)..."
+        else:
+            msg = "Reindexing all datasets in channel..."
 
+        with spinner_status(msg):
             await client.reload_channel_indicators(
                 channel_id=selected_channel.id,
                 dataset_ids=dataset_ids,

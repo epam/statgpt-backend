@@ -18,6 +18,7 @@ from statgpt.cli.shared.auth import (
     register_provider,
 )
 from statgpt.cli.shared.console import (
+    SpinnerStatus,
     console,
     create_data_table,
     create_settings_table,
@@ -27,6 +28,7 @@ from statgpt.cli.shared.console import (
     print_info,
     print_success,
     print_warning,
+    spinner_status,
 )
 from statgpt.cli.shared.logging import get_logger, setup_logging
 from statgpt.cli.shared.prompts import (
@@ -47,6 +49,8 @@ __all__ = [
     "mask_secret",
     "create_settings_table",
     "create_data_table",
+    "spinner_status",
+    "SpinnerStatus",
     # Auth
     "AuthProvider",
     "AuthenticationError",

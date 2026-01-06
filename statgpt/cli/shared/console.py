@@ -1,7 +1,11 @@
 """Console output utilities using Rich."""
 
+from contextlib import contextmanager
+from typing import Generator
+
 from rich.console import Console
 from rich.panel import Panel
+from rich.progress import Progress, SpinnerColumn, TaskID, TextColumn
 from rich.table import Table
 from rich.text import Text
 
@@ -79,3 +83,68 @@ def create_data_table(title: str, columns: list[tuple[str, str]]) -> Table:
     for col_name, style in columns:
         table.add_column(col_name, style=style)
     return table
+
+
+class SpinnerStatus:
+    """Helper class for updating spinner message."""
+
+    def __init__(self, progress: Progress, task_id: TaskID):
+        self._progress = progress
+        self._task_id = task_id
+        self._message = ""
+
+    def update(self, message: str) -> None:
+        """Update the spinner message."""
+        self._message = message
+        self._progress.update(self._task_id, description=message)
+
+    @property
+    def message(self) -> str:
+        """Get the current message."""
+        return self._message
+
+
+@contextmanager
+def spinner_status(message: str) -> Generator[SpinnerStatus, None, None]:
+    """Show a spinner that displays completion status when done.
+
+    Displays a spinner while the context is active, then replaces it with
+    ✓ (green tick) on success or ✗ (red cross) on exception.
+
+    Args:
+        message: The message to display next to the spinner
+
+    Yields:
+        SpinnerStatus object that can be used to update the message
+
+    Example:
+        with spinner_status("Fetching data...") as status:
+            # do work
+            status.update("Processing results...")
+        # Shows ✓ Processing results... on success
+        # Shows ✗ Processing results... on exception
+    """
+    status = None
+    error_occurred = False
+
+    with Progress(
+        SpinnerColumn(),
+        TextColumn("[progress.description]{task.description}"),
+        console=console,
+        transient=True,
+    ) as progress:
+        task_id = progress.add_task(message, total=None)
+        status = SpinnerStatus(progress, task_id)
+        status._message = message
+
+        try:
+            yield status
+        except Exception:
+            error_occurred = True
+            raise
+
+    final_message = status.message if status else message
+    if error_occurred:
+        console.print(f"[bold red]\u2717[/bold red] {final_message}")
+    else:
+        console.print(f"[bold green]\u2713[/bold green] {final_message}")
