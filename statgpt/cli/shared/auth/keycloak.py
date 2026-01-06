@@ -20,7 +20,7 @@ from statgpt.cli.shared.auth.base import (
 )
 
 if TYPE_CHECKING:
-    from statgpt.cli.shared.settings import CLISettings
+    from statgpt.cli.settings import CLISettings
 
 DEFAULT_EXPIRES_IN = 3600
 CALLBACK_TIMEOUT = 300
