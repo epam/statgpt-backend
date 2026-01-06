@@ -1,6 +1,8 @@
 """Tests for CLI token cache module."""
 
 import json
+import os
+import platform
 from unittest.mock import patch
 
 import pytest
@@ -296,9 +298,9 @@ class TestTokenCache:
         info = token_cache.get_token_info()
         assert info is None
 
+    @pytest.mark.skipif(platform.system() == "Windows", reason="File permissions not supported on Windows")
     def test_file_permissions(self, token_cache, tmp_path):
         """Cache file should have restricted permissions (0o600)."""
-        import os
 
         with patch("time.time", return_value=1000.0):
             token_cache.save_token(

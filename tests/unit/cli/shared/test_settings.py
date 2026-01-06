@@ -106,7 +106,7 @@ class TestCLIDataDir:
         monkeypatch.setenv("STATGPT_CLI_DATA_DIR", "~/.custom-statgpt")
         settings = make_settings()
         assert "~" not in settings.cli_data_dir
-        assert settings.cli_data_dir.startswith("/")
+        assert os.path.isabs(settings.cli_data_dir)
 
 
 class TestGetSettingSource:
