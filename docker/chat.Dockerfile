@@ -28,7 +28,6 @@ COPY ./statgpt/common $APP_HOME/statgpt/common
 RUN adduser -u 5678 --system --disabled-password --gecos "" app && chown -R app $APP_HOME
 USER app
 
-ENV APP_MODE="DIAL"
 ENV WEB_CONCURRENCY=1
 ENV PYDANTIC_V2=True
 

@@ -62,6 +62,9 @@ dependencies = [
     'pyarrow (>=20.0.0,<21.0.0)',                # Parquet support for import/export
 ]
 
+[project.scripts]
+statgpt = "statgpt.cli:main"
+
 [tool.isort]
 profile = "black"
 line_length = 100
@@ -175,6 +178,17 @@ pandas = { extras = ["excel"], version = "^2.2.2" }
 langgraph = "^0.4.3"
 opik = "^1.7.23"
 pdfplumber = "^0.11.6"
+
+[tool.poetry.group.cli]
+optional = true
+
+[tool.poetry.group.cli.dependencies]
+prompt-toolkit = "^3.0.48"
+questionary = "^2.1.0"
+rich = "^13.9.4"
+msal = "^1.31.0"
+httpx = "^0.28.1"
+python-keycloak = "^4.0.0"
 
 [[tool.poetry.source]]
 name = "pytorch_cpu"
