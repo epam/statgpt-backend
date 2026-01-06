@@ -6,6 +6,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Self
 
+from statgpt.cli.settings import cli_settings
+
 
 @dataclass
 class CachedToken:
@@ -55,9 +57,6 @@ class CachedToken:
 
 def _get_data_dir() -> Path:
     """Get CLI data directory from settings."""
-    # Lazy import to avoid circular dependency with settings module
-    from statgpt.cli.shared.settings import cli_settings
-
     return Path(cli_settings.cli_data_dir)
 
 

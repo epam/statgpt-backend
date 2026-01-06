@@ -6,9 +6,9 @@ from rich.table import Table
 from rich.text import Text
 
 from statgpt.cli.commands.base import Command
+from statgpt.cli.settings import cli_settings
 from statgpt.cli.shared.auth import get_available_providers
 from statgpt.cli.shared.console import console, mask_secret
-from statgpt.cli.shared.settings import cli_settings
 
 
 def _create_settings_section(title: str) -> Table:

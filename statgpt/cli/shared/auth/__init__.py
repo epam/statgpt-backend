@@ -26,6 +26,7 @@ Adding a new provider:
 import logging
 from typing import Literal
 
+from statgpt.cli.settings import cli_settings
 from statgpt.cli.shared.auth.azure import AzureEntraIDProvider
 from statgpt.cli.shared.auth.base import (
     AuthConfigError,
@@ -110,9 +111,8 @@ def login(method: LoginMethod, force: bool = False) -> AuthResult:
         AuthenticationError: If authentication fails
         AuthConfigError: If provider is not configured
     """
-    # Lazy imports to avoid circular dependency with console/settings modules
+    # Lazy imports to avoid circular dependency with console modules
     from statgpt.cli.shared.console import print_info
-    from statgpt.cli.shared.settings import cli_settings
 
     provider = get_provider(cli_settings.auth_provider)
 
@@ -152,8 +152,6 @@ def _try_refresh_token() -> AuthResult | None:
     Returns:
         AuthResult if refresh successful, None otherwise
     """
-    # Lazy import to avoid circular dependency with settings module
-    from statgpt.cli.shared.settings import cli_settings
 
     _log = logging.getLogger(__name__)
 

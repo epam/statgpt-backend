@@ -8,8 +8,8 @@ import httpx
 import requests
 from pydantic import TypeAdapter
 
+from statgpt.cli.settings import cli_settings
 from statgpt.cli.shared.auth import get_cached_token
-from statgpt.cli.shared.settings import cli_settings
 from statgpt.common.schemas import (
     Channel,
     ChannelDatasetBase,

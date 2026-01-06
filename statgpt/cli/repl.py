@@ -11,6 +11,7 @@ from prompt_toolkit.styles import Style
 
 from statgpt.cli.commands.base import CommandRegistry
 from statgpt.cli.completer import StatGPTCompleter
+from statgpt.cli.settings import cli_settings
 from statgpt.cli.shared.auth import get_token_info, is_logged_in
 from statgpt.cli.shared.console import console, print_banner, print_error
 
@@ -37,8 +38,6 @@ PROMPT_STYLE = Style.from_dict(
 
 def _get_history_path() -> Path:
     """Get path to command history file."""
-    # Lazy import to avoid circular dependency with settings module
-    from statgpt.cli.shared.settings import cli_settings
 
     history_dir = Path(cli_settings.cli_data_dir)
     history_dir.mkdir(mode=0o700, exist_ok=True)

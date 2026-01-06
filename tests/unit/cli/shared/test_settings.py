@@ -2,7 +2,7 @@
 
 import os
 
-from statgpt.cli.shared.settings import CLISettings
+from statgpt.cli.settings import CLISettings
 
 
 def make_settings(**kwargs):

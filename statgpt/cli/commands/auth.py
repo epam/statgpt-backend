@@ -5,6 +5,7 @@ from datetime import datetime
 import questionary
 
 from statgpt.cli.commands.base import Command, CommandArg, CommandGroup
+from statgpt.cli.settings import cli_settings
 from statgpt.cli.shared.auth import (
     AuthConfigError,
     AuthenticationError,
@@ -60,8 +61,6 @@ async def logout_handler() -> None:
 
 async def status_handler() -> None:
     """Handle auth status command."""
-    # Lazy import to avoid circular dependency with settings module
-    from statgpt.cli.shared.settings import cli_settings
 
     info = get_token_info()
 

@@ -35,12 +35,8 @@ from statgpt.cli.shared.prompts import (
     select_item_interactive,
     select_items_interactive,
 )
-from statgpt.cli.shared.settings import CLISettings, cli_settings
 
 __all__ = [
-    # Settings
-    "CLISettings",
-    "cli_settings",
     # Console
     "console",
     "print_banner",

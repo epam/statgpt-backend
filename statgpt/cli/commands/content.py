@@ -7,9 +7,9 @@ from rich.panel import Panel
 from rich.prompt import Confirm
 
 from statgpt.cli.commands.base import Command, CommandArg, CommandGroup
+from statgpt.cli.settings import cli_settings
 from statgpt.cli.shared import (
     AdminClient,
-    cli_settings,
     console,
     get_admin_client,
     print_error,

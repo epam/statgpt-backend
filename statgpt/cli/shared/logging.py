@@ -4,6 +4,8 @@ import logging
 import sys
 from pathlib import Path
 
+from statgpt.cli.settings import cli_settings
+
 
 def setup_logging() -> logging.Logger:
     """Set up logging for the CLI.
@@ -15,8 +17,6 @@ def setup_logging() -> logging.Logger:
     Returns:
         The root CLI logger
     """
-    # Lazy import to avoid circular dependency with settings module
-    from statgpt.cli.shared.settings import cli_settings
 
     # Create logger
     logger = logging.getLogger("statgpt.cli")

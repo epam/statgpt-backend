@@ -12,7 +12,7 @@ from statgpt.cli.shared.auth.base import (
 )
 
 if TYPE_CHECKING:
-    from statgpt.cli.shared.settings import CLISettings
+    from statgpt.cli.settings import CLISettings
 
 # Default token lifetime if not provided by MSAL (1 hour)
 DEFAULT_EXPIRES_IN = 3600

@@ -10,8 +10,8 @@ from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich.table import Table
 
 from statgpt.cli.commands.base import Command, CommandArg, CommandGroup
+from statgpt.cli.settings import cli_settings
 from statgpt.cli.shared import (
-    cli_settings,
     console,
     get_admin_client,
     print_error,
