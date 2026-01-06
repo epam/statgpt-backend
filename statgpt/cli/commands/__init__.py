@@ -1,5 +1,7 @@
 """CLI commands registry."""
 
+from importlib.metadata import version
+
 from statgpt.cli.commands.auth import auth_group
 from statgpt.cli.commands.base import Command, CommandGroup, CommandRegistry
 from statgpt.cli.commands.channel import channel_group
@@ -18,9 +20,17 @@ __all__ = [
 ]
 
 
+def _get_version() -> str:
+    """Get CLI version from package metadata."""
+    try:
+        return version("statgpt")
+    except Exception:
+        return "unknown"
+
+
 def create_registry() -> CommandRegistry:
     """Create and populate the command registry."""
-    registry = CommandRegistry()
+    registry = CommandRegistry(version=_get_version())
 
     # Register standalone commands
     registry.register_command(settings_command)

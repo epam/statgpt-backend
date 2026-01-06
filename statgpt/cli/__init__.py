@@ -7,8 +7,6 @@ from statgpt.cli.commands import create_registry
 from statgpt.cli.repl import run_repl
 from statgpt.cli.shared.logging import setup_logging
 
-__version__ = "1.0.0"
-
 
 def main() -> None:
     """Main entry point for the StatGPT CLI."""
@@ -30,4 +28,4 @@ def main() -> None:
         sys.exit(1)
 
 
-__all__ = ["main", "__version__"]
+__all__ = ["main"]

@@ -211,9 +211,15 @@ class CommandGroup:
 class CommandRegistry:
     """Registry for all CLI commands."""
 
-    def __init__(self):
+    def __init__(self, version: str = "unknown"):
         self._commands: dict[str, Command] = {}
         self._groups: dict[str, CommandGroup] = {}
+        self._version = version
+
+    @property
+    def version(self) -> str:
+        """Get CLI version."""
+        return self._version
 
     def register_command(self, command: Command) -> None:
         """Register a standalone command."""
@@ -305,7 +311,17 @@ class CommandRegistry:
 
     def get_help(self) -> str:
         """Generate help text for all commands."""
-        lines = ["[bold]Available Commands:[/bold]\n"]
+        lines = [
+            f"[bold cyan]StatGPT CLI[/bold cyan] [dim]v{self._version}[/dim]\n",
+            "[bold]Built-in:[/bold]",
+            "  help                 Show this help message",
+            "  help <command>       Show help for a specific command",
+            "  clear                Clear the screen",
+            "  version              Show CLI version",
+            "  exit                 Exit the CLI",
+            "",
+            "[bold]Commands:[/bold]",
+        ]
 
         if self._commands:
             for cmd in self._commands.values():
@@ -318,7 +334,7 @@ class CommandRegistry:
                 for cmd in group.commands.values():
                     lines.append(f"    {cmd.name:<18} {cmd.description}")
 
-        lines.append("\n[dim]Type 'help <command>' for detailed help on a command.[/dim]")
+        lines.append("\n[dim]Type 'help <command>' for detailed help.[/dim]")
         return "\n".join(lines)
 
     def get_group(self, name: str) -> CommandGroup | None:
