@@ -1,8 +1,10 @@
 """Tests for CLI settings module."""
 
 import os
+import types
+from typing import Union, get_args, get_origin
 
-from statgpt.cli.settings import CLISettings
+from statgpt.cli.settings import CLISettings, FieldMeta, SettingsSection
 
 
 def make_settings(**kwargs):
@@ -14,22 +16,18 @@ class TestCLISettingsDefaults:
     """Tests for CLISettings default values."""
 
     def test_default_admin_url(self, clean_cli_env):
-        """admin_url should default to localhost:8000."""
         settings = make_settings()
         assert settings.admin_url == "http://localhost:8000"
 
     def test_default_auth_provider(self, clean_cli_env):
-        """auth_provider should default to azure."""
         settings = make_settings()
         assert settings.auth_provider == "azure"
 
     def test_default_log_level(self, clean_cli_env):
-        """log_level should default to INFO."""
         settings = make_settings()
         assert settings.log_level == "INFO"
 
     def test_optional_fields_none(self, clean_cli_env):
-        """Optional fields should be None by default."""
         settings = make_settings()
         assert settings.config_dir is None
         assert settings.dial_url is None
@@ -41,31 +39,26 @@ class TestCLISettingsEnvOverride:
     """Tests for CLISettings environment variable overrides."""
 
     def test_admin_url_from_env(self, clean_cli_env, monkeypatch):
-        """admin_url should be overridden by environment variable."""
         monkeypatch.setenv("STATGPT_CLI_ADMIN_URL", "http://custom:9000")
         settings = make_settings()
         assert settings.admin_url == "http://custom:9000"
 
     def test_auth_provider_from_env(self, clean_cli_env, monkeypatch):
-        """auth_provider should be overridden by environment variable."""
         monkeypatch.setenv("STATGPT_CLI_AUTH_PROVIDER", "keycloak")
         settings = make_settings()
         assert settings.auth_provider == "keycloak"
 
     def test_log_level_from_env(self, clean_cli_env, monkeypatch):
-        """log_level should be overridden by environment variable."""
         monkeypatch.setenv("STATGPT_CLI_LOG_LEVEL", "DEBUG")
         settings = make_settings()
         assert settings.log_level == "DEBUG"
 
     def test_config_dir_from_env(self, clean_cli_env, monkeypatch):
-        """config_dir should be set from environment variable."""
         monkeypatch.setenv("STATGPT_CLI_CONFIG_DIR", "/custom/config")
         settings = make_settings()
         assert settings.config_dir == "/custom/config"
 
     def test_dial_settings_from_env(self, clean_cli_env, monkeypatch):
-        """DIAL settings should be set from environment variables."""
         monkeypatch.setenv("STATGPT_CLI_DIAL_URL", "http://dial:8080")
         monkeypatch.setenv("STATGPT_CLI_DIAL_API_KEY", "secret-key")
         settings = make_settings()
@@ -73,7 +66,6 @@ class TestCLISettingsEnvOverride:
         assert settings.dial_api_key == "secret-key"
 
     def test_azure_auth_settings_from_env(self, clean_cli_env, monkeypatch):
-        """Azure auth settings should be set from environment variables."""
         monkeypatch.setenv("STATGPT_CLI_AUTH_AZURE_CLIENT_ID", "client-123")
         monkeypatch.setenv(
             "STATGPT_CLI_AUTH_AZURE_AUTHORITY", "https://login.microsoftonline.com/tenant"
@@ -89,20 +81,17 @@ class TestCLIDataDir:
     """Tests for cli_data_dir property."""
 
     def test_cli_data_dir_default(self, clean_cli_env):
-        """cli_data_dir should default to ~/.statgpt."""
         settings = make_settings()
         expected = os.path.expanduser("~/.statgpt")
         assert settings.cli_data_dir == expected
 
     def test_cli_data_dir_custom(self, clean_cli_env, monkeypatch):
-        """cli_data_dir should use custom data_dir if set."""
         monkeypatch.setenv("STATGPT_CLI_DATA_DIR", "~/custom/data")
         settings = make_settings()
         expected = os.path.expanduser("~/custom/data")
         assert settings.cli_data_dir == expected
 
     def test_cli_data_dir_expands_tilde(self, clean_cli_env, monkeypatch):
-        """cli_data_dir should expand ~ in path."""
         monkeypatch.setenv("STATGPT_CLI_DATA_DIR", "~/.custom-statgpt")
         settings = make_settings()
         assert "~" not in settings.cli_data_dir
@@ -113,28 +102,23 @@ class TestGetSettingSource:
     """Tests for get_setting_source method."""
 
     def test_source_from_env(self, clean_cli_env, monkeypatch):
-        """Should return 'env' when value is from environment variable."""
         monkeypatch.setenv("STATGPT_CLI_ADMIN_URL", "http://custom:9000")
         settings = make_settings()
         assert settings.get_setting_source("admin_url") == "env"
 
     def test_source_default(self, clean_cli_env):
-        """Should return 'default' when using default value."""
         settings = make_settings()
         assert settings.get_setting_source("admin_url") == "default"
 
     def test_source_not_set(self, clean_cli_env):
-        """Should return 'not set' when optional field is None."""
         settings = make_settings()
         assert settings.get_setting_source("config_dir") == "not set"
 
     def test_source_unknown_field(self, clean_cli_env):
-        """Should return 'unknown' for non-existent field."""
         settings = make_settings()
         assert settings.get_setting_source("nonexistent_field") == "unknown"
 
     def test_source_env_for_optional_field(self, clean_cli_env, monkeypatch):
-        """Should return 'env' when optional field is set via env."""
         monkeypatch.setenv("STATGPT_CLI_CONFIG_DIR", "/custom/config")
         settings = make_settings()
         assert settings.get_setting_source("config_dir") == "env"
@@ -144,7 +128,6 @@ class TestGetAuthSettingsForProvider:
     """Tests for get_auth_settings_for_provider method."""
 
     def test_azure_provider_settings(self, clean_cli_env, monkeypatch):
-        """Should return all azure auth settings."""
         monkeypatch.setenv("STATGPT_CLI_AUTH_AZURE_CLIENT_ID", "client-123")
         monkeypatch.setenv("STATGPT_CLI_AUTH_AZURE_AUTHORITY", "https://authority")
         monkeypatch.setenv("STATGPT_CLI_AUTH_AZURE_SCOPE", "scope")
@@ -163,7 +146,6 @@ class TestGetAuthSettingsForProvider:
         assert azure_settings["password"] == "pass"
 
     def test_azure_provider_settings_partial(self, clean_cli_env, monkeypatch):
-        """Should return None for unset azure settings."""
         monkeypatch.setenv("STATGPT_CLI_AUTH_AZURE_CLIENT_ID", "client-123")
         settings = make_settings()
         azure_settings = settings.get_auth_settings_for_provider("azure")
@@ -173,13 +155,11 @@ class TestGetAuthSettingsForProvider:
         assert azure_settings["scope"] is None
 
     def test_unknown_provider_empty(self, clean_cli_env):
-        """Should return empty dict for unknown provider."""
         settings = make_settings()
         unknown_settings = settings.get_auth_settings_for_provider("unknown")
         assert unknown_settings == {}
 
     def test_azure_settings_keys(self, clean_cli_env):
-        """Should have correct keys in azure settings dict."""
         settings = make_settings()
         azure_settings = settings.get_auth_settings_for_provider("azure")
 
@@ -192,3 +172,66 @@ class TestGetAuthSettingsForProvider:
             "password",
         }
         assert set(azure_settings.keys()) == expected_keys
+
+
+class TestFieldMetaAnnotations:
+    """Tests for FieldMeta annotations on CLISettings fields."""
+
+    def test_all_fields_have_section(self):
+        missing_meta = []
+        invalid_section = []
+
+        for field_name, field_info in CLISettings.model_fields.items():
+            extra = field_info.json_schema_extra
+            if not isinstance(extra, dict):
+                missing_meta.append(field_name)
+                continue
+
+            try:
+                meta = FieldMeta.model_validate(extra)
+                if meta.section not in SettingsSection:
+                    invalid_section.append(field_name)
+            except Exception:
+                missing_meta.append(field_name)
+
+        assert not missing_meta, f"Fields missing FieldMeta: {missing_meta}"
+        assert not invalid_section, f"Fields with invalid section: {invalid_section}"
+
+    def test_all_sections_have_fields(self):
+        sections_with_fields: set[SettingsSection] = set()
+
+        for field_info in CLISettings.model_fields.values():
+            extra = field_info.json_schema_extra
+            if isinstance(extra, dict):
+                try:
+                    meta = FieldMeta.model_validate(extra)
+                    sections_with_fields.add(meta.section)
+                except Exception:
+                    pass
+
+        all_sections = set(SettingsSection)
+        empty_sections = all_sections - sections_with_fields
+
+        assert not empty_sections, f"Sections with no fields: {empty_sections}"
+
+    def test_secret_fields_are_optional(self):
+        non_optional_secrets = []
+
+        for field_name, field_info in CLISettings.model_fields.items():
+            extra = field_info.json_schema_extra
+            if not isinstance(extra, dict):
+                continue
+
+            try:
+                meta = FieldMeta.model_validate(extra)
+                if meta.secret:
+                    annotation = field_info.annotation
+                    origin = get_origin(annotation)
+                    is_union = origin is Union or isinstance(annotation, types.UnionType)
+                    is_optional = is_union and type(None) in get_args(annotation)
+                    if not is_optional:
+                        non_optional_secrets.append(field_name)
+            except Exception:
+                pass
+
+        assert not non_optional_secrets, f"Secret fields should be optional: {non_optional_secrets}"
