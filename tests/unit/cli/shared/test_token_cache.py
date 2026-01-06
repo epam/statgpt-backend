@@ -298,7 +298,9 @@ class TestTokenCache:
         info = token_cache.get_token_info()
         assert info is None
 
-    @pytest.mark.skipif(platform.system() == "Windows", reason="File permissions not supported on Windows")
+    @pytest.mark.skipif(
+        platform.system() == "Windows", reason="File permissions not supported on Windows"
+    )
     def test_file_permissions(self, token_cache, tmp_path):
         """Cache file should have restricted permissions (0o600)."""
 
