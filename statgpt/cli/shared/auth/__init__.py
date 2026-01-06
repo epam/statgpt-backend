@@ -33,6 +33,7 @@ from statgpt.cli.shared.auth.base import (
     AuthProvider,
     AuthResult,
 )
+from statgpt.cli.shared.auth.keycloak import KeycloakProvider
 from statgpt.cli.shared.token_cache import token_cache
 
 # Type alias for login methods
@@ -243,6 +244,7 @@ def get_auth_headers(method: LoginMethod | None) -> dict[str, str]:
 
 # Register built-in providers
 register_provider("azure", AzureEntraIDProvider)
+register_provider("keycloak", KeycloakProvider)
 
 # Export public API
 __all__ = [

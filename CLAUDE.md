@@ -118,26 +118,9 @@ statgpt/
 │   ├── services/        # Shared services
 │   └── schemas/         # Shared Pydantic models
 └── cli/                 # Interactive command-line interface
-    ├── __init__.py      # Package init
-    ├── __main__.py      # Entry point
-    ├── repl.py          # Interactive REPL with prompt_toolkit
-    ├── completer.py     # Tab completion
-    ├── commands/        # Command implementations
-    │   ├── base.py      # Command/CommandGroup base classes
-    │   ├── auth.py      # auth login/logout/status
-    │   ├── channel.py   # channel list/import/status/deduplicate/reindex
-    │   ├── content.py   # content init
-    │   └── settings.py  # settings command
-    └── shared/          # Shared utilities
-        ├── admin_client.py  # Admin API client
-        ├── console.py       # Rich console output helpers
-        ├── logging.py       # Logging configuration
-        ├── prompts.py       # Interactive prompts (checkbox selector)
-        ├── settings.py      # CLI settings (Pydantic)
-        ├── token_cache.py   # Token caching
-        └── auth/            # Pluggable authentication providers
-            ├── base.py      # Auth provider interface
-            └── azure.py     # Azure AD authentication
+    ├── commands/        # Command implementations (auth, channel, content, settings)
+    └── shared/          # Shared utilities (admin client, console, prompts, settings)
+        └── auth/        # Pluggable auth providers (azure, keycloak)
 
 tests/
 ├── unit/                # Unit tests (no external dependencies)

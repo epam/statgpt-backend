@@ -126,19 +126,26 @@ All variables are prefixed with `STATGPT_CLI_`.
 | `DIAL_URL`                 |    No    | DIAL URL for file uploads           | -                       |
 | `DIAL_API_KEY`             |    No    | DIAL API key                        | -                       |
 | **Authentication**         |          |                                     |                         |
-| `AUTH_PROVIDER`            |    No    | Auth provider (`azure`, etc.)       | `azure`                 |
+| `AUTH_PROVIDER`            |    No    | Auth provider (`azure`, `keycloak`) | `azure`                 |
 | `AUTH_AZURE_CLIENT_ID`     |  Yes**   | Azure application/client ID         | -                       |
 | `AUTH_AZURE_AUTHORITY`     |  Yes**   | Authority URL (includes tenant)     | -                       |
 | `AUTH_AZURE_SCOPE`         |  Yes**   | Token scope                         | -                       |
 | `AUTH_AZURE_CLIENT_SECRET` |  Yes***  | Client secret (system_user only)    | -                       |
 | `AUTH_AZURE_USERNAME`      |  Yes***  | Username (system_user only)         | -                       |
 | `AUTH_AZURE_PASSWORD`      |  Yes***  | Password (system_user only)         | -                       |
+| `AUTH_KEYCLOAK_SERVER_URL` |  Yes**   | Keycloak server URL                 | -                       |
+| `AUTH_KEYCLOAK_REALM`      |  Yes**   | Keycloak realm name                 | -                       |
+| `AUTH_KEYCLOAK_CLIENT_ID`  |  Yes**   | Keycloak client ID                  | -                       |
+| `AUTH_KEYCLOAK_CLIENT_SECRET` | No    | Client secret (confidential only)   | -                       |
+| `AUTH_KEYCLOAK_SCOPE`      |    No    | OAuth scope                         | `openid`                |
+| `AUTH_KEYCLOAK_USERNAME`   |  Yes***  | Username (system_user only)         | -                       |
+| `AUTH_KEYCLOAK_PASSWORD`   |  Yes***  | Password (system_user only)         | -                       |
 | **General**                |          |                                     |                         |
 | `LOG_LEVEL`                |    No    | `DEBUG`, `INFO`, `WARNING`, `ERROR` | `INFO`                  |
 | `DATA_DIR`                 |    No    | CLI data directory                  | `~/.statgpt`            |
 
 \* Required for `content init` command
-\** Required for `auth login`
+\** Required for `auth login` (Azure or Keycloak, depending on `AUTH_PROVIDER`)
 \*** Required for `auth login --method system_user`
 
 ## Data Directory
@@ -184,9 +191,9 @@ statgpt> channel import --file export.zip --clean
 
 ## Troubleshooting
 
-| Problem                 | Solution                                              |
-|-------------------------|-------------------------------------------------------|
-| Module not found        | Run `poetry install --with cli`                       |
-| Authentication failures | Check `settings` command, verify Azure config         |
-| Connection refused      | Verify Admin API: `curl http://localhost:8000/health` |
-| Command not recognized  | Run `help` to see available commands                  |
+| Problem                 | Solution                                               |
+|-------------------------|--------------------------------------------------------|
+| Module not found        | Run `poetry install --with cli`                        |
+| Authentication failures | Check `settings` command, verify Azure/Keycloak config |
+| Connection refused      | Verify Admin API: `curl http://localhost:8000/health`  |
+| Command not recognized  | Run `help` to see available commands                   |

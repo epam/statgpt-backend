@@ -85,20 +85,35 @@ class CLISettings(BaseSettings):
         description="Password for Azure Entra ID system user login",
     )
 
-    # Keycloak settings (for future use)
-    # auth_keycloak_server_url: str | None = Field(
-    #     default=None,
-    #     description="Keycloak server URL",
-    # )
-    # auth_keycloak_realm: str | None = Field(
-    #     default=None,
-    #     description="Keycloak realm name",
-    # )
-    # auth_keycloak_client_id: str | None = Field(
-    #     default=None,
-    #     description="Keycloak client ID",
-    # )
-    # ... etc
+    # Keycloak settings
+    auth_keycloak_server_url: str | None = Field(
+        default=None,
+        description="Keycloak server URL (e.g., https://keycloak.example.com)",
+    )
+    auth_keycloak_realm: str | None = Field(
+        default=None,
+        description="Keycloak realm name",
+    )
+    auth_keycloak_client_id: str | None = Field(
+        default=None,
+        description="Keycloak client ID (public client for interactive login)",
+    )
+    auth_keycloak_client_secret: str | None = Field(
+        default=None,
+        description="Keycloak client secret (for confidential clients only)",
+    )
+    auth_keycloak_username: str | None = Field(
+        default=None,
+        description="Username for Keycloak system user login",
+    )
+    auth_keycloak_password: str | None = Field(
+        default=None,
+        description="Password for Keycloak system user login",
+    )
+    auth_keycloak_scope: str | None = Field(
+        default=None,
+        description="OAuth scope for Keycloak (default: openid)",
+    )
 
     # General settings
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = Field(
