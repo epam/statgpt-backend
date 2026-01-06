@@ -347,11 +347,13 @@ async def list_handler() -> None:
             progress.add_task("Fetching channels...", total=None)
             channels = await client.get_channels()
 
-            # Count datasets per channel using the channel datasets endpoint
-            dataset_counts: dict[int, int] = {}
-            for ch in channels:
+            # Count datasets per channel in parallel
+            async def get_dataset_count(ch: Channel) -> tuple[int, int]:
                 ch_datasets = await client.get_channel_datasets(ch.id)
-                dataset_counts[ch.id] = len(ch_datasets)
+                return ch.id, len(ch_datasets)
+
+            results = await asyncio.gather(*[get_dataset_count(ch) for ch in channels])
+            dataset_counts: dict[int, int] = dict(results)
 
         if not channels:
             print_info("No channels found.")

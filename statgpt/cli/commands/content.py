@@ -278,18 +278,22 @@ async def _upload_dial_files(dial_files_dir: str) -> None:
 
     print_info("Uploading files to DIAL...")
 
-    async with dial_core_factory(dial_url, dial_api_key) as dial:
-        for root, _, files in os.walk(dial_files_dir):
-            for file in files:
-                file_path = os.path.join(root, file)
-                dial_path = os.path.relpath(file_path, dial_files_dir).replace("\\", "/")
+    try:
+        async with dial_core_factory(dial_url, dial_api_key) as dial:
+            for root, _, files in os.walk(dial_files_dir):
+                for file in files:
+                    file_path = os.path.join(root, file)
+                    dial_path = os.path.relpath(file_path, dial_files_dir).replace("\\", "/")
 
-                mime_type = _get_mime_type(file)
-                print_info(f"  Uploading: {dial_path}")
+                    mime_type = _get_mime_type(file)
+                    print_info(f"  Uploading: {dial_path}")
 
-                with open(file_path, "rb") as f:
-                    content = f.read()
-                    await dial.put_file(dial_path, mime_type, content)
+                    with open(file_path, "rb") as f:
+                        content = f.read()
+                        await dial.put_file(dial_path, mime_type, content)
+    except Exception as e:
+        print_error(f"Failed to connect to DIAL: {e}")
+        return
 
 
 def _get_mime_type(filename: str) -> str:

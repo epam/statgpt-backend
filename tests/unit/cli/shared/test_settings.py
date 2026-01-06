@@ -19,9 +19,10 @@ class TestCLISettingsDefaults:
         settings = make_settings()
         assert settings.admin_url == "http://localhost:8000"
 
-    def test_default_auth_provider(self, clean_cli_env):
+    def test_auth_provider_optional(self, clean_cli_env):
+        """auth_provider is optional for local development."""
         settings = make_settings()
-        assert settings.auth_provider == "azure"
+        assert settings.auth_provider is None
 
     def test_default_log_level(self, clean_cli_env):
         settings = make_settings()

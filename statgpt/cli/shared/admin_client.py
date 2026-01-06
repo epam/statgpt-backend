@@ -5,7 +5,6 @@ from contextlib import asynccontextmanager
 from typing import Any, AsyncGenerator
 
 import httpx
-import requests
 from pydantic import TypeAdapter
 
 from statgpt.cli.settings import cli_settings
@@ -286,15 +285,11 @@ class AdminClient:
         return _glossary_terms_adapter.validate_python(resp.json())
 
     async def delete_glossary_terms_bulk(self, term_ids: list[int]) -> None:
-        """Delete multiple glossary terms.
-
-        Note: Uses requests library as httpx doesn't support DELETE with body.
-        """
-        resp = requests.delete(
-            f"{self._base_url}{URL_PREFIX}/terms/bulk",
+        """Delete multiple glossary terms."""
+        resp = await self._client.request(
+            "DELETE",
+            self._url("/terms/bulk"),
             json=term_ids,
-            headers=dict(self._client.headers),
-            timeout=30,
         )
         resp.raise_for_status()
 

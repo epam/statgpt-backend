@@ -75,9 +75,9 @@ class CLISettings(BaseSettings):
         json_schema_extra=field_meta(SettingsSection.CONTENT),
     )
 
-    auth_provider: str = Field(
-        default="azure",
-        description="Authentication provider to use (azure, keycloak, etc.)",
+    auth_provider: str | None = Field(
+        default=None,
+        description="Authentication provider to use (azure, keycloak). Optional for local development.",
         json_schema_extra=field_meta(SettingsSection.AUTHENTICATION),
     )
 

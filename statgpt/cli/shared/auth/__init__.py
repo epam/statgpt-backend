@@ -114,6 +114,12 @@ def login(method: LoginMethod, force: bool = False) -> AuthResult:
     # Lazy imports to avoid circular dependency with console modules
     from statgpt.cli.shared.console import print_info
 
+    if not cli_settings.auth_provider:
+        raise AuthenticationError(
+            "Authentication provider not configured. "
+            "Set STATGPT_CLI_AUTH_PROVIDER to 'azure' or 'keycloak'."
+        )
+
     provider = get_provider(cli_settings.auth_provider)
 
     if method == "interactive":
