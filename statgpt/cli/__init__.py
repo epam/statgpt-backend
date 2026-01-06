@@ -12,7 +12,6 @@ __version__ = "1.0.0"
 
 def main() -> None:
     """Main entry point for the StatGPT CLI."""
-    # Initialize logging first
     logger = setup_logging()
     logger.info("StatGPT CLI starting")
 

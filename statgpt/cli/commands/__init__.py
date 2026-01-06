@@ -14,6 +14,7 @@ __all__ = [
     "channel_group",
     "content_group",
     "settings_command",
+    "create_registry",
 ]
 
 

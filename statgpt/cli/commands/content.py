@@ -29,10 +29,6 @@ from statgpt.common.schemas import (
 )
 from statgpt.common.utils import dial_core_factory
 
-# ============================================================================
-# Content Init Command
-# ============================================================================
-
 VALID_COMPONENTS = {"channels", "datasources", "datasets", "glossaries", "files"}
 
 
@@ -516,11 +512,6 @@ async def _process_datasets(
             if not any(cd.dataset_id == dataset.id for cd in channel_datasets[ch_id]):
                 await client.add_dataset_to_channel(ch_id, dataset.id)
                 print_info(f"    Linked to channel: {ch_name}")
-
-
-# ============================================================================
-# Command Definitions
-# ============================================================================
 
 
 init_command = Command(

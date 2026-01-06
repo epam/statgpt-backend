@@ -119,11 +119,6 @@ async def import_handler(
                 raise
 
 
-# ============================================================================
-# Channel Status Command
-# ============================================================================
-
-
 async def _select_channel_interactive(channels: list[Channel]) -> Channel | None:
     """Interactive channel selection with filtering."""
     # Create mapping for lookup after selection
@@ -337,11 +332,6 @@ async def status_handler(
             print_success(f"Status report saved to: {output_path}")
 
 
-# ============================================================================
-# Channel List Command
-# ============================================================================
-
-
 async def list_handler() -> None:
     """List all available channels."""
     async with get_admin_client() as client:
@@ -390,11 +380,6 @@ async def list_handler() -> None:
         console.print(table)
 
 
-# ============================================================================
-# Channel Deduplicate Command
-# ============================================================================
-
-
 async def deduplicate_handler(channel: str | None = None) -> None:
     """Deduplicate embeddings for a channel."""
     async with get_admin_client() as client:
@@ -430,11 +415,6 @@ async def deduplicate_handler(channel: str | None = None) -> None:
             await client.deduplicate_channel(selected_channel.id)
 
         print_success("Deduplication completed")
-
-
-# ============================================================================
-# Channel Reindex Command
-# ============================================================================
 
 
 async def _select_reindex_mode_interactive(datasets: list[DataSet], channel: Channel) -> str | None:
@@ -563,16 +543,10 @@ async def reindex_handler(
         print_success("Reindex operation started")
 
 
-# ============================================================================
-# Command Definitions
-# ============================================================================
-
-
 list_command = Command(
     name="list",
     description="List all available channels",
     handler=list_handler,
-    args=[],
 )
 
 import_command = Command(

@@ -91,7 +91,6 @@ async def status_handler() -> None:
     console.print(f"  Expires at: [dim]{expires_at.strftime('%Y-%m-%d %H:%M:%S')}[/dim]")
 
 
-# Command definitions
 login_command = Command(
     name="login",
     description="Authenticate with the admin API",
@@ -119,8 +118,6 @@ status_command = Command(
     handler=status_handler,
 )
 
-
-# Create auth command group
 auth_group = CommandGroup(
     name="auth",
     description="Authentication management",

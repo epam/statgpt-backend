@@ -4,6 +4,7 @@ import json
 import time
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Self
 
 
 @dataclass
@@ -42,7 +43,7 @@ class CachedToken:
         return data
 
     @classmethod
-    def from_dict(cls, data: dict) -> "CachedToken":
+    def from_dict(cls, data: dict) -> Self:
         """Create from dictionary."""
         return cls(
             access_token=data["access_token"],

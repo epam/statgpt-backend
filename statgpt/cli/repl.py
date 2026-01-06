@@ -135,7 +135,6 @@ class REPL:
 
         while self._running:
             try:
-                # Get user input
                 user_input = await asyncio.get_event_loop().run_in_executor(
                     None,
                     lambda: self._session.prompt("statgpt> "),  # type: ignore[union-attr]
@@ -144,11 +143,9 @@ class REPL:
                 if not user_input.strip():
                     continue
 
-                # Handle built-in commands
                 if self._handle_builtin(user_input):
                     continue
 
-                # Execute command
                 found = await self._registry.execute(user_input)
                 if not found:
                     print_error(f"Unknown command: {user_input.split()[0]}")
