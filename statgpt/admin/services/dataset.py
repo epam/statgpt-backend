@@ -602,7 +602,7 @@ class AdminPortalDataSetService(DataSetService):
                     data_source_id=source_id,
                     title=ds.name,
                     description=ds.description or "",
-                    details=ds.details,
+                    details=ds.details.model_dump(mode="json", by_alias=True),
                 )
             )
 

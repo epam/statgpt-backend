@@ -29,6 +29,7 @@ from statgpt.common.data.sdmx.common import (
     DimensionCodeCategory,
     SdmxConstants,
     SdmxDataSetConfig,
+    SdmxDataSetConfigTemplate,
     SdmxDataSourceConfig,
     SdmxDimension,
     UrnParser,
@@ -115,14 +116,13 @@ class Sdmx21DataSourceHandler(
 
     def _get_dataset_descriptor(self, dataflow: Dataflow) -> DataSetDescriptor:
         urn = self._urn_parser.parse(dataflow.urn).get_short_urn()
-        config: dict
         try:
             config = self._create_config_for(dataflow, urn)
         except Exception:
             logger.warning(
                 f"Failed to create dataset config for dataflow urn={dataflow.urn!r}", exc_info=True
             )
-            config = {"urn": urn}
+            config = SdmxDataSetConfigTemplate(urn=urn)
 
         return DataSetDescriptor(
             source_id=urn,
@@ -132,7 +132,7 @@ class Sdmx21DataSourceHandler(
         )
 
     @staticmethod
-    def _create_config_for(dataflow: Dataflow, short_urn: str) -> dict:
+    def _create_config_for(dataflow: Dataflow, short_urn: str) -> SdmxDataSetConfigTemplate:
         """We do our best to create a valid dataset configuration from the dataflow structure."""
 
         dimensions: dict[str, BaseDimensionConfig] = {}
@@ -147,35 +147,12 @@ class Sdmx21DataSourceHandler(
             elif dim.id.upper() in ["INDICATOR", "SERIES"]:
                 dimensions[entity_id] = IndicatorDimensionConfig(is_required=True)
             else:
-                dimensions[entity_id] = NonIndicatorDimensionConfig()
+                dimensions[entity_id] = BaseDimensionConfig(dimension_type="TODO")
 
         if not dimensions:
             raise ValueError(f"Could not find any dimensions in dataflow {dataflow.urn!r}")
 
-        not_found = []
-        if not any(True for dim in dimensions.values() if dim.type is DimensionType.TIME_PERIOD):
-            not_found.append("time period")
-        if not any(True for dim in dimensions.values() if dim.type is DimensionType.INDICATOR):
-            not_found.append("indicator")
-        if not any(
-            True
-            for dim in dimensions.values()
-            if dim.type is DimensionType.NON_INDICATOR
-            and dim.subtype is SpecialNonIndicatorDimensions.FREQUENCY  # type: ignore[attr-defined]
-        ):
-            not_found.append("frequency")
-
-        if not_found:
-            logger.warning(
-                f"Could not find expected dimensions ({', '.join(not_found)}) in dataflow {dataflow.urn!r}"
-            )
-            # NOTE: we skip validation here, as it is better to have a partially valid config
-            # than to have no config at all. It is expected that the user will fix the config.
-            dataset_config = SdmxDataSetConfig.model_construct(urn=short_urn, dimensions=dimensions)  # type: ignore[arg-type]
-        else:
-            dataset_config = SdmxDataSetConfig(urn=short_urn, dimensions=dimensions)
-
-        return dataset_config.model_dump(mode="json")
+        return SdmxDataSetConfigTemplate(urn=short_urn, dimensions=dimensions)
 
     @property
     def entity_id(self) -> str:

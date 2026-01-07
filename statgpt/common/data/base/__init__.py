@@ -4,6 +4,7 @@ from .category import Category, DimensionCategory, VirtualDimensionCategory
 from .config import (
     BaseDimensionConfig,
     DatasetCitation,
+    DataSetConfigTemplate,
     IndexerConfig,
     IndexerIndicatorConfig,
     IndicatorDimensionConfig,

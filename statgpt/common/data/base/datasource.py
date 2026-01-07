@@ -3,12 +3,13 @@ import uuid
 from abc import ABC, abstractmethod
 
 from langchain_core.documents import Document
-from pydantic import BaseModel, ConfigDict, Field, alias_generators
+from pydantic import BaseModel, ConfigDict, Field, SkipValidation, alias_generators
 
 from statgpt.common.auth.auth_context import AuthContext
 
 from .base import BaseEntity, EntityType
 from .category import DimensionCategory
+from .config import DataSetConfigTemplate
 from .dataset import DataSet, DataSetConfig
 from .dataset_hierarchy import DatasetHierarchy
 from .indicator import BaseIndicator
@@ -19,8 +20,8 @@ class DataSetDescriptor(BaseModel):
     name: str = Field(description="The name of the dataset")
     description: t.Optional[str] = Field(description="The description of the dataset")
 
-    details: dict = Field(
-        description="Preliminary details defined by the data source.", default_factory=dict
+    details: SkipValidation[DataSetConfigTemplate] = Field(
+        description="Preliminary details defined by the data source."
     )
 
 
