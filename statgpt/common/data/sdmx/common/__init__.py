@@ -10,6 +10,7 @@ from .config import (
     CategorySchemaDataSetHierarchyConfig,
     DefaultDataSetHierarchyConfig,
     SdmxDataSetConfig,
+    SdmxDataSetConfigTemplate,
     SdmxDataSourceConfig,
 )
 from .constants import SdmxConstants

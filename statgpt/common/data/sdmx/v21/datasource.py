@@ -5,17 +5,23 @@ from operator import itemgetter
 
 from langchain_core.documents import Document
 from sdmx.message import StructureMessage
+from sdmx.model.common import TimeDimension
 from sdmx.model.v21 import DataflowDefinition as Dataflow
 
 from statgpt.common.auth.auth_context import AuthContext
 from statgpt.common.config import multiline_logger as logger
 from statgpt.common.data.base import (
+    BaseDimensionConfig,
     DataSetDescriptor,
     DatasetHierarchy,
     DataSourceHandler,
     DataSourceType,
     DefaultDatasetHierarchyCreator,
     DimensionType,
+    IndicatorDimensionConfig,
+    NonIndicatorDimensionConfig,
+    SpecialNonIndicatorDimensions,
+    TimePeriodDimensionConfig,
     VirtualDimensionCategory,
 )
 from statgpt.common.data.sdmx.common import (
@@ -23,6 +29,7 @@ from statgpt.common.data.sdmx.common import (
     DimensionCodeCategory,
     SdmxConstants,
     SdmxDataSetConfig,
+    SdmxDataSetConfigTemplate,
     SdmxDataSourceConfig,
     SdmxDimension,
     UrnParser,
@@ -97,20 +104,55 @@ class Sdmx21DataSourceHandler(
         client = await self.create_sdmx_client(auth_context)
 
         message: StructureMessage = await client.dataflow(
-            agency_id="all", resource_id="all", version="latest", params={}
+            agency_id="all",
+            resource_id="all",
+            version="latest",
+            params={"references": "datastructure"},
         )
         dataflows: list[Dataflow] = list(message.dataflow.values())
-        return [
-            DataSetDescriptor(
-                source_id=self._urn_parser.parse(dataflow.urn).get_short_urn(),
-                name=dataflow.name[self._config.locale],
-                description=dataflow.description.localizations.get(self._config.locale),
-                details=SdmxDataSetConfig(
-                    urn=self._urn_parser.parse(dataflow.urn).get_short_urn()
-                ).model_dump(by_alias=True),
+
+        res = [self._get_dataset_descriptor(dataflow) for dataflow in dataflows]
+        return res
+
+    def _get_dataset_descriptor(self, dataflow: Dataflow) -> DataSetDescriptor:
+        urn = self._urn_parser.parse(dataflow.urn).get_short_urn()
+        try:
+            config = self._create_config_for(dataflow, urn)
+        except Exception:
+            logger.warning(
+                f"Failed to create dataset config for dataflow urn={dataflow.urn!r}", exc_info=True
             )
-            for dataflow in dataflows
-        ]
+            config = SdmxDataSetConfigTemplate(urn=urn)
+
+        return DataSetDescriptor(
+            source_id=urn,
+            name=dataflow.name[self._config.locale],
+            description=dataflow.description.localizations.get(self._config.locale),
+            details=config,
+        )
+
+    @staticmethod
+    def _create_config_for(dataflow: Dataflow, short_urn: str) -> SdmxDataSetConfigTemplate:
+        """We do our best to create a valid dataset configuration from the dataflow structure."""
+
+        dimensions: dict[str, BaseDimensionConfig] = {}
+        for dim in dataflow.structure.dimensions:
+            entity_id = dim.id
+            if isinstance(dim, TimeDimension):
+                dimensions[entity_id] = TimePeriodDimensionConfig()
+            elif dim.id.upper() in ["FREQ", "FREQUENCY"]:
+                dimensions[entity_id] = NonIndicatorDimensionConfig(
+                    subtype=SpecialNonIndicatorDimensions.FREQUENCY
+                )
+            elif dim.id.upper() in ["INDICATOR", "SERIES"]:
+                dimensions[entity_id] = IndicatorDimensionConfig(is_required=True)
+            else:
+                dimensions[entity_id] = BaseDimensionConfig(dimension_type=None)
+
+        if not dimensions:
+            raise ValueError(f"Could not find any dimensions in dataflow {dataflow.urn!r}")
+
+        return SdmxDataSetConfigTemplate(urn=short_urn, dimensions=dimensions)
 
     @property
     def entity_id(self) -> str:

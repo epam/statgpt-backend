@@ -3,6 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 import statgpt.common.models as models
 import statgpt.common.schemas as schemas
+from statgpt.admin.auth.auth_context import SystemUserAuthContext
 from statgpt.admin.auth.user import require_jwt_auth
 from statgpt.admin.services import AdminPortalDataSetService as DataSetService
 from statgpt.admin.services import AdminPortalDataSourceService as DataSourceService
@@ -93,9 +94,17 @@ async def get_available_datasets(
     session: AsyncSession = Depends(models.get_session),
     _=Depends(cancel_on_disconnect),
 ) -> schemas.ListResponse[schemas.DataSetDescriptor]:
-    """Returns a list of datasets that can be loaded from the data source"""
+    """Returns a list of datasets that exists in the data source and can be added to the system.
 
-    datasets = await DataSetService(session).load_available_datasets(source_id=item_id)
+    NOTES:
+        * These list does NOT exclude datasets that are already added to the system.
+        * The returned datasets contain only some pre-configurations and require manual review
+          and updating before being added to the system.
+    """
+
+    datasets = await DataSetService(session).load_available_datasets(
+        source_id=item_id, auth_context=SystemUserAuthContext()
+    )
     datasets_count = len(datasets)
 
     return schemas.ListResponse[schemas.DataSetDescriptor](

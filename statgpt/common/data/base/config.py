@@ -4,7 +4,7 @@ from collections.abc import Generator, Iterable
 from typing import Annotated, Literal, NamedTuple, Self
 
 from pydantic import BaseModel as PydanticBaseModel
-from pydantic import ConfigDict, Field, StrictStr, alias_generators, model_validator
+from pydantic import ConfigDict, Field, SkipValidation, StrictStr, alias_generators, model_validator
 
 from statgpt.common.config.utils import replace_env
 from statgpt.common.utils import crc32_hash, crc32_hash_incremental
@@ -87,7 +87,7 @@ class IndexerConfig(BaseModel):
 
 
 class BaseDimensionConfig(BaseModel):
-    dimension_type: str
+    dimension_type: str | None
     alias: str | None = Field(default=None)
     is_required: bool = Field(
         default=False,
@@ -115,6 +115,8 @@ class BaseDimensionConfig(BaseModel):
 
     @property
     def type(self) -> DimensionType:
+        if self.dimension_type is None:
+            raise ValueError("dimension_type is not set")
         return DimensionType(self.dimension_type)
 
     @property
@@ -163,13 +165,25 @@ DIMENSION_CONFIG_TYPES = Annotated[
 ]
 
 
-class DataSetConfig(BaseModel, ABC):
+class BaseDataSetConfig(BaseModel):
     is_official: bool = Field(default=False)
     citation: DatasetCitation | None = Field(default=None)
     indexer: IndexerConfig | None = Field(default=None)
     pinned_columns: list[str] = Field(
         description="Column names and order to pin in the data in grid", default_factory=list
     )
+
+
+class DataSetConfigTemplate(BaseDataSetConfig):
+
+    dimensions: dict[str, SkipValidation[BaseDimensionConfig]] = Field(
+        description="The draft configuration of the each dimension in the dataset by its ID",
+        default_factory=dict,
+    )
+
+
+class DataSetConfig(BaseDataSetConfig, ABC):
+
     dimensions: dict[str, DIMENSION_CONFIG_TYPES] = Field(
         description="The configuration of the each dimension in the dataset by its ID",
         default_factory=dict,
