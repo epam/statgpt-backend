@@ -14,7 +14,6 @@ from sqlalchemy.sql.expression import func, text, update
 
 import statgpt.common.models as models
 import statgpt.common.schemas as schemas
-from statgpt.admin.auth.auth_context import SystemUserAuthContext
 from statgpt.admin.settings.exim import ExImSettings, JobsConfig
 from statgpt.common import utils
 from statgpt.common.auth.auth_context import AuthContext
@@ -591,11 +590,13 @@ class AdminPortalDataSetService(DataSetService):
         )
         return DataSetSerializer.db_to_schema(item, dataset)
 
-    async def load_available_datasets(self, source_id: int) -> list[schemas.DataSetDescriptor]:
+    async def load_available_datasets(
+        self, source_id: int, auth_context: AuthContext
+    ) -> list[schemas.DataSetDescriptor]:
         handler = await self._get_handler(source_id)
 
         datasets = []
-        for ds in await handler.list_datasets(SystemUserAuthContext()):
+        for ds in await handler.list_datasets(auth_context):
             datasets.append(
                 schemas.DataSetDescriptor(
                     data_source_id=source_id,

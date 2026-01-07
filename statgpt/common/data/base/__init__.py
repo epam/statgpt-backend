@@ -1,7 +1,16 @@
 from .attribute import Attribute, CategoricalAttribute, StringAttribute
 from .base import BaseEntity
 from .category import Category, DimensionCategory, VirtualDimensionCategory
-from .config import DatasetCitation, IndexerConfig, IndexerIndicatorConfig, VirtualDimensionValue
+from .config import (
+    BaseDimensionConfig,
+    DatasetCitation,
+    IndexerConfig,
+    IndexerIndicatorConfig,
+    IndicatorDimensionConfig,
+    NonIndicatorDimensionConfig,
+    TimePeriodDimensionConfig,
+    VirtualDimensionValue,
+)
 from .dataset import DataResponse, DataResponseStatus, DataSet, DataSetConfig, OfflineDataSet
 from .dataset_hierarchy import (
     DatasetHierarchy,
