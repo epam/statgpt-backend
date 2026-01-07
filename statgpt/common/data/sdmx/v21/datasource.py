@@ -161,7 +161,7 @@ class Sdmx21DataSourceHandler(
             True
             for dim in dimensions.values()
             if dim.type is DimensionType.NON_INDICATOR
-            and dim.subtype is SpecialNonIndicatorDimensions.FREQUENCY
+            and dim.subtype is SpecialNonIndicatorDimensions.FREQUENCY  # type: ignore[attr-defined]
         ):
             not_found.append("frequency")
 
@@ -171,7 +171,7 @@ class Sdmx21DataSourceHandler(
             )
             # NOTE: we skip validation here, as it is better to have a partially valid config
             # than to have no config at all. It is expected that the user will fix the config.
-            dataset_config = SdmxDataSetConfig.model_construct(urn=short_urn, dimensions=dimensions)
+            dataset_config = SdmxDataSetConfig.model_construct(urn=short_urn, dimensions=dimensions)  # type: ignore[arg-type]
         else:
             dataset_config = SdmxDataSetConfig(urn=short_urn, dimensions=dimensions)
 
