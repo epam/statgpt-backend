@@ -147,7 +147,7 @@ class Sdmx21DataSourceHandler(
             elif dim.id.upper() in ["INDICATOR", "SERIES"]:
                 dimensions[entity_id] = IndicatorDimensionConfig(is_required=True)
             else:
-                dimensions[entity_id] = BaseDimensionConfig(dimension_type="TODO")
+                dimensions[entity_id] = BaseDimensionConfig(dimension_type=None)
 
         if not dimensions:
             raise ValueError(f"Could not find any dimensions in dataflow {dataflow.urn!r}")

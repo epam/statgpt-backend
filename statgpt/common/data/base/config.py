@@ -87,7 +87,7 @@ class IndexerConfig(BaseModel):
 
 
 class BaseDimensionConfig(BaseModel):
-    dimension_type: str
+    dimension_type: str | None
     alias: str | None = Field(default=None)
     is_required: bool = Field(
         default=False,
@@ -115,6 +115,8 @@ class BaseDimensionConfig(BaseModel):
 
     @property
     def type(self) -> DimensionType:
+        if self.dimension_type is None:
+            raise ValueError("dimension_type is not set")
         return DimensionType(self.dimension_type)
 
     @property
