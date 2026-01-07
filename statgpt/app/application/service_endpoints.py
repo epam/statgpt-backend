@@ -1,5 +1,10 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from typing import cast
+
+from fastapi import APIRouter, Depends, HTTPException, Request as FastAPIRequest, status
 from sqlalchemy.ext.asyncio import AsyncSession
+
+from aidial_sdk.chat_completion import Request
+from aidial_sdk.exceptions import HTTPException as DIALException
 
 from statgpt.app.schemas import (
     ChannelDatasetsMetadataResponse,
@@ -7,15 +12,32 @@ from statgpt.app.schemas import (
     GitVersionResponse,
     SettingsResponse,
 )
+from statgpt.app.security import create_auth_context
 from statgpt.app.services.chat_facade import ChannelServiceFacade
 from statgpt.app.settings.dial_app import dial_app_settings
-from statgpt.common.auth.auth_context import AuthContext
 from statgpt.common.config import Versions
 from statgpt.common.models.database import get_readonly_session
 from statgpt.common.services.dataset import DataSetService
-from statgpt.common.settings.dial import dial_settings
 
 router = APIRouter()
+
+
+class _HeaderOnlyDialRequest:
+    """Minimal adapter for auth checks in non-DIAL FastAPI endpoints.
+
+    `create_auth_context()` expects `aidial_sdk.chat_completion.Request`, but for metadata GET routes
+    we only have headers. Auth logic uses only `.jwt` and `.api_key`.
+    """
+
+    def __init__(self, *, jwt: str | None, api_key: str | None):
+        self.jwt = jwt
+        self.api_key = api_key
+
+
+def _dial_request_from_fastapi_request(request: FastAPIRequest) -> Request:
+    jwt = request.headers.get("authorization")
+    api_key = request.headers.get("api-key") or request.headers.get("x-api-key") or request.headers.get("Api-Key")
+    return cast(Request, _HeaderOnlyDialRequest(jwt=jwt, api_key=api_key))
 
 
 @router.get("/version")
@@ -32,27 +54,22 @@ async def settings() -> SettingsResponse:
     )
 
 
-class _SystemApiKeyAuthContext(AuthContext):
-    """Used for service endpoints that need to call external data sources."""
-
-    @property
-    def is_system(self) -> bool:
-        return True
-
-    @property
-    def dial_access_token(self) -> None:
-        return None
-
-    @property
-    def api_key(self) -> str:
-        return dial_settings.api_key.get_secret_value()
-
-
-@router.get("/openai/deployments/{deployment_id}/metadata/channel")
+@router.get("/statgpt/openai/deployments/{deployment_id}/metadata/channel")
 async def channel_metadata(
     deployment_id: str,
+    request: FastAPIRequest,
     session: AsyncSession = Depends(get_readonly_session),
 ) -> ChannelMetadataResponse:
+
+    try:
+        await create_auth_context(_dial_request_from_fastapi_request(request))
+    except ValueError as e:
+        raise DIALException(
+            status_code=401,
+            code="unauthorized",
+            message=f"Unauthorized: {e}",
+        )
+
     try:
         service = await ChannelServiceFacade.get_channel(session, deployment_id)
     except Exception:
@@ -71,11 +88,22 @@ async def channel_metadata(
     )
 
 
-@router.get("/openai/deployments/{deployment_id}/metadata/datasets")
+@router.get("/statgpt/openai/deployments/{deployment_id}/metadata/datasets")
 async def channel_datasets_metadata(
     deployment_id: str,
+    request: FastAPIRequest,
     session: AsyncSession = Depends(get_readonly_session),
 ) -> ChannelDatasetsMetadataResponse:
+
+    try:
+        auth_context = await create_auth_context(_dial_request_from_fastapi_request(request))
+    except ValueError as e:
+        raise DIALException(
+            status_code=401,
+            code="unauthorized",
+            message=f"Unauthorized: {e}",
+        )
+
     try:
         service = await ChannelServiceFacade.get_channel(session, deployment_id)
     except Exception:
@@ -88,7 +116,7 @@ async def channel_datasets_metadata(
         limit=None,
         offset=0,
         channel_id=service.channel.id,
-        auth_context=_SystemApiKeyAuthContext(),
+        auth_context=auth_context,
     )
 
     return ChannelDatasetsMetadataResponse(
