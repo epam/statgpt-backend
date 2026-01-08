@@ -1,10 +1,19 @@
 import logging
 from abc import ABC, abstractmethod
 from collections.abc import Generator, Iterable
-from typing import Annotated, Literal, NamedTuple, Self
+from typing import Annotated, Any, Literal, NamedTuple, Self
 
 from pydantic import BaseModel as PydanticBaseModel
-from pydantic import ConfigDict, Field, SkipValidation, StrictStr, alias_generators, model_validator
+from pydantic import (
+    ConfigDict,
+    Field,
+    SerializationInfo,
+    SkipValidation,
+    StrictStr,
+    alias_generators,
+    field_serializer,
+    model_validator,
+)
 
 from statgpt.common.config.utils import replace_env
 from statgpt.common.utils import crc32_hash, crc32_hash_incremental
@@ -180,6 +189,26 @@ class DataSetConfigTemplate(BaseDataSetConfig):
         description="The draft configuration of the each dimension in the dataset by its ID",
         default_factory=dict,
     )
+
+    @field_serializer('dimensions')
+    def _serialize_dimensions(
+        self, value: dict[str, BaseDimensionConfig], info: SerializationInfo
+    ) -> dict[str, dict[str, Any]]:
+        """Serialize dimensions using actual type schema, not BaseDimensionConfig.
+
+        SkipValidation causes Pydantic to use BaseDimensionConfig schema for serialization,
+        which drops subclass-specific fields (e.g., `subtype` on NonIndicatorDimensionConfig).
+        """
+        return {
+            k: v.model_dump(
+                mode=info.mode,
+                by_alias=info.by_alias,
+                exclude_none=info.exclude_none,
+                exclude_unset=info.exclude_unset,
+                exclude_defaults=info.exclude_defaults,
+            )
+            for k, v in value.items()
+        }
 
 
 class DataSetConfig(BaseDataSetConfig, ABC):
