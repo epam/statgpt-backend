@@ -4,7 +4,7 @@ import os
 from enum import StrEnum
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -74,6 +74,14 @@ class CLISettings(BaseSettings):
         description="Maximum number of embeddings for reindex operations",
         json_schema_extra=field_meta(SettingsSection.CONTENT),
     )
+
+    @field_validator("max_embeddings", mode="before")
+    @classmethod
+    def empty_str_to_none(cls, v: Any) -> int | None:
+        """Convert empty strings to None for optional int fields."""
+        if v == "":
+            return None
+        return v
 
     auth_provider: str | None = Field(
         default=None,
