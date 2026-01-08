@@ -77,6 +77,17 @@ class TestCLISettingsEnvOverride:
         assert settings.auth_azure_authority == "https://login.microsoftonline.com/tenant"
         assert settings.auth_azure_scope == "api://scope/.default"
 
+    def test_max_embeddings_from_env(self, clean_cli_env, monkeypatch):
+        monkeypatch.setenv("STATGPT_CLI_MAX_EMBEDDINGS", "100")
+        settings = make_settings()
+        assert settings.max_embeddings == 100
+
+    def test_max_embeddings_empty_string_becomes_none(self, clean_cli_env, monkeypatch):
+        """Empty string for max_embeddings should be treated as None."""
+        monkeypatch.setenv("STATGPT_CLI_MAX_EMBEDDINGS", "")
+        settings = make_settings()
+        assert settings.max_embeddings is None
+
 
 class TestCLIDataDir:
     """Tests for cli_data_dir property."""
