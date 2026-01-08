@@ -19,25 +19,45 @@ class DataflowLoader:
 
     async def load_structure_message(
         self, urn: Urn, mode: Literal['full', 'shallow']
-    ) -> StructureMessage21:
+    ) -> tuple[Urn, StructureMessage21]:
         dataflow_msg = await self._load_dataflow(urn)
         result_message = StructureMessage21.from_sdmx1(dataflow_msg)
 
-        schemes = await self._load_concept_schemes(result_message.dataflow[urn].structure)
+        actual_urn = self._get_actual_urn(result_message, urn)
+
+        schemes = await self._load_concept_schemes(result_message.dataflow[actual_urn].structure)
         for scheme_msg in schemes:
             result_message.add_concept_schemes(scheme_msg.concept_scheme.values())
 
         if mode == 'shallow':
-            return result_message
+            return actual_urn, result_message
 
-        code_lists = await self._load_code_lists(result_message, urn)
+        code_lists = await self._load_code_lists(result_message, actual_urn)
         for code_list_msg in code_lists:
             result_message.add_codelists(code_list_msg.codelist.values())
 
-        constraint_message = await self._load_constraints(urn)
+        constraint_message = await self._load_constraints(actual_urn)
         result_message.add_constraints(constraint_message.constraint.values())
 
-        return result_message
+        return actual_urn, result_message
+
+    @staticmethod
+    def _get_actual_urn(message: StructureMessage21, urn: Urn) -> Urn:
+        if urn in message.dataflow:
+            return urn
+
+        # If the requested URN is not found, a dynamic URN was likely used.
+        # For example, "latest" version. In this case, return the actual URN used.
+
+        if len(message.dataflow) == 1:
+            return next(iter(message.dataflow.keys()))
+        elif len(message.dataflow) == 0:
+            raise ValueError(f"The structure message contains no dataflows. Requested URN: {urn}")
+        else:
+            raise ValueError(
+                f"The structure message contains multiple dataflows, cannot determine the actual URN. "
+                f"Requested URN: {urn}, found dataflows: {list(message.dataflow.keys())}"
+            )
 
     async def _load_dataflow(self, urn: Urn) -> StructureMessage:
         return await self._client.dataflow(

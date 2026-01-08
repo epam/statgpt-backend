@@ -1,5 +1,5 @@
 import logging
-from abc import ABC, abstractmethod
+from abc import ABC
 from collections.abc import Generator, Iterable
 from typing import Annotated, Any, Literal, NamedTuple, Self
 
@@ -217,10 +217,6 @@ class DataSetConfig(BaseDataSetConfig, ABC):
         description="The configuration of the each dimension in the dataset by its ID",
         default_factory=dict,
     )
-
-    @abstractmethod
-    def get_source_id(self) -> str:
-        pass
 
     @property
     def indexing_hashes(self) -> ConfigHashes:
