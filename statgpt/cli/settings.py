@@ -198,3 +198,21 @@ class CLISettings(BaseSettings):
 
 
 cli_settings = CLISettings()
+
+
+class CLIRuntimeState:
+    """Runtime state for CLI session (not persisted).
+
+    This is intentionally mutable global state to track session-wide flags
+    that need to be accessible across the CLI codebase without threading
+    through function parameters.
+
+    Attributes:
+        non_interactive: When True, interactive prompts raise NonInteractiveError
+            instead of displaying UI selectors.
+    """
+
+    non_interactive: bool = False
+
+
+cli_runtime = CLIRuntimeState()

@@ -61,12 +61,10 @@ make remove_venv         # Remove and recreate venv
 
 ### CLI (Interactive Command-Line Interface)
 ```bash
-poetry install --with cli   # Install CLI dependencies
-statgpt                     # Start interactive CLI REPL
-python -m statgpt.cli       # Alternative: run as module
+make statgpt_cli        # Start the StatGPT CLI
 ```
 
-CLI uses separate dependency group and `STATGPT_CLI_*` prefixed environment variables.
+CLI uses `STATGPT_CLI_*` prefixed environment variables.
 See `statgpt/cli/README.md` for full documentation.
 
 **Available Commands:**

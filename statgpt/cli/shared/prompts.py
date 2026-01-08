@@ -7,6 +7,16 @@ from prompt_toolkit.layout.containers import Window
 from prompt_toolkit.layout.controls import FormattedTextControl
 from prompt_toolkit.styles import Style
 
+from statgpt.cli.settings import cli_runtime
+
+
+class NonInteractiveError(Exception):
+    """Raised when an interactive prompt is required but non-interactive mode is enabled.
+
+    This exception is caught by command handlers to provide helpful error messages
+    indicating which parameters must be provided via command-line arguments.
+    """
+
 
 class CheckboxSelector:
     """Interactive checkbox selector with optional filtering."""
@@ -312,7 +322,15 @@ async def select_item_interactive(
 
     Returns:
         Selected value, or None if cancelled
+
+    Raises:
+        NonInteractiveError: If non-interactive mode is enabled
     """
+    if cli_runtime.non_interactive:
+        raise NonInteractiveError(
+            "Interactive selection required but --non-interactive mode is enabled. "
+            "Please provide the required parameter."
+        )
     selector = RadioSelector(items, title, filter_enabled)
     return await selector.run()
 
@@ -332,7 +350,15 @@ async def select_items_interactive(
 
     Returns:
         List of selected values (empty if cancelled)
+
+    Raises:
+        NonInteractiveError: If non-interactive mode is enabled
     """
+    if cli_runtime.non_interactive:
+        raise NonInteractiveError(
+            "Interactive selection required but --non-interactive mode is enabled. "
+            "Please provide the required parameter."
+        )
     selector = CheckboxSelector(items, title, filter_enabled)
     return await selector.run()
 
@@ -347,7 +373,15 @@ async def select_clients_interactive(available_clients: list[str]) -> set[str] |
     Returns:
         Set of selected client IDs, or None if "all" selected.
         Empty set if cancelled.
+
+    Raises:
+        NonInteractiveError: If non-interactive mode is enabled
     """
+    if cli_runtime.non_interactive:
+        raise NonInteractiveError(
+            "Interactive client selection required but --non-interactive mode is enabled. "
+            "Please provide the required parameter."
+        )
     items = [("__all__", "All clients")] + [(c, c) for c in sorted(available_clients)]
 
     selected = await select_items_interactive(
@@ -376,7 +410,15 @@ async def select_datasets_interactive(
 
     Returns:
         Set of selected dataset URNs (empty if cancelled)
+
+    Raises:
+        NonInteractiveError: If non-interactive mode is enabled
     """
+    if cli_runtime.non_interactive:
+        raise NonInteractiveError(
+            "Interactive dataset selection required but --non-interactive mode is enabled. "
+            "Please provide the required parameter."
+        )
     selected = await select_items_interactive(
         datasets,
         title="Select Datasets (type to filter)",

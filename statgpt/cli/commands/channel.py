@@ -9,8 +9,9 @@ import questionary
 from rich.table import Table
 
 from statgpt.cli.commands.base import Command, CommandArg, CommandGroup
-from statgpt.cli.settings import cli_settings
+from statgpt.cli.settings import cli_runtime, cli_settings
 from statgpt.cli.shared import (
+    NonInteractiveError,
     console,
     get_admin_client,
     print_error,
@@ -34,6 +35,11 @@ async def import_handler(
     """Import a channel from a zip archive."""
     # Interactive file selection if not provided
     if not file:
+        if cli_runtime.non_interactive:
+            raise NonInteractiveError(
+                "Missing required parameter: --file\n"
+                "  Usage: statgpt channel import --file <path.zip>"
+            )
         file = await asyncio.get_event_loop().run_in_executor(
             None,
             lambda: questionary.path(
@@ -52,7 +58,7 @@ async def import_handler(
         return
 
     # Interactive options if not provided via args
-    if not any([clean, update_datasets, update_data_sources]):
+    if not any([clean, update_datasets, update_data_sources]) and not cli_runtime.non_interactive:
         options = await asyncio.get_event_loop().run_in_executor(
             None,
             lambda: questionary.checkbox(
@@ -115,18 +121,27 @@ async def import_handler(
 
 async def _select_channel_interactive(channels: list[Channel]) -> Channel | None:
     """Interactive channel selection with filtering."""
-    # Create mapping for lookup after selection
     channel_map = {ch.deployment_id: ch for ch in channels}
     items = [
         (ch.deployment_id, f"{ch.deployment_id} - {ch.title}")
         for ch in sorted(channels, key=lambda ch: ch.deployment_id)
     ]
 
-    selected = await select_item_interactive(
-        items,
-        title="Select Channel (type to filter)",
-        filter_enabled=True,
-    )
+    try:
+        selected = await select_item_interactive(
+            items,
+            title="Select Channel (type to filter)",
+            filter_enabled=True,
+        )
+    except NonInteractiveError:
+        available = ", ".join(
+            ch.deployment_id for ch in sorted(channels, key=lambda c: c.deployment_id)
+        )
+        raise NonInteractiveError(
+            f"Missing required parameter: -c/--channel\n"
+            f"  Available channels: {available}\n"
+            f"  Usage: statgpt channel <command> -c <channel>"
+        ) from None
 
     if not selected:
         return None
@@ -421,11 +436,18 @@ async def _select_reindex_mode_interactive(datasets: list[DataSet], channel: Cha
         ("dataset", "Reindex specific dataset"),
     ]
 
-    return await select_item_interactive(
-        items,
-        title="Select Reindex Mode",
-        filter_enabled=False,
-    )
+    try:
+        return await select_item_interactive(
+            items,
+            title="Select Reindex Mode",
+            filter_enabled=False,
+        )
+    except NonInteractiveError:
+        raise NonInteractiveError(
+            "Missing required parameter: --mode\n"
+            "  Available modes: all, channel, dataset\n"
+            "  Usage: statgpt channel reindex -c <channel> --mode <mode>"
+        ) from None
 
 
 async def _select_dataset_interactive(datasets: list[DataSet]) -> str | None:
@@ -436,11 +458,19 @@ async def _select_dataset_interactive(datasets: list[DataSet]) -> str | None:
         if ds.details.get("urn")
     ]
 
-    return await select_item_interactive(
-        items,
-        title="Select Dataset (type to filter)",
-        filter_enabled=True,
-    )
+    try:
+        return await select_item_interactive(
+            items,
+            title="Select Dataset (type to filter)",
+            filter_enabled=True,
+        )
+    except NonInteractiveError:
+        available = ", ".join(ds.details.get("urn", "") for ds in datasets if ds.details.get("urn"))
+        raise NonInteractiveError(
+            f"Missing required parameter: --dataset-urn\n"
+            f"  Available datasets: {available}\n"
+            f"  Usage: statgpt channel reindex -c <channel> --mode dataset --dataset-urn <urn>"
+        ) from None
 
 
 async def reindex_handler(
