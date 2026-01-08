@@ -16,10 +16,10 @@ init_venv:
 	poetry env use .venv/bin/python
 
 install_dev: init_venv
-	poetry install --with cli,dev
+	poetry install -E cli --with dev
 
 install_all: init_venv
-	poetry install --with cli,dev,experiments
+	poetry install -E cli --with dev,experiments
 
 format: install_dev
 	poetry run autoflake ${SRC_DIRS}
