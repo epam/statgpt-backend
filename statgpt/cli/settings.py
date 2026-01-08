@@ -77,7 +77,7 @@ class CLISettings(BaseSettings):
 
     @field_validator("max_embeddings", mode="before")
     @classmethod
-    def empty_str_to_none(cls, v: Any) -> int | None:
+    def empty_str_to_none(cls, v: Any) -> Any:
         """Convert empty strings to None for optional int fields."""
         if v == "":
             return None
