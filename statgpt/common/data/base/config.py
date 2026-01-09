@@ -1,10 +1,19 @@
 import logging
 from abc import ABC, abstractmethod
 from collections.abc import Generator, Iterable
-from typing import Annotated, Literal, NamedTuple, Self
+from typing import Annotated, Any, Literal, NamedTuple, Self
 
 from pydantic import BaseModel as PydanticBaseModel
-from pydantic import ConfigDict, Field, StrictStr, alias_generators, model_validator
+from pydantic import (
+    ConfigDict,
+    Field,
+    SerializationInfo,
+    SkipValidation,
+    StrictStr,
+    alias_generators,
+    field_serializer,
+    model_validator,
+)
 
 from statgpt.common.config.utils import replace_env
 from statgpt.common.utils import crc32_hash, crc32_hash_incremental
@@ -87,7 +96,7 @@ class IndexerConfig(BaseModel):
 
 
 class BaseDimensionConfig(BaseModel):
-    dimension_type: str
+    dimension_type: str | None
     alias: str | None = Field(default=None)
     is_required: bool = Field(
         default=False,
@@ -115,6 +124,8 @@ class BaseDimensionConfig(BaseModel):
 
     @property
     def type(self) -> DimensionType:
+        if self.dimension_type is None:
+            raise ValueError("dimension_type is not set")
         return DimensionType(self.dimension_type)
 
     @property
@@ -163,13 +174,45 @@ DIMENSION_CONFIG_TYPES = Annotated[
 ]
 
 
-class DataSetConfig(BaseModel, ABC):
+class BaseDataSetConfig(BaseModel):
     is_official: bool = Field(default=False)
     citation: DatasetCitation | None = Field(default=None)
     indexer: IndexerConfig | None = Field(default=None)
     pinned_columns: list[str] = Field(
         description="Column names and order to pin in the data in grid", default_factory=list
     )
+
+
+class DataSetConfigTemplate(BaseDataSetConfig):
+
+    dimensions: dict[str, SkipValidation[BaseDimensionConfig]] = Field(
+        description="The draft configuration of the each dimension in the dataset by its ID",
+        default_factory=dict,
+    )
+
+    @field_serializer('dimensions')
+    def _serialize_dimensions(
+        self, value: dict[str, BaseDimensionConfig], info: SerializationInfo
+    ) -> dict[str, dict[str, Any]]:
+        """Serialize dimensions using actual type schema, not BaseDimensionConfig.
+
+        SkipValidation causes Pydantic to use BaseDimensionConfig schema for serialization,
+        which drops subclass-specific fields (e.g., `subtype` on NonIndicatorDimensionConfig).
+        """
+        return {
+            k: v.model_dump(
+                mode=info.mode,
+                by_alias=info.by_alias,
+                exclude_none=info.exclude_none,
+                exclude_unset=info.exclude_unset,
+                exclude_defaults=info.exclude_defaults,
+            )
+            for k, v in value.items()
+        }
+
+
+class DataSetConfig(BaseDataSetConfig, ABC):
+
     dimensions: dict[str, DIMENSION_CONFIG_TYPES] = Field(
         description="The configuration of the each dimension in the dataset by its ID",
         default_factory=dict,

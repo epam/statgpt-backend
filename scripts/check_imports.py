@@ -12,10 +12,12 @@ from pathlib import Path
 MODULE = "statgpt"
 ADMIN_SUBMODULE = "admin"
 APP_SUBMODULE = "app"
+CLI_SUBMODULE = "cli"
 COMMON_SUBMODULE = "common"
 ADMIN_MODULE = f"{MODULE}.{ADMIN_SUBMODULE}"
 APP_MODULE = f"{MODULE}.{APP_SUBMODULE}"
 COMMON_MODULE = f"{MODULE}.{COMMON_SUBMODULE}"
+CLI_MODULE = f"{MODULE}.{CLI_SUBMODULE}"
 
 
 class ImportViolation:
@@ -60,13 +62,16 @@ class ImportChecker:
         """Get the set of forbidden import prefixes for a module."""
         if module_name == COMMON_SUBMODULE:
             # common cannot import from any other application module
-            return {ADMIN_MODULE, APP_MODULE}
+            return {ADMIN_MODULE, APP_MODULE, CLI_MODULE}
         elif module_name == APP_SUBMODULE:
             # statgpt can only import from common
-            return {ADMIN_MODULE}
+            return {ADMIN_MODULE, CLI_MODULE}
         elif module_name == ADMIN_SUBMODULE:
             # admin_portal can only import from common
-            return {APP_MODULE}
+            return {APP_MODULE, CLI_MODULE}
+        elif module_name == CLI_SUBMODULE:
+            # cli can import from any module
+            return set()
         return set()
 
     def _check_file(self, file_path: Path, forbidden_imports: set[str]) -> None:

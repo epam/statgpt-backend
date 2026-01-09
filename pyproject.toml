@@ -37,7 +37,7 @@ dependencies = [
 
     # HTTP & Networking
     'httpcore (>=1.0.9, <2.0.0)',                # HTTP core functionality
-    'aiohttp (>=3.12.14,<3.13.0)',               # Async HTTP client/server
+    'aiohttp (>=3.13.3,<3.14.0)',                # Async HTTP client/server
     'requests (>=2.32.5,<3.0.0)',                # HTTP library
 
     # Authentication & Security
@@ -61,6 +61,19 @@ dependencies = [
     'aiofiles (>=25.1.0,<26.0.0)',               # Async file operations
     'pyarrow (>=20.0.0,<21.0.0)',                # Parquet support for import/export
 ]
+
+[project.optional-dependencies]
+cli = [
+    "prompt-toolkit>=3.0.48,<4.0.0",
+    "questionary>=2.1.0,<3.0.0",
+    "rich>=13.9.4,<14.0.0",
+    "msal>=1.31.0,<2.0.0",
+    "httpx>=0.28.1,<0.29.0",
+    "python-keycloak>=4.0.0,<5.0.0",
+]
+
+[project.scripts]
+statgpt = "statgpt.cli:main"
 
 [tool.isort]
 profile = "black"

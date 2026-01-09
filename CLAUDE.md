@@ -59,6 +59,28 @@ make install_all         # Install dev + experiments dependencies
 make remove_venv         # Remove and recreate venv
 ```
 
+### CLI (Interactive Command-Line Interface)
+```bash
+make statgpt_cli        # Start the StatGPT CLI
+```
+
+CLI uses `STATGPT_CLI_*` prefixed environment variables.
+See `statgpt/cli/README.md` for full documentation.
+
+**Available Commands:**
+| Command | Description |
+|---------|-------------|
+| `auth login` | Authenticate with the admin API |
+| `auth logout` | Clear cached authentication token |
+| `auth status` | Show current authentication status |
+| `channel list` | List all available channels |
+| `channel import` | Import channel from zip archive |
+| `channel status` | Show dataset preprocessing status |
+| `channel deduplicate` | Deduplicate embeddings for a channel |
+| `channel reindex` | Reindex dataset embeddings for a channel |
+| `content init` | Initialize channels, data sources, datasets, glossaries |
+| `settings` | Show current CLI settings |
+
 ## Architecture Overview
 
 ### Project Structure
@@ -84,15 +106,19 @@ statgpt/
 │   ├── auth/            # OIDC authentication
 │   ├── alembic/         # Database migrations
 │   └── settings/        # Admin configuration
-└── common/              # Shared code
-    ├── models/          # SQLAlchemy database models
-    ├── data/            # Data access layer and SDMX handling
-    │   ├── sdmx/        # SDMX protocol implementation (v2.1)
-    │   └── quanthub/    # QuantHub SDMX provider
-    ├── vectorstore/     # PGVector storage implementation
-    ├── hybrid_indexer/  # Vector indexing for semantic search
-    ├── services/        # Shared services
-    └── schemas/         # Shared Pydantic models
+├── common/              # Shared code
+│   ├── models/          # SQLAlchemy database models
+│   ├── data/            # Data access layer and SDMX handling
+│   │   ├── sdmx/        # SDMX protocol implementation (v2.1)
+│   │   └── quanthub/    # QuantHub SDMX provider
+│   ├── vectorstore/     # PGVector storage implementation
+│   ├── hybrid_indexer/  # Vector indexing for semantic search
+│   ├── services/        # Shared services
+│   └── schemas/         # Shared Pydantic models
+└── cli/                 # Interactive command-line interface
+    ├── commands/        # Command implementations (auth, channel, content, settings)
+    └── shared/          # Shared utilities (admin client, console, prompts, settings)
+        └── auth/        # Pluggable auth providers (azure, keycloak)
 
 tests/
 ├── unit/                # Unit tests (no external dependencies)
@@ -170,6 +196,7 @@ The data query tool (`statgpt/app/chains/data_query/`) implements:
 - `DIAL_API_KEY` - API key for DIAL Core
 - `PGVECTOR_*` - Database connection settings
 - `ELASTIC_*` - ElasticSearch settings (optional)
+- `STATGPT_CLI_*` - CLI-specific settings (see `statgpt/cli/README.md`)
 - See `statgpt/common/README.md`, `statgpt/app/README.md`, `statgpt/admin/README.md`
 
 ## Development Workflow

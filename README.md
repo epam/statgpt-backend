@@ -23,6 +23,7 @@ Application is written in Python 3.11 and uses the following main technologies:
 * `statgpt/admin` — backend of the administrator part which allows the user to add and update data.
 * `statgpt/common` — common code used in the `statgpt.admin` and `statgpt.app` applications.
 * `statgpt/app` — main application that generates response using LLMs and based on data prepared by `statgpt.admin`.
+* `statgpt/cli` — command-line interface (CLI) for managing various aspects of StatGPT.
 * `tests` - unit and integration tests.
 * `docker` - Dockerfiles for building docker images.
 
@@ -34,6 +35,7 @@ files:
 * [Common environment variables](statgpt/common/README.md#environment-variables) - used in both applications
 * [Admin Backend environment variables](statgpt/admin/README.md#environment-variables)
 * [Main App environment variables](statgpt/app/README.md#environment-variables)
+* [CLI environment variables](statgpt/cli/README.md#environment-variables)
 
 ## Local Setup
 
@@ -152,9 +154,7 @@ detailed information about environment variables.
 
 #### 6. Create `dial_conf/core/config.json` file by running python script
 
-```bash
-make generate_dial_config
-```
+_Not implemented yet, TODO: create a script that generates config based on .env variables_
 
 ## Run StatGPT locally
 
@@ -165,21 +165,45 @@ make generate_dial_config
     ```
 
 2. Apply `alembic` migrations:
-    * locally:
 
-        ```bash
-        make db_migrate
-        ```
-
-    * or using Docker:
-        1) Set `ADMIN_MODE=ALEMBIC_UPGRADE` in the `.env` file
-        2) Run `admin_backend` from `docker-compose.yml`
+   ```bash
+   make db_migrate
+   ```
 
 3. Run Admin backend (if you want to initialize or update data):
 
-    ```bash
-    make run_admin
-    ```
+   ```bash
+   make statgpt_admin
+   ```
+
+4. Run StatGPT application:
+
+   ```bash
+   make statgpt_app
+   ```
+
+5. Initialize sample content (optional):
+
+   ```bash
+   # Run CLI and initialize sample client
+   make statgpt_cli
+   ```
+
+   Then in the CLI:
+
+   ```
+   statgpt> content init --client-id sample -y
+   statgpt> channel reindex -c statgpt-sample --mode all
+   ```
+
+   Wait till reindexing is finished (check status using `channel status` command in CLI). After that run deduplication:
+
+   ```
+   statgpt> channel deduplicate -c statgpt-sample
+   ```
+
+
+   See [CLI documentation](statgpt/cli/README.md) for more commands.
 
 ## Utils for Development
 

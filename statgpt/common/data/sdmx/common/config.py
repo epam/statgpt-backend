@@ -4,7 +4,12 @@ from typing import Any, Literal
 from pydantic import BaseModel, Field
 
 from statgpt.common.config import utils as config_utils
-from statgpt.common.data.base import DataSetConfig, DataSetHierarchyConfig, DataSourceConfig
+from statgpt.common.data.base import (
+    DataSetConfig,
+    DataSetConfigTemplate,
+    DataSetHierarchyConfig,
+    DataSourceConfig,
+)
 
 _log = logging.getLogger(__name__)
 
@@ -153,7 +158,7 @@ class SdmxDataSourceConfig(DataSourceConfig):
         return self.sdmx_config.name
 
 
-class SdmxDataSetConfig(DataSetConfig):
+class SdmxDataSetConfigMixin:
     use_title_from_src: bool = Field(
         default=False, description="Whether to use the title obtained from the source"
     )
@@ -170,6 +175,13 @@ class SdmxDataSetConfig(DataSetConfig):
             "If set to an empty list, no default value codes will be used."
         ),
     )
+
+
+class SdmxDataSetConfigTemplate(SdmxDataSetConfigMixin, DataSetConfigTemplate):
+    pass
+
+
+class SdmxDataSetConfig(SdmxDataSetConfigMixin, DataSetConfig):
 
     def get_source_id(self) -> str:
         return self.urn

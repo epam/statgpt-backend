@@ -36,11 +36,4 @@ app = app_factory.create_app()
 
 
 if __name__ == "__main__":
-    from statgpt.app.settings.dial_app import AppMode, dial_app_settings
-
-    if dial_app_settings.mode == AppMode.DIAL:
-        pass
-    elif dial_app_settings.mode == AppMode.LOCAL:
-        run_dial_app(app)
-    else:
-        raise NotImplementedError(f"Unsupported application mode: {dial_app_settings.mode}")
+    run_dial_app(app)
