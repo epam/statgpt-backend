@@ -11,19 +11,30 @@ from statgpt.cli.shared.console import console, print_error
 from statgpt.cli.shared.logging import setup_logging
 
 
-async def _execute_direct(
-    registry: CommandRegistry,
-    args: list[str],
-    non_interactive: bool,
-    debug: bool = False,
-) -> int:
+def _init_runtime() -> list[str]:
+    """Parse global flags from sys.argv and initialize cli_runtime.
+
+    Returns:
+        Command arguments with global flags removed.
+    """
+    command_args = []
+
+    for arg in sys.argv[1:]:
+        if arg == "--non-interactive":
+            cli_runtime.non_interactive = True
+        elif arg == "--debug":
+            cli_runtime.debug = True
+        else:
+            command_args.append(arg)
+
+    return command_args
+
+
+async def _execute_direct(registry: CommandRegistry, args: list[str]) -> int:
     """Execute a command directly from command-line arguments.
 
     Returns 0 for success, 1 for error.
     """
-    cli_runtime.non_interactive = non_interactive
-    cli_runtime.debug = debug
-
     command_str = " ".join(args)
 
     if args[0] == "help":
@@ -56,7 +67,7 @@ async def _execute_direct(
         return 0
     except Exception as e:
         print_error(f"Command failed: {e}")
-        if debug:
+        if cli_runtime.debug:
             raise
         return 1
 
@@ -68,24 +79,10 @@ def main() -> None:
 
     try:
         registry = create_registry()
-
-        args = sys.argv[1:]
-        command_args = []
-        non_interactive = False
-        debug = False
-        for arg in args:
-            if arg == "--non-interactive":
-                non_interactive = True
-            elif arg == "--debug":
-                debug = True
-            else:
-                command_args.append(arg)
-
-        # Set debug in runtime state (used by both direct and REPL modes)
-        cli_runtime.debug = debug
+        command_args = _init_runtime()
 
         if command_args:
-            exit_code = asyncio.run(_execute_direct(registry, command_args, non_interactive, debug))
+            exit_code = asyncio.run(_execute_direct(registry, command_args))
             sys.exit(exit_code)
 
         asyncio.run(run_repl(registry))
