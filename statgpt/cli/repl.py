@@ -1,7 +1,6 @@
 """Interactive REPL for StatGPT CLI."""
 
 import asyncio
-import sys
 from pathlib import Path
 
 from prompt_toolkit import PromptSession
@@ -10,7 +9,7 @@ from prompt_toolkit.styles import Style
 
 from statgpt.cli.commands.base import CommandRegistry
 from statgpt.cli.completer import StatGPTCompleter
-from statgpt.cli.settings import cli_settings
+from statgpt.cli.settings import cli_runtime, cli_settings
 from statgpt.cli.shared.auth import get_token_info, is_logged_in
 from statgpt.cli.shared.console import console, print_banner, print_error
 
@@ -149,7 +148,7 @@ class REPL:
                 break
             except Exception as e:
                 print_error(f"Error: {e}")
-                if "--debug" in sys.argv:
+                if cli_runtime.debug:
                     console.print_exception()
 
 

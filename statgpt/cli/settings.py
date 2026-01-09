@@ -218,9 +218,11 @@ class CLIRuntimeState:
     Attributes:
         non_interactive: When True, interactive prompts raise NonInteractiveError
             instead of displaying UI selectors.
+        debug: When True, full stack traces are shown on errors.
     """
 
     non_interactive: bool = False
+    debug: bool = False
 
 
 cli_runtime = CLIRuntimeState()

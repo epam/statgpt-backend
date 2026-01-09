@@ -16,6 +16,45 @@ Before using the CLI:
 make statgpt_cli
 ```
 
+## Global Flags
+
+| Flag                | Description                                          | Modes        |
+|---------------------|------------------------------------------------------|--------------|
+| `--debug`           | Show full stack trace on errors                      | Direct, REPL |
+| `--non-interactive` | Disable interactive prompts (fail if input required) | Direct only  |
+
+### Non-Interactive Mode
+
+Use `--non-interactive` for CI/CD pipelines or scripts where interactive prompts are not possible:
+
+```bash
+# Will fail with helpful message if required parameters are missing
+statgpt --non-interactive content init --client-id my-client --datasets urn1,urn2 -y
+
+# Combined with -y to skip all confirmations
+statgpt --non-interactive channel import --file archive.zip
+```
+
+**Note:** In non-interactive mode:
+
+- Commands fail fast with helpful error messages showing required parameters
+- Use `-y/--yes` to skip confirmation prompts
+- All required parameters must be provided via command-line arguments
+
+### Debug Mode
+
+Use `--debug` to see full stack traces when errors occur:
+
+```bash
+# Direct mode
+statgpt --debug content init --client-id my-client
+
+# REPL mode - start REPL with debug enabled
+statgpt --debug
+```
+
+This is useful for troubleshooting and reporting bugs.
+
 ## Interactive Features
 
 - **Tab Completion**: Press Tab to see available commands and autocomplete
@@ -96,7 +135,8 @@ statgpt> channel reindex -c my-channel --mode all
 statgpt> content init                             # interactive client selection
 statgpt> content init --client-id my-client       # specific client
 statgpt> content init --only channels,glossaries  # specific components
-statgpt> content init -y                          # skip all prompts
+statgpt> content init -y                          # skip all prompts, process ALL datasets
+statgpt> content init --datasets urn1,urn2        # specific datasets only
 ```
 
 | Option        | Description                                                              |
@@ -104,12 +144,17 @@ statgpt> content init -y                          # skip all prompts
 | `--client-id` | Comma-separated client IDs (interactive selection if omitted)            |
 | `--datasets`  | Comma-separated dataset URNs to process                                  |
 | `-o, --only`  | Components: `channels`, `datasources`, `datasets`, `glossaries`, `files` |
-| `-y, --yes`   | Skip all confirmation prompts                                            |
+| `-y, --yes`   | Skip all confirmation prompts and process ALL available content          |
 
 **Notes:**
 
 - Specifying `datasets` automatically includes `datasources` (dependency)
 - Interactive selectors: arrow keys to navigate, space to toggle, enter to confirm
+- **Important:** Using `-y` without `--datasets` processes ALL available datasets for selected clients
+- For non-interactive use in CI/CD, always specify `--client-id` and optionally `--datasets`:
+  ```bash
+  statgpt --non-interactive content init --client-id my-client --datasets urn1,urn2 -y
+  ```
 
 ## Environment Variables
 
