@@ -8095,4 +8095,4 @@ cli = ["httpx", "msal", "prompt-toolkit", "python-keycloak", "questionary", "ric
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.11,<3.12"
-content-hash = "348d564c7d5cf4bfbb92d63543550dfebdba34059eb6a27ba87649de2cd861a9"
+content-hash = "8a00e8c155c30ac224a0ab2678f5d0f25649a3ed93d8ebe2cf8e937326a43582"
