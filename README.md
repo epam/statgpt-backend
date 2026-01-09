@@ -75,11 +75,6 @@ Recommended way - system-wide, independent of any particular python venv:
   use [official installer](https://python-poetry.org/docs/#installing-with-the-official-installer)
 * Make sure that `poetry` is in the PATH and works properly (run `poetry --version`).
 
-Alternative - venv-specific (using `pip`):
-
-* make sure the correct python venv is activated
-* `make install_poetry`
-
 #### 4. Install Docker Engine and Docker Compose suitable for your OS
 
 Since Docker Desktop requires a paid license for commercial use, you can use one of the following alternatives:
@@ -245,7 +240,7 @@ This command will set up the git hook scripts.
 or:
 
  ```bash
- alembic -c src/alembic.ini revision --autogenerate -m "Your message"
+ alembic -c alembic.ini revision --autogenerate -m "Your message"
  ```
 
 ### 5. Undo last `alembic` migration
@@ -289,9 +284,8 @@ The project uses GNU gettext for internationalizing dataset formatters. Use thes
 2. To run integration tests, uncomment the `vectordb-test` and `elasticsearch-test` containers in the
    `docker-compose.yml` file.
    You might also need to comment out the `elasticsearch` container if your machine doesn't have enough resources.
-3. To run end-to-end tests, first run StatGPT locally. This step is not required for other tests.
-4. Run tests:
-    * all tests except for end-to-end (unit and integration):
+3. Run tests:
+    * all tests (unit and integration):
 
         ```bash
         make test
@@ -307,10 +301,4 @@ The project uses GNU gettext for internationalizing dataset formatters. Use thes
 
         ```bash
         make test_integration
-        ```
-
-    * just end-to-end tests:
-
-        ```bash
-        make test_e2e
         ```
