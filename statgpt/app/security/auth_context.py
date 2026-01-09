@@ -1,6 +1,5 @@
 from functools import cached_property
-
-from aidial_sdk.chat_completion import Request
+from typing import Protocol
 
 from statgpt.app.settings.dial_app import DialAuthMode, dial_app_settings
 from statgpt.common.auth.auth_context import AuthContext
@@ -8,10 +7,15 @@ from statgpt.common.settings.dial import dial_settings
 from statgpt.common.utils import dial_core_factory
 
 
-class UserAuthContext(AuthContext):
-    _request: Request
+class RequestProtocol(Protocol):
+    api_key: str | None
+    bearer_token: str | None
 
-    def __init__(self, request: Request):
+
+class UserAuthContext(AuthContext):
+    _request: RequestProtocol
+
+    def __init__(self, request: RequestProtocol):
         self._request = request
 
     @cached_property
@@ -32,16 +36,13 @@ class UserAuthContext(AuthContext):
 
     @property
     def dial_access_token(self) -> str | None:
-        token = self._request.jwt
-        if token is not None and token.startswith("Bearer "):
-            token = token[7:]
-        return token
+        return self._request.bearer_token
 
 
 class EvalAuthContext(AuthContext):
     """Authentication context for evaluation"""
 
-    def __init__(self, request: Request):
+    def __init__(self, request: RequestProtocol):
         self._request = request
 
     @property
@@ -66,10 +67,10 @@ class EvalAuthContext(AuthContext):
         return None
 
 
-async def create_auth_context(request: Request) -> AuthContext:
+async def create_auth_context(request: RequestProtocol) -> AuthContext:
     """Create an authentication context based on the request."""
 
-    if request.jwt is not None:
+    if request.bearer_token is not None:
         return UserAuthContext(request)
 
     if role := dial_app_settings.eval_dial_role:
@@ -79,8 +80,11 @@ async def create_auth_context(request: Request) -> AuthContext:
     raise ValueError("Request does not contain a valid JWT token for user authentication.")
 
 
-async def _check_role(request: Request, role: str) -> bool:
+async def _check_role(request: RequestProtocol, role: str) -> bool:
     """Check if the request has the specified role."""
+
+    if request.api_key is None:
+        return False
 
     async with dial_core_factory(base_url=dial_settings.url, api_key=request.api_key) as dial_core:
         response = await dial_core.get_user_info()
