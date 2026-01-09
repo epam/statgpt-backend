@@ -8,8 +8,10 @@ from statgpt.common.utils import dial_core_factory
 
 
 class RequestProtocol(Protocol):
-    api_key: str | None
-    bearer_token: str | None
+    @property
+    def api_key(self) -> str | None: ...
+    @property
+    def bearer_token(self) -> str | None: ...
 
 
 class UserAuthContext(AuthContext):

@@ -27,7 +27,7 @@ class ChannelMetadataResponse(BaseModel):
     deployment_id: str
     title: str
     description: str = ""
-    llm_model: str
+    locale: str
     tools: list[BaseToolConfig] = Field(default_factory=list)
 
 
