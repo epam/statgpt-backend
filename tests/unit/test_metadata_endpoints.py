@@ -38,6 +38,13 @@ class _DummyChannelFacade:
         return self._channel_config
 
 
+class _DummySystemAuthContext:
+    # Minimal auth context stub for direct endpoint calls (FastAPI Depends isn't resolved in unit tests).
+    is_system = True
+    dial_access_token = None
+    api_key = "test"
+
+
 def _minimal_channel_config_dict() -> dict[str, Any]:
     return {
         "supreme_agent": {
@@ -171,7 +178,11 @@ async def test_channel_datasets_metadata_returns_all_datasets(monkeypatch):
         _get_channel_dataset_schemas,
     )
 
-    res = await service_endpoints.channel_datasets_metadata("dep_2", session=None)  # type: ignore[arg-type]
+    res = await service_endpoints.channel_datasets_metadata(
+        "dep_2",
+        auth_context=_DummySystemAuthContext(),  # type: ignore[arg-type]
+        session=None,  # type: ignore[arg-type]
+    )
     assert res.deployment_id == "dep_2"
     assert res.n_datasets == 1
     assert (
