@@ -11,13 +11,30 @@ from statgpt.cli.shared.console import console, print_error
 from statgpt.cli.shared.logging import setup_logging
 
 
-async def _execute_direct(registry: CommandRegistry, args: list[str], non_interactive: bool) -> int:
+def _init_runtime() -> list[str]:
+    """Parse global flags from sys.argv and initialize cli_runtime.
+
+    Returns:
+        Command arguments with global flags removed.
+    """
+    command_args = []
+
+    for arg in sys.argv[1:]:
+        if arg == "--non-interactive":
+            cli_runtime.non_interactive = True
+        elif arg == "--debug":
+            cli_runtime.debug = True
+        else:
+            command_args.append(arg)
+
+    return command_args
+
+
+async def _execute_direct(registry: CommandRegistry, args: list[str]) -> int:
     """Execute a command directly from command-line arguments.
 
     Returns 0 for success, 1 for error.
     """
-    cli_runtime.non_interactive = non_interactive
-
     command_str = " ".join(args)
 
     if args[0] == "help":
@@ -48,7 +65,10 @@ async def _execute_direct(registry: CommandRegistry, args: list[str], non_intera
             console.print("[dim]Run 'statgpt help' for available commands.[/dim]")
             return 1
         return 0
-    except Exception:
+    except Exception as e:
+        print_error(f"Command failed: {e}")
+        if cli_runtime.debug:
+            raise
         return 1
 
 
@@ -59,20 +79,11 @@ def main() -> None:
 
     try:
         registry = create_registry()
+        command_args = _init_runtime()
 
-        args = sys.argv[1:]
-        if args:
-            command_args = []
-            non_interactive = False
-            for arg in args:
-                if arg == "--non-interactive":
-                    non_interactive = True
-                elif arg != "--debug":
-                    command_args.append(arg)
-
-            if command_args:
-                exit_code = asyncio.run(_execute_direct(registry, command_args, non_interactive))
-                sys.exit(exit_code)
+        if command_args:
+            exit_code = asyncio.run(_execute_direct(registry, command_args))
+            sys.exit(exit_code)
 
         asyncio.run(run_repl(registry))
     except KeyboardInterrupt:
@@ -82,7 +93,7 @@ def main() -> None:
     except Exception as e:
         logger.exception("CLI crashed with error")
         print(f"Error: {e}", file=sys.stderr)
-        if "--debug" in sys.argv:
+        if cli_runtime.debug:
             raise
         sys.exit(1)
 

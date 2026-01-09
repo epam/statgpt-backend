@@ -33,6 +33,7 @@ from statgpt.cli.shared.console import (
 from statgpt.cli.shared.logging import get_logger, setup_logging
 from statgpt.cli.shared.prompts import (
     NonInteractiveError,
+    confirm_interactive,
     select_clients_interactive,
     select_datasets_interactive,
     select_item_interactive,
@@ -72,6 +73,7 @@ __all__ = [
     "get_logger",
     # Prompts
     "NonInteractiveError",
+    "confirm_interactive",
     "select_item_interactive",
     "select_items_interactive",
     "select_clients_interactive",

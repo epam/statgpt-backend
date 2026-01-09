@@ -6,6 +6,7 @@ from prompt_toolkit.layout import Layout
 from prompt_toolkit.layout.containers import Window
 from prompt_toolkit.layout.controls import FormattedTextControl
 from prompt_toolkit.styles import Style
+from rich.prompt import Confirm
 
 from statgpt.cli.settings import cli_runtime
 
@@ -16,6 +17,34 @@ class NonInteractiveError(Exception):
     This exception is caught by command handlers to provide helpful error messages
     indicating which parameters must be provided via command-line arguments.
     """
+
+
+def confirm_interactive(
+    prompt: str,
+    default: bool = False,
+    error_message: str | None = None,
+) -> bool:
+    """Show confirmation prompt or raise NonInteractiveError in non-interactive mode.
+
+    Args:
+        prompt: The confirmation prompt text
+        default: Default value if user just presses Enter
+        error_message: Custom error message for non-interactive mode.
+                      If None, a generic message is used.
+
+    Returns:
+        True if confirmed, False otherwise
+
+    Raises:
+        NonInteractiveError: If non-interactive mode is enabled
+    """
+    if cli_runtime.non_interactive:
+        raise NonInteractiveError(
+            error_message
+            or "Confirmation required but --non-interactive mode is enabled. "
+            "Use -y/--yes to skip confirmations."
+        )
+    return Confirm.ask(prompt, default=default)
 
 
 class CheckboxSelector:
@@ -379,8 +408,9 @@ async def select_clients_interactive(available_clients: list[str]) -> set[str] |
     """
     if cli_runtime.non_interactive:
         raise NonInteractiveError(
-            "Interactive client selection required but --non-interactive mode is enabled. "
-            "Please provide the required parameter."
+            "Interactive client selection required but --non-interactive mode is enabled.\n"
+            "  Use --client-id to specify clients.\n"
+            "  Usage: statgpt content init --client-id <client1,client2,...>"
         )
     items = [("__all__", "All clients")] + [(c, c) for c in sorted(available_clients)]
 
@@ -416,8 +446,9 @@ async def select_datasets_interactive(
     """
     if cli_runtime.non_interactive:
         raise NonInteractiveError(
-            "Interactive dataset selection required but --non-interactive mode is enabled. "
-            "Please provide the required parameter."
+            "Interactive dataset selection required but --non-interactive mode is enabled.\n"
+            "  Use --datasets to specify datasets.\n"
+            "  Usage: statgpt content init --datasets <urn1,urn2,...>"
         )
     selected = await select_items_interactive(
         datasets,
