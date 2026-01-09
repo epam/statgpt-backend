@@ -94,7 +94,10 @@ class ChannelCompletion(ChatCompletion):
         chain = await main_chain_factory.create_chain()
         with response.create_choice() as choice:
             try:
-                auth_context = await create_auth_context(request)
+                auth_context = await create_auth_context(
+                    request,
+                    bearer_token_required=service.channel_config.bearer_token_required,
+                )
             except Exception:
                 _log.exception("Failed to create auth context")
                 choice.append_content("401 Unauthorized: Invalid or missing authentication.")

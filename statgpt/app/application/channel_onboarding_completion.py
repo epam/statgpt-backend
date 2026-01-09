@@ -41,7 +41,10 @@ class ChannelOnboardingCompletion(ChatCompletion):
                 )
 
             try:
-                auth_context = await create_auth_context(request)
+                auth_context = await create_auth_context(
+                    request,
+                    bearer_token_required=service.channel_config.bearer_token_required,
+                )
             except ValueError as e:
                 raise DIALException(
                     status_code=401,

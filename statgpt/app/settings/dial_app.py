@@ -1,5 +1,4 @@
 from enum import StrEnum
-from typing import Optional
 
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -87,9 +86,23 @@ class DialAppSettings(BaseSettings):
         description="Skip tools execution step",
     )
 
-    eval_dial_role: Optional[str] = Field(
-        default=None, alias="EVAL_DIAL_ROLE", description="DIAL role for evaluation"
+    dial_system_user_context_roles: str | None = Field(
+        default=None,
+        alias="DIAL_SYSTEM_USER_CONTEXT_ROLES",
+        description=(
+            "Comma-separated list of DIAL roles that can receive system user context "
+            "when no JWT is present."
+        ),
     )
+
+    @property
+    def system_user_context_roles_set(self) -> set[str]:
+        """Parse comma-separated roles into a set."""
+        if not self.dial_system_user_context_roles:
+            return set()
+        return {
+            role.strip() for role in self.dial_system_user_context_roles.split(",") if role.strip()
+        }
 
 
 # Create singleton instance
