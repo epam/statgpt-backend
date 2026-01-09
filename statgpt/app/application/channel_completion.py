@@ -6,6 +6,7 @@ import openai
 from aidial_sdk.chat_completion import ChatCompletion, Choice, Request, Response
 from aidial_sdk.deployment.configuration import ConfigurationRequest, ConfigurationResponse
 from aidial_sdk.exceptions import HTTPException as DIALException
+from aidial_sdk.exceptions import InternalServerError
 
 from statgpt.app.chains import MainChainFactory
 from statgpt.app.chains.parameters import ChainParameters
@@ -99,8 +100,12 @@ class ChannelCompletion(ChatCompletion):
                     bearer_token_required=service.channel_config.bearer_token_required,
                 )
             except DIALException:
-                _log.exception("Failed to create auth context")
                 raise
+            except Exception:
+                _log.exception("Error creating auth context")
+                raise InternalServerError(
+                    message="An internal error occurred while processing your request."
+                )
 
             inputs = {
                 ParamsConfig.REQUEST: request,

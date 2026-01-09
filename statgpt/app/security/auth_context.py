@@ -54,7 +54,7 @@ class SystemUserAuthContext(AuthContext):
     def __init__(self, request: Request):
         self._request = request
 
-    @property
+    @cached_property
     def api_key(self) -> str:
         return _resolve_api_key(self._request)
 
