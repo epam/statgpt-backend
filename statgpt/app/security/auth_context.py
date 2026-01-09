@@ -3,22 +3,17 @@ from functools import cached_property
 from aidial_sdk.chat_completion import Request
 
 from statgpt.app.security.exceptions import InsufficientRoleError, MissingApiKeyError
-from statgpt.app.settings.dial_app import DialAuthMode, dial_app_settings
+from statgpt.app.settings.dial_app import dial_app_settings
 from statgpt.common.auth.auth_context import AuthContext
 from statgpt.common.settings.dial import dial_settings
 from statgpt.common.utils import dial_core_factory
 
 
 def _resolve_api_key(request: Request) -> str:
-    """Resolve API key based on the configured authentication mode."""
-    if dial_app_settings.dial_auth_mode == DialAuthMode.USER_TOKEN:
-        if request.api_key is None:
-            raise MissingApiKeyError()
-        return request.api_key
-    elif dial_app_settings.dial_auth_mode == DialAuthMode.API_KEY:
-        return dial_settings.api_key.get_secret_value()
-    else:
-        raise ValueError(f"Unsupported DIAL auth mode: {dial_app_settings.dial_auth_mode}")
+    """Resolve API key from the request."""
+    if request.api_key is None:
+        raise MissingApiKeyError()
+    return request.api_key
 
 
 class UserAuthContext(AuthContext):

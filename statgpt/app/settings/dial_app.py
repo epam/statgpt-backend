@@ -1,14 +1,5 @@
-from enum import StrEnum
-
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
-
-
-class DialAuthMode(StrEnum):
-    USER_TOKEN = "user_token"
-    """User token is passed to the DIAL API calls"""
-    API_KEY = "api_key"
-    """Configured API key is passed to the DIAL API calls"""
 
 
 class DialAppSettings(BaseSettings):
@@ -22,12 +13,6 @@ class DialAppSettings(BaseSettings):
         default="StatGPT",
         alias="DIAL_APP_NAME",
         description="Name of the DIAL application",
-    )
-
-    dial_auth_mode: DialAuthMode = Field(
-        default=DialAuthMode.USER_TOKEN,
-        alias="DIAL_AUTH_MODE",
-        description="Authentication mode for DIAL API calls",
     )
 
     dial_show_stage_seconds: bool = Field(
