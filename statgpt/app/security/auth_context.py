@@ -2,6 +2,7 @@ from functools import cached_property
 
 from aidial_sdk.chat_completion import Request
 
+from statgpt.app.security.exceptions import InsufficientRoleError, MissingApiKeyError
 from statgpt.app.settings.dial_app import DialAuthMode, dial_app_settings
 from statgpt.common.auth.auth_context import AuthContext
 from statgpt.common.settings.dial import dial_settings
@@ -12,7 +13,7 @@ def _resolve_api_key(request: Request) -> str:
     """Resolve API key based on the configured authentication mode."""
     if dial_app_settings.dial_auth_mode == DialAuthMode.USER_TOKEN:
         if request.api_key is None:
-            raise ValueError("API key is not provided in the `request`.")
+            raise MissingApiKeyError()
         return request.api_key
     elif dial_app_settings.dial_auth_mode == DialAuthMode.API_KEY:
         return dial_settings.api_key.get_secret_value()
@@ -75,12 +76,9 @@ async def create_auth_context(request: Request, bearer_token_required: bool = Fa
         allowed_roles = dial_app_settings.system_user_context_roles_set
         if allowed_roles and await _check_roles(request, allowed_roles):
             return SystemUserAuthContext(request)
-        raise ValueError(
-            "Request does not contain a JWT token and user does not have "
-            "a role that allows system user context access."
-        )
+        raise InsufficientRoleError()
 
-    raise ValueError("Request does not contain a valid JWT token for user authentication.")
+    return UserAuthContext(request)
 
 
 async def _check_roles(request: Request, allowed_roles: set[str]) -> bool:

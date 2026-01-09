@@ -98,10 +98,9 @@ class ChannelCompletion(ChatCompletion):
                     request,
                     bearer_token_required=service.channel_config.bearer_token_required,
                 )
-            except Exception:
+            except DIALException:
                 _log.exception("Failed to create auth context")
-                choice.append_content("401 Unauthorized: Invalid or missing authentication.")
-                return
+                raise
 
             inputs = {
                 ParamsConfig.REQUEST: request,
