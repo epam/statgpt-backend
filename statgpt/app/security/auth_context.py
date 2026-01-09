@@ -2,10 +2,18 @@ from functools import cached_property
 
 from aidial_sdk.chat_completion import Request
 
-from statgpt.app.settings.dial_app import DialAuthMode, dial_app_settings
+from statgpt.app.security.exceptions import InsufficientRoleError, MissingApiKeyError
+from statgpt.app.settings.dial_app import dial_app_settings
 from statgpt.common.auth.auth_context import AuthContext
 from statgpt.common.settings.dial import dial_settings
 from statgpt.common.utils import dial_core_factory
+
+
+def _resolve_api_key(request: Request) -> str:
+    """Resolve API key from the request."""
+    if request.api_key is None:
+        raise MissingApiKeyError()
+    return request.api_key
 
 
 class UserAuthContext(AuthContext):
@@ -16,15 +24,7 @@ class UserAuthContext(AuthContext):
 
     @cached_property
     def api_key(self) -> str:
-        if dial_app_settings.dial_auth_mode == DialAuthMode.USER_TOKEN:
-            if self._request.api_key is None:
-                raise ValueError("API key is not provided in the `request`.")
-            else:
-                return self._request.api_key
-        elif dial_app_settings.dial_auth_mode == DialAuthMode.API_KEY:
-            return dial_settings.api_key.get_secret_value()
-        else:
-            raise ValueError(f"Unsupported DIAL auth mode: {dial_app_settings.dial_auth_mode}")
+        return _resolve_api_key(self._request)
 
     @property
     def is_system(self) -> bool:
@@ -38,27 +38,23 @@ class UserAuthContext(AuthContext):
         return token
 
 
-class EvalAuthContext(AuthContext):
-    """Authentication context for evaluation"""
+class SystemUserAuthContext(AuthContext):
+    """
+    Authentication context for system users.
+
+    Used when no JWT is present but the user has a role that is allowed
+    to access channels requiring JWT forwarding.
+    """
 
     def __init__(self, request: Request):
         self._request = request
 
-    @property
+    @cached_property
     def api_key(self) -> str:
-        if dial_app_settings.dial_auth_mode == DialAuthMode.USER_TOKEN:
-            if self._request.api_key is None:
-                raise ValueError("API key is not provided in the `request`.")
-            else:
-                return self._request.api_key
-        elif dial_app_settings.dial_auth_mode == DialAuthMode.API_KEY:
-            return dial_settings.api_key.get_secret_value()
-        else:
-            raise ValueError(f"Unsupported DIAL auth mode: {dial_app_settings.dial_auth_mode}")
+        return _resolve_api_key(self._request)
 
     @property
     def is_system(self) -> bool:
-        # TODO: We need to implement a proper check for evaluation context and make this property return False
         return True
 
     @property
@@ -66,22 +62,23 @@ class EvalAuthContext(AuthContext):
         return None
 
 
-async def create_auth_context(request: Request) -> AuthContext:
-    """Create an authentication context based on the request."""
-
+async def create_auth_context(request: Request, bearer_token_required: bool = False) -> AuthContext:
+    """Create authentication context based on request and channel requirements."""
     if request.jwt is not None:
         return UserAuthContext(request)
 
-    if role := dial_app_settings.eval_dial_role:
-        if await _check_role(request, role):
-            return EvalAuthContext(request)
+    if bearer_token_required:
+        allowed_roles = dial_app_settings.system_user_context_roles_set
+        if allowed_roles and await _check_roles(request, allowed_roles):
+            return SystemUserAuthContext(request)
+        raise InsufficientRoleError()
 
-    raise ValueError("Request does not contain a valid JWT token for user authentication.")
+    return UserAuthContext(request)
 
 
-async def _check_role(request: Request, role: str) -> bool:
-    """Check if the request has the specified role."""
-
+async def _check_roles(request: Request, allowed_roles: set[str]) -> bool:
+    """Check if the request has any of the specified roles."""
     async with dial_core_factory(base_url=dial_settings.url, api_key=request.api_key) as dial_core:
         response = await dial_core.get_user_info()
-        return role in response.get("roles", [])
+        user_roles = set(response.get("roles", []))
+        return bool(user_roles & allowed_roles)
