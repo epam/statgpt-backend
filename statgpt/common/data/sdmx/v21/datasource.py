@@ -144,10 +144,14 @@ class Sdmx21DataSourceHandler(
                 dimensions[entity_id] = NonIndicatorDimensionConfig(
                     subtype=SpecialNonIndicatorDimensions.FREQUENCY
                 )
+            elif dim.id.upper() in ["REGION"]:
+                dimensions[entity_id] = NonIndicatorDimensionConfig(
+                    subtype=SpecialNonIndicatorDimensions.REGION
+                )
             elif dim.id.upper() in ["INDICATOR", "SERIES"]:
                 dimensions[entity_id] = IndicatorDimensionConfig(is_required=True)
             else:
-                dimensions[entity_id] = BaseDimensionConfig(dimension_type=None)
+                dimensions[entity_id] = NonIndicatorDimensionConfig(dimension_type="NON_INDICATOR")
 
         if not dimensions:
             raise ValueError(f"Could not find any dimensions in dataflow {dataflow.urn!r}")

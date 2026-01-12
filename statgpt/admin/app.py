@@ -24,19 +24,22 @@ from statgpt.admin.routers import router
 from statgpt.admin.settings.app import APP_SETTINGS
 from statgpt.common.models import DatabaseHealthChecker, optional_msi_token_manager_context
 from statgpt.common.services.data_preloader import preload_data
+from statgpt.mcp.app import mcp_app
 
 
 @asynccontextmanager
 async def lifespan(app_: FastAPI):
     async with optional_msi_token_manager_context():
-        # Check resources' availability:
-        await DatabaseHealthChecker().check()
+        async with mcp_app.lifespan(app_):
 
-        # Start data preloading in the background
-        asyncio.create_task(preload_data(allow_cached_datasets=False))
+            # Check resources' availability:
+            await DatabaseHealthChecker().check()
 
-        yield
-        # Clean up
+            # Start data preloading in the background
+            asyncio.create_task(preload_data(allow_cached_datasets=False))
+
+            yield
+            # Clean up
 
 
 app = FastAPI(
@@ -45,6 +48,8 @@ app = FastAPI(
     redoc_url="/admin/api/redoc",
     openapi_url="/admin/api/openapi.json",
 )
+
+app.mount("/", mcp_app)
 
 init_telemetry(
     app=app,

@@ -48,6 +48,10 @@ statgpt_admin:
 statgpt_app:
 	poetry run python -m statgpt.app.app $(ARGS)
 
+# Run MCP or you can use 'make statgpt_admin' to run Admin which also runs MCP Server
+statgpt_mcp:
+	poetry run python -m uvicorn statgpt.mcp.app:mcp_app 
+
 install_pre_commit_hooks:
 	pre-commit install
 
