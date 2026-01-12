@@ -59,6 +59,16 @@ async def _get_auth_context(request: FastAPIRequest) -> AuthContext:
         )
 
 
+def _get_deployment_id(request: FastAPIRequest) -> str:
+    deployment_id = request.headers.get("x-dial-application-id")
+    if deployment_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Dial Application ID is required from header.",
+        )
+    return deployment_id
+
+
 @router.get("/version")
 async def version() -> GitVersionResponse:
     return GitVersionResponse(git_commit=Versions.GIT_COMMIT)
@@ -73,9 +83,10 @@ async def settings() -> SettingsResponse:
     )
 
 
-@router.get("/statgpt/openai/deployments/{deployment_id}/metadata/channel")
+# NOTE: Access this endpoint through the Dial Core API at "/v1/deployments/{deployment_id}/route/metadata/channel"
+@router.get("/metadata/channel")
 async def channel_metadata(
-    deployment_id: str,
+    deployment_id: str = Depends(_get_deployment_id),
     auth_context: AuthContext = Depends(_get_auth_context),
     session: AsyncSession = Depends(get_readonly_session),
 ) -> ChannelMetadataResponse:
@@ -98,9 +109,10 @@ async def channel_metadata(
     )
 
 
-@router.get("/statgpt/openai/deployments/{deployment_id}/metadata/datasets")
+# NOTE: Access this endpoint through the Dial Core API at "/v1/deployments/{deployment_id}/route/metadata/datasets"
+@router.get("/metadata/datasets")
 async def channel_datasets_metadata(
-    deployment_id: str,
+    deployment_id: str = Depends(_get_deployment_id),
     auth_context: AuthContext = Depends(_get_auth_context),
     session: AsyncSession = Depends(get_readonly_session),
 ) -> ChannelDatasetsMetadataResponse:
