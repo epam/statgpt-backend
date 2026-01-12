@@ -84,7 +84,7 @@ class QuanthubSdmx21DataSourceHandler(Sdmx21DataSourceHandler):
             # If auth is disabled, we can cache datasets for all users
             if ds := self._dataset_cache.get(str(entity_id)):
                 logger.debug(
-                    f"Returning cached dataset(id={entity_id}, urn={dataset_config.urn!r})."
+                    f"Returning cached dataset(id={entity_id}, urn={dataset_config.urn!r})"
                 )
                 return ds
 
@@ -102,7 +102,7 @@ class QuanthubSdmx21DataSourceHandler(Sdmx21DataSourceHandler):
             urn, structure_message = await dataflow_loader.load_structure_message(urn, mode="full")
         except Exception as e:
             if allow_offline:
-                msg = f"Failed to load the dataflow or its associated structures. urn={dataset_config.urn!r}."
+                msg = f"Failed to load the dataflow or its associated structures. urn={dataset_config.urn!r}"
                 logger.exception(msg)
                 status = Status(status='offline', details=msg)
                 return SdmxOfflineDataSet(entity_id, title, dataset_config, self, status)
@@ -157,7 +157,7 @@ class QuanthubSdmx21DataSourceHandler(Sdmx21DataSourceHandler):
             )
             annotations = []
         except Exception:
-            logger.exception("Failed to load annotations for the dataflow(%s).", urn)
+            logger.exception(f"Failed to load annotations for the dataflow({urn}).")
             annotations = []
 
         try:
