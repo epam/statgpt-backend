@@ -137,6 +137,9 @@ class UrnReference(BaseModel):
         return f"{self.agency_id}:{self.resource_id}({self.version})"
 
     def __repr__(self) -> str:
+        return f"UrnReference(agency_id={self.agency_id!r}, resource_id={self.resource_id!r}, version={self.version!r})"
+
+    def __str__(self) -> str:
         return self.short_urn()
 
 
