@@ -40,14 +40,10 @@ class ChannelOnboardingCompletion(ChatCompletion):
                     message="Onboarding configuration not found for this deployment.",
                 )
 
-            try:
-                auth_context = await create_auth_context(request)
-            except ValueError as e:
-                raise DIALException(
-                    status_code=401,
-                    code="unauthorized",
-                    message=f"Unauthorized: {e}",
-                )
+            auth_context = await create_auth_context(
+                request,
+                bearer_token_required=service.channel_config.bearer_token_required,
+            )
 
             with response.create_choice() as choice:
                 await self._run_onboarding(
