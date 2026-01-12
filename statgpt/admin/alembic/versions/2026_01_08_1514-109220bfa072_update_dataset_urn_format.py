@@ -7,11 +7,14 @@ Create Date: 2026-01-08 15:14:00.000000
 """
 
 import json
+import logging
 import re
 from collections.abc import Sequence
 
 import sqlalchemy as sa
 from alembic import op
+
+logger = logging.getLogger(__name__)
 
 # revision identifiers, used by Alembic.
 revision: str = '109220bfa072'
@@ -59,7 +62,7 @@ def upgrade() -> None:
                 )
             except ValueError as e:
                 # Log or handle parsing errors gracefully
-                print(f"Warning: Failed to parse URN for dataset {dataset_id}: {e}")
+                logger.warning(f"Failed to parse URN for dataset {dataset_id}: {e}")
 
 
 def downgrade() -> None:
@@ -94,4 +97,4 @@ def downgrade() -> None:
                 )
             except (KeyError, TypeError) as e:
                 # Log or handle conversion errors gracefully
-                print(f"Warning: Failed to convert URN for dataset {dataset_id}: {e}")
+                logger.warning(f"Failed to convert URN for dataset {dataset_id}: {e}")
