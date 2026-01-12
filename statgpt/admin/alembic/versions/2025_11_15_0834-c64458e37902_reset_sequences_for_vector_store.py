@@ -6,10 +6,13 @@ Create Date: 2025-11-15 08:34:48.017064
 
 """
 
+import logging
 from collections.abc import Sequence
 
 import sqlalchemy as sa
 from alembic import op
+
+logger = logging.getLogger(__name__)
 
 # revision identifiers, used by Alembic.
 revision: str = 'c64458e37902'
@@ -72,9 +75,9 @@ def upgrade() -> None:
                 {"sequence_name": sequence_name},
             )
 
-            print(f"Reset sequence for table: {table_name} -> {sequence_name}")
+            logger.info(f"Reset sequence for table: {table_name} -> {sequence_name}")
         else:
-            print(f"No sequence found for table: {table_name}")
+            logger.info(f"No sequence found for table: {table_name}")
 
 
 def downgrade() -> None:

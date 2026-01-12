@@ -20,6 +20,7 @@ from statgpt.cli.shared import (
     select_datasets_interactive,
 )
 from statgpt.common import utils
+from statgpt.common.data.sdmx.common import UrnReference
 from statgpt.common.schemas import (
     Channel,
     ChannelDatasetExpanded,
@@ -96,10 +97,12 @@ def _load_available_datasets(client_config_dir: str) -> list[tuple[str, str]]:
             continue
         cfg = utils.read_yaml(os.path.join(datasets_dir, filename))
         for ds in cfg.get("dataSets", []):
-            urn = ds.get("details", {}).get("urn", "")
-            title = ds.get("title", urn)
-            if urn:
-                datasets.append((urn, f"{title}"))
+            urn_data = ds.get("details", {}).get("urn")
+            if urn_data:
+                urn_ref = UrnReference.model_validate(urn_data)
+                short_urn = urn_ref.short_urn()
+                title = ds.get("title", short_urn)
+                datasets.append((short_urn, f"{title}"))
     return sorted(datasets, key=lambda x: x[1])
 
 
@@ -499,7 +502,8 @@ async def _process_datasets(
     channel_datasets: dict[int, list[ChannelDatasetExpanded]] = {}
 
     for ds_cfg in datasets_cfg:
-        urn = ds_cfg.get("details", {}).get("urn")
+        urn_data = ds_cfg.get("details", {}).get("urn")
+        urn = UrnReference.model_validate(urn_data).short_urn() if urn_data else None
 
         # Filter by dataset IDs if specified
         if dataset_ids and urn not in dataset_ids:
