@@ -13,8 +13,9 @@ class RequestProtocol(Protocol):
     def api_key(self) -> str | None: ...
     @property
     def bearer_token(self) -> str | None: ...
-      
-def _resolve_api_key(request: Request) -> str:
+
+
+def _resolve_api_key(request: RequestProtocol) -> str:
     """Resolve API key from the request."""
     if request.api_key is None:
         raise MissingApiKeyError()
@@ -64,7 +65,9 @@ class SystemUserAuthContext(AuthContext):
         return None
 
 
-async def create_auth_context(request: RequestProtocol, bearer_token_required: bool = False) -> AuthContext:
+async def create_auth_context(
+    request: RequestProtocol, bearer_token_required: bool = False
+) -> AuthContext:
     """Create an authentication context based on the request."""
 
     if request.bearer_token is not None:
@@ -78,7 +81,8 @@ async def create_auth_context(request: RequestProtocol, bearer_token_required: b
 
     return UserAuthContext(request)
 
-async def _check_role(request: RequestProtocol, allowed_roles: set[str]) -> bool:
+
+async def _check_roles(request: RequestProtocol, allowed_roles: set[str]) -> bool:
     """Check if the request has the specified role."""
 
     if request.api_key is None:
