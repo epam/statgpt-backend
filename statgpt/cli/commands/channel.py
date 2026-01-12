@@ -20,9 +20,20 @@ from statgpt.cli.shared import (
     select_item_interactive,
     spinner_status,
 )
+from statgpt.common.data.sdmx.common import UrnReference
 from statgpt.common.schemas import Channel, ChannelDatasetExpanded, ChannelDatasetVersion, DataSet
 
 POLL_INTERVAL = 1  # seconds
+
+
+def _get_urn_display(dataset: DataSet | None) -> str:
+    """Get URN string for display from dataset details."""
+    if not dataset:
+        return "N/A"
+    urn_data = dataset.details.get("urn")
+    if not urn_data:
+        return "N/A"
+    return UrnReference.model_validate(urn_data).short_urn()
 
 
 async def import_handler(
@@ -203,7 +214,7 @@ def _export_status_csv(
 
             row = [
                 channel.deployment_id,
-                dataset.details.get("urn", "") if dataset else "",
+                _get_urn_display(dataset),
                 dataset.title if dataset else "",
                 status,
             ]
@@ -269,7 +280,7 @@ async def status_handler(
         ch_datasets.sort(
             key=lambda cd: (
                 status_order.get(str(cd.preprocessing_status), 99),
-                cd.dataset.details.get("urn", "N/A"),
+                _get_urn_display(cd.dataset),
             )
         )
 
@@ -277,7 +288,7 @@ async def status_handler(
             status = str(cd.preprocessing_status)
             dataset = cd.dataset
             dataset_title = dataset.title if dataset else "Unknown"
-            dataset_urn = dataset.details.get("urn", "N/A") if dataset else "N/A"
+            dataset_urn = _get_urn_display(dataset)
             status_style = _get_status_style(status)
             table.add_row(
                 f"[{status_style}]{status}[/{status_style}]",
@@ -423,7 +434,7 @@ async def _select_reindex_mode_interactive(datasets: list[DataSet], channel: Cha
     table.add_column("Status", width=12)
 
     for ds in datasets:
-        urn = ds.details.get("urn", "N/A")
+        urn = _get_urn_display(ds)
         status = ds.status.status if ds.status else "UNKNOWN"
         table.add_row(urn, ds.title, status)
 
@@ -453,7 +464,7 @@ async def _select_reindex_mode_interactive(datasets: list[DataSet], channel: Cha
 async def _select_dataset_interactive(datasets: list[DataSet]) -> str | None:
     """Interactive dataset selection with filtering."""
     items = [
-        (ds.details.get("urn", ""), f"{ds.details.get('urn', 'N/A')} - {ds.title}")
+        (_get_urn_display(ds), f"{_get_urn_display(ds)} - {ds.title}")
         for ds in datasets
         if ds.details.get("urn")
     ]
@@ -465,7 +476,7 @@ async def _select_dataset_interactive(datasets: list[DataSet]) -> str | None:
             filter_enabled=True,
         )
     except NonInteractiveError:
-        available = ", ".join(ds.details.get("urn", "") for ds in datasets if ds.details.get("urn"))
+        available = ", ".join(_get_urn_display(ds) for ds in datasets if ds.details.get("urn"))
         raise NonInteractiveError(
             f"Missing required parameter: --dataset-urn\n"
             f"  Available datasets: {available}\n"
@@ -522,7 +533,7 @@ async def reindex_handler(
                     return
 
             selected_ds = next(
-                (ds for ds in datasets if ds.details.get("urn") == dataset_urn),
+                (ds for ds in datasets if _get_urn_display(ds) == dataset_urn),
                 None,
             )
             if not selected_ds:

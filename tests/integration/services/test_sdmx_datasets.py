@@ -81,6 +81,10 @@ DIMENSIONS = {
 }
 
 
+URN_CPI_4_0_0 = {'agency_id': 'IMF.STA', 'resource_id': 'CPI', 'version': '4.0.0'}
+URN_CPI_3_0_1 = {'agency_id': 'IMF.STA', 'resource_id': 'CPI', 'version': '3.0.1'}
+
+
 @pytest.mark.asyncio
 async def test_create_dataset(session, clear_all, sdmx_clint_mock):
     data_source = await get_data_source(session)
@@ -93,7 +97,7 @@ async def test_create_dataset(session, clear_all, sdmx_clint_mock):
             title='CPI',
             data_source_id=data_source.id,
             details={
-                'urn': 'IMF.STA:CPI(4.0.0)',
+                'urn': URN_CPI_4_0_0,
                 'dimensions': DIMENSIONS,
                 'useTitleFromSrc': True,
             },
@@ -103,7 +107,7 @@ async def test_create_dataset(session, clear_all, sdmx_clint_mock):
 
     assert dataset.id_ == random_uuid
     assert dataset.data_source_id == data_source.id
-    assert dataset.details['urn'] == 'IMF.STA:CPI(4.0.0)'
+    assert dataset.details['urn'] == URN_CPI_4_0_0
     assert dataset.details['citation'] is None
     assert dataset.details['indexer'] is None
 
@@ -142,7 +146,7 @@ async def test_update_dataset(session, clear_all, sdmx_clint_mock):
             title='CPI',
             data_source_id=data_source.id,
             details={
-                'urn': 'IMF.STA:CPI(4.0.0)',
+                'urn': URN_CPI_4_0_0,
                 'dimensions': DIMENSIONS,
                 'useTitleFromSrc': False,
             },
@@ -153,7 +157,7 @@ async def test_update_dataset(session, clear_all, sdmx_clint_mock):
     assert dataset.id_ == random_uuid
     assert dataset.title == 'CPI'
     assert dataset.data_source_id == data_source.id
-    assert dataset.details['urn'] == 'IMF.STA:CPI(4.0.0)'
+    assert dataset.details['urn'] == URN_CPI_4_0_0
     assert dataset.details['citation'] is None
 
     citation = DatasetCitation(
@@ -172,7 +176,7 @@ async def test_update_dataset(session, clear_all, sdmx_clint_mock):
         schemas.DataSetUpdate(
             title='CPI Updated',
             details={
-                'urn': 'IMF.STA:CPI(3.0.1)',
+                'urn': URN_CPI_3_0_1,
                 'dimensions': DIMENSIONS,
                 'citation': citation.model_dump(by_alias=True),
                 'indexer': indexer_config.model_dump(by_alias=True),
@@ -184,7 +188,7 @@ async def test_update_dataset(session, clear_all, sdmx_clint_mock):
 
     assert dataset.id_ == random_uuid
     assert dataset.title == 'CPI Updated'
-    assert dataset.details['urn'] == 'IMF.STA:CPI(3.0.1)'
+    assert dataset.details['urn'] == URN_CPI_3_0_1
     assert dataset.details['citation'] == citation.model_dump(by_alias=True)
     assert dataset.details['indexer'] == indexer_config.model_dump(by_alias=True)
 
@@ -215,7 +219,7 @@ async def test_get_list_and_count(session, clear_all, sdmx_clint_mock):
             id_=random_uuid1,
             title='CPI v4.0.0',
             data_source_id=data_source.id,
-            details={'urn': 'IMF.STA:CPI(4.0.0)', 'dimensions': DIMENSIONS},
+            details={'urn': URN_CPI_4_0_0, 'dimensions': DIMENSIONS},
         ),
         auth_context=SystemUserAuthContext(),
     )
@@ -234,7 +238,7 @@ async def test_get_list_and_count(session, clear_all, sdmx_clint_mock):
             id_=random_uuid2,
             title='CPI v3.0.1',
             data_source_id=data_source.id,
-            details={'urn': 'IMF.STA:CPI(3.0.1)', 'dimensions': DIMENSIONS},
+            details={'urn': URN_CPI_3_0_1, 'dimensions': DIMENSIONS},
         ),
         auth_context=SystemUserAuthContext(),
     )
@@ -264,7 +268,7 @@ async def test_create_channel_dataset(session, clear_all, sdmx_clint_mock):
             id_=random_uuid,
             title='CPI',
             data_source_id=data_source.id,
-            details={'urn': 'IMF.STA:CPI(4.0.0)', 'dimensions': DIMENSIONS},
+            details={'urn': URN_CPI_4_0_0, 'dimensions': DIMENSIONS},
         ),
         auth_context=SystemUserAuthContext(),
     )
@@ -303,7 +307,7 @@ async def test_get_channel_datasets_and_count(session, clear_all, sdmx_clint_moc
             id_=random_uuid1,
             title='CPI v4.0.0',
             data_source_id=data_source.id,
-            details={'urn': 'IMF.STA:CPI(4.0.0)', 'dimensions': DIMENSIONS},
+            details={'urn': URN_CPI_4_0_0, 'dimensions': DIMENSIONS},
         ),
         auth_context=SystemUserAuthContext(),
     )
@@ -326,7 +330,7 @@ async def test_get_channel_datasets_and_count(session, clear_all, sdmx_clint_moc
             id_=random_uuid2,
             title='CPI v3.0.1',
             data_source_id=data_source.id,
-            details={'urn': 'IMF.STA:CPI(3.0.1)', 'dimensions': DIMENSIONS},
+            details={'urn': URN_CPI_3_0_1, 'dimensions': DIMENSIONS},
         ),
         auth_context=SystemUserAuthContext(),
     )
@@ -383,7 +387,7 @@ async def test_reload_indicators(session, clear_all, sdmx_clint_mock):
             id_=random_uuid,
             title='CPI',
             data_source_id=data_source.id,
-            details={'urn': 'IMF.STA:CPI(4.0.0)', 'dimensions': DIMENSIONS},
+            details={'urn': URN_CPI_4_0_0, 'dimensions': DIMENSIONS},
         ),
         auth_context=SystemUserAuthContext(),
     )
@@ -450,7 +454,7 @@ async def test_reload_all_indicators(session, clear_all, sdmx_clint_mock):
             id_=random_uuid1,
             title='CPI v4.0.0',
             data_source_id=data_source.id,
-            details={'urn': 'IMF.STA:CPI(4.0.0)', 'dimensions': DIMENSIONS},
+            details={'urn': URN_CPI_4_0_0, 'dimensions': DIMENSIONS},
         ),
         auth_context=SystemUserAuthContext(),
     )
@@ -460,7 +464,7 @@ async def test_reload_all_indicators(session, clear_all, sdmx_clint_mock):
             id_=random_uuid2,
             title='CPI v3.0.1',
             data_source_id=data_source.id,
-            details={'urn': 'IMF.STA:CPI(3.0.1)', 'dimensions': DIMENSIONS},
+            details={'urn': URN_CPI_3_0_1, 'dimensions': DIMENSIONS},
         ),
         auth_context=SystemUserAuthContext(),
     )

@@ -4,12 +4,12 @@ import os
 from typing import Any
 
 from rich.panel import Panel
-from rich.prompt import Confirm
 
 from statgpt.cli.commands.base import Command, CommandArg, CommandGroup
 from statgpt.cli.settings import cli_settings
 from statgpt.cli.shared import (
     AdminClient,
+    confirm_interactive,
     console,
     get_admin_client,
     print_error,
@@ -20,6 +20,7 @@ from statgpt.cli.shared import (
     select_datasets_interactive,
 )
 from statgpt.common import utils
+from statgpt.common.data.sdmx.common import UrnReference
 from statgpt.common.schemas import (
     Channel,
     ChannelDatasetExpanded,
@@ -73,7 +74,15 @@ def _confirm_full_init(clients: list[str], components: set[str]) -> bool:
         f"[bold]Clients:[/bold] {', '.join(clients)}"
     )
     console.print(Panel(content, title="Content Initialization", border_style="yellow"))
-    return Confirm.ask("Proceed?", default=False)
+    return confirm_interactive(
+        "Proceed?",
+        default=False,
+        error_message=(
+            "Full initialization requires confirmation.\n"
+            "  Use -y/--yes to skip confirmation.\n"
+            "  Usage: statgpt content init -y"
+        ),
+    )
 
 
 def _load_available_datasets(client_config_dir: str) -> list[tuple[str, str]]:
@@ -88,10 +97,12 @@ def _load_available_datasets(client_config_dir: str) -> list[tuple[str, str]]:
             continue
         cfg = utils.read_yaml(os.path.join(datasets_dir, filename))
         for ds in cfg.get("dataSets", []):
-            urn = ds.get("details", {}).get("urn", "")
-            title = ds.get("title", urn)
-            if urn:
-                datasets.append((urn, f"{title}"))
+            urn_data = ds.get("details", {}).get("urn")
+            if urn_data:
+                urn_ref = UrnReference.model_validate(urn_data)
+                short_urn = urn_ref.short_urn()
+                title = ds.get("title", short_urn)
+                datasets.append((short_urn, f"{title}"))
     return sorted(datasets, key=lambda x: x[1])
 
 
@@ -170,7 +181,16 @@ async def init_handler(
             # Remove duplicates and sort
             available_datasets = sorted(set(available_datasets), key=lambda x: x[1])
 
-            if Confirm.ask("Would you like to select specific datasets?", default=False):
+            if confirm_interactive(
+                "Would you like to select specific datasets?",
+                default=False,
+                error_message=(
+                    "Dataset selection requires interactive mode.\n"
+                    "  Use --datasets to specify datasets in non-interactive mode.\n"
+                    "  Usage: statgpt content init --datasets <urn1,urn2,...>\n"
+                    "  Or use -y to process all datasets."
+                ),
+            ):
                 selected = await select_datasets_interactive(available_datasets)
                 if not selected:
                     print_info("No datasets selected. Aborted.")
@@ -482,7 +502,8 @@ async def _process_datasets(
     channel_datasets: dict[int, list[ChannelDatasetExpanded]] = {}
 
     for ds_cfg in datasets_cfg:
-        urn = ds_cfg.get("details", {}).get("urn")
+        urn_data = ds_cfg.get("details", {}).get("urn")
+        urn = UrnReference.model_validate(urn_data).short_urn() if urn_data else None
 
         # Filter by dataset IDs if specified
         if dataset_ids and urn not in dataset_ids:

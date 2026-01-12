@@ -25,7 +25,10 @@ dataSets:
     title: "IMF.STA:BOP - Sample"
     details:
       <<: *shared_details
-      urn: "IMF.STA:BOP(21.0.0)"
+      urn:
+        agency_id: "IMF.STA"
+        resource_id: "BOP"
+        version: "21.0.0"
       dimensions:
         INDICATOR:
           dimensionType: "INDICATOR"
@@ -69,7 +72,10 @@ dataSets:
     title: "IMF.RES:WEO - Sample"
     details:
       <<: *shared_details
-      urn: "IMF.RES:WEO(9.0.0)"
+      urn:
+        agency_id: "IMF.RES"
+        resource_id: "WEO"
+        version: "9.0.0"
       dimensions:
         INDICATOR:
           dimensionType: "INDICATOR"

@@ -125,6 +125,24 @@ class CategorySchemaDataSetHierarchyConfig(BaseModel):
     version: str = Field(default='latest')
 
 
+class UrnReference(BaseModel):
+    """This class represents a URN reference for SDMX datasets and allows dynamic values."""
+
+    agency_id: str
+    resource_id: str
+    version: str = Field(default='latest')
+
+    def short_urn(self) -> str:
+        """Return a short URN representation."""
+        return f"{self.agency_id}:{self.resource_id}({self.version})"
+
+    def __repr__(self) -> str:
+        return f"UrnReference(agency_id={self.agency_id!r}, resource_id={self.resource_id!r}, version={self.version!r})"
+
+    def __str__(self) -> str:
+        return self.short_urn()
+
+
 class SdmxDataSourceConfig(DataSourceConfig):
     description: str = Field(default="", description="The description of the data source")
     sdmx_config: SdmxConfig = Field(description="The configuration for the SDMX data source")
@@ -162,7 +180,7 @@ class SdmxDataSetConfigMixin:
     use_title_from_src: bool = Field(
         default=False, description="Whether to use the title obtained from the source"
     )
-    urn: str = Field(description="The URN of the dataset")
+    urn: UrnReference = Field(description="The URN of the dataset")
     include_attributes: list[str] | None = Field(
         default=None, description="List of attributes to add to the query results table"
     )
@@ -182,6 +200,4 @@ class SdmxDataSetConfigTemplate(SdmxDataSetConfigMixin, DataSetConfigTemplate):
 
 
 class SdmxDataSetConfig(SdmxDataSetConfigMixin, DataSetConfig):
-
-    def get_source_id(self) -> str:
-        return self.urn
+    pass
