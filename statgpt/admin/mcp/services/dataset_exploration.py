@@ -2,8 +2,8 @@ import uuid
 from uuid import uuid4
 
 import pandas as pd
+from sqlalchemy.ext.asyncio import AsyncSession
 
-import statgpt.common.models as models
 from statgpt.admin.auth.auth_context import SystemUserAuthContext
 from statgpt.common.auth.auth_context import AuthContext
 from statgpt.common.data.base.query import DataSetAvailabilityQuery
@@ -123,13 +123,14 @@ async def get_dataset_combinations(
     return result_df
 
 
-async def get_data_sources(limit=100, offset=0, data_source_id: int | None = None):
-    async with models.get_session_contex_manager() as session:
-        data_source_service = DataSourceService(session)
-        ids = [data_source_id] if data_source_id is not None else None
-        data_sources = await data_source_service.get_data_sources_schemas(
-            limit=limit, offset=offset, ids=ids
-        )
+async def get_data_sources_list(
+    session: AsyncSession, limit=100, offset=0, data_source_id: int | None = None
+):
+    data_source_service = DataSourceService(session)
+    ids = [data_source_id] if data_source_id is not None else None
+    data_sources = await data_source_service.get_data_sources_schemas(
+        limit=limit, offset=offset, ids=ids
+    )
     return data_sources
 
 
@@ -196,9 +197,6 @@ async def validate_dataset_config(data_source_id: int, config_dict: dict) -> boo
     return True
 
 
-def generate_id():
+def generate_id() -> str:
+    """Create random UUID..."""
     return str(uuid4())
-
-
-def generate_title_and_urn(client_prefix, dataset, version):
-    return f"{client_prefix}:{dataset}", f"{client_prefix}:{dataset}({version})"

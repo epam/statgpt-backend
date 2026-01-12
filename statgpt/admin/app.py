@@ -24,23 +24,38 @@ from statgpt.admin.routers import router
 from statgpt.admin.settings.app import APP_SETTINGS
 from statgpt.common.models import DatabaseHealthChecker, optional_msi_token_manager_context
 from statgpt.common.services.data_preloader import preload_data
-from statgpt.mcp.app import mcp_app
 
 
 @asynccontextmanager
-async def lifespan(app_: FastAPI):
+async def app_lifespan(app_: FastAPI):
     async with optional_msi_token_manager_context():
-        async with mcp_app.lifespan(app_):
+        # Check resources' availability:
+        await DatabaseHealthChecker().check()
 
-            # Check resources' availability:
-            await DatabaseHealthChecker().check()
+        # Start data preloading in the background
+        asyncio.create_task(preload_data(allow_cached_datasets=False))
 
-            # Start data preloading in the background
-            asyncio.create_task(preload_data(allow_cached_datasets=False))
+        yield
+        # Clean up
 
-            yield
-            # Clean up
 
+if APP_SETTINGS.beta_mcp_enabled:
+    # Import here to allow run admin app without MCP dependencies when MCP is disabled
+    from statgpt.admin.mcp.app import mcp
+
+    mcp_app = mcp.http_app(path="/mcp", transport="streamable-http", stateless_http=True)
+
+    @asynccontextmanager
+    async def combined_lifespan(app_: FastAPI):
+        # Run both lifespans
+        async with app_lifespan(app_):
+            async with mcp_app.lifespan(app_):
+                yield
+
+    lifespan = combined_lifespan
+else:
+    mcp_app = None
+    lifespan = app_lifespan
 
 app = FastAPI(
     lifespan=lifespan,
@@ -49,7 +64,8 @@ app = FastAPI(
     openapi_url="/admin/api/openapi.json",
 )
 
-app.mount("/", mcp_app)
+if mcp_app:
+    app.mount("/", mcp_app)
 
 init_telemetry(
     app=app,

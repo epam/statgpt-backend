@@ -16,10 +16,10 @@ init_venv:
 	poetry env use .venv/bin/python
 
 install_dev: init_venv
-	poetry install -E cli --with dev
+	poetry install -E cli -E beta-mcp --with dev
 
 install_all: init_venv
-	poetry install -E cli --with dev,experiments
+	poetry install -E cli -E beta-mcp --with dev,experiments
 
 format: install_dev
 	poetry run autoflake ${SRC_DIRS}
@@ -50,7 +50,7 @@ statgpt_app:
 
 # Run MCP or you can use 'make statgpt_admin' to run Admin which also runs MCP Server
 statgpt_mcp:
-	poetry run python -m uvicorn statgpt.mcp.app:mcp_app 
+	poetry run python -m uvicorn statgpt.mcp.app:mcp_app
 
 install_pre_commit_hooks:
 	pre-commit install
