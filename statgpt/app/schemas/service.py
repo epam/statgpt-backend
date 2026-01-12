@@ -28,6 +28,7 @@ class ChannelMetadataResponse(BaseModel):
     title: str
     description: str = ""
     locale: str
+    country_named_entity_type: str
     tools: list[BaseToolConfig] = Field(default_factory=list)
 
 

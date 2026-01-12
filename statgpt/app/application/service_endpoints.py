@@ -69,13 +69,14 @@ def _get_deployment_id(request: FastAPIRequest) -> str:
     return deployment_id
 
 
-@router.get("/version")
-async def version() -> GitVersionResponse:
-    return GitVersionResponse(git_commit=Versions.GIT_COMMIT)
-
-
 @router.get("/settings")
 async def settings() -> SettingsResponse:
+    """Returns settings for the channel.
+
+    NOTE:
+        Access this endpoint through the Dial Core API at
+        "/v1/deployments/{deployment_id}/route/settings".
+    """
     return SettingsResponse(
         enable_dev_commands=dial_app_settings.enable_dev_commands,
         enable_direct_tool_calls=dial_app_settings.enable_direct_tool_calls,
@@ -83,13 +84,18 @@ async def settings() -> SettingsResponse:
     )
 
 
-# NOTE: Access this endpoint through the Dial Core API at "/v1/deployments/{deployment_id}/route/metadata/channel"
 @router.get("/metadata/channel")
 async def channel_metadata(
     deployment_id: str = Depends(_get_deployment_id),
     auth_context: AuthContext = Depends(_get_auth_context),
     session: AsyncSession = Depends(get_readonly_session),
 ) -> ChannelMetadataResponse:
+    """Returns channel metadata.
+
+    NOTE:
+        Access this endpoint through the Dial Core API at
+        "/v1/deployments/{deployment_id}/route/metadata/channel".
+    """
 
     try:
         service = await ChannelServiceFacade.get_channel(session, deployment_id)
@@ -105,17 +111,23 @@ async def channel_metadata(
         title=ch.title,
         description=ch.description or "",
         locale=service.channel_config.locale,
+        country_named_entity_type=service.channel_config.country_named_entity_type,
         tools=service.channel_config.tools,
     )
 
 
-# NOTE: Access this endpoint through the Dial Core API at "/v1/deployments/{deployment_id}/route/metadata/datasets"
 @router.get("/metadata/datasets")
 async def channel_datasets_metadata(
     deployment_id: str = Depends(_get_deployment_id),
     auth_context: AuthContext = Depends(_get_auth_context),
     session: AsyncSession = Depends(get_readonly_session),
 ) -> ChannelDatasetsMetadataResponse:
+    """Returns datasets metadata for the channel.
+
+    NOTE:
+        Access this endpoint through the Dial Core API at
+        "/v1/deployments/{deployment_id}/route/metadata/datasets".
+    """
 
     try:
         service = await ChannelServiceFacade.get_channel(session, deployment_id)
