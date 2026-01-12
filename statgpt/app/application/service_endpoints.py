@@ -7,7 +7,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from statgpt.app.schemas import (
     ChannelDatasetsMetadataResponse,
     ChannelMetadataResponse,
-    GitVersionResponse,
     SettingsResponse,
 )
 from statgpt.app.security import create_auth_context
