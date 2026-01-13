@@ -16,9 +16,8 @@ from .indicator import BaseIndicator
 
 
 class DataSetDescriptor(BaseModel):
-    source_id: str = Field(description="The ID in the source of the dataset")
     name: str = Field(description="The name of the dataset")
-    description: t.Optional[str] = Field(description="The description of the dataset")
+    description: str | None = Field(description="The description of the dataset")
 
     details: SkipValidation[DataSetConfigTemplate] = Field(
         description="Preliminary details defined by the data source."

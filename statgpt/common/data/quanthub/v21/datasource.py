@@ -50,12 +50,12 @@ class QuanthubSdmx21DataSourceHandler(Sdmx21DataSourceHandler):
             return True
         else:
             try:
-                urn = self._urn_parser.parse(config["urn"])
+                conf = self.parse_data_set_config(config)
                 client = await self.create_sdmx_client(auth_context)
                 await client.availableconstraint(
-                    agency_id=urn.agency_id,
-                    resource_id=urn.resource_id,
-                    version=urn.version if urn.version else "latest",
+                    agency_id=conf.urn.agency_id,
+                    resource_id=conf.urn.resource_id,
+                    version=conf.urn.version,
                     params={"references": "none"},
                     use_cache=False,
                 )
