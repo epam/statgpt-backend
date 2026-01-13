@@ -17,6 +17,7 @@ class SettingsSection(StrEnum):
     AUTHENTICATION = "Authentication"
     AZURE = "Azure Entra ID"
     KEYCLOAK = "Keycloak"
+    AUTH0 = "Auth0"
     GENERAL = "General"
 
 
@@ -85,7 +86,7 @@ class CLISettings(BaseSettings):
 
     auth_provider: str | None = Field(
         default=None,
-        description="Authentication provider to use (azure, keycloak). Optional for local development.",
+        description="Authentication provider to use (azure, keycloak, auth0). Optional for local development.",
         json_schema_extra=field_meta(SettingsSection.AUTHENTICATION),
     )
 
@@ -154,6 +155,42 @@ class CLISettings(BaseSettings):
         default=None,
         description="OAuth scope for Keycloak (default: openid)",
         json_schema_extra=field_meta(SettingsSection.KEYCLOAK),
+    )
+
+    auth_auth0_domain: str | None = Field(
+        default=None,
+        description="Auth0 tenant domain (e.g., mytenant.us.auth0.com)",
+        json_schema_extra=field_meta(SettingsSection.AUTH0),
+    )
+    auth_auth0_client_id: str | None = Field(
+        default=None,
+        description="Auth0 application client ID",
+        json_schema_extra=field_meta(SettingsSection.AUTH0),
+    )
+    auth_auth0_client_secret: str | None = Field(
+        default=None,
+        description="Auth0 client secret (for confidential clients)",
+        json_schema_extra=field_meta(SettingsSection.AUTH0, secret=True),
+    )
+    auth_auth0_audience: str | None = Field(
+        default=None,
+        description="Auth0 API identifier (audience)",
+        json_schema_extra=field_meta(SettingsSection.AUTH0),
+    )
+    auth_auth0_scope: str | None = Field(
+        default=None,
+        description="OAuth scope for Auth0 (default: openid profile email offline_access)",
+        json_schema_extra=field_meta(SettingsSection.AUTH0),
+    )
+    auth_auth0_username: str | None = Field(
+        default=None,
+        description="Username for Auth0 system user login",
+        json_schema_extra=field_meta(SettingsSection.AUTH0),
+    )
+    auth_auth0_password: str | None = Field(
+        default=None,
+        description="Password for Auth0 system user login",
+        json_schema_extra=field_meta(SettingsSection.AUTH0, secret=True),
     )
 
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = Field(
