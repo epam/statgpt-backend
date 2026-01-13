@@ -28,14 +28,14 @@ s3fs = ["s3fs (>=2024.3.1,<2025.0.0)"]
 
 [[package]]
 name = "aidial-sdk"
-version = "0.27.0"
+version = "0.31.0"
 description = "Framework to create applications and model adapters for AI DIAL"
 optional = false
 python-versions = "<4.0,>=3.9"
 groups = ["main"]
 files = [
-    {file = "aidial_sdk-0.27.0-py3-none-any.whl", hash = "sha256:efa5be2c81432df2eb8989792dd3fc8fd2cb351c81f9881717a795556d1c7608"},
-    {file = "aidial_sdk-0.27.0.tar.gz", hash = "sha256:fca4ea9f1085a02ee6a517d5314074973d6a17d3f9dbb2b5ecfac4f48ba2e48c"},
+    {file = "aidial_sdk-0.31.0-py3-none-any.whl", hash = "sha256:40b743f774fe26a1ecbc675a3503bf40ca8dc478e78cd8e90781b2d2962017cf"},
+    {file = "aidial_sdk-0.31.0.tar.gz", hash = "sha256:dc714bc366952057a157db6dde9fe2724390617ba3958772450680919b30b970"},
 ]
 
 [package.dependencies]
@@ -51,14 +51,14 @@ opentelemetry-instrumentation-requests = {version = ">=0.43b0", optional = true,
 opentelemetry-instrumentation-system-metrics = {version = ">=0.43b0", optional = true, markers = "extra == \"telemetry\""}
 opentelemetry-instrumentation-urllib = {version = ">=0.43b0", optional = true, markers = "extra == \"telemetry\""}
 opentelemetry-sdk = {version = ">=1.22.0,<2.0", optional = true, markers = "extra == \"telemetry\""}
-prometheus-client = {version = ">=0.17.1,<=0.21", optional = true, markers = "extra == \"telemetry\""}
+prometheus-client = {version = ">=0.17.1,<1.0", optional = true, markers = "extra == \"telemetry\""}
 pydantic = ">=1.10.17,<3"
 uvicorn = ">=0.19,<1.0"
 wrapt = ">=1.10,<2"
 
 [package.extras]
-httpx = ["httpx (>=0.25.0,<1)"]
-telemetry = ["opentelemetry-api (>=1.22.0,<2.0)", "opentelemetry-exporter-otlp-proto-grpc (>=1.22.0,<2.0)", "opentelemetry-exporter-prometheus (>=0.43b0)", "opentelemetry-instrumentation-aiohttp-client (>=0.43b0)", "opentelemetry-instrumentation-fastapi (>=0.43b0)", "opentelemetry-instrumentation-httpx (>=0.43b0)", "opentelemetry-instrumentation-logging (>=0.43b0)", "opentelemetry-instrumentation-requests (>=0.43b0)", "opentelemetry-instrumentation-system-metrics (>=0.43b0)", "opentelemetry-instrumentation-urllib (>=0.43b0)", "opentelemetry-sdk (>=1.22.0,<2.0)", "prometheus-client (>=0.17.1,<=0.21)"]
+httpx = ["httpx (>=0.25.0,<1.0)"]
+telemetry = ["opentelemetry-api (>=1.22.0,<2.0)", "opentelemetry-exporter-otlp-proto-grpc (>=1.22.0,<2.0)", "opentelemetry-exporter-prometheus (>=0.43b0)", "opentelemetry-instrumentation-aiohttp-client (>=0.43b0)", "opentelemetry-instrumentation-fastapi (>=0.43b0)", "opentelemetry-instrumentation-httpx (>=0.43b0)", "opentelemetry-instrumentation-logging (>=0.43b0)", "opentelemetry-instrumentation-requests (>=0.43b0)", "opentelemetry-instrumentation-system-metrics (>=0.43b0)", "opentelemetry-instrumentation-urllib (>=0.43b0)", "opentelemetry-sdk (>=1.22.0,<2.0)", "prometheus-client (>=0.17.1,<1.0)"]
 
 [[package]]
 name = "aiofiles"
@@ -8095,4 +8095,4 @@ cli = ["httpx", "msal", "prompt-toolkit", "python-keycloak", "questionary", "ric
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.11,<3.12"
-content-hash = "348d564c7d5cf4bfbb92d63543550dfebdba34059eb6a27ba87649de2cd861a9"
+content-hash = "c39ed225f0c0fff1ecb7bc42ccd4a789185710d3bd1393cb094db4743131df14"

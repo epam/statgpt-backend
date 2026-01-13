@@ -14,34 +14,37 @@ from statgpt.app.security.exceptions import InsufficientRoleError
 def mock_request():
     """Create a mock Request object."""
     request = MagicMock()
-    request.jwt = None
+    # ai-dial-sdk >= 0.30 uses `.bearer_token` (token WITHOUT "Bearer " prefix)
+    request.bearer_token = None
     request.api_key = "test-api-key"
     return request
 
 
 class TestCreateAuthContext:
     @pytest.mark.asyncio
-    async def test_jwt_present_returns_user_context(self, mock_request):
-        """When JWT is present, return UserAuthContext regardless of bearer_token_required."""
-        mock_request.jwt = "Bearer token123"
+    async def test_bearer_token_present_returns_user_context(self, mock_request):
+        """When bearer_token is present, return UserAuthContext regardless of bearer_token_required."""
+        mock_request.bearer_token = "token123"
 
         context = await create_auth_context(mock_request, bearer_token_required=False)
 
         assert isinstance(context, UserAuthContext)
 
     @pytest.mark.asyncio
-    async def test_jwt_present_with_bearer_token_required_returns_user_context(self, mock_request):
-        """When JWT is present and bearer_token_required=True, still return UserAuthContext."""
-        mock_request.jwt = "Bearer token123"
+    async def test_bearer_token_present_with_bearer_token_required_returns_user_context(
+        self, mock_request
+    ):
+        """When bearer_token is present and bearer_token_required=True, still return UserAuthContext."""
+        mock_request.bearer_token = "token123"
 
         context = await create_auth_context(mock_request, bearer_token_required=True)
 
         assert isinstance(context, UserAuthContext)
 
     @pytest.mark.asyncio
-    async def test_no_jwt_and_not_required_returns_user_context(self, mock_request):
-        """When no JWT and bearer_token_required=False, return UserAuthContext."""
-        mock_request.jwt = None
+    async def test_no_bearer_token_and_not_required_returns_user_context(self, mock_request):
+        """When no bearer_token and bearer_token_required=False, return UserAuthContext."""
+        mock_request.bearer_token = None
 
         context = await create_auth_context(mock_request, bearer_token_required=False)
 
@@ -53,8 +56,8 @@ class TestCreateAuthContext:
     async def test_no_jwt_required_with_allowed_role_returns_system_context(
         self, mock_settings, mock_check_roles, mock_request
     ):
-        """When no JWT, bearer_token_required=True, and user has allowed role."""
-        mock_request.jwt = None
+        """When no bearer_token, bearer_token_required=True, and user has allowed role."""
+        mock_request.bearer_token = None
         mock_settings.system_user_context_roles_set = {"evaluator"}
         mock_check_roles.return_value = True
 
@@ -69,8 +72,8 @@ class TestCreateAuthContext:
     async def test_no_jwt_required_without_allowed_role_raises(
         self, mock_settings, mock_check_roles, mock_request
     ):
-        """When no JWT, bearer_token_required=True, and user lacks allowed role."""
-        mock_request.jwt = None
+        """When no bearer_token, bearer_token_required=True, and user lacks allowed role."""
+        mock_request.bearer_token = None
         mock_settings.system_user_context_roles_set = {"evaluator"}
         mock_check_roles.return_value = False
 
@@ -80,8 +83,8 @@ class TestCreateAuthContext:
     @pytest.mark.asyncio
     @patch("statgpt.app.security.auth_context.dial_app_settings")
     async def test_no_jwt_required_no_roles_configured_raises(self, mock_settings, mock_request):
-        """When no JWT, bearer_token_required=True, but no roles configured."""
-        mock_request.jwt = None
+        """When no bearer_token, bearer_token_required=True, but no roles configured."""
+        mock_request.bearer_token = None
         mock_settings.system_user_context_roles_set = set()
 
         with pytest.raises(InsufficientRoleError):
@@ -94,21 +97,15 @@ class TestUserAuthContext:
         context = UserAuthContext(mock_request)
         assert context.is_system is False
 
-    def test_dial_access_token_strips_bearer_prefix(self, mock_request):
-        """dial_access_token should strip 'Bearer ' prefix from JWT."""
-        mock_request.jwt = "Bearer token123"
+    def test_dial_access_token_returns_bearer_token(self, mock_request):
+        """dial_access_token should return bearer_token as-is."""
+        mock_request.bearer_token = "token123"
         context = UserAuthContext(mock_request)
         assert context.dial_access_token == "token123"
 
-    def test_dial_access_token_without_bearer_prefix(self, mock_request):
-        """dial_access_token should return token as-is if no Bearer prefix."""
-        mock_request.jwt = "token123"
-        context = UserAuthContext(mock_request)
-        assert context.dial_access_token == "token123"
-
-    def test_dial_access_token_returns_none_when_no_jwt(self, mock_request):
-        """dial_access_token should return None when no JWT."""
-        mock_request.jwt = None
+    def test_dial_access_token_returns_none_when_no_bearer_token(self, mock_request):
+        """dial_access_token should return None when no bearer_token."""
+        mock_request.bearer_token = None
         context = UserAuthContext(mock_request)
         assert context.dial_access_token is None
 
@@ -121,6 +118,6 @@ class TestSystemUserAuthContext:
 
     def test_dial_access_token_returns_none(self, mock_request):
         """SystemUserAuthContext.dial_access_token should always return None."""
-        mock_request.jwt = "Bearer token123"
+        mock_request.bearer_token = "token123"
         context = SystemUserAuthContext(mock_request)
         assert context.dial_access_token is None
