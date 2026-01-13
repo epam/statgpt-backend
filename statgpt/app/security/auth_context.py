@@ -1,6 +1,5 @@
 from functools import cached_property
-
-from aidial_sdk.chat_completion import Request
+from typing import Protocol
 
 from statgpt.app.security.exceptions import InsufficientRoleError, MissingApiKeyError
 from statgpt.app.settings.dial_app import dial_app_settings
@@ -9,7 +8,14 @@ from statgpt.common.settings.dial import dial_settings
 from statgpt.common.utils import dial_core_factory
 
 
-def _resolve_api_key(request: Request) -> str:
+class RequestProtocol(Protocol):
+    @property
+    def api_key(self) -> str | None: ...
+    @property
+    def bearer_token(self) -> str | None: ...
+
+
+def _resolve_api_key(request: RequestProtocol) -> str:
     """Resolve API key from the request."""
     if request.api_key is None:
         raise MissingApiKeyError()
@@ -17,9 +23,9 @@ def _resolve_api_key(request: Request) -> str:
 
 
 class UserAuthContext(AuthContext):
-    _request: Request
+    _request: RequestProtocol
 
-    def __init__(self, request: Request):
+    def __init__(self, request: RequestProtocol):
         self._request = request
 
     @cached_property
@@ -32,10 +38,7 @@ class UserAuthContext(AuthContext):
 
     @property
     def dial_access_token(self) -> str | None:
-        token = self._request.jwt
-        if token is not None and token.startswith("Bearer "):
-            token = token[7:]
-        return token
+        return self._request.bearer_token
 
 
 class SystemUserAuthContext(AuthContext):
@@ -46,7 +49,7 @@ class SystemUserAuthContext(AuthContext):
     to access channels requiring JWT forwarding.
     """
 
-    def __init__(self, request: Request):
+    def __init__(self, request: RequestProtocol):
         self._request = request
 
     @cached_property
@@ -62,9 +65,12 @@ class SystemUserAuthContext(AuthContext):
         return None
 
 
-async def create_auth_context(request: Request, bearer_token_required: bool = False) -> AuthContext:
-    """Create authentication context based on request and channel requirements."""
-    if request.jwt is not None:
+async def create_auth_context(
+    request: RequestProtocol, bearer_token_required: bool = False
+) -> AuthContext:
+    """Create an authentication context based on the request."""
+
+    if request.bearer_token is not None:
         return UserAuthContext(request)
 
     if bearer_token_required:
@@ -76,8 +82,12 @@ async def create_auth_context(request: Request, bearer_token_required: bool = Fa
     return UserAuthContext(request)
 
 
-async def _check_roles(request: Request, allowed_roles: set[str]) -> bool:
-    """Check if the request has any of the specified roles."""
+async def _check_roles(request: RequestProtocol, allowed_roles: set[str]) -> bool:
+    """Check if the request has the specified role."""
+
+    if request.api_key is None:
+        return False
+
     async with dial_core_factory(base_url=dial_settings.url, api_key=request.api_key) as dial_core:
         response = await dial_core.get_user_info()
         user_roles = set(response.get("roles", []))
