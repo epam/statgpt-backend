@@ -69,6 +69,6 @@ resolutions:
     - message: ".*PyPI::prompt-toolkit:3\\.0\\..*"
       reason: "CANT_FIX_EXCEPTION"
       comment: "BSD 3-Clause License: https://github.com/prompt-toolkit/python-prompt-toolkit/blob/main/LICENSE"
-    - message: ".*PyPI::azure-identity:2\\.5\\..*"
+    - message: ".*PyPI::azure-identity:1\\.25\\..*"
       reason: "CANT_FIX_EXCEPTION"
       comment: "MIT License: https://github.com/Azure/azure-sdk-for-python/blob/azure-identity_1.25.1/sdk/identity/azure-identity/LICENSE"
