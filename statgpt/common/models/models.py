@@ -172,6 +172,9 @@ class ChannelDatasetVersion(DefaultBase):
         type_=String(10), default=None
     )
 
+    # Resolved configuration at indexing time (dynamic URN values resolved to concrete values)
+    resolved_config: Mapped[dict | None] = mapped_column(type_=postgresql.JSONB, default=None)
+
     # relationships
     channel_dataset: Mapped[ChannelDataset] = relationship(back_populates="versions")
     pointer = relationship(

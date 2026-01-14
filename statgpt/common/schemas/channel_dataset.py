@@ -36,6 +36,10 @@ class ChannelDatasetVersion(DbDefaultBase):
     indicator_dimensions_hash: str | None
     non_indicator_dimensions_hash: str | None
     special_dimensions_hash: str | None
+    resolved_config: dict | None = Field(
+        default=None,
+        description="Resolved dataset configuration at indexing time (dynamic URN values resolved to concrete values)",
+    )
 
     @property
     def all_hashes_dict(self) -> dict[str, str | None]:

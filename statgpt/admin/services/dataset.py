@@ -826,6 +826,18 @@ class AdminPortalDataSetService(DataSetService):
         await self._session.commit()
         await self._session.refresh(item)
 
+    async def _set_resolved_config(
+        self,
+        item: models.ChannelDatasetVersion,
+        resolved_config: dict | None,
+    ) -> None:
+        """Sets the resolved configuration for the given channel dataset version."""
+        if resolved_config is not None:
+            item.resolved_config = resolved_config
+            item.updated_at = func.now()
+            await self._session.commit()
+            await self._session.refresh(item)
+
     async def rollback_channel_dataset_to_previous_version(
         self, channel_id: int, dataset_id: int
     ) -> schemas.ChannelDatasetVersion:
@@ -1500,6 +1512,10 @@ class AdminPortalDataSetService(DataSetService):
                 auth_context=auth_context,
                 allow_offline=False,  # Unable to reindex offline dataset
             )
+
+            # Extract and store resolved config from loaded dataset
+            resolved_config = dataset.get_resolved_config()
+            await self._set_resolved_config(version, resolved_config)
 
             if reindex_dimensions or (reindex_indicators and not harmonize_indicator):
                 config_hashes = dataset.config.indexing_hashes
