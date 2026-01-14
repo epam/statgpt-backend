@@ -41,7 +41,7 @@ dependencies = [
     'requests (>=2.32.5,<3.0.0)',                # HTTP library
 
     # Authentication & Security
-    'azure-identity (>=1.17.1,<2.0.0)',          # Azure authentication
+    'azure-identity (>=1.25.1,<2.0.0)',          # Azure authentication
     'PyJWT (>=2.8.0,<3.0.0)',                    # JSON Web Token support
 
     # Configuration & File handling
