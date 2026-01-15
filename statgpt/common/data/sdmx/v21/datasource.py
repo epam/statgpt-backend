@@ -392,3 +392,14 @@ class Sdmx21DataSourceHandler(
                 "Failed to create dataset hierarchy. Returning None. See exception details below."
             )
             return None
+
+    def merge_config_with_resolved(
+        self,
+        current_config: dict,
+        resolved_config: dict,
+    ) -> dict:
+        """Uses the new configuration except for the resolved URN."""
+        result = current_config.copy()
+        if 'urn' in resolved_config:
+            result['urn'] = resolved_config['urn']
+        return result

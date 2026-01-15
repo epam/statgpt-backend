@@ -879,6 +879,72 @@ class AdminPortalDataSetService(DataSetService):
         await self._session.refresh(new_item)
         return schemas.ChannelDatasetVersion.model_validate(new_item, from_attributes=True)
 
+    async def apply_config_to_channel_dataset(
+        self, channel_id: int, dataset_id: int
+    ) -> schemas.ChannelDatasetVersion:
+        """Create a new version with updated config but existing indexed data.
+
+        This allows applying non-indexing config changes (citation, pinned_columns,
+        is_required, defaultQueries, etc.) without re-indexing the dataset.
+        """
+        channel: models.Channel = await ChannelService(self._session).get_model_by_id(channel_id)
+        dataset: models.DataSet = await self.get_model_by_id(dataset_id)
+        channel_dataset = await self.get_channel_dataset_model_or_raise(
+            channel_id=channel.id, dataset_id=dataset.id
+        )
+
+        last_version = await self._get_latest_channel_dataset_version_schema(
+            channel_dataset_id=channel_dataset.id
+        )
+        if last_version and last_version.preprocessing_status not in StatusEnum.final_statuses():
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Cannot apply config while the indexing is in progress.",
+            )
+
+        last_completed_versions = await self._get_latest_successful_channel_dataset_versions(
+            channel_dataset_ids=[channel_dataset.id]
+        )
+        last_completed = last_completed_versions[channel_dataset.id].last_completed_version
+        if last_completed is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="No completed version exists to apply config to.",
+            )
+
+        # Use handler to merge configs (preserves resolved URN for SDMX)
+        handler = await self._get_handler(dataset.source_id)
+        new_resolved_config = handler.merge_config_with_resolved(
+            current_config=dataset.details,
+            resolved_config=last_completed.resolved_config or {},
+        )
+
+        # Calculate new config hashes from the merged config
+        parsed_config = handler.parse_data_set_config(new_resolved_config)
+        config_hashes = parsed_config.indexing_hashes
+
+        new_item = models.ChannelDatasetVersion(
+            channel_dataset_id=channel_dataset.id,
+            # `version` will be set by the DB trigger automatically
+            preprocessing_status=StatusEnum.COMPLETED,
+            pointer_to=last_completed.version_data_id,
+            creation_reason="Applied dataset config changes without re-indexing",
+            resolved_config=new_resolved_config,
+            indicators_config_hash=config_hashes.indicator_hash,
+            non_indicators_config_hash=config_hashes.non_indicator_hash,
+            special_dimensions_config_hash=config_hashes.special_hash,
+            structure_metadata=last_completed.structure_metadata,
+            structure_hash=last_completed.structure_hash,
+            indicator_dimensions_hash=last_completed.indicator_dimensions_hash,
+            non_indicator_dimensions_hash=last_completed.non_indicator_dimensions_hash,
+            special_dimensions_hash=last_completed.special_dimensions_hash,
+        )
+
+        self._session.add(new_item)
+        await self._session.commit()
+        await self._session.refresh(new_item)
+        return schemas.ChannelDatasetVersion.model_validate(new_item, from_attributes=True)
+
     async def is_channel_dataset_latest_version_up_to_date(
         self, channel_id: int, dataset_id: int, auth_context: AuthContext
     ) -> schemas.ChangesBetweenVersionAndActualData:

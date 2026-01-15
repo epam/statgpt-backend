@@ -130,3 +130,15 @@ class DataSourceHandler(
 
     async def get_dataset_hierarchy(self, auth_context: AuthContext) -> DatasetHierarchy | None:
         return None
+
+    @abstractmethod
+    def merge_config_with_resolved(
+        self,
+        current_config: dict,
+        resolved_config: dict,
+    ) -> dict:
+        """Merge current config with resolved config from indexing time.
+
+        Takes current_config and merges with resolved_config to preserve
+        any dynamically resolved values (implementation-specific).
+        """
