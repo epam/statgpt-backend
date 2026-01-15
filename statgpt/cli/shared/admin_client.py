@@ -13,6 +13,7 @@ from statgpt.common.schemas import (
     Channel,
     ChannelDatasetBase,
     ChannelDatasetExpanded,
+    ChannelDatasetVersion,
     ChannelIndexStatus,
     DataSet,
     DataSource,
@@ -220,6 +221,18 @@ class AdminClient:
         """Deduplicate channel embeddings."""
         resp = await self._client.post(self._url(f"/channels/{channel_id}/datasets/deduplicate"))
         resp.raise_for_status()
+
+    async def apply_config_to_channel_dataset(
+        self,
+        channel_id: int,
+        dataset_id: int,
+    ) -> ChannelDatasetVersion:
+        """Apply current dataset config to channel without re-indexing."""
+        resp = await self._client.post(
+            self._url(f"/channels/{channel_id}/datasets/{dataset_id}/versions/apply-config")
+        )
+        resp.raise_for_status()
+        return ChannelDatasetVersion.model_validate(resp.json())
 
     async def create_channel(self, channel_data: dict[str, Any]) -> Channel:
         """Create a new channel."""
