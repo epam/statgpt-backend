@@ -33,7 +33,7 @@ async def lifespan(app_: FastAPI):
         await DatabaseHealthChecker().check()
 
         # Start data preloading in the background
-        asyncio.create_task(preload_data(allow_cached_datasets=False))
+        asyncio.create_task(preload_data(allow_cached_datasets=False, use_resolved_config=False))
 
         yield
         # Clean up
