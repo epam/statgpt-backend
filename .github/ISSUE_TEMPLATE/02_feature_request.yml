@@ -1,5 +1,6 @@
 name: "🚀 Feature request"
 description: Suggest an idea for this project
+type: Feature
 labels: ["enhancement"]
 body:
   - type: markdown
@@ -17,12 +18,17 @@ body:
   - type: textarea
     attributes:
       label: What is the problem this feature will solve?
+      description: |
+        Describe the problem / use-case / limitation you want to address.
+        Focus on **what** you need to accomplish and **why** it matters
     validations:
       required: true
   - type: textarea
     attributes:
-      label: What is the feature you are proposing to solve the problem?
-      description: Describe the requests. If you already have something in mind... PRs are welcome!
+      label: What is the proposed feature or solution?
+      description: |
+        Describe the feature **design or implementation** if you already have something in mind.
+        PRs are welcome!
     validations:
       required: true
   - type: textarea

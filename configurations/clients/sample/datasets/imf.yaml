@@ -1,0 +1,115 @@
+_anchors:
+  _shared_settings: &shared_settings
+    dataSource: IMF_SDMX21
+    channels:
+      - "statgpt-sample"
+  _shared_details: &shared_details
+    useTitleFromSrc: false
+  _common_dimensions: &common_dimensions
+    COUNTRY:
+      dimensionType: "NON_INDICATOR"
+      subtype: "REGION"
+      alias: "Country/Reference area"
+      allValues:
+        id: "ALL_COUNTRIES"
+        name: "All countries - must be selected when query explicitly asks for all countries"
+        description: "Special value to query all countries"
+    FREQUENCY:
+      dimensionType: "NON_INDICATOR"
+      subtype: "FREQUENCY"
+
+dataSets:
+
+  - id_: "12f79d19-8073-4543-9822-11b08bc6c339"
+    <<: *shared_settings
+    title: "IMF.STA:BOP - Sample"
+    details:
+      <<: *shared_details
+      urn:
+        agency_id: "IMF.STA"
+        resource_id: "BOP"
+        version: "21.0.0"
+      dimensions:
+        INDICATOR:
+          dimensionType: "INDICATOR"
+          isRequired: true
+        BOP_ACCOUNTING_ENTRY:
+          dimensionType: "INDICATOR"
+          isRequired: true
+        <<: *common_dimensions
+        TIME_PERIOD:
+          dimensionType: "TIME_PERIOD"
+          defaultQueries:
+            - values: [ "-5y", "now" ]
+              operator: "between"
+        UNIT:
+          dimensionType: "NON_INDICATOR"
+      includeAttributes:
+        - "SCALE"
+        - "UNIT"
+        - "PUBLISHER"
+        - "SOURCE"
+      citation:
+        provider: "IMF.STA"
+        url: "https://data.imf.org/en/datasets/IMF.STA:BOP"
+        description: &bop-description >
+          The Balance of Payments (BOP) is a statistical statement that summarizes transactions between residents and
+          nonresidents during a period. It consists of the goods and services account, the primary income account, the
+          secondary income account, the capital account, and the financial account.
+      pinnedColumns:
+        - "FREQUENCY_Name"
+        - "COUNTRY_Name"
+        - "BOP_ACCOUNTING_ENTRY_Name"
+        - "INDICATOR_Name"
+      indexer:
+        description: *bop-description
+        indicator:
+          unpack: true
+          useCodeListDescription: true
+
+  - id_: "8f771002-6ae1-41d9-accc-77dae7c88afe"
+    <<: *shared_settings
+    title: "IMF.RES:WEO - Sample"
+    details:
+      <<: *shared_details
+      urn:
+        agency_id: "IMF.RES"
+        resource_id: "WEO"
+        version: "9.0.0"
+      dimensions:
+        INDICATOR:
+          dimensionType: "INDICATOR"
+          isRequired: true
+        <<: *common_dimensions
+        TIME_PERIOD:
+          dimensionType: "TIME_PERIOD"
+          defaultQueries:
+            - values: [ "-5y", "+2y" ]
+              operator: "between"
+      includeAttributes:
+        - "SCALE"
+        - "UNIT"
+        - "PUBLISHER"
+        - "SOURCE"
+      citation:
+        provider: "IMF.RES"
+        url: "https://data.imf.org/en/datasets/IMF.RES:WEO"
+        description: &weo-description >
+          The World Economic Outlook (WEO) database contains selected macroeconomic data series from the statistical
+          appendix of the World Economic Outlook report, which presents the IMF staff's analysis and projections of
+          economic developments at the global level, in major country groups and in many individual countries. The WEO
+          is released in April and September/October each year. Use this database to find data on national accounts,
+          gross domestic product (GDP), inflation, unemployment rates, balance of payments, fiscal indicators, trade
+          for countries and country groups (aggregates), and commodity prices whose data are reported by the IMF. Data
+          are available from 1980 to the present, and projections are given for the next two years. Additionally,
+          medium-term projections are available for selected indicators. For some countries, data are incomplete or
+          unavailable for certain years.
+      pinnedColumns:
+        - "FREQUENCY_Name"
+        - "COUNTRY_Name"
+        - "INDICATOR_Name"
+      indexer:
+        description: *weo-description
+        indicator:
+          unpack: true
+          useCodeListDescription: true

@@ -135,6 +135,14 @@ class ChannelConfig(BaseYamlModel):
         None, description="The out of scope configuration"
     )
     token_usage: TokenUsageConfig = Field(default_factory=TokenUsageConfig)
+    bearer_token_required: bool = Field(
+        default=False,
+        description=(
+            "Whether this channel requires bearer token forwarding to external APIs. "
+            "When True and no bearer token is present, system user context will be used "
+            "if the user has an allowed role."
+        ),
+    )
 
     # ~~~ Tools: ~~~
     available_datasets: AvailableDatasetsTool | None = Field(None)

@@ -1,5 +1,6 @@
 name: 🐞 Bug report
 description: Create a report to help us improve
+type: Bug
 labels: ["bug"]
 body:
   - type: markdown
@@ -12,6 +13,13 @@ body:
       label: StatGPT Backend version
       description: Application version
       placeholder: 0.1.0
+    validations:
+      required: true
+  - type: input
+    attributes:
+      label: Short description
+      description: A brief summary of the bug
+      placeholder: e.g., Application crashes when processing large datasets
     validations:
       required: true
   - type: textarea

@@ -5,17 +5,23 @@ from operator import itemgetter
 
 from langchain_core.documents import Document
 from sdmx.message import StructureMessage
+from sdmx.model.common import TimeDimension
 from sdmx.model.v21 import DataflowDefinition as Dataflow
 
 from statgpt.common.auth.auth_context import AuthContext
 from statgpt.common.config import multiline_logger as logger
 from statgpt.common.data.base import (
+    BaseDimensionConfig,
     DataSetDescriptor,
     DatasetHierarchy,
     DataSourceHandler,
     DataSourceType,
     DefaultDatasetHierarchyCreator,
     DimensionType,
+    IndicatorDimensionConfig,
+    NonIndicatorDimensionConfig,
+    SpecialNonIndicatorDimensions,
+    TimePeriodDimensionConfig,
     VirtualDimensionCategory,
 )
 from statgpt.common.data.sdmx.common import (
@@ -23,9 +29,10 @@ from statgpt.common.data.sdmx.common import (
     DimensionCodeCategory,
     SdmxConstants,
     SdmxDataSetConfig,
+    SdmxDataSetConfigTemplate,
     SdmxDataSourceConfig,
     SdmxDimension,
-    UrnParser,
+    UrnReference,
 )
 from statgpt.common.data.sdmx.v21.dataflow_loader import DataflowLoader
 from statgpt.common.data.sdmx.v21.dataset import (
@@ -55,7 +62,6 @@ class Sdmx21DataSourceHandler(
 
     def __init__(self, config: SdmxDataSourceConfig):
         super().__init__(config)
-        self._urn_parser = UrnParser.create_default()
 
     @staticmethod
     def data_source_type() -> DataSourceType:
@@ -97,20 +103,55 @@ class Sdmx21DataSourceHandler(
         client = await self.create_sdmx_client(auth_context)
 
         message: StructureMessage = await client.dataflow(
-            agency_id="all", resource_id="all", version="latest", params={}
+            agency_id="all",
+            resource_id="all",
+            version="latest",
+            params={"references": "datastructure"},
         )
         dataflows: list[Dataflow] = list(message.dataflow.values())
-        return [
-            DataSetDescriptor(
-                source_id=self._urn_parser.parse(dataflow.urn).get_short_urn(),
-                name=dataflow.name[self._config.locale],
-                description=dataflow.description.localizations.get(self._config.locale),
-                details=SdmxDataSetConfig(
-                    urn=self._urn_parser.parse(dataflow.urn).get_short_urn()
-                ).model_dump(by_alias=True),
+
+        res = [self._get_dataset_descriptor(dataflow) for dataflow in dataflows]
+        return res
+
+    def _get_dataset_descriptor(self, dataflow: Dataflow) -> DataSetDescriptor:
+        urn = Urn.for_artifact(dataflow)
+        urn_ref = UrnReference.model_validate(urn, from_attributes=True)
+        try:
+            config = self._create_config_for(dataflow, urn_ref)
+        except Exception:
+            logger.warning(
+                f"Failed to create dataset config for dataflow urn={dataflow.urn!r}", exc_info=True
             )
-            for dataflow in dataflows
-        ]
+            config = SdmxDataSetConfigTemplate(urn=urn_ref)
+
+        return DataSetDescriptor(
+            name=dataflow.name[self._config.locale],
+            description=dataflow.description.localizations.get(self._config.locale),
+            details=config,
+        )
+
+    @staticmethod
+    def _create_config_for(dataflow: Dataflow, urn_ref: UrnReference) -> SdmxDataSetConfigTemplate:
+        """We do our best to create a valid dataset configuration from the dataflow structure."""
+
+        dimensions: dict[str, BaseDimensionConfig] = {}
+        for dim in dataflow.structure.dimensions:
+            entity_id = dim.id
+            if isinstance(dim, TimeDimension):
+                dimensions[entity_id] = TimePeriodDimensionConfig()
+            elif dim.id.upper() in ["FREQ", "FREQUENCY"]:
+                dimensions[entity_id] = NonIndicatorDimensionConfig(
+                    subtype=SpecialNonIndicatorDimensions.FREQUENCY
+                )
+            elif dim.id.upper() in ["INDICATOR", "SERIES"]:
+                dimensions[entity_id] = IndicatorDimensionConfig(is_required=True)
+            else:
+                dimensions[entity_id] = BaseDimensionConfig(dimension_type=None)
+
+        if not dimensions:
+            raise ValueError(f"Could not find any dimensions in dataflow {dataflow.urn!r}")
+
+        return SdmxDataSetConfigTemplate(urn=urn_ref, dimensions=dimensions)
 
     @property
     def entity_id(self) -> str:
@@ -159,31 +200,19 @@ class Sdmx21DataSourceHandler(
     ) -> Sdmx21DataSet | SdmxOfflineDataSet:
         dataset_config = self.parse_data_set_config(config)
 
-        try:
-            _urn = self._urn_parser.parse(dataset_config.urn)
-        except Exception as e:
-            if allow_offline:
-                msg = f"Failed to parse the URN={dataset_config.urn!r} from the dataset configuration."
-                logger.exception(msg)
-                status = Status(status='offline', details=msg)
-                return SdmxOfflineDataSet(entity_id, title, dataset_config, self, status)
-            else:
-                raise e
-
-        urn = Urn(
-            agency_id=_urn.agency_id,
-            resource_id=_urn.resource_id,
-            version=_urn.version if _urn.version else "latest",
-        )
-
         sdmx_client = await self.create_sdmx_client(auth_context)
 
         try:
+            urn = Urn(
+                agency_id=dataset_config.urn.agency_id,
+                resource_id=dataset_config.urn.resource_id,
+                version=dataset_config.urn.version,
+            )
             dataflow_loader = DataflowLoader(sdmx_client)
-            structure_message = await dataflow_loader.load_structure_message(urn, mode="full")
+            urn, structure_message = await dataflow_loader.load_structure_message(urn, mode="full")
         except Exception as e:
             if allow_offline:
-                msg = f"Failed to load the dataflow or its associated structures. {urn=}"
+                msg = f"Failed to load the dataflow or its associated structures. urn={dataset_config.urn!r}"
                 logger.exception(msg)
                 status = Status(status='offline', details=msg)
                 return SdmxOfflineDataSet(entity_id, title, dataset_config, self, status)
@@ -255,17 +284,16 @@ class Sdmx21DataSourceHandler(
         self, dataset_config: dict, auth_context: AuthContext
     ) -> tuple[str, dict]:
         config = self.parse_data_set_config(dataset_config)
-        _urn = self._urn_parser.parse(config.urn)
         urn = Urn(
-            agency_id=_urn.agency_id,
-            resource_id=_urn.resource_id,
-            version=_urn.version if _urn.version else "latest",
+            agency_id=config.urn.agency_id,
+            resource_id=config.urn.resource_id,
+            version=config.urn.version or "latest",
         )
 
         sdmx_client = await self.create_sdmx_client(auth_context)
 
         dataflow_loader = DataflowLoader(sdmx_client)
-        structure_message = await dataflow_loader.load_structure_message(urn, mode="shallow")
+        urn, structure_message = await dataflow_loader.load_structure_message(urn, mode="shallow")
 
         meta_json = {
             "dimensions": self._get_dimensions_from(structure_message, urn),
