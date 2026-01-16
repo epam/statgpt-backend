@@ -48,9 +48,7 @@ class JobsConfig:
     DATASET_FIELDS = {"id_", "title", "details"}  # and dynamic 'dataSource' field
     DATA_SOURCE_FIELDS = {"title", "description", "type_id", "details"}
     VERSIONS_FIELDS = {
-        'indicators_config_hash',
-        'non_indicators_config_hash',
-        'special_dimensions_config_hash',
+        'indexing_config_hash',
         'structure_metadata',
         'structure_hash',
         'indicator_dimensions_hash',

@@ -35,5 +35,6 @@ from .enums import (
     QueryOperator,
     SpecialNonIndicatorDimensions,
 )
+from .indexing import IndexingField, IndexingHashMixin
 from .indicator import BaseIndicator
 from .query import DataSetAvailabilityQuery, DataSetQuery, DimensionQuery, Query  # , IndicatorQuery

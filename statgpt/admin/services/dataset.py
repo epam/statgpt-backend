@@ -18,7 +18,6 @@ from statgpt.admin.settings.exim import ExImSettings, JobsConfig
 from statgpt.common import utils
 from statgpt.common.auth.auth_context import AuthContext
 from statgpt.common.data import base
-from statgpt.common.data.base.config import ConfigHashes
 from statgpt.common.data.base.dataset import DataSetConfigType
 from statgpt.common.hybrid_indexer import Indexer
 from statgpt.common.schemas import ChannelIndexStatusScope, HybridSearchConfig
@@ -807,15 +806,13 @@ class AdminPortalDataSetService(DataSetService):
     async def _set_version_hashes_and_metadata(
         self,
         item: models.ChannelDatasetVersion,
-        config_hashes: ConfigHashes,
+        config_hash: str,
         structure_hash: str,
         structure_metadata: dict,
         data_hashes: _DataHashes,
     ) -> None:
         """Sets the structure and data hashes for the given channel dataset version."""
-        item.indicators_config_hash = config_hashes.indicator_hash
-        item.non_indicators_config_hash = config_hashes.non_indicator_hash
-        item.special_dimensions_config_hash = config_hashes.special_hash
+        item.indexing_config_hash = config_hash
         item.structure_metadata = structure_metadata
         item.structure_hash = structure_hash
         item.indicator_dimensions_hash = data_hashes.indicator_dimensions_hash
@@ -919,9 +916,9 @@ class AdminPortalDataSetService(DataSetService):
             resolved_config=last_completed.resolved_config or {},
         )
 
-        # Calculate new config hashes from the merged config
+        # Calculate new config hash from the merged config
         parsed_config = handler.parse_data_set_config(new_resolved_config)
-        config_hashes = parsed_config.indexing_hashes
+        config_hash = parsed_config.indexing_hash
 
         new_item = models.ChannelDatasetVersion(
             channel_dataset_id=channel_dataset.id,
@@ -930,9 +927,7 @@ class AdminPortalDataSetService(DataSetService):
             pointer_to=last_completed.version_data_id,
             creation_reason="Applied dataset config changes without re-indexing",
             resolved_config=new_resolved_config,
-            indicators_config_hash=config_hashes.indicator_hash,
-            non_indicators_config_hash=config_hashes.non_indicator_hash,
-            special_dimensions_config_hash=config_hashes.special_hash,
+            indexing_config_hash=config_hash,
             structure_metadata=last_completed.structure_metadata,
             structure_hash=last_completed.structure_hash,
             indicator_dimensions_hash=last_completed.indicator_dimensions_hash,
@@ -967,7 +962,7 @@ class AdminPortalDataSetService(DataSetService):
         handler = await self._get_handler(dataset_db.source_id)
         config = handler.parse_data_set_config(dataset_db.details)
 
-        config_changes = self._get_config_changes(version, config.indexing_hashes)
+        config_changes = self._get_config_changes(version, config.indexing_hash)
 
         structure_hash, meta = await handler.get_structure_hash_and_metadata(
             dataset_config=dataset_db.details, auth_context=auth_context
@@ -1012,26 +1007,17 @@ class AdminPortalDataSetService(DataSetService):
 
     @staticmethod
     def _get_config_changes(
-        version: schemas.ChannelDatasetVersion, config_hashes: ConfigHashes
+        version: schemas.ChannelDatasetVersion, config_hash: str
     ) -> list[schemas.ConfigChange]:
-        iterable = [
-            ('Indicator', version.indicators_config_hash, config_hashes.indicator_hash),
-            ('Special', version.special_dimensions_config_hash, config_hashes.special_hash),
-            (
-                'Non-indicator',
-                version.non_indicators_config_hash,
-                config_hashes.non_indicator_hash,
-            ),
-        ]
-        return [
-            schemas.ConfigChange(
-                message=f"The configuration for the {name} dimensions has changed.",
-                last_version_hash=old_hash,
-                actual_hash=new_hash,
-            )
-            for name, old_hash, new_hash in iterable
-            if old_hash != new_hash
-        ]
+        if version.indexing_config_hash != config_hash:
+            return [
+                schemas.ConfigChange(
+                    message="The dataset configuration (used during indexing) has changed.",
+                    last_version_hash=version.indexing_config_hash,
+                    actual_hash=config_hash,
+                )
+            ]
+        return []
 
     @staticmethod
     def _get_data_changes(
@@ -1584,13 +1570,13 @@ class AdminPortalDataSetService(DataSetService):
             await self._set_resolved_config(version, resolved_config)
 
             if reindex_dimensions or (reindex_indicators and not harmonize_indicator):
-                config_hashes = dataset.config.indexing_hashes
+                config_hash = dataset.config.indexing_hash
                 structure_hash, meta = await handler.get_structure_hash_and_metadata(
                     dataset_config=db_dataset.details, auth_context=auth_context
                 )
                 data_hashes = await self._get_data_hashes(dataset, auth_context, allow_cached=True)
                 await self._set_version_hashes_and_metadata(
-                    version, config_hashes, structure_hash, meta, data_hashes
+                    version, config_hash, structure_hash, meta, data_hashes
                 )
 
             vector_store_factory = VectorStoreFactory(session=self._session)
