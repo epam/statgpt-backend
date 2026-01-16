@@ -147,7 +147,7 @@ cp .env.template .env
 The [Environment variables section](#environment-variables) provides links to pages with
 detailed information about environment variables.
 
-#### 6. Create `dial_conf/core/config.json` file by running python script
+#### 6. Create `dial/core/config/config.json` file by running python script
 
 _Not implemented yet, TODO: create a script that generates config based on .env variables_
 
