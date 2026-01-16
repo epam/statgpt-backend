@@ -1037,7 +1037,7 @@ class AdminPortalDataSetService(DataSetService):
         result = await self._session.execute(query)
         await self._session.commit()
 
-        _log.info(f"Updated {result.rowcount} channel dataset version(s) to FAILED status")
+        _log.info(f"Updated {result.rowcount} channel dataset version(s) to FAILED status")  # type: ignore[attr-defined]
 
     async def reload_all_indicators(
         self,

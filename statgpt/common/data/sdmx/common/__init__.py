@@ -1,4 +1,4 @@
-from .base import BaseIdentifiableArtefact, BaseNameableArtefact
+from .base import BaseIdentifiableArtefact, BaseNameableArtefact, FullUrn
 from .category import (
     CodeCategory,
     DimensionCodeCategory,
@@ -12,6 +12,7 @@ from .config import (
     SdmxDataSetConfig,
     SdmxDataSetConfigTemplate,
     SdmxDataSourceConfig,
+    UrnReference,
 )
 from .constants import SdmxConstants
 from .dimension import SdmxCodeListDimension, SdmxDimension, SdmxTimeDimension

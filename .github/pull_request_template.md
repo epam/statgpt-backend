@@ -12,5 +12,6 @@
 <!-- [Place an '[X]' (no spaces) in all applicable fields. Please remove unrelated fields.] -->
 
 - [ ] Title of the pull request follows [Conventional Commits specification](https://www.conventionalcommits.org/en/v1.0.0/)
+- [ ] Deployed and tested in a `Review` environment.
 
 By submitting this pull request, I confirm that my contribution is made under the terms of the MIT license.

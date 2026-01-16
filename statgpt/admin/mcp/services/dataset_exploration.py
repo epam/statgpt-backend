@@ -7,8 +7,9 @@ from statgpt.admin.mcp.utils.dataset_formatter import DetailedDatasetFormatter
 from statgpt.common.auth.auth_context import AuthContext
 from statgpt.common.data.base.datasource import DataSourceHandler
 from statgpt.common.data.quanthub.v21.qh_sdmx_client import AsyncQuanthubClient
-from statgpt.common.data.sdmx.common.config import SdmxDataSourceConfig
+from statgpt.common.data.sdmx.common.config import SdmxDataSourceConfig, UrnReference
 from statgpt.common.data.sdmx.common.dimension import SdmxDimension
+from statgpt.common.data.sdmx.common.urn import UrnParser
 from statgpt.common.data.sdmx.v21.attribute import Sdmx21Attribute
 from statgpt.common.data.sdmx.v21.attributes_creator import Sdmx21AttributesCreator
 from statgpt.common.data.sdmx.v21.dataflow_loader import DataflowLoader
@@ -53,13 +54,22 @@ async def create_data_source_handler(data_source_id: int) -> DataSourceHandler |
     return handler
 
 
-async def get_datasets(data_source_id: int):
+async def get_datasets(data_source_id: int) -> list[dict] | None:
     """Retrieve all datasets for a given data source."""
     handler = await create_data_source_handler(data_source_id)
     if handler is None:
         return None
     datasets = await handler.list_datasets(auth_context=auth_context)
-    return datasets
+    datasets_dict = []
+    for dataset in datasets:
+        datasets_dict.append(
+            {
+                'name': dataset.name,
+                'description': dataset.description,
+                'urn': dataset.details.urn.short_urn(),  # type: ignore[attr-defined]
+            }
+        )
+    return datasets_dict
 
 
 async def create_sdmx_client(handler_config: SdmxDataSourceConfig, auth_context: AuthContext):
@@ -81,7 +91,7 @@ async def get_dataset_dimensions_and_attributes(
         return None, None
     sdmx_client = await create_sdmx_client(handler._config, auth_context)
 
-    parsed_urn = handler._urn_parser.parse(urn)  # type: ignore[attr-defined]
+    parsed_urn = UrnParser.create_default().parse(urn)  # type: ignore[attr-defined]
     urn_obj = Urn(
         agency_id=parsed_urn.agency_id,
         resource_id=parsed_urn.resource_id,
@@ -89,12 +99,16 @@ async def get_dataset_dimensions_and_attributes(
     )
 
     dataflow_loader = DataflowLoader(sdmx_client)
-    structure_message = await dataflow_loader.load_structure_message(urn_obj, mode="full")
+    actual_urn, structure_message = await dataflow_loader.load_structure_message(
+        urn_obj, mode="full"
+    )
 
-    dims_creator = DimensionsCreator(structure_message, urn_obj, handler._config.locale, {})
+    dims_creator = DimensionsCreator(structure_message, actual_urn, handler._config.locale, {})
     dimensions = await dims_creator.create_dimensions()
 
-    attributes_creator = Sdmx21AttributesCreator(structure_message, urn_obj, handler._config.locale)
+    attributes_creator = Sdmx21AttributesCreator(
+        structure_message, actual_urn, handler._config.locale
+    )
     attributes = await attributes_creator.create_attributes()
     return dimensions, attributes
 
@@ -115,6 +129,10 @@ async def validate_dataset_config(
     )
     if dimensions is None:
         return "DIMENSIONS_NOT_FOUND"
+
+    parsed_urn = UrnParser.create_default().parse(dataset_config['details']['urn'])  # type: ignore[attr-defined]
+    dataset_config['details']['urn'] = UrnReference.model_validate(parsed_urn, from_attributes=True)
+
     dataset_config_parsed = handler.parse_data_set_config(dataset_config['details'])
     handler.validate_dataset_config(dataset_config_parsed, dimensions)
     return "VALIDATION_PASSED"

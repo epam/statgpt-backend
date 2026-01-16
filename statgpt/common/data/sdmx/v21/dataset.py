@@ -78,7 +78,7 @@ _log = logging.getLogger(__name__)
 class SdmxOfflineDataSet(OfflineDataSet[SdmxDataSetConfig, 'Sdmx21DataSourceHandler']):
     @property
     def source_id(self) -> str:
-        return self.config.urn
+        return self.config.urn.short_urn()
 
     @property
     def description(self) -> str:

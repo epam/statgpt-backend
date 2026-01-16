@@ -50,12 +50,12 @@ class QuanthubSdmx21DataSourceHandler(Sdmx21DataSourceHandler):
             return True
         else:
             try:
-                urn = self._urn_parser.parse(config["urn"])
+                conf = self.parse_data_set_config(config)
                 client = await self.create_sdmx_client(auth_context)
                 await client.availableconstraint(
-                    agency_id=urn.agency_id,
-                    resource_id=urn.resource_id,
-                    version=urn.version if urn.version else "latest",
+                    agency_id=conf.urn.agency_id,
+                    resource_id=conf.urn.resource_id,
+                    version=conf.urn.version,
                     params={"references": "none"},
                     use_cache=False,
                 )
@@ -84,37 +84,25 @@ class QuanthubSdmx21DataSourceHandler(Sdmx21DataSourceHandler):
             # If auth is disabled, we can cache datasets for all users
             if ds := self._dataset_cache.get(str(entity_id)):
                 logger.debug(
-                    f"Returning cached dataset(id={entity_id}, urn={dataset_config.urn!r})."
+                    f"Returning cached dataset(id={entity_id}, urn={dataset_config.urn!r})"
                 )
                 return ds
 
-        logger.info("Loading dataset urn=%s", dataset_config.urn)
-
-        try:
-            _urn = self._urn_parser.parse(dataset_config.urn)
-        except Exception as e:
-            if allow_offline:
-                msg = f"Failed to parse the URN={dataset_config.urn!r} from the dataset configuration."
-                logger.exception(msg)
-                status = Status(status='offline', details=msg)
-                return SdmxOfflineDataSet(entity_id, title, dataset_config, self, status)
-            else:
-                raise e
-
-        urn = Urn(
-            agency_id=_urn.agency_id,
-            resource_id=_urn.resource_id,
-            version=_urn.version if _urn.version else "latest",
-        )
+        logger.info(f"Loading dataset urn={dataset_config.urn!r}.")
 
         sdmx_client = await self.create_sdmx_client(auth_context)
 
         try:
+            urn = Urn(
+                agency_id=dataset_config.urn.agency_id,
+                resource_id=dataset_config.urn.resource_id,
+                version=dataset_config.urn.version,
+            )
             dataflow_loader = DataflowLoader(sdmx_client)
-            structure_message = await dataflow_loader.load_structure_message(urn, mode="full")
+            urn, structure_message = await dataflow_loader.load_structure_message(urn, mode="full")
         except Exception as e:
             if allow_offline:
-                msg = f"Failed to load the dataflow or its associated structures. {urn=}"
+                msg = f"Failed to load the dataflow or its associated structures. urn={dataset_config.urn!r}"
                 logger.exception(msg)
                 status = Status(status='offline', details=msg)
                 return SdmxOfflineDataSet(entity_id, title, dataset_config, self, status)
@@ -169,7 +157,7 @@ class QuanthubSdmx21DataSourceHandler(Sdmx21DataSourceHandler):
             )
             annotations = []
         except Exception:
-            logger.exception("Failed to load annotations for the dataflow(%s).", urn)
+            logger.exception(f"Failed to load annotations for the dataflow({urn}).")
             annotations = []
 
         try:
