@@ -172,26 +172,21 @@ All variables are prefixed with `STATGPT_CLI_`.
 | `DIAL_API_KEY`                |    No    | DIAL API key                                      | -                                     |
 | **Authentication**            |          |                                                   |                                       |
 | `AUTH_PROVIDER`               |    No    | Auth provider (`azure`, `keycloak`, `auth0`)      | -                                     |
+| `AUTH_CALLBACK_PORT`          | Yes****  | Fixed port for OAuth callback (e.g., `8085`)      | dynamic                               |
 | `AUTH_AZURE_CLIENT_ID`        |  Yes**   | Azure application/client ID                       | -                                     |
 | `AUTH_AZURE_AUTHORITY`        |  Yes**   | Authority URL (includes tenant)                   | -                                     |
 | `AUTH_AZURE_SCOPE`            |  Yes**   | Token scope                                       | -                                     |
-| `AUTH_AZURE_CLIENT_SECRET`    |  Yes***  | Client secret (system_user only)                  | -                                     |
-| `AUTH_AZURE_USERNAME`         |  Yes***  | Username (system_user only)                       | -                                     |
-| `AUTH_AZURE_PASSWORD`         |  Yes***  | Password (system_user only)                       | -                                     |
+| `AUTH_AZURE_CLIENT_SECRET`    |  Yes***  | Client secret (M2M/CI only)                       | -                                     |
 | `AUTH_KEYCLOAK_SERVER_URL`    |  Yes**   | Keycloak server URL                               | -                                     |
 | `AUTH_KEYCLOAK_REALM`         |  Yes**   | Keycloak realm name                               | -                                     |
 | `AUTH_KEYCLOAK_CLIENT_ID`     |  Yes**   | Keycloak client ID                                | -                                     |
-| `AUTH_KEYCLOAK_CLIENT_SECRET` |    No    | Client secret (confidential only)                 | -                                     |
+| `AUTH_KEYCLOAK_CLIENT_SECRET` |  Yes***  | Client secret (M2M/CI only)                       | -                                     |
 | `AUTH_KEYCLOAK_SCOPE`         |    No    | OAuth scope                                       | `openid`                              |
-| `AUTH_KEYCLOAK_USERNAME`      |  Yes***  | Username (system_user only)                       | -                                     |
-| `AUTH_KEYCLOAK_PASSWORD`      |  Yes***  | Password (system_user only)                       | -                                     |
 | `AUTH_AUTH0_DOMAIN`           |  Yes**   | Auth0 tenant domain (e.g., mytenant.us.auth0.com) | -                                     |
 | `AUTH_AUTH0_CLIENT_ID`        |  Yes**   | Auth0 application client ID                       | -                                     |
 | `AUTH_AUTH0_AUDIENCE`         |  Yes**   | Auth0 API identifier (audience)                   | -                                     |
-| `AUTH_AUTH0_CLIENT_SECRET`    |    No    | Client secret (confidential clients)              | -                                     |
+| `AUTH_AUTH0_CLIENT_SECRET`    |  Yes***  | Client secret (M2M/CI only)                       | -                                     |
 | `AUTH_AUTH0_SCOPE`            |    No    | OAuth scope                                       | `openid profile email offline_access` |
-| `AUTH_AUTH0_USERNAME`         |  Yes***  | Username (system_user only)                       | -                                     |
-| `AUTH_AUTH0_PASSWORD`         |  Yes***  | Password (system_user only)                       | -                                     |
 | **General**                   |          |                                                   |                                       |
 | `LOG_LEVEL`                   |    No    | `DEBUG`, `INFO`, `WARNING`, `ERROR`               | `INFO`                                |
 | `DATA_DIR`                    |    No    | CLI data directory                                | `~/.statgpt`                          |
@@ -199,6 +194,7 @@ All variables are prefixed with `STATGPT_CLI_`.
 \* Required for `content init` command
 \** Required for `auth login` (Azure, Keycloak, or Auth0, depending on `AUTH_PROVIDER`)
 \*** Required for `auth login --method system_user`
+\**** Required for Auth0 interactive login (Auth0 doesn't support wildcard ports)
 
 ## Data Directory
 
@@ -208,6 +204,103 @@ The CLI stores persistent data in `~/.statgpt/` (configurable via `STATGPT_CLI_D
 |--------------------|-------------------------------------------------------|
 | `cli_history`      | Command history for up/down arrow navigation          |
 | `token_cache.json` | Cached authentication tokens (restricted permissions) |
+
+## Authentication Provider Setup
+
+All providers support two authentication flows:
+- **Interactive login** - Browser-based authentication using PKCE (for developers)
+- **System user login** - Client Credentials Grant (for CI/CD pipelines)
+
+### Azure Entra ID
+
+**For Interactive Login (Public Client):**
+
+1. Go to Azure Portal → Microsoft Entra ID → App registrations
+2. Create new registration (e.g., "StatGPT CLI")
+3. Under Authentication:
+   - Add platform: Mobile and desktop applications
+   - Add redirect URI: `http://localhost` (MSAL handles port internally)
+   - Enable "Allow public client flows"
+4. Note the Application (client) ID and Directory (tenant) ID
+5. Configure environment variables:
+   ```bash
+   STATGPT_CLI_AUTH_PROVIDER=azure
+   STATGPT_CLI_AUTH_AZURE_CLIENT_ID={application-id}
+   STATGPT_CLI_AUTH_AZURE_AUTHORITY=https://login.microsoftonline.com/{tenant-id}
+   STATGPT_CLI_AUTH_AZURE_SCOPE=api://{api-client-id}/.default
+   ```
+
+**For M2M/CI (Service Principal):**
+
+1. In the same or different app registration, go to Certificates & secrets
+2. Create new client secret, note the value
+3. Ensure the app has required API permissions (Application permissions, not Delegated)
+4. Grant admin consent for the permissions
+5. Add to environment:
+   ```bash
+   STATGPT_CLI_AUTH_AZURE_CLIENT_SECRET={secret-value}
+   ```
+
+### Keycloak
+
+**For Interactive Login (Public Client):**
+
+1. Go to Keycloak Admin Console → Clients → Create client
+2. Client type: OpenID Connect
+3. Client ID: e.g., `statgpt-cli`
+4. Client authentication: OFF (public client)
+5. Standard flow: Enabled
+6. Valid redirect URIs: `http://localhost:*/callback` or fixed port (e.g., `http://localhost:8085/callback`)
+7. Configure environment variables:
+   ```bash
+   STATGPT_CLI_AUTH_PROVIDER=keycloak
+   STATGPT_CLI_AUTH_KEYCLOAK_SERVER_URL=https://keycloak.example.com
+   STATGPT_CLI_AUTH_KEYCLOAK_REALM={realm-name}
+   STATGPT_CLI_AUTH_KEYCLOAK_CLIENT_ID=statgpt-cli
+   ```
+
+**For M2M/CI (Service Account):**
+
+1. Create a new client (can be same or separate from interactive client)
+2. Client authentication: ON (confidential client)
+3. Enable "Service accounts roles" in capability config
+4. In Credentials tab, copy the client secret
+5. Assign required roles to the service account user
+6. Add to environment:
+   ```bash
+   STATGPT_CLI_AUTH_KEYCLOAK_CLIENT_SECRET={client-secret}
+   ```
+
+### Auth0
+
+**For Interactive Login (Native Application):**
+
+1. Go to Auth0 Dashboard → Applications → Create Application
+2. Choose "Native" application type
+3. In Settings:
+   - Allowed Callback URLs: `http://localhost:8085/callback` (must match `AUTH_CALLBACK_PORT`)
+4. Note the Domain and Client ID
+5. Configure environment variables:
+   ```bash
+   STATGPT_CLI_AUTH_PROVIDER=auth0
+   STATGPT_CLI_AUTH_AUTH0_DOMAIN={tenant}.us.auth0.com
+   STATGPT_CLI_AUTH_AUTH0_CLIENT_ID={client-id}
+   STATGPT_CLI_AUTH_AUTH0_AUDIENCE={api-identifier}
+   STATGPT_CLI_AUTH_CALLBACK_PORT=8085
+   ```
+
+**For M2M/CI (Machine-to-Machine):**
+
+1. Create NEW Application → Machine to Machine
+2. Select the API to authorize
+3. Copy Client ID and Client Secret
+4. Configure environment (use M2M app credentials):
+   ```bash
+   STATGPT_CLI_AUTH_AUTH0_CLIENT_ID={m2m-client-id}
+   STATGPT_CLI_AUTH_AUTH0_CLIENT_SECRET={m2m-client-secret}
+   ```
+
+**Note:** Auth0 requires a fixed callback port (doesn't support wildcard ports in redirect URIs).
 
 ## Example Workflows
 
