@@ -172,7 +172,7 @@ All variables are prefixed with `STATGPT_CLI_`.
 | `DIAL_API_KEY`                |    No    | DIAL API key                                      | -                                     |
 | **Authentication**            |          |                                                   |                                       |
 | `AUTH_PROVIDER`               |    No    | Auth provider (`azure`, `keycloak`, `auth0`)      | -                                     |
-| `AUTH_CALLBACK_PORT`          | Yes****  | Fixed port for OAuth callback (e.g., `8085`)      | dynamic                               |
+| `AUTH_CALLBACK_PORT`          | Yes****  | Fixed port for OAuth callback (e.g., `8142`)      | dynamic                               |
 | `AUTH_AZURE_CLIENT_ID`        |  Yes**   | Azure application/client ID                       | -                                     |
 | `AUTH_AZURE_AUTHORITY`        |  Yes**   | Authority URL (includes tenant)                   | -                                     |
 | `AUTH_AZURE_SCOPE`            |  Yes**   | Token scope                                       | -                                     |
@@ -250,7 +250,7 @@ All providers support two authentication flows:
 3. Client ID: e.g., `statgpt-cli`
 4. Client authentication: OFF (public client)
 5. Standard flow: Enabled
-6. Valid redirect URIs: `http://localhost:*/callback` or fixed port (e.g., `http://localhost:8085/callback`)
+6. Valid redirect URIs: `http://localhost:*/callback` or fixed port (e.g., `http://localhost:8142/callback`)
 7. Configure environment variables:
    ```bash
    STATGPT_CLI_AUTH_PROVIDER=keycloak
@@ -278,7 +278,7 @@ All providers support two authentication flows:
 1. Go to Auth0 Dashboard → Applications → Create Application
 2. Choose "Native" application type
 3. In Settings:
-   - Allowed Callback URLs: `http://localhost:8085/callback` (must match `AUTH_CALLBACK_PORT`)
+   - Allowed Callback URLs: `http://localhost:8142/callback` (must match `AUTH_CALLBACK_PORT`)
 4. Note the Domain and Client ID
 5. Configure environment variables:
    ```bash
@@ -286,7 +286,7 @@ All providers support two authentication flows:
    STATGPT_CLI_AUTH_AUTH0_DOMAIN={tenant}.us.auth0.com
    STATGPT_CLI_AUTH_AUTH0_CLIENT_ID={client-id}
    STATGPT_CLI_AUTH_AUTH0_AUDIENCE={api-identifier}
-   STATGPT_CLI_AUTH_CALLBACK_PORT=8085
+   STATGPT_CLI_AUTH_CALLBACK_PORT=8142
    ```
 
 **For M2M/CI (Machine-to-Machine):**
