@@ -4,12 +4,8 @@ from typing import Any, Literal
 from pydantic import BaseModel, Field
 
 from statgpt.common.config import utils as config_utils
-from statgpt.common.data.base import (
-    DataSetConfig,
-    DataSetConfigTemplate,
-    DataSetHierarchyConfig,
-    DataSourceConfig,
-)
+from statgpt.common.data.base.config import DataSetConfig, DataSetConfigTemplate
+from statgpt.common.data.base.datasource import DataSetHierarchyConfig, DataSourceConfig
 
 _log = logging.getLogger(__name__)
 

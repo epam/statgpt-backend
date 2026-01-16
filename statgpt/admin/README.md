@@ -1,5 +1,7 @@
 # Admin
 
+* Admin now has possibility to setup MCP. For setup instructions, see [MCP README](mcp/README.md).
+
 ## Environment variables
 
 Below are the environment variables specific to the Admin Application. Other required variables can be found in

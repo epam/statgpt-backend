@@ -200,6 +200,10 @@ _Not implemented yet, TODO: create a script that generates config based on .env 
 
    See [CLI documentation](statgpt/cli/README.md) for more commands.
 
+## MCP
+
+Admin now includes MCP(for datasets configuration). For setup instructions for MCP, go to [MCP README](statgpt/admin/mcp/README.md).
+
 ## Utils for Development
 
 ### 1. Format the code

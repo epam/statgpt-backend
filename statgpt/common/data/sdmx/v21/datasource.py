@@ -24,6 +24,8 @@ from statgpt.common.data.base import (
     TimePeriodDimensionConfig,
     VirtualDimensionCategory,
 )
+from statgpt.common.data.base.config import DataSetConfig
+from statgpt.common.data.base.dimension import Dimension
 from statgpt.common.data.sdmx.common import (
     ComplexIndicator,
     DimensionCodeCategory,
@@ -31,7 +33,6 @@ from statgpt.common.data.sdmx.common import (
     SdmxDataSetConfig,
     SdmxDataSetConfigTemplate,
     SdmxDataSourceConfig,
-    SdmxDimension,
     UrnParser,
 )
 from statgpt.common.data.sdmx.v21.dataflow_loader import DataflowLoader
@@ -162,8 +163,8 @@ class Sdmx21DataSourceHandler(
     def entity_id(self) -> str:
         return self._config.get_id()
 
-    def _validate_dataset_config(
-        self, config: SdmxDataSetConfig, dimensions: list[SdmxDimension]
+    def validate_dataset_config(
+        self, config: DataSetConfig, dimensions: t.Sequence[Dimension]
     ) -> None:
         problems = []
 

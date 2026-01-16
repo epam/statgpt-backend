@@ -1,11 +1,13 @@
 import typing as t
 import uuid
 from abc import ABC, abstractmethod
+from collections.abc import Sequence
 
 from langchain_core.documents import Document
 from pydantic import BaseModel, ConfigDict, Field, SkipValidation, alias_generators
 
 from statgpt.common.auth.auth_context import AuthContext
+from statgpt.common.data.base.dimension import Dimension
 
 from .base import BaseEntity, EntityType
 from .category import DimensionCategory
@@ -131,3 +133,9 @@ class DataSourceHandler(
 
     async def get_dataset_hierarchy(self, auth_context: AuthContext) -> DatasetHierarchy | None:
         return None
+
+    @abstractmethod
+    def validate_dataset_config(
+        self, config: DataSetConfig, dimensions: Sequence[Dimension]
+    ) -> None:
+        pass

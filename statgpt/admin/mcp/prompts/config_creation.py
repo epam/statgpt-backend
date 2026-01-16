@@ -2,6 +2,7 @@ from fastmcp.prompts import Message
 
 
 def add_config_for_dataset(user_request: str):
+    """Prompt messages for dataset configuration creation from user request."""
     return [
         Message(
             content=f"""
@@ -11,33 +12,22 @@ Given a single user request, create a complete dataset configuration YAML.
 USER REQUEST: {user_request}
 
 The request may mention a dataset topic/title and optionally a client/data source(Clients and data sources are the same thing).
-If the client is not specified, search across all clients/data sources to find the best-matching dataset.
+If the client is not specified, ask user to specify the client and then search across all clients/data sources to find the best-matching client and its dataset.
 Identify the dataset(URN, title, etc). But If there are several similar datasets that match user request
-you need to ask clarification questions(which to choose) listing these similar datasets and their URNs, titles.
+you must to ask clarification questions(which to choose) listing these similar datasets and their URNs, titles.
+
 
 Use existing dataset configurations for the same client as references.
 Prefer English configs and reuse shared anchors (settings, details, provider).
 Use the client’s channel configuration to identify named-entity dimension types.
 
-Dimension rules:
-• Always include one main indicator dimension:
-  - isRequired: true
-  - dimensionType: INDICATOR
+When generating dimensions config:
+- Use existing YAML configs for the same client as the source of truth for dimension structure; derive - their patterns and infer the logic from similar datasets.
+- Infer dimension types and required flags by dataset structure and sample dimension values.
+  Use typical full combinations to identify which dimensions are essential and which can be optional.
+- If a dimension is a dataset specific (related only for this dataset/its ds domain), then its dimension type: INDICATOR (all other dimensions should be NON_INDICATOR but if dimension is in named entity types it should be NON_INDICATOR)
+- Mark a dimension as isRequired: true only if omitting it makes the dataset ambiguous or incomplete; otherwise, keep it isRequired: false.
 
-• For all other dimensions:
-  - Skip dimensions already covered by shared/common dimensions.
-  - If the dimension is generally understandable by name (e.g. age) to average human,
-    or matches a named-entity type, set dimensionType: NON_INDICATOR.
-  - If a dimension is a dataset specific (related only for this dataset/its ds domain), set dimensionType: INDICATOR.
-    Or if a dimension is called a BREAKDOWN or BREAKDOWN_CATEGORY then set dimensionType: INDICATOR.
-    Name BREAKDOWN/ BREAKDOWN CATEGORY names does not sound dataset specific but the values of this dimensions are actually dataset specific.
-  - Determine isRequired by comparing meaningful dimension combinations:
-    - If removing the dimension still results in an understandable dataset → isRequired: false
-    - If removing it causes loss of essential specification or ambiguity → isRequired: true
-For understanding dimension types and whether they are required you need to get indicator combinations for the dataset.
-(I suggest to generally explore dataset combinations before to look at all dimensions
-and how full combination look like and which dimensions does not convey essential info - then they does not required probably,
-and if dimensions is dataset specific - then it is indicator probably)
 
 For the Description:
 Write a dataset description based on:
