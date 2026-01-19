@@ -144,8 +144,6 @@ class TestGetAuthSettingsForProvider:
         monkeypatch.setenv("STATGPT_CLI_AUTH_AZURE_AUTHORITY", "https://authority")
         monkeypatch.setenv("STATGPT_CLI_AUTH_AZURE_SCOPE", "scope")
         monkeypatch.setenv("STATGPT_CLI_AUTH_AZURE_CLIENT_SECRET", "secret")
-        monkeypatch.setenv("STATGPT_CLI_AUTH_AZURE_USERNAME", "user")
-        monkeypatch.setenv("STATGPT_CLI_AUTH_AZURE_PASSWORD", "pass")
 
         settings = make_settings()
         azure_settings = settings.get_auth_settings_for_provider("azure")
@@ -154,8 +152,6 @@ class TestGetAuthSettingsForProvider:
         assert azure_settings["authority"] == "https://authority"
         assert azure_settings["scope"] == "scope"
         assert azure_settings["client_secret"] == "secret"
-        assert azure_settings["username"] == "user"
-        assert azure_settings["password"] == "pass"
 
     def test_azure_provider_settings_partial(self, clean_cli_env, monkeypatch):
         monkeypatch.setenv("STATGPT_CLI_AUTH_AZURE_CLIENT_ID", "client-123")
@@ -180,8 +176,6 @@ class TestGetAuthSettingsForProvider:
             "authority",
             "scope",
             "client_secret",
-            "username",
-            "password",
         }
         assert set(azure_settings.keys()) == expected_keys
 

@@ -27,6 +27,7 @@ import logging
 from typing import Literal
 
 from statgpt.cli.settings import cli_settings
+from statgpt.cli.shared.auth.auth0 import Auth0Provider
 from statgpt.cli.shared.auth.azure import AzureEntraIDProvider
 from statgpt.cli.shared.auth.base import (
     AuthConfigError,
@@ -117,7 +118,7 @@ def login(method: LoginMethod, force: bool = False) -> AuthResult:
     if not cli_settings.auth_provider:
         raise AuthenticationError(
             "Authentication provider not configured. "
-            "Set STATGPT_CLI_AUTH_PROVIDER to 'azure' or 'keycloak'."
+            "Set STATGPT_CLI_AUTH_PROVIDER to 'azure', 'keycloak', or 'auth0'."
         )
 
     provider = get_provider(cli_settings.auth_provider)
@@ -249,6 +250,7 @@ def get_auth_headers(method: LoginMethod | None) -> dict[str, str]:
 # Register built-in providers
 register_provider("azure", AzureEntraIDProvider)
 register_provider("keycloak", KeycloakProvider)
+register_provider("auth0", Auth0Provider)
 
 # Export public API
 __all__ = [
