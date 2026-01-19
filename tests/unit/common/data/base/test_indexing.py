@@ -3,7 +3,7 @@
 from typing import Annotated
 
 import pytest
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field, alias_generators
 
 from statgpt.common.data.base.indexing import (
     IndexingField,
@@ -409,3 +409,275 @@ class TestRealWorldScenarios:
         )
 
         assert config1.indexing_hash != config3.indexing_hash
+
+
+class TestWithNonIndexingFieldsFrom:
+    """Tests for the with_non_indexing_fields_from method."""
+
+    def test_merges_marked_from_resolved_and_unmarked_from_current(self) -> None:
+        """IndexingField-marked fields come from resolved, others from current."""
+
+        class Config(BaseModel, IndexingHashMixin):
+            marked: Annotated[str, IndexingField()] = ""
+            unmarked: str = ""
+
+        current = Config(marked="current_value", unmarked="current_unmarked")
+        resolved = Config(marked="resolved_value", unmarked="resolved_unmarked")
+
+        result = resolved.with_non_indexing_fields_from(current)
+
+        assert result.model_dump() == {
+            "marked": "resolved_value",
+            "unmarked": "current_unmarked",
+        }
+
+    def test_camel_case_aliases_with_model_dump(self) -> None:
+        """Should handle camelCase aliases correctly when using model_dump."""
+
+        class Config(BaseModel, IndexingHashMixin):
+            model_config = ConfigDict(
+                alias_generator=alias_generators.to_camel, populate_by_name=True
+            )
+            is_official: bool = False
+            indexing_field: Annotated[str, IndexingField()] = ""
+
+        current = Config(is_official=True, indexing_field="current")
+        resolved = Config(is_official=False, indexing_field="resolved")
+
+        result = resolved.with_non_indexing_fields_from(current)
+
+        assert result.model_dump(mode="json", by_alias=True) == {
+            "isOfficial": True,  # From current (not marked)
+            "indexingField": "resolved",  # From resolved (marked)
+        }
+
+    def test_nested_model_recursive_merge(self) -> None:
+        """Nested models should be recursively merged."""
+
+        class Inner(BaseModel):
+            marked_inner: Annotated[str, IndexingField()] = ""
+            unmarked_inner: str = ""
+
+        class Outer(BaseModel, IndexingHashMixin):
+            nested: Annotated[Inner, IndexingField()] = Field(default_factory=Inner)
+            outer_unmarked: str = ""
+
+        current = Outer(
+            nested=Inner(marked_inner="current_marked", unmarked_inner="current_unmarked"),
+            outer_unmarked="current_outer",
+        )
+        resolved = Outer(
+            nested=Inner(marked_inner="resolved_marked", unmarked_inner="resolved_unmarked"),
+            outer_unmarked="resolved_outer",
+        )
+
+        result = resolved.with_non_indexing_fields_from(current)
+
+        assert result.model_dump() == {
+            "nested": {
+                "marked_inner": "resolved_marked",  # From resolved (marked)
+                "unmarked_inner": "current_unmarked",  # From current (not marked)
+            },
+            "outer_unmarked": "current_outer",  # From current (not marked)
+        }
+
+    def test_dict_of_models_per_key_merge(self) -> None:
+        """dict[str, BaseModel] fields should merge per-key."""
+
+        class DimensionConfig(BaseModel):
+            dimension_type: Annotated[str, IndexingField()] = "INDICATOR"
+            is_required: bool = False  # Not marked
+
+        class DataSetConfig(BaseModel, IndexingHashMixin):
+            dimensions: Annotated[dict[str, DimensionConfig], IndexingField()] = Field(
+                default_factory=dict
+            )
+            citation: str | None = None  # Not marked
+
+        current = DataSetConfig(
+            dimensions={
+                "DIM1": DimensionConfig(dimension_type="INDICATOR", is_required=True),
+                "DIM2": DimensionConfig(dimension_type="NON_INDICATOR", is_required=True),
+            },
+            citation="Current citation",
+        )
+        resolved = DataSetConfig(
+            dimensions={
+                "DIM1": DimensionConfig(dimension_type="INDICATOR", is_required=False),
+                "DIM2": DimensionConfig(dimension_type="NON_INDICATOR", is_required=False),
+            },
+            citation="Resolved citation",
+        )
+
+        result = resolved.with_non_indexing_fields_from(current)
+
+        assert result.model_dump() == {
+            "dimensions": {
+                "DIM1": {"dimension_type": "INDICATOR", "is_required": True},
+                "DIM2": {"dimension_type": "NON_INDICATOR", "is_required": True},
+            },
+            "citation": "Current citation",
+        }
+
+    def test_preserves_resolved_dimension_keys(self) -> None:
+        """Should preserve dimension keys from resolved, not current."""
+
+        class DimensionConfig(BaseModel):
+            dimension_type: Annotated[str, IndexingField()] = "INDICATOR"
+
+        class DataSetConfig(BaseModel, IndexingHashMixin):
+            dimensions: Annotated[dict[str, DimensionConfig], IndexingField()] = Field(
+                default_factory=dict
+            )
+
+        current = DataSetConfig(
+            dimensions={
+                "DIM1": DimensionConfig(dimension_type="INDICATOR"),
+                "NEW_DIM": DimensionConfig(dimension_type="NON_INDICATOR"),  # New key
+            },
+        )
+        resolved = DataSetConfig(
+            dimensions={
+                "DIM1": DimensionConfig(dimension_type="INDICATOR"),
+                "DIM2": DimensionConfig(dimension_type="TIME_PERIOD"),  # Not in current
+            },
+        )
+
+        result = resolved.with_non_indexing_fields_from(current)
+
+        # Should have keys from resolved only (dimensions is marked)
+        assert result.model_dump() == {
+            "dimensions": {
+                "DIM1": {"dimension_type": "INDICATOR"},
+                "DIM2": {"dimension_type": "TIME_PERIOD"},
+            },
+        }
+
+    def test_handles_none_values(self) -> None:
+        """Should handle None values correctly."""
+
+        class Config(BaseModel, IndexingHashMixin):
+            nullable_marked: Annotated[str | None, IndexingField()] = None
+            nullable_unmarked: str | None = None
+
+        current = Config(nullable_marked="current", nullable_unmarked="current")
+        resolved = Config(nullable_marked=None, nullable_unmarked=None)
+
+        result = resolved.with_non_indexing_fields_from(current)
+
+        assert result.model_dump() == {
+            "nullable_marked": None,  # From resolved (marked)
+            "nullable_unmarked": "current",  # From current (unmarked)
+        }
+
+    def test_realistic_sdmx_like_config(self) -> None:
+        """Test with a realistic SDMX-like configuration structure."""
+
+        class UrnReference(BaseModel):
+            agency_id: Annotated[str, IndexingField()] = ""
+            resource_id: Annotated[str, IndexingField()] = ""
+            version: Annotated[str, IndexingField()] = ""
+
+        class DimensionConfig(BaseModel):
+            model_config = ConfigDict(
+                alias_generator=alias_generators.to_camel, populate_by_name=True
+            )
+            dimension_type: Annotated[str, IndexingField()] = "NON_INDICATOR"
+            alias: Annotated[str | None, IndexingField()] = None
+            is_required: bool = False  # Not marked
+            default_queries: list[dict] | None = None  # Not marked
+
+        class DataSetConfig(BaseModel, IndexingHashMixin):
+            model_config = ConfigDict(
+                alias_generator=alias_generators.to_camel, populate_by_name=True
+            )
+            urn: Annotated[UrnReference, IndexingField()] = Field(default_factory=UrnReference)
+            dimensions: Annotated[dict[str, DimensionConfig], IndexingField()] = Field(
+                default_factory=dict
+            )
+            is_official: bool = False  # Not marked
+            citation: str | None = None  # Not marked
+            pinned_columns: list[str] = Field(default_factory=list)  # Not marked
+
+        current = DataSetConfig(
+            urn=UrnReference(agency_id="CURRENT", resource_id="FLOW", version="2.0"),
+            dimensions={
+                "INDICATOR": DimensionConfig(
+                    dimension_type="INDICATOR",
+                    alias="ind",
+                    is_required=True,
+                    default_queries=[{"value": "GDP"}],
+                ),
+                "COUNTRY": DimensionConfig(
+                    dimension_type="NON_INDICATOR",
+                    alias=None,
+                    is_required=True,
+                    default_queries=None,
+                ),
+            },
+            is_official=True,
+            citation="Updated citation 2024",
+            pinned_columns=["INDICATOR", "COUNTRY"],
+        )
+        resolved = DataSetConfig(
+            urn=UrnReference(agency_id="RESOLVED", resource_id="FLOW", version="1.0"),
+            dimensions={
+                "INDICATOR": DimensionConfig(
+                    dimension_type="INDICATOR",
+                    alias="indicator",
+                    is_required=False,
+                    default_queries=None,
+                ),
+                "COUNTRY": DimensionConfig(
+                    dimension_type="NON_INDICATOR",
+                    alias="country",
+                    is_required=False,
+                    default_queries=None,
+                ),
+            },
+            is_official=False,
+            citation="Original citation",
+            pinned_columns=[],
+        )
+
+        result = resolved.with_non_indexing_fields_from(current)
+
+        assert result.model_dump(mode="json", by_alias=True) == {
+            # URN from resolved (marked)
+            "urn": {
+                "agency_id": "RESOLVED",
+                "resource_id": "FLOW",
+                "version": "1.0",
+            },
+            # Dimensions with merged fields
+            "dimensions": {
+                "INDICATOR": {
+                    "dimensionType": "INDICATOR",  # From resolved (marked)
+                    "alias": "indicator",  # From resolved (marked)
+                    "isRequired": True,  # From current (not marked)
+                    "defaultQueries": [{"value": "GDP"}],  # From current (not marked)
+                },
+                "COUNTRY": {
+                    "dimensionType": "NON_INDICATOR",  # From resolved (marked)
+                    "alias": "country",  # From resolved (marked)
+                    "isRequired": True,  # From current (not marked)
+                    "defaultQueries": None,  # From current (not marked)
+                },
+            },
+            # Non-indexing top-level fields from current
+            "isOfficial": True,
+            "citation": "Updated citation 2024",
+            "pinnedColumns": ["INDICATOR", "COUNTRY"],
+        }
+
+
+class TestIndexingHashMixinWithNonIndexingFieldsFromTypeError:
+    """Tests for the with_non_indexing_fields_from method type error."""
+
+    def test_mixin_requires_base_model_for_merge(self) -> None:
+        class NotAModel(IndexingHashMixin):
+            pass
+
+        obj = NotAModel()
+        with pytest.raises(TypeError, match="must be used with Pydantic BaseModel"):
+            obj.with_non_indexing_fields_from(obj)  # type: ignore[arg-type]

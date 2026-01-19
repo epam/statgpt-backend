@@ -398,8 +398,14 @@ class Sdmx21DataSourceHandler(
         current_config: dict,
         resolved_config: dict,
     ) -> dict:
-        """Uses the new configuration except for the resolved URN."""
-        result = current_config.copy()
-        if 'urn' in resolved_config:
-            result['urn'] = resolved_config['urn']
-        return result
+        """Merge current config with resolved config based on IndexingField markers.
+
+        - Fields marked with IndexingField (urn, dimensions indexing fields, indexer):
+          preserved from resolved_config
+        - Fields NOT marked (is_official, citation, pinned_columns, is_required, etc.):
+          taken from current_config
+        """
+        current = SdmxDataSetConfig.model_validate(current_config)
+        resolved = SdmxDataSetConfig.model_validate(resolved_config)
+        merged = resolved.with_non_indexing_fields_from(current)
+        return merged.model_dump(mode="json", by_alias=True)

@@ -1,11 +1,13 @@
 import json
 from collections.abc import Generator
-from typing import Any
+from typing import Any, Self, TypeVar
 
 from pydantic import BaseModel
 from pydantic.fields import FieldInfo
 
 from statgpt.common.utils import crc32_hash
+
+_T = TypeVar("_T", bound=BaseModel)
 
 
 class IndexingField:
@@ -114,7 +116,7 @@ def compute_indexing_hash(model: BaseModel) -> str:
 
 
 class IndexingHashMixin:
-    """Mixin that provides indexing_hash property for Pydantic models.
+    """Mixin that provides indexing hash and config merging for Pydantic models.
 
     Classes using this mixin should mark fields with IndexingField() in Annotated.
     The mixin recursively collects all marked fields and computes a unified hash.
@@ -134,3 +136,62 @@ class IndexingHashMixin:
         if not isinstance(self, BaseModel):
             raise TypeError("IndexingHashMixin must be used with Pydantic BaseModel")
         return compute_indexing_hash(self)
+
+    def with_non_indexing_fields_from(self, source: Self) -> Self:
+        """Return a new instance with non-indexing fields taken from source.
+
+        Creates a copy of this model where:
+        - IndexingField-marked fields: preserved from self
+        - Non-marked fields: taken from source
+        - Nested structures: recursively merged
+
+        Args:
+            source: Model instance to take non-indexing field values from
+
+        Returns:
+            New model instance with merged fields
+        """
+        if not isinstance(self, BaseModel):
+            raise TypeError("IndexingHashMixin must be used with Pydantic BaseModel")
+        return _merge_models(resolved=self, current=source)  # type: ignore[return-value]
+
+
+def _merge_models(*, resolved: _T, current: _T) -> _T:
+    """Merge two model instances based on IndexingField markers.
+
+    - IndexingField-marked fields: taken from resolved
+    - Non-marked fields: taken from current
+    - Nested BaseModel fields: recursively merged
+    - dict[str, BaseModel] fields: merged per-key using resolved keys
+    """
+    model_class = type(resolved)
+    updates: dict[str, Any] = {}
+
+    for field_name, field_info in model_class.model_fields.items():
+        current_val = getattr(current, field_name)
+        resolved_val = getattr(resolved, field_name)
+
+        if _has_indexing_marker(field_info):
+            if resolved_val is None:
+                updates[field_name] = None
+            elif isinstance(resolved_val, BaseModel):
+                updates[field_name] = _merge_models(resolved=resolved_val, current=current_val)
+            elif isinstance(resolved_val, dict):
+                # dict[str, BaseModel] like dimensions - merge per key
+                merged_dict: dict[str, Any] = {}
+                for k, v in resolved_val.items():
+                    if isinstance(v, BaseModel):
+                        current_item = current_val.get(k) if current_val else None
+                        if current_item is not None:
+                            merged_dict[k] = _merge_models(resolved=v, current=current_item)
+                        else:
+                            merged_dict[k] = v
+                    else:
+                        merged_dict[k] = v
+                updates[field_name] = merged_dict
+            else:
+                updates[field_name] = resolved_val
+        else:
+            updates[field_name] = current_val
+
+    return model_class.model_construct(**updates)
