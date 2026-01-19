@@ -81,8 +81,8 @@ DIMENSIONS = {
 }
 
 
-URN_CPI_4_0_0 = {'agency_id': 'IMF.STA', 'resource_id': 'CPI', 'version': '4.0.0'}
-URN_CPI_3_0_1 = {'agency_id': 'IMF.STA', 'resource_id': 'CPI', 'version': '3.0.1'}
+URN_CPI_4_0_0 = {'agencyId': 'IMF.STA', 'resourceId': 'CPI', 'version': '4.0.0'}
+URN_CPI_3_0_1 = {'agencyId': 'IMF.STA', 'resourceId': 'CPI', 'version': '3.0.1'}
 
 
 @pytest.mark.asyncio
