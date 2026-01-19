@@ -1,6 +1,6 @@
 """Replace legacy config hashes with unified indexing_config_hash
 
-Revision ID: a1b2c3d4e5f6
+Revision ID: c7f068b2d47d
 Revises: 77c67d91641c
 Create Date: 2026-01-15 12:00:00.000000
 
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 from alembic import op
 
 # revision identifiers, used by Alembic.
-revision: str = 'a1b2c3d4e5f6'
+revision: str = 'c7f068b2d47d'
 down_revision: str | None = '77c67d91641c'
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None

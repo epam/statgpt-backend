@@ -1,10 +1,11 @@
 import logging
 from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import Field
 
 from statgpt.common.config import utils as config_utils
 from statgpt.common.data.base import (
+    BaseModel,
     DataSetConfig,
     DataSetConfigTemplate,
     DataSetHierarchyConfig,

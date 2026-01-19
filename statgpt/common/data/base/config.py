@@ -3,29 +3,23 @@ from abc import ABC
 from collections.abc import Generator
 from typing import Annotated, Any, Literal, Self
 
-from pydantic import BaseModel as PydanticBaseModel
 from pydantic import (
-    ConfigDict,
     Field,
     SerializationInfo,
     SkipValidation,
     StrictStr,
-    alias_generators,
     field_serializer,
     model_validator,
 )
 
 from statgpt.common.config.utils import replace_env
 
+from .base import BaseModel
 from .enums import DimensionType, SpecialNonIndicatorDimensions
 from .indexing import IndexingField, IndexingHashMixin
 from .query import Query
 
 _log = logging.getLogger(__name__)
-
-
-class BaseModel(PydanticBaseModel):
-    model_config = ConfigDict(alias_generator=alias_generators.to_camel, populate_by_name=True)
 
 
 class VirtualDimensionValue(BaseModel):

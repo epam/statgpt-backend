@@ -1,5 +1,5 @@
 from .attribute import Attribute, CategoricalAttribute, StringAttribute
-from .base import BaseEntity
+from .base import BaseEntity, BaseModel
 from .category import Category, DimensionCategory, VirtualDimensionCategory
 from .config import (
     BaseDimensionConfig,

@@ -929,7 +929,9 @@ class AdminPortalDataSetService(DataSetService):
             # 1) the merging logic is faulty, or
             # 2) resolved_config was missing and current config has indexing-related changes.
             _log.warning(
-                f"Indexing-related config has changed: {last_indexing_hash!r} -> {config_hash!r}"
+                f"Indexing-related config has changed for dataset {dataset.id_!r} "
+                f"(id={dataset.id}) in channel {channel.deployment_id!r} (id={channel.id}): "
+                f"{last_indexing_hash!r} -> {config_hash!r}"
             )
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,

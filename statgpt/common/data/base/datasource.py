@@ -3,11 +3,11 @@ import uuid
 from abc import ABC, abstractmethod
 
 from langchain_core.documents import Document
-from pydantic import BaseModel, ConfigDict, Field, SkipValidation, alias_generators
+from pydantic import Field, SkipValidation
 
 from statgpt.common.auth.auth_context import AuthContext
 
-from .base import BaseEntity, EntityType
+from .base import BaseEntity, BaseModel, EntityType
 from .category import DimensionCategory
 from .config import DataSetConfigTemplate
 from .dataset import DataSet, DataSetConfig
@@ -31,7 +31,7 @@ class DataSetHierarchyConfig(BaseModel):
 
 
 class DataSourceConfig(BaseModel, ABC):
-    model_config = ConfigDict(alias_generator=alias_generators.to_camel, populate_by_name=True)
+    pass
 
 
 DataSourceConfigType = t.TypeVar("DataSourceConfigType", bound=DataSourceConfig)
