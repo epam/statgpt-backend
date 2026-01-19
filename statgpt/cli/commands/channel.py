@@ -484,6 +484,44 @@ async def _select_dataset_interactive(datasets: list[DataSet]) -> str | None:
         ) from None
 
 
+async def _select_apply_config_mode_interactive(
+    datasets: list[DataSet], channel: Channel
+) -> str | None:
+    """Interactive mode selection for apply-config command."""
+    # Show datasets info
+    console.print(f"\n[bold]Datasets in {channel.title}:[/bold]")
+    table = Table(show_header=True, header_style="bold")
+    table.add_column("URN", ratio=2)
+    table.add_column("Title", ratio=2)
+    table.add_column("Status", width=12)
+
+    for ds in datasets:
+        urn = _get_urn_display(ds)
+        status = ds.status.status if ds.status else "UNKNOWN"
+        table.add_row(urn, ds.title, status)
+
+    console.print(table)
+    console.print()
+
+    items = [
+        ("all", "Apply config to all datasets"),
+        ("dataset", "Apply config to specific dataset"),
+    ]
+
+    try:
+        return await select_item_interactive(
+            items,
+            title="Select Apply Config Mode",
+            filter_enabled=False,
+        )
+    except NonInteractiveError:
+        raise NonInteractiveError(
+            "Missing required parameter: --mode\n"
+            "  Available modes: all, dataset\n"
+            "  Usage: statgpt channel apply-config -c <channel> --mode <mode>"
+        ) from None
+
+
 async def reindex_handler(
     channel: str | None = None,
     mode: str | None = None,
@@ -563,6 +601,7 @@ async def reindex_handler(
 
 async def apply_config_handler(
     channel: str | None = None,
+    mode: str | None = None,
     dataset_urn: str | None = None,
 ) -> None:
     """Apply current dataset config to channel without re-indexing."""
@@ -588,42 +627,78 @@ async def apply_config_handler(
             if not selected_channel:
                 return
 
+        print_info(f"Selected channel: {selected_channel.title}")
+
         # Fetch datasets for channel
         datasets = await client.get_datasets(channel_id=selected_channel.id)
         if not datasets:
             print_error("No datasets found in channel.")
             return
 
-        # Select dataset
-        if dataset_urn:
-            selected_ds = next(
-                (ds for ds in datasets if _get_urn_display(ds) == dataset_urn),
-                None,
-            )
-            if not selected_ds:
-                print_error(f"Dataset not found: {dataset_urn}")
+        # Select mode
+        if not mode:
+            mode = await _select_apply_config_mode_interactive(datasets, selected_channel)
+            if not mode:
                 return
+
+        if mode == "all":
+            # Apply config to all datasets
+            success_count = 0
+            failed_datasets: list[str] = []
+
+            for ds in datasets:
+                urn = _get_urn_display(ds)
+                print_info(f"Applying config for: {urn}")
+                try:
+                    with spinner_status(f"Applying config to {urn}..."):
+                        await client.apply_config_to_channel_dataset(
+                            channel_id=selected_channel.id,
+                            dataset_id=ds.id,
+                        )
+                    success_count += 1
+                except Exception as e:
+                    print_error(f"Failed to apply config to {urn}: {e}")
+                    failed_datasets.append(urn)
+
+            # Report results
+            total = len(datasets)
+            if failed_datasets:
+                print_error(
+                    f"Config applied to {success_count}/{total} datasets. "
+                    f"Failed: {', '.join(failed_datasets)}"
+                )
+            else:
+                print_success(f"Config applied to all {total} datasets.")
         else:
-            selected_ds_urn = await _select_dataset_interactive(datasets)
-            if not selected_ds_urn:
-                return
-            selected_ds = next(
-                (ds for ds in datasets if _get_urn_display(ds) == selected_ds_urn),
-                None,
-            )
-            if not selected_ds:
-                return
+            # Apply to single dataset
+            if dataset_urn:
+                selected_ds = next(
+                    (ds for ds in datasets if _get_urn_display(ds) == dataset_urn),
+                    None,
+                )
+                if not selected_ds:
+                    print_error(f"Dataset not found: {dataset_urn}")
+                    return
+            else:
+                selected_ds_urn = await _select_dataset_interactive(datasets)
+                if not selected_ds_urn:
+                    return
+                selected_ds = next(
+                    (ds for ds in datasets if _get_urn_display(ds) == selected_ds_urn),
+                    None,
+                )
+                if not selected_ds:
+                    return
 
-        print_info(f"Applying config for dataset: {_get_urn_display(selected_ds)}")
+            print_info(f"Applying config for dataset: {_get_urn_display(selected_ds)}")
 
-        # Apply config
-        with spinner_status("Applying dataset config..."):
-            version = await client.apply_config_to_channel_dataset(
-                channel_id=selected_channel.id,
-                dataset_id=selected_ds.id,
-            )
+            with spinner_status("Applying dataset config..."):
+                version = await client.apply_config_to_channel_dataset(
+                    channel_id=selected_channel.id,
+                    dataset_id=selected_ds.id,
+                )
 
-        print_success(f"Config applied! New version: {version.version}")
+            print_success(f"Config applied! New version: {version.version}")
 
 
 list_command = Command(
@@ -730,8 +805,13 @@ apply_config_command = Command(
             description="Channel deployment ID",
         ),
         CommandArg(
+            name="mode",
+            description="Apply mode (all/dataset)",
+            choices=["all", "dataset"],
+        ),
+        CommandArg(
             name="dataset-urn",
-            description="Dataset URN (e.g., IMF.RES:WEO:1.0.0)",
+            description="Dataset URN (required when mode=dataset)",
         ),
     ],
 )
