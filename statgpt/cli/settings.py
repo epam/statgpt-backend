@@ -17,6 +17,7 @@ class SettingsSection(StrEnum):
     AUTHENTICATION = "Authentication"
     AZURE = "Azure Entra ID"
     KEYCLOAK = "Keycloak"
+    AUTH0 = "Auth0"
     GENERAL = "General"
 
 
@@ -85,7 +86,12 @@ class CLISettings(BaseSettings):
 
     auth_provider: str | None = Field(
         default=None,
-        description="Authentication provider to use (azure, keycloak). Optional for local development.",
+        description="Authentication provider to use (azure, keycloak, auth0). Optional for local development.",
+        json_schema_extra=field_meta(SettingsSection.AUTHENTICATION),
+    )
+    auth_callback_port: int | None = Field(
+        default=None,
+        description="Fixed port for OAuth callback server (use when provider requires exact redirect URI)",
         json_schema_extra=field_meta(SettingsSection.AUTHENTICATION),
     )
 
@@ -106,17 +112,7 @@ class CLISettings(BaseSettings):
     )
     auth_azure_client_secret: str | None = Field(
         default=None,
-        description="Azure Entra ID client secret (for system user login)",
-        json_schema_extra=field_meta(SettingsSection.AZURE, secret=True),
-    )
-    auth_azure_username: str | None = Field(
-        default=None,
-        description="Username for Azure Entra ID system user login",
-        json_schema_extra=field_meta(SettingsSection.AZURE),
-    )
-    auth_azure_password: str | None = Field(
-        default=None,
-        description="Password for Azure Entra ID system user login",
+        description="Azure Entra ID client secret (required for M2M/CI authentication)",
         json_schema_extra=field_meta(SettingsSection.AZURE, secret=True),
     )
 
@@ -137,23 +133,39 @@ class CLISettings(BaseSettings):
     )
     auth_keycloak_client_secret: str | None = Field(
         default=None,
-        description="Keycloak client secret (for confidential clients)",
-        json_schema_extra=field_meta(SettingsSection.KEYCLOAK, secret=True),
-    )
-    auth_keycloak_username: str | None = Field(
-        default=None,
-        description="Username for Keycloak system user login",
-        json_schema_extra=field_meta(SettingsSection.KEYCLOAK),
-    )
-    auth_keycloak_password: str | None = Field(
-        default=None,
-        description="Password for Keycloak system user login",
+        description="Keycloak client secret (required for M2M/CI authentication)",
         json_schema_extra=field_meta(SettingsSection.KEYCLOAK, secret=True),
     )
     auth_keycloak_scope: str | None = Field(
         default=None,
         description="OAuth scope for Keycloak (default: openid)",
         json_schema_extra=field_meta(SettingsSection.KEYCLOAK),
+    )
+
+    auth_auth0_domain: str | None = Field(
+        default=None,
+        description="Auth0 tenant domain (e.g., mytenant.us.auth0.com)",
+        json_schema_extra=field_meta(SettingsSection.AUTH0),
+    )
+    auth_auth0_client_id: str | None = Field(
+        default=None,
+        description="Auth0 application client ID",
+        json_schema_extra=field_meta(SettingsSection.AUTH0),
+    )
+    auth_auth0_client_secret: str | None = Field(
+        default=None,
+        description="Auth0 client secret (required for M2M/CI authentication)",
+        json_schema_extra=field_meta(SettingsSection.AUTH0, secret=True),
+    )
+    auth_auth0_audience: str | None = Field(
+        default=None,
+        description="Auth0 API identifier (audience)",
+        json_schema_extra=field_meta(SettingsSection.AUTH0),
+    )
+    auth_auth0_scope: str | None = Field(
+        default=None,
+        description="OAuth scope for Auth0 (default: openid profile email offline_access)",
+        json_schema_extra=field_meta(SettingsSection.AUTH0),
     )
 
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = Field(
