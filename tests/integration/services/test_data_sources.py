@@ -86,7 +86,7 @@ async def test_add_data_source_with_defaults(session):
     assert data_source.details.get('locale') == 'en'
 
     assert data_source.details.get('sdmxConfig', {}).get('id') == 'test_id'
-    assert data_source.details.get('sdmxConfig', {}).get('data_content_type') == 'JSON'
+    assert data_source.details.get('sdmxConfig', {}).get('dataContentType') == 'JSON'
     assert data_source.details.get('sdmxConfig', {}).get('name') == 'test_name'
     assert data_source.details.get('sdmxConfig', {}).get('url') == 'https://example.com/sdmx.url'
     assert isinstance(data_source.details.get('sdmxConfig', {}).get('headers'), dict)
