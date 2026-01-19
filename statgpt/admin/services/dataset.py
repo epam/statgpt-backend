@@ -909,16 +909,32 @@ class AdminPortalDataSetService(DataSetService):
                 detail="No completed version exists to apply config to.",
             )
 
-        # Use handler to merge configs (preserves resolved URN for SDMX)
         handler = await self._get_handler(dataset.source_id)
-        new_resolved_config = handler.merge_config_with_resolved(
-            current_config=dataset.details,
-            resolved_config=last_completed.resolved_config or {},
-        )
+
+        if last_completed.resolved_config is None:
+            new_resolved_config = dataset.details
+        else:
+            new_resolved_config = handler.merge_config_with_resolved(
+                current_config=dataset.details,
+                resolved_config=last_completed.resolved_config,
+            )
 
         # Calculate new config hash from the merged config
         parsed_config = handler.parse_data_set_config(new_resolved_config)
         config_hash = parsed_config.indexing_hash
+
+        last_indexing_hash = last_completed.indexing_config_hash
+        if last_indexing_hash is not None and config_hash != last_indexing_hash:
+            # This might happen if:
+            # 1) the merging logic is faulty, or
+            # 2) resolved_config was missing and current config has indexing-related changes.
+            _log.warning(
+                f"Indexing-related config has changed: {last_indexing_hash!r} -> {config_hash!r}"
+            )
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="The indexing-related config has changed. Please reindex the dataset.",
+            )
 
         new_item = models.ChannelDatasetVersion(
             channel_dataset_id=channel_dataset.id,
