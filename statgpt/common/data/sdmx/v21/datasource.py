@@ -25,7 +25,6 @@ from statgpt.common.data.base import (
     VirtualDimensionCategory,
 )
 from statgpt.common.data.base.config import DataSetConfig
-from statgpt.common.data.base.dimension import Dimension
 from statgpt.common.data.sdmx.common import (
     ComplexIndicator,
     DimensionCodeCategory,
@@ -35,6 +34,10 @@ from statgpt.common.data.sdmx.common import (
     SdmxDataSourceConfig,
     UrnReference,
 )
+from statgpt.common.data.sdmx.common.dimension import SdmxDimension
+from statgpt.common.data.sdmx.common.urn import UrnParser
+from statgpt.common.data.sdmx.v21.attribute import Sdmx21Attribute
+from statgpt.common.data.sdmx.v21.attributes_creator import Sdmx21AttributesCreator
 from statgpt.common.data.sdmx.v21.dataflow_loader import DataflowLoader
 from statgpt.common.data.sdmx.v21.dataset import (
     InvalidConfigurationError,
@@ -96,6 +99,34 @@ class Sdmx21DataSourceHandler(
         )
         return AsyncSdmxClient.from_config(self._config, auth_context, rate_limiter)
 
+    async def get_dimensions_and_attributes(
+        self, urn: str, auth_context: AuthContext
+    ) -> tuple[list[SdmxDimension], list[Sdmx21Attribute]]:
+
+        sdmx_client = await self.create_sdmx_client(auth_context)
+
+        parsed_urn = UrnParser.create_default().parse(urn)
+        urn_obj = Urn(
+            agency_id=parsed_urn.agency_id,
+            resource_id=parsed_urn.resource_id,
+            version=parsed_urn.version if parsed_urn.version else "latest",
+        )
+
+        dataflow_loader = DataflowLoader(sdmx_client)
+        actual_urn, structure_message = await dataflow_loader.load_structure_message(
+            urn_obj, mode="full"
+        )
+
+        dims_creator = DimensionsCreator(structure_message, actual_urn, self._config.locale, {})
+        dimensions = await dims_creator.create_dimensions()
+
+        attributes_creator = Sdmx21AttributesCreator(
+            structure_message, actual_urn, self._config.locale
+        )
+        attributes = await attributes_creator.create_attributes()
+
+        return dimensions, attributes
+
     async def is_dataset_available(self, config: dict, auth_context: AuthContext) -> bool:
         # There is no authorization for SDMX datasets, so they are always available
         return True
@@ -151,7 +182,7 @@ class Sdmx21DataSourceHandler(
             elif dim.id.upper() in ["INDICATOR", "SERIES"]:
                 dimensions[entity_id] = IndicatorDimensionConfig(is_required=True)
             else:
-                dimensions[entity_id] = NonIndicatorDimensionConfig(dimension_type="NON_INDICATOR")
+                dimensions[entity_id] = BaseDimensionConfig(dimension_type=None)
 
         if not dimensions:
             raise ValueError(f"Could not find any dimensions in dataflow {dataflow.urn!r}")
@@ -162,11 +193,13 @@ class Sdmx21DataSourceHandler(
     def entity_id(self) -> str:
         return self._config.get_id()
 
-    def validate_dataset_config(
-        self, config: DataSetConfig, dimensions: t.Sequence[Dimension]
+    async def validate_dataset_config(
+        self, config: DataSetConfig, auth_context: AuthContext
     ) -> None:
         problems = []
-
+        dimensions, _ = await self.get_dimensions_and_attributes(
+            config.urn.short_urn(), auth_context  # type: ignore[attr-defined]
+        )
         dimensions_dict = {dim.entity_id: dim for dim in dimensions}
 
         for dim_id, dim_config in config.dimensions.items():

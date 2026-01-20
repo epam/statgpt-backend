@@ -7,6 +7,7 @@ from langchain_core.documents import Document
 from pydantic import BaseModel, ConfigDict, Field, SkipValidation, alias_generators
 
 from statgpt.common.auth.auth_context import AuthContext
+from statgpt.common.data.base.attribute import Attribute
 from statgpt.common.data.base.dimension import Dimension
 
 from .base import BaseEntity, EntityType
@@ -134,7 +135,15 @@ class DataSourceHandler(
         return None
 
     @abstractmethod
-    def validate_dataset_config(
-        self, config: DataSetConfig, dimensions: Sequence[Dimension]
+    async def validate_dataset_config(
+        self,
+        config: DataSetConfig,
+        auth_context: AuthContext,
     ) -> None:
+        pass
+
+    @abstractmethod
+    async def get_dimensions_and_attributes(
+        self, urn: str, auth_context: AuthContext
+    ) -> tuple[Sequence[Dimension], Sequence[Attribute]]:
         pass

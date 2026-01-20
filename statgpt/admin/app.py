@@ -1,9 +1,10 @@
 import asyncio
 import os
 import sys
+from collections.abc import Callable
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import AsyncContextManager, Callable
+from typing import AsyncContextManager
 
 import dotenv
 from aidial_sdk.telemetry.init import init_telemetry
@@ -53,6 +54,7 @@ if APP_SETTINGS.beta_mcp_enabled:
         from statgpt.admin.mcp.app import mcp
     except ImportError as e:
         logger.warning(f"MCP is enabled, but optional beta-mcp dependencies are not installed: {e}")
+        sys.exit(1)
 
     if mcp:
         mcp_app = mcp.http_app(path="/mcp", transport="streamable-http", stateless_http=True)

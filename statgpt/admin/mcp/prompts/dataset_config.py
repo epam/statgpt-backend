@@ -1,6 +1,33 @@
 from fastmcp.prompts import Message
 
 
+def update_anchors_for_datasets(user_request: str):
+    return [
+        Message(
+            content=f"""
+You are a dataset configuration assistant. When you don't know something and you can't find the answer in the user request, ask user for clarification.
+Given a single user request, update the anchors for the datasets. The request will mention either a dataset title/URN(from which you will find the client)or a client/data source.
+for which you will need to update the anchors for the datasets.
+USER REQUEST: {user_request}
+
+
+Updating anchors is done in several steps:
+1. Find the correct client/data source from the request. Review client datasets yamls and channels yaml to understand current structure and anchors.
+2. If dataset URN is provided, find the correct dataset from the client/data source, find this dataset structure to retrieve its dimensions and attributes.
+2. Updating common dimensions:
+- Common dimensions are dimensions that are present in all datasets of the client/data source. (Usually frequency, region)
+- If dataset has a dimension that is not present in other datasets of the client/data source, then it is a dataset specific dimension and should not be added to the common dimensions.
+3. Updating common attributes:
+- Common attributes are attributes that are usually present in datasets of the client/data source.
+- Common attributes adding context regarding the values that are present in the dataset. (Usually scale, unit, etc)
+
+Note: if nothing to add to the anchors, just write this to user and explain why.
+""",
+            role="user",
+        )
+    ]
+
+
 def add_config_for_dataset(user_request: str):
     """Prompt messages for dataset configuration creation from user request."""
     return [
@@ -22,6 +49,8 @@ Prefer English configs and reuse shared anchors (settings, details, provider).
 Use the client’s channel configuration to identify named-entity dimension types.
 
 If you encounter errors in the tools related to getting dataset info, ask user for clarification.
+For the title review how it is done in the existing configs. And use the same pattern.
+
 When generating dimensions config:
 - Use existing YAML configs for the same client as the source of truth for dimension structure; derive - their patterns and infer the logic from similar datasets.
 - Infer dimension types and required flags by dataset structure and sample dimension values.

@@ -3,7 +3,7 @@ from abc import ABC, abstractmethod
 
 from sdmx.model import common
 
-from statgpt.common.data.base.enums import EntityType
+from statgpt.common.data.base import EntityType
 
 from .base import BaseNameableArtefact
 from .category import CodeCategory
