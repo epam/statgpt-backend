@@ -30,6 +30,10 @@ class LLMModelsEnum(StrEnum):
     GPT_4_1_MINI_2025_04_14 = "gpt-4.1-mini-2025-04-14"
     GPT_4_1_NANO_2025_04_14 = "gpt-4.1-nano-2025-04-14"
 
+    # GPT-5 models
+    GPT_5_1_2025_11_13 = "gpt-5.1-2025-11-13"
+    GPT_5_2_2025_12_11 = "gpt-5.2-2025-12-11"
+
     @property
     def deployment_id(self) -> str:
         return os.getenv(f"LLM_MODELS_{self.name}", self.value)
@@ -41,4 +45,12 @@ class LLMModelsEnum(StrEnum):
             LLMModelsEnum.GPT_4_1_2025_04_14,
             LLMModelsEnum.GPT_4_1_MINI_2025_04_14,
             LLMModelsEnum.GPT_4_1_NANO_2025_04_14,
+        }
+
+    @property
+    def is_gpt_5_family(self) -> bool:
+        """Check if the model belongs to the GPT-5 family."""
+        return self in {
+            LLMModelsEnum.GPT_5_1_2025_11_13,
+            LLMModelsEnum.GPT_5_2_2025_12_11,
         }
