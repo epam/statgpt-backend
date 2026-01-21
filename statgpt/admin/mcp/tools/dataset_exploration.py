@@ -6,10 +6,10 @@ from fastmcp.server.providers import LocalProvider
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from statgpt.admin.auth.auth_context import SystemUserAuthContext
+from statgpt.admin.mcp import schemas as mcp_schemas
 from statgpt.admin.services import AdminPortalDataSetService as DataSetService
 from statgpt.common.data.base import DataSetValidationResult
 from statgpt.common.models.database import get_session_contex_manager
-from statgpt.common.schemas.data_source import DataSource
 from statgpt.common.schemas.dataset import DataSetDescriptor
 from statgpt.common.services.data_source import DataSourceService
 
@@ -19,13 +19,20 @@ mcp_tools = LocalProvider()
 @mcp_tools.tool
 async def get_data_sources(
     session: AsyncSession = Depends(get_session_contex_manager),  # type: ignore[arg-type]
-) -> list[DataSource]:  # TODO: use specific schema with less fields (LLM doesn't need all fields)
+) -> list[
+    mcp_schemas.DataSource
+]:  # TODO: use specific schema with less fields (LLM doesn't need all fields)
     """Retrieve a list of data sources"""
     data_source_service = DataSourceService(session)
     data_sources = await data_source_service.get_data_sources_schemas(
         limit=None, offset=0, ids=None
     )
-    return data_sources
+    return [
+        mcp_schemas.DataSource(
+            id=ds.id, title=ds.title, description=ds.description, type=ds.type.name
+        )
+        for ds in data_sources
+    ]
 
 
 @mcp_tools.tool

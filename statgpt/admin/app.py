@@ -48,6 +48,8 @@ lifespan: Lifespan = app_lifespan
 mcp_app = None
 
 if APP_SETTINGS.beta_mcp_enabled:
+    logger.info("Beta MCP is enabled. Initializing MCP app...")
+
     try:
         from statgpt.admin.mcp.app import mcp
     except ImportError as e:
@@ -64,6 +66,9 @@ if APP_SETTINGS.beta_mcp_enabled:
 
     lifespan = combined_lifespan
 
+else:
+    logger.info("Beta MCP is disabled.")
+
 app = FastAPI(
     lifespan=lifespan,
     docs_url="/admin/api/docs",
@@ -72,6 +77,7 @@ app = FastAPI(
 )
 
 if mcp_app:
+    logger.info("Mounting MCP app at /mcp")
     app.mount("/", mcp_app)
 
 init_telemetry(
