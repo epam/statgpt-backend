@@ -1,27 +1,17 @@
 from fastmcp.prompts import Message
 
 
-def update_anchors_for_datasets(user_request: str):
+def validate_generated_config(user_request: str):
     return [
         Message(
             content=f"""
 You are a dataset configuration assistant. When you don't know something and you can't find the answer in the user request, ask user for clarification.
-Given a single user request, update the anchors for the datasets. The request will mention either a dataset title/URN(from which you will find the client)or a client/data source.
-for which you will need to update the anchors for the datasets.
 USER REQUEST: {user_request}
 
-
-Updating anchors is done in several steps:
-1. Find the correct client/data source from the request. Review client datasets yamls and channels yaml to understand current structure and anchors.
-2. If dataset URN is provided, find the correct dataset from the client/data source, find this dataset structure to retrieve its dimensions and attributes.
-2. Updating common dimensions:
-- Common dimensions are dimensions that are present in all datasets of the client/data source. (Usually frequency, region)
-- If dataset has a dimension that is not present in other datasets of the client/data source, then it is a dataset specific dimension and should not be added to the common dimensions.
-3. Updating common attributes:
-- Common attributes are attributes that are usually present in datasets of the client/data source.
-- Common attributes adding context regarding the values that are present in the dataset. (Usually scale, unit, etc)
-
-Note: if nothing to add to the anchors, just write this to user and explain why.
+User will ask you to validate the generated dataset configuration YAML(it is either presented in file or take it from history).
+Given a generated dataset configuration YAML, validate it and return the validation result.
+Config should pass config validation(Do not forget that your config should have common dimensions and attributes(and other anchors) included).
+Output validation results/status. If it does not pass provide explanation why it does not pass.
 """,
             role="user",
         )
@@ -46,7 +36,7 @@ But If there are several similar datasets that match user request you must ask u
 
 Use existing dataset configurations for the same client as references of how configuration should look like.
 Prefer English configs and reuse shared anchors (settings, details, provider).
-Use the client’s channel configuration to identify named-entity dimension types.
+Use the client’s channel configuration to identify named entity types.
 
 If you encounter errors in the tools related to getting dataset info, ask user for clarification.
 For the title review how it is done in the existing configs. And use the same pattern.
@@ -54,10 +44,16 @@ For the title review how it is done in the existing configs. And use the same pa
 When generating dimensions config:
 - Use existing YAML configs for the same client as the source of truth for dimension structure; derive - their patterns and infer the logic from similar datasets.
 - Infer dimension types and required flags by dataset structure and sample dimension values.
-  Use typical full combinations to identify which dimensions are essential and which can be optional.
-- If a dimension is a dataset specific (related only for this dataset/its ds domain), then its dimension type: INDICATOR (all other dimensions should be NON_INDICATOR but if dimension is in named entity types it should be NON_INDICATOR)
+  Use dimension name and sample values to identify which dimensions are essential and which can be optional.
+- If dimension can be explained to average human and is general(not dataset specific) dimension (or in named entity types it should be NON_INDICATOR) then it should be NON_INDICATOR,
+  otherwise if this dimension is specialized for this dataset then it should be INDICATOR. (For better understanding look at previous dataset configurations)
 - Mark a dimension as isRequired: true only if omitting it makes the dataset ambiguous or incomplete; otherwise, keep it isRequired: false.
 
+After generating all dimensions, review named entity types and update them as needed:
+for each NON_INDICATOR dimension from generated config:
+- Check if the dimension can be mapped to any existing named entity type.
+- If it can, it is okay to leave it as is.
+- If it cannot, then create new named entity type for this dimension.
 
 For the Description:
 Write a dataset description based on:
@@ -66,7 +62,7 @@ Write a dataset description based on:
 - example dimension combinations that show what the dataset measures.
 
 Output:
-Correct config should pass config validation.
+Correct config should pass config validation(Do not forget that your config should have common dimensions and attributes(and other anchors) included).
 If it passes validation, return a complete, production-ready dataset configuration YAML consistent with existing client configs.
 """,
             role="user",

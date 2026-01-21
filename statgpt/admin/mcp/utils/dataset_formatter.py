@@ -1,41 +1,16 @@
 # copied(with removing some logic) from statgpt/app/utils/formatters/dataset_detailed.py
-import gettext
 import random
-from abc import ABC
 from collections.abc import Sequence
-from pathlib import Path
 
 from statgpt.common.data.base import CategoricalDimension, Category
 from statgpt.common.data.sdmx.common import SdmxDimension
 from statgpt.common.data.sdmx.v21.attribute import Sdmx21Attribute
-from statgpt.common.schemas.enums import LocaleEnum
 
 
-class BaseFormatter(ABC):
-    def __init__(self, domain: str, locale: LocaleEnum) -> None:
-        locale_dir = Path(__file__).parent / "locales"
-        self.translation: gettext.NullTranslations | gettext.GNUTranslations
-        try:
-            # noinspection PyTypeChecker
-            self.translation = gettext.translation(
-                domain, localedir=locale_dir, languages=[locale.value], fallback=False
-            )
-        except FileNotFoundError:
-            # noinspection PyTypeChecker
-            self.translation = gettext.translation(
-                domain, localedir=locale_dir, languages=[LocaleEnum.EN.value], fallback=True
-            )
-
-        self._ = self.translation.gettext
-
-
-class DetailedDatasetFormatter(BaseFormatter):
+class DetailedDatasetFormatter:
     """Formatter for creating detailed dataset structure descriptions."""
 
-    def __init__(
-        self, include_name: bool, list_level: int, add_source_id: bool, locale: LocaleEnum
-    ) -> None:
-        super().__init__("dataset_formatter", locale)
+    def __init__(self, include_name: bool, list_level: int, add_source_id: bool) -> None:
         self.include_name = include_name
         self.list_level = list_level
         self.add_source_id = add_source_id
@@ -59,8 +34,8 @@ class DetailedDatasetFormatter(BaseFormatter):
         if len(values) <= limit:
             values_str = self._format_values(values)
             return [
-                f'{self._("Total")}: {len(values)} {self._("items")}',
-                f'{self._("Values")}: {values_str}',
+                f'Total: {len(values)} items',
+                f'Values: {values_str}',
             ]
         sample_values: Sequence[Category]
         if shuffle_sample:
@@ -69,8 +44,8 @@ class DetailedDatasetFormatter(BaseFormatter):
             sample_values = values[:limit]
         sample_values_str = self._format_values(sample_values)
         return [
-            f'{self._("Total")}: {len(values)} {self._("items")}',
-            f'{self._("Sample values")}: {sample_values_str}...',
+            f'Total: {len(values)} items',
+            f'Sample values: {sample_values_str}...',
         ]
 
     def _append_dimensions(
@@ -78,7 +53,7 @@ class DetailedDatasetFormatter(BaseFormatter):
     ) -> None:
         if dimensions:
             base_tabs = '\t' * self.list_level
-            result.append(f'\n{base_tabs}- {self._("Dimensions")} ({len(dimensions)})')
+            result.append(f'\n{base_tabs}- Dimensions ({len(dimensions)})')
 
             for dim in dimensions:
                 dim_name = dim.name if hasattr(dim, 'name') else str(dim)
@@ -87,19 +62,15 @@ class DetailedDatasetFormatter(BaseFormatter):
 
                 if dim_id:
                     result.append(
-                        f'{dimension_tabs}- **{dim_name}** [{dim_id}] - {self._("Type")}: {dim.dimension_type}'
+                        f'{dimension_tabs}- **{dim_name}** [{dim_id}] - Type: {dim.dimension_type}'
                     )
                 else:
-                    result.append(
-                        f'{dimension_tabs}- **{dim_name}** - {self._("Type")}: {dim.dimension_type}'
-                    )
+                    result.append(f'{dimension_tabs}- **{dim_name}** - Type: {dim.dimension_type}')
 
                 dimension_details_tabs = '\t' * (self.list_level + 2)
 
                 if dim.description:
-                    result.append(
-                        f'{dimension_details_tabs}- {self._("Description")}: {dim.description}'
-                    )
+                    result.append(f'{dimension_details_tabs}- Description: {dim.description}')
 
                 if isinstance(dim, CategoricalDimension):
                     values = dim.available_values
@@ -114,7 +85,7 @@ class DetailedDatasetFormatter(BaseFormatter):
     ) -> None:
         if attributes:
             base_tabs = '\t' * self.list_level
-            result.append(f'\n{base_tabs}- {self._("Attributes")} ({len(attributes)})')
+            result.append(f'\n{base_tabs}- Attributes ({len(attributes)})')
 
             for attr in attributes:
                 attr_name = attr.name if hasattr(attr, 'name') else str(attr)
@@ -123,18 +94,16 @@ class DetailedDatasetFormatter(BaseFormatter):
                 attribute_tabs = '\t' * (self.list_level + 1)
                 if attr_id:
                     result.append(
-                        f'{attribute_tabs}- **{attr_name}** [{attr_id}] - {self._("Type")}: {attr.attribute_type}'
+                        f'{attribute_tabs}- **{attr_name}** [{attr_id}] - Type: {attr.attribute_type}'
                     )
                 else:
                     result.append(
-                        f'{attribute_tabs}- **{attr_name}** - {self._("Type")}: {attr.attribute_type}'
+                        f'{attribute_tabs}- **{attr_name}** - Type: {attr.attribute_type}'
                     )
 
                 attribute_details_tabs = '\t' * (self.list_level + 2)
                 if attr.description:
-                    result.append(
-                        f'{attribute_details_tabs}- {self._("Description")}: {attr.description}'
-                    )
+                    result.append(f'{attribute_details_tabs}- Description: {attr.description}')
 
     async def format(
         self,

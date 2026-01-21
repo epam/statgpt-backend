@@ -14,7 +14,6 @@ from statgpt.common.data.sdmx.common.urn import UrnParser
 from statgpt.common.data.sdmx.v21.attribute import Sdmx21Attribute
 from statgpt.common.models.database import get_session_contex_manager
 from statgpt.common.schemas.data_source import DataSource
-from statgpt.common.schemas.enums import LocaleEnum
 from statgpt.common.services.data_source import DataSourceService, DataSourceTypeService
 
 
@@ -23,7 +22,10 @@ def get_auth_context() -> AuthContext:
 
 
 async def get_data_sources(
-    data_source_id: int | None = None,
+    data_source_id: Annotated[
+        int | None,
+        "Specific data source ID to retrieve, if not provided, all data sources will be retrieved",
+    ] = None,
     session: AsyncSession = Depends(get_session_contex_manager),  # type: ignore[arg-type]
 ) -> list[DataSource]:
     """Retrieve list of data sources with optional filtering and pagination."""
@@ -129,7 +131,6 @@ async def get_dataset_structure(
         include_name=True,
         list_level=0,
         add_source_id=True,
-        locale=LocaleEnum.EN,
     )
     response = await formatter.format(
         name=urn,
