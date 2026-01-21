@@ -1,14 +1,11 @@
 import typing as t
 import uuid
 from abc import ABC, abstractmethod
-from collections.abc import Sequence
 
 from langchain_core.documents import Document
 from pydantic import BaseModel, ConfigDict, Field, SkipValidation, alias_generators
 
 from statgpt.common.auth.auth_context import AuthContext
-from statgpt.common.data.base.attribute import Attribute
-from statgpt.common.data.base.dimension import Dimension
 
 from .base import BaseEntity, EntityType
 from .category import DimensionCategory
@@ -25,6 +22,18 @@ class DataSetDescriptor(BaseModel):
     details: SkipValidation[DataSetConfigTemplate] = Field(
         description="Preliminary details defined by the data source."
     )
+
+
+class DataSetValidationResult(BaseModel):
+    is_valid: bool = Field(description="Indicates whether the dataset configuration is valid.")
+    errors: list[str] = Field(
+        default_factory=list,
+        description="A list of error messages if the configuration is invalid.",
+    )
+
+
+class DataSetStructure(BaseModel, ABC):
+    """Abstract base class for dataset structure representation."""
 
 
 class DataSetHierarchyConfig(BaseModel):
@@ -136,14 +145,12 @@ class DataSourceHandler(
 
     @abstractmethod
     async def validate_dataset_config(
-        self,
-        config: DataSetConfig,
-        auth_context: AuthContext,
-    ) -> None:
+        self, config: dict, auth_context: AuthContext, mode: t.Literal["raise", "return"] = "raise"
+    ) -> DataSetValidationResult:
         pass
 
     @abstractmethod
-    async def get_dimensions_and_attributes(
-        self, urn: str, auth_context: AuthContext
-    ) -> tuple[Sequence[Dimension], Sequence[Attribute]]:
+    async def get_dataset_structure(
+        self, config: dict, auth_context: AuthContext
+    ) -> DataSetStructure:
         pass

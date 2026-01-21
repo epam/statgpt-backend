@@ -608,6 +608,22 @@ class AdminPortalDataSetService(DataSetService):
 
         return datasets
 
+    async def validate_config(
+        self, source_id: int, config: dict, auth_context: AuthContext
+    ) -> base.DataSetValidationResult:
+        handler = await self._get_handler(source_id)
+        res = await handler.validate_dataset_config(
+            config, auth_context=auth_context, mode="return"
+        )
+        return res
+
+    async def get_dataset_structure(
+        self, source_id: int, config: dict, auth_context: AuthContext
+    ) -> dict:
+        handler = await self._get_handler(source_id)
+        structure = await handler.get_dataset_structure(config, auth_context=auth_context)
+        return structure.model_dump(mode='json', by_alias=True)
+
     async def update(
         self, item_id: int, data: schemas.DataSetUpdate, auth_context: AuthContext
     ) -> schemas.DataSet:

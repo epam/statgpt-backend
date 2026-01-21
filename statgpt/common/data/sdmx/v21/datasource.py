@@ -1,9 +1,11 @@
+import random
 import typing as t
 import uuid
 from abc import ABC
 from operator import itemgetter
 
 from langchain_core.documents import Document
+from pydantic import BaseModel, Field, ValidationError, computed_field
 from sdmx.message import StructureMessage
 from sdmx.model.common import TimeDimension
 from sdmx.model.v21 import DataflowDefinition as Dataflow
@@ -12,8 +14,11 @@ from statgpt.common.auth.auth_context import AuthContext
 from statgpt.common.config import multiline_logger as logger
 from statgpt.common.data.base import (
     BaseDimensionConfig,
+    CategoricalDimension,
     DataSetDescriptor,
     DatasetHierarchy,
+    DataSetStructure,
+    DataSetValidationResult,
     DataSourceHandler,
     DataSourceType,
     DefaultDatasetHierarchyCreator,
@@ -24,7 +29,6 @@ from statgpt.common.data.base import (
     TimePeriodDimensionConfig,
     VirtualDimensionCategory,
 )
-from statgpt.common.data.base.config import DataSetConfig
 from statgpt.common.data.sdmx.common import (
     ComplexIndicator,
     DimensionCodeCategory,
@@ -35,7 +39,6 @@ from statgpt.common.data.sdmx.common import (
     UrnReference,
 )
 from statgpt.common.data.sdmx.common.dimension import SdmxDimension
-from statgpt.common.data.sdmx.common.urn import UrnParser
 from statgpt.common.data.sdmx.v21.attribute import Sdmx21Attribute
 from statgpt.common.data.sdmx.v21.attributes_creator import Sdmx21AttributesCreator
 from statgpt.common.data.sdmx.v21.dataflow_loader import DataflowLoader
@@ -53,6 +56,48 @@ from statgpt.common.utils.timer import debug_timer
 from .dataset_hierarchy import CategorySchemaDataSetHierarchyCreator
 from .ratelimiter import SdmxRateLimiterFactory
 from .schemas import StructureMessage21, Urn
+
+
+class SdmxEntityMetadata(BaseModel):
+    entity_id: str
+    name: str
+    desciption: str | None
+    type: str | None = None
+
+
+class Item(BaseModel):
+    id: str
+    name: str
+
+
+class CategoryDimensionMetadata(SdmxEntityMetadata):
+    values_count: int
+    values_sample: list[Item]
+
+
+class SdmxDataSetStructure(DataSetStructure):
+    provided_urn: UrnReference = Field(
+        description=(
+            "The URN of the SDMX dataflow as provided by the user."
+            " May contain dynamic values or wildcards. E.g., 'latest', 'all', 'X.Y.0+', etc."
+        )
+    )
+    resolved_urn: UrnReference = Field(
+        description="The actual URN of the dataflow as resolved from the SDMX registry."
+    )
+
+    dimensions: list[SdmxEntityMetadata]
+    attributes: list[SdmxEntityMetadata]
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def dimension_count(self) -> int:
+        return len(self.dimensions)
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def attribute_count(self) -> int:
+        return len(self.attributes)
 
 
 class Sdmx21DataSourceHandler(
@@ -99,33 +144,57 @@ class Sdmx21DataSourceHandler(
         )
         return AsyncSdmxClient.from_config(self._config, auth_context, rate_limiter)
 
-    async def get_dimensions_and_attributes(
-        self, urn: str, auth_context: AuthContext
-    ) -> tuple[list[SdmxDimension], list[Sdmx21Attribute]]:
+    @staticmethod
+    def _get_dimension_metadata(dim: SdmxDimension) -> SdmxEntityMetadata:
+        if isinstance(dim, CategoricalDimension):
+            values = dim.available_values
+            sample_size = min(10, len(values))
+            sample_values = [
+                Item(id=value.code, name=value.name) for value in random.sample(values, sample_size)
+            ]
+            return CategoryDimensionMetadata(
+                entity_id=dim.entity_id,
+                name=dim.name,
+                desciption=dim.description,
+                type=dim.dimension_type.value if dim.dimension_type else None,
+                values_count=len(values),
+                values_sample=sample_values,
+            )
 
-        sdmx_client = await self.create_sdmx_client(auth_context)
-
-        parsed_urn = UrnParser.create_default().parse(urn)
-        urn_obj = Urn(
-            agency_id=parsed_urn.agency_id,
-            resource_id=parsed_urn.resource_id,
-            version=parsed_urn.version if parsed_urn.version else "latest",
+        return SdmxEntityMetadata(
+            entity_id=dim.entity_id,
+            name=dim.name,
+            desciption=dim.description,
+            type=dim.dimension_type.value if dim.dimension_type else None,
         )
 
-        dataflow_loader = DataflowLoader(sdmx_client)
-        actual_urn, structure_message = await dataflow_loader.load_structure_message(
-            urn_obj, mode="full"
+    @staticmethod
+    def _get_attribute_metadata(attr: Sdmx21Attribute) -> SdmxEntityMetadata:
+        return SdmxEntityMetadata(
+            entity_id=attr.entity_id,
+            name=attr.name,
+            desciption=attr.description,
+            type=attr.attribute_type.value if attr.attribute_type else None,
         )
 
-        dims_creator = DimensionsCreator(structure_message, actual_urn, self._config.locale, {})
-        dimensions = await dims_creator.create_dimensions()
+    async def get_dataset_structure(
+        self, config: dict, auth_context: AuthContext
+    ) -> SdmxDataSetStructure:
 
-        attributes_creator = Sdmx21AttributesCreator(
-            structure_message, actual_urn, self._config.locale
+        urn_ref = UrnReference.model_validate(config['urn'])
+        actual_urn, structure_message = await self._load_dataset_structure_message(
+            urn_ref=urn_ref, auth_context=auth_context
         )
-        attributes = await attributes_creator.create_attributes()
 
-        return dimensions, attributes
+        dimensions = await self._get_dimensions(actual_urn, structure_message, {})
+        attributes = await self._get_attributes(actual_urn, structure_message)
+
+        return SdmxDataSetStructure(
+            provided_urn=urn_ref,
+            resolved_urn=UrnReference.model_validate(actual_urn, from_attributes=True),
+            dimensions=[self._get_dimension_metadata(dim) for dim in dimensions],
+            attributes=[self._get_attribute_metadata(attr) for attr in attributes],
+        )
 
     async def is_dataset_available(self, config: dict, auth_context: AuthContext) -> bool:
         # There is no authorization for SDMX datasets, so they are always available
@@ -175,7 +244,7 @@ class Sdmx21DataSourceHandler(
                 dimensions[entity_id] = NonIndicatorDimensionConfig(
                     subtype=SpecialNonIndicatorDimensions.FREQUENCY
                 )
-            elif dim.id.upper() in ["REGION"]:
+            elif dim.id.upper() in ["COUNTRY", "REGION", "REF_AREA"]:
                 dimensions[entity_id] = NonIndicatorDimensionConfig(
                     subtype=SpecialNonIndicatorDimensions.REGION
                 )
@@ -194,15 +263,44 @@ class Sdmx21DataSourceHandler(
         return self._config.get_id()
 
     async def validate_dataset_config(
-        self, config: DataSetConfig, auth_context: AuthContext
-    ) -> None:
-        problems = []
-        dimensions, _ = await self.get_dimensions_and_attributes(
-            config.urn.short_urn(), auth_context  # type: ignore[attr-defined]
+        self, config: dict, auth_context: AuthContext, mode: t.Literal["raise", "return"] = "raise"
+    ) -> DataSetValidationResult:
+
+        try:
+            dataset_config = self.parse_data_set_config(config)
+        except ValidationError as e:
+            if mode == "raise":
+                raise
+            else:
+                return DataSetValidationResult(
+                    is_valid=False,
+                    problems=[str(err) for err in e.errors()],
+                )
+
+        urn, structure_message = await self._load_dataset_structure_message(
+            urn_ref=dataset_config.urn, auth_context=auth_context
         )
+        dimensions = await self._get_dimensions(
+            urn, structure_message, aliases=dataset_config.get_dimension_aliases()
+        )
+
+        problems = self._validate_dimension_config(dimensions, dataset_config)
+        if problems:
+            if mode == "raise":
+                raise ValueError("Dataset configuration validation failed:\n" + "\n".join(problems))
+            else:
+                return DataSetValidationResult(is_valid=False, problems=problems)
+
+        return DataSetValidationResult(is_valid=True, problems=[])
+
+    def _validate_dimension_config(
+        self, dimensions: list[SdmxDimension], dataset_config: SdmxDataSetConfig
+    ) -> list[str]:
+        problems = []
+
         dimensions_dict = {dim.entity_id: dim for dim in dimensions}
 
-        for dim_id, dim_config in config.dimensions.items():
+        for dim_id, dim_config in dataset_config.dimensions.items():
             if dim_config.virtual:
                 continue  # Skip virtual dimensions
 
@@ -220,13 +318,40 @@ class Sdmx21DataSourceHandler(
                 )
 
         for dim in dimensions_dict.keys():
-            if dim not in config.dimensions:
+            if dim not in dataset_config.dimensions:
                 problems.append(
-                    f"Dimension with id={dim!r} is present in the dataflow but not configured in the dataset configuration."
+                    f"Dimension with id={dim!r} is present in the dataflow"
+                    f" but not configured in the dataset configuration."
                 )
 
-        if problems:
-            raise ValueError("Dataset configuration validation failed:\n" + "\n".join(problems))
+        return problems
+
+    async def _load_dataset_structure_message(
+        self, urn_ref: UrnReference, auth_context: AuthContext
+    ) -> tuple[Urn, StructureMessage21]:
+        """Load the structure message for the dataset's dataflow."""
+        urn = Urn(
+            agency_id=urn_ref.agency_id, resource_id=urn_ref.resource_id, version=urn_ref.version
+        )
+        sdmx_client = await self.create_sdmx_client(auth_context)
+        dataflow_loader = DataflowLoader(sdmx_client)
+        urn, structure_message = await dataflow_loader.load_structure_message(urn, mode="full")
+        return urn, structure_message
+
+    async def _get_dimensions(
+        self, urn: Urn, structure_message: StructureMessage21, aliases: dict[str, str]
+    ) -> list[SdmxDimension]:
+        """Create dimensions from the structure message based on the dataset configuration."""
+        dimensions_creator = DimensionsCreator(structure_message, urn, self._config.locale, aliases)
+        dimensions = await dimensions_creator.create_dimensions()
+        return dimensions
+
+    async def _get_attributes(
+        self, urn: Urn, structure_message: StructureMessage21
+    ) -> list[Sdmx21Attribute]:
+        attributes_creator = Sdmx21AttributesCreator(structure_message, urn, self._config.locale)
+        attributes = await attributes_creator.create_attributes()
+        return attributes
 
     async def _get_dataset(
         self,
@@ -238,16 +363,10 @@ class Sdmx21DataSourceHandler(
     ) -> Sdmx21DataSet | SdmxOfflineDataSet:
         dataset_config = self.parse_data_set_config(config)
 
-        sdmx_client = await self.create_sdmx_client(auth_context)
-
         try:
-            urn = Urn(
-                agency_id=dataset_config.urn.agency_id,
-                resource_id=dataset_config.urn.resource_id,
-                version=dataset_config.urn.version,
+            urn, structure_message = await self._load_dataset_structure_message(
+                urn_ref=dataset_config.urn, auth_context=auth_context
             )
-            dataflow_loader = DataflowLoader(sdmx_client)
-            urn, structure_message = await dataflow_loader.load_structure_message(urn, mode="full")
         except Exception as e:
             if allow_offline:
                 msg = f"Failed to load the dataflow or its associated structures. urn={dataset_config.urn!r}"
@@ -258,10 +377,9 @@ class Sdmx21DataSourceHandler(
                 raise e
 
         try:
-            dimensions_creator = DimensionsCreator(
-                structure_message, urn, self._config.locale, dataset_config.get_dimension_aliases()
+            dimensions = await self._get_dimensions(
+                urn, structure_message, aliases=dataset_config.get_dimension_aliases()
             )
-            dimensions = await dimensions_creator.create_dimensions()
         except Exception as e:
             if allow_offline:
                 msg = "Failed to create dimensions from the loaded structure message."

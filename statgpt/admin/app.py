@@ -10,7 +10,6 @@ import dotenv
 from aidial_sdk.telemetry.init import init_telemetry
 from aidial_sdk.telemetry.types import MetricsConfig, TelemetryConfig, TracingConfig
 from fastapi import FastAPI, status
-from fastmcp import FastMCP
 
 module_path = Path(__file__).parent.parent.absolute()
 sys.path.append(str(module_path))
@@ -45,27 +44,25 @@ async def app_lifespan(app_: FastAPI):
         # Clean up
 
 
-lifespan: Lifespan = app_lifespan  # set a real default first
+lifespan: Lifespan = app_lifespan
 mcp_app = None
 
 if APP_SETTINGS.beta_mcp_enabled:
-    mcp: FastMCP | None = None
     try:
         from statgpt.admin.mcp.app import mcp
     except ImportError as e:
         logger.warning(f"MCP is enabled, but optional beta-mcp dependencies are not installed: {e}")
         sys.exit(1)
 
-    if mcp:
-        mcp_app = mcp.http_app(path="/mcp", transport="streamable-http", stateless_http=True)
+    mcp_app = mcp.http_app(path="/mcp", transport="streamable-http", stateless_http=True)
 
-        @asynccontextmanager
-        async def combined_lifespan(app_: FastAPI):
-            async with app_lifespan(app_):
-                async with mcp_app.lifespan(app_):  # type: ignore[union-attr]
-                    yield
+    @asynccontextmanager
+    async def combined_lifespan(app_: FastAPI):
+        async with app_lifespan(app_):
+            async with mcp_app.lifespan(app_):  # type: ignore[union-attr]
+                yield
 
-        lifespan = combined_lifespan
+    lifespan = combined_lifespan
 
 app = FastAPI(
     lifespan=lifespan,

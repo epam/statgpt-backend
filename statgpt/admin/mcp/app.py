@@ -1,9 +1,10 @@
 from fastmcp import FastMCP
 
-from statgpt.admin.mcp.prompts import register_prompts
-from statgpt.admin.mcp.services import register_tools
+from statgpt.admin.mcp.prompts import mcp_prompts
+from statgpt.admin.mcp.tools import mcp_tools
 
-mcp = FastMCP(name="statgpt_dataset_exploration")
-
-register_tools(mcp=mcp)
-register_prompts(mcp=mcp)
+mcp = FastMCP(
+    name="StatGPT MCP",
+    instructions="This server provides tools to assist in the exploration and processing of new datasets.",
+    providers=[mcp_prompts, mcp_tools],
+)

@@ -1,6 +1,10 @@
 from fastmcp.prompts import Message
+from fastmcp.server.providers import LocalProvider
+
+mcp_prompts = LocalProvider()
 
 
+@mcp_prompts.prompt()
 def validate_generated_config(user_request: str):
     return [
         Message(
@@ -18,6 +22,7 @@ Output validation results/status. If it does not pass provide explanation why it
     ]
 
 
+@mcp_prompts.prompt()
 def add_config_for_dataset(user_request: str):
     """Prompt messages for dataset configuration creation from user request."""
     return [
