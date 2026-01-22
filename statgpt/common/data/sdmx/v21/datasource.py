@@ -58,6 +58,16 @@ from .ratelimiter import SdmxRateLimiterFactory
 from .schemas import StructureMessage21, Urn
 
 
+class SdmxDataSetDescriptor(DataSetDescriptor):
+    details: SdmxDataSetConfigTemplate = Field(
+        description="Preliminary details defined by the SDMX data source."
+    )
+
+    @property
+    def id_in_source(self) -> str:
+        return self.details.urn.short_urn()
+
+
 class SdmxEntityMetadata(BaseModel):
     entity_id: str
     name: str
@@ -200,7 +210,7 @@ class Sdmx21DataSourceHandler(
         # There is no authorization for SDMX datasets, so they are always available
         return True
 
-    async def list_datasets(self, auth_context: AuthContext) -> list[DataSetDescriptor]:
+    async def list_datasets(self, auth_context: AuthContext) -> list[SdmxDataSetDescriptor]:
         client = await self.create_sdmx_client(auth_context)
 
         message: StructureMessage = await client.dataflow(
@@ -214,7 +224,7 @@ class Sdmx21DataSourceHandler(
         res = [self._get_dataset_descriptor(dataflow) for dataflow in dataflows]
         return res
 
-    def _get_dataset_descriptor(self, dataflow: Dataflow) -> DataSetDescriptor:
+    def _get_dataset_descriptor(self, dataflow: Dataflow) -> SdmxDataSetDescriptor:
         urn = Urn.for_artifact(dataflow)
         urn_ref = UrnReference.model_validate(urn, from_attributes=True)
         try:
@@ -225,7 +235,7 @@ class Sdmx21DataSourceHandler(
             )
             config = SdmxDataSetConfigTemplate(urn=urn_ref)
 
-        return DataSetDescriptor(
+        return SdmxDataSetDescriptor(
             name=dataflow.name[self._config.locale],
             description=dataflow.description.localizations.get(self._config.locale),
             details=config,

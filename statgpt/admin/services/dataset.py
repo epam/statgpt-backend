@@ -600,6 +600,7 @@ class AdminPortalDataSetService(DataSetService):
             datasets.append(
                 schemas.DataSetDescriptor(
                     data_source_id=source_id,
+                    id_in_source=ds.id_in_source,
                     title=ds.name,
                     description=ds.description or "",
                     details=ds.details.model_dump(mode="json", by_alias=True),

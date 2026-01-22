@@ -49,12 +49,12 @@ make statgpt_admin
 ### Claude Code
 
 1) Add the MCP server via terminal:
-```bash
-claude mcp add --transport http statgpt-mcp http://127.0.0.1:8000/mcp
-```
+   ```bash
+   claude mcp add --transport http statgpt-mcp http://127.0.0.1:8000/mcp
+   ```
 
 2) Verify it’s connected
-```bash
-claude mcp list
-claude mcp get statgpt-mcp
-```
+   ```bash
+   claude mcp list
+   claude mcp get statgpt-mcp
+   ```

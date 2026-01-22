@@ -15,13 +15,18 @@ from .dataset_hierarchy import DatasetHierarchy
 from .indicator import BaseIndicator
 
 
-class DataSetDescriptor(BaseModel):
+class DataSetDescriptor(BaseModel, ABC):
     name: str = Field(description="The name of the dataset")
     description: str | None = Field(description="The description of the dataset")
 
     details: SkipValidation[DataSetConfigTemplate] = Field(
         description="Preliminary details defined by the data source."
     )
+
+    @property
+    @abstractmethod
+    def id_in_source(self) -> str:
+        """The unique identifier of the dataset within its data source."""
 
 
 class DataSetValidationResult(BaseModel):

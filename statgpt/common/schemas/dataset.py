@@ -22,9 +22,10 @@ class DataSetBase(BaseModel):
 
 
 class DataSetDescriptor(BaseModel):
+    data_source_id: int = Field(description="The ID of the data source")
+    id_in_source: str = Field(description="The ID of the dataset in the data source")
     title: str
     description: str = Field(default="")
-    data_source_id: int
     details: dict[str, Any]
 
 

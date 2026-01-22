@@ -7,10 +7,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from statgpt.admin.auth.auth_context import SystemUserAuthContext
 from statgpt.admin.mcp import schemas as mcp_schemas
+from statgpt.admin.mcp.schemas import DataSetPreview
 from statgpt.admin.services import AdminPortalDataSetService as DataSetService
 from statgpt.common.data.base import DataSetValidationResult
 from statgpt.common.models.database import get_session_contex_manager
-from statgpt.common.schemas.dataset import DataSetDescriptor
 from statgpt.common.services.data_source import DataSourceService
 
 mcp_tools = LocalProvider()
@@ -39,14 +39,17 @@ async def get_data_sources(
 async def get_available_datasets(
     data_source_id: int,
     session: AsyncSession = Depends(get_session_contex_manager),  # type: ignore[arg-type]
-) -> list[DataSetDescriptor]:
+) -> list[DataSetPreview]:
     """Retrieve all available datasets in a given data source."""
 
     dataset_service = DataSetService(session)
     datasets = await dataset_service.load_available_datasets(
         source_id=data_source_id, auth_context=SystemUserAuthContext()
     )
-    return datasets
+    return [
+        DataSetPreview(id_in_source=ds.id_in_source, title=ds.title, description=ds.description)
+        for ds in datasets
+    ]
 
 
 # @mcp_tools.tool
