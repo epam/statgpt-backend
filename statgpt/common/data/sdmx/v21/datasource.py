@@ -289,7 +289,7 @@ class Sdmx21DataSourceHandler(
             else:
                 return DataSetValidationResult(
                     is_valid=False,
-                    problems=[str(err) for err in e.errors()],
+                    errors=[str(err) for err in e.errors()],
                 )
 
         urn, structure_message = await self._load_dataset_structure_message(
@@ -304,9 +304,9 @@ class Sdmx21DataSourceHandler(
             if mode == "raise":
                 raise ValueError("Dataset configuration validation failed:\n" + "\n".join(problems))
             else:
-                return DataSetValidationResult(is_valid=False, problems=problems)
+                return DataSetValidationResult(is_valid=False, errors=problems)
 
-        return DataSetValidationResult(is_valid=True, problems=[])
+        return DataSetValidationResult(is_valid=True)
 
     def _validate_dimension_config(
         self, dimensions: list[SdmxDimension], dataset_config: SdmxDataSetConfig
