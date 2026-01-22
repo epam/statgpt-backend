@@ -11,6 +11,7 @@ from statgpt.admin.services import AdminPortalDataSetService as DataSetService
 from statgpt.common.data.base import DataSetValidationResult
 from statgpt.common.models.database import get_session_contex_manager
 from statgpt.common.services.data_source import DataSourceService
+from statgpt.common.utils import read_yaml
 
 mcp_tools = LocalProvider()
 
@@ -65,10 +66,25 @@ async def get_dataset_details_schema(
 @mcp_tools.tool
 async def validate_dataset_config(
     data_source_id: int,
-    dataset_config: Annotated[dict, "Dataset config dict, must have 'details' key"],
+    dataset_configs_path: Annotated[str, "Abosulte path to datasets configs file"],
+    dataset_uuid: Annotated[
+        str, "Dataset config UUID using which you can retrieve config from datasets files"
+    ],
     session: AsyncSession = Depends(get_session_contex_manager),  # type: ignore[arg-type]
 ) -> DataSetValidationResult:
     """Validate dataset configuration against its structure."""
+
+    datasets_configs = read_yaml(dataset_configs_path).get('dataSets')
+    if datasets_configs is None:
+        raise ValueError("Datasets configs file does not contain 'dataSets' key")
+    dataset_config = next(
+        (ds_conf for ds_conf in datasets_configs if ds_conf["id_"] == dataset_uuid), None
+    )
+    if dataset_config is None:
+        raise ValueError(
+            f"Dataset config with UUID {dataset_uuid} not found in datasets configs file"
+        )
+
     dataset_service = DataSetService(session)
     res = await dataset_service.validate_config(
         source_id=data_source_id,

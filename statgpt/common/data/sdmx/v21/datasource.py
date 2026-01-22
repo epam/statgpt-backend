@@ -98,6 +98,7 @@ class SdmxDataSetStructure(DataSetStructure):
 
     dimensions: list[SdmxEntityMetadata]
     attributes: list[SdmxEntityMetadata]
+    description: str | None = None
 
     @computed_field  # type: ignore[prop-decorator]
     @property
@@ -192,6 +193,12 @@ class Sdmx21DataSourceHandler(
             type=attr.attribute_type.value if attr.attribute_type else None,
         )
 
+    @staticmethod
+    def _get_description(
+        structure_message: StructureMessage21, urn: Urn, locale: str = "en"
+    ) -> str | None:
+        return structure_message.dataflow[urn].description.localizations.get(locale)
+
     async def get_dataset_structure(
         self, config: dict, auth_context: AuthContext
     ) -> SdmxDataSetStructure:
@@ -209,6 +216,7 @@ class Sdmx21DataSourceHandler(
             resolved_urn=UrnReference.model_validate(actual_urn, from_attributes=True),
             dimensions=[self._get_dimension_metadata(dim) for dim in dimensions],
             attributes=[self._get_attribute_metadata(attr) for attr in attributes],
+            description=self._get_description(structure_message, actual_urn, self._config.locale),
         )
 
     async def is_dataset_available(self, config: dict, auth_context: AuthContext) -> bool:

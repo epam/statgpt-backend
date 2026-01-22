@@ -23,7 +23,7 @@ Output validation results/status. If it does not pass provide explanation why it
 
 
 @mcp_prompts.prompt()
-def add_config_for_dataset(user_request: str):
+def add_dataset_config(user_request: str):
     """Prompt messages for dataset configuration creation from user request."""
     return [
         Message(
@@ -52,7 +52,11 @@ When generating dimensions config:
   Use dimension name and sample values to identify which dimensions are essential and which can be optional.
 - If dimension can be explained to average human and is general(not dataset specific) dimension (or in named entity types it should be NON_INDICATOR) then it should be NON_INDICATOR,
   otherwise if this dimension is specialized for this dataset then it should be INDICATOR. (For better understanding look at previous dataset configurations)
-- Mark a dimension as isRequired: true only if omitting it makes the dataset ambiguous or incomplete; otherwise, keep it isRequired: false.
+- isRequired flag means that at least one marked dimension must have non-empty terms in a query.
+  Set it to `true` only for core crucial indicator dimensions that define what is being measured.
+  Do not set it for dimensions that answer "in what breakdown/aspect is something measured" (e.g. unit_of_measure, adjustment) or for non-indicators.
+  Each dataset must have at least one required dimension.
+
 
 After generating all dimensions, review named entity types and update them as needed:
 for each NON_INDICATOR dimension from generated config:
@@ -61,14 +65,16 @@ for each NON_INDICATOR dimension from generated config:
 - If it cannot, then create new named entity type for this dimension.
 
 For the Description:
-Write a dataset description based on:
-- the dataset title,
-- indicators meanings,
-- example dimension combinations that show what the dataset measures.
+1) Use the description from the dataset structure if it is available and contains meaningful information, but do not fill it just set is as None/null as we will retrieve it from the dataset structure later.
+2) If the description from the dataset structure is not available/not meaningful, write a dataset description based on:
+   - the dataset title,
+   - indicators meanings,
+   - example dimension combinations that show what the dataset measures.
 
 Output:
-Correct config should pass config validation(Do not forget that your config should have common dimensions and attributes(and other anchors) included).
-If it passes validation, return a complete, production-ready dataset configuration YAML consistent with existing client configs.
+Save the configuration to a datasets configs file, then validate it. The configuration must pass validation.
+If validation succeeds, return a complete, production-ready dataset YAML that matches existing client configurations.
+If not return the validation results/status to user and ask him for clarification.
 """,
             role="user",
         )
