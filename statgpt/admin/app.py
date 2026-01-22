@@ -56,7 +56,7 @@ if APP_SETTINGS.beta_mcp_enabled:
         logger.warning(f"MCP is enabled, but optional beta-mcp dependencies are not installed: {e}")
         sys.exit(1)
 
-    mcp_app = mcp.http_app(path="", transport="streamable-http", stateless_http=True)
+    mcp_app = mcp.http_app(path="/", transport="streamable-http", stateless_http=True)
 
     @asynccontextmanager
     async def combined_lifespan(app_: FastAPI):

@@ -87,6 +87,11 @@ class DataSourceHandler(
 
     @staticmethod
     @abstractmethod
+    def get_data_set_config_schema() -> dict:
+        """Get the JSON schema for the dataset configuration specific to this data source type."""
+
+    @staticmethod
+    @abstractmethod
     def parse_data_set_config(d: dict) -> DataSetConfigType:
         pass
 

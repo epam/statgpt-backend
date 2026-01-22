@@ -7,7 +7,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from statgpt.admin.auth.auth_context import SystemUserAuthContext
 from statgpt.admin.mcp import schemas as mcp_schemas
-from statgpt.admin.mcp.schemas import DataSetPreview
 from statgpt.admin.services import AdminPortalDataSetService as DataSetService
 from statgpt.common.data.base import DataSetValidationResult
 from statgpt.common.models.database import get_session_contex_manager
@@ -19,9 +18,7 @@ mcp_tools = LocalProvider()
 @mcp_tools.tool
 async def get_data_sources(
     session: AsyncSession = Depends(get_session_contex_manager),  # type: ignore[arg-type]
-) -> list[
-    mcp_schemas.DataSource
-]:  # TODO: use specific schema with less fields (LLM doesn't need all fields)
+) -> list[mcp_schemas.DataSource]:
     """Retrieve a list of data sources"""
     data_source_service = DataSourceService(session)
     data_sources = await data_source_service.get_data_sources_schemas(
@@ -39,7 +36,7 @@ async def get_data_sources(
 async def get_available_datasets(
     data_source_id: int,
     session: AsyncSession = Depends(get_session_contex_manager),  # type: ignore[arg-type]
-) -> list[DataSetPreview]:
+) -> list[mcp_schemas.DataSetPreview]:
     """Retrieve all available datasets in a given data source."""
 
     dataset_service = DataSetService(session)
@@ -47,16 +44,22 @@ async def get_available_datasets(
         source_id=data_source_id, auth_context=SystemUserAuthContext()
     )
     return [
-        DataSetPreview(id_in_source=ds.id_in_source, title=ds.title, description=ds.description)
+        mcp_schemas.DataSetPreview(
+            id_in_source=ds.id_in_source, title=ds.title, description=ds.description
+        )
         for ds in datasets
     ]
 
 
-# @mcp_tools.tool
-# async def get_dataset_config_schema(data_source_id: int):
-#     """Retrieve the dataset configuration schema for a given data source."""
-#
-#     # TODO: add implementation
+@mcp_tools.tool
+async def get_dataset_details_schema(
+    data_source_id: int,
+    session: AsyncSession = Depends(get_session_contex_manager),
+) -> dict:
+    """Retrieve the configuration schema of the `details` field for datasets in a given data source."""
+    dataset_service = DataSetService(session)
+    schema = await dataset_service.get_dataset_config_schema(source_id=data_source_id)
+    return schema
 
 
 @mcp_tools.tool

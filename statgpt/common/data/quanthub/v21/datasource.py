@@ -233,3 +233,7 @@ class QuanthubSdmx21DataSourceHandler(Sdmx21DataSourceHandler):
     @staticmethod
     def parse_data_set_config(d: dict) -> QuanthubDataSetConfig:
         return QuanthubDataSetConfig.model_validate(d)
+
+    @staticmethod
+    def get_data_set_config_schema() -> dict:
+        return QuanthubDataSetConfig.model_json_schema(by_alias=True)

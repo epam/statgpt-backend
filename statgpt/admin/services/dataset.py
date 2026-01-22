@@ -609,6 +609,11 @@ class AdminPortalDataSetService(DataSetService):
 
         return datasets
 
+    async def get_dataset_config_schema(self, source_id: int) -> dict:
+        """Returns JSON schema for dataset configuration."""
+        handler = await self._get_handler(source_id)
+        return handler.get_data_set_config_schema()
+
     async def validate_config(
         self, source_id: int, config: dict, auth_context: AuthContext
     ) -> base.DataSetValidationResult:

@@ -136,6 +136,10 @@ class Sdmx21DataSourceHandler(
     def parse_data_set_config(d: dict) -> SdmxDataSetConfig:
         return SdmxDataSetConfig.model_validate(d)
 
+    @staticmethod
+    def get_data_set_config_schema() -> dict:
+        return SdmxDataSetConfig.model_json_schema(by_alias=True)
+
     @property
     def source_id(self) -> str:
         return self._config.get_id()
@@ -160,7 +164,8 @@ class Sdmx21DataSourceHandler(
             values = dim.available_values
             sample_size = min(10, len(values))
             sample_values = [
-                Item(id=value.code, name=value.name) for value in random.sample(values, sample_size)
+                Item(id=value.query_id, name=value.name)
+                for value in random.sample(values, sample_size)
             ]
             return CategoryDimensionMetadata(
                 entity_id=dim.entity_id,
