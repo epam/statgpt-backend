@@ -54,7 +54,7 @@ async def get_available_datasets(
 @mcp_tools.tool
 async def get_dataset_details_schema(
     data_source_id: int,
-    session: AsyncSession = Depends(get_session_contex_manager),
+    session: AsyncSession = Depends(get_session_contex_manager),  # type: ignore[arg-type]
 ) -> dict:
     """Retrieve the configuration schema of the `details` field for datasets in a given data source."""
     dataset_service = DataSetService(session)
@@ -86,13 +86,23 @@ def generate_id() -> str:
 
 @mcp_tools.tool
 async def get_sdmx_dataset_structure(
-    data_source_id: int,
-    agency_id: str,
-    resource_id: str,
-    version: str,
+    data_source_id: Annotated[int, "The ID of the data source containing the SDMX dataset"],
+    agency_id: Annotated[
+        str, "The agency ID component of the SDMX dataflow URN, e.g., 'ESTAT', 'IMF'"
+    ],
+    resource_id: Annotated[str, "The resource ID (dataflow identifier) component of the URN"],
+    version: Annotated[
+        str,
+        "The version component of the URN. Use 'latest' for the most recent version,"
+        " or a specific version like '1.0' or '1.0.0+' for version ranges.",
+    ],
     session: AsyncSession = Depends(get_session_contex_manager),  # type: ignore[arg-type]
 ) -> dict:
-    """TODO: add docstring"""
+    """Retrieve the structure of an SDMX dataset including its dimensions and attributes.
+
+    This tool fetches metadata about the dataset's structure from the SDMX registry,
+    resolving dynamic URN values (e.g., 'latest', wildcards) to actual versions.
+    """
     # NOTE: While other tools are generic, this one is SDMX-specific.
 
     dataset_service = DataSetService(session)

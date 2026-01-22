@@ -1,17 +1,12 @@
 # StatGPT Admin MCP Setup
 
-Local setup guide for StatGPT Admin MCP server, allowing to onboard datasets into StatGPT.
+MCP server for coding agents such as Cursor or Claude Code. Used for dataset onboarding.
 
-It is meant to be used by coding agent (Cursor or Claude Code).
+> **Note:** This is an optional beta feature. The available tools and prompts are subject to change.
 
 ## Prerequisites
 
-1. Enable MCP in `.env`:
-   ```bash
-   BETA_MCP_ENABLED=true
-   ```
-
-2. Install dependencies:
+1. Install dependencies:
    ```bash
    poetry install -E beta-mcp
    ```
@@ -20,9 +15,14 @@ It is meant to be used by coding agent (Cursor or Claude Code).
    make install_dev
    ```
 
+2. Enable MCP by setting the environment variable:
+   ```bash
+   BETA_MCP_ENABLED=true
+   ```
+
 ## Start MCP Server
 
-MCP server is a part of StatGPT admin app. To start it, you need to start the admin app.
+Start the Admin app to run the MCP server:
 
 ```bash
 make statgpt_admin

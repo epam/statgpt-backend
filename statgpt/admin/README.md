@@ -1,6 +1,11 @@
 # Admin
 
-* Admin now has possibility to setup MCP. For setup instructions, see [MCP README](mcp/README.md).
+## MCP Server (Beta)
+
+Admin includes an optional MCP (Model Context Protocol) server for coding agent integration (Cursor, Claude Code).
+This feature is disabled by default and requires installing additional dependencies and enabling via environment variable.
+
+For setup instructions, see [MCP README](mcp/README.md).
 
 ## Environment variables
 

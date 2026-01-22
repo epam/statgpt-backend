@@ -200,9 +200,15 @@ _Not implemented yet, TODO: create a script that generates config based on .env 
 
    See [CLI documentation](statgpt/cli/README.md) for more commands.
 
-## Admin MCP
+## Admin MCP (Beta)
 
-Admin app includes MCP server (e.g. for datasets onboarding) - [setup instruction](statgpt/admin/mcp/README.md).
+The Admin application includes an optional MCP (Model Context Protocol) server for dataset onboarding assistance.
+It provides tools and prompts for coding agents such as Cursor and Claude Code.
+
+> **Note:** This feature is optional and disabled by default. It requires installing additional dependencies
+> and enabling via environment variable.
+
+See [MCP setup instructions](statgpt/admin/mcp/README.md) for details.
 
 ## Utils for Development
 
