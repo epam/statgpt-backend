@@ -58,3 +58,24 @@ make statgpt_admin
    claude mcp list
    claude mcp get statgpt-mcp
    ```
+
+## Usage
+
+### Datasets onboarding
+
+To add dataset configuration:
+
+- open corresponding `yaml` file with datasets configuration
+- mention MCP prompt respondible for dataset onboarding and pass requied context:
+  ```
+  /statgpt-mcp/add_config_for_dataset <query>
+  ```
+  for example:
+  ```
+  /statgpt-mcp/add_config_for_dataset please add CPI dataset
+  ```
+  alternatively, you can avoid mentioning prompt explicitly -
+  coding agent will need find it on its own
+- after coding agent finishes onboarding dataset,
+  it's **strongly advised** to check if MCP called dataset validation.
+  if not, ask coding agent to validate newly added datasets
