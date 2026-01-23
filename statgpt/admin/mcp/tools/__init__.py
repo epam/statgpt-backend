@@ -1,1 +1,1 @@
-from .dataset_exploration import mcp_tools
+from .dataset_config import mcp_tools
