@@ -14,53 +14,58 @@ from statgpt.cli.shared.auth.base import (
 if TYPE_CHECKING:
     from statgpt.cli.settings import CLISettings
 
-# Default token lifetime if not provided by MSAL (1 hour)
 DEFAULT_EXPIRES_IN = 3600
 
 
 class AzureEntraIDProvider(AuthProvider):
     """Authentication provider for Azure Entra ID using MSAL.
 
-    Required environment variables for interactive login:
-        - STATGPT_CLI_AUTH_AZURE_CLIENT_ID
-        - STATGPT_CLI_AUTH_AZURE_AUTHORITY
-        - STATGPT_CLI_AUTH_AZURE_SCOPE
+    Supports two authentication flows:
 
-    Additional variables for system user login:
-        - STATGPT_CLI_AUTH_AZURE_CLIENT_SECRET
-        - STATGPT_CLI_AUTH_AZURE_USERNAME
-        - STATGPT_CLI_AUTH_AZURE_PASSWORD
+    1. Interactive login (for developers):
+       - Uses MSAL PublicClientApplication
+       - Opens browser for user authentication
+       - No client_secret required
+
+    2. System user login (for CI/CD - Machine-to-Machine):
+       - Uses MSAL ConfidentialClientApplication with Client Credentials Grant
+       - Requires client_secret
+       - No browser interaction
+
+    Required settings for interactive login:
+        - auth_azure_client_id
+        - auth_azure_authority
+        - auth_azure_scope
+
+    Additional settings for M2M (system_user) login:
+        - auth_azure_client_secret
     """
 
     @property
     def name(self) -> str:
         return "azure"
 
-    def validate_config(self, settings: "CLISettings", interactive: bool) -> None:
-        """Validate Azure Entra ID configuration."""
+    def _validate_base_config(self, settings: "CLISettings") -> None:
+        """Validate base Azure Entra ID configuration required for all operations."""
         missing = []
-
-        # Required for both login types
         if not settings.auth_azure_client_id:
             missing.append("STATGPT_CLI_AUTH_AZURE_CLIENT_ID")
         if not settings.auth_azure_authority:
             missing.append("STATGPT_CLI_AUTH_AZURE_AUTHORITY")
         if not settings.auth_azure_scope:
             missing.append("STATGPT_CLI_AUTH_AZURE_SCOPE")
-
-        # Additional requirements for system user login
-        if not interactive:
-            if not settings.auth_azure_client_secret:
-                missing.append("STATGPT_CLI_AUTH_AZURE_CLIENT_SECRET")
-            if not settings.auth_azure_username:
-                missing.append("STATGPT_CLI_AUTH_AZURE_USERNAME")
-            if not settings.auth_azure_password:
-                missing.append("STATGPT_CLI_AUTH_AZURE_PASSWORD")
-
         if missing:
             raise AuthConfigError(self.name, missing)
 
-    def _parse_result(self, result: dict) -> AuthResult:
+    def validate_config(self, settings: "CLISettings", interactive: bool) -> None:
+        """Validate Azure Entra ID configuration."""
+        self._validate_base_config(settings)
+
+        if not interactive:
+            if not settings.auth_azure_client_secret:
+                raise AuthConfigError(self.name, ["STATGPT_CLI_AUTH_AZURE_CLIENT_SECRET"])
+
+    def _parse_token_response(self, result: dict) -> AuthResult:
         """Parse MSAL result into AuthResult."""
         if not result.get("access_token"):
             error_desc = result.get("error_description", result.get("error", "Unknown error"))
@@ -85,10 +90,10 @@ class AzureEntraIDProvider(AuthProvider):
             scopes=[settings.auth_azure_scope],  # type: ignore[list-item]
         )
 
-        return self._parse_result(result)
+        return self._parse_token_response(result)
 
     def system_user_login(self, settings: "CLISettings") -> AuthResult:
-        """Perform Azure Entra ID system user login."""
+        """Perform Azure Entra ID M2M login using Client Credentials Grant."""
         self.validate_config(settings, interactive=False)
 
         app = msal.ConfidentialClientApplication(
@@ -97,32 +102,18 @@ class AzureEntraIDProvider(AuthProvider):
             client_credential=settings.auth_azure_client_secret,
         )
 
-        result = app.acquire_token_by_username_password(
-            username=settings.auth_azure_username,  # type: ignore[arg-type]
-            password=settings.auth_azure_password,  # type: ignore[arg-type]
+        result = app.acquire_token_for_client(
             scopes=[settings.auth_azure_scope],  # type: ignore[list-item]
         )
 
-        return self._parse_result(result)
+        if result is None:
+            raise AuthenticationError("Azure Entra ID authentication failed: No response received")
+
+        return self._parse_token_response(result)
 
     def refresh_token(self, settings: "CLISettings", refresh_token: str) -> AuthResult:
-        """Refresh an access token using a refresh token.
-
-        Args:
-            settings: CLI settings instance
-            refresh_token: The refresh token to use
-
-        Returns:
-            AuthResult with new access token and expiration
-
-        Raises:
-            AuthenticationError: If refresh fails
-        """
-        # Only need basic config for refresh
-        if not settings.auth_azure_client_id:
-            raise AuthConfigError(self.name, ["STATGPT_CLI_AUTH_AZURE_CLIENT_ID"])
-        if not settings.auth_azure_scope:
-            raise AuthConfigError(self.name, ["STATGPT_CLI_AUTH_AZURE_SCOPE"])
+        """Refresh an access token using a refresh token."""
+        self._validate_base_config(settings)
 
         app = msal.PublicClientApplication(
             client_id=settings.auth_azure_client_id,
@@ -134,4 +125,4 @@ class AzureEntraIDProvider(AuthProvider):
             scopes=[settings.auth_azure_scope],  # type: ignore[list-item]
         )
 
-        return self._parse_result(result)
+        return self._parse_token_response(result)
