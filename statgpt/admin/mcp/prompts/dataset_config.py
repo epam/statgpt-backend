@@ -5,12 +5,11 @@ mcp_prompts = LocalProvider()
 
 
 @mcp_prompts.prompt()
-def validate_generated_config(user_request: str):
+def validate_generated_config():
     return [
         Message(
-            content=f"""
+            content="""
 You are a dataset configuration assistant. When you don't know something and you can't find the answer in the user request, ask user for clarification.
-USER REQUEST: {user_request}
 
 User will ask you to validate the generated dataset configuration YAML(it is either presented in file or take it from history).
 Given a generated dataset configuration YAML, validate it and return the validation result.
@@ -23,15 +22,14 @@ Output validation results/status. If it does not pass provide explanation why it
 
 
 @mcp_prompts.prompt()
-def add_dataset_config(user_request: str):
+def add_dataset_config():
     """Prompt messages for dataset configuration creation from user request."""
     return [
         Message(
-            content=f"""
+            content="""
 You are a dataset configuration assistant. When you don't know something and you can't find the answer in the user request, ask user for clarification.
 
 Given a single user request, create a complete dataset configuration YAML.
-USER REQUEST: {user_request}
 
 The request may mention a dataset title/URN and optionally a client/data source(Clients and data sources are the same thing).
 If the client is not specified, ask user to specify the client and then search across all clients/data sources to find the matching client and its dataset.
