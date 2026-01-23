@@ -46,7 +46,9 @@ async def get_available_datasets(
     )
     return [
         mcp_schemas.DataSetPreview(
-            id_in_source=ds.id_in_source, title=ds.title, description=ds.description
+            id_in_source=ds.id_in_source,
+            title=ds.title,
+            # description=ds.description
         )
         for ds in datasets
     ]
