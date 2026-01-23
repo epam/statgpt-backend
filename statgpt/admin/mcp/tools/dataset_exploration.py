@@ -68,7 +68,7 @@ async def get_dataset_details_schema(
 @mcp_tools.tool
 async def validate_dataset_config(
     data_source_id: int,
-    dataset_configs_path: Annotated[str, "Abosulte path to datasets configs file"],
+    dataset_configs_path: Annotated[str, "Absolute path to datasets configs file"],
     dataset_uuid: Annotated[
         str, "Dataset config UUID using which you can retrieve config from datasets files"
     ],
