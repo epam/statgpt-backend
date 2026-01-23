@@ -9,6 +9,5 @@ class DataSource(BaseModel):
 
 
 class DataSetPreview(BaseModel):
-    id_in_source: str = Field(description="ID of the dataset in the data source")
+    urn: str = Field(description="URN of the dataset")
     title: str
-    # description: str | None

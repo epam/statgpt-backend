@@ -37,63 +37,33 @@ async def get_data_sources(
 async def get_available_datasets(
     data_source_id: int,
     session: AsyncSession = Depends(get_session_contex_manager),  # type: ignore[arg-type]
-) -> list[mcp_schemas.DataSetPreview]:
-    """Retrieve all available datasets in a given data source."""
-
+) -> dict:
+    """
+    Retrieve all datasets available for the specified data source. Note: the list may be large.
+    """
     dataset_service = DataSetService(session)
     datasets = await dataset_service.load_available_datasets(
         source_id=data_source_id, auth_context=SystemUserAuthContext()
     )
-    return [
-        mcp_schemas.DataSetPreview(
-            id_in_source=ds.id_in_source,
-            title=ds.title,
-            # description=ds.description
-        )
-        for ds in datasets
-    ]
+    return {
+        'count': len(datasets),
+        'datasets': [
+            mcp_schemas.DataSetPreview(urn=ds.id_in_source, title=ds.title) for ds in datasets
+        ],
+    }
 
 
 @mcp_tools.tool
-async def get_dataset_details_schema(
+async def get_dataset_config_details_schema(
     data_source_id: int,
     session: AsyncSession = Depends(get_session_contex_manager),  # type: ignore[arg-type]
 ) -> dict:
-    """Retrieve the configuration schema of the `details` field for datasets in a given data source."""
+    """
+    Retrieve schema for "details" field used in dataset configurations for a specific data source.
+    """
     dataset_service = DataSetService(session)
     schema = await dataset_service.get_dataset_config_schema(source_id=data_source_id)
     return schema
-
-
-@mcp_tools.tool
-async def validate_dataset_config(
-    data_source_id: int,
-    dataset_configs_path: Annotated[str, "Absolute path to datasets configs file"],
-    dataset_uuid: Annotated[
-        str, "Dataset config UUID using which you can retrieve config from datasets files"
-    ],
-    session: AsyncSession = Depends(get_session_contex_manager),  # type: ignore[arg-type]
-) -> DataSetValidationResult:
-    """Validate dataset configuration against its structure."""
-
-    datasets_configs = read_yaml(dataset_configs_path).get('dataSets')
-    if datasets_configs is None:
-        raise ValueError("Datasets configs file does not contain 'dataSets' key")
-    dataset_config = next(
-        (ds_conf for ds_conf in datasets_configs if ds_conf["id_"] == dataset_uuid), None
-    )
-    if dataset_config is None:
-        raise ValueError(
-            f"Dataset config with UUID {dataset_uuid} not found in datasets configs file"
-        )
-
-    dataset_service = DataSetService(session)
-    res = await dataset_service.validate_config(
-        source_id=data_source_id,
-        config=dataset_config['details'],
-        auth_context=SystemUserAuthContext(),
-    )
-    return res
 
 
 @mcp_tools.tool
@@ -135,3 +105,34 @@ async def get_sdmx_dataset_structure(
         source_id=data_source_id, config=config, auth_context=SystemUserAuthContext()
     )
     return response
+
+
+@mcp_tools.tool
+async def validate_dataset_config(
+    data_source_id: int,
+    dataset_configs_path: Annotated[str, "Absolute path to datasets configs file"],
+    dataset_uuid: Annotated[
+        str, "Dataset config UUID using which you can retrieve config from datasets files"
+    ],
+    session: AsyncSession = Depends(get_session_contex_manager),  # type: ignore[arg-type]
+) -> DataSetValidationResult:
+    """Validate dataset configuration against its structure."""
+
+    datasets_configs = read_yaml(dataset_configs_path).get('dataSets')
+    if datasets_configs is None:
+        raise ValueError("Datasets configs file does not contain 'dataSets' key")
+    dataset_config = next(
+        (ds_conf for ds_conf in datasets_configs if ds_conf["id_"] == dataset_uuid), None
+    )
+    if dataset_config is None:
+        raise ValueError(
+            f"Dataset config with UUID {dataset_uuid} not found in datasets configs file"
+        )
+
+    dataset_service = DataSetService(session)
+    res = await dataset_service.validate_config(
+        source_id=data_source_id,
+        config=dataset_config['details'],
+        auth_context=SystemUserAuthContext(),
+    )
+    return res
