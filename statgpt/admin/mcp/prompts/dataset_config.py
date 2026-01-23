@@ -5,74 +5,98 @@ mcp_prompts = LocalProvider()
 
 
 @mcp_prompts.prompt()
-def validate_generated_config():
-    return [
-        Message(
-            content="""
-You are a dataset configuration assistant. When you don't know something and you can't find the answer in the user request, ask user for clarification.
-
-User will ask you to validate the generated dataset configuration YAML(it is either presented in file or take it from history).
-Given a generated dataset configuration YAML, validate it and return the validation result.
-Config should pass config validation(Do not forget that your config should have common dimensions and attributes(and other anchors) included).
-Output validation results/status. If it does not pass provide explanation why it does not pass.
-""",
-            role="user",
-        )
-    ]
-
-
-@mcp_prompts.prompt()
 def add_dataset_config():
     """Prompt messages for dataset configuration creation from user request."""
     return [
         Message(
-            content="""
-You are a dataset configuration assistant. When you don't know something and you can't find the answer in the user request, ask user for clarification.
+            content="""\
+# Adding datasets to StatGPT
 
-Given a single user request, create a complete dataset configuration YAML.
+Datasets are added/onboarded to StatGPT using yaml dataset configurations files.
+Datasets are linked to "channels" - client-specific versions of StatGPT.
+Channels have their own config yaml files which are usually located near datasets config files.
+"Client" refers to specific organization providing data (e.g. IMF).
+Single client might have multiple data sources.
 
-The request may mention a dataset title/URN and optionally a client/data source(Clients and data sources are the same thing).
-If the client is not specified, ask user to specify the client and then search across all clients/data sources to find the matching client and its dataset.
-But If there are several similar datasets that match user request you must ask user to choose one from the list of matching datasets.
-(You are not allowed to generate/create your own URN or titles, you must use the ones you found by search.)
+## Flow
 
+To add dataset configuration:
+1. Understand what dataset should be added.
+User might reference datasets by title/URN/client/data source.
+User might ask to onboard multiple datasets.
+If it's unclear what dataset user wants to onboard, ask for clarification
+2. Understand what client and data source required dataset belongs to
+3. Understand what dataset config file to update, if not specified by user
+4. Extract details for referenced dataset using dataset structure tool
+5. Generate config based on dataset structure tool output. Use uuid tool to generate uuid.
+6. Check if you need to add new Named Entity types to channel config file
+7. Fill dataset description field
+8. Validate generated config using validation tool
 
-Use existing dataset configurations for the same client as references of how configuration should look like.
-Prefer English configs and reuse shared anchors (settings, details, provider).
-Use the client’s channel configuration to identify named entity types.
+If you encounter errors, communicate them to user, try to fix them, ask user for help if needed.
+ALWAYS communicate to user what is the CURRENT STEP from the flow!
 
-If you encounter errors in the tools related to getting dataset info, ask user for clarification.
-For the title review how it is done in the existing configs. And use the same pattern.
+## How to generate dataset config
 
-When generating dimensions config:
-- Use existing YAML configs for the same client as the source of truth for dimension structure; derive - their patterns and infer the logic from similar datasets.
-- Infer dimension types and required flags by dataset structure and sample dimension values.
-  Use dimension name and sample values to identify which dimensions are essential and which can be optional.
-- If dimension can be explained to average human and is general(not dataset specific) dimension (or in named entity types it should be NON_INDICATOR) then it should be NON_INDICATOR,
-  otherwise if this dimension is specialized for this dataset then it should be INDICATOR. (For better understanding look at previous dataset configurations)
-- isRequired flag means that at least one marked dimension must have non-empty terms in a query.
-  Set it to `true` only for core crucial indicator dimensions that define what is being measured.
-  Do not set it for dimensions that answer "in what breakdown/aspect is something measured" (e.g. unit_of_measure, adjustment) or for non-indicators.
-  Each dataset must have at least one required dimension.
+- NEVER fill dataset config based on your knowledge or assumptions, ALWAYS REFER TO TOOL OUTPUTS
+- Dataset config follows json schema.
+There is a tool providing json schema for "details" field of dataset config -
+you MUST follow this schema when generating config!
+- Follow patterns from existing dataset configs, prioritizing configs for same client and data source
+- Reuse shared yaml anchors if they are present and relevant.
+Reason EXPLICITLY about each anchor and how it will be resolved for this dataset
 
+### Dimensions config
 
-After generating all dimensions, review named entity types and update them as needed:
-for each NON_INDICATOR dimension from generated config:
-- Check if the dimension can be mapped to any existing named entity type.
-- If it can, it is okay to leave it as is.
-- If it cannot, then create new named entity type for this dimension.
+You will need to provide config for each dimension of the dataset.
+You MUST refer to dataset structure tool output.
+Also, use dimension configs from same client as reference.
 
-For the Description:
-1) Use the description from the dataset structure if it is available and contains meaningful information, but do not fill it just set is as None/null as we will retrieve it from the dataset structure later.
-2) If the description from the dataset structure is not available/not meaningful, write a dataset description based on:
-   - the dataset title,
-   - indicators meanings,
-   - example dimension combinations that show what the dataset measures.
+How to choose dimension type:
+- NON_INDICATOR dimensions are concepts that:
+are independent of the context and could be easily explained to average human.
+Examples include "country", "counterparty", "age", "gender".
+    - Each NON_INDICATOR dimension MUST map to some Named Entity type (from channel config file).
+    Read the client channel config file to see list of current Named Entity types!
+    Mark any dimension that is present in Named Entity types as NON_INDICATOR.
+    - It's possible that dataset contains NON_INDICATOR dimensions
+    that are not yet present in Named Entity types.
+    In this case you MUST update channel's list of Named Entity types!
+- INDICATOR dimensions describe the concept being measured.
+Examples include "GDP", "unemployment rate", "inflation rate".
+If dimension describes a concept that clarifies indicator, it's also an INDICATOR dimension.
+General rule is every dimension that is not NON_INDICATOR is an INDICATOR dimension!
+- Ignore SPECIAL dimension type for now
 
-Output:
-Save the configuration to a datasets configs file, then validate it. The configuration must pass validation.
-If validation succeeds, return a complete, production-ready dataset YAML that matches existing client configurations.
-If not return the validation results/status to user and ask him for clarification.
+Do not add default queries for any dimensions.
+Remember to check if channel's list of Named Entity types needs to be updated
+with new concepts from NON_INDICATOR dimensions!
+
+### Required indicator dimensions
+
+- `isRequired` field could be set to `true` ONLY for INDICATOR dimensions
+- fill it with `true` ONLY for crucial and essential indicator dimensions.
+Omitting such dimensions usually makes query meaningless or non-informative.
+- any query not specifying filter for AT LEAST ONE REQUIRED INDICATOR dimension
+will be rejected by StatGPT
+- Each dataset must have at least one required indicator dimension
+
+## Dataset description
+
+Dataset description field could be filled either with text or `null`:
+- first, analyze dataset description in dataset structure tool output:
+    - if it's meaningful, set `null` in description field in dataset config.
+    this means that description will be retrieved from data source on each access.
+    - if description is not meaningful / not present, write it yourself
+    based on dataset title and structure
+- you MUST EXPLICLTY REASON ABOUT DATASET DESCRIPTION from structure tool output!
+
+## Validation
+
+- After generating dataset config, ALWAYS VALIDATE GENERATED CONFIG using appropriate tool
+- Generated dataset config must pass validation
+- On validation errors, try to fix them. If needed, ask user for help
+- ALWAYS COMMUNICATE VALIDATION RESULTS TO USER
 """,
             role="user",
         )
