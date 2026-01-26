@@ -36,6 +36,11 @@ class IndicatorsSearchChainFactory(DimensionSearchChainFactoryBase):
                     f'({required_dims}). dataset query: {dataset_query}'
                 )
                 continue
+            else:
+                logger.info(
+                    f'no required dims for "{dataset_id}" dataset '
+                    'or at least one required dim has query'
+                )
 
             filtered_queries[dataset_id] = dataset_query
 
