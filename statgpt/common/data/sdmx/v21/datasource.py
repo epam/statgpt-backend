@@ -5,7 +5,7 @@ from abc import ABC
 from operator import itemgetter
 
 from langchain_core.documents import Document
-from pydantic import BaseModel, Field, ValidationError, computed_field
+from pydantic import BaseModel, Field, SerializeAsAny, ValidationError, computed_field
 from sdmx.message import StructureMessage
 from sdmx.model.common import TimeDimension
 from sdmx.model.v21 import DataflowDefinition as Dataflow
@@ -96,8 +96,8 @@ class SdmxDataSetStructure(DataSetStructure):
         description="The actual URN of the dataflow as resolved from the SDMX registry."
     )
 
-    dimensions: list[SdmxEntityMetadata]
-    attributes: list[SdmxEntityMetadata]
+    dimensions: list[SerializeAsAny[SdmxEntityMetadata]]
+    attributes: list[SerializeAsAny[SdmxEntityMetadata]]
     description: str | None = None
 
     @computed_field  # type: ignore[prop-decorator]

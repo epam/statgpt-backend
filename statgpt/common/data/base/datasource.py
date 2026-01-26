@@ -3,7 +3,7 @@ import uuid
 from abc import ABC, abstractmethod
 
 from langchain_core.documents import Document
-from pydantic import BaseModel, ConfigDict, Field, SkipValidation, alias_generators
+from pydantic import BaseModel, ConfigDict, Field, SerializeAsAny, alias_generators
 
 from statgpt.common.auth.auth_context import AuthContext
 
@@ -19,7 +19,7 @@ class DataSetDescriptor(BaseModel, ABC):
     name: str = Field(description="The name of the dataset")
     description: str | None = Field(description="The description of the dataset")
 
-    details: SkipValidation[DataSetConfigTemplate] = Field(
+    details: SerializeAsAny[DataSetConfigTemplate] = Field(
         description="Preliminary details defined by the data source."
     )
 
