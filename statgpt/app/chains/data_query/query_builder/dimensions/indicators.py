@@ -31,18 +31,16 @@ class IndicatorsSearchChainFactory(DimensionSearchChainFactoryBase):
                 for dim_id in required_dims
             ):
                 logger.info(
-                    f'removing "{dataset_id}" dataset query, since it does not contain '
+                    f'filter by required dims: removing "{dataset_id}" dataset query, since it does not contain '
                     'query to at least 1 required dimensions '
                     f'({required_dims}). dataset query: {dataset_query}'
                 )
-                continue
             else:
-                logger.info(
-                    f'no required dims for "{dataset_id}" dataset '
-                    'or at least one required dim has query'
+                logger.debug(
+                    f'filter by required dims: no required dims for "{dataset_id}" dataset '
+                    'or at least one required dim has non-empty query'
                 )
-
-            filtered_queries[dataset_id] = dataset_query
+                filtered_queries[dataset_id] = dataset_query
 
         return filtered_queries
 
