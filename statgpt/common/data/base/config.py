@@ -101,8 +101,10 @@ class BaseDimensionConfig(BaseModel):
     is_required: bool = Field(
         default=False,
         description=(
-            "Whether this dimension is required to build a query. "
-            "Used to filter out queries without these dimensions. See the detailed logic in the code"
+            "Whether this dimension is one of the required dimensions to build a dataset query. "
+            "Dataset query MUST have non-empty dimension query "
+            "to AT LEAST ONE of the required dimensions. "
+            "Otherwise, dataset query is filtered out and is not executed."
         ),
     )
     virtual: VirtualDimensionConfig | None = Field(
