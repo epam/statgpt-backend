@@ -10,7 +10,7 @@ excludes:
 
 resolutions:
   rule_violations:
-    - message: "The use of package curations is not allowed in the *.ort.yml file."
+    - message: ".*package curations.*not allowed.*"
       reason: "CANT_FIX_EXCEPTION"
       comment: "We use repository-level curations in .ort.yml as enabled by -P ort.enableRepositoryPackageCurations=true"
 
