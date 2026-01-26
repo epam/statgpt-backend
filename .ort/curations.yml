@@ -1,0 +1,176 @@
+- id: "PyPI::pandas:2.3.3"
+  curations:
+    concluded_license: "BSD-3-Clause"
+    comment: "BSD 3-Clause License: https://github.com/pandas-dev/pandas/blob/v2.3.3/LICENSE"
+- id: "PyPI::numpy:1.26.4"
+  curations:
+    concluded_license: "BSD-3-Clause"
+    comment: "BSD 3-Clause License: https://github.com/numpy/numpy/blob/v1.26.4/LICENSE.txt"
+- id: "PyPI::httpcore:1.0.9"
+  curations:
+    concluded_license: "BSD-3-Clause"
+    comment: "BSD 3-Clause License: https://github.com/encode/httpcore/blob/1.0.9/LICENSE.md"
+- id: "PyPI::tiktoken:0.12.0"
+  curations:
+    concluded_license: "MIT"
+    comment: "MIT License: https://github.com/openai/tiktoken/blob/0.12.0/LICENSE"
+- id: "PyPI::urllib3:2.6.3"
+  curations:
+    concluded_license: "MIT"
+    comment: "MIT License: https://github.com/urllib3/urllib3/blob/2.6.3/LICENSE.txt"
+- id: "PyPI::typing-extensions:4.15.0"
+  curations:
+    concluded_license: "PSF-2.0"
+    comment: "Python Software Foundation License: https://github.com/python/typing_extensions/blob/4.15.0/LICENSE"
+- id: "PyPI::alembic:1.18.1"
+  curations:
+    concluded_license: "MIT"
+    comment: "MIT License: https://github.com/sqlalchemy/alembic/blob/rel_1_18_1/LICENSE"
+- id: "PyPI::markupsafe:3.0.3"
+  curations:
+    concluded_license: "BSD-3-Clause"
+    comment: "BSD 3-Clause License: https://github.com/pallets/markupsafe/blob/3.0.3/LICENSE.txt"
+- id: "PyPI::setuptools:80.9.0"
+  curations:
+    concluded_license: "MIT"
+    comment: "MIT License: https://github.com/pypa/setuptools/blob/v80.9.0/LICENSE"
+- id: "PyPI::typing-inspection:0.4.2"
+  curations:
+    concluded_license: "MIT"
+    comment: "MIT License: https://github.com/pydantic/typing-inspection/blob/v0.4.2/LICENSE"
+- id: "PyPI::markdown:3.10"
+  curations:
+    concluded_license: "BSD-3-Clause"
+    comment: "BSD 3-Clause License: https://github.com/Python-Markdown/markdown/blob/3.10.0/LICENSE.md"
+- id: "PyPI::click:8.3.1"
+  curations:
+    concluded_license: "BSD-3-Clause"
+    comment: "BSD 3-Clause License: https://github.com/pallets/click/blob/8.3.1/LICENSE.txt"
+- id: "PyPI::zipp:3.23.0"
+  curations:
+    concluded_license: "MIT"
+    comment: "MIT License: https://github.com/jaraco/zipp/blob/v3.23.0/pyproject.toml#L24"
+- id: "PyPI::attrs:25.4.0"
+  curations:
+    concluded_license: "MIT"
+    comment: "MIT License: https://github.com/python-attrs/attrs/blob/25.4.0/LICENSE"
+- id: "PyPI::mypy-extensions:1.1.0"
+  curations:
+    concluded_license: "MIT"
+    comment: "MIT License: https://github.com/python/mypy_extensions/blob/1.1.0/LICENSE"
+- id: "PyPI::python-dateutil:2.9.0.post0"
+  curations:
+    concluded_license: "Apache-2.0 OR BSD-3-Clause"
+    comment: "Dual License (Apache 2.0 or BSD 3-Clause): https://github.com/dateutil/dateutil/blob/2.9.0.post0/LICENSE"
+- id: "PyPI::packaging:25.0"
+  curations:
+    concluded_license: "Apache-2.0 OR BSD-2-Clause"
+    comment: "Dual License (Apache 2.0 or BSD 2-Clause): https://github.com/pypa/packaging/blob/25.0/LICENSE"
+- id: "PyPI::fastapi:0.121.3"
+  curations:
+    concluded_license: "MIT"
+    comment: "MIT License: https://github.com/fastapi/fastapi/blob/0.121.3/LICENSE"
+- id: "PyPI::starlette:0.50.0"
+  curations:
+    concluded_license: "BSD-3-Clause"
+    comment: "BSD 3-Clause License: https://github.com/encode/starlette/blob/0.50.0/LICENSE.md"
+- id: "PyPI::azure-identity:1.25.1"
+  curations:
+    concluded_license: "MIT"
+    comment: "MIT License: https://github.com/Azure/azure-sdk-for-python/blob/azure-identity_1.25.1/sdk/identity/azure-identity/LICENSE"
+- id: "PyPI::uuid-utils:0.13.0"
+  curations:
+    concluded_license: "BSD-3-Clause"
+    comment: "BSD 3-Clause License: https://github.com/aminalaee/uuid-utils/blob/0.13.0/LICENSE.md"
+- id: "PyPI::idna:3.11"
+  curations:
+    concluded_license: "BSD-3-Clause"
+    comment: "BSD 3-Clause License: https://github.com/kjd/idna/blob/v3.11/LICENSE.md"
+- id: "PyPI::annotated-doc:0.0.4"
+  curations:
+    concluded_license: "MIT"
+    comment: "MIT License: https://github.com/fastapi/annotated-doc/blob/0.0.4/LICENSE"
+- id: "PyPI::regex:2026.1.15"
+  curations:
+    concluded_license: "Apache-2.0"
+    comment: "Apache 2.0 License: https://github.com/mrabarnett/mrab-regex/blob/2026.1.15/LICENSE.txt"
+- id: "PyPI::pydantic-core:2.41.5"
+  curations:
+    concluded_license: "MIT"
+    comment: "MIT License: https://github.com/pydantic/pydantic-core/blob/v2.41.5/LICENSE"
+- id: "PyPI::prometheus-client:0.24.1"
+  curations:
+    concluded_license: "Apache-2.0"
+    comment: "Apache 2.0 License: https://github.com/prometheus/client_python/blob/v0.24.1/LICENSE"
+- id: "PyPI::uvicorn:0.40.0"
+  curations:
+    concluded_license: "BSD-3-Clause"
+    comment: "BSD 3-Clause License: https://github.com/Kludex/uvicorn/blob/0.40.0/LICENSE.md"
+- id: "PyPI::zstandard:0.25.0"
+  curations:
+    concluded_license: "BSD-3-Clause"
+    comment: "BSD 3-Clause License: https://github.com/indygreg/python-zstandard/blob/0.25.0/LICENSE"
+- id: "PyPI::psycopg-pool:3.3.0"
+  curations:
+    concluded_license: "LGPL-3.0-or-later"
+    comment: "LGPL 3.0 License: https://github.com/psycopg/psycopg/blob/3.3.0/LICENSE.txt"
+- id: "PyPI::opentelemetry-exporter-otlp-proto-common:1.39.1"
+  curations:
+    concluded_license: "Apache-2.0"
+    comment: "Apache 2.0 License: https://github.com/open-telemetry/opentelemetry-python/blob/v1.39.1/LICENSE"
+- id: "PyPI::python-dotenv:1.2.1"
+  curations:
+    concluded_license: "BSD-3-Clause"
+    comment: "BSD 3-Clause License: https://github.com/theskumar/python-dotenv/blob/v1.2.1/LICENSE"
+- id: "PyPI::opentelemetry-proto:1.39.1"
+  curations:
+    concluded_license: "Apache-2.0"
+    comment: "Apache 2.0 License: https://github.com/open-telemetry/opentelemetry-python/blob/v1.39.1/opentelemetry-proto/LICENSE"
+- id: "PyPI::opentelemetry-semantic-conventions:0.60b1"
+  curations:
+    concluded_license: "Apache-2.0"
+    comment: "Apache 2.0 License: https://github.com/open-telemetry/opentelemetry-python/blob/v1.39.1/opentelemetry-semantic-conventions/LICENSE"
+- id: "PyPI::opentelemetry-api:1.39.1"
+  curations:
+    concluded_license: "Apache-2.0"
+    comment: "Apache 2.0 License: https://github.com/open-telemetry/opentelemetry-python/blob/v1.39.1/opentelemetry-api/LICENSE"
+- id: "PyPI::cryptography:46.0.3"
+  curations:
+    concluded_license: "Apache-2.0 OR BSD-3-Clause"
+    comment: "Dual License (Apache 2.0 or BSD 3-Clause): https://github.com/pyca/cryptography/blob/46.0.3/LICENSE"
+- id: "PyPI::psycopg:3.3.2"
+  curations:
+    concluded_license: "LGPL-3.0-or-later"
+    comment: "LGPL 3.0 License: https://github.com/psycopg/psycopg/blob/3.3.2/LICENSE.txt"
+- id: "PyPI::opentelemetry-exporter-prometheus:0.60b1"
+  curations:
+    concluded_license: "Apache-2.0"
+    comment: "Apache 2.0 License: https://github.com/open-telemetry/opentelemetry-python/blob/v1.39.1/exporter/opentelemetry-exporter-prometheus/LICENSE"
+- id: "PyPI::pydantic:2.12.5"
+  curations:
+    concluded_license: "MIT"
+    comment: "MIT License: https://github.com/pydantic/pydantic/blob/v2.12.5/LICENSE"
+- id: "PyPI::psycopg-binary:3.3.2"
+  curations:
+    concluded_license: "LGPL-3.0-or-later"
+    comment: "LGPL 3.0 License: https://github.com/psycopg/psycopg/blob/3.3.2/LICENSE.txt"
+- id: "PyPI::anyio:4.12.1"
+  curations:
+    concluded_license: "MIT"
+    comment: "MIT License: https://github.com/agronholm/anyio/blob/4.12.1/LICENSE"
+- id: "PyPI::importlib-metadata:8.7.1"
+  curations:
+    concluded_license: "Apache-2.0"
+    comment: "Apache 2.0 License: https://github.com/python/importlib_metadata/blob/v8.7.1/pyproject.toml#L24"
+- id: "PyPI::cffi:2.0.0"
+  curations:
+    concluded_license: "MIT"
+    comment: "MIT License: https://github.com/python-cffi/cffi/blob/v2.0.0/LICENSE"
+- id: "PyPI::opentelemetry-sdk:1.39.1"
+  curations:
+    concluded_license: "Apache-2.0"
+    comment: "Apache 2.0 License: https://github.com/open-telemetry/opentelemetry-python/blob/v1.39.1/opentelemetry-sdk/LICENSE"
+- id: "PyPI::opentelemetry-exporter-otlp-proto-grpc:1.39.1"
+  curations:
+    concluded_license: "Apache-2.0"
+    comment: "Apache 2.0 License: https://github.com/open-telemetry/opentelemetry-python/blob/v1.39.1/exporter/opentelemetry-exporter-otlp-proto-grpc/LICENSE"

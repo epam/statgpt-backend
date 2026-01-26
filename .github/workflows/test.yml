@@ -190,5 +190,5 @@ jobs:
           image: "ghcr.io/oss-review-toolkit/ort:${{ inputs.ort-version }}"
           allow-dynamic-versions: "true"
           fail-on: "violations"
-          ort-cli-args: "-P ort.forceOverwrite=true --stacktrace -P ort.analyzer.enabledPackageManagers=Poetry -P ort.enableRepositoryPackageCurations=true"
+          ort-cli-args: "-P ort.forceOverwrite=true --stacktrace -P ort.analyzer.enabledPackageManagers=Poetry"
         continue-on-error: ${{ fromJSON(env.CONTINUE_ON_ERROR) }}
