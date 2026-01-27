@@ -86,7 +86,9 @@ async def get_sdmx_dataset_structure(
     ],
     session: AsyncSession = Depends(get_session_contex_manager),  # type: ignore[arg-type]
 ) -> dict:
-    """Retrieve the structure of an SDMX dataset including its dimensions and attributes.
+    """
+    Retrieve the structure of an SDMX dataset, including
+    a list of dimensions with sample codes and attributes.
 
     This tool fetches metadata about the dataset's structure from the SDMX registry,
     resolving dynamic URN values (e.g., 'latest', wildcards) to actual versions.

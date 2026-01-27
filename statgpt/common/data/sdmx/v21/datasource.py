@@ -75,14 +75,15 @@ class SdmxEntityMetadata(BaseModel):
     type: str | None = None
 
 
-class Item(BaseModel):
+class Code(BaseModel):
     id: str
     name: str
 
 
 class CategoryDimensionMetadata(SdmxEntityMetadata):
-    values_count: int
-    values_sample: list[Item]
+    values_count: int = Field(description="Total number of available codes in the dimension")
+    samples_count: int = Field(description="Number of sample codes provided")
+    values_sample: list[Code]
 
 
 class SdmxDataSetStructure(DataSetStructure):
@@ -163,10 +164,10 @@ class Sdmx21DataSourceHandler(
     def _get_dimension_metadata(dim: SdmxDimension) -> SdmxEntityMetadata:
         if isinstance(dim, CategoricalDimension):
             values = dim.available_values
-            sample_size = min(10, len(values))
+            samples_count = min(10, len(values))
             sample_values = [
-                Item(id=value.query_id, name=value.name)
-                for value in random.sample(values, sample_size)
+                Code(id=value.query_id, name=value.name)
+                for value in random.sample(values, samples_count)
             ]
             return CategoryDimensionMetadata(
                 entity_id=dim.entity_id,
@@ -174,6 +175,7 @@ class Sdmx21DataSourceHandler(
                 desciption=dim.description,
                 type=dim.dimension_type.value if dim.dimension_type else None,
                 values_count=len(values),
+                samples_count=samples_count,
                 values_sample=sample_values,
             )
 
