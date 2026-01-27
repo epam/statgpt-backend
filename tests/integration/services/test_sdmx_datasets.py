@@ -171,7 +171,7 @@ async def test_update_dataset(session, clear_all, sdmx_clint_mock):
         indicator=IndexerIndicatorConfig(unpack=True),
     )
 
-    dataset = await dataset_service.update(
+    response = await dataset_service.update(
         dataset.id,
         schemas.DataSetUpdate(
             title='CPI Updated',
@@ -185,6 +185,7 @@ async def test_update_dataset(session, clear_all, sdmx_clint_mock):
         ),
         auth_context=SystemUserAuthContext(),
     )
+    dataset = response.dataset
 
     assert dataset.id_ == random_uuid
     assert dataset.title == 'CPI Updated'

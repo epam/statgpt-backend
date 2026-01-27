@@ -559,7 +559,7 @@ async def _process_datasets(
             # Collect datasets needing reindex for summary
             for r in response.channel_results:
                 if r.status == ChannelDatasetUpdateStatus.NEEDS_REINDEX:
-                    datasets_needing_reindex[r.channel_deployment_id].append(urn)
+                    datasets_needing_reindex[r.channel_deployment_id].append(urn or "None")
         else:
             dataset = await client.create_dataset(ds_cfg)
             print_info(f"  Created dataset: {urn}")
