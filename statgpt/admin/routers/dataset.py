@@ -70,7 +70,12 @@ async def update_dataset(
     item_id: int,
     data: schemas.DataSetUpdate,
     session: AsyncSession = Depends(models.get_session),
-) -> schemas.DataSet:
+) -> schemas.DataSetUpdateResponse:
+    """Update a dataset.
+
+    Returns the updated dataset along with the results of propagating config
+    changes to all channel datasets that reference this dataset.
+    """
     return await DataSetService(session).update(item_id, data, auth_context=SystemUserAuthContext())
 
 

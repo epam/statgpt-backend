@@ -5,6 +5,7 @@ from pydantic import BaseModel, Field, computed_field
 
 from .base import DbDefaultBase
 from .data_source import DataSource
+from .enums import ChannelDatasetUpdateStatus
 
 
 class Status(BaseModel):
@@ -48,3 +49,18 @@ class DataSetUpdate(BaseModel):
     title: str | None = Field(default=None)
     data_source_id: int | None = Field(default=None)
     details: dict[str, Any] | None = Field(default=None, description="Details as a JSON object")
+
+
+class ChannelDatasetUpdateResult(BaseModel):
+    channel_id: int
+    channel_title: str
+    channel_deployment_id: str
+    status: ChannelDatasetUpdateStatus
+    message: str | None = Field(default=None)
+    new_version_id: int | None = Field(default=None)
+    new_version_number: int | None = Field(default=None)
+
+
+class DataSetUpdateResponse(BaseModel):
+    dataset: DataSet
+    channel_results: list[ChannelDatasetUpdateResult] = Field(default_factory=list)

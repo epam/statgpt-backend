@@ -296,9 +296,10 @@ class AdminPortalDataSetService(DataSetService):
                         }
                         if data:
                             _log.info(f"Updating dataset '{dataset_cfg['title']}' with {data}")
-                            dataset = await self.update(
+                            update_response = await self.update(
                                 dataset.id, schemas.DataSetUpdate(**data), auth_context=auth_context
                             )
+                            dataset = update_response.dataset
                         else:
                             _log.info(f"Dataset '{dataset_cfg['title']}' exists and is up to date")
                     else:
@@ -609,7 +610,7 @@ class AdminPortalDataSetService(DataSetService):
 
     async def update(
         self, item_id: int, data: schemas.DataSetUpdate, auth_context: AuthContext
-    ) -> schemas.DataSet:
+    ) -> schemas.DataSetUpdateResponse:
         item = await self.get_model_by_id(item_id, expand=True)
 
         for attr, value in data.model_dump(exclude_unset=True, exclude={'details'}).items():
@@ -631,7 +632,15 @@ class AdminPortalDataSetService(DataSetService):
             auth_context=auth_context,
             allow_offline=True,
         )
-        return DataSetSerializer.db_to_schema(item, dataset, expand=True)
+        dataset_schema = DataSetSerializer.db_to_schema(item, dataset, expand=True)
+
+        # Propagate config changes to channel datasets
+        channel_results = await self._propagate_config_to_channel_datasets(item, handler)
+
+        return schemas.DataSetUpdateResponse(
+            dataset=dataset_schema,
+            channel_results=channel_results,
+        )
 
     async def delete(self, item_id: int) -> None:
         item = await self.get_model_by_id(item_id)
@@ -652,6 +661,143 @@ class AdminPortalDataSetService(DataSetService):
         _log.info(f"Deleting dataset(id={item.id}): {item.title!r}")
         await self._session.delete(item)
         await self._session.commit()
+
+    async def _propagate_config_to_channel_datasets(
+        self,
+        dataset: models.DataSet,
+        handler: base.DataSourceHandler,
+    ) -> list[schemas.ChannelDatasetUpdateResult]:
+        """Propagate config changes to all channel datasets that reference this dataset.
+
+        For each channel dataset:
+        - If indexing is in progress -> INDEXING_IN_PROGRESS
+        - If no completed version exists -> NO_VERSION
+        - If indexing hash matches -> AUTO_UPDATED (creates new version)
+        - If indexing hash differs -> NEEDS_REINDEX
+        """
+        await self._session.refresh(dataset, attribute_names=["mapped_channels"])
+
+        if not dataset.mapped_channels:
+            return []
+
+        results: list[schemas.ChannelDatasetUpdateResult] = []
+
+        channel_dataset_ids = [cd.id for cd in dataset.mapped_channels]
+
+        latest_versions = await self._get_latest_channel_dataset_versions(channel_dataset_ids)
+        last_completed_mapping = await self._get_latest_successful_channel_dataset_versions(
+            channel_dataset_ids=channel_dataset_ids
+        )
+
+        parsed_config = handler.parse_data_set_config(dataset.details)
+        new_config_hash = parsed_config.indexing_hash
+
+        for channel_dataset in dataset.mapped_channels:
+            await self._session.refresh(channel_dataset, attribute_names=["channel"])
+            channel = channel_dataset.channel
+
+            latest_version = latest_versions.get(channel_dataset.id)
+            last_completed_versions = last_completed_mapping.get(channel_dataset.id)
+            last_completed = (
+                last_completed_versions.last_completed_version if last_completed_versions else None
+            )
+
+            if (
+                latest_version
+                and latest_version.preprocessing_status not in StatusEnum.final_statuses()
+            ):
+                results.append(
+                    schemas.ChannelDatasetUpdateResult(
+                        channel_id=channel.id,
+                        channel_title=channel.title,
+                        channel_deployment_id=channel.deployment_id,
+                        status=schemas.ChannelDatasetUpdateStatus.INDEXING_IN_PROGRESS,
+                        message="Cannot apply config while indexing is in progress.",
+                    )
+                )
+                continue
+
+            if last_completed is None:
+                results.append(
+                    schemas.ChannelDatasetUpdateResult(
+                        channel_id=channel.id,
+                        channel_title=channel.title,
+                        channel_deployment_id=channel.deployment_id,
+                        status=schemas.ChannelDatasetUpdateStatus.NO_VERSION,
+                        message="No completed version exists to apply config to.",
+                    )
+                )
+                continue
+
+            if new_config_hash == last_completed.indexing_config_hash:
+                new_version = await self._apply_config_internal(
+                    channel_dataset, last_completed, handler, dataset.details
+                )
+                results.append(
+                    schemas.ChannelDatasetUpdateResult(
+                        channel_id=channel.id,
+                        channel_title=channel.title,
+                        channel_deployment_id=channel.deployment_id,
+                        status=schemas.ChannelDatasetUpdateStatus.AUTO_UPDATED,
+                        message="Config applied without re-indexing.",
+                        new_version_id=new_version.id,
+                        new_version_number=new_version.version,
+                    )
+                )
+            else:
+                results.append(
+                    schemas.ChannelDatasetUpdateResult(
+                        channel_id=channel.id,
+                        channel_title=channel.title,
+                        channel_deployment_id=channel.deployment_id,
+                        status=schemas.ChannelDatasetUpdateStatus.NEEDS_REINDEX,
+                        message="Indexing-related config has changed. Reindexing required.",
+                    )
+                )
+
+        return results
+
+    async def _apply_config_internal(
+        self,
+        channel_dataset: models.ChannelDataset,
+        last_completed: schemas.ChannelDatasetVersion,
+        handler: base.DataSourceHandler,
+        current_config: dict[str, Any],
+    ) -> schemas.ChannelDatasetVersion:
+        """Apply config changes to a channel dataset without re-indexing.
+
+        Creates a new COMPLETED version that reuses indexed data from the
+        last completed version.
+        """
+        if last_completed.resolved_config is None:
+            new_resolved_config = current_config
+        else:
+            new_resolved_config = handler.merge_config_with_resolved(
+                current_config=current_config,
+                resolved_config=last_completed.resolved_config,
+            )
+
+        parsed_config = handler.parse_data_set_config(new_resolved_config)
+
+        new_item = models.ChannelDatasetVersion(
+            channel_dataset_id=channel_dataset.id,
+            # `version` will be set by the DB trigger automatically
+            preprocessing_status=StatusEnum.COMPLETED,
+            pointer_to=last_completed.version_data_id,
+            creation_reason="Applied dataset config changes without re-indexing",
+            resolved_config=new_resolved_config,
+            indexing_config_hash=parsed_config.indexing_hash,
+            structure_metadata=last_completed.structure_metadata,
+            structure_hash=last_completed.structure_hash,
+            indicator_dimensions_hash=last_completed.indicator_dimensions_hash,
+            non_indicator_dimensions_hash=last_completed.non_indicator_dimensions_hash,
+            special_dimensions_hash=last_completed.special_dimensions_hash,
+        )
+
+        self._session.add(new_item)
+        await self._session.commit()
+        await self._session.refresh(new_item)
+        return schemas.ChannelDatasetVersion.model_validate(new_item, from_attributes=True)
 
     async def add_dataset_to_channel(
         self, channel_id: int, dataset_id: int
@@ -871,88 +1017,6 @@ class AdminPortalDataSetService(DataSetService):
             creation_reason=f"Rolled back to previous version={previous_version.version}",
             **{f: getattr(previous_version, f) for f in JobsConfig.VERSIONS_FIELDS},
         )
-        self._session.add(new_item)
-        await self._session.commit()
-        await self._session.refresh(new_item)
-        return schemas.ChannelDatasetVersion.model_validate(new_item, from_attributes=True)
-
-    async def apply_config_to_channel_dataset(
-        self, channel_id: int, dataset_id: int
-    ) -> schemas.ChannelDatasetVersion:
-        """Create a new version with updated config but existing indexed data.
-
-        This allows applying non-indexing config changes (citation, pinned_columns,
-        is_required, defaultQueries, etc.) without re-indexing the dataset.
-        """
-        channel: models.Channel = await ChannelService(self._session).get_model_by_id(channel_id)
-        dataset: models.DataSet = await self.get_model_by_id(dataset_id)
-        channel_dataset = await self.get_channel_dataset_model_or_raise(
-            channel_id=channel.id, dataset_id=dataset.id
-        )
-
-        last_version = await self._get_latest_channel_dataset_version_schema(
-            channel_dataset_id=channel_dataset.id
-        )
-        if last_version and last_version.preprocessing_status not in StatusEnum.final_statuses():
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail="Cannot apply config while the indexing is in progress.",
-            )
-
-        last_completed_versions = await self._get_latest_successful_channel_dataset_versions(
-            channel_dataset_ids=[channel_dataset.id]
-        )
-        last_completed = last_completed_versions[channel_dataset.id].last_completed_version
-        if last_completed is None:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="No completed version exists to apply config to.",
-            )
-
-        handler = await self._get_handler(dataset.source_id)
-
-        if last_completed.resolved_config is None:
-            new_resolved_config = dataset.details
-        else:
-            new_resolved_config = handler.merge_config_with_resolved(
-                current_config=dataset.details,
-                resolved_config=last_completed.resolved_config,
-            )
-
-        # Calculate new config hash from the merged config
-        parsed_config = handler.parse_data_set_config(new_resolved_config)
-        config_hash = parsed_config.indexing_hash
-
-        last_indexing_hash = last_completed.indexing_config_hash
-        if last_indexing_hash is not None and config_hash != last_indexing_hash:
-            # This might happen if:
-            # 1) the merging logic is faulty, or
-            # 2) resolved_config was missing and current config has indexing-related changes.
-            _log.warning(
-                f"Indexing-related config has changed for dataset {dataset.id_!r} "
-                f"(id={dataset.id}) in channel {channel.deployment_id!r} (id={channel.id}): "
-                f"{last_indexing_hash!r} -> {config_hash!r}"
-            )
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="The indexing-related config has changed. Please reindex the dataset.",
-            )
-
-        new_item = models.ChannelDatasetVersion(
-            channel_dataset_id=channel_dataset.id,
-            # `version` will be set by the DB trigger automatically
-            preprocessing_status=StatusEnum.COMPLETED,
-            pointer_to=last_completed.version_data_id,
-            creation_reason="Applied dataset config changes without re-indexing",
-            resolved_config=new_resolved_config,
-            indexing_config_hash=config_hash,
-            structure_metadata=last_completed.structure_metadata,
-            structure_hash=last_completed.structure_hash,
-            indicator_dimensions_hash=last_completed.indicator_dimensions_hash,
-            non_indicator_dimensions_hash=last_completed.non_indicator_dimensions_hash,
-            special_dimensions_hash=last_completed.special_dimensions_hash,
-        )
-
         self._session.add(new_item)
         await self._session.commit()
         await self._session.refresh(new_item)

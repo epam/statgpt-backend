@@ -13,9 +13,9 @@ from statgpt.common.schemas import (
     Channel,
     ChannelDatasetBase,
     ChannelDatasetExpanded,
-    ChannelDatasetVersion,
     ChannelIndexStatus,
     DataSet,
+    DataSetUpdateResponse,
     DataSource,
     DataSourceType,
     GlossaryTerm,
@@ -222,18 +222,6 @@ class AdminClient:
         resp = await self._client.post(self._url(f"/channels/{channel_id}/datasets/deduplicate"))
         resp.raise_for_status()
 
-    async def apply_config_to_channel_dataset(
-        self,
-        channel_id: int,
-        dataset_id: int,
-    ) -> ChannelDatasetVersion:
-        """Apply current dataset config to channel without re-indexing."""
-        resp = await self._client.post(
-            self._url(f"/channels/{channel_id}/datasets/{dataset_id}/versions/apply-config")
-        )
-        resp.raise_for_status()
-        return ChannelDatasetVersion.model_validate(resp.json())
-
     async def create_channel(self, channel_data: dict[str, Any]) -> Channel:
         """Create a new channel."""
         resp = await self._client.post(self._url("/channels"), json=channel_data)
@@ -268,11 +256,17 @@ class AdminClient:
         resp.raise_for_status()
         return DataSet.model_validate(resp.json())
 
-    async def update_dataset(self, dataset_id: int, dataset_data: dict[str, Any]) -> DataSet:
-        """Update an existing dataset."""
+    async def update_dataset(
+        self, dataset_id: int, dataset_data: dict[str, Any]
+    ) -> DataSetUpdateResponse:
+        """Update an existing dataset.
+
+        Returns the updated dataset along with the results of propagating config
+        changes to all channel datasets that reference this dataset.
+        """
         resp = await self._client.post(self._url(f"/datasets/{dataset_id}"), json=dataset_data)
         resp.raise_for_status()
-        return DataSet.model_validate(resp.json())
+        return DataSetUpdateResponse.model_validate(resp.json())
 
     async def add_dataset_to_channel(self, channel_id: int, dataset_id: int) -> ChannelDatasetBase:
         """Add a dataset to a channel."""

@@ -460,26 +460,6 @@ async def rollback_channel_dataset_to_previous_version(
     )
 
 
-@router.post(path="/{channel_id}/datasets/{dataset_id}/versions/apply-config")
-async def apply_config_to_channel_dataset(
-    channel_id: int,
-    dataset_id: int,
-    session: AsyncSession = Depends(models.get_session),
-) -> schemas.ChannelDatasetVersion:
-    """Apply current dataset config to channel without re-indexing.
-
-    Creates a new version that uses the current DataSet.details config
-    (with resolved URN preserved) but reuses indexed data from the
-    last completed version.
-
-    Use this after updating non-indexing config fields like citation,
-    pinned_columns, is_official, dimension.is_required, dimension.defaultQueries, etc.
-    """
-    return await DataSetService(session).apply_config_to_channel_dataset(
-        channel_id=channel_id, dataset_id=dataset_id
-    )
-
-
 @router.delete(
     path="/{channel_id}/datasets/{dataset_id}/versions/clear-data",
     status_code=status.HTTP_204_NO_CONTENT,

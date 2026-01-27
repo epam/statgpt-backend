@@ -1,6 +1,7 @@
 """Content management commands for StatGPT CLI."""
 
 import os
+from collections import defaultdict
 from typing import Any
 
 from rich.panel import Panel
@@ -24,6 +25,8 @@ from statgpt.common.data.sdmx.common import UrnReference
 from statgpt.common.schemas import (
     Channel,
     ChannelDatasetExpanded,
+    ChannelDatasetUpdateResult,
+    ChannelDatasetUpdateStatus,
     DataSet,
     DataSource,
     GlossaryTerm,
@@ -474,6 +477,34 @@ async def _process_data_sources(
     return data_sources
 
 
+def _display_channel_results(results: list[ChannelDatasetUpdateResult]) -> None:
+    """Display results of config propagation to channels."""
+    if not results:
+        return
+
+    auto_updated = [r for r in results if r.status == ChannelDatasetUpdateStatus.AUTO_UPDATED]
+    needs_reindex = [r for r in results if r.status == ChannelDatasetUpdateStatus.NEEDS_REINDEX]
+    no_version = [r for r in results if r.status == ChannelDatasetUpdateStatus.NO_VERSION]
+    in_progress = [
+        r for r in results if r.status == ChannelDatasetUpdateStatus.INDEXING_IN_PROGRESS
+    ]
+
+    if auto_updated:
+        channels_str = ", ".join(
+            f"{r.channel_deployment_id} (new version: {r.new_version_number})" for r in auto_updated
+        )
+        print_success(f"    Auto-updated in: {channels_str}")
+    if needs_reindex:
+        channels_str = ", ".join(r.channel_deployment_id for r in needs_reindex)
+        print_warning(f"    Needs reindex in: {channels_str}")
+    if no_version:
+        channels_str = ", ".join(r.channel_deployment_id for r in no_version)
+        print_info(f"    No indexed version in: {channels_str}")
+    if in_progress:
+        channels_str = ", ".join(r.channel_deployment_id for r in in_progress)
+        print_info(f"    Indexing in progress in: {channels_str}")
+
+
 async def _process_datasets(
     client: AdminClient,
     client_id: str,
@@ -500,6 +531,7 @@ async def _process_datasets(
         datasets_cfg.extend(cfg.get("dataSets", []))
 
     channel_datasets: dict[int, list[ChannelDatasetExpanded]] = {}
+    datasets_needing_reindex: dict[str, list[str]] = defaultdict(list)
 
     for ds_cfg in datasets_cfg:
         urn_data = ds_cfg.get("details", {}).get("urn")
@@ -517,8 +549,17 @@ async def _process_datasets(
         dataset_id_str = ds_cfg.get("id_")
 
         if dataset_id_str and dataset_id_str in existing_datasets:
-            dataset = await client.update_dataset(existing_datasets[dataset_id_str].id, ds_cfg)
+            response = await client.update_dataset(existing_datasets[dataset_id_str].id, ds_cfg)
+            dataset = response.dataset
             print_info(f"  Updated dataset: {urn}")
+
+            # Display channel datasets update results
+            _display_channel_results(response.channel_results)
+
+            # Collect datasets needing reindex for summary
+            for r in response.channel_results:
+                if r.status == ChannelDatasetUpdateStatus.NEEDS_REINDEX:
+                    datasets_needing_reindex[r.channel_deployment_id].append(urn)
         else:
             dataset = await client.create_dataset(ds_cfg)
             print_info(f"  Created dataset: {urn}")
@@ -537,6 +578,13 @@ async def _process_datasets(
             if not any(cd.dataset_id == dataset.id for cd in channel_datasets[ch_id]):
                 await client.add_dataset_to_channel(ch_id, dataset.id)
                 print_info(f"    Linked to channel: {ch_name}")
+
+    if datasets_needing_reindex:
+        print_info("-" * 50)
+        print_warning("Datasets requiring reindexing:")
+        for ch_deployment_id, ds_urns in datasets_needing_reindex.items():
+            ds_list = ", ".join(ds_urns)
+            print_warning(f"    {ch_deployment_id}: {ds_list}")
 
 
 init_command = Command(
