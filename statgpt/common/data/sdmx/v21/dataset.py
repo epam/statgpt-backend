@@ -358,7 +358,6 @@ class Sdmx21DataSet(
     _attributes: dict[str, Sdmx21Attribute]
     _virtual_dimensions: dict[str, VirtualDimension]
     _indicator_dimensions: dict[str, SdmxCodeListDimension | VirtualDimension]
-    _indicator_dimensions_required_for_query: list[str]
     _country_dimension: SdmxCodeListDimension | VirtualDimension | None
     _dim_values_id_2_name: dict[str, dict[str, str]] | None
 
@@ -378,7 +377,6 @@ class Sdmx21DataSet(
 
         self._dimensions = {dimension.entity_id: dimension for dimension in dimensions}
         self._indicator_dimensions = {}
-        self._indicator_dimensions_required_for_query = []
         self._virtual_dimensions = {}
         self._attributes = {attribute.entity_id: attribute for attribute in attributes}
         self._dim_values_id_2_name = None
@@ -906,8 +904,12 @@ class Sdmx21DataSet(
             dim for dim in self._indicator_dimensions.values() if isinstance(dim, VirtualDimension)
         ]
 
-    def indicator_dimensions_required_for_query(self) -> list[str]:
-        return self._indicator_dimensions_required_for_query
+    @cached_property
+    def required_dimensions(self) -> list[str]:
+        res = [
+            dim_id for dim_id, dim_conf in self.config.dimensions.items() if dim_conf.is_required
+        ]
+        return res
 
     async def get_indicators(
         self, auth_context: AuthContext, allow_cached: bool
