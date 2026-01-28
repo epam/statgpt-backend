@@ -44,7 +44,8 @@ make statgpt_admin
      }
    }
    ```
-3. Verify the MCP status is green. If needed, toggle the MCP button to refresh.
+3. Verify the MCP was successfully loaded and its status is green.
+If not, ensure admin app is running and try to reload the MCP.
 
 ### Claude Code
 
@@ -63,17 +64,19 @@ make statgpt_admin
 
 ### Datasets onboarding
 
-To add dataset configuration:
+The recommended way of adding new dataset configuration is by using specific prompt provided by MCP:
 
-- open corresponding `yaml` file with datasets configuration
-- mention MCP prompt for dataset onboarding and specify your query afterwards.
-  for example:
+- Open corresponding `yaml` file with datasets configuration
+- Call MCP prompt and add your query afterwards. For example:
   ```
   /statgpt-mcp/add_dataset_config please add CPI dataset
   ```
-- alternatively, you can avoid mentioning prompt explicitly,
-  and simply send your query to coding agent -
-  it should find relevant MCP prompt on its own
-- after coding agent finishes onboarding dataset,
-  it's **strongly advised** to check if MCP called dataset validation.
-  if not, ask coding agent to validate newly added datasets
+- Alternatively, you can send your query directly to the coding agent without calling
+  the MCP prompt. However, this will likely lead to subtle mistakes in the generated
+  dataset config.
+- After coding agent finishes onboarding dataset, it's **strongly advised** to:
+  - Check if coding agent validated generated configs using validation MCP tool.
+    If not, ask coding agent to validate newly added datasets
+  - Check generated config manually for any mistakes, redundancies, inefficiencies
+    (like not re-using existing yaml anchors)
+  - Review any new Named Entity types added to channel config
