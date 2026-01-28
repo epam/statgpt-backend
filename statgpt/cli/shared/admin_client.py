@@ -15,6 +15,7 @@ from statgpt.common.schemas import (
     ChannelDatasetExpanded,
     ChannelIndexStatus,
     DataSet,
+    DataSetUpdateResponse,
     DataSource,
     DataSourceType,
     GlossaryTerm,
@@ -255,11 +256,17 @@ class AdminClient:
         resp.raise_for_status()
         return DataSet.model_validate(resp.json())
 
-    async def update_dataset(self, dataset_id: int, dataset_data: dict[str, Any]) -> DataSet:
-        """Update an existing dataset."""
+    async def update_dataset(
+        self, dataset_id: int, dataset_data: dict[str, Any]
+    ) -> DataSetUpdateResponse:
+        """Update an existing dataset.
+
+        Returns the updated dataset along with the results of propagating config
+        changes to all channel datasets that reference this dataset.
+        """
         resp = await self._client.post(self._url(f"/datasets/{dataset_id}"), json=dataset_data)
         resp.raise_for_status()
-        return DataSet.model_validate(resp.json())
+        return DataSetUpdateResponse.model_validate(resp.json())
 
     async def add_dataset_to_channel(self, channel_id: int, dataset_id: int) -> ChannelDatasetBase:
         """Add a dataset to a channel."""

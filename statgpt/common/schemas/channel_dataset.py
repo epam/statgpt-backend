@@ -28,24 +28,15 @@ class ChannelDatasetVersion(DbDefaultBase):
             " if the rollback version was also a rollback to a previous version."
         )
     )
-    indicators_config_hash: str | None
-    non_indicators_config_hash: str | None
-    special_dimensions_config_hash: str | None
+    indexing_config_hash: str | None
     structure_metadata: dict | None
     structure_hash: str | None
     indicator_dimensions_hash: str | None
     non_indicator_dimensions_hash: str | None
     special_dimensions_hash: str | None
-
-    @property
-    def all_hashes_dict(self) -> dict[str, str | None]:
-        parts = {
-            'structure': self.structure_hash,
-            'indicator_dims': self.indicator_dimensions_hash,
-            'non_indicator_dims': self.non_indicator_dimensions_hash,
-            'special_dims': self.special_dimensions_hash,
-        }
-        return parts
+    resolved_config: dict | None = Field(
+        description="Resolved dataset configuration at indexing time (dynamic URN values resolved to concrete values)",
+    )
 
     @property
     def version_data_id(self) -> int:

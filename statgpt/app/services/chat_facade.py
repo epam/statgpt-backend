@@ -355,6 +355,16 @@ class ChannelServiceFacade(DbServiceBase):
             result.append(await handler.document_to_dimension_category(doc))
         return result
 
+    @staticmethod
+    def _get_config_for_query(
+        db_dataset: models.DataSet,
+        version: ChannelDatasetVersion,
+    ) -> dict:
+        """Get config for querying - prefer resolved_config if available."""
+        if version.resolved_config is not None:
+            return version.resolved_config
+        return db_dataset.details
+
     async def _load_datasets(self, auth_context: AuthContext) -> list[VersionedDataSet]:
         dataset_service = DataSetService(self._session, session_lock=self._session_lock)
         data_source_service = DataSourceService(self._session, session_lock=self._session_lock)
@@ -381,11 +391,12 @@ class ChannelServiceFacade(DbServiceBase):
         for db_dataset in dataset_models:
             data_source = data_sources[db_dataset.source_id]
             handler = await self._get_handler_class(data_source.type, config=data_source.details)
-            if await handler.is_dataset_available(db_dataset.details, auth_context):
+            config_to_use = self._get_config_for_query(db_dataset, versions[db_dataset.id])
+            if await handler.is_dataset_available(config_to_use, auth_context):
                 ds = await handler.get_dataset(
                     entity_id=db_dataset.id_,
                     title=db_dataset.title,
-                    config=db_dataset.details,
+                    config=config_to_use,
                     auth_context=auth_context,
                     allow_offline=True,
                     allow_cached=True,

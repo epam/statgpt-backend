@@ -2,7 +2,20 @@ import re
 import typing as t
 from abc import ABC, abstractmethod
 
+from pydantic import BaseModel as PydanticBaseModel
+from pydantic import ConfigDict, alias_generators
+
 from .enums import EntityType
+
+
+class BaseModel(PydanticBaseModel):
+    """Base Pydantic model with camelCase serialization for config files."""
+
+    model_config = ConfigDict(
+        alias_generator=alias_generators.to_camel,
+        populate_by_name=True,
+        extra='allow',
+    )
 
 
 class BaseEntity(ABC):

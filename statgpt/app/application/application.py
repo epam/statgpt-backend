@@ -24,7 +24,7 @@ async def lifespan(app: "StatGPTApp"):
         await DatabaseHealthChecker().check()
 
         # Start data preloading in the background
-        asyncio.create_task(preload_data(allow_cached_datasets=True))
+        asyncio.create_task(preload_data(allow_cached_datasets=True, use_resolved_config=True))
 
         yield
         # Clean up

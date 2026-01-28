@@ -199,6 +199,20 @@ class DataSet(BaseEntity, Generic[DataSetConfigType, DataSourceHandlerType], ABC
     def config(self) -> DataSetConfigType:
         return self._config
 
+    def get_resolved_config(self) -> dict | None:
+        """
+        Return the resolved dataset configuration with concrete values.
+
+        For SDMX, this extracts the actual URN from the loaded dataflow
+        (resolving dynamic values like "latest" to concrete versions).
+
+        For other providers, this may resolve other dynamic references.
+
+        Returns:
+            Resolved config dict, or None if no resolution needed/possible.
+        """
+        return None
+
     @property
     @abstractmethod
     def status(self) -> Status:

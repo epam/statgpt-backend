@@ -165,12 +165,10 @@ class ChannelDatasetVersion(DefaultBase):
         type_=String(10), default=None
     )
     special_dimensions_hash: Mapped[str | None] = mapped_column(type_=String(10), default=None)
-    # Config hashes:
-    indicators_config_hash: Mapped[str | None] = mapped_column(type_=String(10), default=None)
-    non_indicators_config_hash: Mapped[str | None] = mapped_column(type_=String(10), default=None)
-    special_dimensions_config_hash: Mapped[str | None] = mapped_column(
-        type_=String(10), default=None
-    )
+    # Config hash:
+    indexing_config_hash: Mapped[str | None] = mapped_column(type_=String(10), default=None)
+    # Resolved configuration at indexing time (e.g. dynamic URN version resolved to concrete version)
+    resolved_config: Mapped[dict | None] = mapped_column(type_=postgresql.JSONB, default=None)
 
     # relationships
     channel_dataset: Mapped[ChannelDataset] = relationship(back_populates="versions")
