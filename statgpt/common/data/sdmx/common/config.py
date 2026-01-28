@@ -1,14 +1,16 @@
 import logging
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import Field
 
 from statgpt.common.config import utils as config_utils
 from statgpt.common.data.base import (
+    BaseModel,
     DataSetConfig,
     DataSetConfigTemplate,
     DataSetHierarchyConfig,
     DataSourceConfig,
+    IndexingField,
 )
 
 _log = logging.getLogger(__name__)
@@ -128,9 +130,9 @@ class CategorySchemaDataSetHierarchyConfig(BaseModel):
 class UrnReference(BaseModel):
     """This class represents a URN reference for SDMX datasets and allows dynamic values."""
 
-    agency_id: str
-    resource_id: str
-    version: str = Field(default='latest')
+    agency_id: Annotated[str, IndexingField()]
+    resource_id: Annotated[str, IndexingField()]
+    version: Annotated[str, IndexingField()] = Field(default='latest')
 
     def short_urn(self) -> str:
         """Return a short URN representation."""
@@ -180,7 +182,7 @@ class SdmxDataSetConfigMixin:
     use_title_from_src: bool = Field(
         default=False, description="Whether to use the title obtained from the source"
     )
-    urn: UrnReference = Field(description="The URN of the dataset")
+    urn: Annotated[UrnReference, IndexingField()] = Field(description="The URN of the dataset")
     include_attributes: list[str] | None = Field(
         default=None, description="List of attributes to add to the query results table"
     )

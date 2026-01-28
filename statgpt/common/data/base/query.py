@@ -17,7 +17,7 @@ class Query(BaseModel):
     def is_all_selected(self) -> bool:
         return self.operator == QueryOperator.ALL
 
-    def is_empty(self):
+    def is_empty(self) -> bool:
         return not (bool(self.values) or self.is_all_selected)
 
 
