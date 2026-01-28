@@ -60,9 +60,26 @@ class IndexerIndicatorAnnotationConfig(BaseModel):
 
 
 class IndexerIndicatorConfig(BaseModel):
-    unpack: bool = Field(default=False)
-    use_code_list_description: bool = Field(default=False)
-    super_primary: bool = Field(default=False)
+    unpack: bool = Field(
+        default=False,
+        description=(
+            "When True, LLM selects canonical 'primary' from similar indicators found via hybrid search. "
+            "When False, primary is taken from first dimension name and normalized."
+        ),
+    )
+    use_code_list_description: bool = Field(
+        default=False,
+        description="Reserved for future use. Currently not implemented.",
+        # TODO: implement or remove
+    )
+    super_primary: bool = Field(
+        default=False,
+        description=(
+            "Only applies when unpack=False. "
+            "When True, primary is concatenated from first 3 dimensions. "
+            "When False, primary is taken from first dimension only."
+        ),
+    )
 
     annotations: IndexerIndicatorAnnotationConfig | None = Field(default=None)
 

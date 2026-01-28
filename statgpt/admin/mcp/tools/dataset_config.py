@@ -60,6 +60,7 @@ async def get_dataset_config_details_schema(
 ) -> dict:
     """
     Retrieve schema for "details" field used in dataset configurations for a specific data source.
+    You must always use this tool to guarantee generated dataset config adheres to the schema.
     """
     dataset_service = DataSetService(session)
     schema = await dataset_service.get_dataset_config_schema(source_id=data_source_id)
@@ -67,7 +68,7 @@ async def get_dataset_config_details_schema(
 
 
 @mcp_tools.tool
-def generate_id() -> str:
+def generate_uuid() -> str:
     """Generate a random UUID string."""
     return str(uuid4())
 
@@ -87,11 +88,11 @@ async def get_sdmx_dataset_structure(
     session: AsyncSession = Depends(get_session_contex_manager),  # type: ignore[arg-type]
 ) -> dict:
     """
-    Retrieve the structure of an SDMX dataset, including
-    a list of dimensions with sample codes and attributes.
-
-    This tool fetches metadata about the dataset's structure from the SDMX registry,
-    resolving dynamic URN values (e.g., 'latest', wildcards) to actual versions.
+    Retrieve SDMX dataset structure and metadata from SDMX registry including:
+    - list of dimensions, along with sample values
+    - attributes
+    - description
+    Also resolves dynamic URNs (e.g., 'latest', wildcards) to actual versions
     """
     # NOTE: While other tools are generic, this one is SDMX-specific.
 
