@@ -22,7 +22,12 @@ from statgpt.common.data.base.dataset import DataSetConfigType
 from statgpt.common.hybrid_indexer import Indexer
 from statgpt.common.schemas import ChannelIndexStatusScope, HybridSearchConfig
 from statgpt.common.schemas import PreprocessingStatusEnum as StatusEnum
-from statgpt.common.services import ChannelDataSetSerializer, DataSetSerializer, DataSetService
+from statgpt.common.services import (
+    ChannelDataSetSerializer,
+    ChannelSerializer,
+    DataSetSerializer,
+    DataSetService,
+)
 from statgpt.common.services.dataset import LastCompletedVersions
 from statgpt.common.settings.document import (
     DimensionValueDocumentMetadataFields,
@@ -291,13 +296,15 @@ class AdminPortalDataSetService(DataSetService):
                     if update_datasets:
                         data = {
                             field: getattr(parsed_dataset, field)
-                            for field in schemas.DataSetUpdate.model_fields.keys()
+                            for field in schemas.DataSetUpdateRequest.model_fields.keys()
                             if getattr(parsed_dataset, field) != getattr(dataset, field)
                         }
                         if data:
                             _log.info(f"Updating dataset '{dataset_cfg['title']}' with {data}")
                             update_response = await self.update(
-                                dataset.id, schemas.DataSetUpdate(**data), auth_context=auth_context
+                                dataset.id,
+                                schemas.DataSetUpdateRequest.model_validate(data),
+                                auth_context=auth_context,
                             )
                             dataset = update_response.dataset
                         else:
@@ -609,7 +616,7 @@ class AdminPortalDataSetService(DataSetService):
         return datasets
 
     async def update(
-        self, item_id: int, data: schemas.DataSetUpdate, auth_context: AuthContext
+        self, item_id: int, data: schemas.DataSetUpdateRequest, auth_context: AuthContext
     ) -> schemas.DataSetUpdateResponse:
         item = await self.get_model_by_id(item_id, expand=True)
 
@@ -634,9 +641,7 @@ class AdminPortalDataSetService(DataSetService):
         )
         dataset_schema = DataSetSerializer.db_to_schema(item, dataset, expand=True)
 
-        # Propagate config changes to channel datasets
         channel_results = await self._propagate_config_to_channel_datasets(item, handler)
-
         return schemas.DataSetUpdateResponse(
             dataset=dataset_schema,
             channel_results=channel_results,
@@ -702,58 +707,31 @@ class AdminPortalDataSetService(DataSetService):
                 last_completed_versions.last_completed_version if last_completed_versions else None
             )
 
+            other_fields = {}
             if (
                 latest_version
                 and latest_version.preprocessing_status not in StatusEnum.final_statuses()
             ):
-                results.append(
-                    schemas.ChannelDatasetUpdateResult(
-                        channel_id=channel.id,
-                        channel_title=channel.title,
-                        channel_deployment_id=channel.deployment_id,
-                        status=schemas.ChannelDatasetUpdateStatus.INDEXING_IN_PROGRESS,
-                        message="Cannot apply config while indexing is in progress.",
-                    )
-                )
-                continue
-
-            if last_completed is None:
-                results.append(
-                    schemas.ChannelDatasetUpdateResult(
-                        channel_id=channel.id,
-                        channel_title=channel.title,
-                        channel_deployment_id=channel.deployment_id,
-                        status=schemas.ChannelDatasetUpdateStatus.NO_VERSION,
-                        message="No completed version exists to apply config to.",
-                    )
-                )
-                continue
-
-            if new_config_hash == last_completed.indexing_config_hash:
+                status = schemas.ChannelDatasetUpdateStatus.INDEXING_IN_PROGRESS
+            elif last_completed is None:
+                status = schemas.ChannelDatasetUpdateStatus.NO_VERSION
+            elif new_config_hash == last_completed.indexing_config_hash:
                 new_version = await self._apply_config_internal(
                     channel_dataset, last_completed, handler, dataset.details
                 )
-                results.append(
-                    schemas.ChannelDatasetUpdateResult(
-                        channel_id=channel.id,
-                        channel_title=channel.title,
-                        channel_deployment_id=channel.deployment_id,
-                        status=schemas.ChannelDatasetUpdateStatus.AUTO_UPDATED,
-                        message="Config applied without re-indexing.",
-                        new_version_id=new_version.id,
-                        new_version_number=new_version.version,
-                    )
-                )
+                other_fields['new_version'] = new_version
+                status = schemas.ChannelDatasetUpdateStatus.AUTO_UPDATED
             else:
-                results.append(
-                    schemas.ChannelDatasetUpdateResult(
-                        channel_id=channel.id,
-                        channel_title=channel.title,
-                        channel_deployment_id=channel.deployment_id,
-                        status=schemas.ChannelDatasetUpdateStatus.NEEDS_REINDEX,
-                        message="Indexing-related config has changed. Reindexing required.",
-                    )
+                status = schemas.ChannelDatasetUpdateStatus.NEEDS_REINDEX
+
+            results.append(
+                schemas.ChannelDatasetUpdateResult(
+                    channel_dataset_id=channel_dataset.id,
+                    status=status,
+                    channel=ChannelSerializer.db_to_schema(channel),
+                    **other_fields,
                 )
+            )
 
         return results
 

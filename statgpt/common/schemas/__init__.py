@@ -19,16 +19,10 @@ from .channel_dataset import (
     DataChange,
     StructureChange,
 )
+from .composite import ChannelDatasetUpdateResult, DataSetUpdateResponse
 from .data_query_tool import DataQueryDetails, HybridSearchConfig
 from .data_source import DataSource, DataSourceBase, DataSourceType, DataSourceUpdate
-from .dataset import (
-    ChannelDatasetUpdateResult,
-    DataSet,
-    DataSetBase,
-    DataSetDescriptor,
-    DataSetUpdate,
-    DataSetUpdateResponse,
-)
+from .dataset import DataSet, DataSetBase, DataSetDescriptor, DataSetUpdateRequest
 from .enums import (
     ChannelDatasetUpdateStatus,
     ChannelIndexStatusScope,

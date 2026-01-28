@@ -68,7 +68,7 @@ async def get_dataset_by_id(
 @router.post("/{item_id}")
 async def update_dataset(
     item_id: int,
-    data: schemas.DataSetUpdate,
+    data: schemas.DataSetUpdateRequest,
     session: AsyncSession = Depends(models.get_session),
 ) -> schemas.DataSetUpdateResponse:
     """Update a dataset.

@@ -491,17 +491,18 @@ def _display_channel_results(results: list[ChannelDatasetUpdateResult]) -> None:
 
     if auto_updated:
         channels_str = ", ".join(
-            f"{r.channel_deployment_id} (new version: {r.new_version_number})" for r in auto_updated
+            f"{r.channel.deployment_id} (new version: {r.new_version.version if r.new_version else 'N/A'})"
+            for r in auto_updated
         )
         print_success(f"    Auto-updated in: {channels_str}")
     if needs_reindex:
-        channels_str = ", ".join(r.channel_deployment_id for r in needs_reindex)
+        channels_str = ", ".join(r.channel.deployment_id for r in needs_reindex)
         print_warning(f"    Needs reindex in: {channels_str}")
     if no_version:
-        channels_str = ", ".join(r.channel_deployment_id for r in no_version)
+        channels_str = ", ".join(r.channel.deployment_id for r in no_version)
         print_info(f"    No indexed version in: {channels_str}")
     if in_progress:
-        channels_str = ", ".join(r.channel_deployment_id for r in in_progress)
+        channels_str = ", ".join(r.channel.deployment_id for r in in_progress)
         print_info(f"    Indexing in progress in: {channels_str}")
 
 
@@ -559,7 +560,7 @@ async def _process_datasets(
             # Collect datasets needing reindex for summary
             for r in response.channel_results:
                 if r.status == ChannelDatasetUpdateStatus.NEEDS_REINDEX:
-                    datasets_needing_reindex[r.channel_deployment_id].append(urn or "None")
+                    datasets_needing_reindex[r.channel.deployment_id].append(urn or "None")
         else:
             dataset = await client.create_dataset(ds_cfg)
             print_info(f"  Created dataset: {urn}")

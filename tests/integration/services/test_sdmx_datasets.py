@@ -173,7 +173,7 @@ async def test_update_dataset(session, clear_all, sdmx_clint_mock):
 
     response = await dataset_service.update(
         dataset.id,
-        schemas.DataSetUpdate(
+        schemas.DataSetUpdateRequest(
             title='CPI Updated',
             details={
                 'urn': URN_CPI_3_0_1,
