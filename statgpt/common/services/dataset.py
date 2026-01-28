@@ -577,3 +577,91 @@ class DataSetService(DbServiceBase):
         channel_datasets = await self.get_channel_dataset_models_with_ds(channel_id)
         channel_dataset_ids = [cd.id for cd in channel_datasets]
         return await self._get_latest_successful_dataset_version(channel_dataset_ids)
+
+    async def _get_resolved_configs_for_all_datasets(self) -> dict[int, dict]:
+        """Get resolved_config for all datasets from their latest completed versions.
+
+        Returns:
+            A dictionary mapping dataset IDs to their resolved_config.
+            Only datasets with a completed version that has resolved_config are included.
+        """
+        # Subquery to rank completed versions by descending order for each dataset
+        ranked_versions = (
+            select(
+                models.ChannelDatasetVersion.resolved_config,
+                models.ChannelDataset.dataset_id,
+                (
+                    func.row_number()
+                    .over(
+                        partition_by=models.ChannelDataset.dataset_id,
+                        order_by=models.ChannelDatasetVersion.version.desc(),
+                    )
+                    .label("rank")
+                ),
+            )
+            .join(models.ChannelDataset)
+            .where(models.ChannelDatasetVersion.preprocessing_status == StatusEnum.COMPLETED)
+            .where(models.ChannelDatasetVersion.resolved_config.is_not(None))
+            .subquery()
+        )
+
+        # Select only the latest version for each dataset
+        query = select(
+            ranked_versions.c.dataset_id,
+            ranked_versions.c.resolved_config,
+        ).where(ranked_versions.c.rank == 1)
+
+        result = await self._session.execute(query)
+        return {row.dataset_id: row.resolved_config for row in result.fetchall()}
+
+    async def preload_datasets(
+        self,
+        auth_context: AuthContext,
+        allow_cached_datasets: bool = False,
+        use_resolved_config: bool = True,
+    ) -> int:
+        """Preload all datasets to warm up the cache.
+
+        Args:
+            auth_context: Authentication context for data access.
+            allow_cached_datasets: Whether to put dataset classes into cache.
+            use_resolved_config: If True, use resolved_config from completed versions
+                (with concrete URN values). If False, use original dataset config
+                (which may contain dynamic values like 'latest').
+
+        Returns:
+            Number of datasets preloaded.
+        """
+        items = await self.get_datasets_models(
+            limit=None, offset=0, expand=True, source_id=None, channel_id=None, ids=None
+        )
+
+        # Get resolved configs when needed
+        resolved_configs: dict[int, dict] = {}
+        if use_resolved_config:
+            resolved_configs = await self._get_resolved_configs_for_all_datasets()
+
+        # Get handlers for each data source
+        sources: set[int] = {i.source_id for i in items}
+        handlers = {source_id: await self._get_handler(source_id) for source_id in sources}
+
+        tasks = []
+        for item in items:
+            handler = handlers[item.source_id]
+            # Use resolved_config if available and enabled, otherwise fall back to original
+            config = resolved_configs.get(item.id) if use_resolved_config else None
+            if config is None:
+                config = item.details
+            tasks.append(
+                handler.get_dataset(
+                    entity_id=item.id_,
+                    title=item.title,
+                    config=config,
+                    auth_context=auth_context,
+                    allow_offline=True,
+                    allow_cached=allow_cached_datasets,
+                )
+            )
+
+        await async_utils.gather_with_concurrency(self._SETTINGS.dataset_concurrency_limit, *tasks)
+        return len(items)

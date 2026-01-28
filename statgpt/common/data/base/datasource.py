@@ -3,11 +3,11 @@ import uuid
 from abc import ABC, abstractmethod
 
 from langchain_core.documents import Document
-from pydantic import BaseModel, ConfigDict, Field, SerializeAsAny, alias_generators
+from pydantic import Field, SerializeAsAny
 
 from statgpt.common.auth.auth_context import AuthContext
 
-from .base import BaseEntity, EntityType
+from .base import BaseEntity, BaseModel, EntityType
 from .category import DimensionCategory
 from .config import DataSetConfigTemplate
 from .dataset import DataSet, DataSetConfig
@@ -48,7 +48,7 @@ class DataSetHierarchyConfig(BaseModel):
 
 
 class DataSourceConfig(BaseModel, ABC):
-    model_config = ConfigDict(alias_generator=alias_generators.to_camel, populate_by_name=True)
+    pass
 
 
 DataSourceConfigType = t.TypeVar("DataSourceConfigType", bound=DataSourceConfig)
@@ -152,6 +152,18 @@ class DataSourceHandler(
 
     async def get_dataset_hierarchy(self, auth_context: AuthContext) -> DatasetHierarchy | None:
         return None
+
+    @abstractmethod
+    def merge_config_with_resolved(
+        self,
+        current_config: dict,
+        resolved_config: dict,
+    ) -> dict:
+        """Merge current config with resolved config from indexing time.
+
+        Takes current_config and merges with resolved_config to preserve
+        any dynamically resolved values (implementation-specific).
+        """
 
     @abstractmethod
     async def validate_dataset_config(

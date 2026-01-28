@@ -1,46 +1,32 @@
 import logging
 from abc import ABC
-from collections.abc import Generator, Iterable
-from typing import Annotated, Literal, NamedTuple, Self
+from collections.abc import Generator
+from typing import Annotated, Literal, Self
 
-from pydantic import BaseModel as PydanticBaseModel
-from pydantic import ConfigDict, Field, SerializeAsAny, StrictStr, alias_generators, model_validator
+from pydantic import Field, SerializeAsAny, StrictStr, model_validator
 
 from statgpt.common.config.utils import replace_env
-from statgpt.common.utils import crc32_hash, crc32_hash_incremental
 
+from .base import BaseModel
 from .enums import DimensionType, SpecialNonIndicatorDimensions
+from .indexing import IndexingField, IndexingHashMixin
 from .query import Query
 
 _log = logging.getLogger(__name__)
 
 
-class BaseModel(PydanticBaseModel):
-    model_config = ConfigDict(alias_generator=alias_generators.to_camel, populate_by_name=True)
-
-
-class ConfigHashes(NamedTuple):
-    indicator_hash: str
-    non_indicator_hash: str
-    special_hash: str
-
-
 class VirtualDimensionValue(BaseModel):
-    id: str
-    name: str
+    id: Annotated[str, IndexingField()]
+    name: Annotated[str, IndexingField()]
     description: str | None
 
 
-class VirtualDimensionConfig(BaseModel):
-    name: str = Field(description="The name of the virtual dimension")
+class VirtualDimensionConfig(BaseModel, IndexingHashMixin):
+    name: Annotated[str, IndexingField()] = Field(description="The name of the virtual dimension")
     description: str | None = Field(description="The description of the virtual dimension")
-    value: VirtualDimensionValue = Field(description="The value of the virtual dimension")
-
-    @property
-    def indexing_hash(self) -> str:
-        """A calculated hash based on the fields used for indexing."""
-        data = (self.name, self.value.id, self.value.name)
-        return str(crc32_hash(str(data)))
+    value: Annotated[VirtualDimensionValue, IndexingField()] = Field(
+        description="The value of the virtual dimension"
+    )
 
 
 class DatasetCitation(BaseModel):
@@ -56,23 +42,25 @@ class DatasetCitation(BaseModel):
 
 
 class IndexerIndicatorAnnotationConfig(BaseModel):
-    description: str = Field(description="annotation name to get indicator description", default="")
+    description: Annotated[str, IndexingField()] = Field(
+        description="annotation name to get indicator description", default=""
+    )
 
 
 class IndexerIndicatorConfig(BaseModel):
-    unpack: bool = Field(
+    unpack: Annotated[bool, IndexingField()] = Field(
         default=False,
         description=(
             "When True, LLM selects canonical 'primary' from similar indicators found via hybrid search. "
             "When False, primary is taken from first dimension name and normalized."
         ),
     )
-    use_code_list_description: bool = Field(
+    use_code_list_description: Annotated[bool, IndexingField()] = Field(
         default=False,
         description="Reserved for future use. Currently not implemented.",
         # TODO: implement or remove
     )
-    super_primary: bool = Field(
+    super_primary: Annotated[bool, IndexingField()] = Field(
         default=False,
         description=(
             "Only applies when unpack=False. "
@@ -81,39 +69,34 @@ class IndexerIndicatorConfig(BaseModel):
         ),
     )
 
-    annotations: IndexerIndicatorAnnotationConfig | None = Field(default=None)
+    annotations: Annotated[IndexerIndicatorAnnotationConfig | None, IndexingField()] = Field(
+        default=None
+    )
 
 
-class IndexerConfig(BaseModel):
-    description: str = Field(description="dataset_description", default="")
+class IndexerConfig(BaseModel, IndexingHashMixin):
+    description: Annotated[str, IndexingField()] = Field(
+        description="dataset_description", default=""
+    )
 
-    indicator: IndexerIndicatorConfig = Field(
+    indicator: Annotated[IndexerIndicatorConfig, IndexingField()] = Field(
         description="indicator_config", default_factory=IndexerIndicatorConfig
     )
 
-    @property
-    def indexing_hash(self) -> str:
-        """A calculated hash based on the fields used for indexing."""
-        data = self.model_dump(
-            include={
-                "description",
-                "indicator",
-            }
-        )
-        return str(crc32_hash(str(data)))
 
-
-class BaseDimensionConfig(BaseModel):
-    dimension_type: str | None
-    alias: str | None = Field(default=None)
+class BaseDimensionConfig(BaseModel, IndexingHashMixin):
+    dimension_type: Annotated[str | None, IndexingField()]
+    alias: Annotated[str | None, IndexingField()] = Field(default=None)
     is_required: bool = Field(
         default=False,
         description=(
-            "Whether this dimension is required to build a query. "
-            "Used to filter out queries without these dimensions. See the detailed logic in the code"
+            "Whether this dimension is one of the required dimensions to build a dataset query. "
+            "Dataset query MUST have non-empty dimension query "
+            "to AT LEAST ONE of the required dimensions. "
+            "Otherwise, dataset query is filtered out and is not executed."
         ),
     )
-    virtual: VirtualDimensionConfig | None = Field(
+    virtual: Annotated[VirtualDimensionConfig | None, IndexingField()] = Field(
         default=None,
         description=(
             "If set, defines a virtual dimension to be added to the dataset. "
@@ -136,24 +119,14 @@ class BaseDimensionConfig(BaseModel):
             raise ValueError("dimension_type is not set")
         return DimensionType(self.dimension_type)
 
-    @property
-    def indexing_hash(self) -> str:
-        """A calculated hash based on the fields used for indexing."""
-        data = (
-            self.dimension_type,
-            self.alias,
-            None if self.virtual is None else self.virtual.indexing_hash,
-        )
-        return str(crc32_hash(str(data)))
-
 
 class IndicatorDimensionConfig(BaseDimensionConfig):
-    dimension_type: Literal["INDICATOR"] = Field(default="INDICATOR")
+    dimension_type: Annotated[Literal["INDICATOR"], IndexingField()] = "INDICATOR"
 
 
 class SpecialDimensionConfig(BaseDimensionConfig):
-    dimension_type: Literal["SPECIAL"] = Field(default="SPECIAL")
-    processor_id: str = Field(
+    dimension_type: Annotated[Literal["SPECIAL"], IndexingField()] = "SPECIAL"
+    processor_id: Annotated[str, IndexingField()] = Field(
         description=(
             "The ID of the processor to handle this special dimension. "
             "NOTE: processors are defined in the channel configuration."
@@ -162,13 +135,13 @@ class SpecialDimensionConfig(BaseDimensionConfig):
 
 
 class NonIndicatorDimensionConfig(BaseDimensionConfig):
-    dimension_type: Literal["NON_INDICATOR"] = Field(default="NON_INDICATOR")
-    subtype: SpecialNonIndicatorDimensions | None = Field(default=None)
+    dimension_type: Annotated[Literal["NON_INDICATOR"], IndexingField()] = "NON_INDICATOR"
+    subtype: Annotated[SpecialNonIndicatorDimensions | None, IndexingField()] = Field(default=None)
     # named_entity: str  # TODO
 
 
 class TimePeriodDimensionConfig(BaseDimensionConfig):
-    dimension_type: Literal["TIME_PERIOD"] = Field(default="TIME_PERIOD")
+    dimension_type: Annotated[Literal["TIME_PERIOD"], IndexingField()] = "TIME_PERIOD"
 
 
 DIMENSION_CONFIG_TYPES = Annotated[
@@ -185,7 +158,7 @@ DIMENSION_CONFIG_TYPES = Annotated[
 class BaseDataSetConfig(BaseModel):
     is_official: bool = Field(default=False)
     citation: DatasetCitation | None = Field(default=None)
-    indexer: IndexerConfig | None = Field(default=None)
+    indexer: Annotated[IndexerConfig | None, IndexingField()] = Field(default=None)
     pinned_columns: list[str] = Field(
         description="Column names and order to pin in the data in grid", default_factory=list
     )
@@ -199,35 +172,12 @@ class DataSetConfigTemplate(BaseDataSetConfig):
     )
 
 
-class DataSetConfig(BaseDataSetConfig, ABC):
+class DataSetConfig(BaseDataSetConfig, ABC, IndexingHashMixin):
 
-    dimensions: dict[str, DIMENSION_CONFIG_TYPES] = Field(
+    dimensions: Annotated[dict[str, DIMENSION_CONFIG_TYPES], IndexingField()] = Field(
         description="The configuration of the each dimension in the dataset by its ID",
         default_factory=dict,
     )
-
-    @property
-    def indexing_hashes(self) -> ConfigHashes:
-        """A calculated hash based on the fields used for indexing."""
-
-        def get_dimensions_hash(dimensions: Iterable[tuple[str, BaseDimensionConfig]]) -> int:
-            # Sort dimensions by their IDs to ensure consistent ordering
-            sorted_dims = sorted(dimensions, key=lambda item: item[0])
-            return crc32_hash_incremental(
-                (dim_id + dim.indexing_hash) for dim_id, dim in sorted_dims
-            )
-
-        indicator_data = (
-            None if self.indexer is None else self.indexer.indexing_hash,
-            get_dimensions_hash(
-                (i, d) for i, d in self.dimensions.items() if d.type is DimensionType.INDICATOR
-            ),
-        )
-        return ConfigHashes(
-            indicator_hash=str(crc32_hash(str(indicator_data))),
-            non_indicator_hash=str(get_dimensions_hash(self.non_indicator_dimensions)),
-            special_hash=str(get_dimensions_hash(self.special_dimensions)),
-        )
 
     def get_dimension_aliases(self) -> dict[str, str]:
         return {

@@ -18,12 +18,16 @@ from statgpt.admin.settings.exim import ExImSettings, JobsConfig
 from statgpt.common import utils
 from statgpt.common.auth.auth_context import AuthContext
 from statgpt.common.data import base
-from statgpt.common.data.base.config import ConfigHashes
 from statgpt.common.data.base.dataset import DataSetConfigType
 from statgpt.common.hybrid_indexer import Indexer
 from statgpt.common.schemas import ChannelIndexStatusScope, HybridSearchConfig
 from statgpt.common.schemas import PreprocessingStatusEnum as StatusEnum
-from statgpt.common.services import ChannelDataSetSerializer, DataSetSerializer, DataSetService
+from statgpt.common.services import (
+    ChannelDataSetSerializer,
+    ChannelSerializer,
+    DataSetSerializer,
+    DataSetService,
+)
 from statgpt.common.services.dataset import LastCompletedVersions
 from statgpt.common.settings.document import (
     DimensionValueDocumentMetadataFields,
@@ -292,14 +296,17 @@ class AdminPortalDataSetService(DataSetService):
                     if update_datasets:
                         data = {
                             field: getattr(parsed_dataset, field)
-                            for field in schemas.DataSetUpdate.model_fields.keys()
+                            for field in schemas.DataSetUpdateRequest.model_fields.keys()
                             if getattr(parsed_dataset, field) != getattr(dataset, field)
                         }
                         if data:
                             _log.info(f"Updating dataset '{dataset_cfg['title']}' with {data}")
-                            dataset = await self.update(
-                                dataset.id, schemas.DataSetUpdate(**data), auth_context=auth_context
+                            update_response = await self.update(
+                                dataset.id,
+                                schemas.DataSetUpdateRequest.model_validate(data),
+                                auth_context=auth_context,
                             )
+                            dataset = update_response.dataset
                         else:
                             _log.info(f"Dataset '{dataset_cfg['title']}' exists and is up to date")
                     else:
@@ -631,8 +638,8 @@ class AdminPortalDataSetService(DataSetService):
         return structure.model_dump(mode='json', by_alias=True)
 
     async def update(
-        self, item_id: int, data: schemas.DataSetUpdate, auth_context: AuthContext
-    ) -> schemas.DataSet:
+        self, item_id: int, data: schemas.DataSetUpdateRequest, auth_context: AuthContext
+    ) -> schemas.DataSetUpdateResponse:
         item = await self.get_model_by_id(item_id, expand=True)
 
         for attr, value in data.model_dump(exclude_unset=True, exclude={'details'}).items():
@@ -654,7 +661,13 @@ class AdminPortalDataSetService(DataSetService):
             auth_context=auth_context,
             allow_offline=True,
         )
-        return DataSetSerializer.db_to_schema(item, dataset, expand=True)
+        dataset_schema = DataSetSerializer.db_to_schema(item, dataset, expand=True)
+
+        channel_results = await self._propagate_config_to_channel_datasets(item, handler)
+        return schemas.DataSetUpdateResponse(
+            dataset=dataset_schema,
+            channel_results=channel_results,
+        )
 
     async def delete(self, item_id: int) -> None:
         item = await self.get_model_by_id(item_id)
@@ -675,6 +688,116 @@ class AdminPortalDataSetService(DataSetService):
         _log.info(f"Deleting dataset(id={item.id}): {item.title!r}")
         await self._session.delete(item)
         await self._session.commit()
+
+    async def _propagate_config_to_channel_datasets(
+        self,
+        dataset: models.DataSet,
+        handler: base.DataSourceHandler,
+    ) -> list[schemas.ChannelDatasetUpdateResult]:
+        """Propagate config changes to all channel datasets that reference this dataset.
+
+        For each channel dataset:
+        - If indexing is in progress -> INDEXING_IN_PROGRESS
+        - If no completed version exists -> NO_VERSION
+        - If indexing hash matches -> AUTO_UPDATED (creates new version)
+        - If indexing hash differs -> NEEDS_REINDEX
+        """
+        await self._session.refresh(dataset, attribute_names=["mapped_channels"])
+
+        if not dataset.mapped_channels:
+            return []
+
+        results: list[schemas.ChannelDatasetUpdateResult] = []
+
+        channel_dataset_ids = [cd.id for cd in dataset.mapped_channels]
+
+        latest_versions = await self._get_latest_channel_dataset_versions(channel_dataset_ids)
+        last_completed_mapping = await self._get_latest_successful_channel_dataset_versions(
+            channel_dataset_ids=channel_dataset_ids
+        )
+
+        parsed_config = handler.parse_data_set_config(dataset.details)
+        new_config_hash = parsed_config.indexing_hash
+
+        for channel_dataset in dataset.mapped_channels:
+            await self._session.refresh(channel_dataset, attribute_names=["channel"])
+            channel = channel_dataset.channel
+
+            latest_version = latest_versions.get(channel_dataset.id)
+            last_completed_versions = last_completed_mapping.get(channel_dataset.id)
+            last_completed = (
+                last_completed_versions.last_completed_version if last_completed_versions else None
+            )
+
+            other_fields = {}
+            if (
+                latest_version
+                and latest_version.preprocessing_status not in StatusEnum.final_statuses()
+            ):
+                status = schemas.ChannelDatasetUpdateStatus.INDEXING_IN_PROGRESS
+            elif last_completed is None:
+                status = schemas.ChannelDatasetUpdateStatus.NO_VERSION
+            elif new_config_hash == last_completed.indexing_config_hash:
+                new_version = await self._apply_config_internal(
+                    channel_dataset, last_completed, handler, dataset.details
+                )
+                other_fields['new_version'] = new_version
+                status = schemas.ChannelDatasetUpdateStatus.AUTO_UPDATED
+            else:
+                status = schemas.ChannelDatasetUpdateStatus.NEEDS_REINDEX
+
+            results.append(
+                schemas.ChannelDatasetUpdateResult(
+                    channel_dataset_id=channel_dataset.id,
+                    status=status,
+                    channel=ChannelSerializer.db_to_schema(channel),
+                    **other_fields,
+                )
+            )
+
+        return results
+
+    async def _apply_config_internal(
+        self,
+        channel_dataset: models.ChannelDataset,
+        last_completed: schemas.ChannelDatasetVersion,
+        handler: base.DataSourceHandler,
+        current_config: dict[str, Any],
+    ) -> schemas.ChannelDatasetVersion:
+        """Apply config changes to a channel dataset without re-indexing.
+
+        Creates a new COMPLETED version that reuses indexed data from the
+        last completed version.
+        """
+        if last_completed.resolved_config is None:
+            new_resolved_config = current_config
+        else:
+            new_resolved_config = handler.merge_config_with_resolved(
+                current_config=current_config,
+                resolved_config=last_completed.resolved_config,
+            )
+
+        parsed_config = handler.parse_data_set_config(new_resolved_config)
+
+        new_item = models.ChannelDatasetVersion(
+            channel_dataset_id=channel_dataset.id,
+            # `version` will be set by the DB trigger automatically
+            preprocessing_status=StatusEnum.COMPLETED,
+            pointer_to=last_completed.version_data_id,
+            creation_reason="Applied dataset config changes without re-indexing",
+            resolved_config=new_resolved_config,
+            indexing_config_hash=parsed_config.indexing_hash,
+            structure_metadata=last_completed.structure_metadata,
+            structure_hash=last_completed.structure_hash,
+            indicator_dimensions_hash=last_completed.indicator_dimensions_hash,
+            non_indicator_dimensions_hash=last_completed.non_indicator_dimensions_hash,
+            special_dimensions_hash=last_completed.special_dimensions_hash,
+        )
+
+        self._session.add(new_item)
+        await self._session.commit()
+        await self._session.refresh(new_item)
+        return schemas.ChannelDatasetVersion.model_validate(new_item, from_attributes=True)
 
     async def add_dataset_to_channel(
         self, channel_id: int, dataset_id: int
@@ -829,15 +952,13 @@ class AdminPortalDataSetService(DataSetService):
     async def _set_version_hashes_and_metadata(
         self,
         item: models.ChannelDatasetVersion,
-        config_hashes: ConfigHashes,
+        config_hash: str,
         structure_hash: str,
         structure_metadata: dict,
         data_hashes: _DataHashes,
     ) -> None:
         """Sets the structure and data hashes for the given channel dataset version."""
-        item.indicators_config_hash = config_hashes.indicator_hash
-        item.non_indicators_config_hash = config_hashes.non_indicator_hash
-        item.special_dimensions_config_hash = config_hashes.special_hash
+        item.indexing_config_hash = config_hash
         item.structure_metadata = structure_metadata
         item.structure_hash = structure_hash
         item.indicator_dimensions_hash = data_hashes.indicator_dimensions_hash
@@ -847,6 +968,18 @@ class AdminPortalDataSetService(DataSetService):
 
         await self._session.commit()
         await self._session.refresh(item)
+
+    async def _set_resolved_config(
+        self,
+        item: models.ChannelDatasetVersion,
+        resolved_config: dict | None,
+    ) -> None:
+        """Sets the resolved configuration for the given channel dataset version."""
+        if resolved_config is not None:
+            item.resolved_config = resolved_config
+            item.updated_at = func.now()
+            await self._session.commit()
+            await self._session.refresh(item)
 
     async def rollback_channel_dataset_to_previous_version(
         self, channel_id: int, dataset_id: int
@@ -911,7 +1044,7 @@ class AdminPortalDataSetService(DataSetService):
         handler = await self._get_handler(dataset_db.source_id)
         config = handler.parse_data_set_config(dataset_db.details)
 
-        config_changes = self._get_config_changes(version, config.indexing_hashes)
+        config_changes = self._get_config_changes(version, config.indexing_hash)
 
         structure_hash, meta = await handler.get_structure_hash_and_metadata(
             dataset_config=dataset_db.details, auth_context=auth_context
@@ -956,26 +1089,17 @@ class AdminPortalDataSetService(DataSetService):
 
     @staticmethod
     def _get_config_changes(
-        version: schemas.ChannelDatasetVersion, config_hashes: ConfigHashes
+        version: schemas.ChannelDatasetVersion, config_hash: str
     ) -> list[schemas.ConfigChange]:
-        iterable = [
-            ('Indicator', version.indicators_config_hash, config_hashes.indicator_hash),
-            ('Special', version.special_dimensions_config_hash, config_hashes.special_hash),
-            (
-                'Non-indicator',
-                version.non_indicators_config_hash,
-                config_hashes.non_indicator_hash,
-            ),
-        ]
-        return [
-            schemas.ConfigChange(
-                message=f"The configuration for the {name} dimensions has changed.",
-                last_version_hash=old_hash,
-                actual_hash=new_hash,
-            )
-            for name, old_hash, new_hash in iterable
-            if old_hash != new_hash
-        ]
+        if version.indexing_config_hash != config_hash:
+            return [
+                schemas.ConfigChange(
+                    message="The dataset configuration (used during indexing) has changed.",
+                    last_version_hash=version.indexing_config_hash,
+                    actual_hash=config_hash,
+                )
+            ]
+        return []
 
     @staticmethod
     def _get_data_changes(
@@ -1523,14 +1647,18 @@ class AdminPortalDataSetService(DataSetService):
                 allow_offline=False,  # Unable to reindex offline dataset
             )
 
+            # Extract and store resolved config from loaded dataset
+            resolved_config = dataset.get_resolved_config()
+            await self._set_resolved_config(version, resolved_config)
+
             if reindex_dimensions or (reindex_indicators and not harmonize_indicator):
-                config_hashes = dataset.config.indexing_hashes
+                config_hash = dataset.config.indexing_hash
                 structure_hash, meta = await handler.get_structure_hash_and_metadata(
                     dataset_config=db_dataset.details, auth_context=auth_context
                 )
                 data_hashes = await self._get_data_hashes(dataset, auth_context, allow_cached=True)
                 await self._set_version_hashes_and_metadata(
-                    version, config_hashes, structure_hash, meta, data_hashes
+                    version, config_hash, structure_hash, meta, data_hashes
                 )
 
             vector_store_factory = VectorStoreFactory(session=self._session)

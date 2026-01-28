@@ -12,7 +12,7 @@ from .schemas import SearchInput
 
 
 class IndicatorsSearchChainFactory(DimensionSearchChainFactoryBase):
-    def _filter_queries_by_required_indicator_dims(
+    def _filter_queries_by_required_dimensions(
         self, inputs: dict
     ) -> dict[str, DataSetAvailabilityQuery]:
         search_input = SearchInput(**inputs)
@@ -23,20 +23,24 @@ class IndicatorsSearchChainFactory(DimensionSearchChainFactoryBase):
         filtered_queries = {}
         for dataset_id, dataset_query in search_input.strong_queries.items():
             dataset = search_input.datasets_dict[dataset_id].data
-            required_ind_dims = dataset.indicator_dimensions_required_for_query()
+            required_dims = dataset.required_dimensions
             dim_queries = dataset_query.dimensions_queries_dict
-            if required_ind_dims and all(
-                indicator_id not in dim_queries or not dim_queries[indicator_id].values
-                for indicator_id in required_ind_dims
+
+            if required_dims and all(
+                dim_id not in dim_queries or dim_queries[dim_id].is_empty()
+                for dim_id in required_dims
             ):
                 logger.info(
-                    f'will remove "{dataset_id}" dataset query, since it does not contain '
-                    'at least 1 required indicator dim: '
-                    f'{required_ind_dims}. query: {dataset_query}'
+                    f'filter by required dims: removing "{dataset_id}" dataset query, since it does not contain '
+                    'query to at least 1 required dimensions '
+                    f'({required_dims}). dataset query: {dataset_query}'
                 )
-                continue
-
-            filtered_queries[dataset_id] = dataset_query
+            else:
+                logger.debug(
+                    f'filter by required dims: no required dims for "{dataset_id}" dataset '
+                    'or at least one required dim has non-empty query'
+                )
+                filtered_queries[dataset_id] = dataset_query
 
         return filtered_queries
 
@@ -111,12 +115,12 @@ class IndicatorsSearchChainFactory(DimensionSearchChainFactoryBase):
             )
             | self._update_strong_queries_best_attempt_if_possible
             | RunnablePassthrough.assign(
-                strong_queries=self._filter_queries_by_required_indicator_dims
+                strong_queries=self._filter_queries_by_required_dimensions
             ).with_config(
                 config=RunnableConfig(
                     callbacks=[
                         StageCallback(
-                            "Strong Queries, filter by required indicator dimensions",
+                            "Strong Queries, filtered by required dimensions",
                             self._populate_strong_queries_stage,
                             debug_only=True,
                         )

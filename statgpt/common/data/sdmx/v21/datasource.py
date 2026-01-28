@@ -573,3 +573,20 @@ class Sdmx21DataSourceHandler(
                 "Failed to create dataset hierarchy. Returning None. See exception details below."
             )
             return None
+
+    def merge_config_with_resolved(
+        self,
+        current_config: dict,
+        resolved_config: dict,
+    ) -> dict:
+        """Merge current config with resolved config based on IndexingField markers.
+
+        - Fields marked with IndexingField (urn, dimensions indexing fields, indexer):
+          preserved from resolved_config
+        - Fields NOT marked (is_official, citation, pinned_columns, is_required, etc.):
+          taken from current_config
+        """
+        current = SdmxDataSetConfig.model_validate(current_config)
+        resolved = SdmxDataSetConfig.model_validate(resolved_config)
+        merged = resolved.with_non_indexing_fields_from(current)
+        return merged.model_dump(mode="json", by_alias=True)

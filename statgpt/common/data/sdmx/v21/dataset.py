@@ -46,6 +46,7 @@ from statgpt.common.data.sdmx.common import (
     SdmxCodeListDimension,
     SdmxDataSetConfig,
     SdmxDimension,
+    UrnReference,
 )
 from statgpt.common.schemas.dataset import Status
 from statgpt.common.schemas.enums import DataParsingStatus, DataRequestStatus
@@ -67,6 +68,7 @@ from .query import (
     SdmxQueryReadinessStatus,
     TimeDimensionQuery,
 )
+from .schemas import Urn
 
 if t.TYPE_CHECKING:
     from statgpt.common.data.sdmx.v21.datasource import Sdmx21DataSourceHandler
@@ -356,7 +358,6 @@ class Sdmx21DataSet(
     _attributes: dict[str, Sdmx21Attribute]
     _virtual_dimensions: dict[str, VirtualDimension]
     _indicator_dimensions: dict[str, SdmxCodeListDimension | VirtualDimension]
-    _indicator_dimensions_required_for_query: list[str]
     _country_dimension: SdmxCodeListDimension | VirtualDimension | None
     _dim_values_id_2_name: dict[str, dict[str, str]] | None
 
@@ -376,7 +377,6 @@ class Sdmx21DataSet(
 
         self._dimensions = {dimension.entity_id: dimension for dimension in dimensions}
         self._indicator_dimensions = {}
-        self._indicator_dimensions_required_for_query = []
         self._virtual_dimensions = {}
         self._attributes = {attribute.entity_id: attribute for attribute in attributes}
         self._dim_values_id_2_name = None
@@ -445,6 +445,32 @@ class Sdmx21DataSet(
             if self.config.citation.last_updated:
                 return parse(self.config.citation.last_updated)
         return None
+
+    def get_resolved_config(self) -> dict:
+        """
+        Return config with resolved URN from the loaded dataflow.
+
+        Handles dynamic URN values per SDMX standard:
+        - version: "latest", "~" (latest stable), version wildcards
+        - agency_id: "all" wildcard
+        - resource_id: wildcards
+        """
+        actual_urn = Urn.for_artifact(self._artefact)
+
+        if (
+            actual_urn.agency_id == self._config.urn.agency_id
+            and actual_urn.resource_id == self._config.urn.resource_id
+            and actual_urn.version == self._config.urn.version
+        ):
+            return self._config.model_dump(mode='json', by_alias=True)
+
+        resolved_urn = UrnReference(
+            agency_id=actual_urn.agency_id,
+            resource_id=actual_urn.resource_id,
+            version=actual_urn.version,
+        )
+        resolved_config = self._config.model_copy(update={'urn': resolved_urn})
+        return resolved_config.model_dump(mode='json', by_alias=True)
 
     @property
     def status(self) -> Status:
@@ -878,8 +904,12 @@ class Sdmx21DataSet(
             dim for dim in self._indicator_dimensions.values() if isinstance(dim, VirtualDimension)
         ]
 
-    def indicator_dimensions_required_for_query(self) -> list[str]:
-        return self._indicator_dimensions_required_for_query
+    @cached_property
+    def required_dimensions(self) -> list[str]:
+        res = [
+            dim_id for dim_id, dim_conf in self.config.dimensions.items() if dim_conf.is_required
+        ]
+        return res
 
     async def get_indicators(
         self, auth_context: AuthContext, allow_cached: bool

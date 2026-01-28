@@ -18,7 +18,13 @@ class DataSetBase(BaseModel):
     id_: uuid.UUID = Field(default_factory=uuid.uuid4, description="The uuid of the dataset")
     title: str
     data_source_id: int
-    details: dict[str, Any] = Field(default_factory=dict, description="Details as a JSON object")
+    details: dict[str, Any] = Field(
+        default_factory=dict,
+        description=(
+            "Dataset config as a JSON object. "
+            "The particular schema depends on the specific implementation of the data source."
+        ),
+    )
 
 
 class DataSetDescriptor(BaseModel):
@@ -45,7 +51,13 @@ class DataSet(DataSetBase, DbDefaultBase):
         return self.status.status
 
 
-class DataSetUpdate(BaseModel):
+class DataSetUpdateRequest(BaseModel):
     title: str | None = Field(default=None)
     data_source_id: int | None = Field(default=None)
-    details: dict[str, Any] | None = Field(default=None, description="Details as a JSON object")
+    details: dict[str, Any] | None = Field(
+        default=None,
+        description=(
+            "Dataset config as a JSON object. "
+            "The particular schema depends on the specific implementation of the data source."
+        ),
+    )
