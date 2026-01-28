@@ -32,7 +32,8 @@ When tasked to add dataset config, you MUST ADHERE TO THE FOLLOWING FLOW:
 Use this info to understand what dataset config file to update, if not specified by user.
 3. Use dataset structure tool to retrieve
 dataset dimensions (with sample values), description, attributes
-4. Extract list of Named Entity types from corresponding channel config.
+4. Use specific tool to extract list of Named Entity types for corresponding channel.
+Use this tool instead of reading channel config file manually! It helps to avoid mistakes!
 5. EXPLICITLY REASON about DIMENSION TYPES (instructions below).
 Use extracted list of entities to help identify NON_INDICATOR dimensions.
 6. EXPLICITLY REASON about citation dataset description field (instructions below)
@@ -70,26 +71,31 @@ Also, use dimension configs from same client as reference.
 
 How to choose dimension type:
 - NON_INDICATOR dimensions are concepts that:
-are independent of the context and could be easily explained to average human.
-Examples include "country", "counterparty", "age", "gender".
-    - Each NON_INDICATOR dimension MUST map to some Named Entity type (from channel config file).
-    Read the client channel config file to see list of current Named Entity types!
+are INDEPENDENT of the context and could be EASILY EXPLAINED TO AVERAGE HUMAN.
+Examples include "country", "counterparty", "age", "gender", "citizenship", etc.
+    - Use SPECIFIC TOOL to extract list of Named Entity types for corresponding channel!
+    - Each NON_INDICATOR dimension MUST map to some Named Entity type in corresponding tool output.
     Mark any dimension that is present in Named Entity types as NON_INDICATOR.
-    - It's possible that dataset contains NON_INDICATOR dimensions
-    that are not yet present in Named Entity types.
-    In this case you MUST update channel's list of Named Entity types!
+    - It's possible that dimension looks like NON_INDICATOR,
+    but there is no relevant Named Entity type for it in channel config.
+    In this case: mark dimension as NON_INDICATOR and ADD NEW NAMED ENTITY TYPE to channel config.
+    It's totally ok to add new Named Entity types! Don't be limited by existing Named Entity types!
 - INDICATOR dimensions describe the concept being measured.
 Examples include "GDP", "unemployment rate", "inflation rate".
 If dimension describes a concept that clarifies indicator, it's also an INDICATOR dimension.
 General rule is every dimension that is not NON_INDICATOR is an INDICATOR dimension!
 - Ignore SPECIAL dimension type for now
-
-REMEMBER TO REASON if channel's list of Named Entity types needs to be updated
-with new concepts from NON_INDICATOR dimensions! UPDATE IF NEEDED!
+- EXPLICITLY REASON about:
+    - choice of dimension types,
+    - their relationship to existing Named Entity types
+    - your decision on adding new Named Entity types
+- UPDATE Named Entity types if needed
 
 Also:
 - DO NOT ADD DEFAULT QUERIES for any dimension
 - DO NOT ADD DIMENSION ALIASES (unless it follows patterns in similar dataset configs)
+- NEVER SKIP ANY DIMENSION - dataset config MUST contain config for ALL dimensions!
+It's allowed to reuse yaml anchors for dimensions common across datasets.
 
 ### Required indicator dimensions
 

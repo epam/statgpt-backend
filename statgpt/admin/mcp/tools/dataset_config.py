@@ -10,6 +10,7 @@ from statgpt.admin.mcp import schemas as mcp_schemas
 from statgpt.admin.services import AdminPortalDataSetService as DataSetService
 from statgpt.common.data.base import DataSetValidationResult
 from statgpt.common.models.database import get_session_contex_manager
+from statgpt.common.schemas import ChannelBase
 from statgpt.common.services.data_source import DataSourceService
 from statgpt.common.utils import read_yaml
 
@@ -108,6 +109,33 @@ async def get_sdmx_dataset_structure(
         source_id=data_source_id, config=config, auth_context=SystemUserAuthContext()
     )
     return response
+
+
+@mcp_tools.tool
+def get_channel_named_entity_types(
+    channel_config_path: Annotated[str, "Absolute path to channel config YAML file"],
+    channel_name: Annotated[str, "Channel deployment_id to retrieve named entity types for"],
+) -> list[str]:
+    """
+    Retrieve list of named entity types for a specific channel.
+    Named entity types define dimension categories that are NOT indicators.
+    Use this tool when reasoning about dimension types.
+    """
+    config = read_yaml(channel_config_path)
+    channels = config.get('channels')
+    if channels is None:
+        raise ValueError("Channel config file does not contain 'channels' key")
+
+    channel_dict = next(
+        (ch for ch in channels if ch.get('deployment_id') == channel_name),
+        None,
+    )
+    if channel_dict is None:
+        available = [ch.get('deployment_id') for ch in channels]
+        raise ValueError(f"Channel '{channel_name}' not found. Available: {available}")
+
+    channel = ChannelBase.model_validate(channel_dict)
+    return channel.details.list_named_entity_types()
 
 
 @mcp_tools.tool
