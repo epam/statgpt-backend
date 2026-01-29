@@ -20,25 +20,27 @@ mcp_tools = LocalProvider()
 @mcp_tools.tool
 async def get_data_sources(
     session: AsyncSession = Depends(get_session_contex_manager),  # type: ignore[arg-type]
-) -> list[mcp_schemas.DataSource]:
+) -> mcp_schemas.AvailableDataSources:
     """Retrieve a list of data sources"""
     data_source_service = DataSourceService(session)
     data_sources = await data_source_service.get_data_sources_schemas(
         limit=None, offset=0, ids=None
     )
-    return [
-        mcp_schemas.DataSource(
-            id=ds.id, title=ds.title, description=ds.description, type=ds.type.name
-        )
-        for ds in data_sources
-    ]
+    return mcp_schemas.AvailableDataSources(
+        data_sources=[
+            mcp_schemas.DataSource(
+                id=ds.id, title=ds.title, description=ds.description, type=ds.type.name
+            )
+            for ds in data_sources
+        ]
+    )
 
 
 @mcp_tools.tool
 async def get_available_datasets(
     data_source_id: int,
     session: AsyncSession = Depends(get_session_contex_manager),  # type: ignore[arg-type]
-) -> dict:
+) -> mcp_schemas.AvailableDatasets:
     """
     Retrieve all datasets available for the specified data source. Note: the list may be large.
     """
@@ -46,12 +48,11 @@ async def get_available_datasets(
     datasets = await dataset_service.load_available_datasets(
         source_id=data_source_id, auth_context=SystemUserAuthContext()
     )
-    return {
-        'count': len(datasets),
-        'datasets': [
+    return mcp_schemas.AvailableDatasets(
+        datasets=[
             mcp_schemas.DataSetPreview(urn=ds.id_in_source, title=ds.title) for ds in datasets
         ],
-    }
+    )
 
 
 @mcp_tools.tool
