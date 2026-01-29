@@ -11,7 +11,7 @@ class DataSource(BaseModel):
 class AvailableDataSources(BaseModel):
     data_sources: list[DataSource]
 
-    @computed_field
+    @computed_field  # type: ignore[prop-decorator]
     @property
     def count(self) -> int:
         return len(self.data_sources)
@@ -25,7 +25,7 @@ class DataSetPreview(BaseModel):
 class AvailableDatasets(BaseModel):
     datasets: list[DataSetPreview]
 
-    @computed_field
+    @computed_field  # type: ignore[prop-decorator]
     @property
     def count(self) -> int:
         return len(self.datasets)
