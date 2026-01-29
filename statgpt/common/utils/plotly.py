@@ -195,7 +195,7 @@ class PlotlyGraphBuilder:
             dimensions_ids_2_names[id_col] = (
                 df[[id_col, name_col]].drop_duplicates().set_index(id_col)[name_col].to_dict()
             )
-        return dimensions_ids_2_names
+        return dimensions_ids_2_names  # type: ignore[return-value]
 
     def _map_id_2_name_cols(self, df: pd.DataFrame) -> dict[str, str]:
         id_2_name_cols: dict[str, str | None] = {

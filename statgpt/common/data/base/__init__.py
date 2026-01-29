@@ -22,6 +22,8 @@ from .dataset_hierarchy import (
 from .datasource import (
     DataSetDescriptor,
     DataSetHierarchyConfig,
+    DataSetStructure,
+    DataSetValidationResult,
     DataSourceConfig,
     DataSourceHandler,
     DataSourceType,

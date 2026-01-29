@@ -12,6 +12,11 @@ class AppSettings(BaseSettings):
         alias="OTEL_APP_SERVICE_NAME",
         description="OpenTelemetry service name",
     )
+    beta_mcp_enabled: bool = Field(
+        default=False,
+        alias="BETA_MCP_ENABLED",
+        description="Flag to enable the beta MCP features",
+    )
 
 
 APP_SETTINGS = AppSettings()
