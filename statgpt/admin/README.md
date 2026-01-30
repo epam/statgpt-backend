@@ -1,5 +1,12 @@
 # Admin
 
+## MCP Server (Beta)
+
+Admin includes an optional MCP (Model Context Protocol) server for coding agent integration (Cursor, Claude Code).
+This feature is disabled by default and requires installing additional dependencies and enabling via environment variable.
+
+For setup instructions, see [MCP README](mcp/README.md).
+
 ## Environment variables
 
 Below are the environment variables specific to the Admin Application. Other required variables can be found in
@@ -21,3 +28,4 @@ the [common README file](../common/README.md).
 | EXIM_VECTOR_STORE_CONCURRENCY_LIMIT  |                                   No                                    | Maximum number of concurrent export operations related to vector store                                                                                                                                                                 |                  | `10`                    |
 | EXIM_ELASTIC_CONCURRENCY_LIMIT       |                                   No                                    | Maximum number of concurrent export operations related to elasticsearch                                                                                                                                                                |                  | `10`                    |
 | OTEL_APP_SERVICE_NAME                |                                   No                                    | OpenTelemetry service name for the admin application                                                                                                                                                                                   |                  | `statgpt-admin-backend` |
+| BETA_MCP_ENABLED                     |                                   No                                    | Enables MCP support for StatGPT(dataset config generation/test creation). Requires `beta-mcp` dependencies to be installed.                                                                                                            | `true`, `false`  | `false`                 |

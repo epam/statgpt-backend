@@ -124,7 +124,7 @@ class ChannelConfig(BaseYamlModel):
         default=None, description="The onboarding configuration"
     )
     named_entity_types: list[str] = Field(
-        default=[], description="The named entity types used for named entity extraction"
+        default_factory=list, description="The named entity types used for named entity extraction"
     )
     country_named_entity_type: str = Field(
         default="Country/Reference Area",

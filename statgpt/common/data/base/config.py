@@ -1,16 +1,9 @@
 import logging
 from abc import ABC
 from collections.abc import Generator
-from typing import Annotated, Any, Literal, Self
+from typing import Annotated, Literal, Self
 
-from pydantic import (
-    Field,
-    SerializationInfo,
-    SkipValidation,
-    StrictStr,
-    field_serializer,
-    model_validator,
-)
+from pydantic import Field, SerializeAsAny, StrictStr, model_validator
 
 from statgpt.common.config.utils import replace_env
 
@@ -55,9 +48,26 @@ class IndexerIndicatorAnnotationConfig(BaseModel):
 
 
 class IndexerIndicatorConfig(BaseModel):
-    unpack: Annotated[bool, IndexingField()] = Field(default=False)
-    use_code_list_description: Annotated[bool, IndexingField()] = Field(default=False)
-    super_primary: Annotated[bool, IndexingField()] = Field(default=False)
+    unpack: Annotated[bool, IndexingField()] = Field(
+        default=False,
+        description=(
+            "When True, LLM selects canonical 'primary' from similar indicators found via hybrid search. "
+            "When False, primary is taken from first dimension name and normalized."
+        ),
+    )
+    use_code_list_description: Annotated[bool, IndexingField()] = Field(
+        default=False,
+        description="Reserved for future use. Currently not implemented.",
+        # TODO: implement or remove
+    )
+    super_primary: Annotated[bool, IndexingField()] = Field(
+        default=False,
+        description=(
+            "Only applies when unpack=False. "
+            "When True, primary is concatenated from first 3 dimensions. "
+            "When False, primary is taken from first dimension only."
+        ),
+    )
 
     annotations: Annotated[IndexerIndicatorAnnotationConfig | None, IndexingField()] = Field(
         default=None
@@ -156,30 +166,10 @@ class BaseDataSetConfig(BaseModel):
 
 class DataSetConfigTemplate(BaseDataSetConfig):
 
-    dimensions: dict[str, SkipValidation[BaseDimensionConfig]] = Field(
+    dimensions: dict[str, SerializeAsAny[BaseDimensionConfig]] = Field(
         description="The draft configuration of the each dimension in the dataset by its ID",
         default_factory=dict,
     )
-
-    @field_serializer('dimensions')
-    def _serialize_dimensions(
-        self, value: dict[str, BaseDimensionConfig], info: SerializationInfo
-    ) -> dict[str, dict[str, Any]]:
-        """Serialize dimensions using actual type schema, not BaseDimensionConfig.
-
-        SkipValidation causes Pydantic to use BaseDimensionConfig schema for serialization,
-        which drops subclass-specific fields (e.g., `subtype` on NonIndicatorDimensionConfig).
-        """
-        return {
-            k: v.model_dump(
-                mode=info.mode,
-                by_alias=info.by_alias,
-                exclude_none=info.exclude_none,
-                exclude_unset=info.exclude_unset,
-                exclude_defaults=info.exclude_defaults,
-            )
-            for k, v in value.items()
-        }
 
 
 class DataSetConfig(BaseDataSetConfig, ABC, IndexingHashMixin):

@@ -607,6 +607,7 @@ class AdminPortalDataSetService(DataSetService):
             datasets.append(
                 schemas.DataSetDescriptor(
                     data_source_id=source_id,
+                    id_in_source=ds.id_in_source,
                     title=ds.name,
                     description=ds.description or "",
                     details=ds.details.model_dump(mode="json", by_alias=True),
@@ -614,6 +615,27 @@ class AdminPortalDataSetService(DataSetService):
             )
 
         return datasets
+
+    async def get_dataset_config_schema(self, source_id: int) -> dict:
+        """Returns JSON schema for dataset configuration."""
+        handler = await self._get_handler(source_id)
+        return handler.get_data_set_config_schema()
+
+    async def validate_config(
+        self, source_id: int, config: dict, auth_context: AuthContext
+    ) -> base.DataSetValidationResult:
+        handler = await self._get_handler(source_id)
+        res = await handler.validate_dataset_config(
+            config, auth_context=auth_context, mode="return"
+        )
+        return res
+
+    async def get_dataset_structure(
+        self, source_id: int, config: dict, auth_context: AuthContext
+    ) -> dict:
+        handler = await self._get_handler(source_id)
+        structure = await handler.get_dataset_structure(config, auth_context=auth_context)
+        return structure.model_dump(mode='json', by_alias=True)
 
     async def update(
         self, item_id: int, data: schemas.DataSetUpdateRequest, auth_context: AuthContext
@@ -1161,7 +1183,7 @@ class AdminPortalDataSetService(DataSetService):
         result = await self._session.execute(query)
         await self._session.commit()
 
-        _log.info(f"Updated {result.rowcount} channel dataset version(s) to FAILED status")
+        _log.info(f"Updated {result.rowcount} channel dataset version(s) to FAILED status")  # type: ignore[attr-defined]
 
     async def reload_all_indicators(
         self,

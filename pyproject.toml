@@ -71,6 +71,9 @@ cli = [
     "httpx>=0.28.1,<0.29.0",
     "python-keycloak>=4.0.0,<5.0.0",
 ]
+beta-mcp = [
+    "fastmcp>=3.0.0b1,<4.0.0",
+]
 
 [project.scripts]
 statgpt = "statgpt.cli:main"
@@ -154,7 +157,7 @@ optional = true
 [tool.poetry.group.dev.dependencies]
 black = { version = "24.10.0", extras = ["jupyter"] }
 isort = "5.13.2"
-langchain-cli = "^0.0.31"
+langchain-cli = "^0.0.37"
 pytest = "^8.1.1"
 pytest-asyncio = "^0.23.7"
 pytest-cov = "^5.0.0"
