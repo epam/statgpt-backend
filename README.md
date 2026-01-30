@@ -305,8 +305,8 @@ The project uses GNU gettext for internationalizing dataset formatters. Use thes
     make test_integration
     ```
 
-**Note:** Integration tests require a database and Elasticsearch instance.
+⚠️ **WARNING:** Integration tests require a database and Elasticsearch instance.
 Consider using separate test instances instead of the ones from `docker-compose.yml`
-because tests truncate tables during execution, which may result in data loss.
+because tests truncate tables during execution, which may result in **DATA LOSS**.
 Configure `TEST_DATABASE_*` environment variables accordingly.
 See [Common environment variables](statgpt/common/README.md#environment-variables) for details.
