@@ -6,6 +6,26 @@ class EmbeddingModelsEnum(StrEnum):
     TEXT_EMBEDDING_3_LARGE = "text-embedding-3-large"
 
 
+class ReasoningEffortEnum(StrEnum):
+    """Reasoning effort levels for GPT-5 models."""
+
+    NONE = "none"  # No reasoning mode - standard inference
+    MINIMAL = "minimal"
+    LOW = "low"
+    MEDIUM = "medium"
+    HIGH = "high"
+    XHIGH = "xhigh"
+
+
+# NOTE: currently not used and not supported by LangChain, kept for future compatibility
+class VerbosityEnum(StrEnum):
+    """Output verbosity levels for GPT-5 models."""
+
+    LOW = "low"
+    MEDIUM = "medium"
+    HIGH = "high"
+
+
 class LLMModelsEnum(StrEnum):
     # Gemini models
     GEMINI_2_0_FLASH_LITE_001 = "gemini-2.0-flash-lite-001"
@@ -31,6 +51,7 @@ class LLMModelsEnum(StrEnum):
     GPT_4_1_NANO_2025_04_14 = "gpt-4.1-nano-2025-04-14"
 
     # GPT-5 models
+    GPT_5_MINI_2025_08_07 = "gpt-5-mini-2025-08-07"
     GPT_5_1_2025_11_13 = "gpt-5.1-2025-11-13"
     GPT_5_2_2025_12_11 = "gpt-5.2-2025-12-11"
 
@@ -51,6 +72,7 @@ class LLMModelsEnum(StrEnum):
     def is_gpt_5_family(self) -> bool:
         """Check if the model belongs to the GPT-5 family."""
         return self in {
+            LLMModelsEnum.GPT_5_MINI_2025_08_07,
             LLMModelsEnum.GPT_5_1_2025_11_13,
             LLMModelsEnum.GPT_5_2_2025_12_11,
         }

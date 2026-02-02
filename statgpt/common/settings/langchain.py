@@ -1,10 +1,13 @@
-from typing import Optional
-
-from langchain import globals as lc_globals
+from langchain_core import globals as lc_globals
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-from statgpt.common.config.llm_models import EmbeddingModelsEnum, LLMModelsEnum
+from statgpt.common.config.llm_models import (
+    EmbeddingModelsEnum,
+    LLMModelsEnum,
+    ReasoningEffortEnum,
+    VerbosityEnum,
+)
 
 
 class LangChainSettings(BaseSettings):
@@ -21,7 +24,7 @@ class LangChainSettings(BaseSettings):
     )
 
     default_model: LLMModelsEnum = Field(
-        default=LLMModelsEnum.GPT_4_1_2025_04_14,
+        default=LLMModelsEnum.GPT_5_2_2025_12_11,
         description="Default LLM model for LangChain",
     )
 
@@ -35,9 +38,19 @@ class LangChainSettings(BaseSettings):
         description="Default API version for Azure OpenAI",
     )
 
-    default_seed: Optional[int] = Field(
+    default_seed: int | None = Field(
         default=None,
         description="Default seed for reproducible outputs",
+    )
+
+    default_reasoning_effort: ReasoningEffortEnum | None = Field(
+        default=ReasoningEffortEnum.NONE,
+        description="Default reasoning effort for GPT-5 models (none/minimal/low/medium/high/xhigh)",
+    )
+
+    default_verbosity: VerbosityEnum | None = Field(
+        default=VerbosityEnum.LOW,
+        description="Default verbosity for GPT-5 models (low/medium/high). None means use model default.",
     )
 
     # Debugging settings
