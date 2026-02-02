@@ -1,29 +1,38 @@
 _available_datasets_call_id: &available_datasets_call_id "call_EBJJeaOMKeCzm8h378ubURQN"
 _available_terms_tool_call_id: &availableTermsCallId "call_EBJJeaOMKeCzm8h378ubU003"
-_data_query_gpt_41_models: &data-query-gpt-41-models
+_data_query_gpt_5_models: &data-query-gpt-5-models
   datasetsSelectionModelConfig:
-    deployment: "gpt-4.1-2025-04-14"
-    temperature: 0.0
+    deployment: "gpt-5.2-2025-12-11"
+    reasoningEffort: "none"
+    verbosity: "low"
   dimensionsSelectionModelConfig:
-    deployment: "gpt-4.1-2025-04-14"
-    temperature: 0.0
+    deployment: "gpt-5.2-2025-12-11"
+    reasoningEffort: "none"
+    verbosity: "low"
   indicatorsSelectionModelConfig:
-    deployment: "gpt-4.1-2025-04-14"
-    temperature: 0.0
+    deployment: "gpt-5.2-2025-12-11"
+    reasoningEffort: "none"
+    verbosity: "low"
   incompleteQueriesModelConfig:
-    deployment: "gpt-4.1-2025-04-14"
+    deployment: "gpt-5.2-2025-12-11"
+    reasoningEffort: "none"
+    verbosity: "low"
   groupExpanderModelConfig:
-    deployment: "gpt-4.1-2025-04-14"
-    temperature: 0.0
+    deployment: "gpt-5.2-2025-12-11"
+    reasoningEffort: "none"
+    verbosity: "low"
   namedEntitiesModelConfig:
-    deployment: "gpt-4.1-2025-04-14"
-    temperature: 0.0
+    deployment: "gpt-5.2-2025-12-11"
+    reasoningEffort: "none"
+    verbosity: "low"
   queryNormalizationModelConfig:
-    deployment: "gpt-4.1-2025-04-14"
-    temperature: 0.0
+    deployment: "gpt-5.2-2025-12-11"
+    reasoningEffort: "none"
+    verbosity: "low"
   timePeriodModelConfig:
-    deployment: "gpt-4.1-2025-04-14"
-    temperature: 0.0
+    deployment: "gpt-5.2-2025-12-11"
+    reasoningEffort: "none"
+    verbosity: "low"
 _relevancy_prompts: &relevancy_prompts
   systemMessage: |-
     You are an expert in statistical indicators.
@@ -119,7 +128,7 @@ tools:
         namedEntitiesToRemove: ["Country/Reference area", "Counterpart area/country"]
         prompts:
           relevancyPrompts: *relevancy_prompts
-      llmModels: *data-query-gpt-41-models
+      llmModels: *data-query-gpt-5-models
       attachments:
         customTable:
           enabledStr: "True"

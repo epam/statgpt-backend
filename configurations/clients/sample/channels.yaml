@@ -18,7 +18,9 @@ channels:
             datasets, as it contains data directly provided by national statistical
             agencies.
         llm_model_config:
-          deployment: "gpt-4.1-2025-04-14"
+          deployment: "gpt-5.2-2025-12-11"
+          reasoningEffort: "none"
+          verbosity: "low"
       out_of_scope:
         use_general_topics_blacklist: true
         domain: "Statistics, economics and SDMX."
