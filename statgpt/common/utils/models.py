@@ -4,6 +4,7 @@ import httpx
 from langchain_openai import AzureChatOpenAI, AzureOpenAIEmbeddings
 from pydantic import SecretStr
 
+from statgpt.common.config import ReasoningEffortEnum
 from statgpt.common.config.logging import multiline_logger as logger
 from statgpt.common.schemas import EmbeddingsModelConfig, LLMModelConfig
 from statgpt.common.settings.dial import dial_settings
@@ -26,13 +27,24 @@ def get_chat_model(
         azure_endpoint=azure_endpoint,
         api_version=model_config.api_version,
         azure_deployment=model_config.deployment.deployment_id,
-        temperature=model_config.temperature,
-        seed=model_config.seed,
         max_retries=10,
         api_key=api_key,  # since we use SecretStr, it won't be logged
         timeout=timeout,  # timeouts are crucial!
     )
-    params.update(kwargs)  # update default params
+
+    if model_config.deployment.is_gpt_5_family:
+        # GPT-5: use reasoning_effort, temperature only allowed with reasoning_effort=none
+        if model_config.reasoning_effort is not None:
+            params["reasoning_effort"] = model_config.reasoning_effort
+            if model_config.reasoning_effort == ReasoningEffortEnum.NONE:
+                params["temperature"] = 0
+        params.update({k: v for k, v in kwargs.items() if k not in ("temperature", "seed")})
+    else:
+        # Legacy models: use temperature and seed
+        params["temperature"] = model_config.temperature
+        if model_config.seed is not None:
+            params["seed"] = model_config.seed
+        params.update(kwargs)
 
     if model_config.deployment.is_gpt_41_family:
         callback = BrokenResponseInterceptor(regex_pattern=r'\s{5,}')
