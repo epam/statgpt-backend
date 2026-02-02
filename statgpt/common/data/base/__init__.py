@@ -1,5 +1,5 @@
 from .attribute import Attribute, CategoricalAttribute, StringAttribute
-from .base import BaseEntity
+from .base import BaseEntity, BaseModel
 from .category import Category, DimensionCategory, VirtualDimensionCategory
 from .config import (
     BaseDimensionConfig,
@@ -22,6 +22,8 @@ from .dataset_hierarchy import (
 from .datasource import (
     DataSetDescriptor,
     DataSetHierarchyConfig,
+    DataSetStructure,
+    DataSetValidationResult,
     DataSourceConfig,
     DataSourceHandler,
     DataSourceType,
@@ -35,5 +37,6 @@ from .enums import (
     QueryOperator,
     SpecialNonIndicatorDimensions,
 )
+from .indexing import IndexingField, IndexingHashMixin
 from .indicator import BaseIndicator
 from .query import DataSetAvailabilityQuery, DataSetQuery, DimensionQuery, Query  # , IndicatorQuery

@@ -3,11 +3,11 @@ import uuid
 from abc import ABC, abstractmethod
 
 from langchain_core.documents import Document
-from pydantic import BaseModel, ConfigDict, Field, SkipValidation, alias_generators
+from pydantic import Field, SerializeAsAny
 
 from statgpt.common.auth.auth_context import AuthContext
 
-from .base import BaseEntity, EntityType
+from .base import BaseEntity, BaseModel, EntityType
 from .category import DimensionCategory
 from .config import DataSetConfigTemplate
 from .dataset import DataSet, DataSetConfig
@@ -15,13 +15,30 @@ from .dataset_hierarchy import DatasetHierarchy
 from .indicator import BaseIndicator
 
 
-class DataSetDescriptor(BaseModel):
+class DataSetDescriptor(BaseModel, ABC):
     name: str = Field(description="The name of the dataset")
     description: str | None = Field(description="The description of the dataset")
 
-    details: SkipValidation[DataSetConfigTemplate] = Field(
+    details: SerializeAsAny[DataSetConfigTemplate] = Field(
         description="Preliminary details defined by the data source."
     )
+
+    @property
+    @abstractmethod
+    def id_in_source(self) -> str:
+        """The unique identifier of the dataset within its data source."""
+
+
+class DataSetValidationResult(BaseModel):
+    is_valid: bool = Field(description="Indicates whether the dataset configuration is valid.")
+    errors: list[str] = Field(
+        default_factory=list,
+        description="A list of error messages if the configuration is invalid.",
+    )
+
+
+class DataSetStructure(BaseModel, ABC):
+    """Abstract base class for dataset structure representation."""
 
 
 class DataSetHierarchyConfig(BaseModel):
@@ -31,7 +48,7 @@ class DataSetHierarchyConfig(BaseModel):
 
 
 class DataSourceConfig(BaseModel, ABC):
-    model_config = ConfigDict(alias_generator=alias_generators.to_camel, populate_by_name=True)
+    pass
 
 
 DataSourceConfigType = t.TypeVar("DataSourceConfigType", bound=DataSourceConfig)
@@ -67,6 +84,11 @@ class DataSourceHandler(
     @abstractmethod
     def parse_config(d: dict) -> DataSourceConfigType:
         pass
+
+    @staticmethod
+    @abstractmethod
+    def get_data_set_config_schema() -> dict:
+        """Get the JSON schema for the dataset configuration specific to this data source type."""
 
     @staticmethod
     @abstractmethod
@@ -130,3 +152,27 @@ class DataSourceHandler(
 
     async def get_dataset_hierarchy(self, auth_context: AuthContext) -> DatasetHierarchy | None:
         return None
+
+    @abstractmethod
+    def merge_config_with_resolved(
+        self,
+        current_config: dict,
+        resolved_config: dict,
+    ) -> dict:
+        """Merge current config with resolved config from indexing time.
+
+        Takes current_config and merges with resolved_config to preserve
+        any dynamically resolved values (implementation-specific).
+        """
+
+    @abstractmethod
+    async def validate_dataset_config(
+        self, config: dict, auth_context: AuthContext, mode: t.Literal["raise", "return"] = "raise"
+    ) -> DataSetValidationResult:
+        pass
+
+    @abstractmethod
+    async def get_dataset_structure(
+        self, config: dict, auth_context: AuthContext
+    ) -> DataSetStructure:
+        pass

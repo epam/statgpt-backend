@@ -123,3 +123,10 @@ class DataParsingStatus(StrEnum):
 class ChannelIndexStatusScope(StrEnum):
     FULL = "full"
     LATEST_COMPLETED_VERSIONS = "latest_completed_versions"
+
+
+class ChannelDatasetUpdateStatus(StrEnum):
+    AUTO_UPDATED = "auto_updated"
+    NEEDS_REINDEX = "needs_reindex"
+    NO_VERSION = "no_version"
+    INDEXING_IN_PROGRESS = "indexing_in_progress"

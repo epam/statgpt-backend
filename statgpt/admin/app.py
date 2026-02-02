@@ -1,8 +1,10 @@
 import asyncio
 import os
 import sys
+from collections.abc import Callable
 from contextlib import asynccontextmanager
 from pathlib import Path
+from typing import AsyncContextManager
 
 import dotenv
 from aidial_sdk.telemetry.init import init_telemetry
@@ -22,22 +24,50 @@ except Exception:
 
 from statgpt.admin.routers import router
 from statgpt.admin.settings.app import APP_SETTINGS
+from statgpt.common.config import multiline_logger as logger
 from statgpt.common.models import DatabaseHealthChecker, optional_msi_token_manager_context
 from statgpt.common.services.data_preloader import preload_data
 
+Lifespan = Callable[[FastAPI], AsyncContextManager[None]]
+
 
 @asynccontextmanager
-async def lifespan(app_: FastAPI):
+async def app_lifespan(app_: FastAPI):
     async with optional_msi_token_manager_context():
         # Check resources' availability:
         await DatabaseHealthChecker().check()
 
         # Start data preloading in the background
-        asyncio.create_task(preload_data(allow_cached_datasets=False))
+        asyncio.create_task(preload_data(allow_cached_datasets=False, use_resolved_config=False))
 
         yield
         # Clean up
 
+
+lifespan: Lifespan = app_lifespan
+mcp_app = None
+
+if APP_SETTINGS.beta_mcp_enabled:
+    logger.info("Beta MCP is enabled. Initializing MCP app...")
+
+    try:
+        from statgpt.admin.mcp.app import mcp
+    except ImportError as e:
+        logger.warning(f"MCP is enabled, but optional beta-mcp dependencies are not installed: {e}")
+        sys.exit(1)
+
+    mcp_app = mcp.http_app(path="/", transport="streamable-http", stateless_http=True)
+
+    @asynccontextmanager
+    async def combined_lifespan(app_: FastAPI):
+        async with app_lifespan(app_):
+            async with mcp_app.lifespan(app_):  # type: ignore[union-attr]
+                yield
+
+    lifespan = combined_lifespan
+
+else:
+    logger.info("Beta MCP is disabled.")
 
 app = FastAPI(
     lifespan=lifespan,
@@ -45,6 +75,10 @@ app = FastAPI(
     redoc_url="/admin/api/redoc",
     openapi_url="/admin/api/openapi.json",
 )
+
+if mcp_app:
+    logger.info("Mounting MCP app at /mcp")
+    app.mount("/mcp", mcp_app)
 
 init_telemetry(
     app=app,

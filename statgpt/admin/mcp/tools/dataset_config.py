@@ -1,0 +1,170 @@
+from typing import Annotated
+from uuid import uuid4
+
+from fastmcp.dependencies import Depends
+from fastmcp.server.providers import LocalProvider
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from statgpt.admin.auth.auth_context import SystemUserAuthContext
+from statgpt.admin.mcp import schemas as mcp_schemas
+from statgpt.admin.services import AdminPortalDataSetService as DataSetService
+from statgpt.common.data.base import DataSetValidationResult
+from statgpt.common.models.database import get_session_contex_manager
+from statgpt.common.schemas import ChannelBase
+from statgpt.common.services.data_source import DataSourceService
+from statgpt.common.utils import read_yaml
+
+mcp_tools = LocalProvider()
+
+
+@mcp_tools.tool
+async def get_data_sources(
+    session: AsyncSession = Depends(get_session_contex_manager),  # type: ignore[arg-type]
+) -> mcp_schemas.AvailableDataSources:
+    """Retrieve a list of data sources"""
+    data_source_service = DataSourceService(session)
+    data_sources = await data_source_service.get_data_sources_schemas(
+        limit=None, offset=0, ids=None
+    )
+    return mcp_schemas.AvailableDataSources(
+        data_sources=[
+            mcp_schemas.DataSource(
+                id=ds.id, title=ds.title, description=ds.description, type=ds.type.name
+            )
+            for ds in data_sources
+        ]
+    )
+
+
+@mcp_tools.tool
+async def get_available_datasets(
+    data_source_id: int,
+    session: AsyncSession = Depends(get_session_contex_manager),  # type: ignore[arg-type]
+) -> mcp_schemas.AvailableDatasets:
+    """
+    Retrieve all datasets available for the specified data source. Note: the list may be large.
+    """
+    dataset_service = DataSetService(session)
+    datasets = await dataset_service.load_available_datasets(
+        source_id=data_source_id, auth_context=SystemUserAuthContext()
+    )
+    return mcp_schemas.AvailableDatasets(
+        datasets=[
+            mcp_schemas.DataSetPreview(urn=ds.id_in_source, title=ds.title) for ds in datasets
+        ],
+    )
+
+
+@mcp_tools.tool
+async def get_dataset_config_details_schema(
+    data_source_id: int,
+    session: AsyncSession = Depends(get_session_contex_manager),  # type: ignore[arg-type]
+) -> dict:
+    """
+    Retrieve schema for "details" field used in dataset configurations for a specific data source.
+    You must always use this tool to guarantee generated dataset config adheres to the schema.
+    """
+    dataset_service = DataSetService(session)
+    schema = await dataset_service.get_dataset_config_schema(source_id=data_source_id)
+    return schema
+
+
+@mcp_tools.tool
+def generate_uuid() -> str:
+    """Generate a random UUID string."""
+    return str(uuid4())
+
+
+@mcp_tools.tool
+async def get_sdmx_dataset_structure(
+    data_source_id: Annotated[int, "The ID of the data source containing the SDMX dataset"],
+    agency_id: Annotated[
+        str, "The agency ID component of the SDMX dataflow URN, e.g., 'ESTAT', 'IMF'"
+    ],
+    resource_id: Annotated[str, "The resource ID (dataflow identifier) component of the URN"],
+    version: Annotated[
+        str,
+        "The version component of the URN. Use 'latest' for the most recent version,"
+        " or a specific version like '1.0' or '1.0.0+' for version ranges.",
+    ],
+    session: AsyncSession = Depends(get_session_contex_manager),  # type: ignore[arg-type]
+) -> dict:
+    """
+    Retrieve SDMX dataset structure and metadata from SDMX registry including:
+    - list of dimensions, along with sample values
+    - attributes
+    - description
+    Also resolves dynamic URNs (e.g., 'latest', wildcards) to actual versions
+    """
+    # NOTE: While other tools are generic, this one is SDMX-specific.
+
+    dataset_service = DataSetService(session)
+    config = {
+        'urn': {
+            'agency_id': agency_id,
+            'resource_id': resource_id,
+            'version': version,
+        }
+    }
+    response = await dataset_service.get_dataset_structure(
+        source_id=data_source_id, config=config, auth_context=SystemUserAuthContext()
+    )
+    return response
+
+
+@mcp_tools.tool
+def get_channel_named_entity_types(
+    channel_config_path: Annotated[str, "Absolute path to channel config YAML file"],
+    channel_name: Annotated[str, "Channel deployment_id to retrieve named entity types for"],
+) -> list[str]:
+    """
+    Retrieve list of named entity types for a specific channel.
+    Named entity types define dimension categories that are NOT indicators.
+    Use this tool when reasoning about dimension types.
+    """
+    config = read_yaml(channel_config_path)
+    channels = config.get('channels')
+    if channels is None:
+        raise ValueError("Channel config file does not contain 'channels' key")
+
+    channel_dict = next(
+        (ch for ch in channels if ch.get('deployment_id') == channel_name),
+        None,
+    )
+    if channel_dict is None:
+        available = [ch.get('deployment_id') for ch in channels]
+        raise ValueError(f"Channel '{channel_name}' not found. Available: {available}")
+
+    channel = ChannelBase.model_validate(channel_dict)
+    return channel.details.list_named_entity_types()
+
+
+@mcp_tools.tool
+async def validate_dataset_config(
+    data_source_id: int,
+    dataset_configs_path: Annotated[str, "Absolute path to datasets configs file"],
+    dataset_uuid: Annotated[
+        str, "Dataset config UUID using which you can retrieve config from datasets files"
+    ],
+    session: AsyncSession = Depends(get_session_contex_manager),  # type: ignore[arg-type]
+) -> DataSetValidationResult:
+    """Validate dataset configuration against its structure."""
+
+    datasets_configs = read_yaml(dataset_configs_path).get('dataSets')
+    if datasets_configs is None:
+        raise ValueError("Datasets configs file does not contain 'dataSets' key")
+    dataset_config = next(
+        (ds_conf for ds_conf in datasets_configs if ds_conf["id_"] == dataset_uuid), None
+    )
+    if dataset_config is None:
+        raise ValueError(
+            f"Dataset config with UUID {dataset_uuid} not found in datasets configs file"
+        )
+
+    dataset_service = DataSetService(session)
+    res = await dataset_service.validate_config(
+        source_id=data_source_id,
+        config=dataset_config['details'],
+        auth_context=SystemUserAuthContext(),
+    )
+    return res

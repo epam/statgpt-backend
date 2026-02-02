@@ -147,7 +147,7 @@ cp .env.template .env
 The [Environment variables section](#environment-variables) provides links to pages with
 detailed information about environment variables.
 
-#### 6. Create `dial_conf/core/config.json` file by running python script
+#### 6. Create `dial/core/config/config.json` file by running python script
 
 _Not implemented yet, TODO: create a script that generates config based on .env variables_
 
@@ -199,6 +199,16 @@ _Not implemented yet, TODO: create a script that generates config based on .env 
 
 
    See [CLI documentation](statgpt/cli/README.md) for more commands.
+
+## Admin MCP (Beta)
+
+The Admin application includes an optional MCP (Model Context Protocol) server for dataset onboarding assistance.
+It provides tools and prompts for coding agents such as Cursor and Claude Code.
+
+> **Note:** This feature is optional and disabled by default. It requires installing additional dependencies
+> and enabling via environment variable.
+
+See [MCP setup instructions](statgpt/admin/mcp/README.md) for details.
 
 ## Utils for Development
 
@@ -277,28 +287,26 @@ The project uses GNU gettext for internationalizing dataset formatters. Use thes
 
 ## Run Tests
 
-1. Integration tests require running a test database and elasticsearch.
-   They are part of the `docker-compose.yml` file.
-   The Docker containers with this database/elasticsearch don't have volumes to store data,
-   so they are always fresh after `docker compose down`.
-2. To run integration tests, uncomment the `vectordb-test` and `elasticsearch-test` containers in the
-   `docker-compose.yml` file.
-   You might also need to comment out the `elasticsearch` container if your machine doesn't have enough resources.
-3. Run tests:
-    * all tests (unit and integration):
+- Run all tests (unit and integration):
 
-        ```bash
-        make test
-        ```
+    ```bash
+    make test
+    ```
 
-    * only unit tests:
+- Run only unit tests:
 
-        ```bash
-        make test_unit
-        ```
+    ```bash
+    make test_unit
+    ```
 
-    * only integration tests:
+- Run only integration tests:
 
-        ```bash
-        make test_integration
-        ```
+    ```bash
+    make test_integration
+    ```
+
+⚠️ **WARNING:** Integration tests require a database and Elasticsearch instance.
+Consider using separate test instances instead of the ones from `docker-compose.yml`
+because tests truncate tables during execution, which may result in **DATA LOSS**.
+Configure `TEST_DATABASE_*` environment variables accordingly.
+See [Common environment variables](statgpt/common/README.md#environment-variables) for details.

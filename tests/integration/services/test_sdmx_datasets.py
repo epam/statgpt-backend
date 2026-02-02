@@ -81,8 +81,8 @@ DIMENSIONS = {
 }
 
 
-URN_CPI_4_0_0 = {'agency_id': 'IMF.STA', 'resource_id': 'CPI', 'version': '4.0.0'}
-URN_CPI_3_0_1 = {'agency_id': 'IMF.STA', 'resource_id': 'CPI', 'version': '3.0.1'}
+URN_CPI_4_0_0 = {'agencyId': 'IMF.STA', 'resourceId': 'CPI', 'version': '4.0.0'}
+URN_CPI_3_0_1 = {'agencyId': 'IMF.STA', 'resourceId': 'CPI', 'version': '3.0.1'}
 
 
 @pytest.mark.asyncio
@@ -171,9 +171,9 @@ async def test_update_dataset(session, clear_all, sdmx_clint_mock):
         indicator=IndexerIndicatorConfig(unpack=True),
     )
 
-    dataset = await dataset_service.update(
+    response = await dataset_service.update(
         dataset.id,
-        schemas.DataSetUpdate(
+        schemas.DataSetUpdateRequest(
             title='CPI Updated',
             details={
                 'urn': URN_CPI_3_0_1,
@@ -185,6 +185,7 @@ async def test_update_dataset(session, clear_all, sdmx_clint_mock):
         ),
         auth_context=SystemUserAuthContext(),
     )
+    dataset = response.dataset
 
     assert dataset.id_ == random_uuid
     assert dataset.title == 'CPI Updated'
