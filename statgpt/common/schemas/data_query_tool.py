@@ -1,7 +1,7 @@
 from pydantic import Field, PositiveInt, TypeAdapter, field_validator
 from pydantic_core.core_schema import FieldValidationInfo
 
-from statgpt.common.config import LLMModelsEnum
+from statgpt.common.config import LLMModelsEnum, ReasoningEffortEnum, VerbosityEnum
 from statgpt.common.config.utils import replace_env
 
 from .base import BaseYamlModel, SystemUserPrompt
@@ -170,11 +170,19 @@ class HybridSearchConfig(BaseYamlModel):
 
     normalize_model_config: LLMModelConfig = Field(
         description="LLM Model used for normalization",
-        default_factory=lambda: LLMModelConfig(deployment=LLMModelsEnum.GPT_5_MINI_2025_08_07),
+        default_factory=lambda: LLMModelConfig(
+            deployment=LLMModelsEnum.GPT_5_MINI_2025_08_07,
+            reasoning_effort=ReasoningEffortEnum.NONE,
+            verbosity=VerbosityEnum.LOW,
+        ),
     )
     harmonize_model_config: LLMModelConfig = Field(
         description="LLM Model used for harmonization",
-        default_factory=lambda: LLMModelConfig(deployment=LLMModelsEnum.GPT_5_MINI_2025_08_07),
+        default_factory=lambda: LLMModelConfig(
+            deployment=LLMModelsEnum.GPT_5_MINI_2025_08_07,
+            reasoning_effort=ReasoningEffortEnum.NONE,
+            verbosity=VerbosityEnum.LOW,
+        ),
     )
 
     # ~~~~~~~~~~ Search config ~~~~~~~~~~
