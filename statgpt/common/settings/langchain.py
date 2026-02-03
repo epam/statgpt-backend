@@ -24,7 +24,7 @@ class LangChainSettings(BaseSettings):
     )
 
     default_model: LLMModelsEnum = Field(
-        default=LLMModelsEnum.GPT_5_1_2025_11_13,
+        default=LLMModelsEnum.GPT_5_2_2025_12_11,
         description="Default LLM model for LangChain",
     )
 
