@@ -170,11 +170,11 @@ class HybridSearchConfig(BaseYamlModel):
 
     normalize_model_config: LLMModelConfig = Field(
         description="LLM Model used for normalization",
-        default_factory=lambda: LLMModelConfig(deployment=LLMModelsEnum.GPT_4_1_MINI_2025_04_14),
+        default_factory=lambda: LLMModelConfig(deployment=LLMModelsEnum.GPT_5_MINI_2025_08_07),
     )
     harmonize_model_config: LLMModelConfig = Field(
         description="LLM Model used for harmonization",
-        default_factory=lambda: LLMModelConfig(deployment=LLMModelsEnum.GPT_4_1_MINI_2025_04_14),
+        default_factory=lambda: LLMModelConfig(deployment=LLMModelsEnum.GPT_5_MINI_2025_08_07),
     )
 
     # ~~~~~~~~~~ Search config ~~~~~~~~~~
