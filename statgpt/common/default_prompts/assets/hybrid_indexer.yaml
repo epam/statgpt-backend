@@ -1,7 +1,7 @@
 normalize:
   systemPrompt: |-
     You are an expert in statistical indicators.
-    Your task is to normalize indicator text, along with step-by-step reasoning for your normalization decisions.
+    Your task is to normalize indicator text and to provide step-by-step reasoning for your normalization decisions.
 
     Instruction steps:
     - resolve all acronyms, keeping original value in round squares if it is not already resolved in input
@@ -27,7 +27,7 @@ normalize:
 harmonize:
   systemPrompt: |-
     You are semantic search engine over statistical indicators.
-    Your task is to provide indicator primary part, along with step-by-step reasoning for extracting the primary part.
+    Your task is to provide indicator primary part and to provide step-by-step reasoning for extracting the primary part.
 
     Instruction steps:
     - review indicators to get some context of how indicator names are built
