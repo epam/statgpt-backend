@@ -80,13 +80,12 @@ class Indexer:
         self._is_normalize = normalize
         self._is_harmonize = harmonize
 
-        # TODO: use "json_schema" mode
         normalize_llm = get_chat_model(
             api_key=models_api_key, model_config=self._config.normalize_model_config
-        ).with_structured_output(method="json_mode")
+        ).with_structured_output(schema=schemas.NormalizationOutput, method="json_schema")
         harmonize_llm = get_chat_model(
             api_key=models_api_key, model_config=self._config.harmonize_model_config
-        ).with_structured_output(method="json_mode")
+        ).with_structured_output(schema=schemas.HarmonizationOutput, method="json_schema")
 
         normalization_prompt = HybridIndexerDefaultPrompts.get_normalize_prompts()
         self._log_prompt(normalization_prompt, title='normalization prompt')
@@ -95,9 +94,9 @@ class Indexer:
         self._log_prompt(harmonization_prompt, title='harmonization prompt')
 
         self._normalize_chain = (
-            normalization_prompt | normalize_llm | (lambda d: d['normalized'].lower())
+            normalization_prompt | normalize_llm | (lambda d: d.normalized.lower())
         )
-        self._harmonize_chain = harmonization_prompt | harmonize_llm | (lambda d: d['primary'])
+        self._harmonize_chain = harmonization_prompt | harmonize_llm | (lambda d: d.primary)
 
     async def index(
         self,

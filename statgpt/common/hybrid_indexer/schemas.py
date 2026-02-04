@@ -21,3 +21,19 @@ class MatchingIndex(BaseIndex):
 class IndicatorIndex(BaseIndex):
     primary: StrictStr
     primary_normalized: StrictStr
+
+
+class NormalizationOutput(BaseModel):
+    reasoning: list[str] = Field(
+        description="Step-by-step reasoning following the normalization instructions"
+    )
+    normalized: str = Field(
+        description="The normalized indicator text with resolved acronyms and standardized terminology"
+    )
+
+
+class HarmonizationOutput(BaseModel):
+    reasoning: list[str] = Field(
+        description="Step-by-step reasoning for extracting the primary part"
+    )
+    primary: str = Field(description="The primary part of the indicator name")

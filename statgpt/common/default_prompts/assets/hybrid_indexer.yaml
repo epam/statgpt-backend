@@ -1,9 +1,7 @@
 normalize:
   systemPrompt: |-
     You are an expert in statistical indicators.
-    As an output provide normalized input together with instruction steps' reasoning as JSON object
-    {{"reasoning": list[str], "normalized": str}}.
-    Only JSON, no markdown
+    Provide step-by-step reasoning for your normalization decisions.
 
   userPrompt: |-
     Instruction steps:
@@ -29,8 +27,7 @@ normalize:
 harmonize:
   systemPrompt: |-
     You are semantic search engine over statistical indicators.
-    As an output provide indicator primary part together with instruction steps' reasoning as JSON object {{"primary": "", "reasoning": []}}.
-    Only JSON, no markdown
+    Provide step-by-step reasoning for extracting the primary part.
 
   userPrompt: |-
     Instruction steps:
