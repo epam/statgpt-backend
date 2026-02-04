@@ -33,11 +33,16 @@ def get_chat_model(
     )
 
     if model_config.deployment.is_gpt_5_family:
-        # GPT-5: use reasoning_effort, temperature only allowed with reasoning_effort=none
+        # GPT-5: use reasoning_effort parameter
         if model_config.reasoning_effort is not None:
             params["reasoning_effort"] = model_config.reasoning_effort
             if model_config.reasoning_effort == ReasoningEffortEnum.NONE:
+                # reasoning_effort=none: use temperature=0 for deterministic output
                 params["temperature"] = 0
+            else:
+                # NOTE: Temporarily set temperature=1 for reasoning modes (minimal/low/medium/high/xhigh)
+                # TODO: Remove this once Azure OpenAI API is upgraded to properly handle reasoning modes without temperature
+                params["temperature"] = 1
         params.update({k: v for k, v in kwargs.items() if k not in ("temperature", "seed")})
     else:
         # Legacy models: use temperature and seed
