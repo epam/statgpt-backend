@@ -172,7 +172,7 @@ class HybridSearchConfig(BaseYamlModel):
         description="LLM Model used for normalization",
         default_factory=lambda: LLMModelConfig(
             deployment=LLMModelsEnum.GPT_5_MINI_2025_08_07,
-            reasoning_effort=ReasoningEffortEnum.NONE,
+            reasoning_effort=ReasoningEffortEnum.MINIMAL,
             verbosity=VerbosityEnum.LOW,
         ),
     )
@@ -180,7 +180,7 @@ class HybridSearchConfig(BaseYamlModel):
         description="LLM Model used for harmonization",
         default_factory=lambda: LLMModelConfig(
             deployment=LLMModelsEnum.GPT_5_MINI_2025_08_07,
-            reasoning_effort=ReasoningEffortEnum.NONE,
+            reasoning_effort=ReasoningEffortEnum.MINIMAL,
             verbosity=VerbosityEnum.LOW,
         ),
     )
