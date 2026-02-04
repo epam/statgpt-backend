@@ -138,10 +138,7 @@ class Indexer:
             indicators = indicators[:max_n_indicators]
 
         with debug_timer(f"hybrid.normalizing.{dataset.name}"):
-            txt = (
-                f"{len(indicators)} indicators for dataset {dataset.name} "
-                f"({dataset.entity_id}) completed"
-            )
+            txt = f"{len(indicators)} indicators for dataset {dataset.name} ({dataset.entity_id})"
             _log.info(f'Normalizing {txt}')
             index_chain = self._matching_index_chain()
             documents = await index_chain.abatch(
