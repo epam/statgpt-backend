@@ -27,9 +27,7 @@ class NormalizationOutput(BaseModel):
     reasoning: list[str] = Field(
         description="Step-by-step reasoning following the normalization instructions"
     )
-    normalized: str = Field(
-        description="The normalized indicator text with resolved acronyms and standardized terminology"
-    )
+    normalized: str = Field(description="The normalized indicator text")
 
 
 class HarmonizationOutput(BaseModel):
