@@ -144,8 +144,7 @@ class ProxyCubeRegion(BaseModel):
 
     def to_sdmx1(self) -> CubeRegion:
         member_selections = [
-            key_value.to_sdmx1(index)
-            for index, key_value in enumerate(self.key_values, start=1)
+            key_value.to_sdmx1(index) for index, key_value in enumerate(self.key_values, start=1)
         ]
         return CubeRegion(
             included=self.include,
@@ -216,7 +215,9 @@ class QhAvailabilityResponseBody(BaseModel):
 
 
 class ProxyAvailabilityData(BaseModel):
-    data_constraints: list[ProxyDataConstraint] = Field(alias='dataConstraints', default_factory=list)
+    data_constraints: list[ProxyDataConstraint] = Field(
+        alias='dataConstraints', default_factory=list
+    )
 
 
 class ProxyAvailabilityResponseBody(BaseModel):
@@ -247,8 +248,7 @@ class QhDataflowMessage(BaseModel):
 
 
 class _SdmxConstraint(Protocol):
-    def to_sdmx1(self) -> ContentConstraint:
-        ...
+    def to_sdmx1(self) -> ContentConstraint: ...
 
 
 def _to_structure_message(data_constraints: Iterable[_SdmxConstraint]) -> StructureMessage:

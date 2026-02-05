@@ -1,7 +1,7 @@
 import asyncio
 import io
 import os
-from typing import IO, Any, Mapping, Protocol, TypeGuard, cast
+from typing import IO, Any, Mapping, Protocol, TypeGuard
 
 import httpx
 import requests
@@ -35,8 +35,7 @@ def init_sdmx(config: SdmxDataSourceConfig):
     if not source_dict.get("versions"):
         source_dict["versions"] = {"2.1"}
         logger.warning(
-            f"SDMX source '{config.get_id()}' has no versions configured; "
-            "defaulting to {'2.1'}."
+            f"SDMX source '{config.get_id()}' has no versions configured; " "defaulting to {'2.1'}."
         )
     if _is_proxy_config(config):
         if config.headers:

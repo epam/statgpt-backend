@@ -18,8 +18,10 @@ from statgpt.common.data.sdmx.v21.ratelimiter import SdmxRateLimiter
 from statgpt.common.data.sdmx.v30.config import ProxySdmx30DataSourceConfig
 from statgpt.common.data.sdmx.v30.reader import ProxyDataReader
 
+
 class AsyncProxySdmxClient(AsyncQuanthubClient):
     """Async client for Proxy SDMX 3.0 sources based on QuantHub client behavior."""
+
     _DATA_PARAM_ALLOWLIST = {"startPeriod", "endPeriod", "firstNObservations", "lastNObservations"}
     _DATA_ACCEPT_DEFAULT = "application/vnd.sdmx.data+json;version=2.0.0"
 
@@ -205,9 +207,7 @@ class AsyncProxySdmxClient(AsyncQuanthubClient):
         return url
 
     @staticmethod
-    def _filter_params(
-        params: dict[str, str] | None, allowlist: set[str]
-    ) -> dict[str, str] | None:
+    def _filter_params(params: dict[str, str] | None, allowlist: set[str]) -> dict[str, str] | None:
         if not params:
             return None
         return {k: v for k, v in params.items() if k in allowlist}
