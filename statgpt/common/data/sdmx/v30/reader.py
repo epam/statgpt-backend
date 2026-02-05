@@ -7,7 +7,6 @@ from typing import Any, cast
 from warnings import warn
 
 from dateutil.parser import isoparse
-
 from sdmx.format import Version, list_media_types
 from sdmx.message import DataMessage, Header
 from sdmx.model import common
@@ -17,8 +16,8 @@ from sdmx.model.v21 import (
     AllDimensions,
     AttributeValue,
     Code,
-    DataSet,
     DataflowDefinition,
+    DataSet,
     KeyValue,
     Observation,
     SeriesKey,
@@ -47,7 +46,9 @@ class ProxyDataReader(BaseReader):
             return False
         return content.startswith(prefix)
 
-    def convert(self, data, structure=None, **kwargs):  # noqa: C901  TODO reduce complexity 15 → ≤10
+    def convert(
+        self, data, structure=None, **kwargs
+    ):  # noqa: C901  TODO reduce complexity 15 → ≤10
         # Initialize message instance
         msg = DataMessage()
 
@@ -101,9 +102,7 @@ class ProxyDataReader(BaseReader):
                 # Record values
                 self._dim_values[d] = list()
                 for value in elem.get("values", []):
-                    self._dim_values[d].append(
-                        KeyValue(id=d.id, value=value["id"])
-                    )
+                    self._dim_values[d].append(KeyValue(id=d.id, value=value["id"]))
 
         # Assign an order to an implicit dimension
         for d in msg.structure.dimensions:
@@ -114,9 +113,7 @@ class ProxyDataReader(BaseReader):
         if all([level == "observation" for level in self._dim_level.values()]):
             dim_at_obs = AllDimensions
         else:
-            dim_at_obs = [
-                dim for dim, level in self._dim_level.items() if level == "observation"
-            ]
+            dim_at_obs = [dim for dim, level in self._dim_level.items() if level == "observation"]
 
         msg.observation_dimension = dim_at_obs
 
@@ -228,9 +225,7 @@ class ProxyDataReader(BaseReader):
 
         'level' must be one of 'dataSet', 'series', or 'observation'.
         """
-        attrs = [
-            a for a in self.msg.structure.attributes if self._attr_level[a] == level
-        ]
+        attrs = [a for a in self.msg.structure.attributes if self._attr_level[a] == level]
         result = {}
         for index, attr in zip(values, attrs):
             if index is None:
