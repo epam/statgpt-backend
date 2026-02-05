@@ -1148,6 +1148,9 @@ class Sdmx21DataSet(
     async def _include_attributes(self, df: pd.DataFrame) -> pd.DataFrame:
         return await asyncio.to_thread(self._include_attributes_sync, df)
 
+    def _get_query_params(self, sdmx_query: SdmxDataSetQuery) -> dict:
+        return sdmx_query.get_params()
+
     async def _query_sdmx_data(
         self, sdmx_query: SdmxDataSetQuery, auth_context: AuthContext
     ) -> DataMessage:
@@ -1158,7 +1161,7 @@ class Sdmx21DataSet(
             resource_id=self._artefact.id,
             version=self._artefact.version,  # type: ignore
             key=sdmx_query.get_key(),
-            params=sdmx_query.get_params(),
+            params=self._get_query_params(sdmx_query),
             dsd=self._artefact.structure,
         )
         return data_msg
@@ -1239,7 +1242,7 @@ class Sdmx21DataSet(
             provider=provider,
             resource_id=self.source_id,
             keys=sdmx_query.get_key(),
-            params=sdmx_query.get_params(),
+            params=self._get_query_params(sdmx_query),
         )
 
     @staticmethod

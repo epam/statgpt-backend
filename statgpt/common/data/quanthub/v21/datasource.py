@@ -1,14 +1,19 @@
 import uuid
+from collections.abc import Iterable
 
 import httpx
 from httpx import HTTPStatusError
+from sdmx.model.v21 import DataflowDefinition as DataFlow
 
 from statgpt.common.auth.auth_context import AuthContext
 from statgpt.common.config import multiline_logger as logger
 from statgpt.common.data.base import DataSourceType
 from statgpt.common.data.quanthub.config import QuanthubDataSetConfig, QuanthubSdmxDataSourceConfig
+from statgpt.common.data.quanthub.sdmx_schemas.v30 import QhAnnotation
 from statgpt.common.data.quanthub.v21.dataset import QuanthubSdmx21DataSet
 from statgpt.common.data.sdmx import Sdmx21DataSourceHandler
+from statgpt.common.data.sdmx.common import SdmxDimension
+from statgpt.common.data.sdmx.v21.attribute import Sdmx21Attribute
 from statgpt.common.data.sdmx.v21.attributes_creator import Sdmx21AttributesCreator
 from statgpt.common.data.sdmx.v21.dataflow_loader import DataflowLoader
 from statgpt.common.data.sdmx.v21.dataset import InvalidConfigurationError, SdmxOfflineDataSet
@@ -162,13 +167,11 @@ class QuanthubSdmx21DataSourceHandler(Sdmx21DataSourceHandler):
 
         try:
             dataflow = structure_message.dataflow[urn]
-            res = QuanthubSdmx21DataSet(
+            res = self._build_dataset(
                 entity_id=entity_id,
                 title=title,
                 config=dataset_config,
-                handler=self,
                 dataflow=dataflow,
-                locale=self._config.locale,
                 dimensions=dimensions,
                 attributes=attributes,
                 attribute_values=attribute_values,
@@ -198,6 +201,31 @@ class QuanthubSdmx21DataSourceHandler(Sdmx21DataSourceHandler):
             logger.info(f"Cached dataset(id={entity_id}, urn={dataset_config.urn!r}).")
 
         return res
+
+    def _build_dataset(
+        self,
+        *,
+        entity_id: uuid.UUID,
+        title: str,
+        config: QuanthubDataSetConfig,
+        dataflow: DataFlow,
+        dimensions: Iterable[SdmxDimension],
+        attributes: Iterable[Sdmx21Attribute],
+        attribute_values: dict[str, str | None],
+        annotations: Iterable[QhAnnotation],
+    ) -> QuanthubSdmx21DataSet:
+        return QuanthubSdmx21DataSet(
+            entity_id=entity_id,
+            title=title,
+            config=config,
+            handler=self,
+            dataflow=dataflow,
+            locale=self._config.locale,
+            dimensions=dimensions,
+            attributes=attributes,
+            attribute_values=attribute_values,
+            annotations=annotations,
+        )
 
     async def get_dataset(
         self,

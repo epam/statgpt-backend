@@ -1,4 +1,6 @@
+from collections.abc import Iterable
 from enum import StrEnum
+from typing import Protocol
 
 from pydantic import BaseModel, Field
 from sdmx.message import StructureMessage
@@ -116,6 +118,41 @@ class QhCubeRegion(BaseModel):
         )
 
 
+class ProxyKeyValueValue(BaseModel):
+    value: str = Field()
+
+    def to_sdmx1(self) -> MemberValue:
+        return MemberValue(value=self.value)
+
+
+class ProxyKeyValue(BaseModel):
+    key_id: str = Field(alias="id")
+    include: bool = Field()
+    remove_prefix: bool = Field(alias="removePrefix")
+    values: list[ProxyKeyValueValue] = Field(default_factory=list)
+
+    def to_sdmx1(self, index: int) -> MemberSelection:
+        return MemberSelection(
+            values=[value.to_sdmx1() for value in self.values],
+            values_for=DimensionComponent(id=self.key_id, order=index),
+        )
+
+
+class ProxyCubeRegion(BaseModel):
+    include: bool = Field()
+    key_values: list[ProxyKeyValue] = Field(alias="components", default_factory=list)
+
+    def to_sdmx1(self) -> CubeRegion:
+        member_selections = [
+            key_value.to_sdmx1(index)
+            for index, key_value in enumerate(self.key_values, start=1)
+        ]
+        return CubeRegion(
+            included=self.include,
+            member={ms.values_for: ms for ms in member_selections},  # type: ignore[misc]
+        )
+
+
 class QhDataConstraint(BaseModel):
     id: str = Field()
     name: str = Field()
@@ -140,6 +177,30 @@ class QhDataConstraint(BaseModel):
         )
 
 
+class ProxyDataConstraint(BaseModel):
+    id: str = Field()
+    name: str = Field()
+    names: dict[str, str] = Field(default_factory=dict)
+    description: str = Field()
+    descriptions: dict[str, str] = Field(default_factory=dict)
+    version: str = Field()
+    agency_id: str = Field(alias='agencyID')
+
+    annotations: list[QhAnnotation] = Field(default_factory=list)
+    cube_regions: list[ProxyCubeRegion] = Field(alias='cubeRegions')
+
+    def to_sdmx1(self) -> ContentConstraint:
+        return ContentConstraint(
+            id=self.id,
+            description=self.descriptions,
+            name=self.names,
+            version=self.version,
+            maintainer=Agency(id=self.agency_id),
+            annotations=[a.to_sdmx1() for a in self.annotations],
+            data_content_region=[cr.to_sdmx1() for cr in self.cube_regions],
+        )
+
+
 class QhAvailabilityData(BaseModel):
     data_constraints: list[QhDataConstraint] = Field(alias='dataConstraints', default_factory=list)
 
@@ -151,12 +212,20 @@ class QhAvailabilityResponseBody(BaseModel):
     # meta: QhMeta = Field()  # Implement if needed
 
     def to_sdmx1(self) -> StructureMessage:
-        message = StructureMessage()
-        for data_constraint in self.data.data_constraints:
-            content_constraint = data_constraint.to_sdmx1()
-            message.constraint[content_constraint.id] = content_constraint
+        return _to_structure_message(self.data.data_constraints)
 
-        return message
+
+class ProxyAvailabilityData(BaseModel):
+    data_constraints: list[ProxyDataConstraint] = Field(alias='dataConstraints', default_factory=list)
+
+
+class ProxyAvailabilityResponseBody(BaseModel):
+    """A response body in the JSON format for Proxy SDMX 3.0 API."""
+
+    data: ProxyAvailabilityData = Field()
+
+    def to_sdmx1(self) -> StructureMessage:
+        return _to_structure_message(self.data.data_constraints)
 
 
 class QhDataflow(BaseModel):
@@ -175,3 +244,16 @@ class QhDataflowMessage(BaseModel):
 
     data: QhStructureData = Field()
     # meta: QhMeta = Field()  # Implement if needed
+
+
+class _SdmxConstraint(Protocol):
+    def to_sdmx1(self) -> ContentConstraint:
+        ...
+
+
+def _to_structure_message(data_constraints: Iterable[_SdmxConstraint]) -> StructureMessage:
+    message = StructureMessage()
+    for data_constraint in data_constraints:
+        content_constraint = data_constraint.to_sdmx1()
+        message.constraint[content_constraint.id] = content_constraint
+    return message

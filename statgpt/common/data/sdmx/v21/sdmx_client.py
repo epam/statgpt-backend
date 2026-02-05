@@ -1,7 +1,7 @@
 import asyncio
 import io
 import os
-from typing import IO, Any
+from typing import IO, Any, Mapping, Protocol, TypeGuard, cast
 
 import httpx
 import requests
@@ -21,8 +21,29 @@ from statgpt.common.data.sdmx.common.config import SdmxDataSourceConfig
 from statgpt.common.data.sdmx.v21.ratelimiter import SdmxRateLimiter
 
 
+class _ProxySdmxConfig(Protocol):
+    headers: dict[str, dict[str, str]] | None
+    versions: list[str] | None
+
+
+def _is_proxy_config(config: SdmxDataSourceConfig) -> TypeGuard[_ProxySdmxConfig]:
+    return hasattr(config, "headers") or hasattr(config, "versions")
+
+
 def init_sdmx(config: SdmxDataSourceConfig):
-    sdmx.add_source(config.sdmx_config.to_sdmx1_dict(), override=True)
+    source_dict = config.sdmx_config.to_sdmx1_dict()
+    if not source_dict.get("versions"):
+        source_dict["versions"] = {"2.1"}
+        logger.warning(
+            f"SDMX source '{config.get_id()}' has no versions configured; "
+            "defaulting to {'2.1'}."
+        )
+    if _is_proxy_config(config):
+        if config.headers:
+            source_dict["headers"] = config.headers
+        if config.versions:
+            source_dict["versions"] = config.versions
+    sdmx.add_source(source_dict, override=True)
 
 
 class AsyncSdmxClient:
@@ -30,6 +51,14 @@ class AsyncSdmxClient:
 
     _LOADING: set[str] = set()
     """Urls of SDMX requests that are currently being loaded."""
+    _SENSITIVE_HEADER_KEYS = {
+        "authorization",
+        "proxy-authorization",
+        "x-api-key",
+        "x-auth-token",
+        "api-key",
+        "apikey",
+    }
 
     @classmethod
     def from_config(
@@ -54,6 +83,30 @@ class AsyncSdmxClient:
         self._httpx_client = httpx_client
         self._authorizer = authorizer
         self._rate_limiter = rate_limiter
+
+    @classmethod
+    def _redact_headers(cls, headers: Mapping[str, str] | None) -> dict[str, str]:
+        if not headers:
+            return {}
+        redacted: dict[str, str] = {}
+        for key, value in headers.items():
+            if key.lower() in cls._SENSITIVE_HEADER_KEYS:
+                redacted[key] = "<redacted>"
+            else:
+                redacted[key] = value
+        return redacted
+
+    @staticmethod
+    def _preview_body(body: Any, limit: int = 1000) -> str:
+        if body is None:
+            return ""
+        if isinstance(body, (bytes, bytearray)):
+            text = body[:limit].decode("utf-8", errors="replace")
+        else:
+            text = str(body)
+        if len(text) > limit:
+            return f"{text[:limit]}...(truncated)"
+        return text
 
     async def dataflow(
         self,

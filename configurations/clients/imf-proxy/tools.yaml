@@ -1,0 +1,203 @@
+_available_datasets_call_id: &available_datasets_call_id "call_EBJJeaOMKeCzm8h378ubURQN"
+_available_terms_tool_call_id: &availableTermsCallId "call_EBJJeaOMKeCzm8h378ubU003"
+_data_query_gpt_41_models: &data-query-gpt-41-models
+  datasetsSelectionModelConfig:
+    deployment: "gpt-4.1-2025-04-14"
+    temperature: 0.0
+  dimensionsSelectionModelConfig:
+    deployment: "gpt-4.1-2025-04-14"
+    temperature: 0.0
+  indicatorsSelectionModelConfig:
+    deployment: "gpt-4.1-2025-04-14"
+    temperature: 0.0
+  incompleteQueriesModelConfig:
+    deployment: "gpt-4.1-2025-04-14"
+  groupExpanderModelConfig:
+    deployment: "gpt-4.1-2025-04-14"
+    temperature: 0.0
+  namedEntitiesModelConfig:
+    deployment: "gpt-4.1-2025-04-14"
+    temperature: 0.0
+  queryNormalizationModelConfig:
+    deployment: "gpt-4.1-2025-04-14"
+    temperature: 0.0
+  timePeriodModelConfig:
+    deployment: "gpt-4.1-2025-04-14"
+    temperature: 0.0
+_relevancy_prompts: &relevancy_prompts
+  systemMessage: |-
+    You are an expert in statistical indicators.
+    As an output provide relevance score for each input case as JSON object {{"relevance": [{{"number": "score"}}]}}.
+    Only JSON, no markdown
+
+  userMessage: |-
+    Instruction steps:
+    - input consists of separate groups of items. Analyze all groups
+    - each numbered item describes statistical indicator. Analyze all items
+    - use the number from round brackets for the output reference and all other info as a source for relevance context.
+      All items that have number in a round brackets should be present in output together with score
+    - use all parent levels of an item in the relevance context
+    - for each input indicator provide relevancy score as 0, 1, 2, 3 to the statement,
+      where: 0 - irrelevant, 1 - somewhat relevant, 2 - highly relevant, 3 - extremely relevant
+    - if the input indicator is at least somewhat relevant to the statement then the relevancy score can't be score 0
+    - if the input statement has extra clarification description then it is mandatory to have relevant part in the candidate item to get score 3.
+      This extra clarification description could be essential to distinguish relevant and extremely relevant items.
+      Ignore punctuation like comma or squares in extra clarification
+
+    Statement:
+    {statement}
+
+    Input:
+    {items}
+
+tools:
+
+  - type: available_datasets
+    channels:
+      - world-economy-v2-hybrid-proxy-proxy
+    name: "Available_Datasets"
+    description: >-
+      Provides a list of all available datasets onboarded to the `Query_Data` tool with metadata and some details
+      about them. Details include the name and description of the dataset, the provider (agency), and the last
+      update date.
+
+      This tool does not accept any arguments.
+
+      For questions about the availability of indicators you should refer to the `Query_Data` tool.
+    details:
+      fake_call:
+        tool_call_id: *available_datasets_call_id
+      version: full
+
+  - type: dataset_structure
+    channels:
+      - world-economy-v2-hybrid-proxy
+    name: "Dataset_Structure"
+    description: >-
+      Provides the structure of a specific dataset, including its dimensions, attributes, their types and sample
+      values. This information helps to understand how data is organized within the dataset and what kind of
+      information can be queried.
+
+      Use that tool to get the structure of a dataset when it makes sense, e.g. when user asks about a specific
+      dataset or when you need to understand what kind of data is available in a dataset to answer or when user
+      specifically asks about the structure of a dataset.
+
+      Example questions that this tool can help to answer:
+      * What kind of data is available in the <X> dataset?
+      * How can I query the <Y> dataset?
+      * What are the dimensions and attributes of the <Z> dataset?
+
+      For questions about data and the availability of indicators you should refer to the `Query_Data` tool.
+    details:
+      stagesConfig:
+        toolCallName: "Looking into structure of dataset '{dataset_id}'"
+        toolResultName: "Structure of dataset '{dataset_id}'"
+
+  - type: data_query
+    channels:
+      - world-economy-v2-hybrid-proxy
+    name: "Query_Data"
+    description: |-
+      Executing sdmx query on available datasets. Some datasets include forecasts for next years.
+      Constructed query is used to fetch indicators from one of the datasets.
+      Instructions:
+      * Don't try to expand country groups or regions, it's done by tool itself
+      * Summarize but DON'T REPHRASE time filter: "from now to 2030" must remain "from now to 2030"
+      * Tool works best for single indicator query (e.g. GDP, inflation)
+      * Tool supports star-queries for countries, e.g. "Give GDP for all countries"
+      * Tool may ask clarifications if query is unclear. If query is modified accordingly, tool will provide
+        requested data.
+      * Good query example: "Please give me wage information of USA"
+      * Bad query example: "What are the recent economy indicators for Baltic countries?"
+        Reason: ambiguous query, specific indicators should be mentioned, e.g. GDP, unemployment rate
+
+      Keep in mind: tool works best when detailed and concise query is provided
+    details:
+      indexerVersion: "hybrid"
+      indicatorSelectionVersion: "hybrid"
+      hybridSearchConfig:
+        namedEntitiesToRemove: ["Country/Reference area", "Counterpart area/country"]
+        prompts:
+          relevancyPrompts: *relevancy_prompts
+      llmModels: *data-query-gpt-41-models
+      attachments:
+        customTable:
+          enabledStr: "True"
+          name: "Data: {dataset_source_id}"
+        plotlyGrid:
+          enabledStr: "$env:{DIAL_SHOW_PLOTLY_GRID|False}"
+          name: "Plotly Grid: {dataset_source_id}"
+        csvFile:
+          enabledStr: "False"
+        plotlyGraphs:
+          enabledStr: "False"
+        jsonQuery:
+          enabledStr: "True"
+          name: "Query (JSON): {dataset_source_id}"
+        pythonCode:
+          enabledStr: "True"
+          name: "Python Code: {dataset_source_id}"
+      stagesConfig:
+        debugOnly: true
+        toolCallName: "Searching for data: {query}"
+        toolResultName: "Data search result: {query}"
+        rules:
+          - pattern: "Constructing Data Queries"
+            debugOnly: false
+          - pattern: "Extracting Named Entities"
+            debugOnly: false
+          - pattern: "Executing Data Queries"
+            debugOnly: false
+          - pattern: "Normalizing Query"
+            debugOnly: false
+          - pattern: "Selecting Indicators"
+            debugOnly: false
+      messages:
+        noDataForCountry: >-
+          No data was found for {country_details}. Try to change the query.
+        noData: >-
+          No data was found for the provided query. Try to change the query.
+        dataQueryExecutedAgentOnly: |-
+          If the executed query is only remotely related to the user query, you must mention that fact to the user,
+          to not mislead them. It is recommended to search in other sources using tools available.
+          Result of the executed query is shown to the user in the table attachment.
+        multipleDatasetsAgentOnly: |-
+          If the executed query is only remotely related to the user query, it is recommended to mention that fact to
+          the user, instead of suggesting user to choose one of the datasets. Other tools might be used to search for
+          the data.
+
+
+  - type: available_terms
+    channels:
+      - world-economy-v2-hybrid-proxy
+    name: "Available_Terms"
+    description: |-
+      Use this tool to:
+      * Retrieve a comprehensive list of all terms currently available in the glossary.
+      * Confirm whether a specific term exists in the glossary.
+
+      Detailed Guidance:
+      * The list of available glossary terms provided by this tool is complete; there are no additional terms beyond
+        what is returned.
+      * Whenever referring to or explaining to user any glossary terms you must obtain the definitions of any listed
+        terms using the "Term_Definitions" tool.
+    details:
+      fake_call:
+        tool_call_id: *availableTermsCallId
+
+  - type: term_definitions
+    channels:
+      - world-economy-v2-hybrid-proxy
+    name: "Term_Definitions"
+    description: |-
+      Use this tool to:
+      * Retrieve definitions for up to 10 requested terms that appear in the glossary.
+      * Consult the "Available_Terms" tool if you are unsure which terms are in the glossary.
+
+      Detailed Guidance:
+      * Confirm availability of terms using the "Available_Terms" tool first.
+    details:
+      stagesConfig:
+        toolCallName: "Searching in Glossary of Terms: {terms}"
+        toolResultName: "Glossary search result: {terms}"
+      limit: 10

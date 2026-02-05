@@ -181,6 +181,7 @@ aidial-rag-eval = ">=0.2.0,<0.3.0"
 # jinja2 is required for the aidial-rag-eval package, since it uses langchain with Jinja2 templates, which are optional for langchain
 jinja2 = "^3.1.6"
 types-aiofiles = "25.1.0.20251011"
+ipykernel = "^7.1.0"
 
 [tool.poetry.group.experiments]
 optional = true

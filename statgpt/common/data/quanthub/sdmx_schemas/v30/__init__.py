@@ -4,4 +4,5 @@ from .structure_message import (
     QhAvailabilityRequestBody,
     QhAvailabilityResponseBody,
     QhDataflowMessage,
+    ProxyAvailabilityResponseBody,
 )
