@@ -326,10 +326,16 @@ class Sdmx21DataSourceHandler(
         dimensions_dict = {dim.entity_id: dim for dim in dimensions}
 
         for dim_id, dim_config in dataset_config.dimensions.items():
+            dimension = dimensions_dict.get(dim_id)
+
             if dim_config.virtual:
+                if dimension is not None:
+                    problems.append(
+                        f"{dim_config.dimension_type} dimension with id={dim_id!r} is configured as virtual,"
+                        f" but it exists in the dataflow."
+                    )
                 continue  # Skip virtual dimensions
 
-            dimension = dimensions_dict.get(dim_id)
             if dimension is None:
                 problems.append(
                     f"{dim_config.dimension_type} dimension with id={dim_id!r} not found in the dataflow."
