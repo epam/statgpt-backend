@@ -473,3 +473,65 @@ async def clear_channel_dataset_versions_data(
     await DataSetService(session).clear_channel_dataset_versions_data(
         channel_id=channel_id, dataset_id=dataset_id, auth_context=SystemUserAuthContext()
     )
+
+
+@router.post(
+    path="/{channel_id}/datasets/{dataset_id}/versions/auto-update-jobs",
+    status_code=status.HTTP_202_ACCEPTED,
+)
+async def trigger_auto_update(
+    background_tasks: BackgroundTasks,
+    channel_id: int,
+    dataset_id: int,
+    session: AsyncSession = Depends(models.get_session),
+) -> schemas.AutoUpdateJob:
+    """Trigger an auto-update check for a channel dataset.
+
+    Creates an auto-update job that checks for changes and reindexes if needed.
+    The job runs in the background. Poll the job status to track progress.
+    """
+    return await DataSetService(session).trigger_auto_update(
+        background_tasks=background_tasks,
+        channel_id=channel_id,
+        dataset_id=dataset_id,
+        auth_context=SystemUserAuthContext(),
+    )
+
+
+@router.get(path="/{channel_id}/datasets/{dataset_id}/versions/auto-update-jobs")
+async def get_auto_update_jobs(
+    channel_id: int,
+    dataset_id: int,
+    limit: int = 100,
+    offset: int = 0,
+    session: AsyncSession = Depends(models.get_session),
+    _=Depends(cancel_on_disconnect),
+) -> schemas.ListResponse[schemas.AutoUpdateJob]:
+    """Get a paginated list of auto-update jobs for a channel dataset."""
+    service = DataSetService(session)
+    channel_dataset = await service.get_channel_dataset_model_or_raise(
+        channel_id=channel_id, dataset_id=dataset_id
+    )
+    jobs = await service.get_auto_update_jobs(
+        channel_dataset_id=channel_dataset.id,
+        limit=limit,
+        offset=offset,
+    )
+    total = await service.get_auto_update_jobs_count(channel_dataset.id)
+    return schemas.ListResponse[schemas.AutoUpdateJob](
+        data=jobs,
+        limit=limit,
+        offset=offset,
+        count=len(jobs),
+        total=total,
+    )
+
+
+@router.get(path="/auto-update-jobs/{job_id}")
+async def get_auto_update_job_by_id(
+    job_id: int,
+    session: AsyncSession = Depends(models.get_session),
+    _=Depends(cancel_on_disconnect),
+) -> schemas.AutoUpdateJob:
+    """Get an auto-update job by ID for polling status."""
+    return await DataSetService(session).get_auto_update_job_by_id(job_id)

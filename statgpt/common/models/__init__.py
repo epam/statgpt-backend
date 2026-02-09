@@ -8,6 +8,7 @@ from .database import (
 )
 from .health_checker import DatabaseHealthChecker
 from .models import (
+    AutoUpdateJob,
     Channel,
     ChannelDataset,
     ChannelDatasetVersion,

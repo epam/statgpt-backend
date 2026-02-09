@@ -130,3 +130,22 @@ class ChannelDatasetUpdateStatus(StrEnum):
     NEEDS_REINDEX = "needs_reindex"
     NO_VERSION = "no_version"
     INDEXING_IN_PROGRESS = "indexing_in_progress"
+
+
+class AutoUpdateResult(StrEnum):
+    """Result of an auto-update job execution.
+
+    When result is None, the job is still being processed (status is QUEUED or IN_PROGRESS).
+    """
+
+    NO_COMPLETED_VERSION = "NO_COMPLETED_VERSION"
+    """No base version to update from."""
+
+    NO_CHANGES = "NO_CHANGES"
+    """Dataset is up to date."""
+
+    CONFIG_INCOMPATIBLE = "CONFIG_INCOMPATIBLE"
+    """New version found but config not applicable."""
+
+    REINDEX_TRIGGERED = "REINDEX_TRIGGERED"
+    """Reindexing started (check created_version.preprocessing_status for completion)."""
