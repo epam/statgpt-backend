@@ -2217,6 +2217,7 @@ class AdminPortalDataSetService(DataSetService):
 
         except Exception as e:
             _log.exception(f"Failed to process auto-update job {auto_update_job_id}")
+            await self._session.rollback()
             job.status = StatusEnum.FAILED
             job.reason_for_failure = str(e)
             await self._session.commit()
