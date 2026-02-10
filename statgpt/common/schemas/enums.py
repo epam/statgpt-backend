@@ -144,6 +144,9 @@ class AutoUpdateResult(StrEnum):
     NO_CHANGES = "NO_CHANGES"
     """Dataset is up to date."""
 
+    CONFIG_UPDATED = "CONFIG_UPDATED"
+    """Config updated (e.g., URN version changed) but data unchanged, no reindexing needed."""
+
     CONFIG_INCOMPATIBLE = "CONFIG_INCOMPATIBLE"
     """New version found but config not applicable."""
 

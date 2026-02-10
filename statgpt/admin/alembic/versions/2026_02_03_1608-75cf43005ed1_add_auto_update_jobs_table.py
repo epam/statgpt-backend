@@ -24,6 +24,7 @@ def upgrade() -> None:
         'NO_COMPLETED_VERSION',
         'NO_CHANGES',
         'CONFIG_INCOMPATIBLE',
+        'CONFIG_UPDATED',
         'REINDEX_TRIGGERED',
         name='autoupdateresult',
         create_type=False,

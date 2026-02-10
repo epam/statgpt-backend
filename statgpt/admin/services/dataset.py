@@ -2027,6 +2027,35 @@ class AdminPortalDataSetService(DataSetService):
         else:
             return False, "Data has not changed."
 
+    async def _create_config_only_version(
+        self,
+        channel_dataset: models.ChannelDataset,
+        last_completed: schemas.ChannelDatasetVersion,
+        new_resolved_config: dict,
+    ) -> models.ChannelDatasetVersion:
+        """Create a new version with updated config, reusing data from the last completed version.
+
+        Used when the config changed (e.g., URN version updated) but the actual data is unchanged,
+        so no reindexing is needed.
+        """
+        new_version = models.ChannelDatasetVersion(
+            channel_dataset_id=channel_dataset.id,
+            preprocessing_status=StatusEnum.COMPLETED,
+            pointer_to=last_completed.version_data_id,
+            creation_reason="Auto-update: config updated without reindexing",
+            resolved_config=new_resolved_config,
+            indexing_config_hash=last_completed.indexing_config_hash,
+            structure_metadata=last_completed.structure_metadata,
+            structure_hash=last_completed.structure_hash,
+            indicator_dimensions_hash=last_completed.indicator_dimensions_hash,
+            non_indicator_dimensions_hash=last_completed.non_indicator_dimensions_hash,
+            special_dimensions_hash=last_completed.special_dimensions_hash,
+        )
+        self._session.add(new_version)
+        await self._session.commit()
+        await self._session.refresh(new_version)
+        return new_version
+
     async def _trigger_auto_update_reindex(
         self,
         job: models.AutoUpdateJob,
@@ -2164,6 +2193,19 @@ class AdminPortalDataSetService(DataSetService):
             if structure_changed or data_changed:
                 await self._trigger_auto_update_reindex(
                     job, channel_dataset, new_resolved_config, details, auth_context
+                )
+            elif new_resolved_config != last_completed.resolved_config:
+                # Config changed (e.g., URN version updated) but data unchanged
+                # Create a new version with updated config without reindexing
+                new_version = await self._create_config_only_version(
+                    channel_dataset, last_completed, new_resolved_config
+                )
+                job.created_version_id = new_version.id
+                await self._set_auto_update_job_status(
+                    job,
+                    StatusEnum.COMPLETED,
+                    details=details,
+                    result=schemas.AutoUpdateResult.CONFIG_UPDATED,
                 )
             else:
                 await self._set_auto_update_job_status(
