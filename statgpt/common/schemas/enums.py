@@ -133,10 +133,7 @@ class ChannelDatasetUpdateStatus(StrEnum):
 
 
 class AutoUpdateResult(StrEnum):
-    """Result of an auto-update job execution.
-
-    When result is None, the job is still being processed (status is QUEUED or IN_PROGRESS).
-    """
+    """Result of an auto-update job execution."""
 
     NO_COMPLETED_VERSION = "NO_COMPLETED_VERSION"
     """No base version to update from."""
