@@ -1,5 +1,6 @@
 import uuid
-from collections.abc import Iterable
+from collections.abc import Mapping
+from typing import Any
 
 import httpx
 from httpx import HTTPStatusError
@@ -8,19 +9,13 @@ from sdmx.model.v21 import DataflowDefinition as DataFlow
 from statgpt.common.auth.auth_context import AuthContext
 from statgpt.common.config import multiline_logger as logger
 from statgpt.common.data.base import DataSourceType
+from statgpt.common.data.common import SdmxAugmentedDataSourceHandler
 from statgpt.common.data.quanthub.config import QuanthubDataSetConfig, QuanthubSdmxDataSourceConfig
-from statgpt.common.data.quanthub.sdmx_schemas.v30 import QhAnnotation
 from statgpt.common.data.quanthub.v21.dataset import QuanthubSdmx21DataSet
-from statgpt.common.data.sdmx import Sdmx21DataSourceHandler
-from statgpt.common.data.sdmx.common import SdmxDimension
 from statgpt.common.data.sdmx.v21.attribute import Sdmx21Attribute
-from statgpt.common.data.sdmx.v21.attributes_creator import Sdmx21AttributesCreator
-from statgpt.common.data.sdmx.v21.dataflow_loader import DataflowLoader
-from statgpt.common.data.sdmx.v21.dataset import InvalidConfigurationError, SdmxOfflineDataSet
-from statgpt.common.data.sdmx.v21.dimensions_creator import DimensionsCreator
+from statgpt.common.data.sdmx.v21.dataset import SdmxOfflineDataSet
 from statgpt.common.data.sdmx.v21.ratelimiter import SdmxRateLimiterFactory
 from statgpt.common.data.sdmx.v21.schemas import Urn
-from statgpt.common.schemas.dataset import Status
 from statgpt.common.settings.sdmx import quanthub_settings
 from statgpt.common.utils import Cache
 from statgpt.common.utils.timer import debug_timer
@@ -30,7 +25,7 @@ from .qh_sdmx_client import AsyncQuanthubClient
 
 # (DataSourceHandler[SdmxDataSourceConfig, InMemorySdmx21DataSet | SdmxOfflineDataSet, QuanthubDataSetConfig],ABC)
 # todo: add generic typing with QuanthubInMemorySdmx21DataSet
-class QuanthubSdmx21DataSourceHandler(Sdmx21DataSourceHandler):
+class QuanthubSdmx21DataSourceHandler(SdmxAugmentedDataSourceHandler):
 
     # TEMP fix:
     _dataset_cache: Cache[QuanthubSdmx21DataSet] = Cache(ttl=quanthub_settings.dataset_cache_ttl)
@@ -72,87 +67,25 @@ class QuanthubSdmx21DataSourceHandler(Sdmx21DataSourceHandler):
                     # 403 means user doesn't have access to dataset
                     return False
                 else:
-                    raise e
+                    raise
 
-    async def _get_dataset(
-        self,
-        entity_id: uuid.UUID,
-        title: str,
-        config: dict,
-        auth_context: AuthContext,
-        allow_offline: bool = False,
-        allow_cached: bool = False,
-    ) -> QuanthubSdmx21DataSet | SdmxOfflineDataSet:
-        dataset_config = self.parse_data_set_config(config)
-
-        if allow_cached and not self._config.auth_enabled:
-            # If auth is disabled, we can cache datasets for all users
-            if ds := self._dataset_cache.get(str(entity_id)):
-                logger.debug(
-                    f"Returning cached dataset(id={entity_id}, urn={dataset_config.urn!r})"
-                )
-                return ds
-
-        logger.info(f"Loading dataset urn={dataset_config.urn!r}.")
-
-        sdmx_client = await self.create_sdmx_client(auth_context)
-
+    async def _load_extra_dataset_data(self, sdmx_client: Any, urn: Urn) -> Mapping[str, Any]:
+        client = sdmx_client
         try:
-            urn = Urn(
-                agency_id=dataset_config.urn.agency_id,
-                resource_id=dataset_config.urn.resource_id,
-                version=dataset_config.urn.version,
-            )
-            dataflow_loader = DataflowLoader(sdmx_client)
-            urn, structure_message = await dataflow_loader.load_structure_message(urn, mode="full")
-        except Exception as e:
-            if allow_offline:
-                msg = f"Failed to load the dataflow or its associated structures. urn={dataset_config.urn!r}"
-                logger.exception(msg)
-                status = Status(status='offline', details=msg)
-                return SdmxOfflineDataSet(entity_id, title, dataset_config, self, status)
-            else:
-                raise e
-
-        try:
-            dimensions_creator = DimensionsCreator(
-                structure_message, urn, self._config.locale, dataset_config.get_dimension_aliases()
-            )
-            dimensions = await dimensions_creator.create_dimensions()
-        except Exception as e:
-            if allow_offline:
-                msg = "Failed to create dimensions from the loaded structure message."
-                logger.exception(msg)
-                status = Status(status='offline', details=msg)
-                return SdmxOfflineDataSet(entity_id, title, dataset_config, self, status)
-            else:
-                raise e
-
-        try:
-            attributes_creator = Sdmx21AttributesCreator(
-                structure_message, urn, self._config.locale
-            )
-            attributes = await attributes_creator.create_attributes()
-        except Exception as e:
-            if allow_offline:
-                msg = "Failed to create attributes from the loaded structure message."
-                logger.exception(msg)
-                status = Status(status='offline', details=msg)
-                return SdmxOfflineDataSet(entity_id, title, dataset_config, self, status)
-            else:
-                raise e
-
-        try:
-            attribute_values = await sdmx_client.dataset_level_attributes(
-                agency_id=urn.agency_id, resource_id=urn.resource_id, version=urn.version
+            attribute_values = await client.dataset_level_attributes(
+                agency_id=urn.agency_id,
+                resource_id=urn.resource_id,
+                version=urn.version,
             )
         except Exception:
             logger.exception(f"Failed to load dataset-level attributes for the dataflow({urn}).")
             attribute_values = {}
 
         try:
-            annotations = await sdmx_client.dynamic_dataflow_annotations(
-                agency_id=urn.agency_id, resource_id=urn.resource_id, version=urn.version
+            annotations = await client.dynamic_dataflow_annotations(
+                agency_id=urn.agency_id,
+                resource_id=urn.resource_id,
+                version=urn.version,
             )
         except httpx.RequestError as e:
             logger.exception(
@@ -165,55 +98,23 @@ class QuanthubSdmx21DataSourceHandler(Sdmx21DataSourceHandler):
             logger.exception(f"Failed to load annotations for the dataflow({urn}).")
             annotations = []
 
-        try:
-            dataflow = structure_message.dataflow[urn]
-            res = self._build_dataset(
-                entity_id=entity_id,
-                title=title,
-                config=dataset_config,
-                dataflow=dataflow,
-                dimensions=dimensions,
-                attributes=attributes,
-                attribute_values=attribute_values,
-                annotations=annotations,
-            )
-        except InvalidConfigurationError as e:
-            if allow_offline:
-                msg = f"Invalid dataset(urn={dataset_config.urn!r}) configuration: {e}"
-                logger.warning(msg)
-                status = Status(status='invalid_config', details=msg)
-                return SdmxOfflineDataSet(entity_id, title, dataset_config, self, status)
-            else:
-                raise e
-        except Exception as e:
-            if allow_offline:
-                msg = "Failed to create dataset class."
-                logger.exception(f"{msg}. See exception details below.")
-                status = Status(status='offline', details=msg)
-                return SdmxOfflineDataSet(entity_id, title, dataset_config, self, status)
-            else:
-                raise e
-
-        if allow_cached and not self._config.auth_enabled:
-            # If auth is disabled, cache the dataset for all users
-            # NOTE: we do not cache offline datasets
-            self._dataset_cache.set(str(entity_id), res)
-            logger.info(f"Cached dataset(id={entity_id}, urn={dataset_config.urn!r}).")
-
-        return res
+        return {
+            "attribute_values": attribute_values,
+            "annotations": annotations,
+        }
 
     def _build_dataset(
         self,
         *,
         entity_id: uuid.UUID,
         title: str,
-        config: QuanthubDataSetConfig,
+        dataset_config: Any,
         dataflow: DataFlow,
-        dimensions: Iterable[SdmxDimension],
-        attributes: Iterable[Sdmx21Attribute],
-        attribute_values: dict[str, str | None],
-        annotations: Iterable[QhAnnotation],
+        dimensions: list[Any],
+        attributes: list[Sdmx21Attribute],
+        extra_data: Mapping[str, Any],
     ) -> QuanthubSdmx21DataSet:
+        config = dataset_config
         return QuanthubSdmx21DataSet(
             entity_id=entity_id,
             title=title,
@@ -223,8 +124,8 @@ class QuanthubSdmx21DataSourceHandler(Sdmx21DataSourceHandler):
             locale=self._config.locale,
             dimensions=dimensions,
             attributes=attributes,
-            attribute_values=attribute_values,
-            annotations=annotations,
+            attribute_values=extra_data.get("attribute_values", {}),
+            annotations=extra_data.get("annotations", []),
         )
 
     async def get_dataset(

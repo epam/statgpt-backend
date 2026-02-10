@@ -1,5 +1,3 @@
-from typing import Optional
-
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -11,7 +9,7 @@ class SdmxSettings(BaseSettings):
 
     model_config = SettingsConfigDict(env_prefix="SDMX_")
 
-    cache_dir: Optional[str] = Field(default=None, description="Directory for SDMX cache")
+    cache_dir: str | None = Field(default=None, description="Directory for SDMX cache")
 
     client_retry_count: int = Field(
         default=5, description="Maximum number of retries for SDMX client"
@@ -39,6 +37,20 @@ class QuantHubSettings(BaseSettings):
     )
 
 
+class ProxySdmxSettings(BaseSettings):
+    """
+    Proxy SDMX specific settings
+    """
+
+    model_config = SettingsConfigDict(env_prefix="proxy_sdmx_")
+
+    dataset_cache_ttl: int = Field(
+        default=3600,
+        description="Cache TTL for Proxy SDMX datasets in seconds",
+    )
+
+
 # Create singleton instances
 sdmx_settings = SdmxSettings()
 quanthub_settings = QuantHubSettings()
+proxy_sdmx_settings = ProxySdmxSettings()

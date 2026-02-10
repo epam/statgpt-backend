@@ -1,4 +1,5 @@
 import io
+from typing import Any
 from urllib.parse import urlencode
 
 import httpx
@@ -10,17 +11,22 @@ from sdmx.session import ResponseIO
 
 from statgpt.common.auth.auth_context import AuthContext
 from statgpt.common.config import multiline_logger as logger
-from statgpt.common.data.quanthub.sdmx_schemas.v30.structure_message import (
+from statgpt.common.data.proxy.config import ProxySdmx30DataSourceConfig
+from statgpt.common.data.proxy.sdmx_schemas import (
     ProxyAvailabilityResponseBody,
+    ProxyDataflowMessage,
 )
-from statgpt.common.data.quanthub.v21.qh_sdmx_client import AsyncQuanthubClient
+from statgpt.common.data.proxy.sdmx_schemas.structure_message import (
+    ProxyAnnotation,
+    ProxyAvailabilityRequestBody,
+)
+from statgpt.common.data.proxy.v30.reader import ProxyDataReader
 from statgpt.common.data.sdmx.v21.ratelimiter import SdmxRateLimiter
-from statgpt.common.data.sdmx.v30.config import ProxySdmx30DataSourceConfig
-from statgpt.common.data.sdmx.v30.reader import ProxyDataReader
+from statgpt.common.data.sdmx.v21.sdmx_client import AsyncSdmxClient
 
 
-class AsyncProxySdmxClient(AsyncQuanthubClient):
-    """Async client for Proxy SDMX 3.0 sources based on QuantHub client behavior."""
+class AsyncProxySdmxClient(AsyncSdmxClient):
+    """Async client for Proxy SDMX 3.0 sources based on QuantHub client ehavior."""
 
     _DATA_PARAM_ALLOWLIST = {"startPeriod", "endPeriod", "firstNObservations", "lastNObservations"}
     _DATA_ACCEPT_DEFAULT = "application/vnd.sdmx.data+json;version=2.0.0"
@@ -46,25 +52,38 @@ class AsyncProxySdmxClient(AsyncQuanthubClient):
         dsd: DataStructureDefinition | None = None,
     ) -> StructureMessage:
 
-        if self._availability_via_post_url:
-            return await self._qh_available_constraint(
-                agency_id=agency_id,
-                resource_id=resource_id,
-                version=version,
-                use_cache=use_cache,
-                key=key,
-                params=params,
-            )
-        else:
-            return await self._proxy_available_constraint(
-                resource_id=resource_id,
-                agency_id=agency_id,
-                version=version,
-                key=key,
-                params=params,
-                use_cache=use_cache,
-                dsd=dsd,
-            )
+        return await self._proxy_available_constraint(
+            agency_id=agency_id,
+            resource_id=resource_id,
+            version=version,
+            use_cache=use_cache,
+            key=key,
+            params=params,
+            dsd=dsd,
+        )
+
+    async def dynamic_dataflow_annotations(
+        self, *, agency_id: str, resource_id: str, version: str
+    ) -> list[ProxyAnnotation]:
+        params: dict[str, Any] = {}
+        headers = await self._construct_headers({}, Resource.dataflow)
+        headers["accept"] = "application/vnd.sdmx.structure+json;version=2.0.0"
+
+        req: requests.PreparedRequest = self._sync_client.get(  # type: ignore[assignment]
+            resource_type=Resource.dataflow,
+            resource_id=resource_id,
+            dry_run=True,
+            headers=headers,
+            params=params,
+            **{k: v for k, v in [('agency_id', agency_id), ('version', version)] if v is not None},  # type: ignore[arg-type]
+        )
+
+        async with self._rate_limiter.structure_limiter():
+            httpx_response = await self._perform_request(req)
+        httpx_response.raise_for_status()
+        return (
+            ProxyDataflowMessage.model_validate(httpx_response.json()).data.dataflows[0].annotations
+        )
 
     async def data(
         self,
@@ -97,10 +116,8 @@ class AsyncProxySdmxClient(AsyncQuanthubClient):
         dsd: DataStructureDefinition | None,
     ) -> StructureMessage:
         """Fetch available constraints from the QuantHub SDMX API."""
-        key_segment = self._build_key_segment(key=key, dsd=dsd)
         url = self._build_url(
-            path=f"/availability/dataflow/{agency_id}/{resource_id}/{version}/{key_segment}/*",
-            params=params,
+            path=f"/availability/dataflow/{agency_id}/{resource_id}/{version}", params=None
         )
 
         if use_cache:
@@ -111,13 +128,25 @@ class AsyncProxySdmxClient(AsyncQuanthubClient):
             if cached_response is not None:
                 return cached_response  # type: ignore[return-value]
 
-        response, _ = await self._perform_get(
-            url,
-            Resource.availableconstraint,
-            limiter=self._rate_limiter.availability_limiter,
-        )
-        if response is None:
-            return StructureMessage()  # Return empty StructureMessage on bad request
+        key = {} if key is None else key
+        req_body_obj = ProxyAvailabilityRequestBody.get_from(key=key, params=params, dsd=dsd)
+        headers = {'accept': 'application/vnd.sdmx.structure+json;version=2.0.0'}
+        req = requests.Request(
+            method="POST",
+            url=url,
+            headers=headers,
+            json=req_body_obj.model_dump(mode='json', exclude_none=True, by_alias=True),
+        ).prepare()
+
+        try:
+            async with self._rate_limiter.availability_limiter():
+                response = await self._perform_request(req)
+        except httpx.HTTPStatusError as e:
+            if e.response.status_code in [400, 404]:
+                logger.error(f"Bad request for URL {url!r}: {e.response.text}")
+                logger.info(f"Request body: {req.body!r}")
+                return StructureMessage()  # Return empty StructureMessage on bad request
+            raise
 
         resp_body_obj = ProxyAvailabilityResponseBody.model_validate(response.json())
         structure_msg = resp_body_obj.to_sdmx1()
@@ -201,6 +230,7 @@ class AsyncProxySdmxClient(AsyncQuanthubClient):
         return ".".join(parts) or "*"
 
     def _build_url(self, *, path: str, params: dict[str, str] | None) -> str:
+
         url = f"{self._sync_client.source.url}{path}"
         if params:
             return f"{url}?{urlencode(params, doseq=True)}"

@@ -1,8 +1,8 @@
 from statgpt.common.data.sdmx.common import SdmxDataSourceConfig
-from statgpt.common.data.sdmx.v30.config import ProxySdmx30DataSourceConfig
-from statgpt.common.data.sdmx.v30.datasource import ProxySdmx30DataSourceHandler
 
 from .base.datasource import DataSourceConfig, DataSourceHandler
+from .proxy.config import ProxySdmx30DataSourceConfig
+from .proxy.v30.datasource import ProxySdmx30DataSourceHandler
 from .quanthub.config import QuanthubSdmxDataSourceConfig
 from .quanthub.v21.datasource import QuanthubSdmx21DataSourceHandler
 from .sdmx import Sdmx21DataSourceHandler
