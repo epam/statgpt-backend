@@ -152,10 +152,10 @@ curations:
       curations:
         concluded_license: "Apache-2.0"
         comment: "Apache 2.0 License: https://github.com/open-telemetry/opentelemetry-python/blob/v1.39.1/opentelemetry-api/LICENSE"
-    - id: "PyPI::cryptography:46.0.3"
+    - id: "PyPI::cryptography:46.0.5*"
       curations:
         concluded_license: "Apache-2.0 OR BSD-3-Clause"
-        comment: "Dual License (Apache 2.0 or BSD 3-Clause): https://github.com/pyca/cryptography/blob/46.0.3/LICENSE"
+        comment: "Dual License (Apache 2.0 or BSD 3-Clause): https://github.com/pyca/cryptography/blob/46.0.5/LICENSE"
     - id: "PyPI::psycopg:3.3.2"
       curations:
         concluded_license: "LGPL-3.0-or-later"
