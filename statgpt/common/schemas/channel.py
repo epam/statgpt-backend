@@ -47,6 +47,10 @@ class SupremeAgentConfig(BaseYamlModel):
 
 
 class OutOfScopeConfig(BaseYamlModel):
+    llm_model_config: LLMModelConfig = Field(
+        default_factory=LLMModelConfig,
+        description="LLM model configuration for guardrails.",
+    )
     domain: str = Field(
         description="The domain of the chat bot. Other domains are considered out of scope."
     )
