@@ -4,6 +4,7 @@ from fastapi import Depends, HTTPException
 from fastapi.security import OAuth2PasswordBearer
 from jwt import InvalidTokenError
 
+from statgpt.admin.audit.context import set_audit_context
 from statgpt.admin.auth.oidc import JwtTokenVerifier, TokenValidationError, TokenValidator
 from statgpt.admin.settings.oidc_auth import oidc_auth_settings
 from statgpt.common.config import logger
@@ -16,6 +17,7 @@ oauth2_scheme = OAuth2PasswordBearer(
 @dataclass
 class User:
     name: str
+    id: str | None = None
 
 
 async def require_jwt_auth(token: str = Depends(oauth2_scheme)) -> User:
@@ -29,7 +31,11 @@ async def require_jwt_auth(token: str = Depends(oauth2_scheme)) -> User:
                 logger.info(f"Unauthorized token: {str(e)}")
                 raise HTTPException(status_code=403, detail=str(e))
 
-            return User(payload.username)
+            user = User(name=payload.username, id=payload.user_id)
+            set_audit_context(
+                performed_by=user.id, performed_by_name=user.name, action_trigger="manual"
+            )
+            return user
         except InvalidTokenError as e:
             logger.info(f"Invalid Bearer token: {str(e)}")
             raise HTTPException(
@@ -38,4 +44,8 @@ async def require_jwt_auth(token: str = Depends(oauth2_scheme)) -> User:
                 headers={"WWW-Authenticate": "Bearer"},
             )
     else:
-        return User("Anonymous")
+        user = User("Anonymous")
+        set_audit_context(
+            performed_by=user.id, performed_by_name=user.name, action_trigger="manual"
+        )
+        return user

@@ -12,12 +12,23 @@ from sqlalchemy.sql.expression import func
 
 import statgpt.common.models as models
 import statgpt.common.schemas as schemas
+from statgpt.admin.audit.decorators import audit_action
 from statgpt.admin.settings.exim import JobsConfig
 from statgpt.common import utils
 from statgpt.common.data import DataSourceConfig
 from statgpt.common.services import DataSourceSerializer, DataSourceService, DataSourceTypeService
 
 _log = logging.getLogger(__name__)
+
+
+def _data_source_state(item: models.DataSource) -> dict[str, Any]:
+    return {
+        "id": item.id,
+        "title": item.title,
+        "description": item.description,
+        "type_id": item.type_id,
+        "details": item.details,
+    }
 
 
 class AdminPortalDataSourceService(DataSourceService):
@@ -45,6 +56,7 @@ class AdminPortalDataSourceService(DataSourceService):
             )
         return parsed_config
 
+    @audit_action(entity_type="data_source", action_type="create")
     async def create_data_source(self, data: schemas.DataSourceBase) -> schemas.DataSource:
         parsed_config = await self._parse_details_field(data.type_id, data.details)
 
@@ -107,6 +119,11 @@ class AdminPortalDataSourceService(DataSourceService):
 
         return data_sources
 
+    @audit_action(
+        entity_type="data_source",
+        action_type="update",
+        before_state_getter=lambda self, item_id, data: self._get_data_source_before(item_id),
+    )
     async def update(self, item_id: int, data: schemas.DataSourceUpdate) -> schemas.DataSource:
 
         item = await self._get_item_or_raise(item_id)
@@ -127,9 +144,19 @@ class AdminPortalDataSourceService(DataSourceService):
         await self._session.refresh(item, attribute_names=["type"])
         return DataSourceSerializer.db_to_schema(item)
 
+    @audit_action(
+        entity_type="data_source",
+        action_type="delete",
+        before_state_getter=lambda self, item_id: self._get_data_source_before(item_id),
+        after_state_getter=lambda self, result, item_id: None,
+    )
     async def delete(self, item_id: int) -> None:
         item = await self._get_item_or_raise(item_id)
         _log.info(f"Deleting {item}")
 
         await self._session.delete(item)
         await self._session.commit()
+
+    async def _get_data_source_before(self, item_id: int) -> dict[str, Any]:
+        item = await self._get_item_or_raise(item_id)
+        return _data_source_state(item)

@@ -16,6 +16,7 @@ from sqlalchemy.sql.expression import func
 
 import statgpt.common.models as models
 import statgpt.common.schemas as schemas
+from statgpt.admin.audit.decorators import audit_action
 from statgpt.admin.settings.exim import JobsConfig
 from statgpt.common.auth.auth_context import AuthContext
 from statgpt.common.settings.dial import dial_settings
@@ -141,6 +142,14 @@ class JobsService:
         await self._session.commit()
         await self._session.refresh(job)
 
+    @audit_action(
+        entity_type="channel",
+        action_type="export",
+        entity_ref_getter=lambda self, result, before, after, background_tasks, channel_id, scope, auth_context: (
+            str(channel_id),
+            None,
+        ),
+    )
     async def create_export_job(
         self,
         background_tasks: BackgroundTasks,
@@ -164,6 +173,14 @@ class JobsService:
 
         return schemas.Job.model_validate(job, from_attributes=True)
 
+    @audit_action(
+        entity_type="channel",
+        action_type="import",
+        entity_ref_getter=lambda self, result, before, after, background_tasks, file, clean_up, update_datasets, update_data_sources, auth_context: (
+            None,
+            file.filename,
+        ),
+    )
     async def create_import_job(
         self,
         background_tasks: BackgroundTasks,

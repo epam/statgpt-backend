@@ -32,6 +32,14 @@ class TokenPayload:
             )
         return username
 
+    @property
+    def user_id(self) -> str | None:
+        for claim in ("oid", "sub", "user_id", "uid"):
+            value = self._payload.get(claim)
+            if value:
+                return str(value)
+        return None
+
 
 class Jwks:
     def __init__(self, openid_configuration_endpoint: str):
