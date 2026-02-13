@@ -412,7 +412,7 @@ class ChannelServiceFacade(DbServiceBase):
     async def list_available_datasets(self, auth_context: AuthContext) -> list[VersionedDataSet]:
         return await self._load_datasets(auth_context)
 
-    async def _get_dataset_by_urn(
+    async def get_dataset_by_urn(
         self, version: str, agency_id: str, resource_id: str, auth_context: AuthContext
     ) -> VersionedDataSet | None:
         dataset_service = DataSetService(self._session, session_lock=self._session_lock)
