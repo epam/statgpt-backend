@@ -437,19 +437,19 @@ class ChannelServiceFacade(DbServiceBase):
             )
         }
 
-        dataset_model = [
+        dataset_models = [
             ds
             for ds in dataset_models
             if UrnReference.model_validate(ds.details['urn']).short_urn() == dataset_urn.short_urn()
         ]
 
-        if len(dataset_model) > 1:
+        if len(dataset_models) > 1:
             raise ValueError(f"Multiple datasets found for the same URN: {dataset_urn.short_urn()}")
 
-        if len(dataset_model) == 0:
+        if len(dataset_models) == 0:
             return None
 
-        dataset_model = dataset_model[0]
+        dataset_model = dataset_models[0]
         data_source = data_sources[dataset_model.source_id]
         handler = await self._get_handler_class(data_source.type, config=data_source.details)
 
