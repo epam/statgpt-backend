@@ -430,12 +430,6 @@ class ChannelServiceFacade(DbServiceBase):
         dataset_models = await dataset_service.get_datasets_models(
             limit=None, offset=0, ids=versions.keys()
         )
-        data_sources = {
-            ds.id: ds
-            for ds in await data_source_service.get_data_sources_models(
-                limit=None, offset=0, ids={ds.source_id for ds in dataset_models}
-            )
-        }
 
         dataset_models = [
             ds
@@ -445,12 +439,23 @@ class ChannelServiceFacade(DbServiceBase):
 
         if len(dataset_models) > 1:
             raise ValueError(f"Multiple datasets found for the same URN: {dataset_urn.short_urn()}")
-
         if len(dataset_models) == 0:
             return None
 
         dataset_model = dataset_models[0]
-        data_source = data_sources[dataset_model.source_id]
+
+        data_sources = await data_source_service.get_data_sources_models(
+            limit=None, offset=0, ids={dataset_model.source_id}
+        )
+        if len(data_sources) > 1:
+            raise ValueError(
+                f"Multiple data sources found for the same dataset: {dataset_model.id}"
+            )
+        if len(data_sources) == 0:
+            return None
+
+        data_source = data_sources[0]
+
         handler = await self._get_handler_class(data_source.type, config=data_source.details)
 
         res = VersionedDataSet(
