@@ -437,28 +437,34 @@ class ChannelServiceFacade(DbServiceBase):
             )
         }
 
-        res = None
-        for db_dataset in dataset_models:
-            data_source = data_sources[db_dataset.source_id]
-            handler = await self._get_handler_class(data_source.type, config=data_source.details)
-            config_to_use = self._get_config_for_query(db_dataset, versions[db_dataset.id])
-            db_dataset_urn = UrnReference.model_validate(db_dataset.details['urn'])
-            if (
-                db_dataset_urn.short_urn() == dataset_urn.short_urn()
-            ) and await handler.is_dataset_available(config_to_use, auth_context):
-                ds = await handler.get_dataset(
-                    entity_id=db_dataset.id_,
-                    title=db_dataset.title,
-                    config=config_to_use,
-                    auth_context=auth_context,
-                    allow_offline=True,
-                    allow_cached=True,
-                )
-                if ds.status.status == 'online':
-                    res = VersionedDataSet(
-                        model=db_dataset, version=versions[db_dataset.id], data=ds
-                    )
+        dataset_model = [
+            ds
+            for ds in dataset_models
+            if UrnReference.model_validate(ds.details['urn']).short_urn() == dataset_urn.short_urn()
+        ]
 
+        if len(dataset_model) > 1:
+            raise ValueError(f"Multiple datasets found for the same URN: {dataset_urn.short_urn()}")
+
+        if len(dataset_model) == 0:
+            return None
+
+        dataset_model = dataset_model[0]
+        data_source = data_sources[dataset_model.source_id]
+        handler = await self._get_handler_class(data_source.type, config=data_source.details)
+
+        res = VersionedDataSet(
+            model=dataset_model,
+            version=versions[dataset_model.id],
+            data=await handler.get_dataset(
+                entity_id=dataset_model.id_,
+                title=dataset_model.title,
+                config=self._get_config_for_query(dataset_model, versions[dataset_model.id]),
+                auth_context=auth_context,
+                allow_offline=True,
+                allow_cached=True,
+            ),
+        )
         return res
 
     async def get_dataset_hierarchy(self, auth_context: AuthContext) -> DatasetHierarchy | None:
