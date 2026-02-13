@@ -423,9 +423,9 @@ class ChannelServiceFacade(DbServiceBase):
             channel_id=self._channel.id
         )
         versions = {
-            k: item.last_completed_version
-            for k, item in last_versions.items()
-            if item.last_completed_version is not None
+            channel_dataset_id: channel_dataset.last_completed_version
+            for channel_dataset_id, channel_dataset in last_versions.items()
+            if channel_dataset.last_completed_version is not None
         }
         dataset_models = await dataset_service.get_datasets_models(
             limit=None, offset=0, ids=versions.keys()
