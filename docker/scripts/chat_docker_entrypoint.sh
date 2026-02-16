@@ -1,7 +1,8 @@
 #!/bin/sh
-set -e
+set -eu
 
-. ./.venv/bin/activate
+export VIRTUAL_ENV="$PWD/.venv"
+export PATH="$VIRTUAL_ENV/bin:$PATH"
 
 # If no args passed to `docker run`, then we assume the user is calling the service
 if [ $# -lt 1 ]; then

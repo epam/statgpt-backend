@@ -1,7 +1,8 @@
 #!/bin/sh
 set -eu
 
-. ./.venv/bin/activate
+export VIRTUAL_ENV="$PWD/.venv"
+export PATH="$VIRTUAL_ENV/bin:$PATH"
 
 # If no args passed to `docker run`, then run the admin service
 if [ $# -lt 1 ]; then
