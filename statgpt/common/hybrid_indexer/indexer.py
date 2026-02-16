@@ -73,30 +73,13 @@ class Indexer:
         harmonize: bool,
     ):
         self._config = config
+        self._models_api_key = models_api_key
         self._settings = HybridIndexSettings()
         self._matching_index = matching_index
         self._indicators_index = indicators_index
         self._vectorstore = vectorstore
         self._is_normalize = normalize
         self._is_harmonize = harmonize
-
-        normalize_llm = get_chat_model(
-            api_key=models_api_key, model_config=self._config.normalize_model_config
-        ).with_structured_output(schema=schemas.NormalizationOutput, method="json_schema")
-        harmonize_llm = get_chat_model(
-            api_key=models_api_key, model_config=self._config.harmonize_model_config
-        ).with_structured_output(schema=schemas.HarmonizationOutput, method="json_schema")
-
-        normalization_prompt = HybridIndexerDefaultPrompts.get_normalize_prompts()
-        self._log_prompt(normalization_prompt, title='normalization prompt')
-
-        harmonization_prompt = HybridIndexerDefaultPrompts.get_harmonize_prompts()
-        self._log_prompt(harmonization_prompt, title='harmonization prompt')
-
-        self._normalize_chain = (
-            normalization_prompt | normalize_llm | (lambda d: d.normalized.lower())
-        )
-        self._harmonize_chain = harmonization_prompt | harmonize_llm | (lambda d: d.primary)
 
     async def index(
         self,
@@ -112,17 +95,70 @@ class Indexer:
             version_ids = {version_id}.union(version_ids)
             await self._harmonize(dataset, version_id, version_ids, max_n_indicators)
 
+    def _create_normalize_llm_chain(self) -> Runnable:
+        normalization_prompt = HybridIndexerDefaultPrompts.get_normalize_prompts()
+        self._log_prompt(normalization_prompt, title='normalization prompt')
+
+        normalize_llm = get_chat_model(
+            api_key=self._models_api_key, model_config=self._config.normalize_model_config
+        ).with_structured_output(schema=schemas.NormalizationOutput, method="json_schema")
+
+        llm_chain = normalization_prompt | normalize_llm | (lambda d: d.normalized.lower())
+
+        async def _safe_normalize(inputs: dict) -> str:
+            try:
+                return await llm_chain.ainvoke(inputs)
+            except Exception:
+                input_text = inputs.get('input', '')
+                _log.exception(
+                    f"Normalization failed for '{input_text}', using original input as fallback"
+                )
+                return input_text.lower()
+
+        return RunnableLambda(_safe_normalize)
+
+    def _create_normalize_chain(self) -> Runnable:
+        return (
+            RunnablePassthrough.assign(input=lambda d: d['series'].indicator_name)
+            | self._create_normalize_llm_chain()
+        )
+
+    def _create_harmonize_llm_chain(self) -> Runnable:
+        harmonization_prompt = HybridIndexerDefaultPrompts.get_harmonize_prompts()
+        self._log_prompt(harmonization_prompt, title='harmonization prompt')
+
+        harmonize_llm = get_chat_model(
+            api_key=self._models_api_key, model_config=self._config.harmonize_model_config
+        ).with_structured_output(schema=schemas.HarmonizationOutput, method="json_schema")
+
+        llm_chain = (
+            RunnablePassthrough.assign(
+                statement=lambda d: d['index'].name_normalized,
+                indicators=lambda d: d['indicators_str'],
+            )
+            | harmonization_prompt
+            | harmonize_llm
+            | (lambda d: d.primary)
+        )
+
+        async def _safe_harmonize(inputs: dict) -> str:
+            try:
+                return await llm_chain.ainvoke(inputs)
+            except Exception:
+                statement = inputs['index'].name_normalized
+                _log.exception(
+                    f"Harmonization failed for '{statement}', using statement as fallback"
+                )
+                return statement
+
+        return RunnableLambda(_safe_harmonize)
+
     def _matching_index_chain(self) -> Runnable:
         return (
             RunnablePassthrough.assign(
                 series=lambda d: self._create_series(d['dataset'], d['indicator'])
             )
-            | RunnablePassthrough.assign(
-                normalized=(
-                    RunnablePassthrough.assign(input=lambda d: d['series'].indicator_name)
-                    | self._normalize_chain
-                )
-            )
+            | RunnablePassthrough.assign(normalized=self._create_normalize_chain())
             | self._create_matching_index
         )
 
@@ -224,15 +260,7 @@ class Indexer:
             | RunnablePassthrough.assign(
                 indicators_str=lambda d: self._get_indicators_str(d['match_candidates'])
             )
-            | RunnablePassthrough.assign(
-                primary=(
-                    RunnablePassthrough.assign(
-                        statement=lambda d: d['index'].name_normalized,
-                        indicators=lambda d: d['indicators_str'],
-                    )
-                    | self._harmonize_chain
-                )
-            )
+            | RunnablePassthrough.assign(primary=self._create_harmonize_llm_chain())
             | RunnablePassthrough.assign(
                 primary_normalized=lambda d: d[
                     'primary'
@@ -272,7 +300,10 @@ class Indexer:
         if primary in cache:
             return RunnableLambda(lambda _: cache[primary])
         else:
-            return RunnablePassthrough.assign(input=lambda _: primary) | self._normalize_chain
+            return (
+                RunnablePassthrough.assign(input=lambda _: primary)
+                | self._create_normalize_llm_chain()
+            )
 
     @staticmethod
     def _save_to_cache(d: dict) -> dict:
