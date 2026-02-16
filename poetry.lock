@@ -4189,7 +4189,7 @@ files = [
     {file = "markdown_it_py-4.0.0-py3-none-any.whl", hash = "sha256:87327c59b172c5011896038353a81343b6754500a08cd7a4973bb48c6d578147"},
     {file = "markdown_it_py-4.0.0.tar.gz", hash = "sha256:cb0a2b4aa34f932c007117b194e945bd74e0ec24133ceb5bac59009cda1cb9f3"},
 ]
-markers = {main = "extra == \"beta-mcp\" or extra == \"cli\""}
+markers = {main = "extra == \"cli\" or extra == \"beta-mcp\""}
 
 [package.dependencies]
 mdurl = ">=0.1,<1.0"
@@ -4397,7 +4397,7 @@ files = [
     {file = "mdurl-0.1.2-py3-none-any.whl", hash = "sha256:84008a41e51615a49fc9966191ff91509e3c40b939176e643fd50a5c2196b8f8"},
     {file = "mdurl-0.1.2.tar.gz", hash = "sha256:bb413d29f5eea38f31dd4754dd7377d4465116fb207585f97bf925588687c1ba"},
 ]
-markers = {main = "extra == \"beta-mcp\" or extra == \"cli\""}
+markers = {main = "extra == \"cli\" or extra == \"beta-mcp\""}
 
 [[package]]
 name = "mistune"
@@ -5767,7 +5767,7 @@ version = "12.1.1"
 description = "Python Imaging Library (fork)"
 optional = false
 python-versions = ">=3.10"
-groups = ["dev", "experiments"]
+groups = ["experiments"]
 files = [
     {file = "pillow-12.1.1-cp310-cp310-macosx_10_10_x86_64.whl", hash = "sha256:1f1625b72740fdda5d77b4def688eb8fd6490975d06b909fd19f13f391e077e0"},
     {file = "pillow-12.1.1-cp310-cp310-macosx_11_0_arm64.whl", hash = "sha256:178aa072084bd88ec759052feca8e56cbb14a60b39322b99a049e58090479713"},
@@ -6649,7 +6649,7 @@ files = [
     {file = "pygments-2.19.2-py3-none-any.whl", hash = "sha256:86540386c03d588bb81d44bc3928634ff26449851e99741617ecb9037ee5ec0b"},
     {file = "pygments-2.19.2.tar.gz", hash = "sha256:636cb2477cec7f8952536970bc533bc43743542f70392ae026374600add5b887"},
 ]
-markers = {main = "extra == \"beta-mcp\" or extra == \"cli\""}
+markers = {main = "extra == \"cli\" or extra == \"beta-mcp\""}
 
 [package.extras]
 windows-terminal = ["colorama (>=0.4.6)"]
@@ -7692,7 +7692,7 @@ files = [
     {file = "rich-13.9.4-py3-none-any.whl", hash = "sha256:6049d5e6ec054bf2779ab3358186963bac2ea89175919d699e378b99738c2a90"},
     {file = "rich-13.9.4.tar.gz", hash = "sha256:439594978a49a09530cff7ebc4b5c7103ef57baf48d5ea3184f21d9a2befa098"},
 ]
-markers = {main = "extra == \"beta-mcp\" or extra == \"cli\""}
+markers = {main = "extra == \"cli\" or extra == \"beta-mcp\""}
 
 [package.dependencies]
 markdown-it-py = ">=2.2.0"
