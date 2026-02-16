@@ -4,10 +4,10 @@ from dataclasses import dataclass, field
 from opentelemetry import trace
 
 
-def _get_trace_id() -> str | None:
+def _get_trace_id() -> str:
     span_context = trace.get_current_span().get_span_context()
     if not span_context.is_valid:
-        return None
+        raise RuntimeError("No valid span context available for trace ID")
     return format(span_context.trace_id, "032x")
 
 
@@ -15,7 +15,7 @@ def _get_trace_id() -> str | None:
 class AuditContext:
     performed_by: str
     performed_by_name: str
-    trace_id: str | None = field(default_factory=_get_trace_id)
+    trace_id: str = field(default_factory=_get_trace_id)
 
 
 _audit_context_var: ContextVar[AuditContext] = ContextVar("admin_audit_context")

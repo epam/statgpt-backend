@@ -264,7 +264,7 @@ class AuditLog(IdMixin, Base):
 
     performed_by: Mapped[str] = mapped_column(nullable=False)
     performed_by_name: Mapped[str] = mapped_column(nullable=False)
-    trace_id: Mapped[str | None] = mapped_column(default=None)
+    trace_id: Mapped[str] = mapped_column(nullable=False)
 
     created_at: Mapped[datetime.datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()

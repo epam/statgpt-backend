@@ -49,7 +49,7 @@ def upgrade() -> None:
         sa.Column('performed_by', sa.String(), nullable=False),
         sa.Column('performed_by_name', sa.String(), nullable=False),
         sa.Column('state_after', postgresql.JSONB(astext_type=sa.Text()), nullable=True),
-        sa.Column('trace_id', sa.String(), nullable=True),
+        sa.Column('trace_id', sa.String(), nullable=False),
         sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()')),
         sa.PrimaryKeyConstraint('id'),
     )
