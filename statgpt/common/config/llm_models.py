@@ -17,7 +17,6 @@ class ReasoningEffortEnum(StrEnum):
     XHIGH = "xhigh"
 
 
-# NOTE: currently not used and not supported by LangChain, kept for future compatibility
 class VerbosityEnum(StrEnum):
     """Output verbosity levels for GPT-5 models."""
 
