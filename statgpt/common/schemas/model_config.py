@@ -1,4 +1,4 @@
-from pydantic import Field
+from pydantic import Field, model_validator
 
 from statgpt.common.config import (
     EmbeddingModelsEnum,
@@ -36,7 +36,7 @@ class LLMModelConfig(BaseModelConfig):
         default=langchain_settings.default_model,
         description="The deployment of the model in DIAL",
     )
-    temperature: float = Field(
+    temperature: float | None = Field(
         default=langchain_settings.default_temperature,
         description=(
             "The temperature of the model. 0.0 means deterministic output, higher values mean more"
@@ -61,3 +61,17 @@ class LLMModelConfig(BaseModelConfig):
         default=langchain_settings.default_verbosity,
         description=("Output verbosity for GPT-5 models (low/medium/high). "),
     )
+
+    @model_validator(mode="after")
+    def _normalize_model_family_params(self) -> "LLMModelConfig":
+        if self.deployment.is_gpt_5_family:
+            self.seed = None
+            if self.reasoning_effort == ReasoningEffortEnum.NONE:
+                self.temperature = 0
+            else:
+                # For reasoning levels only 1 is accepted
+                self.temperature = 1
+        else:
+            self.reasoning_effort = None
+            self.verbosity = None
+        return self
