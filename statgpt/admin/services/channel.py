@@ -66,7 +66,6 @@ class AdminPortalChannelService(ChannelService):
         async with dial_core_factory(dial_settings.url, auth_context.api_key) as dial_core:
             await dial_core.put_file(dial_file_path, mime_type, content)
 
-    @audit_action(entity_type="channel", action_type="create")
     async def _create_channel_model(self, data: schemas.ChannelBase) -> models.Channel:
         item = models.Channel(
             title=data.title,
@@ -81,15 +80,22 @@ class AdminPortalChannelService(ChannelService):
             await self._session.commit()
         except IntegrityError as e:
             self._parse_integrity_error(data, e)
+        await self._log_channel_creation(item)
         return item
+
+    # TODO: update channel creation logging logic
+    @audit_action(
+        entity_type=schemas.AuditEntityType.CHANNEL, action_type=schemas.AuditActionType.CREATE
+    )
+    async def _log_channel_creation(self, data: models.Channel) -> schemas.Channel:
+        return ChannelSerializer.db_to_schema(data)
 
     async def create_channel(self, data: schemas.ChannelBase) -> schemas.Channel:
         item = await self._create_channel_model(data)
         return ChannelSerializer.db_to_schema(item)
 
     @audit_action(
-        entity_type="channel",
-        action_type="update",
+        entity_type=schemas.AuditEntityType.CHANNEL, action_type=schemas.AuditActionType.UPDATE
     )
     async def update(self, item_id: int, data: schemas.ChannelUpdate) -> schemas.Channel:
         item = await self._get_item_or_raise(item_id)
@@ -112,8 +118,7 @@ class AdminPortalChannelService(ChannelService):
         return ChannelSerializer.db_to_schema(item)
 
     @audit_action(
-        entity_type="channel",
-        action_type="delete",
+        entity_type=schemas.AuditEntityType.CHANNEL, action_type=schemas.AuditActionType.DELETE
     )
     async def delete(self, item_id: int, auth_context: AuthContext) -> schemas.Channel:
         item = await self._get_item_or_raise(item_id)

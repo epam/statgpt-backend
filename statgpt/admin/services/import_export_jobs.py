@@ -16,7 +16,7 @@ from sqlalchemy.sql.expression import func
 
 import statgpt.common.models as models
 import statgpt.common.schemas as schemas
-from statgpt.admin.audit.context import set_audit_context
+from statgpt.admin.audit.context import AuditContext, get_audit_context, update_audit_context
 from statgpt.admin.audit.decorators import audit_action
 from statgpt.admin.settings.exim import JobsConfig
 from statgpt.common.auth.auth_context import AuthContext
@@ -167,8 +167,7 @@ class JobsService:
         return schemas.Job.model_validate(job, from_attributes=True)
 
     @audit_action(
-        entity_type="import_job",
-        action_type="create",
+        entity_type=schemas.AuditEntityType.IMPORT_JOB, action_type=schemas.AuditActionType.CREATE
     )
     async def create_import_job(
         self,
@@ -217,6 +216,7 @@ class JobsService:
             update_datasets,
             update_data_sources,
             auth_context,
+            get_audit_context(),
         )
         await self._update_job_status(job, schemas.PreprocessingStatusEnum.QUEUED)
 
@@ -438,7 +438,6 @@ async def export_channel_in_background_task(
     job_id: int, scope: schemas.ExportScope, auth_context: AuthContext
 ) -> None:
     try:
-        set_audit_context(performed_by=None, performed_by_name="System")
         async with models.get_session_contex_manager() as session:
             service = JobsService(session)
             await service.export_channel_in_background(
@@ -454,9 +453,10 @@ async def import_channel_in_background_task(
     update_datasets: bool,
     update_data_sources: bool,
     auth_context: AuthContext,
+    audit_context: AuditContext,
 ) -> None:
     try:
-        set_audit_context(performed_by=None, performed_by_name="System")
+        update_audit_context(audit_context)
         async with models.get_session_contex_manager() as session:
             service = JobsService(session)
             await service.import_channel_in_background(

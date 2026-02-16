@@ -24,6 +24,12 @@ class Job(DbDefaultBase, Auditable):
     def get_entity_name(self) -> str | None:
         return str(self.channel_id) if self.channel_id is not None else None
 
+    def get_state_after(self) -> dict | None:
+        return self.model_dump(exclude_none=True)
+
+    def get_item_id(self) -> int | None:
+        return self.id
+
 
 class ClearJobsResult(BaseModel):
     """Result of clearing jobs."""

@@ -32,3 +32,9 @@ class DataSource(DbDefaultBase, DataSourceBase, Auditable):
 
     def get_entity_name(self) -> str | None:
         return self.description
+
+    def get_state_after(self) -> dict | None:
+        return self.model_dump(exclude_none=True)
+
+    def get_item_id(self) -> int | None:
+        return self.id

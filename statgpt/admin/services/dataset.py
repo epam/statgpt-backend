@@ -574,7 +574,9 @@ class AdminPortalDataSetService(DataSetService):
             )
         return parsed_config
 
-    @audit_action(entity_type="dataset", action_type="create")
+    @audit_action(
+        entity_type=schemas.AuditEntityType.DATASET, action_type=schemas.AuditActionType.CREATE
+    )
     async def create_dataset(
         self, data: schemas.DataSetBase, auth_context: AuthContext
     ) -> schemas.DataSet:
@@ -641,9 +643,7 @@ class AdminPortalDataSetService(DataSetService):
         return structure.model_dump(mode='json', by_alias=True)
 
     @audit_action(
-        entity_type="dataset",
-        action_type="update",
-        state_after_getter=lambda self, result, item_id, data, auth_context: result.dataset,
+        entity_type=schemas.AuditEntityType.DATASET, action_type=schemas.AuditActionType.UPDATE
     )
     async def update(
         self, item_id: int, data: schemas.DataSetUpdateRequest, auth_context: AuthContext
@@ -678,8 +678,7 @@ class AdminPortalDataSetService(DataSetService):
         )
 
     @audit_action(
-        entity_type="dataset",
-        action_type="delete",
+        entity_type=schemas.AuditEntityType.DATASET, action_type=schemas.AuditActionType.DELETE
     )
     async def delete(self, item_id: int) -> schemas.DataSet:
         deleted_item = await self.get_schema_by_id(

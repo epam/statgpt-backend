@@ -34,13 +34,21 @@ class TokenPayload:
 
     @property
     def user_id(self) -> str | None:
-        value = self._payload.get(oidc_auth_settings.audit_performed_by_claim)
-        return str(value) if value is not None else None
+        value = self._payload.get(oidc_auth_settings.oidc_audit_user_id_claim)
+        if not value:
+            raise InvalidRequestError(
+                f"User ID claim {oidc_auth_settings.oidc_audit_user_id_claim} not found in token"
+            )
+        return str(value)
 
     @property
     def performed_by_name(self) -> str | None:
-        value = self._payload.get(oidc_auth_settings.audit_performed_by_name_claim)
-        return str(value) if value is not None else None
+        value = self._payload.get(oidc_auth_settings.oidc_audit_performed_by_name_claim)
+        if not value:
+            raise InvalidRequestError(
+                f"Performed by name claim {oidc_auth_settings.oidc_audit_performed_by_name_claim} not found in token"
+            )
+        return str(value)
 
 
 class Jwks:

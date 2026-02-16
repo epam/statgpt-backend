@@ -46,7 +46,9 @@ class AdminPortalDataSourceService(DataSourceService):
             )
         return parsed_config
 
-    @audit_action(entity_type="data_source", action_type="create")
+    @audit_action(
+        entity_type=schemas.AuditEntityType.DATA_SOURCE, action_type=schemas.AuditActionType.CREATE
+    )
     async def create_data_source(self, data: schemas.DataSourceBase) -> schemas.DataSource:
         parsed_config = await self._parse_details_field(data.type_id, data.details)
 
@@ -110,8 +112,7 @@ class AdminPortalDataSourceService(DataSourceService):
         return data_sources
 
     @audit_action(
-        entity_type="data_source",
-        action_type="update",
+        entity_type=schemas.AuditEntityType.DATA_SOURCE, action_type=schemas.AuditActionType.UPDATE
     )
     async def update(self, item_id: int, data: schemas.DataSourceUpdate) -> schemas.DataSource:
 
@@ -134,8 +135,7 @@ class AdminPortalDataSourceService(DataSourceService):
         return DataSourceSerializer.db_to_schema(item)
 
     @audit_action(
-        entity_type="data_source",
-        action_type="delete",
+        entity_type=schemas.AuditEntityType.DATA_SOURCE, action_type=schemas.AuditActionType.DELETE
     )
     async def delete(self, item_id: int) -> schemas.DataSource:
         item = await self._get_item_or_raise(item_id)

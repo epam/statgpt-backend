@@ -15,12 +15,12 @@ class AdminAuditLogService:
         if item is None:
             raise ValueError(f"Audit log with id={item_id} not found")
         state_before = None
-        if item.entity_id is not None:
+        if item.item_id is not None:
             previous_query = (
                 select(models.AuditLog)
                 .where(
                     models.AuditLog.entity_type == item.entity_type,
-                    models.AuditLog.entity_id == item.entity_id,
+                    models.AuditLog.item_id == item.item_id,
                     models.AuditLog.id < item.id,
                 )
                 .order_by(models.AuditLog.id.desc())
@@ -34,6 +34,7 @@ class AdminAuditLogService:
             id=item.id,
             entity_type=item.entity_type,
             action_type=item.action_type,
+            item_id=item.item_id,
             entity_id=item.entity_id,
             entity_name=item.entity_name,
             performed_by=item.performed_by,
@@ -49,8 +50,9 @@ class AdminAuditLogService:
         *,
         limit: int,
         offset: int,
-        entity_type: str | None = None,
-        action_type: str | None = None,
+        entity_type: schemas.AuditEntityType | None = None,
+        action_type: schemas.AuditActionType | None = None,
+        item_id: int | None = None,
         entity_id: str | None = None,
         performed_by: str | None = None,
     ) -> list[schemas.AuditLogListItem]:
@@ -59,6 +61,7 @@ class AdminAuditLogService:
             query,
             entity_type=entity_type,
             action_type=action_type,
+            item_id=item_id,
             entity_id=entity_id,
             performed_by=performed_by,
         )
@@ -69,6 +72,7 @@ class AdminAuditLogService:
                 id=item.id,
                 entity_type=item.entity_type,
                 action_type=item.action_type,
+                item_id=item.item_id,
                 entity_id=item.entity_id,
                 entity_name=item.entity_name,
                 performed_by=item.performed_by,
@@ -82,8 +86,9 @@ class AdminAuditLogService:
     async def get_count(
         self,
         *,
-        entity_type: str | None = None,
-        action_type: str | None = None,
+        entity_type: schemas.AuditEntityType | None = None,
+        action_type: schemas.AuditActionType | None = None,
+        item_id: int | None = None,
         entity_id: str | None = None,
         performed_by: str | None = None,
     ) -> int:
@@ -92,6 +97,7 @@ class AdminAuditLogService:
             query,
             entity_type=entity_type,
             action_type=action_type,
+            item_id=item_id,
             entity_id=entity_id,
             performed_by=performed_by,
         )
@@ -103,6 +109,8 @@ class AdminAuditLogService:
             query = query.where(models.AuditLog.entity_type == filters["entity_type"])
         if filters["action_type"]:
             query = query.where(models.AuditLog.action_type == filters["action_type"])
+        if filters["item_id"] is not None:
+            query = query.where(models.AuditLog.item_id == filters["item_id"])
         if filters["entity_id"]:
             query = query.where(models.AuditLog.entity_id == filters["entity_id"])
         if filters["performed_by"]:

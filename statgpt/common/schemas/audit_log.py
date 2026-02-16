@@ -3,11 +3,14 @@ from typing import Any
 
 from pydantic import BaseModel
 
+from .enums import AuditActionType, AuditEntityType
+
 
 class AuditLogListItem(BaseModel):
     id: int
-    entity_type: str
-    action_type: str
+    entity_type: AuditEntityType
+    action_type: AuditActionType
+    item_id: int | None
     entity_id: str | None
     entity_name: str | None
     performed_by: str | None

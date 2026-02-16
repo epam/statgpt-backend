@@ -16,8 +16,9 @@ router = APIRouter(
 async def get_audit_logs(
     limit: int = 100,
     offset: int = 0,
-    entity_type: str | None = None,
-    action_type: str | None = None,
+    entity_type: schemas.AuditEntityType | None = None,
+    action_type: schemas.AuditActionType | None = None,
+    item_id: int | None = None,
     entity_id: str | None = None,
     performed_by: str | None = None,
     session: AsyncSession = Depends(models.get_session),
@@ -29,12 +30,14 @@ async def get_audit_logs(
         offset=offset,
         entity_type=entity_type,
         action_type=action_type,
+        item_id=item_id,
         entity_id=entity_id,
         performed_by=performed_by,
     )
     total = await service.get_count(
         entity_type=entity_type,
         action_type=action_type,
+        item_id=item_id,
         entity_id=entity_id,
         performed_by=performed_by,
     )

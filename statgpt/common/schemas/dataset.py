@@ -57,6 +57,12 @@ class DataSet(DataSetBase, DbDefaultBase, Auditable):
     def get_entity_name(self) -> str | None:
         return self.title
 
+    def get_state_after(self) -> dict | None:
+        return self.model_dump(exclude_none=True)
+
+    def get_item_id(self) -> int | None:
+        return self.id
+
 
 class DataSetUpdateRequest(BaseModel):
     title: str | None = Field(default=None)

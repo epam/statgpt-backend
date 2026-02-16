@@ -31,14 +31,14 @@ class OidcAuthSettings(BaseSettings):
     oidc_username_claim: Optional[str] = Field(
         default=None, alias="OIDC_USERNAME_CLAIM", description="OIDC Username Claim"
     )
-    audit_performed_by_claim: str = Field(
+    oidc_audit_user_id_claim: str = Field(
         default="oid",
-        alias="AUDIT_PERFORMED_BY_CLAIM",
+        alias="OIDC_AUDIT_USER_ID_CLAIM",
         description="JWT claim used for audit performed_by field",
     )
-    audit_performed_by_name_claim: str = Field(
+    oidc_audit_performed_by_name_claim: str = Field(
         default="unique_name",
-        alias="AUDIT_PERFORMED_BY_NAME_CLAIM",
+        alias="OIDC_AUDIT_PERFORMED_BY_NAME_CLAIM",
         description="JWT claim used for audit performed_by_name field",
     )
 

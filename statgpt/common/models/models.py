@@ -2,12 +2,17 @@ import datetime
 import uuid
 from typing import Any
 
-from sqlalchemy import DateTime, ForeignKey, String, UniqueConstraint
+from sqlalchemy import DateTime, Enum, ForeignKey, String, UniqueConstraint
 from sqlalchemy.dialects import postgresql
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
 
-from statgpt.common.schemas import JobType, PreprocessingStatusEnum
+from statgpt.common.schemas import (
+    AuditActionType,
+    AuditEntityType,
+    JobType,
+    PreprocessingStatusEnum,
+)
 from statgpt.common.settings.elastic import ElasticSearchSettings
 from statgpt.common.settings.langchain import langchain_settings
 from statgpt.common.utils import DateMixin, IdMixin
@@ -242,8 +247,23 @@ class AuditLog(Base):
     __tablename__ = "audit_logs"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    entity_type: Mapped[str]
-    action_type: Mapped[str]
+    entity_type: Mapped[AuditEntityType] = mapped_column(
+        Enum(
+            AuditEntityType,
+            name="auditentitytype",
+            values_callable=lambda enum_type: [e.value for e in enum_type],
+        ),
+        nullable=False,
+    )
+    action_type: Mapped[AuditActionType] = mapped_column(
+        Enum(
+            AuditActionType,
+            name="auditactiontype",
+            values_callable=lambda enum_type: [e.value for e in enum_type],
+        ),
+        nullable=False,
+    )
+    item_id: Mapped[int | None] = mapped_column(default=None)
     entity_id: Mapped[str | None] = mapped_column(default=None)
     entity_name: Mapped[str | None] = mapped_column(default=None)
     performed_by: Mapped[str | None] = mapped_column(default=None)

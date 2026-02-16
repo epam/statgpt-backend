@@ -25,6 +25,8 @@ from .data_query_tool import DataQueryDetails, HybridSearchConfig
 from .data_source import DataSource, DataSourceBase, DataSourceType, DataSourceUpdate
 from .dataset import DataSet, DataSetBase, DataSetDescriptor, DataSetUpdateRequest
 from .enums import (
+    AuditActionType,
+    AuditEntityType,
     ChannelDatasetUpdateStatus,
     ChannelIndexStatusScope,
     DecoderOfLatestEnum,
