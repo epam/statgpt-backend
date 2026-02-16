@@ -2,7 +2,7 @@ import datetime
 import uuid
 from typing import Any
 
-from sqlalchemy import DateTime, ForeignKey, String, UniqueConstraint
+from sqlalchemy import DateTime, Enum, ForeignKey, String, UniqueConstraint
 from sqlalchemy.dialects import postgresql
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
@@ -246,8 +246,14 @@ class GlossaryTerm(DefaultBase):
 class AuditLog(IdMixin, Base):
     __tablename__ = "audit_logs"
 
-    entity_type: Mapped[AuditEntityType] = mapped_column(nullable=False)
-    action_type: Mapped[AuditActionType] = mapped_column(nullable=False)
+    entity_type: Mapped[AuditEntityType] = mapped_column(
+        Enum(AuditEntityType, values_callable=lambda e: [x.value for x in e]),
+        nullable=False,
+    )
+    action_type: Mapped[AuditActionType] = mapped_column(
+        Enum(AuditActionType, values_callable=lambda e: [x.value for x in e]),
+        nullable=False,
+    )
 
     item_id: Mapped[int] = mapped_column(nullable=False)
     entity_id: Mapped[str] = mapped_column(nullable=False)
