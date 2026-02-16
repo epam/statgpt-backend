@@ -2,7 +2,7 @@ import datetime
 import uuid
 from typing import Any
 
-from sqlalchemy import DateTime, Enum, ForeignKey, String, UniqueConstraint
+from sqlalchemy import DateTime, ForeignKey, String, UniqueConstraint
 from sqlalchemy.dialects import postgresql
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
@@ -243,35 +243,23 @@ class GlossaryTerm(DefaultBase):
         return f"GlossaryTerm(id={self.id!r}, channel_id={self.channel_id!r}, term={self.term!r})"
 
 
-class AuditLog(Base):
+class AuditLog(IdMixin, Base):
     __tablename__ = "audit_logs"
 
-    id: Mapped[int] = mapped_column(primary_key=True)
-    entity_type: Mapped[AuditEntityType] = mapped_column(
-        Enum(
-            AuditEntityType,
-            name="auditentitytype",
-            values_callable=lambda enum_type: [e.value for e in enum_type],
-        ),
-        nullable=False,
+    entity_type: Mapped[AuditEntityType] = mapped_column(nullable=False)
+    action_type: Mapped[AuditActionType] = mapped_column(nullable=False)
+
+    item_id: Mapped[int] = mapped_column(nullable=False)
+    entity_id: Mapped[str] = mapped_column(nullable=False)
+    entity_name: Mapped[str] = mapped_column(nullable=False)
+    state_after: Mapped[dict[str, Any] | None] = mapped_column(
+        type_=postgresql.JSONB, nullable=True
     )
-    action_type: Mapped[AuditActionType] = mapped_column(
-        Enum(
-            AuditActionType,
-            name="auditactiontype",
-            values_callable=lambda enum_type: [e.value for e in enum_type],
-        ),
-        nullable=False,
-    )
-    item_id: Mapped[int | None] = mapped_column(default=None)
-    entity_id: Mapped[str | None] = mapped_column(default=None)
-    entity_name: Mapped[str | None] = mapped_column(default=None)
-    performed_by: Mapped[str | None] = mapped_column(default=None)
-    performed_by_name: Mapped[str | None] = mapped_column(default=None)
-    state_after: Mapped[dict[str, Any] | list[Any] | str | int | float | bool | None] = (
-        mapped_column(type_=postgresql.JSONB, nullable=True)
-    )
+
+    performed_by: Mapped[str] = mapped_column(nullable=False)
+    performed_by_name: Mapped[str] = mapped_column(nullable=False)
     trace_id: Mapped[str | None] = mapped_column(default=None)
+
     created_at: Mapped[datetime.datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )

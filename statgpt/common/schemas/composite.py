@@ -18,14 +18,14 @@ class DataSetUpdateResponse(BaseModel, Auditable):
     dataset: DataSet
     channel_results: list[ChannelDatasetUpdateResult] = Field(default_factory=list)
 
-    def get_entity_id(self) -> str | None:
+    def get_entity_id(self) -> str:
         return self.dataset.get_entity_id()
 
-    def get_entity_name(self) -> str | None:
+    def get_entity_name(self) -> str:
         return self.dataset.get_entity_name()
 
-    def get_state_after(self) -> dict | None:
+    def get_state_after(self) -> dict:
         return self.dataset.get_state_after()
 
-    def get_item_id(self) -> int | None:
+    def get_item_id(self) -> int:
         return self.dataset.id

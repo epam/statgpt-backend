@@ -16,6 +16,7 @@ from statgpt.admin.audit.decorators import audit_action
 from statgpt.admin.settings.exim import JobsConfig
 from statgpt.common import utils
 from statgpt.common.auth.auth_context import AuthContext
+from statgpt.common.schemas import AuditActionType, AuditEntityType
 from statgpt.common.services import ChannelSerializer, ChannelService
 from statgpt.common.settings.dial import dial_settings
 from statgpt.common.utils import dial_core_factory
@@ -84,9 +85,7 @@ class AdminPortalChannelService(ChannelService):
         return item
 
     # TODO: update channel creation logging logic
-    @audit_action(
-        entity_type=schemas.AuditEntityType.CHANNEL, action_type=schemas.AuditActionType.CREATE
-    )
+    @audit_action(entity_type=AuditEntityType.CHANNEL, action_type=AuditActionType.CREATE)
     async def _log_channel_creation(self, data: models.Channel) -> schemas.Channel:
         return ChannelSerializer.db_to_schema(data)
 
@@ -94,9 +93,7 @@ class AdminPortalChannelService(ChannelService):
         item = await self._create_channel_model(data)
         return ChannelSerializer.db_to_schema(item)
 
-    @audit_action(
-        entity_type=schemas.AuditEntityType.CHANNEL, action_type=schemas.AuditActionType.UPDATE
-    )
+    @audit_action(entity_type=AuditEntityType.CHANNEL, action_type=AuditActionType.UPDATE)
     async def update(self, item_id: int, data: schemas.ChannelUpdate) -> schemas.Channel:
         item = await self._get_item_or_raise(item_id)
 
@@ -117,9 +114,7 @@ class AdminPortalChannelService(ChannelService):
 
         return ChannelSerializer.db_to_schema(item)
 
-    @audit_action(
-        entity_type=schemas.AuditEntityType.CHANNEL, action_type=schemas.AuditActionType.DELETE
-    )
+    @audit_action(entity_type=AuditEntityType.CHANNEL, action_type=AuditActionType.DELETE)
     async def delete(self, item_id: int, auth_context: AuthContext) -> schemas.Channel:
         item = await self._get_item_or_raise(item_id)
         deleted_item = ChannelSerializer.db_to_schema(item)

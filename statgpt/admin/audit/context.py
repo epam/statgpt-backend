@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 from contextvars import ContextVar
 from dataclasses import dataclass, field
 
@@ -15,18 +13,15 @@ def _get_trace_id() -> str | None:
 
 @dataclass(frozen=True)
 class AuditContext:
-    performed_by: str | None
-    performed_by_name: str | None
+    performed_by: str
+    performed_by_name: str
     trace_id: str | None = field(default_factory=_get_trace_id)
 
 
-_audit_context_var: ContextVar[AuditContext] = ContextVar(
-    "admin_audit_context",
-    default=AuditContext(performed_by=None, performed_by_name="system"),
-)
+_audit_context_var: ContextVar[AuditContext] = ContextVar("admin_audit_context")
 
 
-def set_audit_context(*, performed_by: str | None, performed_by_name: str | None) -> None:
+def set_audit_context(*, performed_by: str, performed_by_name: str) -> None:
     _audit_context_var.set(
         AuditContext(
             performed_by=performed_by,
@@ -40,4 +35,6 @@ def update_audit_context(audit_context: AuditContext) -> None:
 
 
 def get_audit_context() -> AuditContext:
-    return _audit_context_var.get()
+    if res := _audit_context_var.get(None):
+        return res
+    raise RuntimeError("Audit context not set")

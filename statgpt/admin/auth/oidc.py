@@ -24,16 +24,16 @@ class TokenPayload:
         return self._payload
 
     @property
-    def username(self):
+    def username(self) -> str:
         username = self._payload.get(oidc_auth_settings.oidc_username_claim, None)
         if not username:
             raise InvalidRequestError(
                 f"Username claim {oidc_auth_settings.oidc_username_claim} not found in token"
             )
-        return username
+        return str(username)
 
     @property
-    def user_id(self) -> str | None:
+    def user_id(self) -> str:
         value = self._payload.get(oidc_auth_settings.oidc_audit_user_id_claim)
         if not value:
             raise InvalidRequestError(
@@ -42,7 +42,7 @@ class TokenPayload:
         return str(value)
 
     @property
-    def performed_by_name(self) -> str | None:
+    def performed_by_name(self) -> str:
         value = self._payload.get(oidc_auth_settings.oidc_audit_performed_by_name_claim)
         if not value:
             raise InvalidRequestError(

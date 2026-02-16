@@ -14,13 +14,14 @@ oauth2_scheme = OAuth2PasswordBearer(
 )
 
 
-@dataclass
+@dataclass(frozen=True)
 class User:
+    id: str
+    username: str
     name: str
-    id: str | None = None
 
 
-async def require_jwt_auth(token: str = Depends(oauth2_scheme)) -> User:
+async def _require_jwt_auth(token: str = Depends(oauth2_scheme)) -> User:
 
     if oidc_auth_settings.oidc_auth_enabled:
         try:
@@ -31,20 +32,20 @@ async def require_jwt_auth(token: str = Depends(oauth2_scheme)) -> User:
                 logger.info(f"Unauthorized token: {str(e)}")
                 raise HTTPException(status_code=403, detail=str(e))
 
-            user = User(name=payload.username, id=payload.user_id)
-            set_audit_context(
-                performed_by=payload.user_id,
-                performed_by_name=payload.performed_by_name,
+            return User(
+                id=payload.user_id, username=payload.username, name=payload.performed_by_name
             )
-            return user
         except InvalidTokenError as e:
-            logger.info(f"Invalid Bearer token: {str(e)}")
+            logger.warning(f"Invalid Bearer token: {str(e)}")
             raise HTTPException(
                 status_code=401,
                 detail="Could not validate credentials",
                 headers={"WWW-Authenticate": "Bearer"},
             )
     else:
-        user = User("Anonymous")
-        set_audit_context(performed_by=user.id, performed_by_name=user.name)
-        return user
+        return User(id="Anonymous", username="Anonymous", name="Anonymous")
+
+
+async def require_jwt_auth(user: User = Depends(_require_jwt_auth)) -> User:
+    set_audit_context(performed_by=user.id, performed_by_name=user.name)
+    return user

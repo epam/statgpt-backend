@@ -206,16 +206,16 @@ class ChannelUpdate(BaseModel):
 
 
 class Channel(DbDefaultBase, ChannelBase, Auditable):
-    def get_entity_id(self) -> str | None:
+    def get_entity_id(self) -> str:
         return self.deployment_id
 
-    def get_entity_name(self) -> str | None:
+    def get_entity_name(self) -> str:
         return self.title
 
-    def get_state_after(self) -> dict | None:
-        return self.model_dump(exclude_none=True)
+    def get_state_after(self) -> dict:
+        return self.model_dump(mode='json', exclude={"created_at", "updated_at"})
 
-    def get_item_id(self) -> int | None:
+    def get_item_id(self) -> int:
         return self.id
 
 
