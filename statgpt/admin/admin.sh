@@ -1,9 +1,9 @@
-#!/bin/bash
+#!/bin/sh
 
 # IMPORTANT: Do not delete this line!
 # These settings make the script fail fast and loud on common errors:
-# undefined variables, command failures, and pipeline failures
-set -Eeuo pipefail
+# undefined variables and command failures
+set -eu
 
 echo "ADMIN_MODE = '${ADMIN_MODE:-}'"
 
