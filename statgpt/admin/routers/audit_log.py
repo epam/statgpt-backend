@@ -22,7 +22,7 @@ async def get_audit_logs(
     performed_by: str | None = None,
     session: AsyncSession = Depends(models.get_session),
     _=Depends(cancel_on_disconnect),
-) -> schemas.ListResponse[schemas.AuditLog]:
+) -> schemas.ListResponse[schemas.AuditLogListItem]:
     service = AdminAuditLogService(session)
     items = await service.get_logs(
         limit=limit,
@@ -38,7 +38,7 @@ async def get_audit_logs(
         entity_id=entity_id,
         performed_by=performed_by,
     )
-    return schemas.ListResponse[schemas.AuditLog](
+    return schemas.ListResponse[schemas.AuditLogListItem](
         data=items,
         limit=limit,
         offset=offset,
@@ -52,7 +52,7 @@ async def get_audit_log_by_id(
     item_id: int,
     session: AsyncSession = Depends(models.get_session),
     _=Depends(cancel_on_disconnect),
-) -> schemas.AuditLog:
+) -> schemas.AuditLogDetails:
     service = AdminAuditLogService(session)
     try:
         return await service.get_by_id(item_id)

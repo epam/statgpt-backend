@@ -2,12 +2,12 @@ import datetime
 import uuid
 from typing import Any
 
-from sqlalchemy import DateTime, Enum, ForeignKey, String, UniqueConstraint
+from sqlalchemy import DateTime, ForeignKey, String, UniqueConstraint
 from sqlalchemy.dialects import postgresql
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
 
-from statgpt.common.schemas import AuditStateEnum, JobType, PreprocessingStatusEnum
+from statgpt.common.schemas import JobType, PreprocessingStatusEnum
 from statgpt.common.settings.elastic import ElasticSearchSettings
 from statgpt.common.settings.langchain import langchain_settings
 from statgpt.common.utils import DateMixin, IdMixin
@@ -248,12 +248,8 @@ class AuditLog(Base):
     entity_name: Mapped[str | None] = mapped_column(default=None)
     performed_by: Mapped[str | None] = mapped_column(default=None)
     performed_by_name: Mapped[str | None] = mapped_column(default=None)
-    action_trigger: Mapped[str]
-    state_before: Mapped[AuditStateEnum] = mapped_column(
-        Enum(AuditStateEnum, name="auditstateenum"), nullable=False
-    )
-    state_after: Mapped[AuditStateEnum] = mapped_column(
-        Enum(AuditStateEnum, name="auditstateenum"), nullable=False
+    state_after: Mapped[dict[str, Any] | list[Any] | str | int | float | bool | None] = (
+        mapped_column(type_=postgresql.JSONB, nullable=True)
     )
     trace_id: Mapped[str | None] = mapped_column(default=None)
     created_at: Mapped[datetime.datetime] = mapped_column(

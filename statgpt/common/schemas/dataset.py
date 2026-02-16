@@ -3,6 +3,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field, computed_field
 
+from .auditable import Auditable
 from .base import DbDefaultBase
 from .data_source import DataSource
 
@@ -35,7 +36,7 @@ class DataSetDescriptor(BaseModel):
     details: dict[str, Any]
 
 
-class DataSet(DataSetBase, DbDefaultBase):
+class DataSet(DataSetBase, DbDefaultBase, Auditable):
     description: str = Field(default="")
     data_source: DataSource | None
 
@@ -49,6 +50,12 @@ class DataSet(DataSetBase, DbDefaultBase):
     @property
     def preprocessing_status(self) -> str:
         return self.status.status
+
+    def get_entity_id(self) -> str | None:
+        return str(self.id_)
+
+    def get_entity_name(self) -> str | None:
+        return self.title
 
 
 class DataSetUpdateRequest(BaseModel):

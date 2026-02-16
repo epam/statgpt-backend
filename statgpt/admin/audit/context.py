@@ -8,23 +8,19 @@ from dataclasses import dataclass
 class AuditContext:
     performed_by: str | None
     performed_by_name: str | None
-    action_trigger: str
 
 
 _audit_context_var: ContextVar[AuditContext] = ContextVar(
     "admin_audit_context",
-    default=AuditContext(performed_by=None, performed_by_name=None, action_trigger="system"),
+    default=AuditContext(performed_by=None, performed_by_name="system"),
 )
 
 
-def set_audit_context(
-    *, performed_by: str | None, performed_by_name: str | None, action_trigger: str = "manual"
-) -> None:
+def set_audit_context(*, performed_by: str | None, performed_by_name: str | None) -> None:
     _audit_context_var.set(
         AuditContext(
             performed_by=performed_by,
             performed_by_name=performed_by_name,
-            action_trigger=action_trigger,
         )
     )
 

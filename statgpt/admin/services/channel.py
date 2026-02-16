@@ -27,17 +27,6 @@ from .background_tasks import background_task
 _log = logging.getLogger(__name__)
 
 
-def _channel_state(item: models.Channel) -> dict:
-    return {
-        "id": item.id,
-        "title": item.title,
-        "description": item.description,
-        "deployment_id": item.deployment_id,
-        "llm_model": item.llm_model,
-        "details": item.details,
-    }
-
-
 class AdminPortalChannelService(ChannelService):
 
     @staticmethod
@@ -61,7 +50,7 @@ class AdminPortalChannelService(ChannelService):
         dial_file_path: str, folder_path: str, auth_context: AuthContext
     ) -> None:
         async with dial_core_factory(dial_settings.url, auth_context.api_key) as dial_core:
-            content, content_type = await dial_core.get_file_by_path(dial_file_path)
+            content, _ = await dial_core.get_file_by_path(dial_file_path)
 
         target_file = os.path.join(folder_path, JobsConfig.DIAL_FILES_FOLDER, dial_file_path)
         utils.write_bytes(content, target_file)
@@ -77,6 +66,7 @@ class AdminPortalChannelService(ChannelService):
         async with dial_core_factory(dial_settings.url, auth_context.api_key) as dial_core:
             await dial_core.put_file(dial_file_path, mime_type, content)
 
+    @audit_action(entity_type="channel", action_type="create")
     async def _create_channel_model(self, data: schemas.ChannelBase) -> models.Channel:
         item = models.Channel(
             title=data.title,
@@ -93,7 +83,6 @@ class AdminPortalChannelService(ChannelService):
             self._parse_integrity_error(data, e)
         return item
 
-    @audit_action(entity_type="channel", action_type="create")
     async def create_channel(self, data: schemas.ChannelBase) -> schemas.Channel:
         item = await self._create_channel_model(data)
         return ChannelSerializer.db_to_schema(item)
@@ -101,7 +90,6 @@ class AdminPortalChannelService(ChannelService):
     @audit_action(
         entity_type="channel",
         action_type="update",
-        before_state_getter=lambda self, item_id, data: self._get_channel_before(item_id),
     )
     async def update(self, item_id: int, data: schemas.ChannelUpdate) -> schemas.Channel:
         item = await self._get_item_or_raise(item_id)
@@ -126,11 +114,10 @@ class AdminPortalChannelService(ChannelService):
     @audit_action(
         entity_type="channel",
         action_type="delete",
-        before_state_getter=lambda self, item_id, auth_context: self._get_channel_before(item_id),
-        after_state_getter=lambda self, result, item_id, auth_context: None,
     )
-    async def delete(self, item_id: int, auth_context: AuthContext) -> None:
+    async def delete(self, item_id: int, auth_context: AuthContext) -> schemas.Channel:
         item = await self._get_item_or_raise(item_id)
+        deleted_item = ChannelSerializer.db_to_schema(item)
         _log.info(f"Deleting {item}")
 
         await self._clear_vector_store(item, auth_context)
@@ -140,10 +127,7 @@ class AdminPortalChannelService(ChannelService):
 
         await self._session.delete(item)
         await self._session.commit()
-
-    async def _get_channel_before(self, item_id: int) -> dict:
-        item = await self.get_model_by_id(item_id)
-        return _channel_state(item)
+        return deleted_item
 
     async def _clear_vector_store(self, channel: models.Channel, auth_context: AuthContext) -> None:
         vector_store_factory = VectorStoreFactory(session=self._session)
@@ -316,14 +300,6 @@ class AdminPortalChannelService(ChannelService):
 
         _log.info(f"Deduplication completed for channel {channel_id}")
 
-    @audit_action(
-        entity_type="channel",
-        action_type="deduplicate",
-        entity_ref_getter=lambda self, result, before, after, background_tasks, channel_id, auth_context: (
-            str(channel_id),
-            None,
-        ),
-    )
     async def deduplicate_all_dimensions(
         self, background_tasks: BackgroundTasks, channel_id: int, auth_context: AuthContext
     ) -> schemas.Channel:

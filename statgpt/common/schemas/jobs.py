@@ -2,11 +2,12 @@ from pydantic import BaseModel, Field
 
 from statgpt.common.utils import AttachmentResponse
 
+from .auditable import Auditable
 from .base import DbDefaultBase
 from .enums import JobType, PreprocessingStatusEnum
 
 
-class Job(DbDefaultBase):
+class Job(DbDefaultBase, Auditable):
     """Import/export job."""
 
     type: JobType
@@ -16,6 +17,12 @@ class Job(DbDefaultBase):
     reason_for_failure: str | None = Field(
         default=None, description="Reason for failure if the job has failed."
     )
+
+    def get_entity_id(self) -> str | None:
+        return str(self.channel_id) if self.channel_id is not None else None
+
+    def get_entity_name(self) -> str | None:
+        return str(self.channel_id) if self.channel_id is not None else None
 
 
 class ClearJobsResult(BaseModel):

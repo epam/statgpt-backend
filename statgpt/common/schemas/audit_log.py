@@ -1,11 +1,10 @@
 import datetime
+from typing import Any
 
 from pydantic import BaseModel
 
-from .enums import AuditStateEnum
 
-
-class AuditLog(BaseModel):
+class AuditLogListItem(BaseModel):
     id: int
     entity_type: str
     action_type: str
@@ -13,8 +12,10 @@ class AuditLog(BaseModel):
     entity_name: str | None
     performed_by: str | None
     performed_by_name: str | None
-    action_trigger: str
-    state_before: AuditStateEnum
-    state_after: AuditStateEnum
     trace_id: str | None
     created_at: datetime.datetime
+
+
+class AuditLogDetails(AuditLogListItem):
+    state_before: dict[str, Any] | list[Any] | str | int | float | bool | None
+    state_after: dict[str, Any] | list[Any] | str | int | float | bool | None

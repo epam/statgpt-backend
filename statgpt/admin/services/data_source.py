@@ -21,16 +21,6 @@ from statgpt.common.services import DataSourceSerializer, DataSourceService, Dat
 _log = logging.getLogger(__name__)
 
 
-def _data_source_state(item: models.DataSource) -> dict[str, Any]:
-    return {
-        "id": item.id,
-        "title": item.title,
-        "description": item.description,
-        "type_id": item.type_id,
-        "details": item.details,
-    }
-
-
 class AdminPortalDataSourceService(DataSourceService):
 
     def __init__(self, session: AsyncSession) -> None:
@@ -122,7 +112,6 @@ class AdminPortalDataSourceService(DataSourceService):
     @audit_action(
         entity_type="data_source",
         action_type="update",
-        before_state_getter=lambda self, item_id, data: self._get_data_source_before(item_id),
     )
     async def update(self, item_id: int, data: schemas.DataSourceUpdate) -> schemas.DataSource:
 
@@ -147,16 +136,13 @@ class AdminPortalDataSourceService(DataSourceService):
     @audit_action(
         entity_type="data_source",
         action_type="delete",
-        before_state_getter=lambda self, item_id: self._get_data_source_before(item_id),
-        after_state_getter=lambda self, result, item_id: None,
     )
-    async def delete(self, item_id: int) -> None:
+    async def delete(self, item_id: int) -> schemas.DataSource:
         item = await self._get_item_or_raise(item_id)
+        await self._session.refresh(item, attribute_names=["type"])
+        deleted_item = DataSourceSerializer.db_to_schema(item)
         _log.info(f"Deleting {item}")
 
         await self._session.delete(item)
         await self._session.commit()
-
-    async def _get_data_source_before(self, item_id: int) -> dict[str, Any]:
-        item = await self._get_item_or_raise(item_id)
-        return _data_source_state(item)
+        return deleted_item

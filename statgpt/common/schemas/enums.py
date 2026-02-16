@@ -130,12 +130,3 @@ class ChannelDatasetUpdateStatus(StrEnum):
     NEEDS_REINDEX = "needs_reindex"
     NO_VERSION = "no_version"
     INDEXING_IN_PROGRESS = "indexing_in_progress"
-
-
-class AuditStateEnum(StrEnum):
-    EXISTS = "EXISTS"
-    ABSENT = "ABSENT"
-    CREATED = "CREATED"
-    MODIFIED = "MODIFIED"
-    DELETED = "DELETED"
-    NOT_CHANGED = "NOT_CHANGED"

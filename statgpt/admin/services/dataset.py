@@ -15,6 +15,7 @@ from sqlalchemy.sql.expression import func, text, update
 import statgpt.common.models as models
 import statgpt.common.schemas as schemas
 from statgpt.admin.audit.decorators import audit_action
+from statgpt.admin.auth.auth_context import SystemUserAuthContext
 from statgpt.admin.settings.exim import ExImSettings, JobsConfig
 from statgpt.common import utils
 from statgpt.common.auth.auth_context import AuthContext
@@ -51,16 +52,6 @@ class _DataHashes(NamedTuple):
     indicator_dimensions_hash: str
     non_indicator_dimensions_hash: str
     special_dimensions_hash: str | None
-
-
-def _dataset_state(item: models.DataSet) -> dict[str, Any]:
-    return {
-        "id": item.id,
-        "id_": str(item.id_),
-        "title": item.title,
-        "source_id": item.source_id,
-        "details": item.details,
-    }
 
 
 class AdminPortalDataSetService(DataSetService):
@@ -652,10 +643,7 @@ class AdminPortalDataSetService(DataSetService):
     @audit_action(
         entity_type="dataset",
         action_type="update",
-        before_state_getter=lambda self, item_id, data, auth_context: self._get_dataset_before(
-            item_id
-        ),
-        after_state_getter=lambda self, result, item_id, data, auth_context: result.dataset,
+        state_after_getter=lambda self, result, item_id, data, auth_context: result.dataset,
     )
     async def update(
         self, item_id: int, data: schemas.DataSetUpdateRequest, auth_context: AuthContext
@@ -692,10 +680,13 @@ class AdminPortalDataSetService(DataSetService):
     @audit_action(
         entity_type="dataset",
         action_type="delete",
-        before_state_getter=lambda self, item_id: self._get_dataset_before(item_id),
-        after_state_getter=lambda self, result, item_id: None,
     )
-    async def delete(self, item_id: int) -> None:
+    async def delete(self, item_id: int) -> schemas.DataSet:
+        deleted_item = await self.get_schema_by_id(
+            item_id,
+            auth_context=SystemUserAuthContext(),
+            allow_offline=True,
+        )
         item = await self.get_model_by_id(item_id)
 
         count = await self.get_channel_datasets_count(dataset_id=item.id)
@@ -714,10 +705,7 @@ class AdminPortalDataSetService(DataSetService):
         _log.info(f"Deleting dataset(id={item.id}): {item.title!r}")
         await self._session.delete(item)
         await self._session.commit()
-
-    async def _get_dataset_before(self, item_id: int) -> dict[str, Any]:
-        item = await self.get_model_by_id(item_id)
-        return _dataset_state(item)
+        return deleted_item
 
     async def _propagate_config_to_channel_datasets(
         self,
@@ -1215,14 +1203,6 @@ class AdminPortalDataSetService(DataSetService):
 
         _log.info(f"Updated {result.rowcount} channel dataset version(s) to FAILED status")  # type: ignore[attr-defined]
 
-    @audit_action(
-        entity_type="channel",
-        action_type="reindex",
-        entity_ref_getter=lambda self, result, before, after, background_tasks, channel_id, auth_context, max_n_embeddings=None: (
-            str(channel_id),
-            None,
-        ),
-    )
     async def reload_all_indicators(
         self,
         background_tasks: BackgroundTasks,
@@ -1313,14 +1293,6 @@ class AdminPortalDataSetService(DataSetService):
             for ch_ds in channel_datasets
         ]
 
-    @audit_action(
-        entity_type="dataset",
-        action_type="reindex",
-        entity_ref_getter=lambda self, result, before, after, background_tasks, channel_id, dataset_id, auth_context, max_n_embeddings=None: (
-            str(dataset_id),
-            None,
-        ),
-    )
     async def reload_indicators(
         self,
         background_tasks: BackgroundTasks,

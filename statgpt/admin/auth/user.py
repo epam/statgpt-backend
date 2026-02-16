@@ -33,7 +33,8 @@ async def require_jwt_auth(token: str = Depends(oauth2_scheme)) -> User:
 
             user = User(name=payload.username, id=payload.user_id)
             set_audit_context(
-                performed_by=user.id, performed_by_name=user.name, action_trigger="manual"
+                performed_by=payload.user_id,
+                performed_by_name=payload.performed_by_name,
             )
             return user
         except InvalidTokenError as e:
@@ -45,7 +46,5 @@ async def require_jwt_auth(token: str = Depends(oauth2_scheme)) -> User:
             )
     else:
         user = User("Anonymous")
-        set_audit_context(
-            performed_by=user.id, performed_by_name=user.name, action_trigger="manual"
-        )
+        set_audit_context(performed_by=user.id, performed_by_name=user.name)
         return user

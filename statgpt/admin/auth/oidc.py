@@ -34,11 +34,13 @@ class TokenPayload:
 
     @property
     def user_id(self) -> str | None:
-        for claim in ("oid", "sub", "user_id", "uid"):
-            value = self._payload.get(claim)
-            if value:
-                return str(value)
-        return None
+        value = self._payload.get(oidc_auth_settings.audit_performed_by_claim)
+        return str(value) if value is not None else None
+
+    @property
+    def performed_by_name(self) -> str | None:
+        value = self._payload.get(oidc_auth_settings.audit_performed_by_name_claim)
+        return str(value) if value is not None else None
 
 
 class Jwks:
