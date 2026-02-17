@@ -29,7 +29,7 @@ def get_chat_model(
         timeout=timeout,  # timeouts are crucial!
     )
 
-    params.update(model_config.model_dump(mode="json", exclude_none=True, exclude={"deployment", "api_version"}))
+    params.update(model_config.model_dump(mode="json", exclude_none=True, exclude={"deployment"}))
 
     if model_config.deployment.is_gpt_41_family:
         callback = BrokenResponseInterceptor(regex_pattern=r'\s{5,}')
