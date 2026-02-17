@@ -444,17 +444,7 @@ class ChannelServiceFacade(DbServiceBase):
 
         dataset_model = dataset_models[0]
 
-        data_sources = await data_source_service.get_data_sources_models(
-            limit=None, offset=0, ids={dataset_model.source_id}
-        )
-        if len(data_sources) > 1:
-            raise ValueError(
-                f"Multiple data sources found for the same dataset: {dataset_model.id}"
-            )
-        if len(data_sources) == 0:
-            return None
-
-        data_source = data_sources[0]
+        data_source = await data_source_service.get_by_id(dataset_model.source_id)
 
         handler = await self._get_handler_class(data_source.type, config=data_source.details)
 
