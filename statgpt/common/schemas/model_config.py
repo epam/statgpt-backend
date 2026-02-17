@@ -51,14 +51,15 @@ class LLMModelConfig(BaseModelConfig):
         ),
     )
     reasoning_effort: ReasoningEffortEnum | None = Field(
-        default=langchain_settings.default_reasoning_effort,
+        default=ReasoningEffortEnum.LOW,
         description=(
             "Reasoning effort level for GPT-5 models. Ignored for non-reasoning models. "
             "Supports: none, minimal, low, medium, high, xhigh."
+            "All models before gpt-5.1 default to medium reasoning effort, and do not support none"
         ),
     )
     verbosity: VerbosityEnum | None = Field(
-        default=langchain_settings.default_verbosity,
+        default=VerbosityEnum.LOW,
         description=("Output verbosity for GPT-5 models (low/medium/high). "),
     )
 

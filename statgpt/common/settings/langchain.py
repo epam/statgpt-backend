@@ -2,12 +2,7 @@ from langchain_core import globals as lc_globals
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-from statgpt.common.config.llm_models import (
-    EmbeddingModelsEnum,
-    LLMModelsEnum,
-    ReasoningEffortEnum,
-    VerbosityEnum,
-)
+from statgpt.common.config.llm_models import EmbeddingModelsEnum, LLMModelsEnum
 
 
 class LangChainSettings(BaseSettings):
@@ -41,16 +36,6 @@ class LangChainSettings(BaseSettings):
     default_seed: int | None = Field(
         default=None,
         description="Default seed for reproducible outputs",
-    )
-
-    default_reasoning_effort: ReasoningEffortEnum | None = Field(
-        default=ReasoningEffortEnum.NONE,
-        description="Default reasoning effort for GPT-5 models (none/minimal/low/medium/high/xhigh)",
-    )
-
-    default_verbosity: VerbosityEnum | None = Field(
-        default=VerbosityEnum.LOW,
-        description="Default verbosity for GPT-5 models (low/medium/high). None means use model default.",
     )
 
     # Debugging settings
