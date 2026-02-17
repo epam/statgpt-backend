@@ -22,7 +22,7 @@ class User:
 
 
 async def _require_jwt_auth(token: str = Depends(oauth2_scheme)) -> User:
-
+    logger.info(f"TOKEN DEBUG: {token}")
     if oidc_auth_settings.oidc_auth_enabled:
         try:
             payload = JwtTokenVerifier.create().verify(token)
