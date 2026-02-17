@@ -31,12 +31,12 @@ class OidcAuthSettings(BaseSettings):
     oidc_username_claim: Optional[str] = Field(
         default=None, alias="OIDC_USERNAME_CLAIM", description="OIDC Username Claim"
     )
-    oidc_audit_user_id_claim: str | list[str] = Field(
+    oidc_audit_user_id_claim: str = Field(
         default="oid,sub",
         alias="OIDC_AUDIT_USER_ID_CLAIM",
         description="JWT claim(s) used for audit performed_by field",
     )
-    oidc_audit_performed_by_name_claim: str | list[str] = Field(
+    oidc_audit_performed_by_name_claim: str = Field(
         default="unique_name,email",
         alias="OIDC_AUDIT_PERFORMED_BY_NAME_CLAIM",
         description="JWT claim(s) used for audit performed_by_name field",
@@ -109,12 +109,7 @@ class OidcAuthSettings(BaseSettings):
         return self
 
     @staticmethod
-    def _parse_audit_claims(value: str | list[str]) -> list[str]:
-        if isinstance(value, list):
-            claims = [v.strip() for v in value if v and v.strip()]
-            return claims
-        if not value:
-            return []
+    def _parse_audit_claims(value: str) -> list[str]:
         return [claim.strip() for claim in value.split(",") if claim.strip()]
 
     @property
