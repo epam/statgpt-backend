@@ -51,28 +51,31 @@ class LLMModelConfig(BaseModelConfig):
         ),
     )
     reasoning_effort: ReasoningEffortEnum | None = Field(
-        default=ReasoningEffortEnum.LOW,
+        default=None,
         description=(
-            "Reasoning effort level for GPT-5 models. Ignored for non-reasoning models. "
-            "Supports: none, minimal, low, medium, high, xhigh."
-            "All models before gpt-5.1 default to medium reasoning effort, and do not support none"
+            "Reasoning effort level for GPT-5 models. "
+            "Supports: none, minimal, low, medium, high, xhigh. "
+            "All models before gpt-5.1 default to medium reasoning effort, and do not support none."
         ),
     )
     verbosity: VerbosityEnum | None = Field(
-        default=VerbosityEnum.LOW,
-        description=("Output verbosity for GPT-5 models (low/medium/high). "),
+        default=None,
+        description="Output verbosity for GPT-5 models (low/medium/high).",
     )
 
     @model_validator(mode="after")
-    def _normalize_model_family_params(self) -> "LLMModelConfig":
+    def _validate_model_family_params(self) -> "LLMModelConfig":
         if self.deployment.is_gpt_5_family:
-            self.seed = None
-            if self.reasoning_effort == ReasoningEffortEnum.NONE:
-                self.temperature = 0
-            else:
-                # For reasoning levels only 1 is accepted
-                self.temperature = 1
+            if self.seed is not None:
+                raise ValueError("seed is not supported for GPT-5 models")
+            if self.reasoning_effort is not ReasoningEffortEnum.NONE and self.temperature != 1:
+                raise ValueError(
+                    "reasoning_effort is only supported for GPT-5 models when temperature is set to 1"
+                )
+               
         else:
-            self.reasoning_effort = None
-            self.verbosity = None
+            if self.reasoning_effort is not None:
+                raise ValueError("reasoning_effort is only supported for GPT-5 models")
+            if self.verbosity is not None:
+                raise ValueError("verbosity is only supported for GPT-5 models")
         return self
