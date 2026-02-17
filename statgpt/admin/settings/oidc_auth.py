@@ -1,6 +1,6 @@
 from typing import Optional
 
-from pydantic import Field, model_validator
+from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -31,15 +31,15 @@ class OidcAuthSettings(BaseSettings):
     oidc_username_claim: Optional[str] = Field(
         default=None, alias="OIDC_USERNAME_CLAIM", description="OIDC Username Claim"
     )
-    oidc_audit_user_id_claim: str = Field(
-        default="oid",
+    oidc_audit_user_id_claim: str | list[str] = Field(
+        default_factory=lambda: ["oid", "sub"],
         alias="OIDC_AUDIT_USER_ID_CLAIM",
-        description="JWT claim used for audit performed_by field",
+        description="JWT claim(s) used for audit performed_by field",
     )
-    oidc_audit_performed_by_name_claim: str = Field(
-        default="unique_name",
+    oidc_audit_performed_by_name_claim: str | list[str] = Field(
+        default_factory=lambda: ["unique_name", "email"],
         alias="OIDC_AUDIT_PERFORMED_BY_NAME_CLAIM",
-        description="JWT claim used for audit performed_by_name field",
+        description="JWT claim(s) used for audit performed_by_name field",
     )
 
     # Admin roles settings
@@ -107,6 +107,28 @@ class OidcAuthSettings(BaseSettings):
                     )
 
         return self
+
+    @field_validator("oidc_audit_user_id_claim", "oidc_audit_performed_by_name_claim", mode="before")
+    @classmethod
+    def normalize_audit_claims(cls, value: str | list[str]) -> str | list[str]:
+        if isinstance(value, list):
+            normalized = [v.strip() for v in value if isinstance(v, str) and v.strip()]
+            if not normalized:
+                raise ValueError("Audit claim list cannot be empty")
+            return normalized
+
+        if isinstance(value, str):
+            value = value.strip()
+            if not value:
+                raise ValueError("Audit claim cannot be empty")
+            if "," in value:
+                normalized = [v.strip() for v in value.split(",") if v.strip()]
+                if not normalized:
+                    raise ValueError("Audit claim list cannot be empty")
+                return normalized
+            return value
+
+        raise ValueError("Audit claim must be either a string or list[str]")
 
 
 # Create a singleton instance
