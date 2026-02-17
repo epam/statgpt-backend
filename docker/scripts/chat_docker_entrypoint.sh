@@ -13,5 +13,5 @@ if [ $# -lt 1 ]; then
     --timeout-keep-alive "${TIMEOUT_KEEP_ALIVE:-5}"
 fi
 
-# Otherwise, we assume the user wants to run his own process, for example a `bash` shell to explore the container
+# Otherwise, we assume the user wants to run his own process, for example a `sh` shell to explore the container
 exec "$@"

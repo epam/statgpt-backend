@@ -56,7 +56,7 @@ EXPOSE 5000
 USER appuser
 
 HEALTHCHECK --interval=10s --timeout=5s --start-period=30s --retries=6 \
-  CMD wget --no-verbose --tries=1 --spider http://localhost:5000/health || exit 1
+  CMD wget -q --spider -T 3 http://localhost:5000/health || exit 1
 
 ARG GIT_COMMIT
 ENV GIT_COMMIT=$GIT_COMMIT
