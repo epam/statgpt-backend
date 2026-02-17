@@ -1,6 +1,6 @@
 from typing import Optional
 
-from pydantic import Field, field_validator, model_validator
+from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -32,12 +32,12 @@ class OidcAuthSettings(BaseSettings):
         default=None, alias="OIDC_USERNAME_CLAIM", description="OIDC Username Claim"
     )
     oidc_audit_user_id_claim: str | list[str] = Field(
-        default_factory=lambda: ["oid", "sub"],
+        default="oid,sub",
         alias="OIDC_AUDIT_USER_ID_CLAIM",
         description="JWT claim(s) used for audit performed_by field",
     )
     oidc_audit_performed_by_name_claim: str | list[str] = Field(
-        default_factory=lambda: ["unique_name", "email"],
+        default="unique_name,email",
         alias="OIDC_AUDIT_PERFORMED_BY_NAME_CLAIM",
         description="JWT claim(s) used for audit performed_by_name field",
     )
@@ -108,29 +108,24 @@ class OidcAuthSettings(BaseSettings):
 
         return self
 
-    @field_validator(
-        "oidc_audit_user_id_claim", "oidc_audit_performed_by_name_claim", mode="before"
-    )
-    @classmethod
-    def normalize_audit_claims(cls, value: str | list[str]) -> str | list[str]:
+    @staticmethod
+    def _parse_audit_claims(value: str | list[str]) -> list[str]:
         if isinstance(value, list):
-            normalized = [v.strip() for v in value if isinstance(v, str) and v.strip()]
-            if not normalized:
-                raise ValueError("Audit claim list cannot be empty")
-            return normalized
+            claims = [v.strip() for v in value if v and v.strip()]
+            return claims
+        if not value:
+            return []
+        return [claim.strip() for claim in value.split(",") if claim.strip()]
 
-        if isinstance(value, str):
-            value = value.strip()
-            if not value:
-                raise ValueError("Audit claim cannot be empty")
-            if "," in value:
-                normalized = [v.strip() for v in value.split(",") if v.strip()]
-                if not normalized:
-                    raise ValueError("Audit claim list cannot be empty")
-                return normalized
-            return value
+    @property
+    def oidc_audit_user_id_claims(self) -> list[str]:
+        """Parse configured performed_by claim names into an ordered list."""
+        return self._parse_audit_claims(self.oidc_audit_user_id_claim)
 
-        raise ValueError("Audit claim must be either a string or list[str]")
+    @property
+    def oidc_audit_performed_by_name_claims(self) -> list[str]:
+        """Parse configured performed_by_name claim names into an ordered list."""
+        return self._parse_audit_claims(self.oidc_audit_performed_by_name_claim)
 
 
 # Create a singleton instance

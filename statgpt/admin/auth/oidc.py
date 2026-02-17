@@ -19,8 +19,7 @@ class TokenPayload:
     def __init__(self, payload: dict):
         self._payload = payload
 
-    def _extract_claim(self, claim_name: str, claim_or_claims: str | list[str]) -> str:
-        claim_keys = [claim_or_claims] if isinstance(claim_or_claims, str) else claim_or_claims
+    def _extract_claim(self, claim_name: str, claim_keys: list[str]) -> str:
         for key in claim_keys:
             value = self._payload.get(key)
             if value is not None and value != "":
@@ -42,12 +41,12 @@ class TokenPayload:
 
     @property
     def user_id(self) -> str:
-        return self._extract_claim("User ID", oidc_auth_settings.oidc_audit_user_id_claim)
+        return self._extract_claim("User ID", oidc_auth_settings.oidc_audit_user_id_claims)
 
     @property
     def performed_by_name(self) -> str:
         return self._extract_claim(
-            "Performed by name", oidc_auth_settings.oidc_audit_performed_by_name_claim
+            "Performed by name", oidc_auth_settings.oidc_audit_performed_by_name_claims
         )
 
 
