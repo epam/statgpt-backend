@@ -25,9 +25,7 @@ class TokenPayload:
             value = self._payload.get(key)
             if value is not None and value != "":
                 return str(value)
-        raise InvalidRequestError(
-            f"{claim_name} claim {claim_keys} not found in token"
-        )
+        raise InvalidRequestError(f"{claim_name} claim {claim_keys} not found in token")
 
     @property
     def raw(self) -> dict:

@@ -108,7 +108,9 @@ class OidcAuthSettings(BaseSettings):
 
         return self
 
-    @field_validator("oidc_audit_user_id_claim", "oidc_audit_performed_by_name_claim", mode="before")
+    @field_validator(
+        "oidc_audit_user_id_claim", "oidc_audit_performed_by_name_claim", mode="before"
+    )
     @classmethod
     def normalize_audit_claims(cls, value: str | list[str]) -> str | list[str]:
         if isinstance(value, list):
