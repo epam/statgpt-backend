@@ -17,7 +17,7 @@ class AuditLogListItem(BaseModel):
 
     performed_by: str
     performed_by_name: str
-    trace_id: str | None
+    trace_id: str
     created_at: datetime.datetime
 
 
