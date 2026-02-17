@@ -1,3 +1,5 @@
+import datetime
+
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql.expression import func
@@ -55,6 +57,8 @@ class AdminAuditLogService:
         item_id: int | None = None,
         entity_id: str | None = None,
         performed_by: str | None = None,
+        created_at_from: datetime.datetime | None = None,
+        created_at_to: datetime.datetime | None = None,
     ) -> list[schemas.AuditLogListItem]:
         query = select(models.AuditLog).order_by(models.AuditLog.created_at.desc())
         query = self._apply_filters(
@@ -64,6 +68,8 @@ class AdminAuditLogService:
             item_id=item_id,
             entity_id=entity_id,
             performed_by=performed_by,
+            created_at_from=created_at_from,
+            created_at_to=created_at_to,
         )
         query = query.limit(limit).offset(offset)
         result = await self._session.execute(query)
@@ -91,6 +97,8 @@ class AdminAuditLogService:
         item_id: int | None = None,
         entity_id: str | None = None,
         performed_by: str | None = None,
+        created_at_from: datetime.datetime | None = None,
+        created_at_to: datetime.datetime | None = None,
     ) -> int:
         query = select(func.count("*")).select_from(models.AuditLog)
         query = self._apply_filters(
@@ -100,6 +108,8 @@ class AdminAuditLogService:
             item_id=item_id,
             entity_id=entity_id,
             performed_by=performed_by,
+            created_at_from=created_at_from,
+            created_at_to=created_at_to,
         )
         return (await self._session.execute(query)).scalar_one()
 
@@ -115,4 +125,8 @@ class AdminAuditLogService:
             query = query.where(models.AuditLog.entity_id == filters["entity_id"])
         if filters["performed_by"]:
             query = query.where(models.AuditLog.performed_by == filters["performed_by"])
+        if filters["created_at_from"] is not None:
+            query = query.where(models.AuditLog.created_at >= filters["created_at_from"])
+        if filters["created_at_to"] is not None:
+            query = query.where(models.AuditLog.created_at <= filters["created_at_to"])
         return query

@@ -1,3 +1,5 @@
+import datetime
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -21,9 +23,17 @@ async def get_audit_logs(
     item_id: int | None = None,
     entity_id: str | None = None,
     performed_by: str | None = None,
+    created_at_from: datetime.datetime | None = None,
+    created_at_to: datetime.datetime | None = None,
     session: AsyncSession = Depends(models.get_session),
     _=Depends(cancel_on_disconnect),
 ) -> schemas.ListResponse[schemas.AuditLogListItem]:
+    if created_at_from and created_at_to and created_at_from > created_at_to:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="created_at_from must be less than or equal to created_at_to",
+        )
+
     service = AdminAuditLogService(session)
     items = await service.get_logs(
         limit=limit,
@@ -33,6 +43,8 @@ async def get_audit_logs(
         item_id=item_id,
         entity_id=entity_id,
         performed_by=performed_by,
+        created_at_from=created_at_from,
+        created_at_to=created_at_to,
     )
     total = await service.get_count(
         entity_type=entity_type,
@@ -40,6 +52,8 @@ async def get_audit_logs(
         item_id=item_id,
         entity_id=entity_id,
         performed_by=performed_by,
+        created_at_from=created_at_from,
+        created_at_to=created_at_to,
     )
     return schemas.ListResponse[schemas.AuditLogListItem](
         data=items,
