@@ -1,11 +1,18 @@
+import datetime
 import uuid
 from typing import Any
 
-from sqlalchemy import ForeignKey, String, UniqueConstraint
+from sqlalchemy import DateTime, Enum, ForeignKey, String, UniqueConstraint
 from sqlalchemy.dialects import postgresql
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.sql import func
 
-from statgpt.common.schemas import JobType, PreprocessingStatusEnum
+from statgpt.common.schemas import (
+    AuditActionType,
+    AuditEntityType,
+    JobType,
+    PreprocessingStatusEnum,
+)
 from statgpt.common.settings.elastic import ElasticSearchSettings
 from statgpt.common.settings.langchain import langchain_settings
 from statgpt.common.utils import DateMixin, IdMixin
@@ -234,3 +241,31 @@ class GlossaryTerm(DefaultBase):
 
     def __repr__(self) -> str:
         return f"GlossaryTerm(id={self.id!r}, channel_id={self.channel_id!r}, term={self.term!r})"
+
+
+class AuditLog(IdMixin, Base):
+    __tablename__ = "audit_logs"
+
+    entity_type: Mapped[AuditEntityType] = mapped_column(
+        Enum(AuditEntityType, values_callable=lambda e: [x.value for x in e]),
+        nullable=False,
+    )
+    action_type: Mapped[AuditActionType] = mapped_column(
+        Enum(AuditActionType, values_callable=lambda e: [x.value for x in e]),
+        nullable=False,
+    )
+
+    item_id: Mapped[int] = mapped_column(nullable=False)
+    entity_id: Mapped[str] = mapped_column(nullable=False)
+    entity_name: Mapped[str] = mapped_column(nullable=False)
+    state_after: Mapped[dict[str, Any] | None] = mapped_column(
+        type_=postgresql.JSONB, nullable=True
+    )
+
+    performed_by: Mapped[str] = mapped_column(nullable=False)
+    performed_by_name: Mapped[str] = mapped_column(nullable=False)
+    trace_id: Mapped[str] = mapped_column(nullable=False)
+
+    created_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )

@@ -8,6 +8,7 @@ from .database import (
 )
 from .health_checker import DatabaseHealthChecker
 from .models import (
+    AuditLog,
     Channel,
     ChannelDataset,
     ChannelDatasetVersion,
