@@ -32,7 +32,7 @@ class Channel(DefaultBase):
     title: Mapped[str]
     description: Mapped[str]
     deployment_id: Mapped[str] = mapped_column(unique=True)
-    llm_model: Mapped[str] = mapped_column(default=langchain_settings.default_model.value)
+    llm_model: Mapped[str] = mapped_column(default=langchain_settings.embedding_default_model.value)
     details: Mapped[dict[str, Any]] = mapped_column(type_=postgresql.JSONB)
 
     # ~~~~~ Relationships ~~~~~
@@ -150,7 +150,9 @@ class ChannelDatasetVersion(DefaultBase):
     __tablename__ = "channel_dataset_versions"
     __table_args__ = (
         UniqueConstraint(
-            'channel_dataset_id', 'version', name='uix_unique_version_for_channel_dataset'
+            "channel_dataset_id",
+            "version",
+            name="uix_unique_version_for_channel_dataset",
         ),
     )
 
@@ -158,7 +160,7 @@ class ChannelDatasetVersion(DefaultBase):
     version: Mapped[int] = mapped_column(default=0)  # will be auto-incremented by trigger
     preprocessing_status: Mapped[PreprocessingStatusEnum]
     pointer_to: Mapped[int | None] = mapped_column(
-        ForeignKey("channel_dataset_versions.id", ondelete='SET NULL'), default=None
+        ForeignKey("channel_dataset_versions.id", ondelete="SET NULL"), default=None
     )
 
     creation_reason: Mapped[str]
@@ -181,14 +183,14 @@ class ChannelDatasetVersion(DefaultBase):
     channel_dataset: Mapped[ChannelDataset] = relationship(back_populates="versions")
     pointer = relationship(
         "ChannelDatasetVersion",
-        remote_side='ChannelDatasetVersion.id',
+        remote_side="ChannelDatasetVersion.id",
         back_populates="pointing_versions",
         cascade="all",
         passive_deletes=True,
     )
     pointing_versions = relationship(
         "ChannelDatasetVersion",
-        remote_side='ChannelDatasetVersion.pointer_to',
+        remote_side="ChannelDatasetVersion.pointer_to",
         back_populates="pointer",
         cascade="all, delete-orphan",
         passive_deletes=True,
