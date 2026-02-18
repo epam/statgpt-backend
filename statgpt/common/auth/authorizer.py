@@ -28,6 +28,10 @@ class SystemUserAuthorizeConfig(AuthorizeConfig):
 
 
 class DialUserAuthorizerI(AuthorizerI[DialUserAuthorizerConfig]):
+    @property
+    def requires_dial_token(self) -> bool:
+        return True
+
     async def authorize(self, config: DialUserAuthorizerConfig) -> TokenResponseI:
         raise NotImplementedError()
 
@@ -79,6 +83,10 @@ class SystemUserViaAuthorizer(DialUserAuthorizerI):
 
     def __init__(self, authorizer: SystemUserAuthorizerI):
         self._authorizer = authorizer
+
+    @property
+    def requires_dial_token(self) -> bool:
+        return False
 
     async def authorize(self, config: DialUserAuthorizerConfig) -> TokenResponseI:
         return await self._authorizer.authorize(SystemUserAuthorizeConfig())

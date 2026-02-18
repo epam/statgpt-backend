@@ -49,7 +49,7 @@ statgpt_app:
 	poetry run python -m statgpt.app.app $(ARGS)
 
 install_pre_commit_hooks:
-	pre-commit install
+	poetry run pre-commit install
 
 db_migrate:
 	poetry run alembic -c alembic.ini upgrade head

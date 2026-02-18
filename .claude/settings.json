@@ -7,7 +7,7 @@
       "Bash(make test_unit:*)"
     ],
     "deny": [
-      "Read(./.env)"
+      "Read(**/*.env)"
     ],
     "ask": []
   },
