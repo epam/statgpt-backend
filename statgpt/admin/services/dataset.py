@@ -14,13 +14,20 @@ from sqlalchemy.sql.expression import func, text, update
 
 import statgpt.common.models as models
 import statgpt.common.schemas as schemas
+from statgpt.admin.audit.decorators import audit_action
+from statgpt.admin.auth.auth_context import SystemUserAuthContext
 from statgpt.admin.settings.exim import ExImSettings, JobsConfig
 from statgpt.common import utils
 from statgpt.common.auth.auth_context import AuthContext
 from statgpt.common.data import base
 from statgpt.common.data.base.dataset import DataSetConfigType
 from statgpt.common.hybrid_indexer import Indexer
-from statgpt.common.schemas import ChannelIndexStatusScope, HybridSearchConfig
+from statgpt.common.schemas import (
+    AuditActionType,
+    AuditEntityType,
+    ChannelIndexStatusScope,
+    HybridSearchConfig,
+)
 from statgpt.common.schemas import PreprocessingStatusEnum as StatusEnum
 from statgpt.common.services import (
     ChannelDataSetSerializer,
@@ -572,6 +579,7 @@ class AdminPortalDataSetService(DataSetService):
             )
         return parsed_config
 
+    @audit_action(entity_type=AuditEntityType.DATASET, action_type=AuditActionType.CREATE)
     async def create_dataset(
         self, data: schemas.DataSetBase, auth_context: AuthContext
     ) -> schemas.DataSet:
@@ -637,6 +645,7 @@ class AdminPortalDataSetService(DataSetService):
         structure = await handler.get_dataset_structure(config, auth_context=auth_context)
         return structure.model_dump(mode='json', by_alias=True)
 
+    @audit_action(entity_type=AuditEntityType.DATASET, action_type=AuditActionType.UPDATE)
     async def update(
         self, item_id: int, data: schemas.DataSetUpdateRequest, auth_context: AuthContext
     ) -> schemas.DataSetUpdateResponse:
@@ -669,7 +678,13 @@ class AdminPortalDataSetService(DataSetService):
             channel_results=channel_results,
         )
 
-    async def delete(self, item_id: int) -> None:
+    @audit_action(entity_type=AuditEntityType.DATASET, action_type=AuditActionType.DELETE)
+    async def delete(self, item_id: int) -> schemas.DataSet:
+        deleted_item = await self.get_schema_by_id(
+            item_id,
+            auth_context=SystemUserAuthContext(),
+            allow_offline=True,
+        )
         item = await self.get_model_by_id(item_id)
 
         count = await self.get_channel_datasets_count(dataset_id=item.id)
@@ -688,6 +703,7 @@ class AdminPortalDataSetService(DataSetService):
         _log.info(f"Deleting dataset(id={item.id}): {item.title!r}")
         await self._session.delete(item)
         await self._session.commit()
+        return deleted_item
 
     async def _propagate_config_to_channel_datasets(
         self,

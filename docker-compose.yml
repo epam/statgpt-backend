@@ -76,6 +76,7 @@ services:
       'LOG_DIR': '/app/log'
       'STORAGE_DIR': '/app/data'
       'aidial.config.files': '["/opt/config/config.json"]'
+      'aidial.storage.maxUploadedFileSize': '2147483648' # 2 GB
       'aidial.storage.overrides': '{ "jclouds.filesystem.basedir": "data" }'
       'aidial.redis.singleServerConfig.address': 'redis://redis:6379'
     depends_on:

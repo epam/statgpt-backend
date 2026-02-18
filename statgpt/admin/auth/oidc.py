@@ -19,18 +19,35 @@ class TokenPayload:
     def __init__(self, payload: dict):
         self._payload = payload
 
+    def _extract_claim(self, claim_name: str, claim_keys: list[str]) -> str:
+        for key in claim_keys:
+            value = self._payload.get(key)
+            if value is not None and value != "":
+                return str(value)
+        raise InvalidRequestError(f"{claim_name} claim {claim_keys} not found in token")
+
     @property
     def raw(self) -> dict:
         return self._payload
 
     @property
-    def username(self):
+    def username(self) -> str:
         username = self._payload.get(oidc_auth_settings.oidc_username_claim, None)
         if not username:
             raise InvalidRequestError(
                 f"Username claim {oidc_auth_settings.oidc_username_claim} not found in token"
             )
-        return username
+        return str(username)
+
+    @property
+    def user_id(self) -> str:
+        return self._extract_claim("User ID", oidc_auth_settings.oidc_audit_user_id_claims)
+
+    @property
+    def performed_by_name(self) -> str:
+        return self._extract_claim(
+            "Performed by name", oidc_auth_settings.oidc_audit_performed_by_name_claims
+        )
 
 
 class Jwks:

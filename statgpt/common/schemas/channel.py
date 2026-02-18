@@ -1,5 +1,6 @@
 from pydantic import BaseModel, Field
 
+from .auditable import Auditable
 from .base import BaseYamlModel, DbDefaultBase
 from .enums import ChannelIndexStatusScope, LocaleEnum
 from .model_config import LLMModelConfig
@@ -208,8 +209,18 @@ class ChannelUpdate(BaseModel):
     details: ChannelConfig | None = Field(default=None)
 
 
-class Channel(DbDefaultBase, ChannelBase):
-    pass
+class Channel(DbDefaultBase, ChannelBase, Auditable):
+    def get_entity_id(self) -> str:
+        return self.deployment_id
+
+    def get_entity_name(self) -> str:
+        return self.title
+
+    def get_state_after(self) -> dict:
+        return self.model_dump(mode='json', exclude={"created_at", "updated_at"})
+
+    def get_item_id(self) -> int:
+        return self.id
 
 
 class DeduplicationStatus(BaseModel):

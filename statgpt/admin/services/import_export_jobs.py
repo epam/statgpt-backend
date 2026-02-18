@@ -16,8 +16,11 @@ from sqlalchemy.sql.expression import func
 
 import statgpt.common.models as models
 import statgpt.common.schemas as schemas
+from statgpt.admin.audit.context import AuditContext, get_audit_context, update_audit_context
+from statgpt.admin.audit.decorators import audit_action
 from statgpt.admin.settings.exim import JobsConfig
 from statgpt.common.auth.auth_context import AuthContext
+from statgpt.common.schemas import AuditActionType, AuditEntityType
 from statgpt.common.settings.dial import dial_settings
 from statgpt.common.utils import AttachmentResponse, AttachmentsStorage, attachments_storage_factory
 
@@ -164,6 +167,7 @@ class JobsService:
 
         return schemas.Job.model_validate(job, from_attributes=True)
 
+    @audit_action(entity_type=AuditEntityType.IMPORT_JOB, action_type=AuditActionType.CREATE)
     async def create_import_job(
         self,
         background_tasks: BackgroundTasks,
@@ -211,6 +215,7 @@ class JobsService:
             update_datasets,
             update_data_sources,
             auth_context,
+            get_audit_context(),
         )
         await self._update_job_status(job, schemas.PreprocessingStatusEnum.QUEUED)
 
@@ -241,7 +246,7 @@ class JobsService:
 
     async def export_channel_in_background(
         self, job_id: int, scope: schemas.ExportScope, auth_context: AuthContext
-    ) -> None:
+    ) -> schemas.Job:
         _log.info(f"Exporting channel data to zip file. Job id={job_id}")
         job: models.Job = await self.get_job_model_by_id(job_id)
         await self._update_job_status(job, schemas.PreprocessingStatusEnum.IN_PROGRESS)
@@ -291,10 +296,11 @@ class JobsService:
             _log.exception(e)
             job.reason_for_failure = str(e)
             await self._update_job_status(job, schemas.PreprocessingStatusEnum.FAILED)
-            return
+            return schemas.Job.model_validate(job, from_attributes=True)
 
         job.file = file_url
         await self._update_job_status(job, schemas.PreprocessingStatusEnum.COMPLETED)
+        return schemas.Job.model_validate(job, from_attributes=True)
 
     @staticmethod
     async def download_zip_file(
@@ -393,7 +399,7 @@ class JobsService:
         update_datasets: bool,
         update_data_sources: bool,
         auth_context: AuthContext,
-    ) -> None:
+    ) -> schemas.Job:
         _log.info(f"Importing channel from zip file. Job id={job_id}")
         job: models.Job = await self.get_job_model_by_id(job_id)
         await self._update_job_status(job, schemas.PreprocessingStatusEnum.IN_PROGRESS)
@@ -420,10 +426,11 @@ class JobsService:
             _log.exception(e)
             job.reason_for_failure = str(e)
             await self._update_job_status(job, schemas.PreprocessingStatusEnum.FAILED)
-            return
+            return schemas.Job.model_validate(job, from_attributes=True)
 
         await self._update_job_status(job, schemas.PreprocessingStatusEnum.COMPLETED)
         _log.info(f"Channel(id={channel_id}) imported successfully. Job id={job_id}")
+        return schemas.Job.model_validate(job, from_attributes=True)
 
 
 async def export_channel_in_background_task(
@@ -445,8 +452,10 @@ async def import_channel_in_background_task(
     update_datasets: bool,
     update_data_sources: bool,
     auth_context: AuthContext,
+    audit_context: AuditContext,
 ) -> None:
     try:
+        update_audit_context(audit_context)
         async with models.get_session_contex_manager() as session:
             service = JobsService(session)
             await service.import_channel_in_background(
