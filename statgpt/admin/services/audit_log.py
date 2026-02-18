@@ -113,6 +113,45 @@ class AdminAuditLogService:
         )
         return (await self._session.execute(query)).scalar_one()
 
+    async def get_logs_for_export(
+        self,
+        *,
+        entity_type: schemas.AuditEntityType | None = None,
+        action_type: schemas.AuditActionType | None = None,
+        item_id: int | None = None,
+        entity_id: str | None = None,
+        performed_by: str | None = None,
+        created_at_from: datetime.datetime | None = None,
+        created_at_to: datetime.datetime | None = None,
+    ) -> list[schemas.AuditLogListItem]:
+        query = select(models.AuditLog).order_by(models.AuditLog.created_at.desc())
+        query = self._apply_filters(
+            query,
+            entity_type=entity_type,
+            action_type=action_type,
+            item_id=item_id,
+            entity_id=entity_id,
+            performed_by=performed_by,
+            created_at_from=created_at_from,
+            created_at_to=created_at_to,
+        )
+        result = await self._session.execute(query)
+        return [
+            schemas.AuditLogListItem(
+                id=item.id,
+                entity_type=item.entity_type,
+                action_type=item.action_type,
+                item_id=item.item_id,
+                entity_id=item.entity_id,
+                entity_name=item.entity_name,
+                performed_by=item.performed_by,
+                performed_by_name=item.performed_by_name,
+                trace_id=item.trace_id,
+                created_at=item.created_at,
+            )
+            for item in result.scalars()
+        ]
+
     @staticmethod
     def _apply_filters(query, **filters):
         if filters["entity_type"]:
