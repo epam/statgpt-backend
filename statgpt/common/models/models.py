@@ -25,7 +25,9 @@ class Channel(DefaultBase):
     title: Mapped[str]
     description: Mapped[str]
     deployment_id: Mapped[str] = mapped_column(unique=True)
-    llm_model: Mapped[str] = mapped_column(default=langchain_settings.default_model.value)
+    llm_model: Mapped[str] = mapped_column(
+        default=langchain_settings.embedding_default_model.value
+    )
     details: Mapped[dict[str, Any]] = mapped_column(type_=postgresql.JSONB)
 
     # ~~~~~ Relationships ~~~~~
@@ -37,7 +39,9 @@ class Channel(DefaultBase):
         "GlossaryTerm", back_populates="channel", cascade="all, delete-orphan"
     )
     # NOTE: Jobs can exist without a channel, so the option `delete-orphan` is not used here.
-    jobs: Mapped[list["Job"]] = relationship("Job", back_populates="channel", cascade="all")
+    jobs: Mapped[list["Job"]] = relationship(
+        "Job", back_populates="channel", cascade="all"
+    )
 
     # ~~~~~ Properties ~~~~~
 
@@ -102,7 +106,9 @@ class DataSet(DefaultBase):
     __tablename__ = "datasets"
 
     # TODO: use id_ as primary_key
-    id_: Mapped[uuid.UUID] = mapped_column(type_=postgresql.UUID(as_uuid=True), unique=True)
+    id_: Mapped[uuid.UUID] = mapped_column(
+        type_=postgresql.UUID(as_uuid=True), unique=True
+    )
     source_id: Mapped[int] = mapped_column(ForeignKey("data_sources.id"))
     title: Mapped[str]
     details: Mapped[dict[str, Any]] = mapped_column(type_=postgresql.JSONB)
@@ -143,45 +149,59 @@ class ChannelDatasetVersion(DefaultBase):
     __tablename__ = "channel_dataset_versions"
     __table_args__ = (
         UniqueConstraint(
-            'channel_dataset_id', 'version', name='uix_unique_version_for_channel_dataset'
+            "channel_dataset_id",
+            "version",
+            name="uix_unique_version_for_channel_dataset",
         ),
     )
 
     channel_dataset_id: Mapped[int] = mapped_column(ForeignKey("channel_datasets.id"))
-    version: Mapped[int] = mapped_column(default=0)  # will be auto-incremented by trigger
+    version: Mapped[int] = mapped_column(
+        default=0
+    )  # will be auto-incremented by trigger
     preprocessing_status: Mapped[PreprocessingStatusEnum]
     pointer_to: Mapped[int | None] = mapped_column(
-        ForeignKey("channel_dataset_versions.id", ondelete='SET NULL'), default=None
+        ForeignKey("channel_dataset_versions.id", ondelete="SET NULL"), default=None
     )
 
     creation_reason: Mapped[str]
     reason_for_failure: Mapped[str | None] = mapped_column(default=None)
 
-    structure_metadata: Mapped[dict | None] = mapped_column(type_=postgresql.JSONB, default=None)
+    structure_metadata: Mapped[dict | None] = mapped_column(
+        type_=postgresql.JSONB, default=None
+    )
     structure_hash: Mapped[str | None] = mapped_column(type_=String(10), default=None)
     # Data hashes:
-    indicator_dimensions_hash: Mapped[str | None] = mapped_column(type_=String(10), default=None)
+    indicator_dimensions_hash: Mapped[str | None] = mapped_column(
+        type_=String(10), default=None
+    )
     non_indicator_dimensions_hash: Mapped[str | None] = mapped_column(
         type_=String(10), default=None
     )
-    special_dimensions_hash: Mapped[str | None] = mapped_column(type_=String(10), default=None)
+    special_dimensions_hash: Mapped[str | None] = mapped_column(
+        type_=String(10), default=None
+    )
     # Config hash:
-    indexing_config_hash: Mapped[str | None] = mapped_column(type_=String(10), default=None)
+    indexing_config_hash: Mapped[str | None] = mapped_column(
+        type_=String(10), default=None
+    )
     # Resolved configuration at indexing time (e.g. dynamic URN version resolved to concrete version)
-    resolved_config: Mapped[dict | None] = mapped_column(type_=postgresql.JSONB, default=None)
+    resolved_config: Mapped[dict | None] = mapped_column(
+        type_=postgresql.JSONB, default=None
+    )
 
     # relationships
     channel_dataset: Mapped[ChannelDataset] = relationship(back_populates="versions")
     pointer = relationship(
         "ChannelDatasetVersion",
-        remote_side='ChannelDatasetVersion.id',
+        remote_side="ChannelDatasetVersion.id",
         back_populates="pointing_versions",
         cascade="all",
         passive_deletes=True,
     )
     pointing_versions = relationship(
         "ChannelDatasetVersion",
-        remote_side='ChannelDatasetVersion.pointer_to',
+        remote_side="ChannelDatasetVersion.pointer_to",
         back_populates="pointer",
         cascade="all, delete-orphan",
         passive_deletes=True,
