@@ -90,7 +90,7 @@ async def export_audit_logs(
     _validate_created_at_range(created_at_from, created_at_to)
 
     service = AdminAuditLogService(session)
-    items = await service.get_logs_for_export(
+    items = await service.get_logs(
         entity_type=entity_type,
         action_type=action_type,
         item_id=item_id,
@@ -118,7 +118,6 @@ async def export_audit_logs(
         media_type="application/zip",
         headers={
             "Content-Disposition": f'attachment; filename="{file_name}"',
-            "Content-Type": "application/zip",
             "Content-Length": str(len(zip_data)),
         },
     )
