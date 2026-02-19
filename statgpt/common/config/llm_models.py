@@ -9,7 +9,8 @@ class EmbeddingModelsEnum(StrEnum):
 class ReasoningEffortEnum(StrEnum):
     """Reasoning effort levels for GPT-5 models."""
 
-    NONE = "none"  # No reasoning mode - standard inference
+    NONE = "none"
+    """No reasoning mode - standard inference."""
     MINIMAL = "minimal"
     LOW = "low"
     MEDIUM = "medium"
@@ -17,7 +18,6 @@ class ReasoningEffortEnum(StrEnum):
     XHIGH = "xhigh"
 
 
-# NOTE: currently not used and not supported by LangChain, kept for future compatibility
 class VerbosityEnum(StrEnum):
     """Output verbosity levels for GPT-5 models."""
 

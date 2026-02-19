@@ -12,9 +12,11 @@ from sqlalchemy.sql.expression import func
 
 import statgpt.common.models as models
 import statgpt.common.schemas as schemas
+from statgpt.admin.audit.decorators import audit_action
 from statgpt.admin.settings.exim import JobsConfig
 from statgpt.common import utils
 from statgpt.common.auth.auth_context import AuthContext
+from statgpt.common.schemas import AuditActionType, AuditEntityType
 from statgpt.common.services import ChannelSerializer, ChannelService
 from statgpt.common.settings.dial import dial_settings
 from statgpt.common.utils import dial_core_factory
@@ -49,7 +51,7 @@ class AdminPortalChannelService(ChannelService):
         dial_file_path: str, folder_path: str, auth_context: AuthContext
     ) -> None:
         async with dial_core_factory(dial_settings.url, auth_context.api_key) as dial_core:
-            content, content_type = await dial_core.get_file_by_path(dial_file_path)
+            content, _ = await dial_core.get_file_by_path(dial_file_path)
 
         target_file = os.path.join(folder_path, JobsConfig.DIAL_FILES_FOLDER, dial_file_path)
         utils.write_bytes(content, target_file)
@@ -79,12 +81,19 @@ class AdminPortalChannelService(ChannelService):
             await self._session.commit()
         except IntegrityError as e:
             self._parse_integrity_error(data, e)
+        await self._log_channel_creation(item)
         return item
+
+    # TODO: update channel creation logging logic
+    @audit_action(entity_type=AuditEntityType.CHANNEL, action_type=AuditActionType.CREATE)
+    async def _log_channel_creation(self, data: models.Channel) -> schemas.Channel:
+        return ChannelSerializer.db_to_schema(data)
 
     async def create_channel(self, data: schemas.ChannelBase) -> schemas.Channel:
         item = await self._create_channel_model(data)
         return ChannelSerializer.db_to_schema(item)
 
+    @audit_action(entity_type=AuditEntityType.CHANNEL, action_type=AuditActionType.UPDATE)
     async def update(self, item_id: int, data: schemas.ChannelUpdate) -> schemas.Channel:
         item = await self._get_item_or_raise(item_id)
 
@@ -105,8 +114,10 @@ class AdminPortalChannelService(ChannelService):
 
         return ChannelSerializer.db_to_schema(item)
 
-    async def delete(self, item_id: int, auth_context: AuthContext) -> None:
+    @audit_action(entity_type=AuditEntityType.CHANNEL, action_type=AuditActionType.DELETE)
+    async def delete(self, item_id: int, auth_context: AuthContext) -> schemas.Channel:
         item = await self._get_item_or_raise(item_id)
+        deleted_item = ChannelSerializer.db_to_schema(item)
         _log.info(f"Deleting {item}")
 
         await self._clear_vector_store(item, auth_context)
@@ -116,6 +127,7 @@ class AdminPortalChannelService(ChannelService):
 
         await self._session.delete(item)
         await self._session.commit()
+        return deleted_item
 
     async def _clear_vector_store(self, channel: models.Channel, auth_context: AuthContext) -> None:
         vector_store_factory = VectorStoreFactory(session=self._session)

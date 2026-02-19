@@ -1,4 +1,4 @@
-from pydantic import Field
+from pydantic import Field, model_validator
 
 from statgpt.common.config import (
     EmbeddingModelsEnum,
@@ -36,11 +36,11 @@ class LLMModelConfig(BaseModelConfig):
         default=langchain_settings.default_model,
         description="The deployment of the model in DIAL",
     )
-    temperature: float = Field(
+    temperature: float | None = Field(
         default=langchain_settings.default_temperature,
         description=(
             "The temperature of the model. 0.0 means deterministic output, higher values mean more"
-            " randomness. Note: Not supported by GPT-5 models."
+            " randomness. Note: For reasoning models (except reasoning_effort=none) should be set to 1"
         ),
     )
     seed: int | None = Field(
@@ -51,13 +51,32 @@ class LLMModelConfig(BaseModelConfig):
         ),
     )
     reasoning_effort: ReasoningEffortEnum | None = Field(
-        default=langchain_settings.default_reasoning_effort,
+        default=None,
         description=(
-            "Reasoning effort level for GPT-5 models. Ignored for non-reasoning models. "
-            "Supports: none, minimal, low, medium, high, xhigh."
+            "Reasoning effort level for GPT-5 models. "
+            "Supports: none, minimal, low, medium, high, xhigh. "
+            "All models before gpt-5.1 default to medium reasoning effort, and do not support none."
         ),
     )
     verbosity: VerbosityEnum | None = Field(
-        default=langchain_settings.default_verbosity,
-        description=("Output verbosity for GPT-5 models (low/medium/high). "),
+        default=None,
+        description="Output verbosity for GPT-5 models (low/medium/high).",
     )
+
+    @model_validator(mode="after")
+    def _validate_model_family_params(self) -> "LLMModelConfig":
+        if self.deployment.is_gpt_5_family:
+            if self.seed is not None:
+                raise ValueError("seed is not supported for GPT-5 models")
+            if self.reasoning_effort is None:
+                raise ValueError("reasoning_effort is required for GPT-5 models")
+            if self.reasoning_effort is not ReasoningEffortEnum.NONE and self.temperature != 1:
+                raise ValueError(
+                    "temperature must be set to 1 when reasoning_effort is enabled for GPT-5 models"
+                )
+        else:
+            if self.reasoning_effort is not None:
+                raise ValueError("reasoning_effort is only supported for GPT-5 models")
+            if self.verbosity is not None:
+                raise ValueError("verbosity is only supported for GPT-5 models")
+        return self

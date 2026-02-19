@@ -16,9 +16,7 @@ def get_chat_model(
     model_config: LLMModelConfig,
     azure_endpoint: str = dial_settings.url,
     timeout: httpx.Timeout | None = None,
-    **kwargs,
 ) -> AzureChatOpenAI:
-    # default params
     if not isinstance(api_key, SecretStr):
         api_key = SecretStr(api_key)
     if not timeout:
@@ -32,24 +30,7 @@ def get_chat_model(
         timeout=timeout,  # timeouts are crucial!
     )
 
-    if model_config.deployment.is_gpt_5_family:
-        # GPT-5: use reasoning_effort parameter
-        if model_config.reasoning_effort is not None:
-            params["reasoning_effort"] = model_config.reasoning_effort
-            if model_config.reasoning_effort == ReasoningEffortEnum.NONE:
-                # reasoning_effort=none: use temperature=0 for deterministic output
-                params["temperature"] = 0
-            else:
-                # NOTE: Temporarily set temperature=1 for reasoning modes (minimal/low/medium/high/xhigh)
-                # TODO: Remove this once Azure OpenAI API is upgraded to properly handle reasoning modes without temperature
-                params["temperature"] = 1
-        params.update({k: v for k, v in kwargs.items() if k not in ("temperature", "seed")})
-    else:
-        # Legacy models: use temperature and seed
-        params["temperature"] = model_config.temperature
-        if model_config.seed is not None:
-            params["seed"] = model_config.seed
-        params.update(kwargs)
+    params.update(model_config.model_dump(mode="json", exclude_none=True, exclude={"deployment"}))
 
     if model_config.deployment.is_gpt_41_family:
         callback = BrokenResponseInterceptor(regex_pattern=r'\s{5,}')
@@ -66,7 +47,6 @@ def get_embeddings_model(
     api_key: str | SecretStr,
     model_config: EmbeddingsModelConfig,
     azure_endpoint: str = dial_settings.url,
-    **kwargs,
 ) -> AzureOpenAIEmbeddings:
     if not isinstance(api_key, SecretStr):
         api_key = SecretStr(api_key)
@@ -77,7 +57,6 @@ def get_embeddings_model(
         max_retries=10,
         api_key=api_key,  # since we use SecretStr, it won't be logged
     )
-    params.update(kwargs)  # update default params
     api_key_log = f'{api_key.get_secret_value()[:3]}*****{api_key.get_secret_value()[-2:]}'
     logger.info(
         f'creating langchain embeddings with the following params: {params}, Api key: {api_key_log}'

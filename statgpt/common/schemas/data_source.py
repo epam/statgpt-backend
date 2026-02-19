@@ -2,6 +2,7 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
+from .auditable import Auditable
 from .base import DbDefaultBase
 
 
@@ -23,5 +24,17 @@ class DataSourceUpdate(BaseModel):
     details: dict[str, Any] | None = Field(default=None, description="Details as a JSON object")
 
 
-class DataSource(DbDefaultBase, DataSourceBase):
+class DataSource(DbDefaultBase, DataSourceBase, Auditable):
     type: DataSourceType
+
+    def get_entity_id(self) -> str:
+        return self.title
+
+    def get_entity_name(self) -> str:
+        return self.description
+
+    def get_state_after(self) -> dict:
+        return self.model_dump(mode='json', exclude={"created_at", "updated_at"})
+
+    def get_item_id(self) -> int:
+        return self.id
