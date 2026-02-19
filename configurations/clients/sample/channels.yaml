@@ -22,12 +22,14 @@ channels:
           reasoningEffort: "none"
           verbosity: "low"
           temperature: 1
+          seed: null
       out_of_scope:
         llm_model_config:
           deployment: "gpt-5.2-2025-12-11"
           reasoningEffort: "none"
           verbosity: "low"
           temperature: 1
+          seed: null
         use_general_topics_blacklist: true
         domain: "Statistics, economics and SDMX."
       token_usage:

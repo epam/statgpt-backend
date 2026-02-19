@@ -6,41 +6,49 @@ _data_query_gpt_5_models: &data-query-gpt-5-models
     reasoningEffort: "none"
     verbosity: "low"
     temperature: 1
+    seed: null
   dimensionsSelectionModelConfig:
     deployment: "gpt-5.2-2025-12-11"
     reasoningEffort: "none"
     verbosity: "low"
-    temperature: 1   
+    temperature: 1
+    seed: null  
   indicatorsSelectionModelConfig:
     deployment: "gpt-5.2-2025-12-11"
     reasoningEffort: "none"
     verbosity: "low"
     temperature: 1
+    seed: null
   incompleteQueriesModelConfig:
     deployment: "gpt-5.2-2025-12-11"
     reasoningEffort: "none"
     verbosity: "low"
     temperature: 1
+    seed: null
   groupExpanderModelConfig:
     deployment: "gpt-5.2-2025-12-11"
     reasoningEffort: "none"
     verbosity: "low"
     temperature: 1
+    seed: null
   namedEntitiesModelConfig:
     deployment: "gpt-5.2-2025-12-11"
     reasoningEffort: "none"
     verbosity: "low"
     temperature: 1
+    seed: null
   queryNormalizationModelConfig:
     deployment: "gpt-5.2-2025-12-11"
     reasoningEffort: "none"
     verbosity: "low"
     temperature: 1
+    seed: null
   timePeriodModelConfig:
     deployment: "gpt-5.2-2025-12-11"
     reasoningEffort: "none"
     verbosity: "low"
     temperature: 1
+    seed: null
 _relevancy_prompts: &relevancy_prompts
   systemMessage: |-
     You are an expert in statistical indicators.
