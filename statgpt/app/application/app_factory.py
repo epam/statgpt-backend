@@ -2,6 +2,7 @@ import logging
 
 from aidial_sdk import DIALApp
 from aidial_sdk.chat_completion import ChatCompletion, ConfigurationRequest, Request, Response
+from aidial_sdk.deployment.configuration import ConfigurationResponse
 from aidial_sdk.telemetry.types import MetricsConfig, TelemetryConfig, TracingConfig
 from fastapi import Request as FastAPIRequest
 
@@ -32,7 +33,7 @@ class AppChatCompletion(ChatCompletion):
         impl = self._get_completion_impl(request.original_request)
         await impl.chat_completion(request, response)
 
-    async def configuration(self, request: ConfigurationRequest) -> dict:
+    async def configuration(self, request: ConfigurationRequest) -> ConfigurationResponse | dict:
         impl = self._get_completion_impl(request.original_request)
         return await impl.configuration(request)
 

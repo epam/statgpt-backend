@@ -111,7 +111,7 @@ class ChannelOnboardingCompletion(ChatCompletion):
 
         if not last_message.custom_content or not last_message.custom_content.form_value:
             # for first user message the value is stored in configuration field
-            configuration = request.custom_fields.configuration
+            configuration = request.custom_fields.configuration if request.custom_fields else None
             if configuration is not None and isinstance(configuration, dict):
                 return configuration.get("choice") or configuration.get("completion")
             return None
