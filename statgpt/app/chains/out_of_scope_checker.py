@@ -190,7 +190,8 @@ class OutOfScopeChecker:
         response_chain = response_prompt | model
 
         async for chunk in response_chain.astream(inputs):
-            choice.append_content(chunk.content)  # type: ignore[union-attr]
+            if isinstance(chunk.content, str):
+                choice.append_content(chunk.content)
 
         return inputs
 

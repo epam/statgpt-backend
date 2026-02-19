@@ -278,7 +278,7 @@ class Sdmx21DataResponse(DataResponse):
         return template.format(
             dataset_source_id=self.dataset.source_id,
             dataset_name=self.dataset.name,
-            figure_title=figure.layout.title.text.replace('<br>', ' '),
+            figure_title=(figure.layout.title.text or '').replace('<br>', ' '),
         )
 
     @staticmethod

@@ -140,6 +140,14 @@ exclude = [
 
 [tool.mypy]
 plugins = ["pydantic.mypy"]
+ignore_missing_imports = false
+
+[[tool.mypy.overrides]]
+module = ["aidial_sdk.*"]
+follow_untyped_imports = true
+
+[[tool.mypy.overrides]]
+module = ["msal.*", "keycloak.*"]
 ignore_missing_imports = true
 
 [tool.poetry]
@@ -164,11 +172,14 @@ pytest-cov = "^5.0.0"
 pytest-mock = "^3.14.0"
 pytest-sugar = "^1.0.0"
 pytest-xdist = "^3.6.1"
-mypy = "^1.9.0"
+mypy = "^1.19.1"
 types-requests = "^2.31.0.20240406"
 pandas-stubs = "^2.2.1.240316"
 types-pyyaml = "^6.0.12.20240311"
 types-python-dateutil = "^2.9.0.20240316"
+types-aiofiles = "25.1.0.20251011"
+plotly-stubs = "^0.1.2"
+pyarrow-stubs = "^20.0.0.20251215"
 pre-commit = "^3.8.0"
 bs4 = "^0.0.2"
 markdown = "^3.7"
@@ -180,7 +191,6 @@ freezegun = "^1.5.1"
 aidial-rag-eval = ">=0.2.0,<0.3.0"
 # jinja2 is required for the aidial-rag-eval package, since it uses langchain with Jinja2 templates, which are optional for langchain
 jinja2 = "^3.1.6"
-types-aiofiles = "25.1.0.20251011"
 
 [tool.poetry.group.experiments]
 optional = true
