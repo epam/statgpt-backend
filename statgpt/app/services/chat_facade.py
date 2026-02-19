@@ -26,7 +26,6 @@ from statgpt.common.data.base import (
     DimensionCategory,
 )
 from statgpt.common.data.sdmx.common import ComplexIndicator
-from statgpt.common.data.sdmx.common.config import UrnReference
 from statgpt.common.schemas import ChannelConfig, ChannelDatasetVersion
 from statgpt.common.schemas.data_query_tool import SpecialDimensionsProcessor
 from statgpt.common.services import (
@@ -411,56 +410,6 @@ class ChannelServiceFacade(DbServiceBase):
 
     async def list_available_datasets(self, auth_context: AuthContext) -> list[VersionedDataSet]:
         return await self._load_datasets(auth_context)
-
-    async def get_dataset_by_urn(
-        self, version: str, agency_id: str, resource_id: str, auth_context: AuthContext
-    ) -> VersionedDataSet | None:
-        dataset_service = DataSetService(self._session, session_lock=self._session_lock)
-        data_source_service = DataSourceService(self._session, session_lock=self._session_lock)
-
-        dataset_urn = UrnReference(agency_id=agency_id, resource_id=resource_id, version=version)
-        last_versions = await dataset_service.get_latest_successful_dataset_versions_for_channel(
-            channel_id=self._channel.id
-        )
-        versions = {
-            channel_dataset_id: channel_dataset.last_completed_version
-            for channel_dataset_id, channel_dataset in last_versions.items()
-            if channel_dataset.last_completed_version is not None
-        }
-        dataset_models = await dataset_service.get_datasets_models(
-            limit=None, offset=0, ids=versions.keys()
-        )
-
-        dataset_models = [
-            ds
-            for ds in dataset_models
-            if UrnReference.model_validate(ds.details['urn']).short_urn() == dataset_urn.short_urn()
-        ]
-
-        if len(dataset_models) > 1:
-            raise ValueError(f"Multiple datasets found for the same URN: {dataset_urn.short_urn()}")
-        if len(dataset_models) == 0:
-            return None
-
-        dataset_model = dataset_models[0]
-
-        data_source = await data_source_service.get_by_id(dataset_model.source_id)
-
-        handler = await self._get_handler_class(data_source.type, config=data_source.details)
-
-        res = VersionedDataSet(
-            model=dataset_model,
-            version=versions[dataset_model.id],
-            data=await handler.get_dataset(
-                entity_id=dataset_model.id_,
-                title=dataset_model.title,
-                config=self._get_config_for_query(dataset_model, versions[dataset_model.id]),
-                auth_context=auth_context,
-                allow_offline=True,
-                allow_cached=True,
-            ),
-        )
-        return res
 
     async def get_dataset_hierarchy(self, auth_context: AuthContext) -> DatasetHierarchy | None:
         """Get first available dataset hierarchy from the channel data sources."""
