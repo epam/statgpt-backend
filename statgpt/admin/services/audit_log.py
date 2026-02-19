@@ -50,8 +50,8 @@ class AdminAuditLogService:
     async def get_logs(
         self,
         *,
-        limit: int,
-        offset: int,
+        limit: int | None = None,
+        offset: int | None = None,
         entity_type: schemas.AuditEntityType | None = None,
         action_type: schemas.AuditActionType | None = None,
         item_id: int | None = None,
@@ -71,21 +71,13 @@ class AdminAuditLogService:
             created_at_from=created_at_from,
             created_at_to=created_at_to,
         )
-        query = query.limit(limit).offset(offset)
+        if limit is not None:
+            query = query.limit(limit)
+        if offset is not None:
+            query = query.offset(offset)
         result = await self._session.execute(query)
         return [
-            schemas.AuditLogListItem(
-                id=item.id,
-                entity_type=item.entity_type,
-                action_type=item.action_type,
-                item_id=item.item_id,
-                entity_id=item.entity_id,
-                entity_name=item.entity_name,
-                performed_by=item.performed_by,
-                performed_by_name=item.performed_by_name,
-                trace_id=item.trace_id,
-                created_at=item.created_at,
-            )
+            schemas.AuditLogListItem.model_validate(item, from_attributes=True)
             for item in result.scalars()
         ]
 
