@@ -143,8 +143,12 @@ plugins = ["pydantic.mypy"]
 ignore_missing_imports = false
 
 [[tool.mypy.overrides]]
-module = ["aidial_sdk.*", "msal.*", "keycloak.*"]
+module = ["aidial_sdk.*"]
 follow_untyped_imports = true
+
+[[tool.mypy.overrides]]
+module = ["msal.*", "keycloak.*"]
+ignore_missing_imports = true
 
 [tool.poetry]
 package-mode = true
