@@ -178,6 +178,8 @@ class ChannelDatasetVersion(DefaultBase):
     indexing_config_hash: Mapped[str | None] = mapped_column(type_=String(10), default=None)
     # Resolved configuration at indexing time (e.g. dynamic URN version resolved to concrete version)
     resolved_config: Mapped[dict | None] = mapped_column(type_=postgresql.JSONB, default=None)
+    # Indexing statistics (normalization/harmonization error counts)
+    indexing_stats: Mapped[dict | None] = mapped_column(type_=postgresql.JSONB, default=None)
 
     # relationships
     channel_dataset: Mapped[ChannelDataset] = relationship(back_populates="versions")

@@ -37,6 +37,10 @@ class ChannelDatasetVersion(DbDefaultBase):
     resolved_config: dict | None = Field(
         description="Resolved dataset configuration at indexing time (dynamic URN values resolved to concrete values)",
     )
+    indexing_stats: dict | None = Field(
+        default=None,
+        description="Normalization/harmonization error statistics collected during indexing",
+    )
 
     @property
     def version_data_id(self) -> int:

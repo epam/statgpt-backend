@@ -4,7 +4,13 @@ import logging
 
 from langchain_core.documents import Document
 from langchain_core.prompts import ChatPromptTemplate
-from langchain_core.runnables import Runnable, RunnableConfig, RunnableLambda, RunnablePassthrough
+from langchain_core.runnables import (
+    Runnable,
+    RunnableConfig,
+    RunnableLambda,
+    RunnableParallel,
+    RunnablePassthrough,
+)
 
 from statgpt.common.auth.auth_context import AuthContext
 from statgpt.common.config import logger
@@ -88,12 +94,18 @@ class Indexer:
         version_ids: set[int],
         max_n_indicators: int | None,
         auth_context: AuthContext,
-    ) -> None:
+    ) -> dict:
+        stats: dict = {}
         if self._is_normalize:
-            await self._normalize(dataset, version_id, max_n_indicators, auth_context)
+            stats["normalization"] = await self._normalize(
+                dataset, version_id, max_n_indicators, auth_context
+            )
         if self._is_harmonize:
             version_ids = {version_id}.union(version_ids)
-            await self._harmonize(dataset, version_id, version_ids, max_n_indicators)
+            stats["harmonization"] = await self._harmonize(
+                dataset, version_id, version_ids, max_n_indicators
+            )
+        return stats
 
     def _create_normalize_llm_chain(self) -> Runnable:
         normalization_prompt = HybridIndexerDefaultPrompts.get_normalize_prompts()
@@ -105,15 +117,15 @@ class Indexer:
 
         llm_chain = normalization_prompt | normalize_llm | (lambda d: d.normalized.lower())
 
-        async def _safe_normalize(inputs: dict) -> str:
+        async def _safe_normalize(inputs: dict) -> tuple[str, str | None]:
             try:
-                return await llm_chain.ainvoke(inputs)
-            except Exception:
+                return await llm_chain.ainvoke(inputs), None
+            except Exception as e:
                 input_text = inputs.get('input', '')
                 _log.exception(
                     f"Normalization failed for '{input_text}', using original input as fallback"
                 )
-                return input_text.lower()
+                return input_text.lower(), str(e)
 
         return RunnableLambda(_safe_normalize)
 
@@ -141,15 +153,15 @@ class Indexer:
             | (lambda d: d.primary)
         )
 
-        async def _safe_harmonize(inputs: dict) -> str:
+        async def _safe_harmonize(inputs: dict) -> tuple[str, str | None]:
             try:
-                return await llm_chain.ainvoke(inputs)
-            except Exception:
+                return await llm_chain.ainvoke(inputs), None
+            except Exception as e:
                 statement = inputs['index'].name_normalized
                 _log.exception(
                     f"Harmonization failed for '{statement}', using statement as fallback"
                 )
-                return statement
+                return statement, str(e)
 
         return RunnableLambda(_safe_harmonize)
 
@@ -158,8 +170,12 @@ class Indexer:
             RunnablePassthrough.assign(
                 series=lambda d: self._create_series(d['dataset'], d['indicator'])
             )
-            | RunnablePassthrough.assign(normalized=self._create_normalize_chain())
-            | self._create_matching_index
+            | RunnablePassthrough.assign(normalize_result=self._create_normalize_chain())
+            | RunnablePassthrough.assign(normalized=lambda d: d['normalize_result'][0])
+            | RunnableParallel(
+                document=self._create_matching_index,
+                error=lambda d: d['normalize_result'][1],
+            )
         )
 
     async def _normalize(
@@ -168,7 +184,7 @@ class Indexer:
         version_id: int,
         max_n_indicators: int | None,
         auth_context: AuthContext,
-    ) -> None:
+    ) -> dict:
         indicators = await dataset.get_indicators(auth_context=auth_context, allow_cached=True)
         if max_n_indicators is not None:
             indicators = indicators[:max_n_indicators]
@@ -177,7 +193,7 @@ class Indexer:
             txt = f"{len(indicators)} indicators for dataset {dataset.name} ({dataset.entity_id})"
             _log.info(f'Normalizing {txt}')
             index_chain = self._matching_index_chain()
-            documents = await index_chain.abatch(
+            results = await index_chain.abatch(
                 inputs=[
                     dict(dataset=dataset, version_id=version_id, indicator=indicator)
                     for indicator in indicators
@@ -186,6 +202,12 @@ class Indexer:
                     max_concurrency=self._settings.concurrency_limit,
                 ),
             )
+            documents = [r['document'] for r in results]
+            errors = [r['error'] for r in results if r['error'] is not None]
+            if errors:
+                _log.warning(
+                    f"Normalization failed for {len(errors)} out of {len(indicators)} indicators"
+                )
             _log.info(f'Finished normalizing {txt}')
 
         # push index to elasticsearch & vectorstore
@@ -201,13 +223,15 @@ class Indexer:
             version_id=version_id,
         )
 
+        return {"total": len(indicators), "errors": len(errors)}
+
     async def _harmonize(
         self,
         dataset: base.DataSet,
         version_id: int,
         version_ids: set[int],
         max_n_indicators: int | None,
-    ) -> None:
+    ) -> dict:
         indexer_config: base.IndexerConfig = dataset.config.indexer
         unpack = indexer_config.indicator.unpack
         super_primary = indexer_config.indicator.super_primary
@@ -223,7 +247,7 @@ class Indexer:
             _log.info(
                 f"Harmonizing {len(matching_items)} indicators for dataset {dataset.name} (id={dataset.entity_id})"
             )
-            documents = await chain.abatch(
+            results = await chain.abatch(
                 inputs=[
                     dict(
                         dataset=dataset,
@@ -240,6 +264,12 @@ class Indexer:
                     max_concurrency=self._settings.concurrency_limit,
                 ),
             )
+            documents = [r['document'] for r in results]
+            errors = [r['error'] for r in results if r['error'] is not None]
+            if errors:
+                _log.warning(
+                    f"Harmonization failed for {len(errors)} out of {len(matching_items)} indicators"
+                )
             _log.info(
                 f"Harmonizing {len(matching_items)} indicators for dataset {dataset.name} ({dataset.entity_id}) completed"
             )
@@ -247,6 +277,8 @@ class Indexer:
         await self._indicators_index.add_bulk(
             documents=(doc.model_dump(mode='json') for doc in documents)
         )
+
+        return {"total": len(matching_items), "errors": len(errors)}
 
     def _create_harmonize_chain(self, unpack: bool) -> Runnable:
         if unpack:
@@ -260,13 +292,15 @@ class Indexer:
             | RunnablePassthrough.assign(
                 indicators_str=lambda d: self._get_indicators_str(d['match_candidates'])
             )
-            | RunnablePassthrough.assign(primary=self._create_harmonize_llm_chain())
+            | RunnablePassthrough.assign(harmonize_result=self._create_harmonize_llm_chain())
             | RunnablePassthrough.assign(
-                primary_normalized=lambda d: d[
-                    'primary'
-                ],  # no need to normalize as extracted from normalized
+                primary=lambda d: d['harmonize_result'][0],
+                primary_normalized=lambda d: d['harmonize_result'][0],
             )
-            | self._create_indicator_index
+            | RunnableParallel(
+                document=self._create_indicator_index,
+                error=lambda d: d['harmonize_result'][1],
+            )
         )
 
     async def _find_match_candidates(self, d: dict) -> list[dict]:
@@ -288,17 +322,21 @@ class Indexer:
                 )
             )
             | RunnablePassthrough.assign(
-                primary_normalized=lambda d: self._normalized_primary_chain(
+                normalize_result=lambda d: self._normalized_primary_chain(
                     primary=d['primary'], cache=d['cache']
                 )
             )
+            | RunnablePassthrough.assign(primary_normalized=lambda d: d['normalize_result'][0])
             | self._save_to_cache
-            | self._create_indicator_index
+            | RunnableParallel(
+                document=self._create_indicator_index,
+                error=lambda d: d['normalize_result'][1],
+            )
         )
 
     def _normalized_primary_chain(self, primary: str, cache: dict[str, str]) -> Runnable:
         if primary in cache:
-            return RunnableLambda(lambda _: cache[primary])
+            return RunnableLambda(lambda _: (cache[primary], None))
         else:
             return (
                 RunnablePassthrough.assign(input=lambda _: primary)
@@ -308,10 +346,9 @@ class Indexer:
     @staticmethod
     def _save_to_cache(d: dict) -> dict:
         primary = d['primary']
-        normalized = d['primary_normalized']
         cache = d['cache']
         if primary not in cache:
-            cache[primary] = normalized
+            cache[primary] = d['primary_normalized']
         return d
 
     @staticmethod
