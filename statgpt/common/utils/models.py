@@ -37,11 +37,8 @@ def get_chat_model(
         callback = BrokenResponseInterceptor(regex_pattern=r"\s{5,}")
         params.setdefault("callbacks", []).append(callback)
 
-    api_key_log = (
-        f"{api_key.get_secret_value()[:3]}*****{api_key.get_secret_value()[-2:]}"
-    )
     logger.info(
-        f"creating langchain LLM with the following params: {params}, Api key: {api_key_log}"
+        f"creating langchain LLM with the following params: {params}"
     )
     return AzureChatOpenAI.model_validate(params)
 
@@ -60,10 +57,7 @@ def get_embeddings_model(
         max_retries=10,
         api_key=api_key,  # since we use SecretStr, it won't be logged
     )
-    api_key_log = (
-        f"{api_key.get_secret_value()[:3]}*****{api_key.get_secret_value()[-2:]}"
-    )
     logger.info(
-        f"creating langchain embeddings with the following params: {params}, Api key: {api_key_log}"
+        f"creating langchain embeddings with the following params: {params}"
     )
     return AzureOpenAIEmbeddings.model_validate(params)
