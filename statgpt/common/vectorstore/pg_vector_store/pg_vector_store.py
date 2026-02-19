@@ -659,15 +659,14 @@ class PgVectorStore(VectorStore, DbServiceBase):
         doc_count = 0
 
         # Define Parquet schema
-        schema = pa.schema(
-            [
-                ('id', pa.int32()),
-                ('document', pa.string()),
-                ('embeddings', pa.list_(pa.float32())),
-                ('created_at', pa.timestamp('us', tz='UTC')),
-                ('updated_at', pa.timestamp('us', tz='UTC')),
-            ]
-        )
+        schema_fields: list[tuple[str, pa.DataType]] = [
+            ('id', pa.int32()),
+            ('document', pa.string()),
+            ('embeddings', pa.list_(pa.float32())),
+            ('created_at', pa.timestamp('us', tz='UTC')),
+            ('updated_at', pa.timestamp('us', tz='UTC')),
+        ]
+        schema = pa.schema(schema_fields)
 
         async with self._lock_session() as session:
             # Only export documents that are referenced by metadata with specified version_ids
@@ -736,16 +735,15 @@ class PgVectorStore(VectorStore, DbServiceBase):
         mapping_count = 0
 
         # Define Parquet schema (JSON stored as string)
-        schema = pa.schema(
-            [
-                ('id', pa.int32()),
-                ('document_id', pa.int32()),
-                ('dataset_id', pa.string()),
-                ('details', pa.string()),  # JSON as string
-                ('created_at', pa.timestamp('us', tz='UTC')),
-                ('updated_at', pa.timestamp('us', tz='UTC')),
-            ]
-        )
+        schema_fields: list[tuple[str, pa.DataType]] = [
+            ('id', pa.int32()),
+            ('document_id', pa.int32()),
+            ('dataset_id', pa.string()),
+            ('details', pa.string()),  # JSON as string
+            ('created_at', pa.timestamp('us', tz='UTC')),
+            ('updated_at', pa.timestamp('us', tz='UTC')),
+        ]
+        schema = pa.schema(schema_fields)
 
         async with self._lock_session() as session:
             query = (

@@ -89,6 +89,8 @@ class CommandsInterceptor(BaseMessageInterceptor):
                 continue
             if not msg.content:
                 continue
+            if not isinstance(msg.content, str):
+                continue
 
             state_or_none = state if ix == 0 else None
 
