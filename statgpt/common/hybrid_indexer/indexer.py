@@ -204,6 +204,7 @@ class Indexer:
             )
             documents = [r['document'] for r in results]
             errors = [r['error'] for r in results if r['error'] is not None]
+            error_types = dict(collections.Counter(errors))
             if errors:
                 _log.warning(
                     f"Normalization failed for {len(errors)} out of {len(indicators)} indicators"
@@ -223,7 +224,7 @@ class Indexer:
             version_id=version_id,
         )
 
-        return {"total": len(indicators), "errors": len(errors)}
+        return {"total": len(indicators), "errors": len(errors), "error_types": error_types}
 
     async def _harmonize(
         self,
@@ -266,6 +267,7 @@ class Indexer:
             )
             documents = [r['document'] for r in results]
             errors = [r['error'] for r in results if r['error'] is not None]
+            error_types = dict(collections.Counter(errors))
             if errors:
                 _log.warning(
                     f"Harmonization failed for {len(errors)} out of {len(matching_items)} indicators"
@@ -278,7 +280,7 @@ class Indexer:
             documents=(doc.model_dump(mode='json') for doc in documents)
         )
 
-        return {"total": len(matching_items), "errors": len(errors)}
+        return {"total": len(matching_items), "errors": len(errors), "error_types": error_types}
 
     def _create_harmonize_chain(self, unpack: bool) -> Runnable:
         if unpack:
