@@ -76,7 +76,10 @@ class AdminAuditLogService:
         if offset is not None:
             query = query.offset(offset)
         result = await self._session.execute(query)
-        return self._map_to_log_items(result.scalars())
+        return [
+            schemas.AuditLogListItem.model_validate(item, from_attributes=True)
+            for item in result.scalars()
+        ]
 
     async def get_count(
         self,
@@ -101,24 +104,6 @@ class AdminAuditLogService:
             created_at_to=created_at_to,
         )
         return (await self._session.execute(query)).scalar_one()
-
-    @staticmethod
-    def _map_to_log_items(items) -> list[schemas.AuditLogListItem]:
-        return [
-            schemas.AuditLogListItem(
-                id=item.id,
-                entity_type=item.entity_type,
-                action_type=item.action_type,
-                item_id=item.item_id,
-                entity_id=item.entity_id,
-                entity_name=item.entity_name,
-                performed_by=item.performed_by,
-                performed_by_name=item.performed_by_name,
-                trace_id=item.trace_id,
-                created_at=item.created_at,
-            )
-            for item in items
-        ]
 
     @staticmethod
     def _apply_filters(query, **filters):
