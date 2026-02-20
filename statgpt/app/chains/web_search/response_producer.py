@@ -5,7 +5,6 @@ from aidial_sdk.chat_completion import Attachment
 from openai import APIError
 
 from statgpt.app.chains.parameters import ChainParameters
-from statgpt.app.config import StateVarsConfig
 from statgpt.app.utils import OpenAiToDialStreamer, openai
 from statgpt.app.utils.dial_stages import optional_stage, timed_stage
 from statgpt.common.config import multiline_logger as logger
@@ -87,7 +86,7 @@ class RagResponseProducer(ResponseProducerABC):
             choice,
             deployment=self._deployment_id,
             stream_content=self._stream_content,
-            show_debug_stages=state.get(StateVarsConfig.SHOW_DEBUG_STAGES, False),
+            show_debug_stages=state.show_debug_stages,
             stages_config=self._stages_config,
         )
 
@@ -112,7 +111,7 @@ class UrlOnlyResponseProducer(ResponseProducerABC):
         auth_context = ChainParameters.get_auth_context(inputs)
         choice = ChainParameters.get_choice(inputs)
         state = ChainParameters.get_state(inputs)
-        show_debug_stages = state.get(StateVarsConfig.SHOW_DEBUG_STAGES, False)
+        show_debug_stages = state.show_debug_stages
 
         stage_generator = timed_stage(choice=choice, name=f"[DEBUG] Web RAG search: {query}")
         with optional_stage(stage_generator, enabled=show_debug_stages) as debug_stage:
@@ -127,7 +126,7 @@ class UrlOnlyResponseProducer(ResponseProducerABC):
                 choice,
                 deployment=self._deployment_id,
                 stream_content=True,
-                show_debug_stages=state.get(StateVarsConfig.SHOW_DEBUG_STAGES, False),
+                show_debug_stages=state.show_debug_stages,
                 stages_config=self._stages_config,
             )
 

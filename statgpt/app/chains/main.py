@@ -3,7 +3,6 @@ from langchain_core.runnables import Runnable, RunnablePassthrough
 from statgpt.app.chains.out_of_scope_checker import OutOfScopeChecker
 from statgpt.app.chains.parameters import ChainParameters
 from statgpt.app.chains.supreme_agent import SupremeAgentExecutor, ToolCaller
-from statgpt.app.config import StateVarsConfig
 from statgpt.app.config.chain_parameters import ChainParametersConfig
 from statgpt.app.settings.dial_app import dial_app_settings
 from statgpt.app.utils.message_history import History, dial_tool_call_to_langchain_tool_call
@@ -41,7 +40,7 @@ class MainChainFactory:
         state = ChainParameters.get_state(inputs)
 
         if not dial_app_settings.enable_direct_tool_calls:
-            state[StateVarsConfig.DIRECT_TOOL_CALLS] = []
+            state.direct_tool_calls = []
             return inputs
 
         history = ChainParameters.get_history(inputs)
@@ -50,7 +49,7 @@ class MainChainFactory:
         tool_calls_received = last_msg.tool_calls
 
         if not tool_calls_received:
-            state[StateVarsConfig.DIRECT_TOOL_CALLS] = []
+            state.direct_tool_calls = []
             return inputs  # This is a common request, so we skip direct tool calls chain
 
         # parse tool calls to langchain format
@@ -59,7 +58,7 @@ class MainChainFactory:
             lc_tool_call = dial_tool_call_to_langchain_tool_call(dial_tool_call)
             tool_calls_parsed.append(lc_tool_call)
 
-        state[StateVarsConfig.DIRECT_TOOL_CALLS] = tool_calls_parsed
+        state.direct_tool_calls = tool_calls_parsed
 
         tool_executor = ToolCaller.from_config(self._channel_config)
         for tool_call in tool_calls_parsed:
@@ -73,9 +72,9 @@ class MainChainFactory:
 
         skip_reason: str = ''
 
-        if state.get(StateVarsConfig.DIRECT_TOOL_CALLS, []):
+        if state.direct_tool_calls:
             skip_reason = "Direct tool calls found"
-        elif state.get(StateVarsConfig.CMD_OUT_OF_SCOPE_ONLY, False):
+        elif state.cmd_out_of_scope_only:
             skip_reason = "CMD_OUT_OF_SCOPE_ONLY is set to True"
         elif ChainParameters.is_out_of_scope(inputs):
             skip_reason = "User message is out of scope"
@@ -94,8 +93,6 @@ class MainChainFactory:
         history = ChainParameters.get_history(inputs)
         history.dump_state(state)
 
-        state[StateVarsConfig.OUT_OF_SCOPE] = ChainParameters.is_out_of_scope(inputs)
-        state[StateVarsConfig.OUT_OF_SCOPE_REASONING] = ChainParameters.get_out_of_scope_reasoning(
-            inputs
-        )
+        state.out_of_scope = ChainParameters.is_out_of_scope(inputs)
+        state.out_of_scope_reasoning = ChainParameters.get_out_of_scope_reasoning(inputs)
         return inputs

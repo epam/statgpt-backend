@@ -19,7 +19,7 @@ from langchain_core.runnables import Runnable, RunnablePassthrough
 from statgpt.app.chains.data_query.data_query_artifacts_displayer import DataQueryArtifactDisplayer
 from statgpt.app.chains.parameters import ChainParameters
 from statgpt.app.chains.tools import StatGptTool
-from statgpt.app.config import ChainParametersConfig, StateVarsConfig
+from statgpt.app.config import ChainParametersConfig
 from statgpt.app.default_prompts import supreme_agent_default_prompts
 from statgpt.app.schemas import (
     FailedToolArtifact,
@@ -109,8 +109,7 @@ class ToolCaller:
                 # logger.info(f"{tool_call=}")
                 state = ChainParameters.get_state(inputs)
                 skip_tools_execution = (
-                    state.get(StateVarsConfig.CMD_SKIP_TOOLS_EXECUTION, False)
-                    and prefix != FAKE_TOOL_STAGE_PREFIX
+                    state.cmd_skip_tools_execution and prefix != FAKE_TOOL_STAGE_PREFIX
                 )
                 if skip_tools_execution:
                     return ToolMessage(
@@ -252,7 +251,7 @@ class SupremeAgentExecutor:
         history = ChainParameters.get_history(inputs)
         state = ChainParameters.get_state(inputs)
         configuration = ChainParameters.get_configuration(inputs)
-        debug = state.get(StateVarsConfig.SHOW_DEBUG_STAGES, False)
+        debug = state.show_debug_stages
 
         tool_executor = ToolCaller.from_config(self._channel_config)
         supreme_agent = SupremeAgent.create(
@@ -273,7 +272,7 @@ class SupremeAgentExecutor:
         )
 
         state = ChainParameters.get_state(inputs)
-        skip_tools_execution = state.get(StateVarsConfig.CMD_SKIP_TOOLS_EXECUTION, False)
+        skip_tools_execution = state.cmd_skip_tools_execution
 
         for i in range(self._channel_config.supreme_agent.max_agent_iterations):
             name = f"[DEBUG] Supreme Agent run {i + 1}"

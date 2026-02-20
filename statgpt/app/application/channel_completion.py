@@ -10,9 +10,9 @@ from aidial_sdk.exceptions import InternalServerError
 
 from statgpt.app.chains import MainChainFactory
 from statgpt.app.chains.parameters import ChainParameters
-from statgpt.app.config import ChainParametersConfig as ParamsConfig
-from statgpt.app.config import StateVarsConfig
+from statgpt.app.config import ChainParametersConfig
 from statgpt.app.schemas.dial_app_configuration import StatGPTConfiguration
+from statgpt.app.schemas.state import State
 from statgpt.app.security import create_auth_context
 from statgpt.app.services.chat_facade import ChannelServiceFacade
 from statgpt.app.settings.dial_app import dial_app_settings
@@ -108,14 +108,14 @@ class ChannelCompletion(ChatCompletion):
                 )
 
             inputs = {
-                ParamsConfig.REQUEST: request,
-                ParamsConfig.AUTH_CONTEXT: auth_context,
-                ParamsConfig.CHOICE: choice,
-                ParamsConfig.DATA_SERVICE: service,
-                ParamsConfig.STATE: cls.init_state(request),
-                ParamsConfig.SKIP_OUT_OF_SCOPE_CHECK: dial_app_settings.skip_out_of_scope_check,
-                ParamsConfig.START_OF_REQUEST: start_time,
-                ParamsConfig.CONFIGURATION: configuration,
+                ChainParametersConfig.REQUEST: request,
+                ChainParametersConfig.AUTH_CONTEXT: auth_context,
+                ChainParametersConfig.CHOICE: choice,
+                ChainParametersConfig.DATA_SERVICE: service,
+                ChainParametersConfig.STATE: State.init_from_request(request),
+                ChainParametersConfig.SKIP_OUT_OF_SCOPE_CHECK: dial_app_settings.skip_out_of_scope_check,
+                ChainParametersConfig.START_OF_REQUEST: start_time,
+                ChainParametersConfig.CONFIGURATION: configuration,
             }
 
             callbacks: list = []
@@ -127,31 +127,29 @@ class ChannelCompletion(ChatCompletion):
                 state = ChainParameters.get_state(inputs)  # default in case of error
                 try:
                     name = '[DEBUG] Performance of request'
-                    debug = state.get(StateVarsConfig.SHOW_DEBUG_STAGES, False)
+                    debug = state.show_debug_stages
                     with optional_timed_stage(choice=choice, name=name, enabled=debug) as stage:
-                        inputs[ParamsConfig.PERFORMANCE_STAGE] = stage
+                        inputs[ChainParametersConfig.PERFORMANCE_STAGE] = stage
                         chains_response: dict = await chain.ainvoke(
                             inputs, config={'callbacks': callbacks}  # type: ignore[typeddict-item]
                         )
                     state = ChainParameters.get_state(chains_response)
-                    state[StateVarsConfig.ERROR] = None
+                    state.error = None
                 except openai.ContentFilterFinishReasonError as e:
                     _log.exception(e)
                     choice.append_content(
                         "The query was blocked by the LLM provider content filter for violating safety guidelines."
                     )
-                    state[StateVarsConfig.ERROR] = str(e)
+                    state.error = str(e)
                 except Exception as e:
                     _log.exception(e)
                     choice.append_content("An error occurred while processing your request.")
-                    state[StateVarsConfig.ERROR] = str(e)
+                    state.error = str(e)
 
                 priced_usage = await cls._calc_token_usage_costs(token_usage_manager)
 
             token_usage_config = service.channel_config.token_usage
-            show_cost_stage = (
-                not token_usage_config.debug_only or state[StateVarsConfig.SHOW_DEBUG_STAGES]
-            )
+            show_cost_stage = not token_usage_config.debug_only or state.show_debug_stages
             with optional_timed_stage(
                 choice=choice, name=token_usage_config.stage_name, enabled=show_cost_stage
             ) as stage:
@@ -161,30 +159,6 @@ class ChannelCompletion(ChatCompletion):
 
             cls._add_usage_per_model(priced_usage, response)
             cls.set_dial_state(state, choice)
-
-    @staticmethod
-    def init_state(request: Request) -> dict:
-        defaults = {
-            # set default commands values from env vars
-            StateVarsConfig.SHOW_DEBUG_STAGES: dial_app_settings.dial_show_debug_stages,
-            StateVarsConfig.CMD_OUT_OF_SCOPE_ONLY: dial_app_settings.cmd_out_of_scope_only,
-            StateVarsConfig.CMD_RAG_PREFILTER_ONLY: dial_app_settings.cmd_rag_prefilter_only,
-            StateVarsConfig.CMD_SKIP_DATA_QUERY_SUMMARIZATION: dial_app_settings.cmd_skip_data_query_summarization,
-            StateVarsConfig.CMD_SKIP_TOOLS_EXECUTION: dial_app_settings.cmd_skip_tools_execution,
-        }
-
-        if len(request.messages) < 2:
-            return defaults
-
-        # for some commands, we set their values
-        # to be the same as in previous assistant response (if available)
-        last_response = request.messages[-2]
-        if custom_content := last_response.custom_content:
-            if state := custom_content.state:
-                if (show_debug_stages := state.get(StateVarsConfig.SHOW_DEBUG_STAGES)) is not None:
-                    return {**defaults, StateVarsConfig.SHOW_DEBUG_STAGES: show_debug_stages}
-
-        return defaults
 
     @classmethod
     async def _calc_token_usage_costs(
@@ -221,6 +195,6 @@ class ChannelCompletion(ChatCompletion):
             )
 
     @staticmethod
-    def set_dial_state(state: dict, choice: Choice) -> None:
+    def set_dial_state(state: State, choice: Choice) -> None:
         _log.info(f"setting following DIAL state: {state}")
-        choice.set_state(state)
+        choice.set_state(state.model_dump(exclude_none=True))

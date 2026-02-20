@@ -3,7 +3,6 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.runnables import Runnable, RunnableLambda, RunnablePassthrough
 
 from statgpt.app.chains.parameters import ChainParameters
-from statgpt.app.config import StateVarsConfig
 from statgpt.app.schemas import LLMSelectionCandidateBase, SelectedCandidates
 from statgpt.common.config import multiline_logger as logger
 from statgpt.common.schemas import LLMModelConfig
@@ -88,7 +87,7 @@ class CandidatesSelectionSimpleChainFactory(BatchedSelectionInnerChainFactory):
     def _display_formatted_candidates_in_stage(self, inputs: dict) -> dict:
         choice = ChainParameters.get_choice(inputs)
         state = ChainParameters.get_state(inputs)
-        show_debug_stages = state.get(StateVarsConfig.SHOW_DEBUG_STAGES)
+        show_debug_stages = state.show_debug_stages
 
         if not show_debug_stages:
             return inputs
@@ -105,7 +104,7 @@ class CandidatesSelectionSimpleChainFactory(BatchedSelectionInnerChainFactory):
     def _display_llm_response_in_stage(self, inputs: dict) -> dict:
         choice = ChainParameters.get_choice(inputs)
         state = ChainParameters.get_state(inputs)
-        show_debug_stages = state.get(StateVarsConfig.SHOW_DEBUG_STAGES)
+        show_debug_stages = state.show_debug_stages
 
         if not show_debug_stages:
             return inputs

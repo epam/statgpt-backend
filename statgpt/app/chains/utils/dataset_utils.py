@@ -1,5 +1,4 @@
 from statgpt.app.chains.parameters import ChainParameters
-from statgpt.app.config import StateVarsConfig
 from statgpt.app.services.chat_facade import VersionedDataSet
 from statgpt.app.utils.dial_stages import optional_timed_stage
 from statgpt.common.data.base import DataSet
@@ -10,7 +9,7 @@ async def get_available_datasets(inputs: dict) -> dict[str, VersionedDataSet]:
     auth_context = ChainParameters.get_auth_context(inputs)
     choice = ChainParameters.get_choice(inputs)
     state = ChainParameters.get_state(inputs)
-    debug = state.get(StateVarsConfig.SHOW_DEBUG_STAGES, False)
+    debug = state.show_debug_stages
 
     name = '[DEBUG] Get available datasets'
     with optional_timed_stage(choice=choice, name=name, enabled=debug):
@@ -23,7 +22,7 @@ async def get_dataset_by_source_id(inputs: dict, dataset_id: str) -> DataSet | N
     auth_context = ChainParameters.get_auth_context(inputs)
     choice = ChainParameters.get_choice(inputs)
     state = ChainParameters.get_state(inputs)
-    debug = state.get(StateVarsConfig.SHOW_DEBUG_STAGES, False)
+    debug = state.show_debug_stages
 
     name = f'[DEBUG] Get dataset by ID: {dataset_id}'
     with optional_timed_stage(choice=choice, name=name, enabled=debug):

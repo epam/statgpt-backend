@@ -12,7 +12,6 @@ from statgpt.app.chains.candidates_selection_batched import (
     CandidatesSelectionBatchedChainFactory,
 )
 from statgpt.app.chains.parameters import ChainParameters
-from statgpt.app.config import StateVarsConfig
 from statgpt.app.schemas.query_builder import ChainState, DatasetDimQueries
 from statgpt.app.services.chat_facade import ScoredIndicatorCandidate
 from statgpt.common.config import logger
@@ -448,7 +447,7 @@ class PackedIndicatorsSelectionV3ChainFactory(PackedIndicatorsSelectionV1ChainFa
 
     def _show_combined_queries_stage(self, inputs: dict):
         state = ChainParameters.get_state(inputs)
-        show_debug_stages = state.get(StateVarsConfig.SHOW_DEBUG_STAGES) or False
+        show_debug_stages = state.show_debug_stages
 
         # it's a debug stage. thus we check whether to show it
         if not show_debug_stages:

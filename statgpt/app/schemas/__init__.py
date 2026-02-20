@@ -12,7 +12,7 @@ from .service import (
     GitVersionResponse,
     SettingsResponse,
 )
-from .state import ChatState
+from .state import State
 from .tool_artifact import (
     BaseFileRagArtifact,
     DataQueryArtifact,

@@ -4,7 +4,7 @@ import pandas as pd
 from aidial_sdk.chat_completion import Choice
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from statgpt.app.config import StateVarsConfig
+from statgpt.app.schemas.state import State
 from statgpt.app.services.chat_facade import (
     ChannelServiceFacade,
     ScoredDimensionCandidate,
@@ -356,7 +356,7 @@ class ChainState(BaseModel):
     auth_context: AuthContext
     choice: Choice
     target: t.Any
-    state: dict[str, t.Any] = Field(default_factory=dict)
+    state: State = Field(default_factory=State)
     data_service: ChannelServiceFacade
     query_with_expanded_groups: str = ''
     normalized_query_raw: str = Field(
@@ -404,7 +404,7 @@ class ChainState(BaseModel):
 
     @property
     def show_debug_stages(self):
-        return self.state.get(StateVarsConfig.SHOW_DEBUG_STAGES, False)
+        return self.state.show_debug_stages
 
 
 class MetaStateKeys:

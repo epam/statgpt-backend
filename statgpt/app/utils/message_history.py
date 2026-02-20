@@ -1,5 +1,4 @@
 import json
-import typing as t
 from collections.abc import Sequence
 
 from aidial_sdk.chat_completion import Message as DialMessage
@@ -15,7 +14,7 @@ from langchain_core.messages import (
 from langchain_core.messages import ToolCall as LangChainToolCall
 from langchain_core.messages import ToolMessage
 
-from statgpt.app.config import StateVarsConfig
+from statgpt.app.schemas.state import State, StatGPTMessage
 from statgpt.app.schemas.tool_artifact import ToolArtifact
 from statgpt.app.services.chat_facade import ChannelServiceFacade
 from statgpt.app.utils.message_interceptors.commands_interceptor import CommandsInterceptor
@@ -46,12 +45,10 @@ class History:
     def __init__(
         self,
         messages: list[DialMessage],
-        tool_messages: list[AIMessage | ToolMessage | SystemMessage] | None = None,
+        tool_messages: list[StatGPTMessage] | None = None,
     ):
         self._messages: list[DialMessage] = messages
-        self._tool_messages: list[AIMessage | ToolMessage | SystemMessage] = (
-            [] if tool_messages is None else tool_messages
-        )
+        self._tool_messages: list[StatGPTMessage] = [] if tool_messages is None else tool_messages
 
     @classmethod
     def create_empty(cls) -> 'History':
@@ -61,7 +58,7 @@ class History:
     async def from_dial_with_interceptors(
         cls,
         messages: list[DialMessage],
-        state: dict[str, t.Any],
+        state: State,
         data_service: ChannelServiceFacade,
     ) -> 'History':
         """Create an instance of the `History` class from DIAL messages,
@@ -220,10 +217,10 @@ class History:
 
         return chat_history
 
-    def _dump_tool_messages_to_state(self, state: dict) -> None:
+    def _dump_tool_messages_to_state(self, state: State) -> None:
         result = []
         for msg in self._tool_messages:
-            msg_dump: dict = msg.model_dump(mode='json', exclude={'artifact'}, exclude_none=True)
+            msg_dump: dict = msg.model_dump(mode='json', exclude={'artifact'})
 
             artifact: ToolArtifact | None
             if (artifact := getattr(msg, 'artifact', None)) is not None:
@@ -232,9 +229,9 @@ class History:
 
                 msg_dump['custom_content']['state'] = artifact.state.model_dump(mode='json')
             result.append(msg_dump)
-        state[StateVarsConfig.TOOL_MESSAGES] = result
+        state.tool_messages = result  # type: ignore
 
-    def dump_state(self, state: dict) -> None:
+    def dump_state(self, state: State) -> None:
         self._dump_tool_messages_to_state(state)
 
     @staticmethod
@@ -246,18 +243,6 @@ class History:
         if message.custom_content is None:
             return tool_messages
 
-        state_dict: dict
-        if message.custom_content.state and isinstance(message.custom_content.state, dict):
-            state_dict = message.custom_content.state
-            for tool_msg in state_dict.get(StateVarsConfig.TOOL_MESSAGES, []):
-                msg_type = tool_msg.get('type')
-                if msg_type == 'ai':  # Tool Call
-                    tool_messages.append(AIMessage.model_validate(tool_msg))
-                elif msg_type == 'tool':  # Tool Response
-                    tool_messages.append(ToolMessage.model_validate(tool_msg))
-                elif msg_type == 'system':
-                    tool_messages.append(SystemMessage.model_validate(tool_msg))
-                else:
-                    logger.info(f"Tool message: {tool_msg}")
-                    raise RuntimeError(f"Unknown tool message type: {msg_type!r}")
+        if message.custom_content.state and isinstance(message.custom_content.state, State):
+            tool_messages = message.custom_content.state.tool_messages
         return tool_messages
