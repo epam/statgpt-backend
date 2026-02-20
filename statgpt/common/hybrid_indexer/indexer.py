@@ -315,6 +315,7 @@ class Indexer:
         )
 
     def _create_plain_harmonize_chain(self) -> Runnable:
+        normalize_llm_chain = self._create_normalize_llm_chain()
         return (
             RunnablePassthrough.assign(
                 primary=lambda d: self._get_primary_from_series(
@@ -325,7 +326,7 @@ class Indexer:
             )
             | RunnablePassthrough.assign(
                 normalize_result=lambda d: self._normalized_primary_chain(
-                    primary=d['primary'], cache=d['cache']
+                    primary=d['primary'], cache=d['cache'], llm_chain=normalize_llm_chain
                 )
             )
             | RunnablePassthrough.assign(primary_normalized=lambda d: d['normalize_result'][0])
@@ -336,14 +337,13 @@ class Indexer:
             )
         )
 
-    def _normalized_primary_chain(self, primary: str, cache: dict[str, str]) -> Runnable:
+    def _normalized_primary_chain(
+        self, primary: str, cache: dict[str, str], llm_chain: Runnable
+    ) -> Runnable:
         if primary in cache:
             return RunnableLambda(lambda _: (cache[primary], None))
         else:
-            return (
-                RunnablePassthrough.assign(input=lambda _: primary)
-                | self._create_normalize_llm_chain()
-            )
+            return RunnablePassthrough.assign(input=lambda _: primary) | llm_chain
 
     @staticmethod
     def _save_to_cache(d: dict) -> dict:
