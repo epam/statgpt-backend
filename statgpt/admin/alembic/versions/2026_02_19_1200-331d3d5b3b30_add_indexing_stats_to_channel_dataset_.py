@@ -1,6 +1,6 @@
 """add indexing_stats to channel_dataset_versions
 
-Revision ID: a1b2c3d4e5f6
+Revision ID: 331d3d5b3b30
 Revises: 3b8a6a40f1cd
 Create Date: 2026-02-19 12:00:00.000000
 
@@ -13,7 +13,7 @@ from alembic import op
 from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
-revision: str = 'a1b2c3d4e5f6'
+revision: str = '331d3d5b3b30'
 down_revision: str | None = '3b8a6a40f1cd'
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
