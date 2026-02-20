@@ -70,6 +70,11 @@ class LLMModelConfig(BaseModelConfig):
                 raise ValueError("seed is not supported for GPT-5 models")
             if self.reasoning_effort is None:
                 raise ValueError("reasoning_effort is required for GPT-5 models")
+            if (
+                self.deployment is LLMModelsEnum.GPT_5_MINI_2025_08_07
+                and self.reasoning_effort is ReasoningEffortEnum.NONE
+            ):
+                raise ValueError("reasoning_effort=none is not supported for GPT-5 Mini")
             if self.reasoning_effort is not ReasoningEffortEnum.NONE and self.temperature != 1:
                 raise ValueError(
                     "temperature must be set to 1 when reasoning_effort is enabled for GPT-5 models"

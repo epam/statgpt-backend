@@ -5904,6 +5904,18 @@ packaging = "*"
 tenacity = ">=6.2.0"
 
 [[package]]
+name = "plotly-stubs"
+version = "0.1.2"
+description = "Type stubs for plotly."
+optional = false
+python-versions = "<3.15,>=3.11"
+groups = ["dev"]
+files = [
+    {file = "plotly_stubs-0.1.2-py3-none-any.whl", hash = "sha256:d3ddcc534d19dec93e3f6f94e214a33209a1c20860a0c350b0c3cbdce5232123"},
+    {file = "plotly_stubs-0.1.2.tar.gz", hash = "sha256:23bb0bbb4ac5cbd7dbdae3c4d6b4ea488842a59bad7111980b2b43d6788cdd64"},
+]
+
+[[package]]
 name = "pluggy"
 version = "1.6.0"
 description = "plugin and hook calling mechanisms for python"
@@ -6419,6 +6431,21 @@ files = [
 
 [package.extras]
 test = ["cffi", "hypothesis", "pandas", "pytest", "pytz"]
+
+[[package]]
+name = "pyarrow-stubs"
+version = "20.0.0.20251215"
+description = "Type annotations for pyarrow"
+optional = false
+python-versions = "<4,>=3.9"
+groups = ["dev"]
+files = [
+    {file = "pyarrow_stubs-20.0.0.20251215-py3-none-any.whl", hash = "sha256:0634e70388cd23e7c78e2abbb1989822edc34df2d2ff4fd50a2316dd0cdafd9f"},
+    {file = "pyarrow_stubs-20.0.0.20251215.tar.gz", hash = "sha256:92c1fda4998f0c13e608d8abc7e4b8537e3ef108f6bf42c58e5af97e7d143e75"},
+]
+
+[package.dependencies]
+pyarrow = ">=20"
 
 [[package]]
 name = "pycodestyle"
@@ -9601,4 +9628,4 @@ cli = ["httpx", "msal", "prompt-toolkit", "python-keycloak", "questionary", "ric
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.11,<3.12"
-content-hash = "d4921f8e0f5521dbbbafc909cd39364e5f1f5c8bfd4cc73ff5867b1b30a2deca"
+content-hash = "1858408213453c014e372807da36bb2c68642dac07aa3b50eb5cad4854d4d9bf"
