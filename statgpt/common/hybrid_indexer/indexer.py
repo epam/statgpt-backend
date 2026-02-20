@@ -1,16 +1,11 @@
+import asyncio
 import collections
 import json
 import logging
 
 from langchain_core.documents import Document
 from langchain_core.prompts import ChatPromptTemplate
-from langchain_core.runnables import (
-    Runnable,
-    RunnableConfig,
-    RunnableLambda,
-    RunnableParallel,
-    RunnablePassthrough,
-)
+from langchain_core.runnables import Runnable, RunnableConfig, RunnableLambda, RunnablePassthrough
 
 from statgpt.common.auth.auth_context import AuthContext
 from statgpt.common.config import logger
@@ -51,22 +46,14 @@ class Indexer:
             self.indicator_where = indicator_where
 
         def get_id(self) -> str:
-            query_ids = []
-            for dimension_query in self._dimension_queries:
-                query_ids.append(f"{dimension_query.dimension_id}_{dimension_query.values[0]}")
-            return ".".join(query_ids)
+            return ".".join(f"{dq.dimension_id}_{dq.values[0]}" for dq in self._dimension_queries)
 
         def serialize_dimension_queries(self) -> str:
-            query_ids = []
-            for dimension_query in self._dimension_queries:
-                query_ids.append({dimension_query.dimension_id: dimension_query.values[0]})
-            return json.dumps(query_ids)
+            return json.dumps([{dq.dimension_id: dq.values[0]} for dq in self._dimension_queries])
 
     @staticmethod
-    def _log_prompt(prompt: ChatPromptTemplate, title: str = '') -> ChatPromptTemplate:
-        formatted = prompt.pretty_repr()
-        logger.info(f'{title}:\n\n{formatted}')
-        return prompt
+    def _log_prompt(prompt: ChatPromptTemplate, title: str = '') -> None:
+        logger.info(f'{title}:\n\n{prompt.pretty_repr()}')
 
     def __init__(
         self,
@@ -117,22 +104,11 @@ class Indexer:
 
         llm_chain = normalization_prompt | normalize_llm | (lambda d: d.normalized.lower())
 
-        async def _safe_normalize(inputs: dict) -> tuple[str, str | None]:
-            try:
-                return await llm_chain.ainvoke(inputs), None
-            except Exception as e:
-                input_text = inputs.get('input', '')
-                _log.exception(
-                    f"Normalization failed for '{input_text}', using original input as fallback"
-                )
-                return input_text.lower(), str(e)
-
-        return RunnableLambda(_safe_normalize)
-
-    def _create_normalize_chain(self) -> Runnable:
-        return (
-            RunnablePassthrough.assign(input=lambda d: d['series'].indicator_name)
-            | self._create_normalize_llm_chain()
+        return RunnablePassthrough.assign(
+            _result=self._safe_invoke(llm_chain=llm_chain, label='Normalization')
+        ) | RunnablePassthrough.assign(
+            normalized=lambda d: d['_result'][0],
+            error=lambda d: d['_result'][1],
         )
 
     def _create_harmonize_llm_chain(self) -> Runnable:
@@ -143,39 +119,43 @@ class Indexer:
             api_key=self._models_api_key, model_config=self._config.harmonize_model_config
         ).with_structured_output(schema=schemas.HarmonizationOutput, method="json_schema")
 
-        llm_chain = (
+        llm_chain = harmonization_prompt | harmonize_llm | (lambda d: d.primary)
+
+        return (
             RunnablePassthrough.assign(
-                statement=lambda d: d['index'].name_normalized,
+                input=lambda d: d['index'].name_normalized,
                 indicators=lambda d: d['indicators_str'],
             )
-            | harmonization_prompt
-            | harmonize_llm
-            | (lambda d: d.primary)
+            | RunnablePassthrough.assign(
+                _result=self._safe_invoke(llm_chain=llm_chain, label='Harmonization')
+            )
+            | RunnablePassthrough.assign(
+                primary=lambda d: d['_result'][0],
+                normalized=lambda d: d['_result'][0],
+                error=lambda d: d['_result'][1],
+            )
         )
 
-        async def _safe_harmonize(inputs: dict) -> tuple[str, str | None]:
+    @staticmethod
+    def _safe_invoke(llm_chain: Runnable, label: str) -> Runnable:
+        async def _safe_llm_chain_invoke(inputs: dict) -> tuple[str, str | None]:
             try:
                 return await llm_chain.ainvoke(inputs), None
             except Exception as e:
-                statement = inputs['index'].name_normalized
-                _log.exception(
-                    f"Harmonization failed for '{statement}', using statement as fallback"
-                )
-                return statement, str(e)
+                fallback = inputs.get('input', '').lower()
+                _log.exception(f"{label} failed for '{fallback}', using fallback")
+                return fallback, str(e)
 
-        return RunnableLambda(_safe_harmonize)
+        return RunnableLambda(_safe_llm_chain_invoke)
 
     def _matching_index_chain(self) -> Runnable:
         return (
             RunnablePassthrough.assign(
                 series=lambda d: self._create_series(d['dataset'], d['indicator'])
             )
-            | RunnablePassthrough.assign(normalize_result=self._create_normalize_chain())
-            | RunnablePassthrough.assign(normalized=lambda d: d['normalize_result'][0])
-            | RunnableParallel(
-                document=self._create_matching_index,
-                error=lambda d: d['normalize_result'][1],
-            )
+            | RunnablePassthrough.assign(input=lambda d: d['series'].indicator_name)
+            | self._create_normalize_llm_chain()
+            | RunnablePassthrough.assign(document=self._create_matching_index)
         )
 
     async def _normalize(
@@ -202,13 +182,7 @@ class Indexer:
                     max_concurrency=self._settings.concurrency_limit,
                 ),
             )
-            documents = [r['document'] for r in results]
-            errors = [r['error'] for r in results if r['error'] is not None]
-            error_types = dict(collections.Counter(errors))
-            if errors:
-                _log.warning(
-                    f"Normalization failed for {len(errors)} out of {len(indicators)} indicators"
-                )
+            documents, stats = self._collect_results(results, total=len(indicators))
             _log.info(f'Finished normalizing {txt}')
 
         # push index to elasticsearch & vectorstore
@@ -224,7 +198,7 @@ class Indexer:
             version_id=version_id,
         )
 
-        return {"total": len(indicators), "errors": len(errors), "error_types": error_types}
+        return stats
 
     async def _harmonize(
         self,
@@ -265,13 +239,7 @@ class Indexer:
                     max_concurrency=self._settings.concurrency_limit,
                 ),
             )
-            documents = [r['document'] for r in results]
-            errors = [r['error'] for r in results if r['error'] is not None]
-            error_types = dict(collections.Counter(errors))
-            if errors:
-                _log.warning(
-                    f"Harmonization failed for {len(errors)} out of {len(matching_items)} indicators"
-                )
+            documents, stats = self._collect_results(results, total=len(matching_items))
             _log.info(
                 f"Harmonizing {len(matching_items)} indicators for dataset {dataset.name} ({dataset.entity_id}) completed"
             )
@@ -280,7 +248,16 @@ class Indexer:
             documents=(doc.model_dump(mode='json') for doc in documents)
         )
 
-        return {"total": len(matching_items), "errors": len(errors), "error_types": error_types}
+        return stats
+
+    @staticmethod
+    def _collect_results(results: list[dict], total: int) -> tuple[list, dict]:
+        documents = [r['document'] for r in results]
+        errors = [r['error'] for r in results if r['error'] is not None]
+        error_types = dict(collections.Counter(errors))
+        if errors:
+            _log.warning(f"Failed for {len(errors)} out of {total} indicators")
+        return documents, {"total": total, "errors": len(errors), "error_types": error_types}
 
     def _create_harmonize_chain(self, unpack: bool) -> Runnable:
         if unpack:
@@ -294,15 +271,8 @@ class Indexer:
             | RunnablePassthrough.assign(
                 indicators_str=lambda d: self._get_indicators_str(d['match_candidates'])
             )
-            | RunnablePassthrough.assign(harmonize_result=self._create_harmonize_llm_chain())
-            | RunnablePassthrough.assign(
-                primary=lambda d: d['harmonize_result'][0],
-                primary_normalized=lambda d: d['harmonize_result'][0],
-            )
-            | RunnableParallel(
-                document=self._create_indicator_index,
-                error=lambda d: d['harmonize_result'][1],
-            )
+            | self._create_harmonize_llm_chain()
+            | RunnablePassthrough.assign(document=self._create_indicator_index)
         )
 
     async def _find_match_candidates(self, d: dict) -> list[dict]:
@@ -324,42 +294,33 @@ class Indexer:
                     super_primary=d['super_primary'],
                 )
             )
-            | RunnablePassthrough.assign(
-                normalize_result=lambda d: self._normalized_primary_chain(
-                    primary=d['primary'], cache=d['cache'], llm_chain=normalize_llm_chain
-                )
-            )
-            | RunnablePassthrough.assign(primary_normalized=lambda d: d['normalize_result'][0])
+            | self._resolve_normalized_primary(normalize_llm_chain)
             | self._save_to_cache
-            | RunnableParallel(
-                document=self._create_indicator_index,
-                error=lambda d: d['normalize_result'][1],
-            )
+            | RunnablePassthrough.assign(document=self._create_indicator_index)
         )
 
-    def _normalized_primary_chain(
-        self, primary: str, cache: dict[str, str], llm_chain: Runnable
-    ) -> Runnable:
-        if primary in cache:
-            return RunnableLambda(lambda _: (cache[primary], None))
-        else:
-            return RunnablePassthrough.assign(input=lambda _: primary) | llm_chain
+    @staticmethod
+    def _resolve_normalized_primary(llm_chain: Runnable) -> Runnable:
+        async def _resolve(d: dict) -> dict:
+            primary = d['primary']
+            cache = d['cache']
+            if primary in cache:
+                return {**d, 'normalized': cache[primary], 'error': None}
+            return await llm_chain.ainvoke({**d, 'input': primary})
+
+        return RunnableLambda(_resolve)
 
     @staticmethod
     def _save_to_cache(d: dict) -> dict:
         primary = d['primary']
         cache = d['cache']
         if primary not in cache:
-            cache[primary] = d['primary_normalized']
+            cache[primary] = d['normalized']
         return d
 
     @staticmethod
     def _get_indicators_str(indicators: list[dict]) -> str:
-        indicators_str = ""
-        for indicator in indicators:
-            metadata = indicator['metadata']
-            indicators_str += f" - {metadata['name_normalized']}\n"
-        return indicators_str
+        return "\n".join(f" - {ind['metadata']['name_normalized']}" for ind in indicators)
 
     @classmethod
     def _get_primary_from_series(
@@ -375,10 +336,10 @@ class Indexer:
         return cls.__get_primary_from_dimension(dataset, series[0])
 
     @staticmethod
-    def __get_primary_from_dimension(dataset: base.DataSet, dimension_dict: dict) -> str:
-        dimension_id = list(dimension_dict.keys())[0]
+    def _resolve_dimension_term(
+        dataset: base.DataSet, dimension_id: str, code: str
+    ) -> CodeCategory | VirtualDimensionCategory:
         dimension = dataset.dimension(dimension_id)
-        code = dimension_dict[dimension_id]
         item: CodeCategory | VirtualDimensionCategory | None
         if isinstance(dimension, SdmxCodeListDimension):
             item = dimension.code_list[code]
@@ -386,13 +347,21 @@ class Indexer:
             item = dimension.value
         else:
             raise RuntimeError(
-                f"Cannot get primary from dimension {dimension_id} of dataset {dataset.source_id}: unsupported dimension type {type(dimension)}"
+                f"Unsupported dimension type {type(dimension)} for dimension {dimension_id}"
+                f" of dataset {dataset.source_id}"
             )
         if item is None:
             raise RuntimeError(
-                f"Cannot find code {code} in dimension {dimension_id} of dataset {dataset.source_id}"
+                f"Cannot find code {code} in dimension {dimension_id}"
+                f" of dataset {dataset.source_id}"
             )
-        return item.name
+        return item
+
+    @classmethod
+    def __get_primary_from_dimension(cls, dataset: base.DataSet, dimension_dict: dict) -> str:
+        dimension_id = next(iter(dimension_dict))
+        code = dimension_dict[dimension_id]
+        return cls._resolve_dimension_term(dataset, dimension_id, code).name
 
     @classmethod
     def _min_max(cls, score: float, min: float, max: float) -> float:
@@ -417,7 +386,7 @@ class Indexer:
         version_id: int = d['version_id']
         index: schemas.MatchingIndex = d['index']
         primary: str = d['primary']
-        primary_normalized: str = d['primary_normalized']
+        primary_normalized: str = d['normalized']
 
         return schemas.IndicatorIndex(
             id=index.id,
@@ -477,19 +446,7 @@ class Indexer:
             dimension_queries.append(dimension_query)
 
             dimension = dataset.dimension(dimension_id)
-            term: CodeCategory | VirtualDimensionCategory | None
-            if isinstance(dimension, SdmxCodeListDimension):
-                term = dimension.code_list[term_id]
-            elif isinstance(dimension, VirtualDimension):
-                term = dimension.value
-            else:
-                raise RuntimeError(
-                    f"Cannot create series for indicator {indicator.entity_id} of dataset {dataset.source_id}: unsupported dimension type {type(dimension)}"
-                )
-            if term is None:
-                raise RuntimeError(
-                    f"Cannot find term {term_id} in dimension {dimension_id} of dataset {dataset.source_id}"
-                )
+            term = self._resolve_dimension_term(dataset, dimension_id, term_id)
 
             if term_id not in self._config.ignored_term_ids:
                 name_parts.append(term.name)
@@ -532,7 +489,7 @@ class Indexer:
             query, k=max_query, version_ids=version_ids
         )
 
-    async def _semantic(self, result: list[ScoredVectorStoreDocument]) -> dict[str, float]:
+    def _semantic(self, result: list[ScoredVectorStoreDocument]) -> dict[str, float]:
         sem_indexed = {}
         sem_max_score = result[0].score
 
@@ -557,7 +514,7 @@ class Indexer:
 
             if _id not in hybrid:
                 sem = sem_indexed[_id]
-                lex = 0 if _id not in lex_indexed else lex_indexed[_id]
+                lex = lex_indexed.get(_id, 0)
                 hybrid[_id] = {
                     'score': self._convex_combination(sem, lex),
                     'metadata': document.metadata,
@@ -568,15 +525,18 @@ class Indexer:
         self, query: str, version_ids: set[int], max_output=16, max_query=32
     ) -> list[dict]:
 
-        lex_indexed = await self._lexical(query, version_ids, max_query)
-        sem_raw = await self._semantic_raw(query, max_query, version_ids=version_ids)
-        sem_indexed = await self._semantic(sem_raw)
+        async with asyncio.TaskGroup() as tg:
+            lex_task = tg.create_task(self._lexical(query, version_ids, max_query))
+            sem_task = tg.create_task(self._semantic_raw(query, max_query, version_ids=version_ids))
+        lex_indexed = lex_task.result()
+        sem_raw = sem_task.result()
+        sem_indexed = self._semantic(sem_raw)
         hybrid = self._hybrid_combination(sem_raw, lex_indexed, sem_indexed)
         hybrid_sorted = sorted(hybrid.items(), key=lambda x: x[1]['score'], reverse=True)
 
         dataset_dict: dict[str, list[dict]] = collections.defaultdict(list)
-        for _id, _ in hybrid_sorted:
-            metadata = hybrid[_id]['metadata']
+        for _id, entry in hybrid_sorted:
+            metadata = entry['metadata']
             dataset_id = str(metadata['dataset_id'])
             dataset_dict[dataset_id].append({"id": _id, "metadata": metadata})
 
