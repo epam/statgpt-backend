@@ -55,4 +55,5 @@ class JobsConfig:
         'non_indicator_dimensions_hash',
         'special_dimensions_hash',
         'resolved_config',
+        'indexing_stats',
     }
