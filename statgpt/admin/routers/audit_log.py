@@ -18,6 +18,14 @@ router = APIRouter(
 )
 
 
+@router.get("/enum-values")
+async def get_audit_log_enum_values() -> dict[str, list[str]]:
+    return {
+        "entity_types": [entity_type.value for entity_type in schemas.AuditEntityType],
+        "action_types": [action_type.value for action_type in schemas.AuditActionType],
+    }
+
+
 def _validate_created_at_range(
     created_at_from: datetime.datetime | None,
     created_at_to: datetime.datetime | None,
