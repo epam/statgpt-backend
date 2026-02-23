@@ -174,6 +174,7 @@ class HybridSearchConfig(BaseYamlModel):
             deployment=LLMModelsEnum.GPT_5_MINI_2025_08_07,
             reasoning_effort=ReasoningEffortEnum.MINIMAL,
             verbosity=VerbosityEnum.LOW,
+            temperature=1,
         ),
     )
     harmonize_model_config: LLMModelConfig = Field(
@@ -182,6 +183,7 @@ class HybridSearchConfig(BaseYamlModel):
             deployment=LLMModelsEnum.GPT_5_MINI_2025_08_07,
             reasoning_effort=ReasoningEffortEnum.MINIMAL,
             verbosity=VerbosityEnum.LOW,
+            temperature=1,
         ),
     )
 
