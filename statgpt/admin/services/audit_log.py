@@ -56,6 +56,7 @@ class AdminAuditLogService:
         action_type: schemas.AuditActionType | None = None,
         item_id: int | None = None,
         entity_id: str | None = None,
+        entity_name: str | None = None,
         performed_by: str | None = None,
         performed_by_name: str | None = None,
         trace_id: str | None = None,
@@ -69,6 +70,7 @@ class AdminAuditLogService:
             action_type=action_type,
             item_id=item_id,
             entity_id=entity_id,
+            entity_name=entity_name,
             performed_by=performed_by,
             performed_by_name=performed_by_name,
             trace_id=trace_id,
@@ -92,6 +94,7 @@ class AdminAuditLogService:
         action_type: schemas.AuditActionType | None = None,
         item_id: int | None = None,
         entity_id: str | None = None,
+        entity_name: str | None = None,
         performed_by: str | None = None,
         performed_by_name: str | None = None,
         trace_id: str | None = None,
@@ -105,6 +108,7 @@ class AdminAuditLogService:
             action_type=action_type,
             item_id=item_id,
             entity_id=entity_id,
+            entity_name=entity_name,
             performed_by=performed_by,
             performed_by_name=performed_by_name,
             trace_id=trace_id,
@@ -128,6 +132,10 @@ class AdminAuditLogService:
         if filters["entity_id"]:
             query = query.where(
                 AdminAuditLogService._contains(models.AuditLog.entity_id, filters["entity_id"])
+            )
+        if filters["entity_name"]:
+            query = query.where(
+                AdminAuditLogService._contains(models.AuditLog.entity_name, filters["entity_name"])
             )
         if filters["performed_by"]:
             query = query.where(
