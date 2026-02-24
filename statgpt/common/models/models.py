@@ -255,23 +255,19 @@ class AuditLog(IdMixin, Base):
 
     entity_type: Mapped[AuditEntityType] = mapped_column(
         Enum(AuditEntityType, values_callable=lambda e: [x.value for x in e]),
-        nullable=False,
     )
     action_type: Mapped[AuditActionType] = mapped_column(
         Enum(AuditActionType, values_callable=lambda e: [x.value for x in e]),
-        nullable=False,
     )
 
-    item_id: Mapped[int] = mapped_column(nullable=False)
-    entity_id: Mapped[str] = mapped_column(nullable=False)
-    entity_name: Mapped[str] = mapped_column(nullable=False)
-    state_after: Mapped[dict[str, Any] | None] = mapped_column(
-        type_=postgresql.JSONB, nullable=True
-    )
+    item_id: Mapped[int]
+    entity_id: Mapped[str]
+    entity_name: Mapped[str]
+    state_after: Mapped[dict[str, Any] | None] = mapped_column(type_=postgresql.JSONB)
 
-    performed_by: Mapped[str] = mapped_column(nullable=False)
-    performed_by_name: Mapped[str] = mapped_column(nullable=False)
-    trace_id: Mapped[str] = mapped_column(nullable=False)
+    performed_by: Mapped[str]
+    performed_by_name: Mapped[str]
+    trace_id: Mapped[str]
 
     created_at: Mapped[datetime.datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
