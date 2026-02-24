@@ -223,6 +223,7 @@ class JobsService:
             auth_context,
             get_audit_context(),
         )
+        #TODO: inspect do we need to update job status in this method 
         await self._update_job_status(job, schemas.PreprocessingStatusEnum.QUEUED, do_commit=False)
 
         return schemas.Job.model_validate(job, from_attributes=True)
