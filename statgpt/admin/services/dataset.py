@@ -997,6 +997,17 @@ class AdminPortalDataSetService(DataSetService):
             await self._session.commit()
             await self._session.refresh(item)
 
+    async def _set_indexing_stats(
+        self,
+        item: models.ChannelDatasetVersion,
+        indexing_stats: dict,
+    ) -> None:
+        """Merges indexing statistics into the version's indexing_stats JSONB field."""
+        item.indexing_stats = {**(item.indexing_stats or {}), **indexing_stats}
+        item.updated_at = func.now()
+        await self._session.commit()
+        await self._session.refresh(item)
+
     async def rollback_channel_dataset_to_previous_version(
         self, channel_id: int, dataset_id: int
     ) -> schemas.ChannelDatasetVersion:
@@ -1453,7 +1464,7 @@ class AdminPortalDataSetService(DataSetService):
         harmonize_indicator: bool,
         max_n_embeddings: int | None,
         auth_context: AuthContext,
-    ):
+    ) -> dict:
         matching_index = await ElasticSearchFactory.get_index(
             channel.matching_index_name, allow_creation=True
         )
@@ -1473,7 +1484,7 @@ class AdminPortalDataSetService(DataSetService):
             normalize=not harmonize_indicator,
             harmonize=harmonize_indicator,
         )
-        await indexer.index(
+        return await indexer.index(
             dataset,
             version_id=version.id,
             version_ids=version_ids,
@@ -1553,7 +1564,7 @@ class AdminPortalDataSetService(DataSetService):
         vector_store_factory: VectorStoreFactory,
         dataset: base.DataSet,
         auth_context: AuthContext,
-    ):
+    ) -> dict | None:
         vector_store = await vector_store_factory.get_vector_store(
             collection_name=channel.indicator_table_name,
             embedding_model_name=channel.llm_model,
@@ -1564,7 +1575,7 @@ class AdminPortalDataSetService(DataSetService):
 
         if channel_config.data_query is None:
             _log.info(f"No data query found for {version}, skipping indexing")
-            return
+            return None
 
         indexer_version = channel_config.data_query.details.indexer_version
         _log.info(f"Indexer version: {indexer_version}")
@@ -1578,7 +1589,7 @@ class AdminPortalDataSetService(DataSetService):
                     and v.last_completed_version.channel_dataset_id != version.channel_dataset_id
                 }
 
-            await self._run_hybrid_indexer(
+            return await self._run_hybrid_indexer(
                 channel=channel,
                 channel_config=channel_config,
                 vector_store=vector_store,
@@ -1593,6 +1604,7 @@ class AdminPortalDataSetService(DataSetService):
             await self._run_semantic_indexer(
                 dataset, db_dataset, vector_store, version, max_n_embeddings, auth_context
             )
+            return None
         else:
             raise RuntimeError(f"Unknown indexer version: {indexer_version}")
 
@@ -1691,7 +1703,7 @@ class AdminPortalDataSetService(DataSetService):
                 )
 
             if reindex_indicators:
-                await self._index_channel_indicators(
+                indexing_stats = await self._index_channel_indicators(
                     channel=channel,
                     db_dataset=db_dataset,
                     version=version,
@@ -1702,6 +1714,8 @@ class AdminPortalDataSetService(DataSetService):
                     dataset=dataset,
                     auth_context=auth_context,
                 )
+                if indexing_stats:
+                    await self._set_indexing_stats(version, indexing_stats)
 
             await self._update_channel_dataset_version_status(
                 version, new_status=status_on_completion
