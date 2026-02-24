@@ -38,7 +38,8 @@ def audit_action(
     entity_type: AuditEntityType,
     action_type: AuditActionType,
 ):
-    # Decorated methods must not call session.commit(); this decorator owns transaction commit/rollback.
+    """Decorated methods must not call session.commit(); this decorator owns transaction commit/rollback."""
+
     def decorator(func: Callable[..., Awaitable[Auditable]]) -> Callable[..., Awaitable[Auditable]]:
         @wraps(func)
         async def wrapped(self, *args, **kwargs) -> Auditable:
