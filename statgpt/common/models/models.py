@@ -2,7 +2,7 @@ import datetime
 import uuid
 from typing import Any
 
-from sqlalchemy import DateTime, Enum, ForeignKey, String, UniqueConstraint
+from sqlalchemy import DateTime, Enum, ForeignKey, Index, String, UniqueConstraint
 from sqlalchemy.dialects import postgresql
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
@@ -247,6 +247,11 @@ class GlossaryTerm(DefaultBase):
 
 class AuditLog(IdMixin, Base):
     __tablename__ = "audit_logs"
+    __table_args__ = (
+        Index("ix_audit_logs_created_at", "created_at"),
+        Index("ix_audit_logs_entity_type_entity_id", "entity_type", "entity_id"),
+        Index("ix_audit_logs_entity_type_item_id", "entity_type", "item_id"),
+    )
 
     entity_type: Mapped[AuditEntityType] = mapped_column(
         Enum(AuditEntityType, values_callable=lambda e: [x.value for x in e]),

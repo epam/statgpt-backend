@@ -78,17 +78,12 @@ class AdminPortalChannelService(ChannelService):
 
         try:
             self._session.add(item)
-            await self._session.commit()
+            await self._session.flush()
         except IntegrityError as e:
             self._parse_integrity_error(data, e)
-        await self._log_channel_creation(item)
         return item
 
-    # TODO: update channel creation logging logic
     @audit_action(entity_type=AuditEntityType.CHANNEL, action_type=AuditActionType.CREATE)
-    async def _log_channel_creation(self, data: models.Channel) -> schemas.Channel:
-        return ChannelSerializer.db_to_schema(data)
-
     async def create_channel(self, data: schemas.ChannelBase) -> schemas.Channel:
         item = await self._create_channel_model(data)
         return ChannelSerializer.db_to_schema(item)
@@ -108,7 +103,7 @@ class AdminPortalChannelService(ChannelService):
         )
         try:
             item = (await self._session.execute(query)).scalar_one()
-            await self._session.commit()
+            await self._session.flush()
         except IntegrityError as e:
             self._parse_integrity_error(data, e)
 
@@ -126,7 +121,7 @@ class AdminPortalChannelService(ChannelService):
             await self._clear_elastic_indexes(item)
 
         await self._session.delete(item)
-        await self._session.commit()
+        await self._session.flush()
         return deleted_item
 
     async def _clear_vector_store(self, channel: models.Channel, auth_context: AuthContext) -> None:
@@ -218,7 +213,8 @@ class AdminPortalChannelService(ChannelService):
             channel_data = await self._load_channel_data_from_zip(zip_file)
             if clean_up:
                 await self._cleanup_existing_channel(channel_data.deployment_id, auth_context)
-            return await self._create_channel_model(channel_data)
+            created_channel = await self.create_channel(channel_data)
+            return await self.get_model_by_id(created_channel.id)
 
         return await self._get_existing_channel_by_deployment_id(deployment_id)
 

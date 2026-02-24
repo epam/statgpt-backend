@@ -594,7 +594,7 @@ class AdminPortalDataSetService(DataSetService):
         )
 
         self._session.add(item)
-        await self._session.commit()
+        await self._session.flush()
 
         dataset = await handler.get_dataset(
             entity_id=item.id_,
@@ -660,7 +660,7 @@ class AdminPortalDataSetService(DataSetService):
             item.details = dataset_config.model_dump(mode='json', by_alias=True)
 
         item.updated_at = func.now()
-        await self._session.commit()
+        await self._session.flush()
         await self._session.refresh(item)
 
         dataset = await handler.get_dataset(
@@ -702,7 +702,7 @@ class AdminPortalDataSetService(DataSetService):
 
         _log.info(f"Deleting dataset(id={item.id}): {item.title!r}")
         await self._session.delete(item)
-        await self._session.commit()
+        await self._session.flush()
         return deleted_item
 
     async def _propagate_config_to_channel_datasets(
@@ -811,7 +811,7 @@ class AdminPortalDataSetService(DataSetService):
         )
 
         self._session.add(new_item)
-        await self._session.commit()
+        await self._session.flush()
         await self._session.refresh(new_item)
         return schemas.ChannelDatasetVersion.model_validate(new_item, from_attributes=True)
 
