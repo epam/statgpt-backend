@@ -4,7 +4,7 @@ import os
 import shutil
 import tempfile
 import zipfile
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import BinaryIO
 
 import httpx
@@ -143,7 +143,7 @@ class JobsService:
         do_commit: bool = True,
     ) -> None:
         job.status = new_status
-        job.updated_at = datetime.now(timezone.utc)
+        job.updated_at = datetime.now()
         if do_commit:
             await self._session.commit()
             await self._session.refresh(job)
