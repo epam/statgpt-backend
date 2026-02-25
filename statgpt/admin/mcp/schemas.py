@@ -29,3 +29,9 @@ class AvailableDatasets(BaseModel):
     @property
     def count(self) -> int:
         return len(self.datasets)
+
+
+class Channel(BaseModel):
+    id: int
+    deployment_id: str
+    title: str
