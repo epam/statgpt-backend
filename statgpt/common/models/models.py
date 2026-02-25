@@ -2,7 +2,7 @@ import datetime
 import uuid
 from typing import Any
 
-from sqlalchemy import DateTime, Enum, ForeignKey, String, UniqueConstraint
+from sqlalchemy import DateTime, Enum, ForeignKey, Index, String, UniqueConstraint
 from sqlalchemy.dialects import postgresql
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
@@ -249,26 +249,27 @@ class GlossaryTerm(DefaultBase):
 
 class AuditLog(IdMixin, Base):
     __tablename__ = "audit_logs"
+    __table_args__ = (
+        Index("ix_audit_logs_created_at", "created_at"),
+        Index("ix_audit_logs_entity_type_entity_id", "entity_type", "entity_id"),
+        Index("ix_audit_logs_entity_type_item_id", "entity_type", "item_id"),
+    )
 
     entity_type: Mapped[AuditEntityType] = mapped_column(
         Enum(AuditEntityType, values_callable=lambda e: [x.value for x in e]),
-        nullable=False,
     )
     action_type: Mapped[AuditActionType] = mapped_column(
         Enum(AuditActionType, values_callable=lambda e: [x.value for x in e]),
-        nullable=False,
     )
 
-    item_id: Mapped[int] = mapped_column(nullable=False)
-    entity_id: Mapped[str] = mapped_column(nullable=False)
-    entity_name: Mapped[str] = mapped_column(nullable=False)
-    state_after: Mapped[dict[str, Any] | None] = mapped_column(
-        type_=postgresql.JSONB, nullable=True
-    )
+    item_id: Mapped[int]
+    entity_id: Mapped[str]
+    entity_name: Mapped[str]
+    state_after: Mapped[dict[str, Any] | None] = mapped_column(type_=postgresql.JSONB)
 
-    performed_by: Mapped[str] = mapped_column(nullable=False)
-    performed_by_name: Mapped[str] = mapped_column(nullable=False)
-    trace_id: Mapped[str] = mapped_column(nullable=False)
+    performed_by: Mapped[str]
+    performed_by_name: Mapped[str]
+    trace_id: Mapped[str]
 
     created_at: Mapped[datetime.datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
