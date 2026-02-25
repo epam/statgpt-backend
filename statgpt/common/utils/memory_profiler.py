@@ -2,7 +2,6 @@ import atexit
 import gc
 import linecache
 import os
-import pickle
 import shutil
 import tempfile
 import tracemalloc
@@ -28,8 +27,8 @@ class MemoryProfiler:
         if not self._initialized:
             # Create a temporary directory for snapshots
             self.temp_dir = tempfile.mkdtemp(prefix="memory_snapshots_")
-            self.snapshot_files = []  # Store tempfile objects
             self.snapshot_metadata = []  # Only store metadata in memory
+            self._next_snapshot_id = 1
             self.object_counts = defaultdict(int)
             self.weak_refs = []
             self._initialized = True
@@ -50,36 +49,25 @@ class MemoryProfiler:
         snapshot = tracemalloc.take_snapshot()
         timestamp = datetime.now().isoformat()
 
-        # Create a temporary file for the snapshot
-        snapshot_id = len(self.snapshot_metadata)
+        snapshot_id = self._next_snapshot_id
+        self._next_snapshot_id += 1
 
-        # Create named temporary file that won't be auto-deleted
-        temp_file = tempfile.NamedTemporaryFile(
-            mode='wb',
-            prefix=f"snapshot_{snapshot_id}_",
-            suffix=".pkl",
-            dir=self.temp_dir,
-            delete=False,
+        # Create a safe file path within temp_dir
+        snapshot_filename = f"snapshot_{snapshot_id}.trace"
+        snapshot_path = os.path.join(self.temp_dir, snapshot_filename)
+
+        snapshot.dump(snapshot_path)
+
+        self.snapshot_metadata.append(
+            {
+                'timestamp': timestamp,
+                'label': label or f"snapshot_{snapshot_id}",
+                'file_path': snapshot_path,
+                'id': snapshot_id,
+            }
         )
 
-        try:
-            pickle.dump(snapshot, temp_file)
-            temp_file.flush()
-
-            # Store the file object and metadata
-            self.snapshot_files.append(temp_file)
-            self.snapshot_metadata.append(
-                {
-                    'timestamp': timestamp,
-                    'label': label or f"snapshot_{snapshot_id}",
-                    'file_path': temp_file.name,
-                    'id': snapshot_id,
-                }
-            )
-
-            logger.info(f"Memory snapshot taken and saved: {label or timestamp}")
-        finally:
-            temp_file.close()
+        logger.info(f"Memory snapshot taken and saved: {label or timestamp}")
 
         # Auto-cleanup old snapshots to prevent disk fill
         if len(self.snapshot_metadata) > 20:
@@ -95,8 +83,7 @@ class MemoryProfiler:
         if 0 <= index < len(self.snapshot_metadata):
             snapshot_path = self.snapshot_metadata[index]['file_path']
             try:
-                with open(snapshot_path, 'rb') as f:
-                    return pickle.load(f)
+                return tracemalloc.Snapshot.load(snapshot_path)
             except Exception as e:
                 logger.error(f"Failed to load snapshot {index}: {e}")
                 return None
@@ -293,7 +280,6 @@ class MemoryProfiler:
 
             # Update metadata and file list
             self.snapshot_metadata = self.snapshot_metadata[to_remove:]
-            self.snapshot_files = self.snapshot_files[to_remove:]
 
     def cleanup(self):
         """Clean up all temporary files and directories."""
