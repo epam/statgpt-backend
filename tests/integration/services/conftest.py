@@ -2,11 +2,30 @@ import pytest  # noqa: F401
 import pytest_asyncio
 from sqlalchemy import text
 
+from statgpt.admin.audit import decorators as audit_decorators
+from statgpt.admin.audit.context import AuditContext
 from statgpt.common import models
 from statgpt.common.data.quanthub.v21.qh_sdmx_client import AsyncQuanthubClient
 from statgpt.common.data.quanthub.v21.sdmx_extensions import __apply_sdmx_extensions
 
 from .mocks import AsyncSdmxClientMock
+
+
+def get_integration_test_audit_context() -> AuditContext:
+    return AuditContext(
+        performed_by="integration-tests",
+        performed_by_name="Integration Tests",
+        trace_id="00000000000000000000000000000001",
+    )
+
+
+@pytest.fixture(autouse=True)
+def integration_test_audit_context(monkeypatch):
+    monkeypatch.setattr(
+        audit_decorators,
+        "get_audit_context",
+        lambda: get_integration_test_audit_context(),
+    )
 
 
 async def _truncate_table(session, table_name):

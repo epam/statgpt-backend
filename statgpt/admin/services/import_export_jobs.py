@@ -137,12 +137,16 @@ class JobsService:
         return schemas.Job.model_validate(job, from_attributes=True)
 
     async def _update_job_status(
-        self, job: models.Job, new_status: schemas.PreprocessingStatusEnum
+        self,
+        job: models.Job,
+        new_status: schemas.PreprocessingStatusEnum,
+        do_commit: bool = True,
     ) -> None:
         job.status = new_status
-        job.updated_at = func.now()
-        await self._session.commit()
-        await self._session.refresh(job)
+        job.updated_at = datetime.now()
+        if do_commit:
+            await self._session.commit()
+            await self._session.refresh(job)
 
     async def create_export_job(
         self,
@@ -182,7 +186,7 @@ class JobsService:
             status=schemas.PreprocessingStatusEnum.NOT_STARTED,
         )
         self._session.add(job)
-        await self._session.commit()
+        await self._session.flush()
 
         try:
             if not file.filename or not file.content_type:
@@ -202,7 +206,9 @@ class JobsService:
         except Exception as e:
             _log.exception(e)
             job.reason_for_failure = str(e)
-            await self._update_job_status(job, schemas.PreprocessingStatusEnum.FAILED)
+            await self._update_job_status(
+                job, schemas.PreprocessingStatusEnum.FAILED, do_commit=False
+            )
             return schemas.Job.model_validate(job, from_attributes=True)
 
         _log.info(
@@ -217,7 +223,8 @@ class JobsService:
             auth_context,
             get_audit_context(),
         )
-        await self._update_job_status(job, schemas.PreprocessingStatusEnum.QUEUED)
+        # TODO: inspect do we need to update job status in this method
+        await self._update_job_status(job, schemas.PreprocessingStatusEnum.QUEUED, do_commit=False)
 
         return schemas.Job.model_validate(job, from_attributes=True)
 
