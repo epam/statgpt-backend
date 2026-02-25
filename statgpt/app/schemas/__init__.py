@@ -5,13 +5,7 @@ from .selection_candidates import (
     LLMSelectionCandidateBase,
     SelectedCandidates,
 )
-from .service import (
-    ChannelDatasetsMetadataResponse,
-    ChannelMetadataResponse,
-    DimTypesResponse,
-    GitVersionResponse,
-    SettingsResponse,
-)
+from .service import ChannelDatasetsMetadataResponse, ChannelMetadataResponse, SettingsResponse
 from .state import ChatState
 from .tool_artifact import (
     BaseFileRagArtifact,

@@ -1,35 +1,65 @@
-FROM python:3.11-slim
+############################
+# Builder stage
+############################
+FROM python:3.11-alpine AS builder
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    APP_HOME=/home/app
+
+RUN pip install --progress-bar off --no-cache-dir poetry==2.2.1
+
+WORKDIR $APP_HOME
+
+# Install dependencies first to leverage Docker layer caching
+COPY pyproject.toml poetry.lock poetry.toml ./
+RUN poetry install --no-interaction --no-ansi --no-cache --no-root \
+  --no-directory --only main
+
+# Copy source code and install the project
+COPY ./alembic.ini $APP_HOME/alembic.ini
+COPY ./statgpt/admin $APP_HOME/statgpt/admin
+COPY ./statgpt/common $APP_HOME/statgpt/common
+RUN poetry install --no-interaction --no-ansi --no-cache --no-root --only main
+
+############################
+# Runtime stage
+############################
+FROM python:3.11-alpine AS server
+
+# Security patches (consolidated into single layer)
+# CVE-2023-52425 (libexpat), CVE-2025-6965 (sqlite-libs), libcrypto3/libssl3
+RUN apk update && apk upgrade --no-cache \
+    libcrypto3 libssl3 libexpat sqlite-libs \
+  && apk add --no-cache ca-certificates \
+  && update-ca-certificates \
+  && rm -rf /var/cache/apk/*
+
+# CVE-2026-23949 (setuptools), CVE-2026-24049 (wheel)
+RUN pip install --no-cache-dir setuptools==80.10.2 wheel==0.46.2
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    APP_HOME=/home/app \
+    WEB_CONCURRENCY=1 \
+    PYDANTIC_V2=True
+
+WORKDIR $APP_HOME
+
+# Create non-root user and copy built application
+RUN adduser -u 1001 --disabled-password --gecos "" appuser
+COPY --chown=appuser --from=builder $APP_HOME .
+
+COPY --chmod=755 ./docker/scripts/admin_docker_entrypoint.sh /docker_entrypoint.sh
+
+EXPOSE 8000
+
+USER appuser
+
+HEALTHCHECK --interval=10s --timeout=5s --start-period=30s --retries=6 \
+  CMD wget -q --spider -T 3 http://localhost:8000/health || exit 1
 
 ARG GIT_COMMIT
 ENV GIT_COMMIT=$GIT_COMMIT
 
-# This prevents Python from writing out pyc files
-ENV PYTHONDONTWRITEBYTECODE=1
-# This keeps Python from buffering stdin/stdout
-ENV PYTHONUNBUFFERED=1
-ENV PIP_ARGS="--progress-bar off --no-cache-dir"
-
-ENV APP_HOME=/home/app
-
-WORKDIR $APP_HOME
-
-# Install dependencies using poetry
-RUN pip install $PIP_ARGS "poetry==2.1.1"
-RUN poetry self add poetry-plugin-export
-COPY pyproject.toml .
-COPY poetry.lock .
-RUN poetry export -f requirements.txt --without-hashes | pip install $PIP_ARGS -r /dev/stdin
-
-# Copy source code
-COPY ./alembic.ini $APP_HOME/alembic.ini
-COPY ./statgpt/admin $APP_HOME/statgpt/admin
-COPY ./statgpt/common $APP_HOME/statgpt/common
-
-# create the app user and chown workdir to the app user
-RUN adduser -u 5678 --system --disabled-password --gecos "" app && chown -R app $APP_HOME
-USER app
-
-ENV WEB_CONCURRENCY=1
-ENV PYDANTIC_V2=True
-
-CMD ["sh", "statgpt/admin/admin.sh"]
+ENTRYPOINT ["/docker_entrypoint.sh"]

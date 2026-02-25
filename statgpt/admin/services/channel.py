@@ -12,9 +12,11 @@ from sqlalchemy.sql.expression import func
 
 import statgpt.common.models as models
 import statgpt.common.schemas as schemas
+from statgpt.admin.audit.decorators import audit_action
 from statgpt.admin.settings.exim import JobsConfig
 from statgpt.common import utils
 from statgpt.common.auth.auth_context import AuthContext
+from statgpt.common.schemas import AuditActionType, AuditEntityType
 from statgpt.common.services import ChannelSerializer, ChannelService
 from statgpt.common.settings.dial import dial_settings
 from statgpt.common.utils import dial_core_factory
@@ -49,7 +51,7 @@ class AdminPortalChannelService(ChannelService):
         dial_file_path: str, folder_path: str, auth_context: AuthContext
     ) -> None:
         async with dial_core_factory(dial_settings.url, auth_context.api_key) as dial_core:
-            content, content_type = await dial_core.get_file_by_path(dial_file_path)
+            content, _ = await dial_core.get_file_by_path(dial_file_path)
 
         target_file = os.path.join(folder_path, JobsConfig.DIAL_FILES_FOLDER, dial_file_path)
         utils.write_bytes(content, target_file)
@@ -76,15 +78,17 @@ class AdminPortalChannelService(ChannelService):
 
         try:
             self._session.add(item)
-            await self._session.commit()
+            await self._session.flush()
         except IntegrityError as e:
             self._parse_integrity_error(data, e)
         return item
 
+    @audit_action(entity_type=AuditEntityType.CHANNEL, action_type=AuditActionType.CREATE)
     async def create_channel(self, data: schemas.ChannelBase) -> schemas.Channel:
         item = await self._create_channel_model(data)
         return ChannelSerializer.db_to_schema(item)
 
+    @audit_action(entity_type=AuditEntityType.CHANNEL, action_type=AuditActionType.UPDATE)
     async def update(self, item_id: int, data: schemas.ChannelUpdate) -> schemas.Channel:
         item = await self._get_item_or_raise(item_id)
 
@@ -99,14 +103,16 @@ class AdminPortalChannelService(ChannelService):
         )
         try:
             item = (await self._session.execute(query)).scalar_one()
-            await self._session.commit()
+            await self._session.flush()
         except IntegrityError as e:
             self._parse_integrity_error(data, e)
 
         return ChannelSerializer.db_to_schema(item)
 
-    async def delete(self, item_id: int, auth_context: AuthContext) -> None:
+    @audit_action(entity_type=AuditEntityType.CHANNEL, action_type=AuditActionType.DELETE)
+    async def delete(self, item_id: int, auth_context: AuthContext) -> schemas.Channel:
         item = await self._get_item_or_raise(item_id)
+        deleted_item = ChannelSerializer.db_to_schema(item)
         _log.info(f"Deleting {item}")
 
         await self._clear_vector_store(item, auth_context)
@@ -115,7 +121,8 @@ class AdminPortalChannelService(ChannelService):
             await self._clear_elastic_indexes(item)
 
         await self._session.delete(item)
-        await self._session.commit()
+        await self._session.flush()
+        return deleted_item
 
     async def _clear_vector_store(self, channel: models.Channel, auth_context: AuthContext) -> None:
         vector_store_factory = VectorStoreFactory(session=self._session)
@@ -206,7 +213,9 @@ class AdminPortalChannelService(ChannelService):
             channel_data = await self._load_channel_data_from_zip(zip_file)
             if clean_up:
                 await self._cleanup_existing_channel(channel_data.deployment_id, auth_context)
-            return await self._create_channel_model(channel_data)
+            created_channel = await self.create_channel(channel_data)
+            await self._session.commit()
+            return await self.get_model_by_id(created_channel.id)
 
         return await self._get_existing_channel_by_deployment_id(deployment_id)
 

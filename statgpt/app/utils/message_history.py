@@ -3,7 +3,7 @@ import typing as t
 from collections.abc import Sequence
 
 from aidial_sdk.chat_completion import Message as DialMessage
-from aidial_sdk.chat_completion import Role
+from aidial_sdk.chat_completion import MessageContentPart, Role
 from aidial_sdk.chat_completion import ToolCall as DialToolCall
 from langchain_core.messages import (
     AIMessage,
@@ -21,6 +21,16 @@ from statgpt.app.services.chat_facade import ChannelServiceFacade
 from statgpt.app.utils.message_interceptors.commands_interceptor import CommandsInterceptor
 from statgpt.app.utils.message_interceptors.system_msg_interceptor import SystemMessageInterceptor
 from statgpt.common.config import multiline_logger as logger
+
+
+def _convert_content(
+    content: str | list[MessageContentPart],
+) -> str | list[str | dict[str, t.Any]]:
+    """Convert DIAL message content to LangChain-compatible format."""
+    if isinstance(content, str):
+        return content
+    parts: list[str | dict[str, t.Any]] = [part.model_dump(exclude_none=True) for part in content]
+    return parts
 
 
 def dial_tool_call_to_langchain_tool_call(tool_call: DialToolCall) -> LangChainToolCall:
@@ -119,10 +129,10 @@ class History:
         if msg.role == Role.USER:
             if not (usr_msg_content := msg.content):
                 raise ValueError("User message content is empty")
-            return HumanMessage(content=usr_msg_content)
+            return HumanMessage(content=_convert_content(usr_msg_content))
         elif msg.role == Role.ASSISTANT:
             return AIMessage(
-                content=msg.content or '',
+                content=_convert_content(msg.content) if msg.content else '',
                 tool_calls=(
                     [dial_tool_call_to_langchain_tool_call(t) for t in msg.tool_calls]
                     if msg.tool_calls
@@ -130,10 +140,10 @@ class History:
                 ),
             )
         elif msg.role == Role.TOOL:
-            msg_content = msg.content if msg.content else ''
+            msg_content = _convert_content(msg.content) if msg.content else ''
             return ToolMessage(content=msg_content, tool_call_id=msg.tool_call_id)
         elif msg.role == Role.SYSTEM:
-            msg_content = msg.content if msg.content else ''
+            msg_content = _convert_content(msg.content) if msg.content else ''
             return SystemMessage(content=msg_content)
         else:
             raise ValueError(f"Unknown message role: {msg.role!r}")

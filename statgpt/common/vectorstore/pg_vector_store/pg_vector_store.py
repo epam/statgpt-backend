@@ -139,6 +139,9 @@ class PgVectorStore(VectorStore, DbServiceBase):
                 return True
 
     async def clear(self) -> None:
+        # Keep outer transaction scopes (e.g. @audit_action) intact:
+        # only commit when this method is not called inside an active transaction.
+        should_commit = not self._session.in_transaction()
         async with self._lock_session() as session:
             for table in [self._table_name, self._metadata_table_name]:
                 if await self._check_if_table_exists(session, table):
@@ -146,7 +149,8 @@ class PgVectorStore(VectorStore, DbServiceBase):
                     await session.execute(text(f'DROP TABLE IF EXISTS collections."{table}"'))
                     _log.info(f"Dropped '{table}' table")
 
-            await session.commit()
+            if should_commit:
+                await session.commit()
 
     def _dataset_lock_key(self, dataset_id: uuid.UUID) -> int:
         """Generates a consistent lock key from collection_name and dataset_id.
@@ -659,15 +663,14 @@ class PgVectorStore(VectorStore, DbServiceBase):
         doc_count = 0
 
         # Define Parquet schema
-        schema = pa.schema(
-            [
-                ('id', pa.int32()),
-                ('document', pa.string()),
-                ('embeddings', pa.list_(pa.float32())),
-                ('created_at', pa.timestamp('us', tz='UTC')),
-                ('updated_at', pa.timestamp('us', tz='UTC')),
-            ]
-        )
+        schema_fields: list[tuple[str, pa.DataType]] = [
+            ('id', pa.int32()),
+            ('document', pa.string()),
+            ('embeddings', pa.list_(pa.float32())),
+            ('created_at', pa.timestamp('us', tz='UTC')),
+            ('updated_at', pa.timestamp('us', tz='UTC')),
+        ]
+        schema = pa.schema(schema_fields)
 
         async with self._lock_session() as session:
             # Only export documents that are referenced by metadata with specified version_ids
@@ -736,16 +739,15 @@ class PgVectorStore(VectorStore, DbServiceBase):
         mapping_count = 0
 
         # Define Parquet schema (JSON stored as string)
-        schema = pa.schema(
-            [
-                ('id', pa.int32()),
-                ('document_id', pa.int32()),
-                ('dataset_id', pa.string()),
-                ('details', pa.string()),  # JSON as string
-                ('created_at', pa.timestamp('us', tz='UTC')),
-                ('updated_at', pa.timestamp('us', tz='UTC')),
-            ]
-        )
+        schema_fields: list[tuple[str, pa.DataType]] = [
+            ('id', pa.int32()),
+            ('document_id', pa.int32()),
+            ('dataset_id', pa.string()),
+            ('details', pa.string()),  # JSON as string
+            ('created_at', pa.timestamp('us', tz='UTC')),
+            ('updated_at', pa.timestamp('us', tz='UTC')),
+        ]
+        schema = pa.schema(schema_fields)
 
         async with self._lock_session() as session:
             query = (

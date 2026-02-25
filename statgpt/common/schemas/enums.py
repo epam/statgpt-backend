@@ -130,3 +130,16 @@ class ChannelDatasetUpdateStatus(StrEnum):
     NEEDS_REINDEX = "needs_reindex"
     NO_VERSION = "no_version"
     INDEXING_IN_PROGRESS = "indexing_in_progress"
+
+
+class AuditEntityType(StrEnum):
+    CHANNEL = "channel"
+    DATASET = "dataset"
+    DATA_SOURCE = "data_source"
+    IMPORT_JOB = "import_job"
+
+
+class AuditActionType(StrEnum):
+    CREATE = "create"
+    UPDATE = "update"
+    DELETE = "delete"

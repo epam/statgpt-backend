@@ -7,4 +7,4 @@ class Versions:
     # Please update this version when you create a new alembic revision.
     # Needed because alembic folder exist only in the statgpt.admin package.
     # (statgpt Dockerfile doesn't copy statgpt.admin package to the container)
-    ALEMBIC_TARGET_VERSION = '2f0f6f2f0d7b'
+    ALEMBIC_TARGET_VERSION = '331d3d5b3b30'
