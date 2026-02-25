@@ -137,16 +137,12 @@ class JobsService:
         return schemas.Job.model_validate(job, from_attributes=True)
 
     async def _update_job_status(
-        self,
-        job: models.Job,
-        new_status: schemas.PreprocessingStatusEnum,
-        do_commit: bool = True,
+        self, job: models.Job, new_status: schemas.PreprocessingStatusEnum
     ) -> None:
         job.status = new_status
-        job.updated_at = datetime.now()
-        if do_commit:
-            await self._session.commit()
-            await self._session.refresh(job)
+        job.updated_at = func.now()
+        await self._session.commit()
+        await self._session.refresh(job)
 
     async def create_export_job(
         self,
@@ -203,29 +199,28 @@ class JobsService:
                     content=file.file,  # type: ignore
                 )
                 job.file = resp.url
+
+            _log.info(
+                f"Creating import job with args: {clean_up=}, {update_datasets=}, {update_data_sources=}"
+            )
+            background_tasks.add_task(
+                import_channel_in_background_task,
+                job.id,
+                clean_up,
+                update_datasets,
+                update_data_sources,
+                auth_context,
+                get_audit_context(),
+            )
+            job.status = schemas.PreprocessingStatusEnum.QUEUED
         except Exception as e:
             _log.exception(e)
             job.reason_for_failure = str(e)
-            await self._update_job_status(
-                job, schemas.PreprocessingStatusEnum.FAILED, do_commit=False
-            )
-            return schemas.Job.model_validate(job, from_attributes=True)
+            job.status = schemas.PreprocessingStatusEnum.FAILED
 
-        _log.info(
-            f"Creating import job with args: {clean_up=}, {update_datasets=}, {update_data_sources=}"
-        )
-        background_tasks.add_task(
-            import_channel_in_background_task,
-            job.id,
-            clean_up,
-            update_datasets,
-            update_data_sources,
-            auth_context,
-            get_audit_context(),
-        )
-        # TODO: inspect do we need to update job status in this method
-        await self._update_job_status(job, schemas.PreprocessingStatusEnum.QUEUED, do_commit=False)
-
+        job.updated_at = func.now()
+        await self._session.flush()
+        await self._session.refresh(job)
         return schemas.Job.model_validate(job, from_attributes=True)
 
     @staticmethod
