@@ -214,6 +214,7 @@ class AdminPortalChannelService(ChannelService):
             if clean_up:
                 await self._cleanup_existing_channel(channel_data.deployment_id, auth_context)
             created_channel = await self.create_channel(channel_data)
+            await self._session.commit()
             return await self.get_model_by_id(created_channel.id)
 
         return await self._get_existing_channel_by_deployment_id(deployment_id)
