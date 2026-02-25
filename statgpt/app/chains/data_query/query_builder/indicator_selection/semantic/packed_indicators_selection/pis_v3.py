@@ -184,6 +184,9 @@ candidates:
         def get_queries(self):
             pass  # not used
 
+        def translate_dataset_ids(self, source_id_to_dataset_id: dict[str, str]) -> None:
+            pass  # V3 uses indexes, not dataset IDs
+
     class CombinedOutput(BaseModel):
         queries: DatasetDimQueries
         selection_status_str: str
