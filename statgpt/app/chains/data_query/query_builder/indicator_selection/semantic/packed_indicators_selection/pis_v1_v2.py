@@ -541,7 +541,9 @@ it is especially true for dimension values like "all", "total", "all maturities"
                 for dataset_id in dataset_ids:
                     dataset = datasets_dict.get(dataset_id)
                     if dataset is None:
-                        logger.warning(f'Skipping unknown {dataset_id=} when populating stage content')
+                        logger.warning(
+                            f'Skipping unknown {dataset_id=} when populating stage content'
+                        )
                         continue
                     lines.append(f'* {dataset.name}')
                     lines.append(f'\t* ID: {dataset.source_id}')
