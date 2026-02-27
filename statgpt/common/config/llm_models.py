@@ -69,6 +69,7 @@ class LLMModelsEnum(StrEnum):
             LLMModelsEnum.GPT_4_1_2025_04_14,
             LLMModelsEnum.GPT_4_1_MINI_2025_04_14,
             LLMModelsEnum.GPT_4_1_NANO_2025_04_14,
+            LLMModelsEnum.GPT_4_1_2025_04_14_HF,
         }
 
     @property
