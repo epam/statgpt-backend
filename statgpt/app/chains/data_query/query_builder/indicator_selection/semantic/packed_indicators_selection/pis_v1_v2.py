@@ -67,19 +67,12 @@ class DatasetDimQueriesByRelevancy(BaseModel):
 
 
 class IndicatorCandidatesLLMFormatter:
-    def __init__(
-        self,
-        dataset_alias_to_name: dict[str, str],
-        dataset_id_to_source_id: dict[str, str] | None = None,
-    ):
-        self.dataset_alias_to_name = dataset_alias_to_name
-        self._dataset_id_to_source_id = dataset_id_to_source_id or {}
+    def __init__(self, dataset_id_2_name: dict[str, str]):
+        self.dataset_id_2_name = dataset_id_2_name
 
     @classmethod
     def get_candidate_details_by_dataset(
-        cls,
-        candidates: list[ScoredIndicatorCandidate],
-        dataset_id_to_source_id: dict[str, str] | None = None,
+        cls, candidates: list[ScoredIndicatorCandidate]
     ) -> DatasetDimensionTermNameType:
         cand_by_dataset: dict[str, list[ScoredIndicatorCandidate]] = {}
         for c in candidates:
@@ -109,14 +102,13 @@ class IndicatorCandidatesLLMFormatter:
                 for details in first_ind_comp_details
             }
 
-            key = (dataset_id_to_source_id or {}).get(dataset_id, dataset_id)
-            dataset_data[key] = cur_dataset_dimensions
+            dataset_data[dataset_id] = cur_dataset_dimensions
         return dataset_data
 
     def _data2text(self, candidate_details_by_dataset: DatasetDimensionTermNameType) -> str:
         lines = []
         for dataset_id, dimension_data in candidate_details_by_dataset.items():
-            dataset_name = self.dataset_alias_to_name[dataset_id]
+            dataset_name = self.dataset_id_2_name[dataset_id]
             lines.append(
                 f'Dataset id: "{dataset_id}", dataset name: "{dataset_name}". '
                 f'Dimensions (keys are dimension IDs):'
@@ -127,9 +119,7 @@ class IndicatorCandidatesLLMFormatter:
         return res
 
     def run(self, candidates: list[ScoredIndicatorCandidate]):
-        data = self.get_candidate_details_by_dataset(
-            candidates, dataset_id_to_source_id=self._dataset_id_to_source_id
-        )
+        data = self.get_candidate_details_by_dataset(candidates)
         res = self._data2text(data)
         return res
 
@@ -138,16 +128,6 @@ class LLMResponseBase(BaseModel, ABC):
     @abstractmethod
     def get_queries(self) -> DatasetDimQueriesType:
         pass
-
-    @abstractmethod
-    def translate_dataset_ids(self, source_id_to_dataset_id: dict[str, str]) -> None:
-        """Replace source_id keys in LLM-produced queries with dataset UUIDs.
-
-        The LLM receives short source_ids (e.g. "IMF:IFS(1.0)") instead of
-        dataset UUIDs to avoid garbling. This method translates the keys back
-        to UUIDs so downstream pipeline steps (populate_stage, _remove_hallucinations)
-        can match them against datasets_dict.
-        """
 
     async def populate_stage(self, inputs: dict) -> None:
         logger.info(f'default {type(self).__name__}.populate_stage(): doing nothing')
@@ -198,7 +178,7 @@ candidates:
         dataset_queries: DatasetDimQueriesType = Field(
             default={},
             description=(
-                'mapping from dataset id (as shown in candidates, not name!) to query. '
+                'mapping from dataset id (not name!!!) to query. '
                 'query is a mapping from dimension id '
                 'to list of dimension value ids required in the user query. '
             ),
@@ -206,12 +186,6 @@ candidates:
 
         def get_queries(self) -> DatasetDimQueriesType:
             return self.dataset_queries
-
-        def translate_dataset_ids(self, source_id_to_dataset_id: dict[str, str]) -> None:
-            """V1 stores queries in a flat dict keyed by dataset id."""
-            self.dataset_queries = {
-                source_id_to_dataset_id.get(k, k): v for k, v in self.dataset_queries.items()
-            }
 
         async def populate_stage(self, inputs: dict) -> None:
             state = ChainParameters.get_state(inputs)
@@ -288,18 +262,6 @@ candidates:
             content = f'```yaml\n{candidates_formatted}\n```'
             stage.append_content(content)
 
-    def _translate_aliases(self, inputs: dict):
-        """Chain step: convert source_id keys in the LLM response back to dataset UUIDs.
-
-        MUST be called right after the LLM call and before populate_stage /
-        _remove_hallucinations, which expect dataset UUIDs as keys.
-        """
-        source_id_to_dataset_id = inputs.get('source_id_to_dataset_id', {})
-        if source_id_to_dataset_id:
-            parsed_response: LLMResponseBase = inputs[self.PARSED_RESPONSE_KEY]
-            parsed_response.translate_dataset_ids(source_id_to_dataset_id)
-        return inputs
-
     def _create_chain_inner(self, llm):
         async def async_lambda(inputs):
             return await inputs[self.PARSED_RESPONSE_KEY].populate_stage(inputs)
@@ -308,7 +270,6 @@ candidates:
             self._format_candidates
             | RunnablePassthrough.assign(_=self._populate_candidates_stage)
             | RunnablePassthrough.assign(**{self.PARSED_RESPONSE_KEY: self._prompt_template | llm})
-            | self._translate_aliases  # call it right after llm
             | RunnablePassthrough.assign(_=async_lambda)
             | self._remove_hallucinations
         )
@@ -342,34 +303,10 @@ candidates:
         candidates = self._get_candidates(inputs)
         chain_state = ChainState(**inputs)
         datasets_dict = chain_state.datasets_dict
-
-        # Build bidirectional mapping: dataset UUID <-> source_id (short URN)
-        # Source IDs are used as LLM-facing identifiers to avoid fragile UUIDs
-        dataset_id_to_source_id: dict[str, str] = {}
-        source_id_to_dataset_id: dict[str, str] = {}
-
-        for entity_id, ds in datasets_dict.items():
-            source_id = ds.data.source_id
-            assert source_id is not None, f'Dataset {entity_id} has no source_id'
-            if source_id in source_id_to_dataset_id:
-                logger.warning(
-                    f'Duplicate source_id "{source_id}" for datasets '
-                    f'{source_id_to_dataset_id[source_id]} and {entity_id}'
-                )
-            dataset_id_to_source_id[entity_id] = source_id
-            source_id_to_dataset_id[source_id] = entity_id
-
-        dataset_source_id_to_name = {
-            ds.data.source_id: ds.data.name for ds in datasets_dict.values()
-        }
-
-        formatter = IndicatorCandidatesLLMFormatter(
-            dataset_alias_to_name=dataset_source_id_to_name,
-            dataset_id_to_source_id=dataset_id_to_source_id,
-        )
+        dataset_id_2_name = {ds.data.entity_id: ds.data.name for ds in datasets_dict.values()}
+        formatter = IndicatorCandidatesLLMFormatter(dataset_id_2_name=dataset_id_2_name)
         text = formatter.run(candidates)
         inputs['yaml_candidates'] = text
-        inputs['source_id_to_dataset_id'] = source_id_to_dataset_id
         return inputs
 
     def _remove_hallucinations(self, inputs: dict) -> DatasetDimQueries:
@@ -548,18 +485,6 @@ it is especially true for dimension values like "all", "total", "all maturities"
             # process relevancy types
             res = self.queries.combine_with_priority().queries
             return res
-
-        def translate_dataset_ids(self, source_id_to_dataset_id: dict[str, str]) -> None:
-            """V2 splits queries into exact/child relevancy sub-dicts,
-            so both must be translated independently."""
-
-            def _translate(q: DatasetDimQueriesType) -> DatasetDimQueriesType:
-                return {source_id_to_dataset_id.get(k, k): v for k, v in q.items()}
-
-            self.queries = DatasetDimQueriesByRelevancy(
-                exact=DatasetDimQueries(queries=_translate(self.queries.exact.queries)),
-                child=DatasetDimQueries(queries=_translate(self.queries.child.queries)),
-            )
 
         async def populate_stage(self, inputs: dict) -> None:
             state = ChainParameters.get_state(inputs)
