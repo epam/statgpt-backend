@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from statgpt.admin.auth.auth_context import SystemUserAuthContext
 from statgpt.admin.mcp import schemas as mcp_schemas
+from statgpt.admin.services import AdminPortalChannelService as ChannelService
 from statgpt.admin.services import AdminPortalDataSetService as DataSetService
 from statgpt.common.data.base import DataSetValidationResult
 from statgpt.common.models.database import get_session_contex_manager
@@ -168,3 +169,16 @@ async def validate_dataset_config(
         auth_context=SystemUserAuthContext(),
     )
     return res
+
+
+@mcp_tools.tool
+async def get_available_channels(
+    session: AsyncSession = Depends(get_session_contex_manager),  # type: ignore[arg-type]
+) -> list[mcp_schemas.Channel]:
+    """Get all available channels."""
+    service = ChannelService(session)
+    channels = await service.get_channels_schemas(limit=1000, offset=0)
+    return [
+        mcp_schemas.Channel(id=ch.id, deployment_id=ch.deployment_id, title=ch.title)
+        for ch in channels
+    ]

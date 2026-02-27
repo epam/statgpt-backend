@@ -1,4 +1,3 @@
-import logging
 from collections.abc import Awaitable, Callable
 from functools import wraps
 
@@ -8,8 +7,6 @@ import statgpt.common.models as models
 from statgpt.admin.audit.context import get_audit_context
 from statgpt.common.schemas.auditable import Auditable
 from statgpt.common.schemas.enums import AuditActionType, AuditEntityType
-
-_log = logging.getLogger(__name__)
 
 
 async def _persist_audit_log(
@@ -34,7 +31,6 @@ async def _persist_audit_log(
         trace_id=context.trace_id,
     )
     session.add(item)
-    await session.commit()
 
 
 def audit_action(
@@ -42,24 +38,30 @@ def audit_action(
     entity_type: AuditEntityType,
     action_type: AuditActionType,
 ):
+    """Decorated methods must not call session.commit(); this decorator owns transaction commit/rollback."""
+
     def decorator(func: Callable[..., Awaitable[Auditable]]) -> Callable[..., Awaitable[Auditable]]:
         @wraps(func)
         async def wrapped(self, *args, **kwargs) -> Auditable:
-            result: Auditable = await func(self, *args, **kwargs)
-            try:
+            if self._session.in_transaction():
+                result: Auditable = await func(self, *args, **kwargs)
                 await _persist_audit_log(
                     session=self._session,
                     entity_type=entity_type,
                     action_type=action_type,
                     data=result,
                 )
-            except Exception:
-                _log.exception(
-                    f"Failed to persist audit log for {entity_type} action={action_type}"
-                )
-                # TODO: Probably we should also roll back the session here
+                return result
 
-            return result
+            async with self._session.begin():
+                result = await func(self, *args, **kwargs)
+                await _persist_audit_log(
+                    session=self._session,
+                    entity_type=entity_type,
+                    action_type=action_type,
+                    data=result,
+                )
+                return result
 
         return wrapped
 

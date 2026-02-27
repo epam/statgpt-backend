@@ -59,7 +59,7 @@ class AdminPortalDataSourceService(DataSourceService):
         )
 
         self._session.add(item)
-        await self._session.commit()
+        await self._session.flush()
 
         await self._session.refresh(item, attribute_names=["type"])
         return DataSourceSerializer.db_to_schema(item)
@@ -126,7 +126,7 @@ class AdminPortalDataSourceService(DataSourceService):
             .returning(models.DataSource)
         )
         item = (await self._session.execute(query)).scalar_one()
-        await self._session.commit()
+        await self._session.flush()
 
         await self._session.refresh(item, attribute_names=["type"])
         return DataSourceSerializer.db_to_schema(item)
@@ -139,5 +139,5 @@ class AdminPortalDataSourceService(DataSourceService):
         _log.info(f"Deleting {item}")
 
         await self._session.delete(item)
-        await self._session.commit()
+        await self._session.flush()
         return deleted_item

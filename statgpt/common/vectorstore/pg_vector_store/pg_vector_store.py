@@ -139,6 +139,9 @@ class PgVectorStore(VectorStore, DbServiceBase):
                 return True
 
     async def clear(self) -> None:
+        # Keep outer transaction scopes (e.g. @audit_action) intact:
+        # only commit when this method is not called inside an active transaction.
+        should_commit = not self._session.in_transaction()
         async with self._lock_session() as session:
             for table in [self._table_name, self._metadata_table_name]:
                 if await self._check_if_table_exists(session, table):
@@ -146,7 +149,8 @@ class PgVectorStore(VectorStore, DbServiceBase):
                     await session.execute(text(f'DROP TABLE IF EXISTS collections."{table}"'))
                     _log.info(f"Dropped '{table}' table")
 
-            await session.commit()
+            if should_commit:
+                await session.commit()
 
     def _dataset_lock_key(self, dataset_id: uuid.UUID) -> int:
         """Generates a consistent lock key from collection_name and dataset_id.

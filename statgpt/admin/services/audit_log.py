@@ -56,18 +56,24 @@ class AdminAuditLogService:
         action_type: schemas.AuditActionType | None = None,
         item_id: int | None = None,
         entity_id: str | None = None,
+        entity_name: str | None = None,
         performed_by: str | None = None,
+        performed_by_name: str | None = None,
+        trace_id: str | None = None,
         created_at_from: datetime.datetime | None = None,
         created_at_to: datetime.datetime | None = None,
     ) -> list[schemas.AuditLogListItem]:
         query = select(models.AuditLog).order_by(models.AuditLog.created_at.desc())
         query = self._apply_filters(
-            query,
+            query=query,
             entity_type=entity_type,
             action_type=action_type,
             item_id=item_id,
             entity_id=entity_id,
+            entity_name=entity_name,
             performed_by=performed_by,
+            performed_by_name=performed_by_name,
+            trace_id=trace_id,
             created_at_from=created_at_from,
             created_at_to=created_at_to,
         )
@@ -88,25 +94,35 @@ class AdminAuditLogService:
         action_type: schemas.AuditActionType | None = None,
         item_id: int | None = None,
         entity_id: str | None = None,
+        entity_name: str | None = None,
         performed_by: str | None = None,
+        performed_by_name: str | None = None,
+        trace_id: str | None = None,
         created_at_from: datetime.datetime | None = None,
         created_at_to: datetime.datetime | None = None,
     ) -> int:
         query = select(func.count("*")).select_from(models.AuditLog)
         query = self._apply_filters(
-            query,
+            query=query,
             entity_type=entity_type,
             action_type=action_type,
             item_id=item_id,
             entity_id=entity_id,
+            entity_name=entity_name,
             performed_by=performed_by,
+            performed_by_name=performed_by_name,
+            trace_id=trace_id,
             created_at_from=created_at_from,
             created_at_to=created_at_to,
         )
         return (await self._session.execute(query)).scalar_one()
 
     @staticmethod
-    def _apply_filters(query, **filters):
+    def _contains(column, value: str):
+        return column.ilike(f"%{value}%")
+
+    @classmethod
+    def _apply_filters(cls, query, **filters):
         if filters["entity_type"]:
             query = query.where(models.AuditLog.entity_type == filters["entity_type"])
         if filters["action_type"]:
@@ -114,9 +130,19 @@ class AdminAuditLogService:
         if filters["item_id"] is not None:
             query = query.where(models.AuditLog.item_id == filters["item_id"])
         if filters["entity_id"]:
-            query = query.where(models.AuditLog.entity_id == filters["entity_id"])
+            query = query.where(cls._contains(models.AuditLog.entity_id, filters["entity_id"]))
+        if filters["entity_name"]:
+            query = query.where(cls._contains(models.AuditLog.entity_name, filters["entity_name"]))
         if filters["performed_by"]:
-            query = query.where(models.AuditLog.performed_by == filters["performed_by"])
+            query = query.where(
+                cls._contains(models.AuditLog.performed_by, filters["performed_by"])
+            )
+        if filters["performed_by_name"]:
+            query = query.where(
+                cls._contains(models.AuditLog.performed_by_name, filters["performed_by_name"])
+            )
+        if filters["trace_id"]:
+            query = query.where(cls._contains(models.AuditLog.trace_id, filters["trace_id"]))
         if filters["created_at_from"] is not None:
             query = query.where(models.AuditLog.created_at >= filters["created_at_from"])
         if filters["created_at_to"] is not None:
