@@ -79,7 +79,6 @@ class IndicatorCandidatesLLMFormatter:
     def get_candidate_details_by_dataset(
         cls,
         candidates: list[ScoredIndicatorCandidate],
-        dataset_id_to_source_id: dict[str, str] | None = None,
     ) -> DatasetDimensionTermNameType:
         cand_by_dataset: dict[str, list[ScoredIndicatorCandidate]] = {}
         for c in candidates:
@@ -109,9 +108,15 @@ class IndicatorCandidatesLLMFormatter:
                 for details in first_ind_comp_details
             }
 
-            key = (dataset_id_to_source_id or {}).get(dataset_id, dataset_id)
-            dataset_data[key] = cur_dataset_dimensions
+            dataset_data[dataset_id] = cur_dataset_dimensions
         return dataset_data
+
+    @staticmethod
+    def map_dataset_ids_for_llm(
+        dataset_data: DatasetDimensionTermNameType,
+        dataset_id_to_source_id: dict[str, str],
+    ) -> DatasetDimensionTermNameType:
+        return {dataset_id_to_source_id.get(k, k): v for k, v in dataset_data.items()}
 
     def _data2text(self, candidate_details_by_dataset: DatasetDimensionTermNameType) -> str:
         lines = []
@@ -127,9 +132,9 @@ class IndicatorCandidatesLLMFormatter:
         return res
 
     def run(self, candidates: list[ScoredIndicatorCandidate]):
-        data = self.get_candidate_details_by_dataset(
-            candidates, dataset_id_to_source_id=self._dataset_id_to_source_id
-        )
+        data = self.get_candidate_details_by_dataset(candidates)
+        if self._dataset_id_to_source_id:
+            data = self.map_dataset_ids_for_llm(data, self._dataset_id_to_source_id)
         res = self._data2text(data)
         return res
 
