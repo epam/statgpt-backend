@@ -50,6 +50,9 @@ class LLMModelsEnum(StrEnum):
     GPT_4_1_MINI_2025_04_14 = "gpt-4.1-mini-2025-04-14"
     GPT_4_1_NANO_2025_04_14 = "gpt-4.1-nano-2025-04-14"
 
+    GPT_4_1_2025_04_14_HF = "gpt-4.1-2025-04-14-hf"
+    """GPT-4.1 models with high content filters."""
+
     # GPT-5 models
     GPT_5_MINI_2025_08_07 = "gpt-5-mini-2025-08-07"
     GPT_5_1_2025_11_13 = "gpt-5.1-2025-11-13"
@@ -66,6 +69,7 @@ class LLMModelsEnum(StrEnum):
             LLMModelsEnum.GPT_4_1_2025_04_14,
             LLMModelsEnum.GPT_4_1_MINI_2025_04_14,
             LLMModelsEnum.GPT_4_1_NANO_2025_04_14,
+            LLMModelsEnum.GPT_4_1_2025_04_14_HF,
         }
 
     @property
