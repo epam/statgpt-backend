@@ -1,7 +1,7 @@
 """add_auto_update_jobs_table
 
 Revision ID: 75cf43005ed1
-Revises: c7f068b2d47d
+Revises: 331d3d5b3b30
 Create Date: 2026-02-03 16:08:14.339217
 Updated Date: 2026-03-02 15:02:00
 
