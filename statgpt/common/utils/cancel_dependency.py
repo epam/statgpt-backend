@@ -48,6 +48,7 @@ async def _watcher(request: Request, handler_task: asyncio.Task, interval: float
         if await request.is_disconnected():
             _log.info(f"Cancelling handler task for {request.url}")
             handler_task.cancel()
+            return
         else:
             _log.debug(f"Request {request.url} still connected")
         await asyncio.sleep(interval)
