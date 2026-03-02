@@ -69,10 +69,10 @@ class DatasetDimQueriesByRelevancy(BaseModel):
 class IndicatorCandidatesLLMFormatter:
     def __init__(
         self,
-        dataset_alias_to_name: dict[str, str],
+        dataset_id_to_name: dict[str, str],
         dataset_id_to_source_id: dict[str, str] | None = None,
     ):
-        self.dataset_alias_to_name = dataset_alias_to_name
+        self.dataset_id_to_name = dataset_id_to_name
         self._dataset_id_to_source_id = dataset_id_to_source_id or {}
 
     @classmethod
@@ -116,7 +116,7 @@ class IndicatorCandidatesLLMFormatter:
     def _data2text(self, candidate_details_by_dataset: DatasetDimensionTermNameType) -> str:
         lines = []
         for dataset_id, dimension_data in candidate_details_by_dataset.items():
-            dataset_name = self.dataset_alias_to_name[dataset_id]
+            dataset_name = self.dataset_id_to_name[dataset_id]
             lines.append(
                 f'Dataset id: "{dataset_id}", dataset name: "{dataset_name}". '
                 f'Dimensions (keys are dimension IDs):'
@@ -364,7 +364,7 @@ candidates:
         }
 
         formatter = IndicatorCandidatesLLMFormatter(
-            dataset_alias_to_name=dataset_source_id_to_name,
+            dataset_id_to_name=dataset_source_id_to_name,
             dataset_id_to_source_id=dataset_id_to_source_id,
         )
         text = formatter.run(candidates)
