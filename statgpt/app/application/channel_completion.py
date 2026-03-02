@@ -135,14 +135,20 @@ class ChannelCompletion(ChatCompletion):
                         )
                     state = ChainParameters.get_state(chains_response)
                     state[StateVarsConfig.ERROR] = None
-                except openai.ContentFilterFinishReasonError as e:
-                    _log.exception(e)
-                    choice.append_content(
-                        "The query was blocked by the LLM provider content filter for violating safety guidelines."
-                    )
+                except openai.BadRequestError as e:
+                    _log.exception("openai.BadRequestError")
+                    if isinstance(error := e.body, dict) and error.get("code") == "content_filter":
+                        raise DIALException(status_code=400, **error) from None
+
+                    choice.append_content("An error occurred while processing your request.")
                     state[StateVarsConfig.ERROR] = str(e)
+                except openai.ContentFilterFinishReasonError as e:
+                    _log.exception("openai.ContentFilterFinishReasonError")
+                    raise DIALException(
+                        message=str(e), status_code=400, param="prompt", code="content_filter"
+                    ) from None
                 except Exception as e:
-                    _log.exception(e)
+                    _log.exception("Exception")
                     choice.append_content("An error occurred while processing your request.")
                     state[StateVarsConfig.ERROR] = str(e)
 
