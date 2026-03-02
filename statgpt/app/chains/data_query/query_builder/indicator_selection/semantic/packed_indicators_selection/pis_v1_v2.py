@@ -140,7 +140,7 @@ class LLMResponseBase(BaseModel, ABC):
         pass
 
     @abstractmethod
-    def translate_dataset_ids(self, source_id_to_dataset_id: dict[str, str]) -> None:
+    def map_dataset_ids_from_llm(self, source_id_to_dataset_id: dict[str, str]) -> None:
         """Replace source_id keys in LLM-produced queries with dataset UUIDs.
 
         The LLM receives short source_ids (e.g. "IMF:IFS(1.0)") instead of
@@ -207,7 +207,7 @@ candidates:
         def get_queries(self) -> DatasetDimQueriesType:
             return self.dataset_queries
 
-        def translate_dataset_ids(self, source_id_to_dataset_id: dict[str, str]) -> None:
+        def map_dataset_ids_from_llm(self, source_id_to_dataset_id: dict[str, str]) -> None:
             """V1 stores queries in a flat dict keyed by dataset id."""
             self.dataset_queries = {
                 source_id_to_dataset_id.get(k, k): v for k, v in self.dataset_queries.items()
@@ -288,7 +288,7 @@ candidates:
             content = f'```yaml\n{candidates_formatted}\n```'
             stage.append_content(content)
 
-    def _translate_aliases(self, inputs: dict):
+    def _map_dataset_ids_from_llm(self, inputs: dict):
         """Chain step: convert source_id keys in the LLM response back to dataset UUIDs.
 
         MUST be called right after the LLM call and before populate_stage /
@@ -297,7 +297,7 @@ candidates:
         source_id_to_dataset_id = inputs.get('source_id_to_dataset_id', {})
         if source_id_to_dataset_id:
             parsed_response: LLMResponseBase = inputs[self.PARSED_RESPONSE_KEY]
-            parsed_response.translate_dataset_ids(source_id_to_dataset_id)
+            parsed_response.map_dataset_ids_from_llm(source_id_to_dataset_id)
         return inputs
 
     def _create_chain_inner(self, llm):
@@ -305,10 +305,10 @@ candidates:
             return await inputs[self.PARSED_RESPONSE_KEY].populate_stage(inputs)
 
         chain = (
-            self._format_candidates
+            self._format_candidates_for_llm
             | RunnablePassthrough.assign(_=self._populate_candidates_stage)
             | RunnablePassthrough.assign(**{self.PARSED_RESPONSE_KEY: self._prompt_template | llm})
-            | self._translate_aliases  # call it right after llm
+            | self._map_dataset_ids_from_llm  # call it right after llm
             | RunnablePassthrough.assign(_=async_lambda)
             | self._remove_hallucinations
         )
@@ -338,7 +338,7 @@ candidates:
 
         return chain
 
-    def _format_candidates(self, inputs: dict):
+    def _format_candidates_for_llm(self, inputs: dict):
         candidates = self._get_candidates(inputs)
         chain_state = ChainState(**inputs)
         datasets_dict = chain_state.datasets_dict
@@ -549,7 +549,7 @@ it is especially true for dimension values like "all", "total", "all maturities"
             res = self.queries.combine_with_priority().queries
             return res
 
-        def translate_dataset_ids(self, source_id_to_dataset_id: dict[str, str]) -> None:
+        def map_dataset_ids_from_llm(self, source_id_to_dataset_id: dict[str, str]) -> None:
             """V2 splits queries into exact/child relevancy sub-dicts,
             so both must be translated independently."""
 
