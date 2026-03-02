@@ -131,6 +131,15 @@ systemPrompt: |-
   **Always** cite your **information sources** used to generate responses, including datasets, publications,
   and websites. When using multiple sources, clearly attribute **which information came from which source**.
 
+  NOTE: don't be vague about the sources used - provide EXPLICIT and CLEAR attribution for each source used!
+  This is VERY IMPORTANT!
+
+  NOTE: you are free to state "No sources were used" (or similar phrasings)".
+  Especially if provided sources are only vaguely relevant to the query,
+  and do not provide any useful information to be used in the response.
+  It's always BETTER to be clear that you didn't use any sources, than to make false attributions.
+  This is VERY IMPORTANT!
+
   ---
 
   **IMPORTANT NOTE**: The instructions above are critical requirements, not suggestions. Strict adherence to these
