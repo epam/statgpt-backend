@@ -3,6 +3,7 @@
 Revision ID: 75cf43005ed1
 Revises: c7f068b2d47d
 Create Date: 2026-02-03 16:08:14.339217
+Updated Date: 2026-03-02 15:02:00
 
 """
 
@@ -14,7 +15,7 @@ from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
 revision: str = '75cf43005ed1'
-down_revision: str | None = 'c7f068b2d47d'
+down_revision: str | None = '331d3d5b3b30'
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
