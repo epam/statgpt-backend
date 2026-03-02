@@ -1,3 +1,4 @@
+from .audit_log import AuditLogDetails, AuditLogListItem
 from .auto_update import AutoUpdateJob
 from .base import DefaltPromptsBase, ListResponse, SystemUserPrompt
 from .channel import (
@@ -25,6 +26,8 @@ from .data_query_tool import DataQueryDetails, HybridSearchConfig
 from .data_source import DataSource, DataSourceBase, DataSourceType, DataSourceUpdate
 from .dataset import DataSet, DataSetBase, DataSetDescriptor, DataSetUpdateRequest
 from .enums import (
+    AuditActionType,
+    AuditEntityType,
     AutoUpdateResult,
     ChannelDatasetUpdateStatus,
     ChannelIndexStatusScope,

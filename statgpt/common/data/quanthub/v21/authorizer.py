@@ -56,13 +56,13 @@ class QuanthubAuthorizer(IAuthorizer):
             return system_user_token.access_token
         else:
             dial_token = self._auth_context.dial_access_token
-            if not dial_token:
+            if not dial_token and self._dial_user_authorizer.requires_dial_token:
                 raise AuthorizationError(
                     'AuthorizationError', 'DIAL access token is required for user authorization'
                 )
 
             try:
-                config = DialUserAuthorizerConfig(dial_token=dial_token)
+                config = DialUserAuthorizerConfig(dial_token=dial_token or "")
                 token = await self._dial_user_authorizer.authorize(config)
                 return token.access_token
             except AuthorizationError as e:

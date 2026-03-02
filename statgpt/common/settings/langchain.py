@@ -1,6 +1,4 @@
-from typing import Optional
-
-from langchain import globals as lc_globals
+from langchain_core import globals as lc_globals
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -35,7 +33,7 @@ class LangChainSettings(BaseSettings):
         description="Default API version for Azure OpenAI",
     )
 
-    default_seed: Optional[int] = Field(
+    default_seed: int | None = Field(
         default=None,
         description="Default seed for reproducible outputs",
     )

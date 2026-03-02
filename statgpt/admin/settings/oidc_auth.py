@@ -31,6 +31,16 @@ class OidcAuthSettings(BaseSettings):
     oidc_username_claim: Optional[str] = Field(
         default=None, alias="OIDC_USERNAME_CLAIM", description="OIDC Username Claim"
     )
+    oidc_audit_user_id_claim: str = Field(
+        default="oid,sub",
+        alias="OIDC_AUDIT_USER_ID_CLAIM",
+        description="JWT claim(s) used for audit performed_by field",
+    )
+    oidc_audit_performed_by_name_claim: str = Field(
+        default="unique_name,email",
+        alias="OIDC_AUDIT_PERFORMED_BY_NAME_CLAIM",
+        description="JWT claim(s) used for audit performed_by_name field",
+    )
 
     # Admin roles settings
     admin_roles_claim: Optional[str] = Field(
@@ -97,6 +107,20 @@ class OidcAuthSettings(BaseSettings):
                     )
 
         return self
+
+    @staticmethod
+    def _parse_audit_claims(value: str) -> list[str]:
+        return [claim.strip() for claim in value.split(",") if claim.strip()]
+
+    @property
+    def oidc_audit_user_id_claims(self) -> list[str]:
+        """Parse configured performed_by claim names into an ordered list."""
+        return self._parse_audit_claims(self.oidc_audit_user_id_claim)
+
+    @property
+    def oidc_audit_performed_by_name_claims(self) -> list[str]:
+        """Parse configured performed_by_name claim names into an ordered list."""
+        return self._parse_audit_claims(self.oidc_audit_performed_by_name_claim)
 
 
 # Create a singleton instance

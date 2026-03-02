@@ -7,7 +7,7 @@ import asyncio
 import logging
 
 from statgpt.admin.services import AdminPortalDataSetService
-from statgpt.common.models import get_session_contex_manager
+from statgpt.common.models import get_session_contex_manager, optional_msi_token_manager_context
 
 _log = logging.getLogger(__name__)
 
@@ -23,7 +23,8 @@ async def fix_statuses():
 async def main():
     try:
         _log.info("Starting fix_statuses script...")
-        await fix_statuses()
+        async with optional_msi_token_manager_context():
+            await fix_statuses()
         _log.info("fix_statuses script completed successfully")
     except Exception:
         _log.exception("Error in fix_statuses script:")

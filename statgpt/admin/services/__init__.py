@@ -1,3 +1,4 @@
+from .audit_log import AdminAuditLogService
 from .channel import AdminPortalChannelService
 from .data_source import AdminPortalDataSourceService
 from .dataset import AdminPortalDataSetService

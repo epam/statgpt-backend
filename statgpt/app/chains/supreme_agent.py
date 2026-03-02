@@ -174,6 +174,8 @@ class SupremeAgent:
         try:
             async for chunk in self._chain.astream(inputs):
                 if chunk.content:
+                    if not isinstance(chunk.content, str):
+                        continue
                     if first_token_time is None:
                         first_token_time = datetime.now()
                     self._choice.append_content(chunk.content)

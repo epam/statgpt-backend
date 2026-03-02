@@ -20,6 +20,8 @@ channels:
         llm_model_config:
           deployment: "gpt-4.1-2025-04-14"
       out_of_scope:
+        llm_model_config:
+          deployment: "gpt-4.1-2025-04-14"
         use_general_topics_blacklist: true
         domain: "Statistics, economics and SDMX."
       token_usage:

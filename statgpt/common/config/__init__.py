@@ -1,4 +1,4 @@
-from .llm_models import EmbeddingModelsEnum, LLMModelsEnum
+from .llm_models import EmbeddingModelsEnum, LLMModelsEnum, ReasoningEffortEnum, VerbosityEnum
 from .logging import LoggingConfig, logger, multiline_logger
 from .versions import Versions
 
