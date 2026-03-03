@@ -45,6 +45,12 @@ statgpt_cli: install_dev
 statgpt_admin:
 	poetry run python -m statgpt.admin.app $(ARGS)
 
+statgpt_fix_statuses:
+	poetry run python -m statgpt.admin.fix_statuses
+
+statgpt_auto_update:
+	poetry run python -m statgpt.admin.auto_update
+
 statgpt_app:
 	poetry run python -m statgpt.app.app $(ARGS)
 

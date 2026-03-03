@@ -1989,6 +1989,51 @@ class AdminPortalDataSetService(DataSetService):
         )
         return await self._session.scalar(query) or 0
 
+    async def create_auto_update_jobs(self, channels: list[models.Channel]) -> list[int]:
+        """Create AutoUpdateJob records for all datasets in the given channels.
+
+        Returns a list of created job IDs.
+        """
+        job_ids: list[int] = []
+        for channel in channels:
+            channel_job_ids: list[int] = []
+            for channel_dataset in channel.mapped_datasets:
+                job = models.AutoUpdateJob(
+                    channel_dataset_id=channel_dataset.id,
+                    status=StatusEnum.QUEUED,
+                )
+                self._session.add(job)
+                await self._session.flush()
+                channel_job_ids.append(job.id)
+            job_ids.extend(channel_job_ids)
+            _log.info(
+                f"Created {len(channel_job_ids)} auto-update job(s) for channel "
+                f"'{channel.title}' (id={channel.id})"
+            )
+        await self._session.commit()
+        return job_ids
+
+    async def check_auto_update_results(self, job_ids: list[int]) -> bool:
+        """Check final statuses of auto-update jobs and log a summary.
+
+        Returns True if all jobs succeeded, False otherwise.
+        """
+        result = await self._session.execute(
+            select(models.AutoUpdateJob).where(models.AutoUpdateJob.id.in_(job_ids))
+        )
+        jobs = list(result.scalars().all())
+
+        failed_jobs = [j for j in jobs if j.status == StatusEnum.FAILED]
+        for job in failed_jobs:
+            _log.error(f"Auto-update job {job.id} failed: {job.reason_for_failure}")
+
+        succeeded = len(jobs) - len(failed_jobs)
+        _log.info(
+            f"Auto-update complete: {succeeded} succeeded, {len(failed_jobs)} failed "
+            f"out of {len(job_ids)} total"
+        )
+        return len(failed_jobs) == 0
+
     async def _set_auto_update_job_status(
         self,
         job: models.AutoUpdateJob,
