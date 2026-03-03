@@ -176,3 +176,25 @@ class DataSourceHandler(
         self, config: dict, auth_context: AuthContext
     ) -> DataSetStructure:
         pass
+
+    @abstractmethod
+    async def resolve_config(
+        self,
+        config: dict,
+        previous_resolved_config: dict | None,
+        auth_context: AuthContext,
+    ) -> tuple[str, dict]:
+        """Resolve dynamic values in the dataset config to actual values.
+
+        Resolves URN version='latest' (or other dynamic values) to actual version.
+        In the future, may also update other fields such as dimensions if they can be dynamically resolved.
+
+        Args:
+            config: The current dataset configuration
+            previous_resolved_config: The previously resolved config (from last completed version)
+            auth_context: Authentication context for API calls
+
+        Returns:
+            A string describing the resolution details (e.g., what was resolved and if there were any changes)
+            and the new resolved config with dynamic values replaced by actual values.
+        """

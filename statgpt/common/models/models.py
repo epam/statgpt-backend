@@ -10,6 +10,7 @@ from sqlalchemy.sql import func
 from statgpt.common.schemas import (
     AuditActionType,
     AuditEntityType,
+    AutoUpdateResult,
     JobType,
     PreprocessingStatusEnum,
 )
@@ -274,3 +275,44 @@ class AuditLog(IdMixin, Base):
     created_at: Mapped[datetime.datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
+
+
+class AutoUpdateJob(DefaultBase):
+    """A job record for tracking auto-update operations on channel dataset versions."""
+
+    __tablename__ = "auto_update_jobs"
+
+    channel_dataset_id: Mapped[int] = mapped_column(ForeignKey("channel_datasets.id"))
+    base_version_id: Mapped[int | None] = mapped_column(
+        ForeignKey("channel_dataset_versions.id"), default=None
+    )
+    """The base version used for comparison (last completed version at job creation time)."""
+
+    created_version_id: Mapped[int | None] = mapped_column(
+        ForeignKey("channel_dataset_versions.id"), default=None
+    )
+    """The newly created version after reindexing (set when reindex is triggered)."""
+
+    status: Mapped[PreprocessingStatusEnum]
+    """Execution status of the job."""
+
+    result: Mapped[AutoUpdateResult | None] = mapped_column(default=None)
+    """Outcome of the auto-update (set when job completes)."""
+
+    details: Mapped[str | None] = mapped_column(default=None)
+    reason_for_failure: Mapped[str | None] = mapped_column(default=None)
+
+    # Relationships
+    channel_dataset: Mapped[ChannelDataset] = relationship()
+    base_version: Mapped[ChannelDatasetVersion | None] = relationship(
+        foreign_keys=[base_version_id]
+    )
+    created_version: Mapped[ChannelDatasetVersion | None] = relationship(
+        foreign_keys=[created_version_id]
+    )
+
+    def __repr__(self) -> str:
+        return (
+            f"AutoUpdateJob(id={self.id!r}, channel_dataset_id={self.channel_dataset_id!r}, "
+            f"status={self.status!r}, result={self.result!r})"
+        )
