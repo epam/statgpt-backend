@@ -3,6 +3,7 @@ import logging
 import os.path
 import uuid
 import zipfile
+from collections import Counter
 from collections.abc import Generator, Iterable
 from typing import Any, NamedTuple
 
@@ -10,6 +11,7 @@ import yaml
 from fastapi import BackgroundTasks, HTTPException, status
 from pydantic import ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 from sqlalchemy.sql.expression import func, select, text, update
 
 import statgpt.common.models as models
@@ -25,6 +27,7 @@ from statgpt.common.hybrid_indexer import Indexer
 from statgpt.common.schemas import (
     AuditActionType,
     AuditEntityType,
+    AutoUpdateResult,
     ChannelIndexStatusScope,
     HybridSearchConfig,
 )
@@ -1989,37 +1992,54 @@ class AdminPortalDataSetService(DataSetService):
         )
         return await self._session.scalar(query) or 0
 
-    async def create_auto_update_jobs(self, channels: list[models.Channel]) -> list[int]:
+    async def create_auto_update_jobs(self, channel_ids: list[int]) -> list[schemas.AutoUpdateJob]:
         """Create AutoUpdateJob records for all datasets in the given channels.
 
-        Returns a list of created job IDs.
-        """
-        job_ids: list[int] = []
-        for channel in channels:
-            channel_job_ids: list[int] = []
-            for channel_dataset in channel.mapped_datasets:
-                job = models.AutoUpdateJob(
-                    channel_dataset_id=channel_dataset.id,
-                    status=StatusEnum.QUEUED,
-                )
-                self._session.add(job)
-                await self._session.flush()
-                channel_job_ids.append(job.id)
-            job_ids.extend(channel_job_ids)
-            _log.info(
-                f"Created {len(channel_job_ids)} auto-update job(s) for channel "
-                f"'{channel.title}' (id={channel.id})"
-            )
-        await self._session.commit()
-        return job_ids
-
-    async def check_auto_update_results(self, job_ids: list[int]) -> bool:
-        """Check final statuses of auto-update jobs and log a summary.
-
-        Returns True if all jobs succeeded, False otherwise.
+        Returns a list of created job schemas.
         """
         result = await self._session.execute(
-            select(models.AutoUpdateJob).where(models.AutoUpdateJob.id.in_(job_ids))
+            select(models.ChannelDataset)
+            .where(models.ChannelDataset.channel_id.in_(channel_ids))
+            .options(selectinload(models.ChannelDataset.channel))
+        )
+        channel_datasets = list(result.scalars().all())
+
+        jobs: list[models.AutoUpdateJob] = []
+        for cd in channel_datasets:
+            job = models.AutoUpdateJob(
+                channel_dataset_id=cd.id,
+                status=StatusEnum.QUEUED,
+            )
+            self._session.add(job)
+            await self._session.flush()
+            jobs.append(job)
+
+        # Log per-channel summary
+        channels_by_id = {cd.channel.id: cd.channel for cd in channel_datasets}
+        counts = Counter(cd.channel_id for cd in channel_datasets)
+        for ch_id, count in counts.items():
+            ch = channels_by_id[ch_id]
+            _log.info(
+                f"Created {count} auto-update job(s) for channel "
+                f"'{ch.deployment_id}' (id={ch_id})"
+            )
+
+        await self._session.commit()
+        return [schemas.AutoUpdateJob.model_validate(job, from_attributes=True) for job in jobs]
+
+    async def check_auto_update_results(self, job_ids: list[int]) -> tuple[bool, set[int]]:
+        """Check final statuses of auto-update jobs and log a per-channel summary.
+
+        Returns a tuple of (all_succeeded, channel_ids_with_reindex).
+        """
+        result = await self._session.execute(
+            select(models.AutoUpdateJob)
+            .where(models.AutoUpdateJob.id.in_(job_ids))
+            .options(
+                selectinload(models.AutoUpdateJob.channel_dataset).selectinload(
+                    models.ChannelDataset.channel
+                )
+            )
         )
         jobs = list(result.scalars().all())
 
@@ -2027,12 +2047,27 @@ class AdminPortalDataSetService(DataSetService):
         for job in failed_jobs:
             _log.error(f"Auto-update job {job.id} failed: {job.reason_for_failure}")
 
+        channel_jobs: dict[int, list[models.AutoUpdateJob]] = {}
+        for job in jobs:
+            ch = job.channel_dataset.channel
+            channel_jobs.setdefault(ch.id, []).append(job)
+
+        reindex_channel_ids: set[int] = set()
+        for channel_id, ch_jobs in channel_jobs.items():
+            ch = ch_jobs[0].channel_dataset.channel
+            result_counts = Counter(j.result.value if j.result else j.status.value for j in ch_jobs)
+            summary = ", ".join(f"{count} {res}" for res, count in result_counts.items())
+            _log.info(f"channel '{ch.deployment_id}' (id={channel_id}): {summary}")
+
+            if any(j.result == AutoUpdateResult.REINDEX_TRIGGERED for j in ch_jobs):
+                reindex_channel_ids.add(channel_id)
+
         succeeded = len(jobs) - len(failed_jobs)
         _log.info(
             f"Auto-update complete: {succeeded} succeeded, {len(failed_jobs)} failed "
             f"out of {len(job_ids)} total"
         )
-        return len(failed_jobs) == 0
+        return len(failed_jobs) == 0, reindex_channel_ids
 
     async def _set_auto_update_job_status(
         self,
