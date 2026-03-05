@@ -29,8 +29,16 @@ class VirtualDimensionConfig(BaseModel, IndexingHashMixin):
     )
 
 
+class DataOwner(BaseModel):
+    id: StrictStr
+    count: int
+    name: StrictStr
+
+
 class DatasetCitation(BaseModel):
     provider: StrictStr | None = Field(default=None)
+    provider_template: StrictStr | None = Field(default=None)
+    data_owners: list[DataOwner] | None = Field(default=None)
     last_updated: StrictStr | None = Field(default=None)
     url: StrictStr | None = Field(default=None)
     description: StrictStr | None = Field(default=None)
@@ -39,6 +47,35 @@ class DatasetCitation(BaseModel):
         if self.url:
             return replace_env(self.url)
         return None
+
+    @model_validator(mode='after')
+    def check_provider_template_and_data_owners(self) -> Self:
+        if self.provider_template and not self.data_owners:
+            raise ValueError("provider_template is present but data_owners is not")
+        if not self.provider_template and self.data_owners:
+            raise ValueError("provider_template is not present but data_owners is")
+        return self
+
+    @model_validator(mode='after')
+    def _check_owners(self) -> Self:
+        if not self.data_owners:
+            return self
+
+        if len(self.data_owners) == 1:
+            raise ValueError(
+                "data owners field must not be used with only 1 owner - "
+                "use 'provider' field instead"
+            )
+
+        ids = set([owner.id for owner in self.data_owners])
+        if len(ids) != len(self.data_owners):
+            raise ValueError("data owners field must not contain duplicate ids")
+
+        names = set([owner.name for owner in self.data_owners])
+        if len(names) != len(self.data_owners):
+            raise ValueError("data owners field must not contain duplicate names")
+
+        return self
 
 
 class IndexerIndicatorAnnotationConfig(BaseModel):
