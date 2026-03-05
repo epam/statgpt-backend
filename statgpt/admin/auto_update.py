@@ -85,20 +85,18 @@ async def _log_results(job_ids: list[int]) -> bool:
 async def _deduplicate_channels(channel_ids: set[int], auth_context: AuthContext) -> None:
     """Run deduplication for channels that had a reindex."""
     _log.info(_SEPARATOR)
-    _log.info(
-        f"Running deduplication for {len(channel_ids)} channel(s) "
-        f"with reindex: {sorted(channel_ids)}"
-    )
+    sorted_ids = sorted(channel_ids)
+    _log.info(f"Running deduplication for {len(sorted_ids)} channel(s) with reindex: {sorted_ids}")
     results = await asyncio.gather(
         *(
             deduplicate_dimensions_in_background_task(
                 channel_id=channel_id, auth_context=auth_context
             )
-            for channel_id in channel_ids
+            for channel_id in sorted_ids
         ),
         return_exceptions=True,
     )
-    for channel_id, result in zip(channel_ids, results):
+    for channel_id, result in zip(sorted_ids, results):
         if isinstance(result, Exception):
             _log.error(
                 f"Deduplication for channel {channel_id} failed with exception:", exc_info=result
