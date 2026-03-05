@@ -24,13 +24,18 @@ async def _discover_and_create_jobs() -> list[schemas.AutoUpdateJob]:
     """Find auto-update channels and create jobs for their datasets."""
     _log.info(_SEPARATOR)
     async with get_session_contex_manager() as session:
-        channels = await AdminPortalChannelService(session).get_auto_update_channels()
-        _log.info(f"Found {len(channels)} channel(s) with auto-update enabled")
+        channel_service = AdminPortalChannelService(session)
+        all_channels = await channel_service.get_channels_schemas(limit=None, offset=0)
+        channel_ids = [
+            ch.id
+            for ch in all_channels
+            if (dq := ch.details.data_query) is not None and dq.details.allow_auto_update
+        ]
+        _log.info(f"Found {len(channel_ids)} channel(s) with auto-update enabled")
 
-        if not channels:
+        if not channel_ids:
             return []
 
-        channel_ids = [ch.id for ch in channels]
         return await AdminPortalDataSetService(session).create_auto_update_jobs(channel_ids)
 
 
@@ -39,13 +44,16 @@ async def _process_jobs(jobs: list[schemas.AutoUpdateJob], auth_context: AuthCon
     _log.info(_SEPARATOR)
     _log.info(f"Created {len(jobs)} auto-update job(s), starting processing...")
 
-    await asyncio.gather(
+    results = await asyncio.gather(
         *(
             auto_update_in_background_task(auto_update_job_id=job.id, auth_context=auth_context)
             for job in jobs
         ),
         return_exceptions=True,
     )
+    for job, result in zip(jobs, results):
+        if isinstance(result, Exception):
+            _log.error(f"Auto-update job {job.id} failed with exception:", exc_info=result)
 
 
 async def _get_reindex_channel_ids(job_ids: list[int]) -> set[int]:
@@ -81,7 +89,7 @@ async def _deduplicate_channels(channel_ids: set[int], auth_context: AuthContext
         f"Running deduplication for {len(channel_ids)} channel(s) "
         f"with reindex: {sorted(channel_ids)}"
     )
-    await asyncio.gather(
+    results = await asyncio.gather(
         *(
             deduplicate_dimensions_in_background_task(
                 channel_id=channel_id, auth_context=auth_context
@@ -90,6 +98,11 @@ async def _deduplicate_channels(channel_ids: set[int], auth_context: AuthContext
         ),
         return_exceptions=True,
     )
+    for channel_id, result in zip(channel_ids, results):
+        if isinstance(result, Exception):
+            _log.error(
+                f"Deduplication for channel {channel_id} failed with exception:", exc_info=result
+            )
     _log.info("Deduplication complete")
 
 

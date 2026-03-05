@@ -1,7 +1,6 @@
 from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
 from sqlalchemy.sql.expression import func
 
 import statgpt.common.models as models
@@ -28,7 +27,7 @@ class ChannelService:
         q_result = await self._session.execute(query)
         return [item for item in q_result.scalars().all()]
 
-    async def get_channels_schemas(self, limit: int, offset: int) -> list[schemas.Channel]:
+    async def get_channels_schemas(self, limit: int | None, offset: int) -> list[schemas.Channel]:
         channels = await self.get_channels_db(limit, offset)
         return [ChannelSerializer.db_to_schema(item) for item in channels]
 
@@ -60,19 +59,3 @@ class ChannelService:
             return False
         indexer_version = channel_config.data_query.details.indexer_version
         return indexer_version == schemas.IndexerVersion.hybrid
-
-    @staticmethod
-    def _is_auto_update_enabled(channel: models.Channel) -> bool:
-        """Returns `True` if the channel has auto-update enabled in data_query config."""
-        config = schemas.ChannelConfig.model_validate(channel.details)
-        if config.data_query is None:
-            return False
-        return config.data_query.details.allow_auto_update
-
-    async def get_auto_update_channels(self) -> list[models.Channel]:
-        """Get all channels with auto-update enabled, with mapped_datasets eager-loaded."""
-        result = await self._session.execute(
-            select(models.Channel).options(selectinload(models.Channel.mapped_datasets))
-        )
-        channels = list(result.scalars().all())
-        return [ch for ch in channels if self._is_auto_update_enabled(ch)]

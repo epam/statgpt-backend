@@ -2020,8 +2020,8 @@ class AdminPortalDataSetService(DataSetService):
                 status=StatusEnum.QUEUED,
             )
             self._session.add(job)
-            await self._session.flush()
             jobs.append(job)
+        await self._session.commit()
 
         # Log per-channel summary
         channels_by_id = {cd.channel.id: cd.channel for cd in channel_datasets}
@@ -2033,7 +2033,6 @@ class AdminPortalDataSetService(DataSetService):
                 f"'{ch.deployment_id}' (id={ch_id})"
             )
 
-        await self._session.commit()
         return [schemas.AutoUpdateJob.model_validate(job, from_attributes=True) for job in jobs]
 
     async def get_reindex_channel_ids(self, job_ids: list[int]) -> set[int]:
@@ -2097,7 +2096,7 @@ class AdminPortalDataSetService(DataSetService):
         result_counts = Counter(job_statuses)
 
         parts: list[str] = []
-        for job_status, count in result_counts.items():
+        for job_status, count in result_counts.most_common():
             part = f"{count} {job_status}"
             if job_status in reindex_statuses:
                 breakdown = ", ".join(f"{c} {s}" for s, c in reindex_statuses[job_status].items())
