@@ -48,11 +48,30 @@ async def _process_jobs(jobs: list[schemas.AutoUpdateJob], auth_context: AuthCon
     )
 
 
-async def _check_results(job_ids: list[int]) -> tuple[bool, set[int]]:
-    """Check job results and return (all_succeeded, channel_ids_with_reindex)."""
+async def _get_reindex_channel_ids(job_ids: list[int]) -> set[int]:
+    """Get channel IDs that had at least one reindex triggered."""
+    async with get_session_contex_manager() as session:
+        return await AdminPortalDataSetService(session).get_reindex_channel_ids(job_ids)
+
+
+async def _log_results(job_ids: list[int]) -> bool:
+    """Log per-channel summary and return True if all jobs succeeded."""
     _log.info(_SEPARATOR)
     async with get_session_contex_manager() as session:
-        return await AdminPortalDataSetService(session).check_auto_update_results(job_ids)
+        results = await AdminPortalDataSetService(session).get_auto_update_results(job_ids)
+
+    for r in results:
+        _log.info(f"channel '{r.deployment_id}' (id={r.channel_id}): {r.summary}")
+        for reason in r.failed_reasons:
+            _log.error(f"  {reason}")
+
+    total = sum(r.total for r in results)
+    failed = sum(r.failed for r in results)
+    _log.info(
+        f"Auto-update complete: {total - failed} succeeded, {failed} failed "
+        f"out of {total} total"
+    )
+    return failed == 0
 
 
 async def _deduplicate_channels(channel_ids: set[int], auth_context: AuthContext) -> None:
@@ -87,12 +106,12 @@ async def run_auto_update() -> bool:
 
     await _process_jobs(jobs, auth_context)
     job_ids = [j.id for j in jobs]
-    success, reindex_channel_ids = await _check_results(job_ids)
 
+    reindex_channel_ids = await _get_reindex_channel_ids(job_ids)
     if reindex_channel_ids:
         await _deduplicate_channels(reindex_channel_ids, auth_context)
 
-    return success
+    return await _log_results(job_ids)
 
 
 async def main() -> None:

@@ -3,7 +3,7 @@ import logging
 import os.path
 import uuid
 import zipfile
-from collections import Counter
+from collections import Counter, defaultdict
 from collections.abc import Generator, Iterable
 from typing import Any, NamedTuple
 
@@ -60,6 +60,15 @@ class _DataHashes(NamedTuple):
     indicator_dimensions_hash: str
     non_indicator_dimensions_hash: str
     special_dimensions_hash: str | None
+
+
+class AutoUpdateChannelResult(NamedTuple):
+    channel_id: int
+    deployment_id: str
+    total: int
+    failed: int
+    summary: str
+    failed_reasons: list[str]
 
 
 class AdminPortalDataSetService(DataSetService):
@@ -2027,47 +2036,74 @@ class AdminPortalDataSetService(DataSetService):
         await self._session.commit()
         return [schemas.AutoUpdateJob.model_validate(job, from_attributes=True) for job in jobs]
 
-    async def check_auto_update_results(self, job_ids: list[int]) -> tuple[bool, set[int]]:
-        """Check final statuses of auto-update jobs and log a per-channel summary.
+    async def get_reindex_channel_ids(self, job_ids: list[int]) -> set[int]:
+        """Get channel IDs that had at least one REINDEX_TRIGGERED result."""
+        result = await self._session.execute(
+            select(models.AutoUpdateJob)
+            .where(models.AutoUpdateJob.id.in_(job_ids))
+            .where(models.AutoUpdateJob.result == AutoUpdateResult.REINDEX_TRIGGERED)
+            .options(selectinload(models.AutoUpdateJob.channel_dataset))
+        )
+        jobs = list(result.scalars().all())
+        return {j.channel_dataset.channel_id for j in jobs}
 
-        Returns a tuple of (all_succeeded, channel_ids_with_reindex).
-        """
+    async def get_auto_update_results(self, job_ids: list[int]) -> list[AutoUpdateChannelResult]:
+        """Collect per-channel auto-update results."""
         result = await self._session.execute(
             select(models.AutoUpdateJob)
             .where(models.AutoUpdateJob.id.in_(job_ids))
             .options(
                 selectinload(models.AutoUpdateJob.channel_dataset).selectinload(
                     models.ChannelDataset.channel
-                )
+                ),
+                selectinload(models.AutoUpdateJob.created_version),
             )
         )
         jobs = list(result.scalars().all())
 
-        failed_jobs = [j for j in jobs if j.status == StatusEnum.FAILED]
-        for job in failed_jobs:
-            _log.error(f"Auto-update job {job.id} failed: {job.reason_for_failure}")
-
-        channel_jobs: dict[int, list[models.AutoUpdateJob]] = {}
+        channel_jobs: defaultdict[int, list[models.AutoUpdateJob]] = defaultdict(list)
         for job in jobs:
-            ch = job.channel_dataset.channel
-            channel_jobs.setdefault(ch.id, []).append(job)
+            channel_jobs[job.channel_dataset.channel.id].append(job)
 
-        reindex_channel_ids: set[int] = set()
+        results: list[AutoUpdateChannelResult] = []
         for channel_id, ch_jobs in channel_jobs.items():
             ch = ch_jobs[0].channel_dataset.channel
-            result_counts = Counter(j.result.value if j.result else j.status.value for j in ch_jobs)
-            summary = ", ".join(f"{count} {res}" for res, count in result_counts.items())
-            _log.info(f"channel '{ch.deployment_id}' (id={channel_id}): {summary}")
+            results.append(
+                AutoUpdateChannelResult(
+                    channel_id=channel_id,
+                    deployment_id=ch.deployment_id,
+                    total=len(ch_jobs),
+                    failed=sum(1 for j in ch_jobs if j.status == StatusEnum.FAILED),
+                    summary=self._format_result_summary(ch_jobs),
+                    failed_reasons=[
+                        f"job {j.id}: {j.reason_for_failure}"
+                        for j in ch_jobs
+                        if j.status == StatusEnum.FAILED
+                    ],
+                )
+            )
+        return results
 
-            if any(j.result == AutoUpdateResult.REINDEX_TRIGGERED for j in ch_jobs):
-                reindex_channel_ids.add(channel_id)
+    @staticmethod
+    def _format_result_summary(jobs: list[models.AutoUpdateJob]) -> str:
+        """Build a human-readable summary of auto-update results."""
+        reindex_statuses: dict[str, Counter[str]] = defaultdict(Counter)
+        job_statuses: list[str] = []
+        for job in jobs:
+            job_status = job.result.value if job.result else job.status.value
+            job_statuses.append(job_status)
+            if job.created_version is not None:
+                reindex_statuses[job_status][job.created_version.preprocessing_status.value] += 1
+        result_counts = Counter(job_statuses)
 
-        succeeded = len(jobs) - len(failed_jobs)
-        _log.info(
-            f"Auto-update complete: {succeeded} succeeded, {len(failed_jobs)} failed "
-            f"out of {len(job_ids)} total"
-        )
-        return len(failed_jobs) == 0, reindex_channel_ids
+        parts: list[str] = []
+        for job_status, count in result_counts.items():
+            part = f"{count} {job_status}"
+            if job_status in reindex_statuses:
+                breakdown = ", ".join(f"{c} {s}" for s, c in reindex_statuses[job_status].items())
+                part += f" ({breakdown})"
+            parts.append(part)
+        return ", ".join(parts)
 
     async def _set_auto_update_job_status(
         self,
