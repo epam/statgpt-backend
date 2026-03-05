@@ -7,14 +7,14 @@ import asyncio
 import logging
 
 from statgpt.admin.services import AdminPortalDataSetService
-from statgpt.common.models import get_session_contex_manager, optional_msi_token_manager_context
+from statgpt.common.models import get_session_context_manager, optional_msi_token_manager_context
 
 _log = logging.getLogger(__name__)
 
 
 async def _fix_channel_dataset_versions() -> None:
     try:
-        async with get_session_contex_manager() as session:
+        async with get_session_context_manager() as session:
             service = AdminPortalDataSetService(session)
             await service.set_failed_status_for_channel_dataset_version()
     except Exception:
@@ -23,7 +23,7 @@ async def _fix_channel_dataset_versions() -> None:
 
 async def _fix_jobs() -> None:
     try:
-        async with get_session_contex_manager() as session:
+        async with get_session_context_manager() as session:
             service = AdminPortalDataSetService(session)
             await service.set_failed_status_for_stuck_jobs()
     except Exception:
@@ -32,7 +32,7 @@ async def _fix_jobs() -> None:
 
 async def _fix_auto_update_jobs() -> None:
     try:
-        async with get_session_contex_manager() as session:
+        async with get_session_context_manager() as session:
             service = AdminPortalDataSetService(session)
             await service.set_failed_status_for_stuck_auto_update_jobs()
     except Exception:
