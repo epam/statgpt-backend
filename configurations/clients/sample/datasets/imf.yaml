@@ -28,7 +28,7 @@ dataSets:
       urn:
         agency_id: "IMF.STA"
         resource_id: "BOP"
-        version: "21.0.0"
+        version: "latest"
       dimensions:
         INDICATOR:
           dimensionType: "INDICATOR"
@@ -75,7 +75,7 @@ dataSets:
       urn:
         agency_id: "IMF.RES"
         resource_id: "WEO"
-        version: "9.0.0"
+        version: "latest"
       dimensions:
         INDICATOR:
           dimensionType: "INDICATOR"

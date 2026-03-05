@@ -113,6 +113,7 @@ tools:
 
       Keep in mind: tool works best when detailed and concise query is provided
     details:
+      allowAutoUpdate: true
       indexerVersion: "hybrid"
       indicatorSelectionVersion: "hybrid"
       hybridSearchConfig:
