@@ -1,5 +1,5 @@
 """
-Batch auto-update script for all datasets in channels with allow_auto_update enabled.
+Batch auto-update script for all datasets in channels with `allow_auto_update` enabled.
 """
 
 import asyncio
@@ -40,7 +40,11 @@ async def _discover_and_create_jobs() -> list[schemas.AutoUpdateJob]:
 
 
 async def _process_jobs(jobs: list[schemas.AutoUpdateJob], auth_context: AuthContext) -> None:
-    """Run all auto-update jobs concurrently."""
+    """Run all auto-update jobs concurrently.
+
+    NOTE: The number of concurrent executions is limited by the semaphore
+    in the ``@background_task`` decorator applied to ``auto_update_in_background_task``.
+    """
     _log.info(_SEPARATOR)
     _log.info(f"Created {len(jobs)} auto-update job(s), starting processing...")
 
@@ -63,7 +67,7 @@ async def _get_reindex_channel_ids(job_ids: list[int]) -> set[int]:
 
 
 async def _log_results(job_ids: list[int]) -> bool:
-    """Log per-channel summary and return True if all jobs succeeded."""
+    """Log per-channel summary and return `True` if all jobs succeeded."""
     _log.info(_SEPARATOR)
     async with get_session_contex_manager() as session:
         results = await AdminPortalDataSetService(session).get_auto_update_results(job_ids)
@@ -83,7 +87,11 @@ async def _log_results(job_ids: list[int]) -> bool:
 
 
 async def _deduplicate_channels(channel_ids: set[int], auth_context: AuthContext) -> None:
-    """Run deduplication for channels that had a reindex."""
+    """Run deduplication for channels that had a reindex.
+
+    NOTE: The number of concurrent executions is limited by the semaphore
+    in the ``@background_task`` decorator applied to ``deduplicate_dimensions_in_background_task``.
+    """
     _log.info(_SEPARATOR)
     sorted_ids = sorted(channel_ids)
     _log.info(f"Running deduplication for {len(sorted_ids)} channel(s) with reindex: {sorted_ids}")
@@ -107,7 +115,8 @@ async def _deduplicate_channels(channel_ids: set[int], auth_context: AuthContext
 async def run_auto_update() -> bool:
     """Run batch auto-update for all eligible channels.
 
-    Returns True if all jobs succeeded, False otherwise.
+    Returns:
+         `True` if all jobs succeeded, `False` otherwise.
     """
     auth_context = SystemUserAuthContext()
 

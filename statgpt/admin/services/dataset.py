@@ -2015,10 +2015,7 @@ class AdminPortalDataSetService(DataSetService):
 
         jobs: list[models.AutoUpdateJob] = []
         for cd in channel_datasets:
-            job = models.AutoUpdateJob(
-                channel_dataset_id=cd.id,
-                status=StatusEnum.QUEUED,
-            )
+            job = models.AutoUpdateJob(channel_dataset_id=cd.id, status=StatusEnum.QUEUED)
             self._session.add(job)
             jobs.append(job)
         await self._session.commit()
@@ -2029,8 +2026,7 @@ class AdminPortalDataSetService(DataSetService):
         for ch_id, count in counts.items():
             ch = channels_by_id[ch_id]
             _log.info(
-                f"Created {count} auto-update job(s) for channel "
-                f"'{ch.deployment_id}' (id={ch_id})"
+                f"Created {count} auto-update job(s) for channel '{ch.deployment_id}' (id={ch_id})"
             )
 
         return [schemas.AutoUpdateJob.model_validate(job, from_attributes=True) for job in jobs]
