@@ -292,18 +292,18 @@ class DialRagMetadata(BaseModel):
 
 
 class PreFilterResponse(BaseModel):
-    user_friendly_error: str | None = Field(default=None)
-    detailed_error: str | None = Field(default=None)
-    llm_output: RagFilterLLMOutput | None = Field(default=None)
+    user_friendly_error: str | None = None
+    detailed_error: str | None = None
+    llm_output: RagFilterLLMOutput | None = None
     # NOTE: Currently None means no filter applied; but RagFilterDial can also contain an empty list;
     # NOTE: Should we replace all the None logic with just an empty list?
-    rag_filter: RagFilterDial | None = Field(default=None)
+    rag_filter: RagFilterDial | None = None
 
 
 class DialRagState(BaseRagState):
     version: RAGVersion = RAGVersion.DIAL
-    pre_filter: PreFilterResponse
-    metadata: DialRagMetadata | None
+    pre_filter: PreFilterResponse | None = None
+    metadata: DialRagMetadata | None = None
     prefilter_decoder_of_latest: dict[str, str] = Field(
         default_factory=dict,
         description="Mapping the publication type to a function that generates a time range "
