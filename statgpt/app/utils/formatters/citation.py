@@ -23,9 +23,17 @@ class CitationFormatter(BaseFormatter):
         super().__init__("dataset", locale)
         self._config: CitationFormatterConfig = config
 
-    def _format_provider(self, provider: str | None) -> str:
-        if self._config.use_provider and provider:
-            return f'{self._("Provider")}: {provider}'
+    def _format_provider(self, citation: DatasetCitation) -> str:
+        if not self._config.use_provider:
+            return ""
+        prefix = f'{self._("Provider")}: '
+        if template := citation.provider_template:
+            owners = citation.data_owners or []
+            sample = ', '.join([owner.name for owner in owners[:3]])
+            content = template.format(n_agencies=len(owners), agencies_sample=sample)
+            return f'{prefix}{content}'
+        if provider := citation.provider:
+            return f'{prefix}{provider}'
         return ""
 
     def _format_last_updated(self, last_updated: str | None) -> str:
@@ -40,7 +48,7 @@ class CitationFormatter(BaseFormatter):
 
     async def format(self, citation: DatasetCitation) -> str:
         lines = []
-        if provider := self._format_provider(citation.provider):
+        if provider := self._format_provider(citation):
             lines.append(provider)
 
         if last_updated := self._format_last_updated(citation.last_updated):
