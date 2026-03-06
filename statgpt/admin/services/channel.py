@@ -321,7 +321,7 @@ async def deduplicate_dimensions_in_background_task(
     auth_context: AuthContext,
 ) -> None:
     try:
-        async with models.get_session_contex_manager() as session:
+        async with models.get_session_context_manager() as session:
             await AdminPortalChannelService(session).deduplicate_channel_dimensions(
                 channel_id=channel_id,
                 auth_context=auth_context,

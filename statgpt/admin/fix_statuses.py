@@ -1,23 +1,49 @@
 """
-Script to fix statuses for channel dataset versions after migrations.
-Sets failed status for any channel dataset versions that were left in processing state.
+Script to fix statuses after migrations or crashes.
+Sets failed status for any records that were left in a non-final state.
 """
 
 import asyncio
 import logging
 
 from statgpt.admin.services import AdminPortalDataSetService
-from statgpt.common.models import get_session_contex_manager, optional_msi_token_manager_context
+from statgpt.common.models import get_session_context_manager, optional_msi_token_manager_context
 
 _log = logging.getLogger(__name__)
 
 
-async def fix_statuses():
-    """Fix statuses from previous runs by setting failed status for stuck channel dataset versions."""
-    async with get_session_contex_manager() as session:
-        service = AdminPortalDataSetService(session)
-        await service.set_failed_status_for_channel_dataset_version()
-    _log.info("Successfully fixed statuses for channel dataset versions")
+async def _fix_channel_dataset_versions() -> None:
+    try:
+        async with get_session_context_manager() as session:
+            service = AdminPortalDataSetService(session)
+            await service.set_failed_status_for_channel_dataset_version()
+    except Exception:
+        _log.exception("Error fixing channel dataset version statuses:")
+
+
+async def _fix_jobs() -> None:
+    try:
+        async with get_session_context_manager() as session:
+            service = AdminPortalDataSetService(session)
+            await service.set_failed_status_for_stuck_jobs()
+    except Exception:
+        _log.exception("Error fixing job statuses:")
+
+
+async def _fix_auto_update_jobs() -> None:
+    try:
+        async with get_session_context_manager() as session:
+            service = AdminPortalDataSetService(session)
+            await service.set_failed_status_for_stuck_auto_update_jobs()
+    except Exception:
+        _log.exception("Error fixing auto-update job statuses:")
+
+
+async def fix_statuses() -> None:
+    """Fix statuses from previous runs by setting failed status for stuck records."""
+    await _fix_channel_dataset_versions()
+    await _fix_jobs()
+    await _fix_auto_update_jobs()
 
 
 async def main():
