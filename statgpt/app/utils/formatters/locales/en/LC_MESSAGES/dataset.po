@@ -6,7 +6,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: statgpt 1.0\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2025-11-05 17:19+0200\n"
+"POT-Creation-Date: 2025-12-18 06:13+0100\n"
 "PO-Revision-Date: 2024-01-01 00:00+0000\n"
 "Last-Translator: \n"
 "Language-Team: English\n"
@@ -20,8 +20,7 @@ msgid "[Official]"
 msgstr "[Official]"
 
 # Basic labels
-#: dataset_simple.py:28 dataset_query.py:125 dataset_query.py:247
-#: dataset_availablity_query.py:105
+#: dataset_simple.py:28
 msgid "ID"
 msgstr "ID"
 
@@ -29,84 +28,14 @@ msgstr "ID"
 msgid "Internal ID"
 msgstr "Internal ID"
 
-#: dataset_simple.py:41 dataset_detailed.py:59 dataset_detailed.py:93
-msgid "Description"
-msgstr "Description"
-
-#: dataset_detailed.py:21 dataset_detailed.py:31
-msgid "Total"
-msgstr "Total"
-
-#: dataset_detailed.py:21 dataset_detailed.py:31
-msgid "items"
-msgstr "items"
-
-#: dataset_detailed.py:22
-msgid "Values"
-msgstr "Values"
-
-#: dataset_detailed.py:32
-msgid "Sample values"
-msgstr "Sample values"
-
-#: dataset_detailed.py:39
-msgid "Dimensions"
-msgstr "Dimensions"
-
-#: dataset_detailed.py:48 dataset_detailed.py:52 dataset_detailed.py:83
-#: dataset_detailed.py:87
-msgid "Type"
-msgstr "Type"
-
-#: dataset_detailed.py:74
-msgid "Attributes"
-msgstr "Attributes"
-
 # List formatter strings
 #: datasets_list_formatter.py:39
 msgid "Cannot sort by both id and name."
 msgstr "Cannot sort by both id and name."
 
-#: datasets_list_formatter.py:62 datasets_list_formatter.py:64 citation.py:28
-msgid "Provider"
-msgstr "Provider"
-
-#: datasets_list_formatter.py:64 datasets_list_formatter.py:110
+#: datasets_list_formatter.py:110
 msgid "Unknown"
 msgstr "Unknown"
-
-#: datasets_list_formatter.py:67
-msgid "Total datasets from this provider"
-msgstr "Total datasets from this provider"
-
-#: datasets_list_formatter.py:78 datasets_list_formatter.py:100
-#: datasets_list_formatter.py:105
-msgid "Total datasets"
-msgstr "Total datasets"
-
-#: datasets_list_formatter.py:82
-msgid "Total providers"
-msgstr "Total providers"
-
-#: datasets_list_formatter.py:101
-msgid "Official"
-msgstr "Official"
-
-#: datasets_list_formatter.py:102
-msgid "Unofficial"
-msgstr "Unofficial"
-
-#: datasets_list_formatter.py:114
-msgid "By provider"
-msgstr "By provider"
-
-#: citation.py:33
-msgid "Last updated"
-msgstr "Last Updated"
-
-#: citation.py:38
-msgid "URL"
-msgstr "URL"
 
 # Dataset query formatter strings
 #: dataset_query.py:66
@@ -133,85 +62,6 @@ msgstr "until **{end}**"
 msgid "on **{date}**"
 msgstr "on **{date}**"
 
-#: dataset_query.py:93 dataset_query.py:100 dataset_query.py:108
-msgid "Execution result"
-msgstr "Execution result"
-
-#: dataset_query.py:93
-#, python-brace-format
-msgid "Data received, contains {count} series."
-msgstr "Data received, contains {count} series."
-
-#: dataset_query.py:100
-msgid "The query was executed, but parsing the response failed."
-msgstr "The query was executed, but parsing the response failed."
-
-#: dataset_query.py:104
-msgid "Note"
-msgstr "Note"
-
-#: dataset_query.py:104
-msgid ""
-"While the data is not visible to you, user will be able to see it in UI."
-msgstr ""
-"While the data is not visible to you, user will be able to see it in UI."
-
-#: dataset_query.py:104
-msgid ""
-"It is recommended to inform user that you were not able to see the data due "
-"to parsing issues."
-msgstr ""
-"It is recommended to inform user that you were not able to see the data due "
-"to parsing issues."
-
-#: dataset_query.py:108
-msgid "A response was received, but it does not contain any data."
-msgstr "A response was received, but it does not contain any data."
-
-#: dataset_query.py:112
-msgid "Advice"
-msgstr "Advice"
-
-#: dataset_query.py:112
-msgid ""
-"Most likely, the query is generally correct, but there is no data for the "
-"specified time period."
-msgstr ""
-"Most likely, the query is generally correct, but there is no data for the "
-"specified time period."
-
-#: dataset_query.py:112
-msgid "You may want to try selecting a different time period."
-msgstr "You may want to try selecting a different time period."
-
-#: dataset_query.py:112
-msgid ""
-"Another option is to try to find relevant data in other datasets or using "
-"other tools."
-msgstr ""
-"Another option is to try to find relevant data in other datasets or using "
-"other tools."
-
-#: dataset_query.py:117
-msgid "View data in explorer"
-msgstr "View data in explorer"
-
-#: dataset_query.py:128
-msgid "Query UUID"
-msgstr "Query UUID"
-
-#: dataset_query.py:131
-msgid "Query summary"
-msgstr "Query summary"
-
-#: dataset_query.py:136
-msgid "Factual time period"
-msgstr "Factual time period"
-
-#: dataset_query.py:136
-msgid "to"
-msgstr "to"
-
 #: dataset_query.py:163
 msgid "invalid_selected_end_time"
 msgstr ""
@@ -224,30 +74,137 @@ msgstr ""
 "The selected start date ({value}) is outside the available period (from "
 "{available_start} to {available_end})."
 
-#: dataset_query.py:182
-msgid "Reason for invalid query"
-msgstr "Reason for invalid query"
+#~ msgid "Description"
+#~ msgstr "Description"
 
-#: dataset_query.py:186
-msgid "(invalid)"
-msgstr " (invalid)"
+#~ msgid "Total"
+#~ msgstr "Total"
 
-#: dataset_query.py:187 dataset_availablity_query.py:116
-msgid "Query"
-msgstr "Query"
+#~ msgid "items"
+#~ msgstr "items"
 
-#: dataset_query.py:214 dataset_availablity_query.py:73
-msgid "Indicator"
-msgstr "Indicator"
+#~ msgid "Values"
+#~ msgstr "Values"
 
-#: dataset_query.py:221
-msgid "default"
-msgstr "default"
+#~ msgid "Sample values"
+#~ msgstr "Sample values"
 
-#: dataset_query.py:244
-msgid "Missing dimensions"
-msgstr "Missing dimensions"
+#~ msgid "Dimensions"
+#~ msgstr "Dimensions"
 
-#: dataset_query.py:266
-msgid "example values"
-msgstr "example values"
+#~ msgid "Type"
+#~ msgstr "Type"
+
+#~ msgid "Attributes"
+#~ msgstr "Attributes"
+
+#~ msgid "Provider"
+#~ msgstr "Provider"
+
+#~ msgid "Total datasets from this provider"
+#~ msgstr "Total datasets from this provider"
+
+#~ msgid "Total datasets"
+#~ msgstr "Total datasets"
+
+#~ msgid "Total providers"
+#~ msgstr "Total providers"
+
+#~ msgid "Official"
+#~ msgstr "Official"
+
+#~ msgid "Unofficial"
+#~ msgstr "Unofficial"
+
+#~ msgid "By provider"
+#~ msgstr "By provider"
+
+#~ msgid "Last updated"
+#~ msgstr "Last Updated"
+
+#~ msgid "URL"
+#~ msgstr "URL"
+
+#~ msgid "Execution result"
+#~ msgstr "Execution result"
+
+#, python-brace-format
+#~ msgid "Data received, contains {count} series."
+#~ msgstr "Data received, contains {count} series."
+
+#~ msgid "The query was executed, but parsing the response failed."
+#~ msgstr "The query was executed, but parsing the response failed."
+
+#~ msgid "Note"
+#~ msgstr "Note"
+
+#~ msgid ""
+#~ "While the data is not visible to you, user will be able to see it in UI."
+#~ msgstr ""
+#~ "While the data is not visible to you, user will be able to see it in UI."
+
+#~ msgid ""
+#~ "It is recommended to inform user that you were not able to see the data "
+#~ "due to parsing issues."
+#~ msgstr ""
+#~ "It is recommended to inform user that you were not able to see the data "
+#~ "due to parsing issues."
+
+#~ msgid "A response was received, but it does not contain any data."
+#~ msgstr "A response was received, but it does not contain any data."
+
+#~ msgid "Advice"
+#~ msgstr "Advice"
+
+#~ msgid ""
+#~ "Most likely, the query is generally correct, but there is no data for the "
+#~ "specified time period."
+#~ msgstr ""
+#~ "Most likely, the query is generally correct, but there is no data for the "
+#~ "specified time period."
+
+#~ msgid "You may want to try selecting a different time period."
+#~ msgstr "You may want to try selecting a different time period."
+
+#~ msgid ""
+#~ "Another option is to try to find relevant data in other datasets or using "
+#~ "other tools."
+#~ msgstr ""
+#~ "Another option is to try to find relevant data in other datasets or using "
+#~ "other tools."
+
+#~ msgid "View data in explorer"
+#~ msgstr "View data in explorer"
+
+#~ msgid "Query UUID"
+#~ msgstr "Query UUID"
+
+#~ msgid "Query summary"
+#~ msgstr "Query summary"
+
+#~ msgid "Factual time period"
+#~ msgstr "Factual time period"
+
+#~ msgid "to"
+#~ msgstr "to"
+
+#~ msgid "Reason for invalid query"
+#~ msgstr "Reason for invalid query"
+
+#~ msgid "(invalid)"
+#~ msgstr " (invalid)"
+
+#~ msgid "Query"
+#~ msgstr "Query"
+
+#~ msgid "Indicator"
+#~ msgstr "Indicator"
+
+#~ msgid "default"
+#~ msgstr "default"
+
+#~ msgid "Missing dimensions"
+#~ msgstr "Missing dimensions"
+
+#~ msgid "example values"
+#~ msgstr "example values"
