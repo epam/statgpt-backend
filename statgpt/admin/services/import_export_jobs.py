@@ -229,7 +229,7 @@ class JobsService:
     ) -> str:
         """Export channel data including datasets and embeddings to the folder."""
 
-        async with models.get_readonly_session_contex_manager() as session:
+        async with models.get_readonly_session_context_manager() as session:
             channel_service = ChannelService(session)
             channel_db = await channel_service.export_channel_to_folder(
                 channel_id, data_dir, scope=scope, auth_context=auth_context
@@ -352,7 +352,7 @@ class JobsService:
     ) -> int:
         """Import channel data including datasets and embeddings from the zip file."""
 
-        async with models.get_session_contex_manager() as session:
+        async with models.get_session_context_manager() as session:
             deployment_id = None
             scope = schemas.ExportScope.FULL
             try:
@@ -439,7 +439,7 @@ async def export_channel_in_background_task(
     job_id: int, scope: schemas.ExportScope, auth_context: AuthContext
 ) -> None:
     try:
-        async with models.get_session_contex_manager() as session:
+        async with models.get_session_context_manager() as session:
             service = JobsService(session)
             await service.export_channel_in_background(
                 job_id=job_id, scope=scope, auth_context=auth_context
@@ -458,7 +458,7 @@ async def import_channel_in_background_task(
 ) -> None:
     try:
         update_audit_context(audit_context)
-        async with models.get_session_contex_manager() as session:
+        async with models.get_session_context_manager() as session:
             service = JobsService(session)
             await service.import_channel_in_background(
                 job_id=job_id,
