@@ -17,7 +17,7 @@ from statgpt.app.security import create_auth_context
 from statgpt.app.services.chat_facade import ChannelServiceFacade
 from statgpt.app.settings.dial_app import dial_app_settings
 from statgpt.app.utils.dial_stages import optional_timed_stage
-from statgpt.common.models.database import get_readonly_session_contex_manager
+from statgpt.common.models.database import get_readonly_session_context_manager
 from statgpt.common.schemas.dial import Pricing
 from statgpt.common.schemas.token_usage import TokenUsagePricedItem
 from statgpt.common.settings.application import application_settings
@@ -56,7 +56,7 @@ class ChannelCompletion(ChatCompletion):
                 f"request_start_{self._deployment_id}_{start_time.isoformat()}"
             )
 
-        async with get_readonly_session_contex_manager() as db_session:
+        async with get_readonly_session_context_manager() as db_session:
             try:
                 service = await ChannelServiceFacade.get_channel(db_session, self._deployment_id)
             except Exception as e:
@@ -70,7 +70,7 @@ class ChannelCompletion(ChatCompletion):
 
     async def configuration(self, request: ConfigurationRequest) -> ConfigurationResponse | dict:
 
-        async with get_readonly_session_contex_manager() as db_session:
+        async with get_readonly_session_context_manager() as db_session:
             try:
                 service = await ChannelServiceFacade.get_channel(db_session, self._deployment_id)
             except Exception as e:

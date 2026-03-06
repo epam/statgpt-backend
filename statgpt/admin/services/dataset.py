@@ -2408,7 +2408,7 @@ async def auto_update_in_background_task(
 ) -> None:
     """Background task wrapper for auto-update job processing."""
     try:
-        async with models.get_session_contex_manager() as session:
+        async with models.get_session_context_manager() as session:
             service = AdminPortalDataSetService(session)
             await service.process_auto_update_job(
                 auto_update_job_id=auto_update_job_id,
@@ -2430,7 +2430,7 @@ async def reload_indicators_in_background_task(
     status_on_completion: StatusEnum = StatusEnum.COMPLETED,
 ) -> None:
     try:
-        async with models.get_session_contex_manager() as session:
+        async with models.get_session_context_manager() as session:
             service = AdminPortalDataSetService(session)
             await service.reload_channel_dataset_in_background(
                 channel_dataset_version_id=channel_dataset_version_id,
@@ -2451,7 +2451,7 @@ async def clear_channel_dataset_data_in_background_task(
     channel_dataset_id: int, auth_context: AuthContext
 ) -> None:
     try:
-        async with models.get_session_contex_manager() as session:
+        async with models.get_session_context_manager() as session:
             service = AdminPortalDataSetService(session)
             await service.clear_channel_dataset_data_in_background(
                 channel_dataset_id=channel_dataset_id,
