@@ -2,21 +2,21 @@ import uuid
 from collections.abc import Mapping
 from typing import Any
 
-import httpx
+from sdmx.model.common import BaseAnnotation
 from sdmx.model.v21 import DataflowDefinition as DataFlow
 
 from statgpt.common.auth.auth_context import AuthContext
-from statgpt.common.config import multiline_logger as logger
 from statgpt.common.data.base import DataSourceType
 from statgpt.common.data.common import SdmxAugmentedDataSourceHandler
 from statgpt.common.data.proxy.config import ProxySdmx30DataSourceConfig
+from statgpt.common.data.proxy.sdmx_schemas.structure_message import ProxyAnnotation
 from statgpt.common.data.proxy.v30.dataset import Sdmx30ProxyDataSet
 from statgpt.common.data.proxy.v30.sdmx_client import AsyncProxySdmxClient
 from statgpt.common.data.quanthub.config import QuanthubDataSetConfig
 from statgpt.common.data.sdmx.v21.attribute import Sdmx21Attribute
 from statgpt.common.data.sdmx.v21.dataset import SdmxOfflineDataSet
 from statgpt.common.data.sdmx.v21.ratelimiter import SdmxRateLimiterFactory
-from statgpt.common.data.sdmx.v21.schemas import Urn
+from statgpt.common.data.sdmx.v21.schemas import StructureMessage21, Urn
 from statgpt.common.settings.sdmx import proxy_sdmx_settings
 from statgpt.common.utils import Cache
 from statgpt.common.utils.timer import debug_timer
@@ -53,26 +53,29 @@ class ProxySdmx30DataSourceHandler(SdmxAugmentedDataSourceHandler):
         )
         return AsyncProxySdmxClient.from_config(self._config, auth_context, rate_limiter)
 
-    async def _load_extra_dataset_data(self, sdmx_client: Any, urn: Urn) -> Mapping[str, Any]:
-        client = sdmx_client
-        try:
-            annotations = await client.dynamic_dataflow_annotations(
-                agency_id=urn.agency_id,
-                resource_id=urn.resource_id,
-                version=urn.version,
-            )
-        except httpx.RequestError as e:
-            logger.exception(
-                f"Failed to load annotations for the dataflow({urn})."
-                f"\nRequest: {e.request.method} {e.request.url}"
-                + (f"\nContent: {e.request.content!r}" if e.request.content else "")
-            )
-            annotations = []
-        except Exception:
-            logger.exception(f"Failed to load annotations for the dataflow({urn}).")
-            annotations = []
+    async def _load_extra_dataset_data(
+        self, sdmx_client: Any, urn: Urn, structure_message: StructureMessage21 | None = None
+    ) -> Mapping[str, Any]:
+        if structure_message is None:
+            return {}
 
+        dataflow = structure_message.dataflow.get(urn)
+        if dataflow is None:
+            return {}
+
+        annotations = [self._to_proxy_annotation(a) for a in dataflow.annotations]
         return {"annotations": annotations}
+
+    @staticmethod
+    def _to_proxy_annotation(annotation: BaseAnnotation) -> ProxyAnnotation:
+        text = str(annotation.text) if annotation.text else None
+        return ProxyAnnotation(
+            id=annotation.id,
+            title=annotation.title,
+            type=annotation.type,
+            value=annotation.value,
+            text=text,
+        )
 
     def _build_dataset(
         self,

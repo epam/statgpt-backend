@@ -8,6 +8,7 @@ from statgpt.common.utils import async_utils
 
 from .schemas import ConceptIdentity, StructureMessage21, Urn
 from .sdmx_client import AsyncSdmxClient
+from .urn_utils import lookup_urn
 
 
 class DataflowLoader:
@@ -25,7 +26,9 @@ class DataflowLoader:
 
         actual_urn = self._get_actual_urn(result_message, urn)
 
-        schemes = await self._load_concept_schemes(result_message.dataflow[actual_urn].structure)
+        dsd_ref = result_message.dataflow[actual_urn].structure
+        dsd = lookup_urn(result_message.structure, Urn.for_artifact(dsd_ref))
+        schemes = await self._load_concept_schemes(dsd)
         for scheme_msg in schemes:
             result_message.add_concept_schemes(scheme_msg.concept_scheme.values())
 
@@ -95,11 +98,12 @@ class DataflowLoader:
         )
 
     def _get_code_lists(self, dataflow_msg: StructureMessage21, urn: Urn) -> set[Urn]:
-        dsd: DataStructureDefinition = dataflow_msg.dataflow[urn].structure
+        dsd_ref = dataflow_msg.dataflow[urn].structure
+        dsd: DataStructureDefinition = lookup_urn(dataflow_msg.structure, Urn.for_artifact(dsd_ref))
 
         code_lists = set()
         for concept in self._get_concepts_from(dsd):
-            concept_scheme = dataflow_msg.concept_scheme[concept.urn]
+            concept_scheme = lookup_urn(dataflow_msg.concept_scheme, concept.urn)
             concept_item = concept_scheme.items[concept.id]
 
             core_repr = concept_item.core_representation

@@ -13,7 +13,8 @@ from statgpt.common.data.sdmx.v21.dataflow_loader import DataflowLoader
 from statgpt.common.data.sdmx.v21.dataset import InvalidConfigurationError, SdmxOfflineDataSet
 from statgpt.common.data.sdmx.v21.datasource import Sdmx21DataSourceHandler
 from statgpt.common.data.sdmx.v21.dimensions_creator import DimensionsCreator
-from statgpt.common.data.sdmx.v21.schemas import Urn
+from statgpt.common.data.sdmx.v21.schemas import StructureMessage21, Urn
+from statgpt.common.data.sdmx.v21.urn_utils import is_wildcarded_version, lookup_urn
 from statgpt.common.schemas.dataset import Status
 from statgpt.common.utils import Cache
 
@@ -88,8 +89,7 @@ class SdmxAugmentedDataSourceHandler(Sdmx21DataSourceHandler, ABC):
 
         try:
             extra_data = await self._load_extra_dataset_data(
-                sdmx_client=sdmx_client,
-                urn=urn,
+                sdmx_client=sdmx_client, urn=urn, structure_message=structure_message
             )
         except Exception:
             if allow_offline:
@@ -101,6 +101,10 @@ class SdmxAugmentedDataSourceHandler(Sdmx21DataSourceHandler, ABC):
 
         try:
             dataflow = structure_message.dataflow[urn]
+            if is_wildcarded_version(dataflow.structure.version):
+                dataflow.structure = lookup_urn(
+                    structure_message.structure, Urn.for_artifact(dataflow.structure)
+                )
             result = self._build_dataset(
                 entity_id=entity_id,
                 title=title,
@@ -137,7 +141,9 @@ class SdmxAugmentedDataSourceHandler(Sdmx21DataSourceHandler, ABC):
         auth_enabled = getattr(self._config, "auth_enabled", False)
         return allow_cached and not auth_enabled
 
-    async def _load_extra_dataset_data(self, sdmx_client: Any, urn: Urn) -> Mapping[str, Any]:
+    async def _load_extra_dataset_data(
+        self, sdmx_client: Any, urn: Urn, structure_message: StructureMessage21 | None = None
+    ) -> Mapping[str, Any]:
         return {}
 
     @abstractmethod

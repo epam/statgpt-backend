@@ -25,7 +25,10 @@ dataSets:
     title: "IMF.STA:FSIC"
     details:
       <<: *shared_details
-      urn: "IMF.STA:FSIC(13.0.1)"
+      urn:
+        agency_id: "IMF.STA"
+        resource_id: "FSIC"
+        version: "13.0.1"
       dimensions:
         INDICATOR:
           dimensionType: "INDICATOR"
@@ -70,7 +73,10 @@ dataSets:
     title: "IMF.STA:BOP"
     details:
       <<: *shared_details
-      urn: "IMF.STA:BOP(21.0.0)"
+      urn:
+        agency_id: "IMF.STA"
+        resource_id: "BOP"
+        version: "21.0.0"
       dimensions:
         INDICATOR:
           dimensionType: "INDICATOR"
@@ -114,7 +120,10 @@ dataSets:
     title: "IMF.STA:PIP"
     details:
       <<: *shared_details
-      urn: "IMF.STA:PIP(4.0.0)"
+      urn:
+        agency_id: "IMF.STA"
+        resource_id: "PIP"
+        version: "4.0.0"
       dimensions:
         INDICATOR:
           dimensionType: "INDICATOR"
@@ -167,7 +176,10 @@ dataSets:
     title: "IMF.STA:DIP"
     details:
       <<: *shared_details
-      urn: "IMF.STA:DIP(12.0.0)"
+      urn:
+        agency_id: "IMF.STA"
+        resource_id: "DIP"
+        version: "12.0.0"
       dimensions:
         INDICATOR:
           dimensionType: "INDICATOR"
@@ -214,7 +226,10 @@ dataSets:
     title: "IMF.STA:ANEA"
     details:
       <<: *shared_details
-      urn: "IMF.STA:ANEA(6.0.1)"
+      urn:
+        agency_id: "IMF.STA"
+        resource_id: "ANEA"
+        version: "6.0.1"
       dimensions:
         INDICATOR:
           dimensionType: "INDICATOR"
@@ -273,7 +288,10 @@ dataSets:
     title: "IMF.STA:QNEA"
     details:
       <<: *shared_details
-      urn: "IMF.STA:QNEA(7.0.0)"
+      urn:
+        agency_id: "IMF.STA"
+        resource_id: "QNEA"
+        version: "7.0.0"
       dimensions:
         INDICATOR:
           dimensionType: "INDICATOR"
@@ -337,7 +355,10 @@ dataSets:
     title: "IMF.STA:CPI"
     details:
       <<: *shared_details
-      urn: "IMF.STA:CPI(5.0.0)"
+      urn:
+        agency_id: "IMF.STA"
+        resource_id: "CPI"
+        version: "5.0.0"
       dimensions:
         INDEX_TYPE:
           dimensionType: "INDICATOR"
@@ -387,7 +408,10 @@ dataSets:
     title: "IMF.STA:EER"
     details:
       <<: *shared_details
-      urn: "IMF.STA:EER(6.0.0)"
+      urn:
+        agency_id: "IMF.STA"
+        resource_id: "EER"
+        version: "6.0.0"
       dimensions:
         INDICATOR:
           dimensionType: "INDICATOR"
@@ -436,7 +460,10 @@ dataSets:
     title: "IMF.STA:NSDP"
     details:
       <<: *shared_details
-      urn: "IMF.STA:NSDP(7.0.0)"
+      urn:
+        agency_id: "IMF.STA"
+        resource_id: "NSDP"
+        version: "7.0.0"
       dimensions:
         INDICATOR:
           dimensionType: "INDICATOR"
@@ -487,7 +514,10 @@ dataSets:
     title: "IMF.RES:WEO"
     details:
       <<: *shared_details
-      urn: "IMF.RES:WEO(9.0.0)"
+      urn:
+        agency_id: "IMF.RES"
+        resource_id: "WEO"
+        version: "9.0.0"
       dimensions:
         INDICATOR:
           dimensionType: "INDICATOR"
@@ -531,7 +561,10 @@ dataSets:
     title: "IMF.STA:FAS"
     details:
       <<: *shared_details
-      urn: "IMF.STA:FAS(4.0.0)"
+      urn:
+        agency_id: "IMF.STA"
+        resource_id: "FAS"
+        version: "4.0.0"
       dimensions:
         INDICATOR:
           dimensionType: "INDICATOR"
@@ -577,7 +610,10 @@ dataSets:
     title: "IMF.FAD:FM"
     details:
       <<: *shared_details
-      urn: "IMF.FAD:FM(5.0.0)"
+      urn:
+        agency_id: "IMF.FAD"
+        resource_id: "FM"
+        version: "5.0.0"
       dimensions:
         INDICATOR:
           dimensionType: "INDICATOR"

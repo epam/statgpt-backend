@@ -1,3 +1,4 @@
+# Mocks for integration tests. (dummy)
 import os
 from io import BytesIO
 from typing import AnyStr
@@ -9,10 +10,10 @@ CURRENT_DIR = os.path.dirname(os.path.realpath(__file__))
 
 
 def read_dsd(path: AnyStr) -> StructureMessage:
-    with open(path) as f:
+    with open(path, "rb") as f:
         response_content = f.read()
 
-    response_io = BytesIO(response_content.encode("utf-8"))
+    response_io = BytesIO(response_content)
     return Reader().convert(response_io)
 
 

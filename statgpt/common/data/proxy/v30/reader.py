@@ -1,4 +1,44 @@
-"""SDMX-JSON v2.1 reader"""
+"""SDMX-JSON data message reader supporting both proxy and standard SDMX 3.0 APIs.
+
+Supports two SDMX-JSON data message variants:
+
+1. **Proxy SDMX-JSON** (e.g. IMF proxy API):
+
+   - Attributes may use the ``dimensionGroup`` category in addition to ``series``
+     and ``observation``.
+   - ``dimensionGroup`` attributes appear in the structure metadata but are **not**
+     indexed in the series-level data attribute arrays.  Only ``series``-level
+     attributes have corresponding positions in those arrays.
+   - Observation dimension values may use the uncoded ``{"value": "2026"}`` syntax.
+   - Uncoded attribute values (e.g. ``COUNTRY_UPDATE_DATE``) may appear as raw
+     strings directly in the data attribute arrays rather than integer indices.
+
+2. **Standard SDMX-JSON 2.0.0** (SDMX 3.0):
+
+   - Attributes are categorised as ``dataSet`` (or ``dataset``), ``series``,
+     ``observation``.  There is **no** ``dimensionGroup`` category.  Attributes
+     that the proxy format places under ``dimensionGroup`` are instead listed
+     under ``series`` with their ``relationship.dimensions`` metadata preserved.
+   - Because all dimension-related attributes are under ``series``, the data
+     attribute arrays for each series contain positions for **all** series-level
+     attributes, producing longer arrays with many ``null`` entries for
+     attributes whose coded values don't apply to the given series.
+   - Dimension values always use the coded ``{"id": "2026", "name": "2026"}``
+     syntax and may include ``start``/``end`` timestamps.
+   - The level key ``dataset`` (lowercase) may appear in place of ``dataSet``.
+   - Attribute/dimension value objects may carry additional ``name`` and
+     ``description`` fields alongside ``id``.
+
+The reader normalises both variants so that downstream consumers receive
+identical :class:`~sdmx.model.v21.DataSet` objects regardless of which API
+produced the JSON.
+
+References:
+    - SDMX-JSON 2.0.0 data schema:
+      https://json.sdmx.org/2.0.0/sdmx-json-data-schema.json
+    - SDMX-JSON specification repository:
+      https://github.com/sdmx-twg/sdmx-json
+"""
 
 import json
 import logging
@@ -26,9 +66,33 @@ from sdmx.reader.base import BaseReader
 
 log = logging.getLogger(__name__)
 
+_LEVEL_ALIASES: dict[str, str] = {"dataset": "dataSet"}
+"""Map non-canonical level names to their canonical form.
+
+The official SDMX-JSON 2.0.0 schema uses camelCase ``dataSet`` for both
+dimensions and attributes, but some implementations (e.g. the standard
+SDMX 3.0 API) emit lowercase ``dataset`` instead.  This mapping normalises
+the level name so that internal look-ups (e.g. :meth:`_make_key("dataSet")
+<ProxyDataReader._make_key>`) work regardless of casing.
+"""
+
+_CODE_ACCEPTED_KEYS: frozenset[str] = frozenset({"id", "name", "description"})
+"""Keys from an SDMX-JSON value object that are safe to forward to
+:class:`~sdmx.model.v21.Code`.  Other keys present in the JSON
+(``start``, ``end``, ``order``, ``parent``, ``links``, ``annotations``)
+are not accepted by :class:`Code` and would raise :exc:`TypeError`.
+"""
+
 
 class ProxyDataReader(BaseReader):
-    """Read SDMX-JSON and expose it as instances from :mod:`sdmx.model`."""
+    """Read SDMX-JSON and expose it as instances from :mod:`sdmx.model`.
+
+    Handles both the proxy SDMX-JSON format (with ``dimensionGroup`` attribute
+    category) and the standard SDMX-JSON 2.0.0 format (where all
+    dimension-related attributes are under ``series``).
+
+    See the module docstring for a detailed comparison of both formats.
+    """
 
     binary_content_startswith = b"{"
     media_types = list_media_types(base="json", version=Version["1.0.0"])
@@ -49,27 +113,21 @@ class ProxyDataReader(BaseReader):
     def convert(
         self, data, structure=None, **kwargs
     ):  # noqa: C901  TODO reduce complexity 15 → ≤10
-        # Initialize message instance
         msg = DataMessage()
 
         dsd = self._handle_deprecated_kwarg(structure, kwargs)
         if dsd:  # pragma: no cover
-            # Store explicit DSD, if any
             if msg.dataflow is None:
                 msg.dataflow = DataflowDefinition()
             cast(Any, msg.dataflow).structure = dsd
 
-        # Read JSON
         data.default_size = -1
         tree = json.load(data)
 
-        # Read the header
-        # TODO handle KeyError here
+        # Read the header — SDMX-JSON 1.0 uses "header", 2.0 uses "meta"
         try:
-            # SDMX-JSON 1.0 (SDMX 2.1)
             elem = tree["header"]
         except KeyError:
-            # SDMX-JSON 2.0 (SDMX 3.0.0)
             elem = tree["meta"]
 
         msg.header = Header(
@@ -78,71 +136,94 @@ class ProxyDataReader(BaseReader):
             sender=_org(elem["sender"], cls=common.Agency),
         )
 
-        # pre-fetch some structures for efficient use in series and obs
+        # Locate the structure definition
         try:
-            # SDMX-JSON 1.0 (SDMX 2.1)
             structure = tree["structure"]
         except KeyError:
-            # SDMX-JSON 2.0 (SDMX 3.0.0)
             structure = tree["data"]["structures"][0]
 
+        # -----------------------------------------------------------------
         # Read dimensions and values
-        self._dim_level = dict()
-        self._dim_values = dict()
+        # -----------------------------------------------------------------
+        # Both formats share the same dimension layout (``series`` and
+        # ``observation``).  The standard format additionally includes a
+        # ``dataset`` level (typically empty).  Level names are normalised
+        # via ``_LEVEL_ALIASES`` so that ``_make_key("dataSet")`` works
+        # regardless of whether the JSON used ``dataset`` or ``dataSet``.
+        # -----------------------------------------------------------------
+        self._dim_level: dict[Any, str] = {}
+        self._dim_values: dict[Any, list[KeyValue]] = {}
         for level_name, level in structure["dimensions"].items():
+            canonical = _LEVEL_ALIASES.get(level_name, level_name)
             for elem in level:
-                # Create the Dimension
                 d = msg.structure.dimensions.getdefault(
                     id=elem["id"], order=elem.get("keyPosition", -1)
                 )
 
-                # Record the level it appears at
-                self._dim_level[d] = level_name
+                self._dim_level[d] = canonical
 
-                # Record values
-                self._dim_values[d] = list()
+                self._dim_values[d] = []
                 for value in elem.get("values", []):
-                    self._dim_values[d].append(KeyValue(id=d.id, value=value["id"]))
+                    # Per SDMX-JSON ``dimValues`` schema, coded dimension
+                    # values carry ``"id"`` while uncoded values (e.g. time
+                    # periods in the proxy format) use ``"value"`` instead.
+                    dim_value = value.get("id") or value.get("value")
+                    self._dim_values[d].append(KeyValue(id=d.id, value=dim_value))
 
-        # Assign an order to an implicit dimension
         for d in msg.structure.dimensions:
             if d.order == -1:
                 d.order = len(msg.structure.dimensions)
 
-        # Determine the dimension at the observation level
-        if all([level == "observation" for level in self._dim_level.values()]):
+        if all(level == "observation" for level in self._dim_level.values()):
             dim_at_obs = AllDimensions
         else:
             dim_at_obs = [dim for dim, level in self._dim_level.items() if level == "observation"]
 
         msg.observation_dimension = dim_at_obs
 
+        # -----------------------------------------------------------------
         # Read attributes and values
-        self._attr_level = dict()
-        self._attr_values = dict()
+        # -----------------------------------------------------------------
+        # The two formats differ significantly in how attributes are
+        # categorised (see module docstring).  Crucially:
+        #
+        # * **Proxy format** — ``dimensionGroup`` attributes appear in the
+        #   structure but are NOT indexed in the series data arrays.  The
+        #   data arrays only contain positions for ``series``-level attrs.
+        #
+        # * **Standard format** — there is no ``dimensionGroup``.  All
+        #   dimension-related attributes are placed under ``series``, and
+        #   the data arrays contain positions for ALL of them (with
+        #   ``null`` for attributes that don't apply).
+        #
+        # Because ``_make_attrs`` filters by canonical level name, both
+        # layouts produce correct alignment: the proxy's 4-element array
+        # matches 4 ``series`` attrs, while the standard's 41-element
+        # array matches 41 ``series`` attrs.
+        # -----------------------------------------------------------------
+        self._attr_level: dict[Any, str] = {}
+        self._attr_values: dict[Any, list[AttributeValue]] = {}
         for level_name, level in structure["attributes"].items():
+            canonical = _LEVEL_ALIASES.get(level_name, level_name)
             for attr in level:
-                # Create a DataAttribute in the DSD
                 da = msg.structure.attributes.getdefault(
-                    id=attr["id"], concept_identity=Concept(name=attr["name"])
+                    id=attr["id"],
+                    concept_identity=Concept(name=attr.get("name", attr["id"])),
                 )
 
-                # Record its values
                 values = []
                 for v in attr.get("values", []):
                     values.append(
                         AttributeValue(
-                            value=Code(**v) if "id" in v else v["name"],
+                            value=(
+                                _code_from_value(v) if "id" in v else v.get("name", v.get("value"))
+                            ),
                             value_for=da,
                         )
                     )
 
-                # Record the level it appears at
-                self._attr_level[da] = level_name
+                self._attr_level[da] = canonical
 
-                # Handle https://github.com/khaeru/sdmx/issues/64: a DataAttribute with
-                # no values cannot be referenced. Keep it for alignment but skip
-                # resolving indices later.
                 if not len(values):
                     log.warning(f"No AttributeValues for attribute {repr(da)}; skip")
                     continue
@@ -151,10 +232,8 @@ class ProxyDataReader(BaseReader):
 
         self.msg = msg
 
-        # Make a SeriesKey for Observations in this DataSet
         ds_key = self._make_key("dataSet")
 
-        # Read DataSets
         for ds in tree["data"]["dataSets"]:
             msg.data.append(self.read_dataset(ds, ds_key))
 
@@ -189,46 +268,72 @@ class ProxyDataReader(BaseReader):
             yield o
 
     def _make_key(self, level, value=None, base=None):
-        """Convert a string observation key *value* to a Key or subclass.
+        """Convert a colon-separated index string into a :class:`Key`.
 
-        SDMXJSON observations have keys like '2' or '3:4', consisting of colon
-        (':') separated indices. Each index refers to one of the values given
-        in the DSD for an observation-level dimension.
+        SDMX-JSON observations/series have keys like ``"2"`` or ``"0:1:0"``,
+        where each colon-separated token is a zero-based index into the
+        dimension values declared in the structure metadata.
 
-        KeyValues from any *base* Key are copied, and the new values appended.
-        *level* species whether a 'series' or 'observation' Key is returned.
+        Parameters
+        ----------
+        level:
+            One of ``"dataSet"``, ``"series"``, ``"observation"``.  Determines
+            which dimensions are included and what Key subclass is returned.
+            Level names are expected to be canonical (i.e. already normalised
+            via ``_LEVEL_ALIASES``).
+        value:
+            The colon-separated index string from the JSON (e.g. ``"0:1:0"``).
+            ``None`` means "fill with zeros" (used for the dataSet base key).
+        base:
+            An existing Key whose values are copied into the new one before
+            appending the new dimension values.
         """
-        # Instance of the proper class
         key = {"dataSet": Key, "series": SeriesKey, "observation": Key}[level]()
 
         if base:
             key.values.update(base.values)
 
-        # Dimensions at the appropriate level
         dims = [d for d in self.msg.structure.dimensions if self._dim_level[d] == level]
 
-        # Dimensions specified at the dataSet level have only one value, so
-        # pre-fill this
         value = ":".join(["0"] * len(dims)) if value is None else value
 
         if len(value):
-            # Iterate over key indices and the corresponding dimensions
             for index, dim in zip(map(int, value.split(":")), dims):
-                # Look up the value and assign to the Key
                 key[dim.id] = self._dim_values[dim][index]
 
-        # Order the key
         return self.msg.structure.dimensions.order_key(key)
 
     def _make_attrs(self, level, values):
-        """Convert integer attribute indices to an iterable of AttributeValues.
+        """Resolve a data attribute array into a dict of :class:`AttributeValue`.
 
-        'level' must be one of 'dataSet', 'series', or 'observation'.
+        Parameters
+        ----------
+        level:
+            Canonical level name — ``"dataSet"``, ``"series"``, or
+            ``"observation"``.  Only attributes whose recorded level matches
+            are considered.  In the proxy format the ``"dimensionGroup"``
+            attributes are stored separately and are **not** matched here,
+            which is correct because the proxy's data arrays don't include
+            positions for them.  In the standard format there is no
+            ``dimensionGroup``; all relevant attributes are under ``"series"``
+            and the arrays carry positions for every one of them.
+        values:
+            The raw attribute array from the JSON.  Each element is either an
+            integer index into the attribute's coded value list, ``null``
+            (meaning "not applicable"), or — in the proxy format — a raw
+            string for uncoded attributes.
         """
         attrs = [a for a in self.msg.structure.attributes if self._attr_level[a] == level]
         result = {}
         for index, attr in zip(values, attrs):
             if index is None:
+                continue
+            if not isinstance(index, int):
+                log.debug(
+                    "Attribute %s has non-integer index %r; skip",
+                    attr.id,
+                    index,
+                )
                 continue
             if attr not in self._attr_values:
                 log.debug(
@@ -248,6 +353,20 @@ class ProxyDataReader(BaseReader):
             av = self._attr_values[attr][index]
             result[av.value_for.id] = av
         return result
+
+
+def _code_from_value(v: dict) -> Code:
+    """Create a :class:`Code` from an SDMX-JSON value object.
+
+    SDMX-JSON value objects may carry keys beyond what :class:`Code` accepts
+    (e.g. ``start``, ``end``, ``order``, ``links``).  Only the keys listed in
+    :data:`_CODE_ACCEPTED_KEYS` are forwarded to avoid :exc:`TypeError`.
+
+    In the proxy format, values are typically minimal (``{"id": "9"}``).  In
+    the standard SDMX-JSON 2.0.0 format, they often include ``name`` and
+    ``description`` as well (``{"id": "9", "name": "Billions", ...}``).
+    """
+    return Code(**{k: v[k] for k in v if k in _CODE_ACCEPTED_KEYS})
 
 
 def _org(elem: MutableMapping, cls=common.Organisation) -> common.Organisation:

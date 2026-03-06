@@ -1,8 +1,8 @@
 """Add Proxy SDMX 3.0 datasource type
 
 Revision ID: 2f0f6f2f0d7b
-Revises: 109220bfa072
-Create Date: 2026-01-21 12:00:00.000000
+Revises: 75cf43005ed1
+Create Date: 2026-03-05 12:00:00.000000
 
 """
 
@@ -12,7 +12,7 @@ from alembic import op
 
 # revision identifiers, used by Alembic.
 revision: str = '2f0f6f2f0d7b'
-down_revision: Union[str, None] = 'c7f068b2d47d'
+down_revision: Union[str, None] = '75cf43005ed1'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

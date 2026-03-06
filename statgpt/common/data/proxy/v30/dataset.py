@@ -4,6 +4,7 @@ from collections.abc import Iterable
 
 from sdmx.model.v21 import DataflowDefinition as DataFlow
 
+from statgpt.common.data.common.updated_at_mixin import UpdatedAtMixin
 from statgpt.common.data.proxy.sdmx_schemas.structure_message import ProxyAnnotation
 from statgpt.common.data.sdmx.common import SdmxDimension
 from statgpt.common.data.sdmx.common.config import SdmxDataSetConfig
@@ -15,7 +16,7 @@ if typing.TYPE_CHECKING:
     from .datasource import ProxySdmx30DataSourceHandler
 
 
-class Sdmx30ProxyDataSet(Sdmx21DataSet):
+class Sdmx30ProxyDataSet(UpdatedAtMixin, Sdmx21DataSet):
     """Proxy SDMX 3.0 dataset parsed via sdmx1 (SDMX 2.1) models."""
 
     def __init__(

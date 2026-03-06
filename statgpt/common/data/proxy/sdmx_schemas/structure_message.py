@@ -50,7 +50,7 @@ class ProxyDataConstraint(BaseModel):
     id: str = Field()
     name: str = Field()
     names: dict[str, str] = Field(default_factory=dict)
-    description: str = Field()
+    description: str | None = Field(default=None)
     descriptions: dict[str, str] = Field(default_factory=dict)
     version: str = Field()
     agency_id: str = Field(alias="agencyID")

@@ -2,7 +2,6 @@ import logging
 import typing
 import uuid
 from collections.abc import Iterable
-from datetime import datetime
 
 import pandas as pd
 from sdmx.message import StructureMessage
@@ -13,11 +12,8 @@ from sdmx.model.v21 import DataStructureDefinition
 
 from statgpt.common.auth.auth_context import AuthContext
 from statgpt.common.data.base import DataResponseStatus, DataSetAvailabilityQuery, DataSetQuery
-from statgpt.common.data.quanthub.config import (
-    PropertySource,
-    PropertySourceEnum,
-    QuanthubDataSetConfig,
-)
+from statgpt.common.data.common.updated_at_mixin import UpdatedAtMixin
+from statgpt.common.data.quanthub.config import QuanthubDataSetConfig
 from statgpt.common.data.quanthub.sdmx_schemas.v30 import QhAnnotation
 from statgpt.common.data.sdmx import Sdmx21DataSet
 from statgpt.common.data.sdmx.common import SdmxDimension
@@ -34,7 +30,7 @@ if typing.TYPE_CHECKING:
 _log = logging.getLogger(__name__)
 
 
-class QuanthubSdmx21DataSet(Sdmx21DataSet):
+class QuanthubSdmx21DataSet(UpdatedAtMixin, Sdmx21DataSet):
     def __init__(
         self,
         entity_id: uuid.UUID,
@@ -85,43 +81,6 @@ class QuanthubSdmx21DataSet(Sdmx21DataSet):
     def _get_citation_value(self, field: str) -> str | None:
         if self._config.citation:
             return getattr(self._config.citation, field, None)
-        return None
-
-    def _get_property_value_by_source(self, property_source: PropertySource) -> str | None:
-        """Get the property value using the specified property source"""
-        mapping = {
-            PropertySourceEnum.ANNOTATION: self._get_annotation_value_by_id,
-            PropertySourceEnum.ATTRIBUTE: self._get_attribute_value_by_id,
-            PropertySourceEnum.CITATION: self._get_citation_value,
-            PropertySourceEnum.VALUE: lambda field: field,
-        }
-        if getter := mapping.get(property_source.source):
-            return getter(property_source.field)
-        raise ValueError(f"Unsupported property source: {property_source.source}")
-
-    @staticmethod
-    def _parse_date_with_formats(value: str, formats: list[str] | None) -> datetime | None:
-        if formats:
-            for fmt in formats:
-                try:
-                    return datetime.strptime(value, fmt)
-                except ValueError:
-                    _log.debug(f"Failed to parse date {value!r} with format {fmt!r}")
-            _log.warning(f"Failed to parse date {value!r} with any of the formats: {formats}")
-            return None
-        else:
-            try:
-                return datetime.fromisoformat(value)
-            except ValueError:
-                _log.warning(f"Failed to parse date {value!r} with ISO format")
-                return None
-
-    async def updated_at(self, auth_context: AuthContext) -> datetime | None:
-        for property_source in self._config.updated_at:
-            value = self._get_property_value_by_source(property_source)
-            if value and (value := value.strip()):
-                if res := self._parse_date_with_formats(value, property_source.formats):
-                    return res
         return None
 
     def _get_data_explorer_url(

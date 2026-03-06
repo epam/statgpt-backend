@@ -1,5 +1,4 @@
 import io
-from typing import Any
 from urllib.parse import urlencode
 
 import httpx
@@ -12,14 +11,8 @@ from sdmx.session import ResponseIO
 from statgpt.common.auth.auth_context import AuthContext
 from statgpt.common.config import multiline_logger as logger
 from statgpt.common.data.proxy.config import ProxySdmx30DataSourceConfig
-from statgpt.common.data.proxy.sdmx_schemas import (
-    ProxyAvailabilityResponseBody,
-    ProxyDataflowMessage,
-)
-from statgpt.common.data.proxy.sdmx_schemas.structure_message import (
-    ProxyAnnotation,
-    ProxyAvailabilityRequestBody,
-)
+from statgpt.common.data.proxy.sdmx_schemas import ProxyAvailabilityResponseBody
+from statgpt.common.data.proxy.sdmx_schemas.structure_message import ProxyAvailabilityRequestBody
 from statgpt.common.data.proxy.v30.reader import ProxyDataReader
 from statgpt.common.data.sdmx.v21.ratelimiter import SdmxRateLimiter
 from statgpt.common.data.sdmx.v21.sdmx_client import AsyncSdmxClient
@@ -60,29 +53,6 @@ class AsyncProxySdmxClient(AsyncSdmxClient):
             key=key,
             params=params,
             dsd=dsd,
-        )
-
-    async def dynamic_dataflow_annotations(
-        self, *, agency_id: str, resource_id: str, version: str
-    ) -> list[ProxyAnnotation]:
-        params: dict[str, Any] = {}
-        headers = await self._construct_headers({}, Resource.dataflow)
-        headers["accept"] = "application/vnd.sdmx.structure+json;version=2.0.0"
-
-        req: requests.PreparedRequest = self._sync_client.get(  # type: ignore[assignment]
-            resource_type=Resource.dataflow,
-            resource_id=resource_id,
-            dry_run=True,
-            headers=headers,
-            params=params,
-            **{k: v for k, v in [('agency_id', agency_id), ('version', version)] if v is not None},  # type: ignore[arg-type]
-        )
-
-        async with self._rate_limiter.structure_limiter():
-            httpx_response = await self._perform_request(req)
-        httpx_response.raise_for_status()
-        return (
-            ProxyDataflowMessage.model_validate(httpx_response.json()).data.dataflows[0].annotations
         )
 
     async def data(
@@ -167,9 +137,11 @@ class AsyncProxySdmxClient(AsyncSdmxClient):
         dsd: DataStructureDefinition | None,
     ) -> DataMessage:
         key_segment = self._build_key_segment(key=key, dsd=dsd, require_dsd=True)
+        filtered = self._filter_params(params, self._DATA_PARAM_ALLOWLIST)
+        converted = self._convert_time_params(filtered)
         url = self._build_url(
             path=f"/data/dataflow/{agency_id}/{resource_id}/{version}/{key_segment}",
-            params=self._filter_params(params, self._DATA_PARAM_ALLOWLIST),
+            params=converted,
         )
 
         response, req = await self._perform_get(
@@ -227,10 +199,9 @@ class AsyncProxySdmxClient(AsyncSdmxClient):
                 parts.append("")
             else:
                 parts.append("+".join(values))
-        return ".".join(parts) or "*"
+        return ".".join(parts).rstrip(".") or "*"
 
-    def _build_url(self, *, path: str, params: dict[str, str] | None) -> str:
-
+    def _build_url(self, *, path: str, params: dict[str, str | list[str]] | None) -> str:
         url = f"{self._sync_client.source.url}{path}"
         if params:
             return f"{url}?{urlencode(params, doseq=True)}"
@@ -241,6 +212,26 @@ class AsyncProxySdmxClient(AsyncSdmxClient):
         if not params:
             return None
         return {k: v for k, v in params.items() if k in allowlist}
+
+    @staticmethod
+    def _convert_time_params(
+        params: dict[str, str] | None,
+    ) -> dict[str, str | list[str]] | None:
+        """Convert startPeriod/endPeriod to SDMX 3.0 c[TIME_PERIOD] filter syntax."""
+        if not params:
+            return None
+        result: dict[str, str | list[str]] = {}
+        time_filters: list[str] = []
+        for k, v in params.items():
+            if k == "startPeriod":
+                time_filters.append(f"ge:{v}")
+            elif k == "endPeriod":
+                time_filters.append(f"le:{v}")
+            else:
+                result[k] = v
+        if time_filters:
+            result["c[TIME_PERIOD]"] = time_filters
+        return result or None
 
     async def _perform_get(
         self,

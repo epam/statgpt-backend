@@ -15,7 +15,7 @@ from statgpt.common.data.quanthub.v21.dataset import QuanthubSdmx21DataSet
 from statgpt.common.data.sdmx.v21.attribute import Sdmx21Attribute
 from statgpt.common.data.sdmx.v21.dataset import SdmxOfflineDataSet
 from statgpt.common.data.sdmx.v21.ratelimiter import SdmxRateLimiterFactory
-from statgpt.common.data.sdmx.v21.schemas import Urn
+from statgpt.common.data.sdmx.v21.schemas import StructureMessage21, Urn
 from statgpt.common.settings.sdmx import quanthub_settings
 from statgpt.common.utils import Cache
 from statgpt.common.utils.timer import debug_timer
@@ -23,8 +23,6 @@ from statgpt.common.utils.timer import debug_timer
 from .qh_sdmx_client import AsyncQuanthubClient
 
 
-# (DataSourceHandler[SdmxDataSourceConfig, InMemorySdmx21DataSet | SdmxOfflineDataSet, QuanthubDataSetConfig],ABC)
-# todo: add generic typing with QuanthubInMemorySdmx21DataSet
 class QuanthubSdmx21DataSourceHandler(SdmxAugmentedDataSourceHandler):
 
     # TEMP fix:
@@ -69,7 +67,9 @@ class QuanthubSdmx21DataSourceHandler(SdmxAugmentedDataSourceHandler):
                 else:
                     raise
 
-    async def _load_extra_dataset_data(self, sdmx_client: Any, urn: Urn) -> Mapping[str, Any]:
+    async def _load_extra_dataset_data(
+        self, sdmx_client: Any, urn: Urn, structure_message: StructureMessage21 | None = None
+    ) -> Mapping[str, Any]:
         client = sdmx_client
         try:
             attribute_values = await client.dataset_level_attributes(
