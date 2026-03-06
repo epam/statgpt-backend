@@ -3,6 +3,7 @@ import logging
 import os.path
 import uuid
 import zipfile
+from collections import Counter, defaultdict
 from collections.abc import Generator, Iterable
 from typing import Any, NamedTuple
 
@@ -10,6 +11,7 @@ import yaml
 from fastapi import BackgroundTasks, HTTPException, status
 from pydantic import ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 from sqlalchemy.sql.expression import func, select, text, update
 
 import statgpt.common.models as models
@@ -25,6 +27,7 @@ from statgpt.common.hybrid_indexer import Indexer
 from statgpt.common.schemas import (
     AuditActionType,
     AuditEntityType,
+    AutoUpdateResult,
     ChannelIndexStatusScope,
     HybridSearchConfig,
 )
@@ -57,6 +60,15 @@ class _DataHashes(NamedTuple):
     indicator_dimensions_hash: str
     non_indicator_dimensions_hash: str
     special_dimensions_hash: str | None
+
+
+class AutoUpdateChannelResult(NamedTuple):
+    channel_id: int
+    deployment_id: str
+    total: int
+    failed: int
+    summary: str
+    failed_reasons: list[str]
 
 
 class AdminPortalDataSetService(DataSetService):
@@ -1197,33 +1209,70 @@ class AdminPortalDataSetService(DataSetService):
         else:
             _log.info("No versions to clear data for.")
 
-    async def set_failed_status_for_channel_dataset_version(self) -> None:
-        """Sets the status of all not-completed channel dataset versions to FAILED."""
+    async def _set_failed_status(
+        self,
+        model: Any,
+        status_column: Any,
+        status_field_name: str,
+    ) -> int:
+        """Sets the status of all stuck records to FAILED for the given model.
 
-        _log.info("Setting FAILED status for all non-completed channel dataset versions...")
+        Returns:
+             the number of updated rows.
+        """
+        table_name = model.__tablename__
+
+        _log.info(f"Setting FAILED status for all non-completed {table_name}...")
 
         query = (
-            update(models.ChannelDatasetVersion)
+            update(model)
             .where(
-                models.ChannelDatasetVersion.preprocessing_status.notin_(
-                    StatusEnum.final_statuses()
-                ),
-                models.ChannelDatasetVersion.updated_at < text("NOW() - INTERVAL '12 hours'"),
+                status_column.notin_(StatusEnum.final_statuses()),
+                model.updated_at < text("NOW() - INTERVAL '12 hours'"),
             )
             .values(
-                preprocessing_status=StatusEnum.FAILED,
+                **{status_field_name: StatusEnum.FAILED},
                 reason_for_failure=func.coalesce(
-                    models.ChannelDatasetVersion.reason_for_failure,
-                    "The version had invalid status.",
+                    model.reason_for_failure,  # type: ignore[attr-defined]
+                    "Stuck in a non-final status with no recorded failure reason."
+                    " Marked as FAILED by fix_statuses script.",
                 ),
                 updated_at=func.now(),
             )
         )
 
         result = await self._session.execute(query)
+        row_count: int = result.rowcount  # type: ignore[attr-defined]
+
+        _log.info(f"Updated {row_count} {table_name} record(s) to FAILED status")
+        return row_count
+
+    async def set_failed_status_for_channel_dataset_version(self) -> None:
+        """Sets the status of all not-completed channel dataset versions to FAILED."""
+        await self._set_failed_status(
+            models.ChannelDatasetVersion,
+            models.ChannelDatasetVersion.preprocessing_status,
+            "preprocessing_status",
+        )
         await self._session.commit()
 
-        _log.info(f"Updated {result.rowcount} channel dataset version(s) to FAILED status")  # type: ignore[attr-defined]
+    async def set_failed_status_for_stuck_jobs(self) -> None:
+        """Sets the status of all stuck Job records to FAILED."""
+        await self._set_failed_status(
+            models.Job,
+            models.Job.status,
+            "status",
+        )
+        await self._session.commit()
+
+    async def set_failed_status_for_stuck_auto_update_jobs(self) -> None:
+        """Sets the status of all stuck AutoUpdateJob records to FAILED."""
+        await self._set_failed_status(
+            models.AutoUpdateJob,
+            models.AutoUpdateJob.status,
+            "status",
+        )
+        await self._session.commit()
 
     async def reload_all_indicators(
         self,
@@ -1988,6 +2037,105 @@ class AdminPortalDataSetService(DataSetService):
             .where(models.AutoUpdateJob.channel_dataset_id == channel_dataset_id)
         )
         return await self._session.scalar(query) or 0
+
+    async def create_auto_update_jobs(self, channel_ids: list[int]) -> list[schemas.AutoUpdateJob]:
+        """Create AutoUpdateJob records for all datasets in the given channels.
+
+        Returns a list of created job schemas.
+        """
+        result = await self._session.execute(
+            select(models.ChannelDataset)
+            .where(models.ChannelDataset.channel_id.in_(channel_ids))
+            .options(selectinload(models.ChannelDataset.channel))
+        )
+        channel_datasets = list(result.scalars().all())
+
+        jobs: list[models.AutoUpdateJob] = []
+        for cd in channel_datasets:
+            job = models.AutoUpdateJob(channel_dataset_id=cd.id, status=StatusEnum.QUEUED)
+            self._session.add(job)
+            jobs.append(job)
+        await self._session.commit()
+
+        # Log per-channel summary
+        channels_by_id = {cd.channel.id: cd.channel for cd in channel_datasets}
+        counts = Counter(cd.channel_id for cd in channel_datasets)
+        for ch_id, count in counts.items():
+            ch = channels_by_id[ch_id]
+            _log.info(
+                f"Created {count} auto-update job(s) for channel '{ch.deployment_id}' (id={ch_id})"
+            )
+
+        return [schemas.AutoUpdateJob.model_validate(job, from_attributes=True) for job in jobs]
+
+    async def get_reindex_channel_ids(self, job_ids: list[int]) -> set[int]:
+        """Get channel IDs that had at least one REINDEX_TRIGGERED result."""
+        result = await self._session.execute(
+            select(models.AutoUpdateJob)
+            .where(models.AutoUpdateJob.id.in_(job_ids))
+            .where(models.AutoUpdateJob.result == AutoUpdateResult.REINDEX_TRIGGERED)
+            .options(selectinload(models.AutoUpdateJob.channel_dataset))
+        )
+        jobs = list(result.scalars().all())
+        return {j.channel_dataset.channel_id for j in jobs}
+
+    async def get_auto_update_results(self, job_ids: list[int]) -> list[AutoUpdateChannelResult]:
+        """Collect per-channel auto-update results."""
+        result = await self._session.execute(
+            select(models.AutoUpdateJob)
+            .where(models.AutoUpdateJob.id.in_(job_ids))
+            .options(
+                selectinload(models.AutoUpdateJob.channel_dataset).selectinload(
+                    models.ChannelDataset.channel
+                ),
+                selectinload(models.AutoUpdateJob.created_version),
+            )
+        )
+        jobs = list(result.scalars().all())
+
+        channel_jobs: defaultdict[int, list[models.AutoUpdateJob]] = defaultdict(list)
+        for job in jobs:
+            channel_jobs[job.channel_dataset.channel.id].append(job)
+
+        results: list[AutoUpdateChannelResult] = []
+        for channel_id, ch_jobs in channel_jobs.items():
+            ch = ch_jobs[0].channel_dataset.channel
+            results.append(
+                AutoUpdateChannelResult(
+                    channel_id=channel_id,
+                    deployment_id=ch.deployment_id,
+                    total=len(ch_jobs),
+                    failed=sum(1 for j in ch_jobs if j.status == StatusEnum.FAILED),
+                    summary=self._format_result_summary(ch_jobs),
+                    failed_reasons=[
+                        f"job {j.id}: {j.reason_for_failure}"
+                        for j in ch_jobs
+                        if j.status == StatusEnum.FAILED
+                    ],
+                )
+            )
+        return results
+
+    @staticmethod
+    def _format_result_summary(jobs: list[models.AutoUpdateJob]) -> str:
+        """Build a human-readable summary of auto-update results."""
+        reindex_statuses: dict[str, Counter[str]] = defaultdict(Counter)
+        job_statuses: list[str] = []
+        for job in jobs:
+            job_status = job.result.value if job.result else job.status.value
+            job_statuses.append(job_status)
+            if job.created_version is not None:
+                reindex_statuses[job_status][job.created_version.preprocessing_status.value] += 1
+        result_counts = Counter(job_statuses)
+
+        parts: list[str] = []
+        for job_status, count in result_counts.most_common():
+            part = f"{count} {job_status}"
+            if job_status in reindex_statuses:
+                breakdown = ", ".join(f"{c} {s}" for s, c in reindex_statuses[job_status].items())
+                part += f" ({breakdown})"
+            parts.append(part)
+        return ", ".join(parts)
 
     async def _set_auto_update_job_status(
         self,
