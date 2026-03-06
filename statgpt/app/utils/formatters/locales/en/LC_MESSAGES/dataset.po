@@ -6,7 +6,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: statgpt 1.0\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2025-11-05 17:19+0200\n"
+"POT-Creation-Date: 2026-03-06 14:48+0200\n"
 "PO-Revision-Date: 2024-01-01 00:00+0000\n"
 "Last-Translator: \n"
 "Language-Team: English\n"
@@ -15,23 +15,27 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 
-#: dataset_simple.py:16
+#: dataset_simple.py:18
 msgid "[Official]"
 msgstr "[Official]"
 
 # Basic labels
-#: dataset_simple.py:28 dataset_query.py:125 dataset_query.py:247
+#: dataset_simple.py:30 dataset_query.py:125 dataset_query.py:247
 #: dataset_availablity_query.py:105
 msgid "ID"
 msgstr "ID"
 
-#: dataset_simple.py:32
+#: dataset_simple.py:34
 msgid "Internal ID"
 msgstr "Internal ID"
 
-#: dataset_simple.py:41 dataset_detailed.py:59 dataset_detailed.py:93
+#: dataset_simple.py:43 dataset_detailed.py:59 dataset_detailed.py:93
 msgid "Description"
 msgstr "Description"
+
+#: dataset_simple.py:56
+msgid "Number of indicators"
+msgstr "Number of indicators"
 
 #: dataset_detailed.py:21 dataset_detailed.py:31
 msgid "Total"
@@ -63,40 +67,44 @@ msgid "Attributes"
 msgstr "Attributes"
 
 # List formatter strings
-#: datasets_list_formatter.py:39
+#: datasets_list_formatter.py:40
 msgid "Cannot sort by both id and name."
 msgstr "Cannot sort by both id and name."
 
-#: datasets_list_formatter.py:62 datasets_list_formatter.py:64 citation.py:28
+#: datasets_list_formatter.py:64 datasets_list_formatter.py:66 citation.py:28
 msgid "Provider"
 msgstr "Provider"
 
-#: datasets_list_formatter.py:64 datasets_list_formatter.py:110
+#: datasets_list_formatter.py:66 datasets_list_formatter.py:116
 msgid "Unknown"
 msgstr "Unknown"
 
-#: datasets_list_formatter.py:67
+#: datasets_list_formatter.py:69
 msgid "Total datasets from this provider"
 msgstr "Total datasets from this provider"
 
-#: datasets_list_formatter.py:78 datasets_list_formatter.py:100
-#: datasets_list_formatter.py:105
+#: datasets_list_formatter.py:80 datasets_list_formatter.py:106
+#: datasets_list_formatter.py:111
 msgid "Total datasets"
 msgstr "Total datasets"
 
-#: datasets_list_formatter.py:82
+#: datasets_list_formatter.py:84
 msgid "Total providers"
 msgstr "Total providers"
 
-#: datasets_list_formatter.py:101
+#: datasets_list_formatter.py:87
+msgid "Total number of indicators"
+msgstr "Total number of indicators"
+
+#: datasets_list_formatter.py:107
 msgid "Official"
 msgstr "Official"
 
-#: datasets_list_formatter.py:102
+#: datasets_list_formatter.py:108
 msgid "Unofficial"
 msgstr "Unofficial"
 
-#: datasets_list_formatter.py:114
+#: datasets_list_formatter.py:120
 msgid "By provider"
 msgstr "By provider"
 

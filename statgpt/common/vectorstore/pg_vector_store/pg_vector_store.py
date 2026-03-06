@@ -572,6 +572,26 @@ class PgVectorStore(VectorStore, DbServiceBase):
             size = result.scalar_one()
             return size
 
+    async def get_size_per_version(self, version_ids: set[int]) -> dict[int, int]:
+        """Returns the number of documents per version_id in a single query."""
+        metadata_model = await self._get_metadata_model()
+
+        async with self._lock_session() as session:
+            if not await self._check_if_table_exists(session, metadata_model.__tablename__):
+                return {}
+
+            query = (
+                select(
+                    metadata_model.version_id,
+                    func.count(func.distinct(metadata_model.document_id)),
+                )
+                .select_from(metadata_model)
+                .where(metadata_model.version_id.in_(version_ids))
+                .group_by(metadata_model.version_id)
+            )
+            result = await session.execute(query)
+            return dict(result.all())
+
     async def deduplicate_by_document_content(self) -> None:
         """Removes and remaps duplicate documents based on `document` field content.
 
