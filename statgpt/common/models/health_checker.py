@@ -6,7 +6,7 @@ from statgpt.common.config import Versions
 from statgpt.common.config import multiline_logger as logger
 from statgpt.common.settings.database import PostgresSettings
 
-from .database import get_session_contex_manager
+from .database import get_session_context_manager
 
 
 class AlembicTableNotFoundError(RuntimeError):
@@ -24,7 +24,7 @@ class DatabaseHealthChecker:
 
     @classmethod
     async def check_alembic_version(cls) -> None:
-        async with get_session_contex_manager() as session:
+        async with get_session_context_manager() as session:
             res = await session.execute(
                 text(
                     "SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'alembic_version');"

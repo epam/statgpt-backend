@@ -1209,33 +1209,70 @@ class AdminPortalDataSetService(DataSetService):
         else:
             _log.info("No versions to clear data for.")
 
-    async def set_failed_status_for_channel_dataset_version(self) -> None:
-        """Sets the status of all not-completed channel dataset versions to FAILED."""
+    async def _set_failed_status(
+        self,
+        model: Any,
+        status_column: Any,
+        status_field_name: str,
+    ) -> int:
+        """Sets the status of all stuck records to FAILED for the given model.
 
-        _log.info("Setting FAILED status for all non-completed channel dataset versions...")
+        Returns:
+             the number of updated rows.
+        """
+        table_name = model.__tablename__
+
+        _log.info(f"Setting FAILED status for all non-completed {table_name}...")
 
         query = (
-            update(models.ChannelDatasetVersion)
+            update(model)
             .where(
-                models.ChannelDatasetVersion.preprocessing_status.notin_(
-                    StatusEnum.final_statuses()
-                ),
-                models.ChannelDatasetVersion.updated_at < text("NOW() - INTERVAL '12 hours'"),
+                status_column.notin_(StatusEnum.final_statuses()),
+                model.updated_at < text("NOW() - INTERVAL '12 hours'"),
             )
             .values(
-                preprocessing_status=StatusEnum.FAILED,
+                **{status_field_name: StatusEnum.FAILED},
                 reason_for_failure=func.coalesce(
-                    models.ChannelDatasetVersion.reason_for_failure,
-                    "The version had invalid status.",
+                    model.reason_for_failure,  # type: ignore[attr-defined]
+                    "Stuck in a non-final status with no recorded failure reason."
+                    " Marked as FAILED by fix_statuses script.",
                 ),
                 updated_at=func.now(),
             )
         )
 
         result = await self._session.execute(query)
+        row_count: int = result.rowcount  # type: ignore[attr-defined]
+
+        _log.info(f"Updated {row_count} {table_name} record(s) to FAILED status")
+        return row_count
+
+    async def set_failed_status_for_channel_dataset_version(self) -> None:
+        """Sets the status of all not-completed channel dataset versions to FAILED."""
+        await self._set_failed_status(
+            models.ChannelDatasetVersion,
+            models.ChannelDatasetVersion.preprocessing_status,
+            "preprocessing_status",
+        )
         await self._session.commit()
 
-        _log.info(f"Updated {result.rowcount} channel dataset version(s) to FAILED status")  # type: ignore[attr-defined]
+    async def set_failed_status_for_stuck_jobs(self) -> None:
+        """Sets the status of all stuck Job records to FAILED."""
+        await self._set_failed_status(
+            models.Job,
+            models.Job.status,
+            "status",
+        )
+        await self._session.commit()
+
+    async def set_failed_status_for_stuck_auto_update_jobs(self) -> None:
+        """Sets the status of all stuck AutoUpdateJob records to FAILED."""
+        await self._set_failed_status(
+            models.AutoUpdateJob,
+            models.AutoUpdateJob.status,
+            "status",
+        )
+        await self._session.commit()
 
     async def reload_all_indicators(
         self,
@@ -2371,7 +2408,7 @@ async def auto_update_in_background_task(
 ) -> None:
     """Background task wrapper for auto-update job processing."""
     try:
-        async with models.get_session_contex_manager() as session:
+        async with models.get_session_context_manager() as session:
             service = AdminPortalDataSetService(session)
             await service.process_auto_update_job(
                 auto_update_job_id=auto_update_job_id,
@@ -2393,7 +2430,7 @@ async def reload_indicators_in_background_task(
     status_on_completion: StatusEnum = StatusEnum.COMPLETED,
 ) -> None:
     try:
-        async with models.get_session_contex_manager() as session:
+        async with models.get_session_context_manager() as session:
             service = AdminPortalDataSetService(session)
             await service.reload_channel_dataset_in_background(
                 channel_dataset_version_id=channel_dataset_version_id,
@@ -2414,7 +2451,7 @@ async def clear_channel_dataset_data_in_background_task(
     channel_dataset_id: int, auth_context: AuthContext
 ) -> None:
     try:
-        async with models.get_session_contex_manager() as session:
+        async with models.get_session_context_manager() as session:
             service = AdminPortalDataSetService(session)
             await service.clear_channel_dataset_data_in_background(
                 channel_dataset_id=channel_dataset_id,

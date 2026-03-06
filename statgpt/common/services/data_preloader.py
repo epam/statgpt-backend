@@ -1,7 +1,7 @@
 import logging
 
 from statgpt.common.auth.auth_context import AuthContext
-from statgpt.common.models.database import get_session_contex_manager
+from statgpt.common.models.database import get_session_context_manager
 from statgpt.common.services import DataSetService
 from statgpt.common.settings.dial import dial_settings
 
@@ -36,7 +36,7 @@ async def preload_data(allow_cached_datasets: bool, use_resolved_config: bool) -
     _log.info('~~~ Data preload ~~~')
 
     _log.info("Loading dataset cache...")
-    async with get_session_contex_manager() as session:
+    async with get_session_context_manager() as session:
         try:
             count = await DataSetService(session).preload_datasets(
                 auth_context=_DataPreloaderAuthContext(),
