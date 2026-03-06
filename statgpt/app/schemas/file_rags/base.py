@@ -6,5 +6,5 @@ class BaseRagState(ToolMessageState):
     type: ToolTypes = ToolTypes.FILE_RAG
     version: RAGVersion
 
-    response: str  # This is not needed since we have content field
-    answered_by: str
+    response: str = ""  # This is not needed since we have content field
+    answered_by: str = ""
