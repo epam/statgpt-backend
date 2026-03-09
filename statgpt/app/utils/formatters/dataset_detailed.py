@@ -93,9 +93,9 @@ class DetailedDatasetFormatter(SimpleDatasetFormatter):
                         f'{attribute_details_tabs}- {self._("Description")}: {attr.description}'
                     )
 
-    async def format(self, dataset: DataSet) -> str:
+    async def format(self, dataset: DataSet, indicator_count: int | None = None) -> str:
         result: list[str] = []
-        await self._append_basic_info(dataset, result)
+        await self._append_basic_info(dataset, result, indicator_count=indicator_count)
         self._append_dimensions(dataset, result)
         self._append_attributes(dataset, result)
         return "\n".join(result)

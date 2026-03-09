@@ -6,7 +6,9 @@ from .dataset_base import BaseDatasetFormatter
 
 class SimpleDatasetFormatter(BaseDatasetFormatter):
 
-    async def _append_basic_info(self, dataset: DataSet, result: list[str]) -> None:
+    async def _append_basic_info(
+        self, dataset: DataSet, result: list[str], indicator_count: int | None = None
+    ) -> None:
         if self.config.include_name:
             name_str = f'**{dataset.name}**' if self.config.highlight_name_in_bold else dataset.name
             if self.config.official_dataset_label and dataset.config.is_official:
@@ -50,7 +52,10 @@ class SimpleDatasetFormatter(BaseDatasetFormatter):
             ).format(citation)
             result.append(formatted_citation)
 
-    async def format(self, dataset: DataSet) -> str:
+        if indicator_count is not None:
+            result.append(f'{item_tabs}* {self._("Number of indicators")}: {indicator_count}')
+
+    async def format(self, dataset: DataSet, indicator_count: int | None = None) -> str:
         result: list[str] = []
-        await self._append_basic_info(dataset, result)
+        await self._append_basic_info(dataset, result, indicator_count=indicator_count)
         return "\n".join(result)

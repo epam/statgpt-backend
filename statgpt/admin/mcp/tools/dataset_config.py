@@ -10,7 +10,7 @@ from statgpt.admin.mcp import schemas as mcp_schemas
 from statgpt.admin.services import AdminPortalChannelService as ChannelService
 from statgpt.admin.services import AdminPortalDataSetService as DataSetService
 from statgpt.common.data.base import DataSetValidationResult
-from statgpt.common.models.database import get_session_contex_manager
+from statgpt.common.models.database import get_session_context_manager
 from statgpt.common.schemas import ChannelBase
 from statgpt.common.services.data_source import DataSourceService
 from statgpt.common.utils import read_yaml
@@ -20,7 +20,7 @@ mcp_tools = LocalProvider()
 
 @mcp_tools.tool
 async def get_data_sources(
-    session: AsyncSession = Depends(get_session_contex_manager),  # type: ignore[arg-type]
+    session: AsyncSession = Depends(get_session_context_manager),  # type: ignore[arg-type]
 ) -> mcp_schemas.AvailableDataSources:
     """Retrieve a list of data sources"""
     data_source_service = DataSourceService(session)
@@ -40,7 +40,7 @@ async def get_data_sources(
 @mcp_tools.tool
 async def get_available_datasets(
     data_source_id: int,
-    session: AsyncSession = Depends(get_session_contex_manager),  # type: ignore[arg-type]
+    session: AsyncSession = Depends(get_session_context_manager),  # type: ignore[arg-type]
 ) -> mcp_schemas.AvailableDatasets:
     """
     Retrieve all datasets available for the specified data source. Note: the list may be large.
@@ -59,7 +59,7 @@ async def get_available_datasets(
 @mcp_tools.tool
 async def get_dataset_config_details_schema(
     data_source_id: int,
-    session: AsyncSession = Depends(get_session_contex_manager),  # type: ignore[arg-type]
+    session: AsyncSession = Depends(get_session_context_manager),  # type: ignore[arg-type]
 ) -> dict:
     """
     Retrieve schema for "details" field used in dataset configurations for a specific data source.
@@ -88,7 +88,7 @@ async def get_sdmx_dataset_structure(
         "The version component of the URN. Use 'latest' for the most recent version,"
         " or a specific version like '1.0' or '1.0.0+' for version ranges.",
     ],
-    session: AsyncSession = Depends(get_session_contex_manager),  # type: ignore[arg-type]
+    session: AsyncSession = Depends(get_session_context_manager),  # type: ignore[arg-type]
 ) -> dict:
     """
     Retrieve SDMX dataset structure and metadata from SDMX registry including:
@@ -147,7 +147,7 @@ async def validate_dataset_config(
     dataset_uuid: Annotated[
         str, "Dataset config UUID using which you can retrieve config from datasets files"
     ],
-    session: AsyncSession = Depends(get_session_contex_manager),  # type: ignore[arg-type]
+    session: AsyncSession = Depends(get_session_context_manager),  # type: ignore[arg-type]
 ) -> DataSetValidationResult:
     """Validate dataset configuration against its structure."""
 
@@ -173,7 +173,7 @@ async def validate_dataset_config(
 
 @mcp_tools.tool
 async def get_available_channels(
-    session: AsyncSession = Depends(get_session_contex_manager),  # type: ignore[arg-type]
+    session: AsyncSession = Depends(get_session_context_manager),  # type: ignore[arg-type]
 ) -> list[mcp_schemas.Channel]:
     """Get all available channels."""
     service = ChannelService(session)

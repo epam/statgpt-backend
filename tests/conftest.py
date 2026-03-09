@@ -40,8 +40,8 @@ async def session(async_session_factory):
 #     from statgpt.common.models import database
 #
 #     @asynccontextmanager
-#     async def get_session_contex_manager_mock():
+#     async def get_session_context_manager_mock():
 #         async with async_session_factory() as session:
 #             yield session
 #
-#     monkeypatch.setattr(database, "get_session_contex_manager", get_session_contex_manager_mock)
+#     monkeypatch.setattr(database, "get_session_context_manager", get_session_context_manager_mock)
