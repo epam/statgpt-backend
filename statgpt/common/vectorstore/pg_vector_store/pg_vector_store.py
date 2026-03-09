@@ -539,7 +539,6 @@ class PgVectorStore(VectorStore, DbServiceBase):
             return await self._get_duplicates(session, duplicate_check_query, params=params)
 
     async def get_total_size(self) -> int:
-        """Returns the total number of documents in the vector store."""
         metadata_model = await self._get_metadata_model()
 
         async with self._lock_session() as session:
@@ -555,7 +554,6 @@ class PgVectorStore(VectorStore, DbServiceBase):
             return size
 
     async def get_size(self, version_ids: set[int]) -> int:
-        """Returns the number of documents in the vector store."""
         metadata_model = await self._get_metadata_model()
 
         async with self._lock_session() as session:
@@ -573,7 +571,6 @@ class PgVectorStore(VectorStore, DbServiceBase):
             return size
 
     async def get_size_per_version(self, version_ids: set[int]) -> dict[int, int]:
-        """Returns the number of documents per version_id in a single query."""
         metadata_model = await self._get_metadata_model()
 
         async with self._lock_session() as session:
