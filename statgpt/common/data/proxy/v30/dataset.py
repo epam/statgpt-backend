@@ -4,7 +4,7 @@ from collections.abc import Iterable
 
 from sdmx.model.v21 import DataflowDefinition as DataFlow
 
-from statgpt.common.data.common.updated_at_mixin import UpdatedAtMixin
+from statgpt.common.data.base.updated_at_mixin import UpdatedAtMixin
 from statgpt.common.data.proxy.sdmx_schemas.structure_message import ProxyAnnotation
 from statgpt.common.data.sdmx.common import SdmxDimension
 from statgpt.common.data.sdmx.common.config import SdmxDataSetConfig

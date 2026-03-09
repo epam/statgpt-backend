@@ -1,8 +1,6 @@
 from enum import StrEnum
 
-from pydantic import Field
-
-from statgpt.common.schemas.base import BaseYamlModel
+from pydantic import BaseModel, ConfigDict, Field, alias_generators
 
 
 class PropertySourceEnum(StrEnum):
@@ -16,7 +14,11 @@ class PropertySourceEnum(StrEnum):
     """Use a fixed value specified in the `field`."""
 
 
-class PropertySource(BaseYamlModel):
+class PropertySource(BaseModel):
+    model_config = ConfigDict(
+        alias_generator=alias_generators.to_camel, populate_by_name=True, extra="allow"
+    )
+
     source: PropertySourceEnum = Field()
     field: str = Field(description="The field name in the source")
     formats: list[str] | None = Field(

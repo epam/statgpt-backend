@@ -12,7 +12,7 @@ from sdmx.model.v21 import DataStructureDefinition
 
 from statgpt.common.auth.auth_context import AuthContext
 from statgpt.common.data.base import DataResponseStatus, DataSetAvailabilityQuery, DataSetQuery
-from statgpt.common.data.common.updated_at_mixin import UpdatedAtMixin
+from statgpt.common.data.base.updated_at_mixin import UpdatedAtMixin
 from statgpt.common.data.quanthub.config import QuanthubDataSetConfig
 from statgpt.common.data.quanthub.sdmx_schemas.v30 import QhAnnotation
 from statgpt.common.data.sdmx import Sdmx21DataSet

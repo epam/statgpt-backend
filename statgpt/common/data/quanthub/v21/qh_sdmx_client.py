@@ -7,9 +7,9 @@ from sdmx.model.v21 import DataStructureDefinition
 from statgpt.common.auth.auth_context import AuthContext
 from statgpt.common.config import multiline_logger as logger
 from statgpt.common.data.quanthub.config import QuanthubSdmxDataSourceConfig
+from statgpt.common.data.base.sdmx_schemas import PostAvailabilityRequestBody
 from statgpt.common.data.quanthub.sdmx_schemas.v30 import (
     QhAnnotation,
-    QhAvailabilityRequestBody,
     QhAvailabilityResponseBody,
     QhDataflowMessage,
     QhDataMessage,
@@ -209,7 +209,7 @@ class AsyncQuanthubClient(AsyncSdmxClient):
             {'accept': 'application/json'}, Resource.availableconstraint
         )
         key = {} if key is None else key
-        req_body_obj = QhAvailabilityRequestBody.get_from(key=key, params=params)
+        req_body_obj = PostAvailabilityRequestBody.get_from(key=key, params=params)
 
         req = requests.Request(
             method="POST",

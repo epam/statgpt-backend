@@ -3,7 +3,7 @@ from enum import StrEnum
 from pydantic import Field, SecretStr, model_validator
 
 from statgpt.common.config import utils as config_utils
-from statgpt.common.data.common.property_source import PropertySource, PropertySourceEnum
+from statgpt.common.data.base.property_source import PropertySource, PropertySourceEnum
 from statgpt.common.data.sdmx.common.config import SdmxDataSetConfig, SdmxDataSourceConfig
 from statgpt.common.schemas.base import BaseYamlModel
 

@@ -1,6 +1,6 @@
 from collections.abc import Iterable
 from enum import StrEnum
-from typing import Any, Protocol, TypeVar
+from typing import Any, Protocol
 
 from pydantic import BaseModel, Field
 from sdmx.message import StructureMessage
@@ -37,20 +37,16 @@ class Sdmx30DataComponentFilter(BaseModel):
     value: str = Field()
 
 
-TDataComponentFilter = TypeVar("TDataComponentFilter", bound=Sdmx30DataComponentFilter)
-
-
 def build_availability_filters(
-    filter_cls: type[TDataComponentFilter],
     key: dict[str, list[str]] | None,
     params: dict[str, str] | None,
-) -> list[TDataComponentFilter]:
-    filters: list[TDataComponentFilter] = []
+) -> list[Sdmx30DataComponentFilter]:
+    filters: list[Sdmx30DataComponentFilter] = []
 
     if key:
         for dim, values in key.items():
             filters.append(
-                filter_cls(
+                Sdmx30DataComponentFilter(
                     componentCode=dim,
                     operator=Operator.eq,
                     value=",".join(values),
@@ -61,7 +57,7 @@ def build_availability_filters(
         if start := params.get("startPeriod"):
             start = f"{start}A" if len(start) == 4 else start
             filters.append(
-                filter_cls(
+                Sdmx30DataComponentFilter(
                     componentCode="TIME_PERIOD",
                     operator=Operator.ge,
                     value=start,
@@ -70,7 +66,7 @@ def build_availability_filters(
         if end := params.get("endPeriod"):
             end = f"{end}A" if len(end) == 4 else end
             filters.append(
-                filter_cls(
+                Sdmx30DataComponentFilter(
                     componentCode="TIME_PERIOD",
                     operator=Operator.le,
                     value=end,
@@ -78,6 +74,18 @@ def build_availability_filters(
             )
 
     return filters
+
+
+class PostAvailabilityRequestBody(BaseModel):
+    """A POST request body for SDMX 3.0 availability endpoints."""
+
+    filters: list[Sdmx30DataComponentFilter] | None = Field(default=None)
+
+    @classmethod
+    def get_from(
+        cls, key: dict[str, list[str]] | None, params: dict[str, str] | None
+    ) -> "PostAvailabilityRequestBody":
+        return cls(filters=build_availability_filters(key, params))
 
 
 class _SdmxConstraint(Protocol):

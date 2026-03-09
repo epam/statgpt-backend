@@ -3,39 +3,11 @@ from sdmx.message import StructureMessage
 from sdmx.model.common import CubeRegion, DimensionComponent
 from sdmx.model.v21 import ContentConstraint, MemberSelection, MemberValue
 
-from statgpt.common.data.common.sdmx_schemas import (
+from statgpt.common.data.base.sdmx_schemas import (
     Sdmx30AnnotationModel,
-    Sdmx30DataComponentFilter,
-    build_availability_filters,
     to_content_constraint,
     to_structure_message,
 )
-
-
-class QhDataComponentFilter(Sdmx30DataComponentFilter):
-    pass
-
-
-class QhAvailabilityRequestBody(BaseModel):
-    """A request body in the JSON format for the QuantHub SDMX Plus API."""
-
-    filters: list[QhDataComponentFilter] | None = Field(default=None)
-
-    # ~~~ Not used: ~~~
-    # key: str | None = Field(default=None)
-    # updated_after: str
-    # references: str
-    # mode: str
-    # timestampTo: datetime
-    # keys: list[str]
-    # skipDeleted: bool
-    # dimensionAtObservation: str
-
-    @classmethod
-    def get_from(
-        cls, key: dict[str, list[str]] | None, params: dict[str, str] | None
-    ) -> "QhAvailabilityRequestBody":
-        return cls(filters=build_availability_filters(QhDataComponentFilter, key, params))
 
 
 class QhAnnotation(Sdmx30AnnotationModel):

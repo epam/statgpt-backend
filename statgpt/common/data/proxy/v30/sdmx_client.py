@@ -11,8 +11,8 @@ from sdmx.session import ResponseIO
 from statgpt.common.auth.auth_context import AuthContext
 from statgpt.common.config import multiline_logger as logger
 from statgpt.common.data.proxy.config import ProxySdmx30DataSourceConfig
+from statgpt.common.data.base.sdmx_schemas import PostAvailabilityRequestBody
 from statgpt.common.data.proxy.sdmx_schemas import ProxyAvailabilityResponseBody
-from statgpt.common.data.proxy.sdmx_schemas.structure_message import ProxyAvailabilityRequestBody
 from statgpt.common.data.proxy.v30.reader import ProxyDataReader
 from statgpt.common.data.sdmx.v21.ratelimiter import SdmxRateLimiter
 from statgpt.common.data.sdmx.v21.sdmx_client import AsyncSdmxClient
@@ -99,13 +99,14 @@ class AsyncProxySdmxClient(AsyncSdmxClient):
                 return cached_response  # type: ignore[return-value]
 
         key = {} if key is None else key
-        req_body_obj = ProxyAvailabilityRequestBody.get_from(key=key, params=params, dsd=dsd)
+        req_body_obj = PostAvailabilityRequestBody.get_from(key=key, params=params)
+        body = req_body_obj.model_dump(mode='json', exclude_none=True, by_alias=True)
         headers = {'accept': 'application/vnd.sdmx.structure+json;version=2.0.0'}
         req = requests.Request(
             method="POST",
             url=url,
             headers=headers,
-            json=req_body_obj.model_dump(mode='json', exclude_none=True, by_alias=True),
+            json=body,
         ).prepare()
 
         try:
