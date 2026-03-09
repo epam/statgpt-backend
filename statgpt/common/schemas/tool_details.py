@@ -185,6 +185,10 @@ class AvailableDatasetsDetails(BaseToolDetails):
         default=AvailableDatasetsVersion.short,
         description="The version of the available datasets tool",
     )
+    include_indicator_count: bool = Field(
+        default=False,
+        description="Whether to include the number of indexed indicators per dataset and total.",
+    )
 
 
 class OneShotToolDetails(BaseToolDetails):

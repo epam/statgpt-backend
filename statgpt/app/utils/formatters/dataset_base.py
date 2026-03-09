@@ -58,5 +58,5 @@ class BaseDatasetFormatter(BaseFormatter, ABC):
         return last_updated
 
     @abstractmethod
-    async def format(self, dataset: DataSet) -> str:
+    async def format(self, dataset: DataSet, indicator_count: int | None = None) -> str:
         pass

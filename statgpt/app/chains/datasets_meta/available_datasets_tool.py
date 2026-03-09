@@ -27,9 +27,19 @@ class AvailableDatasetsTool(
         versioned_datasets = await data_service.list_available_datasets(auth_context)
         datasets = [ds.data for ds in versioned_datasets]
 
+        indicator_counts: dict[str, int] | None = None
+        if self._tool_config.details.include_indicator_count:
+            indicator_counts = await data_service.get_indicator_counts(
+                auth_context, versioned_datasets
+            )
+
         formatter = DatasetsListFormatter(self._dataset_formatter_config, auth_context=auth_context)
         response = await formatter.format(
-            datasets, sort_by_name=True, add_stats=True, group_by_provider=True
+            datasets,
+            sort_by_name=True,
+            add_stats=True,
+            group_by_provider=True,
+            indicator_counts=indicator_counts,
         )
 
         target = ChainParameters.get_target(inputs)

@@ -539,7 +539,6 @@ class PgVectorStore(VectorStore, DbServiceBase):
             return await self._get_duplicates(session, duplicate_check_query, params=params)
 
     async def get_total_size(self) -> int:
-        """Returns the total number of documents in the vector store."""
         metadata_model = await self._get_metadata_model()
 
         async with self._lock_session() as session:
@@ -555,7 +554,6 @@ class PgVectorStore(VectorStore, DbServiceBase):
             return size
 
     async def get_size(self, version_ids: set[int]) -> int:
-        """Returns the number of documents in the vector store."""
         metadata_model = await self._get_metadata_model()
 
         async with self._lock_session() as session:
@@ -571,6 +569,25 @@ class PgVectorStore(VectorStore, DbServiceBase):
             result = await session.execute(size_query)
             size = result.scalar_one()
             return size
+
+    async def get_size_per_version(self, version_ids: set[int]) -> dict[int, int]:
+        metadata_model = await self._get_metadata_model()
+
+        async with self._lock_session() as session:
+            if not await self._check_if_table_exists(session, metadata_model.__tablename__):
+                return {}
+
+            query = (
+                select(
+                    metadata_model.version_id,
+                    func.count(func.distinct(metadata_model.document_id)),
+                )
+                .select_from(metadata_model)
+                .where(metadata_model.version_id.in_(version_ids))
+                .group_by(metadata_model.version_id)
+            )
+            result = await session.execute(query)
+            return dict(result.all())
 
     async def deduplicate_by_document_content(self) -> None:
         """Removes and remaps duplicate documents based on `document` field content.
