@@ -29,7 +29,7 @@ class VirtualDimensionConfig(BaseModel, IndexingHashMixin):
     )
 
 
-class DataOwner(BaseModel):
+class ProviderAgency(BaseModel):
     id: StrictStr
     count: int
     name: StrictStr
@@ -38,7 +38,7 @@ class DataOwner(BaseModel):
 class DatasetCitation(BaseModel):
     provider: StrictStr | None = Field(default=None)
     provider_template: StrictStr | None = Field(default=None)
-    data_owners: list[DataOwner] | None = Field(default=None)
+    provider_agencies: list[ProviderAgency] | None = Field(default=None)
     last_updated: StrictStr | None = Field(default=None)
     url: StrictStr | None = Field(default=None)
     description: StrictStr | None = Field(default=None)
@@ -49,31 +49,31 @@ class DatasetCitation(BaseModel):
         return None
 
     @model_validator(mode='after')
-    def check_provider_template_and_data_owners(self) -> Self:
-        if self.provider_template and not self.data_owners:
-            raise ValueError("provider_template is present but data_owners is not")
-        if not self.provider_template and self.data_owners:
-            raise ValueError("provider_template is not present but data_owners is")
+    def _check_provider_template_and_provider_agencies(self) -> Self:
+        if self.provider_template and not self.provider_agencies:
+            raise ValueError("provider_template is present but provider_agencies is not")
+        if not self.provider_template and self.provider_agencies:
+            raise ValueError("provider_template is not present but provider_agencies is")
         return self
 
     @model_validator(mode='after')
-    def _check_owners(self) -> Self:
-        if not self.data_owners:
+    def _check_provider_agencies(self) -> Self:
+        if not self.provider_agencies:
             return self
 
-        if len(self.data_owners) == 1:
+        if len(self.provider_agencies) == 1:
             raise ValueError(
-                "data owners field must not be used with only 1 owner - "
+                "provider_agencies field must not be used with only 1 agency - "
                 "use 'provider' field instead"
             )
 
-        ids = set([owner.id for owner in self.data_owners])
-        if len(ids) != len(self.data_owners):
-            raise ValueError("data owners field must not contain duplicate ids")
+        ids = set([agency.id for agency in self.provider_agencies])
+        if len(ids) != len(self.provider_agencies):
+            raise ValueError("provider_agencies field must not contain duplicated ids")
 
-        names = set([owner.name for owner in self.data_owners])
-        if len(names) != len(self.data_owners):
-            raise ValueError("data owners field must not contain duplicate names")
+        names = set([agency.name for agency in self.provider_agencies])
+        if len(names) != len(self.provider_agencies):
+            raise ValueError("provider_agencies field must not contain duplicated names")
 
         return self
 

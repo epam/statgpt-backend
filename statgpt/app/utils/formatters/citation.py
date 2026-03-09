@@ -28,10 +28,11 @@ class CitationFormatter(BaseFormatter):
             return ""
         prefix = f'{self._("Provider")}: '
         if template := citation.provider_template:
-            owners = citation.data_owners or []
-            sample = [x for x in owners[:4] if x.id != '<NA>'][:3]  # ids are expected to be unique
+            agencies = citation.provider_agencies or []
+            # ids are expected to be unique - no more than one "<NA>" could be present in the data
+            sample = [x for x in agencies[:4] if x.id != '<NA>'][:3]
             sample_str = ', '.join([x.name for x in sample])
-            formatted = template.format(n_agencies=len(owners), agencies_sample=sample_str)
+            formatted = template.format(n_agencies=len(agencies), agencies_sample=sample_str)
             return f'{prefix}{formatted}'
         if provider := citation.provider:
             return f'{prefix}{provider}'
