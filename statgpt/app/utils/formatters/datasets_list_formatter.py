@@ -34,6 +34,7 @@ class DatasetsListFormatter:
         sort_by_name: bool = False,
         add_stats: bool = False,
         group_by_provider: bool = False,
+        indicator_counts: dict[str, int] | None = None,
     ) -> str:
         if sort_by_id and sort_by_name:
             raise ValueError(self._("Cannot sort by both id and name."))
@@ -50,7 +51,8 @@ class DatasetsListFormatter:
 
         # Format each dataset
         for dataset in iterable:
-            entry = await self._formatter.format(dataset)
+            count = indicator_counts.get(dataset.entity_id) if indicator_counts else None
+            entry = await self._formatter.format(dataset, indicator_count=count)
             provider = dataset.config.citation.provider if dataset.config.citation else None
             dataset_entries[provider].append(entry)
 
@@ -80,6 +82,10 @@ class DatasetsListFormatter:
                 # Count unique providers
                 providers = [p for p in dataset_entries.keys() if p is not None]
                 stats_header += f'\n{self._("Total providers")}: {len(providers)}'
+            if indicator_counts is not None:
+                stats_header += (
+                    f'\n{self._("Total number of indicators")}: {sum(indicator_counts.values())}'
+                )
             result = f'{stats_header}\n\n{datasets_list}'
         else:
             result = datasets_list
