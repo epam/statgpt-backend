@@ -231,7 +231,8 @@ class SupremeAgent:
             chat_bot_language_instructions=format_as_markdown_list(
                 channel_config.supreme_agent.language_instructions, list_type="ordered"
             ),
-            chat_bot_citation_instructions=channel_config.supreme_agent.citation_instructions or supreme_agent_default_prompts.default_citation_instructions,
+            chat_bot_citation_instructions=channel_config.supreme_agent.citation_instructions
+            or supreme_agent_default_prompts.default_citation_instructions,
             additional_context=channel_config.supreme_agent.additional_context,
         )
         model = get_chat_model(
