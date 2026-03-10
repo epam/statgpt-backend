@@ -10,8 +10,8 @@ from sdmx.session import ResponseIO
 
 from statgpt.common.auth.auth_context import AuthContext
 from statgpt.common.config import multiline_logger as logger
-from statgpt.common.data.proxy.config import ProxySdmx30DataSourceConfig
 from statgpt.common.data.base.sdmx_schemas import PostAvailabilityRequestBody
+from statgpt.common.data.proxy.config import ProxySdmx30DataSourceConfig
 from statgpt.common.data.proxy.sdmx_schemas import ProxyAvailabilityResponseBody
 from statgpt.common.data.proxy.v30.reader import ProxyDataReader
 from statgpt.common.data.sdmx.v21.ratelimiter import SdmxRateLimiter
