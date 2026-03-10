@@ -32,7 +32,7 @@ class ProxyKeyValue(BaseModel):
 
 class ProxyCubeRegion(BaseModel):
     include: bool = Field()
-    key_values: list[ProxyKeyValue] = Field(alias="components", default_factory=list)
+    key_values: list[ProxyKeyValue] = Field(alias="keyValues", default_factory=list)
 
     def to_sdmx1(self) -> CubeRegion:
         member_selections = [
