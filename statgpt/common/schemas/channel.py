@@ -45,6 +45,10 @@ class SupremeAgentConfig(BaseYamlModel):
         default="",
         description="Additional context for the supreme agent",
     )
+    citation_instructions: str | None = Field(
+        default="",
+        description="Instructions on how to cite information sources used to generate responses.",
+    )
 
 
 class OutOfScopeConfig(BaseYamlModel):

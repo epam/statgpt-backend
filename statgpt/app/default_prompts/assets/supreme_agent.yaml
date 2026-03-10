@@ -128,9 +128,7 @@ systemPrompt: |-
 
   ## Citations
 
-  **Always** cite your **information sources** used to generate responses, including datasets, publications,
-  and websites. When using multiple sources, clearly attribute **which information came from which source**.
-
+  {chat_bot_citation_instructions}
   
   ---
 
@@ -149,3 +147,7 @@ additionalContextWrapperSection: |-
   instructions take precedence.**
 
   {additional_context}
+
+defaultCitationInstructions: |-
+  **Always** cite your **information sources** used to generate responses, including datasets, publications,
+  and websites. When using multiple sources, clearly attribute **which information came from which source**.

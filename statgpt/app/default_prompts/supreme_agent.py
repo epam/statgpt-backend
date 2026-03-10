@@ -11,6 +11,7 @@ class SupremeAgentDefaultPrompts(DefaltPromptsBase):
 
     system_prompt: str
     additional_context_wrapper_section: str
+    default_citation_instructions: str
 
 
 fp = os.path.join(os.path.dirname(os.path.realpath(__file__)), "assets", "supreme_agent.yaml")
