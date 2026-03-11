@@ -3,7 +3,7 @@
 import re
 
 import openai
-from aidial_sdk.exceptions import HTTPException as DialException
+from aidial_sdk.exceptions import HTTPException as DIALException
 
 _DEPLOYMENT_PATH_PATTERN = re.compile(r"/openai/deployments/([^/]+)/")
 _LIMIT_PATTERN = re.compile(r"(\w+) limit: (\d+) / (\d+) tokens")
@@ -15,7 +15,7 @@ _PERIOD_LABELS: dict[str, str] = {
 }
 
 
-class RateLimitException(DialException):
+class RateLimitException(DIALException):
     TYPE = "rate_limit_exceeded"
 
     def __init__(self, message: str, **kwargs) -> None:
