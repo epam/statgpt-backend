@@ -16,6 +16,7 @@ from statgpt.app.schemas.dial_app_configuration import StatGPTConfiguration
 from statgpt.app.security import create_auth_context
 from statgpt.app.services.chat_facade import ChannelServiceFacade
 from statgpt.app.settings.dial_app import dial_app_settings
+from statgpt.app.utils.dial_exceptions import RateLimitException
 from statgpt.app.utils.dial_stages import optional_timed_stage
 from statgpt.common.models.database import get_readonly_session_context_manager
 from statgpt.common.schemas.dial import Pricing
@@ -93,6 +94,7 @@ class ChannelCompletion(ChatCompletion):
     ) -> None:
         main_chain_factory = MainChainFactory(service.channel_config)
         chain = await main_chain_factory.create_chain()
+        dial_exception: DIALException | None = None
         with response.create_choice() as choice:
             try:
                 auth_context = await create_auth_context(
@@ -135,6 +137,10 @@ class ChannelCompletion(ChatCompletion):
                         )
                     state = ChainParameters.get_state(chains_response)
                     state[StateVarsConfig.ERROR] = None
+                except openai.RateLimitError as e:
+                    _log.warning("openai.RateLimitError", exc_info=e)
+                    state[StateVarsConfig.ERROR] = str(e)
+                    dial_exception = RateLimitException.from_openai_error(e)
                 except openai.BadRequestError as e:
                     _log.exception("openai.BadRequestError")
                     if isinstance(error := e.body, dict) and error.get("code") == "content_filter":
@@ -167,6 +173,8 @@ class ChannelCompletion(ChatCompletion):
 
             cls._add_usage_per_model(priced_usage, response)
             cls.set_dial_state(state, choice)
+            if dial_exception:
+                raise dial_exception
 
     @staticmethod
     def init_state(request: Request) -> dict:
