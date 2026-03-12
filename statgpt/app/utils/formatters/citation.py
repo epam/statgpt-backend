@@ -33,6 +33,8 @@ class CitationFormatter(BaseFormatter):
             # ids are expected to be unique - no more than one "<NA>" could be present in the data
             sample = [x for x in agencies[:4] if x.id != '<NA>'][:3]
             sample_str = ', '.join([x.name for x in sample])
+            if len(agencies) > len(sample):
+                sample_str += ' ' + self._("and others")
             formatted = template.format(n_agencies=len(agencies), agencies_sample=sample_str)
             return f'{prefix}{formatted}'
         if provider := citation.provider:
