@@ -67,6 +67,19 @@ class AdminClient:
         """Build full URL for API path."""
         return f"{self._base_url}{URL_PREFIX}{path}"
 
+    @staticmethod
+    def _raise_for_status(resp: httpx.Response) -> None:
+        """Raise AdminAPIError on HTTP errors, including the response body."""
+        if resp.is_success:
+            return
+        method = resp.request.method
+        url = resp.request.url
+        message = f"HTTP {resp.status_code} for {method} {url}"
+        body = resp.text
+        if body:
+            message += f"\nResponse body: {body}"
+        raise AdminAPIError(message, status_code=resp.status_code)
+
     async def health_check(self) -> bool:
         """Check if Admin API is healthy.
 
@@ -86,7 +99,7 @@ class AdminClient:
     async def get_channels(self, limit: int = DEFAULT_LIMIT) -> list[Channel]:
         """Fetch all channels."""
         resp = await self._client.get(self._url("/channels"), params={"limit": limit})
-        resp.raise_for_status()
+        self._raise_for_status(resp)
         return _channels_adapter.validate_python(resp.json()["data"])
 
     async def get_channel_by_deployment_id(self, deployment_id: str) -> Channel | None:
@@ -105,7 +118,7 @@ class AdminClient:
         if channel_id is not None:
             params["channel_id"] = channel_id
         resp = await self._client.get(self._url("/datasets"), params=params)
-        resp.raise_for_status()
+        self._raise_for_status(resp)
         return _datasets_adapter.validate_python(resp.json()["data"])
 
     async def get_channel_datasets(
@@ -116,19 +129,19 @@ class AdminClient:
             self._url(f"/channels/{channel_id}/datasets"),
             params={"limit": limit},
         )
-        resp.raise_for_status()
+        self._raise_for_status(resp)
         return _channel_datasets_adapter.validate_python(resp.json()["data"])
 
     async def get_data_sources(self, limit: int = DEFAULT_LIMIT) -> list[DataSource]:
         """Fetch all data sources."""
         resp = await self._client.get(self._url("/data-sources"), params={"limit": limit})
-        resp.raise_for_status()
+        self._raise_for_status(resp)
         return _data_sources_adapter.validate_python(resp.json()["data"])
 
     async def get_data_source_types(self, limit: int = DEFAULT_LIMIT) -> list[DataSourceType]:
         """Fetch all data source types."""
         resp = await self._client.get(self._url("/data-sources/types"), params={"limit": limit})
-        resp.raise_for_status()
+        self._raise_for_status(resp)
         return _data_source_types_adapter.validate_python(resp.json()["data"])
 
     async def get_glossary_terms(
@@ -139,7 +152,7 @@ class AdminClient:
             self._url(f"/channels/{channel_id}/terms"),
             params={"limit": limit},
         )
-        resp.raise_for_status()
+        self._raise_for_status(resp)
         return _glossary_terms_adapter.validate_python(resp.json()["data"])
 
     async def get_channel_index_status(
@@ -158,7 +171,7 @@ class AdminClient:
             self._url(f"/channels/{channel_id}/index-status"),
             params={"scope": scope},
         )
-        resp.raise_for_status()
+        self._raise_for_status(resp)
         return ChannelIndexStatus.model_validate(resp.json())
 
     async def import_channel(
@@ -185,13 +198,13 @@ class AdminClient:
                 params=params,
                 files=files,
             )
-        resp.raise_for_status()
+        self._raise_for_status(resp)
         return Job.model_validate(resp.json())
 
     async def get_import_job_status(self, job_id: str) -> Job:
         """Get import job status."""
         resp = await self._client.get(self._url(f"/channels/jobs/{job_id}"))
-        resp.raise_for_status()
+        self._raise_for_status(resp)
         return Job.model_validate(resp.json())
 
     async def reload_channel_indicators(
@@ -209,35 +222,35 @@ class AdminClient:
             # Reload all datasets in channel
             url = self._url(f"/channels/{channel_id}/datasets/reload-indicators")
             resp = await self._client.post(url, params=params)
-            resp.raise_for_status()
+            self._raise_for_status(resp)
         else:
             # Reload specific datasets
             for dataset_id in dataset_ids:
                 url = self._url(f"/channels/{channel_id}/datasets/{dataset_id}/reload-indicators")
                 resp = await self._client.post(url, params=params)
-                resp.raise_for_status()
+                self._raise_for_status(resp)
 
     async def deduplicate_channel(self, channel_id: int) -> None:
         """Deduplicate channel embeddings."""
         resp = await self._client.post(self._url(f"/channels/{channel_id}/datasets/deduplicate"))
-        resp.raise_for_status()
+        self._raise_for_status(resp)
 
     async def create_channel(self, channel_data: dict[str, Any]) -> Channel:
         """Create a new channel."""
         resp = await self._client.post(self._url("/channels"), json=channel_data)
-        resp.raise_for_status()
+        self._raise_for_status(resp)
         return Channel.model_validate(resp.json())
 
     async def update_channel(self, channel_id: int, channel_data: dict[str, Any]) -> Channel:
         """Update an existing channel."""
         resp = await self._client.post(self._url(f"/channels/{channel_id}"), json=channel_data)
-        resp.raise_for_status()
+        self._raise_for_status(resp)
         return Channel.model_validate(resp.json())
 
     async def create_data_source(self, data_source_data: dict[str, Any]) -> DataSource:
         """Create a new data source."""
         resp = await self._client.post(self._url("/data-sources"), json=data_source_data)
-        resp.raise_for_status()
+        self._raise_for_status(resp)
         return DataSource.model_validate(resp.json())
 
     async def update_data_source(
@@ -247,13 +260,13 @@ class AdminClient:
         resp = await self._client.post(
             self._url(f"/data-sources/{data_source_id}"), json=data_source_data
         )
-        resp.raise_for_status()
+        self._raise_for_status(resp)
         return DataSource.model_validate(resp.json())
 
     async def create_dataset(self, dataset_data: dict[str, Any]) -> DataSet:
         """Create a new dataset."""
         resp = await self._client.post(self._url("/datasets"), json=dataset_data)
-        resp.raise_for_status()
+        self._raise_for_status(resp)
         return DataSet.model_validate(resp.json())
 
     async def update_dataset(
@@ -265,13 +278,13 @@ class AdminClient:
         changes to all channel datasets that reference this dataset.
         """
         resp = await self._client.post(self._url(f"/datasets/{dataset_id}"), json=dataset_data)
-        resp.raise_for_status()
+        self._raise_for_status(resp)
         return DataSetUpdateResponse.model_validate(resp.json())
 
     async def add_dataset_to_channel(self, channel_id: int, dataset_id: int) -> ChannelDatasetBase:
         """Add a dataset to a channel."""
         resp = await self._client.post(self._url(f"/channels/{channel_id}/datasets/{dataset_id}"))
-        resp.raise_for_status()
+        self._raise_for_status(resp)
         return ChannelDatasetBase.model_validate(resp.json())
 
     async def create_glossary_terms_bulk(
@@ -282,13 +295,13 @@ class AdminClient:
             self._url(f"/channels/{channel_id}/terms/bulk"),
             json=terms,
         )
-        resp.raise_for_status()
+        self._raise_for_status(resp)
         return _glossary_terms_adapter.validate_python(resp.json())
 
     async def update_glossary_terms_bulk(self, terms: list[dict[str, Any]]) -> list[GlossaryTerm]:
         """Update multiple glossary terms."""
         resp = await self._client.post(self._url("/terms/bulk"), json=terms)
-        resp.raise_for_status()
+        self._raise_for_status(resp)
         return _glossary_terms_adapter.validate_python(resp.json())
 
     async def delete_glossary_terms_bulk(self, term_ids: list[int]) -> None:
@@ -298,7 +311,7 @@ class AdminClient:
             self._url("/terms/bulk"),
             json=term_ids,
         )
-        resp.raise_for_status()
+        self._raise_for_status(resp)
 
 
 def _get_auth_headers() -> dict[str, str]:
