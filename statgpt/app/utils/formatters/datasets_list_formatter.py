@@ -157,12 +157,16 @@ class DatasetsListFormatter:
             and_others=and_others,
         )
 
+        n_datasets = len(datasets)
+
         if indicator_counts is not None:
             n_indicators = sum(indicator_counts.values())
-            return self._("I have access to {n_indicators} indicators {providers_str}").format(
-                n_indicators=n_indicators, providers_str=providers_str
-            )
-        return self._("I have access to data {providers_str}").format(providers_str=providers_str)
+            return self._(
+                "I have access to {n_datasets} datasets with {n_indicators} indicators {providers_str}"
+            ).format(n_datasets=n_datasets, n_indicators=n_indicators, providers_str=providers_str)
+        return self._("I have access to {n_datasets} datasets {providers_str}").format(
+            n_datasets=n_datasets, providers_str=providers_str
+        )
 
     async def format_summary(
         self, datasets: list[DataSet], include_official_count: bool = True

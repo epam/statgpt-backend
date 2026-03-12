@@ -6,7 +6,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: statgpt 1.0\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-03-12 22:58+0100\n"
+"POT-Creation-Date: 2026-03-13 00:42+0100\n"
 "PO-Revision-Date: 2024-01-01 00:00+0000\n"
 "Last-Translator: \n"
 "Language-Team: Ukrainian\n"
@@ -75,7 +75,7 @@ msgstr "Неможливо сортувати одночасно за ID та н
 msgid "Provider"
 msgstr "Постачальник"
 
-#: datasets_list_formatter.py:70 datasets_list_formatter.py:188
+#: datasets_list_formatter.py:70 datasets_list_formatter.py:192
 msgid "Unknown"
 msgstr "Невідомо"
 
@@ -83,8 +83,8 @@ msgstr "Невідомо"
 msgid "Total datasets from this provider"
 msgstr "Всього наборів даних від цього постачальника"
 
-#: datasets_list_formatter.py:122 datasets_list_formatter.py:178
-#: datasets_list_formatter.py:183
+#: datasets_list_formatter.py:122 datasets_list_formatter.py:182
+#: datasets_list_formatter.py:187
 msgid "Total datasets"
 msgstr "Всього наборів даних"
 
@@ -108,25 +108,29 @@ msgid ""
 msgstr ""
 "від {n_providers} агентств, зокрема: {providers_sample_str}{and_others}."
 
-#: datasets_list_formatter.py:162
-#, python-brace-format
-msgid "I have access to {n_indicators} indicators {providers_str}"
-msgstr "Я маю доступ до {n_indicators} індикаторів {providers_str}"
-
 #: datasets_list_formatter.py:165
 #, python-brace-format
-msgid "I have access to data {providers_str}"
-msgstr "Я маю доступ до даних {providers_str}"
+msgid ""
+"I have access to {n_datasets} datasets with {n_indicators} indicators "
+"{providers_str}"
+msgstr ""
+"Я маю доступ до {n_datasets} наборів даних з {n_indicators} індикаторами "
+"{providers_str}"
 
-#: datasets_list_formatter.py:179
+#: datasets_list_formatter.py:167
+#, python-brace-format
+msgid "I have access to {n_datasets} datasets {providers_str}"
+msgstr "Я маю доступ до {n_datasets} наборів даних {providers_str}"
+
+#: datasets_list_formatter.py:183
 msgid "Official"
 msgstr "Офіційні"
 
-#: datasets_list_formatter.py:180
+#: datasets_list_formatter.py:184
 msgid "Unofficial"
 msgstr "Неофіційні"
 
-#: datasets_list_formatter.py:192
+#: datasets_list_formatter.py:196
 msgid "By provider"
 msgstr "За постачальником"
 

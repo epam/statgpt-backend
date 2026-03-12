@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-03-12 22:58+0100\n"
+"POT-Creation-Date: 2026-03-13 00:42+0100\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -75,7 +75,7 @@ msgstr ""
 msgid "Provider"
 msgstr ""
 
-#: datasets_list_formatter.py:70 datasets_list_formatter.py:188
+#: datasets_list_formatter.py:70 datasets_list_formatter.py:192
 msgid "Unknown"
 msgstr ""
 
@@ -83,8 +83,8 @@ msgstr ""
 msgid "Total datasets from this provider"
 msgstr ""
 
-#: datasets_list_formatter.py:122 datasets_list_formatter.py:178
-#: datasets_list_formatter.py:183
+#: datasets_list_formatter.py:122 datasets_list_formatter.py:182
+#: datasets_list_formatter.py:187
 msgid "Total datasets"
 msgstr ""
 
@@ -107,25 +107,27 @@ msgid ""
 "{and_others}."
 msgstr ""
 
-#: datasets_list_formatter.py:162
-#, python-brace-format
-msgid "I have access to {n_indicators} indicators {providers_str}"
-msgstr ""
-
 #: datasets_list_formatter.py:165
 #, python-brace-format
-msgid "I have access to data {providers_str}"
+msgid ""
+"I have access to {n_datasets} datasets with {n_indicators} indicators "
+"{providers_str}"
 msgstr ""
 
-#: datasets_list_formatter.py:179
+#: datasets_list_formatter.py:167
+#, python-brace-format
+msgid "I have access to {n_datasets} datasets {providers_str}"
+msgstr ""
+
+#: datasets_list_formatter.py:183
 msgid "Official"
 msgstr ""
 
-#: datasets_list_formatter.py:180
+#: datasets_list_formatter.py:184
 msgid "Unofficial"
 msgstr ""
 
-#: datasets_list_formatter.py:192
+#: datasets_list_formatter.py:196
 msgid "By provider"
 msgstr ""
 
