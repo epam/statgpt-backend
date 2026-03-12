@@ -88,31 +88,38 @@ class DatasetsListFormatter:
             else:
                 n_indicators = None
 
-            providers: set[str] = set()
+            providers_set: set[str] = set()
             for dataset in datasets:
                 if not (cit := dataset.config.citation):
                     continue
                 cit: DatasetCitation
                 if cit.provider_agencies:
-                    providers.update(agency.name for agency in cit.provider_agencies)
+                    providers_set.update(agency.name for agency in cit.provider_agencies)
                 elif cit.provider:
-                    providers.add(cit.provider)
+                    providers_set.add(cit.provider)
                 else:
                     _log.warning(f'Dataset {dataset.entity_id} has no provider information')
 
-            n_providers = len(providers)
-            providers_sample = sorted(providers)[:3]
+            n_providers = len(providers_set)
+            providers_sample = sorted(providers_set)[:3]
             providers_sample_str = ', '.join(providers_sample)
-            providers_str = f'provided by {n_providers} agencies, including: {providers_sample_str}'
-            if n_providers > len(providers_sample):
-                providers_str += ' and others.'
-            else:
-                providers_str += '.'
+            and_others = ' ' + self._("and others") if n_providers > len(providers_sample) else ""
+            providers_str = self._(
+                "provided by {n_providers} agencies, including: {providers_sample_str}{and_others}."
+            ).format(
+                n_providers=n_providers,
+                providers_sample=providers_sample_str,
+                and_others=and_others,
+            )
 
             if n_indicators:
-                stats_str = f'I have access to {n_indicators} indicators {providers_str}'
+                stats_str = self._(
+                    "I have access to {n_indicators} indicators {providers_str}"
+                ).format(n_indicators=n_indicators, providers_str=providers_str)
             else:
-                stats_str = f'I have access to data {providers_str}'
+                stats_str = self._("I have access to data {providers_str}").format(
+                    providers_str=providers_str
+                )
 
             result = f'{stats_str}\n\n{datasets_list}'
         else:
