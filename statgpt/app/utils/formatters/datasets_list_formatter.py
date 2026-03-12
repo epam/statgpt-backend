@@ -134,10 +134,6 @@ class DatasetsListFormatter:
         datasets: list[DataSet],
         indicator_counts: dict[str, int] | None,
     ) -> str:
-        if indicator_counts is not None:
-            n_indicators = sum(indicator_counts.values())
-        else:
-            n_indicators = None
 
         providers_set: set[str] = set()
         for dataset in datasets:
@@ -161,7 +157,8 @@ class DatasetsListFormatter:
             and_others=and_others,
         )
 
-        if n_indicators is not None:
+        if indicator_counts is not None:
+            n_indicators = sum(indicator_counts.values())
             return self._("I have access to {n_indicators} indicators {providers_str}").format(
                 n_indicators=n_indicators, providers_str=providers_str
             )

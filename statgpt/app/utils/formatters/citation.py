@@ -61,7 +61,9 @@ class CitationFormatter(BaseFormatter):
 
         lines = [self._("Provider agencies")]
         agency_names = [agency.name for agency in provider_agencies]
-        lines += [f'{inner_lines_prefix}{i+1}. {name}' for i, name in enumerate(agency_names)]
+        lines += [
+            f'{inner_lines_prefix}{i}. {name}' for i, name in enumerate(agency_names, start=1)
+        ]
         joined = '\n'.join(lines)
         return joined
 
