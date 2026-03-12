@@ -108,7 +108,7 @@ class DatasetsListFormatter:
                 "provided by {n_providers} agencies, including: {providers_sample_str}{and_others}."
             ).format(
                 n_providers=n_providers,
-                providers_sample=providers_sample_str,
+                providers_sample_str=providers_sample_str,
                 and_others=and_others,
             )
 
