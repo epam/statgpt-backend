@@ -112,7 +112,7 @@ class DatasetsListFormatter:
                 and_others=and_others,
             )
 
-            if n_indicators:
+            if n_indicators is not None:
                 stats_str = self._(
                     "I have access to {n_indicators} indicators {providers_str}"
                 ).format(n_indicators=n_indicators, providers_str=providers_str)
