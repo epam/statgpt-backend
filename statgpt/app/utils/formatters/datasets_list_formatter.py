@@ -1,11 +1,14 @@
+import logging
 from collections import defaultdict
 
 from statgpt.common.auth.auth_context import AuthContext
-from statgpt.common.data.base import DataSet
+from statgpt.common.data.base import DataSet, DatasetCitation
 
 from .dataset_base import BaseDatasetFormatter, DatasetFormatterConfig
 from .dataset_detailed import DetailedDatasetFormatter
 from .dataset_simple import SimpleDatasetFormatter
+
+_log = logging.getLogger(__name__)
 
 
 class DatasetsListFormatter:
@@ -77,16 +80,41 @@ class DatasetsListFormatter:
 
         # Add overall statistics if requested
         if add_stats:
-            stats_header = f'{self._("Total datasets")}: {len(datasets)}'
-            if group_by_provider:
-                # Count unique providers
-                providers = [p for p in dataset_entries.keys() if p is not None]
-                stats_header += f'\n{self._("Total providers")}: {len(providers)}'
+            # TODO: potentially breaking change - `add_stats=True` is used everywhere,
+            # not controlled by a config !!! verify before merging !!!
+
             if indicator_counts is not None:
-                stats_header += (
-                    f'\n{self._("Total number of indicators")}: {sum(indicator_counts.values())}'
-                )
-            result = f'{stats_header}\n\n{datasets_list}'
+                n_indicators = sum(indicator_counts.values())
+            else:
+                n_indicators = None
+
+            providers: set[str] = set()
+            for dataset in datasets:
+                if not (cit := dataset.config.citation):
+                    continue
+                cit: DatasetCitation
+                if cit.provider_agencies:
+                    providers.update(agency.name for agency in cit.provider_agencies)
+                elif cit.provider:
+                    providers.add(cit.provider)
+                else:
+                    _log.warning(f'Dataset {dataset.entity_id} has no provider information')
+
+            n_providers = len(providers)
+            providers_sample = sorted(providers)[:3]
+            providers_sample_str = ', '.join(providers_sample)
+            providers_str = f'provided by {n_providers} agencies, including: {providers_sample_str}'
+            if n_providers > len(providers_sample):
+                providers_str += ' and others.'
+            else:
+                providers_str += '.'
+
+            if n_indicators:
+                stats_str = f'I have access to {n_indicators} indicators {providers_str}'
+            else:
+                stats_str = f'I have access to data {providers_str}'
+
+            result = f'{stats_str}\n\n{datasets_list}'
         else:
             result = datasets_list
 
