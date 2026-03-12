@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-03-06 14:48+0200\n"
+"POT-Creation-Date: 2026-03-12 12:58+0100\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -67,53 +67,69 @@ msgstr ""
 msgid "Attributes"
 msgstr ""
 
-#: datasets_list_formatter.py:40
+#: datasets_list_formatter.py:43
 msgid "Cannot sort by both id and name."
 msgstr ""
 
-#: datasets_list_formatter.py:64 datasets_list_formatter.py:66 citation.py:28
+#: datasets_list_formatter.py:67 datasets_list_formatter.py:69 citation.py:30
 msgid "Provider"
 msgstr ""
 
-#: datasets_list_formatter.py:66 datasets_list_formatter.py:116
+#: datasets_list_formatter.py:69 datasets_list_formatter.py:151
 msgid "Unknown"
 msgstr ""
 
-#: datasets_list_formatter.py:69
+#: datasets_list_formatter.py:72
 msgid "Total datasets from this provider"
 msgstr ""
 
-#: datasets_list_formatter.py:80 datasets_list_formatter.py:106
-#: datasets_list_formatter.py:111
-msgid "Total datasets"
-msgstr ""
-
-#: datasets_list_formatter.py:84
-msgid "Total providers"
-msgstr ""
-
-#: datasets_list_formatter.py:87
-msgid "Total number of indicators"
-msgstr ""
-
-#: datasets_list_formatter.py:107
-msgid "Official"
+#: datasets_list_formatter.py:106
+msgid "and others"
 msgstr ""
 
 #: datasets_list_formatter.py:108
-msgid "Unofficial"
+#, python-brace-format
+msgid ""
+"provided by {n_providers} agencies, including: {providers_sample_str}"
+"{and_others}."
+msgstr ""
+
+#: datasets_list_formatter.py:117
+#, python-brace-format
+msgid "I have access to {n_indicators} indicators {providers_str}"
 msgstr ""
 
 #: datasets_list_formatter.py:120
+#, python-brace-format
+msgid "I have access to data {providers_str}"
+msgstr ""
+
+#: datasets_list_formatter.py:141 datasets_list_formatter.py:146
+msgid "Total datasets"
+msgstr ""
+
+#: datasets_list_formatter.py:142
+msgid "Official"
+msgstr ""
+
+#: datasets_list_formatter.py:143
+msgid "Unofficial"
+msgstr ""
+
+#: datasets_list_formatter.py:155
 msgid "By provider"
 msgstr ""
 
-#: citation.py:33
+#: citation.py:44
 msgid "Last updated"
 msgstr ""
 
-#: citation.py:38
+#: citation.py:49
 msgid "URL"
+msgstr ""
+
+#: citation.py:62
+msgid "Provider agencies"
 msgstr ""
 
 #: dataset_query.py:66

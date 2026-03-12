@@ -6,7 +6,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: statgpt 1.0\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-03-06 14:48+0200\n"
+"POT-Creation-Date: 2026-03-12 12:58+0100\n"
 "PO-Revision-Date: 2024-01-01 00:00+0000\n"
 "Last-Translator: \n"
 "Language-Team: English\n"
@@ -67,54 +67,72 @@ msgid "Attributes"
 msgstr "Attributes"
 
 # List formatter strings
-#: datasets_list_formatter.py:40
+#: datasets_list_formatter.py:43
 msgid "Cannot sort by both id and name."
 msgstr "Cannot sort by both id and name."
 
-#: datasets_list_formatter.py:64 datasets_list_formatter.py:66 citation.py:28
+#: datasets_list_formatter.py:67 datasets_list_formatter.py:69 citation.py:30
 msgid "Provider"
 msgstr "Provider"
 
-#: datasets_list_formatter.py:66 datasets_list_formatter.py:116
+#: datasets_list_formatter.py:69 datasets_list_formatter.py:151
 msgid "Unknown"
 msgstr "Unknown"
 
-#: datasets_list_formatter.py:69
+#: datasets_list_formatter.py:72
 msgid "Total datasets from this provider"
 msgstr "Total datasets from this provider"
 
-#: datasets_list_formatter.py:80 datasets_list_formatter.py:106
-#: datasets_list_formatter.py:111
+#: datasets_list_formatter.py:106
+msgid "and others"
+msgstr "and others"
+
+#: datasets_list_formatter.py:108
+#, python-brace-format
+msgid ""
+"provided by {n_providers} agencies, including: {providers_sample_str}"
+"{and_others}."
+msgstr ""
+"provided by {n_providers} agencies, including: {providers_sample_str}"
+"{and_others}."
+
+#: datasets_list_formatter.py:117
+#, python-brace-format
+msgid "I have access to {n_indicators} indicators {providers_str}"
+msgstr "I have access to {n_indicators} indicators {providers_str}"
+
+#: datasets_list_formatter.py:120
+#, python-brace-format
+msgid "I have access to data {providers_str}"
+msgstr "I have access to data {providers_str}"
+
+#: datasets_list_formatter.py:141 datasets_list_formatter.py:146
 msgid "Total datasets"
 msgstr "Total datasets"
 
-#: datasets_list_formatter.py:84
-msgid "Total providers"
-msgstr "Total providers"
-
-#: datasets_list_formatter.py:87
-msgid "Total number of indicators"
-msgstr "Total number of indicators"
-
-#: datasets_list_formatter.py:107
+#: datasets_list_formatter.py:142
 msgid "Official"
 msgstr "Official"
 
-#: datasets_list_formatter.py:108
+#: datasets_list_formatter.py:143
 msgid "Unofficial"
 msgstr "Unofficial"
 
-#: datasets_list_formatter.py:120
+#: datasets_list_formatter.py:155
 msgid "By provider"
 msgstr "By provider"
 
-#: citation.py:33
+#: citation.py:44
 msgid "Last updated"
 msgstr "Last Updated"
 
-#: citation.py:38
+#: citation.py:49
 msgid "URL"
 msgstr "URL"
+
+#: citation.py:62
+msgid "Provider agencies"
+msgstr "Provider agencies"
 
 # Dataset query formatter strings
 #: dataset_query.py:66
@@ -259,3 +277,9 @@ msgstr "Missing dimensions"
 #: dataset_query.py:266
 msgid "example values"
 msgstr "example values"
+
+#~ msgid "Total providers"
+#~ msgstr "Total providers"
+
+#~ msgid "Total number of indicators"
+#~ msgstr "Total number of indicators"
