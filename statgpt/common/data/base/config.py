@@ -77,6 +77,14 @@ class DatasetCitation(BaseModel):
 
         return self
 
+    @property
+    def provider_agency_names_with_fallback_to_provider(self) -> list[str] | None:
+        if self.provider_agencies:
+            return [agency.name for agency in self.provider_agencies]
+        if self.provider:
+            return [self.provider]
+        return None
+
 
 class IndexerIndicatorAnnotationConfig(BaseModel):
     description: Annotated[str, IndexingField()] = Field(

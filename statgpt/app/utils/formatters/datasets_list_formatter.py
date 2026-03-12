@@ -2,7 +2,7 @@ import logging
 from collections import defaultdict
 
 from statgpt.common.auth.auth_context import AuthContext
-from statgpt.common.data.base import DataSet, DatasetCitation
+from statgpt.common.data.base import DataSet
 from statgpt.common.schemas.enums import AvailableDatasetsHeaderFormat
 
 from .dataset_base import BaseDatasetFormatter, DatasetFormatterConfig
@@ -141,15 +141,13 @@ class DatasetsListFormatter:
 
         providers_set: set[str] = set()
         for dataset in datasets:
-            if not (cit := dataset.config.citation):
+            if not (citation := dataset.config.citation):
                 continue
-            cit: DatasetCitation
-            if cit.provider_agencies:
-                providers_set.update(agency.name for agency in cit.provider_agencies)
-            elif cit.provider:
-                providers_set.add(cit.provider)
-            else:
+            agency_names = citation.provider_agency_names_with_fallback_to_provider
+            if not agency_names:
                 _log.warning(f'Dataset {dataset.entity_id} has no provider information')
+                continue
+            providers_set.update(agency_names)
 
         n_providers = len(providers_set)
         providers_sample = sorted(providers_set)[:3]
