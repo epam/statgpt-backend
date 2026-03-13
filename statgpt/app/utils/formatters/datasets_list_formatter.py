@@ -141,7 +141,7 @@ class DatasetsListFormatter:
                 continue
             agency_names = citation.provider_agency_names_with_fallback_to_provider
             if not agency_names:
-                _log.warning(f'Dataset {dataset.entity_id} has no provider information')
+                _log.debug(f'Dataset {dataset.entity_id} has no provider information')
                 continue
             providers_set.update(agency_names)
 
