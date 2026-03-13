@@ -137,6 +137,7 @@ class OutOfScopeChecker:
         model = get_chat_model(
             api_key=auth_context.api_key,
             model_config=self._channel_config.out_of_scope.llm_model_config,
+            streaming=False,
         )
 
         checker_chain = checker_prompt | model.with_structured_output(

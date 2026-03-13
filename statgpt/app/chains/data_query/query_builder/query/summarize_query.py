@@ -86,7 +86,9 @@ class SummarizeQueriesChain:
             ],
         ).partial(language=locale.get_language_name())
         chat_model = get_chat_model(
-            api_key=auth_context.api_key, model_config=self._llm_model_config
+            api_key=auth_context.api_key,
+            model_config=self._llm_model_config,
+            streaming=False,
         ).with_structured_output(schema=QuerySummaries, method="json_schema")
 
         return (

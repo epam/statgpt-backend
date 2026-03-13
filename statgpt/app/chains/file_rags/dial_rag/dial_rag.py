@@ -88,6 +88,7 @@ class DialRagAgentFactory(BaseRAGFactory):
         llm = get_chat_model(
             api_key=auth_context.api_key,
             model_config=self._tool_config.details.prefilter_llm_model_config,
+            streaming=False,
         )
         logger.info(
             f"{self.__class__.__name__} using LLM model: "

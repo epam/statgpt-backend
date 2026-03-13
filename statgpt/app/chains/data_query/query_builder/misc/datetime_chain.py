@@ -28,6 +28,7 @@ class DateTimeDimensionChain:
         llm = get_chat_model(
             api_key=auth_context.api_key,
             model_config=self._llm_model_config,
+            streaming=False,
         ).with_structured_output(schema=DateTimeQueryResponse, method='json_schema')
         logger.info(
             f"{self.__class__.__name__} using LLM model: {self._llm_model_config.deployment.deployment_id}"

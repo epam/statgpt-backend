@@ -72,6 +72,7 @@ class DataSetsSelectionChain:
             api_key=auth_context.api_key,
             azure_endpoint=self._llm_api_base,
             model_config=self._llm_model_config,
+            streaming=False,
         ).with_structured_output(DataSetsSelectionLLMResponse, method='json_schema')
 
         chain = prompt | llm | (lambda x: self._postprocess_llm_response(x, ix2dataset=ix2dataset))

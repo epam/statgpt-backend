@@ -1,8 +1,18 @@
+import warnings
 from typing import Any
 
 import httpx
 from langchain_openai import AzureChatOpenAI, AzureOpenAIEmbeddings
 from pydantic import SecretStr
+
+# langchain_openai emits this warning unconditionally when response_format is a Pydantic type,
+# even when streaming is disabled. It's a known issue in langchain_openai's _should_stream override.
+warnings.filterwarnings(
+    "ignore",
+    message="Streaming with Pydantic response_format not yet supported.",
+    category=UserWarning,
+    module=r"langchain_openai\.chat_models\.base",
+)
 
 from statgpt.common.config.logging import multiline_logger as logger
 from statgpt.common.schemas import EmbeddingsModelConfig, LLMModelConfig
@@ -15,6 +25,7 @@ def get_chat_model(
     model_config: LLMModelConfig,
     azure_endpoint: str = dial_settings.url,
     timeout: httpx.Timeout | None = None,
+    streaming: bool = True,
 ) -> AzureChatOpenAI:
     if not isinstance(api_key, SecretStr):
         api_key = SecretStr(api_key)
@@ -27,6 +38,7 @@ def get_chat_model(
         max_retries=10,
         api_key=api_key,  # since we use SecretStr, it won't be logged
         timeout=timeout,  # timeouts are crucial!
+        streaming=streaming,
     )
 
     params.update(model_config.model_dump(mode="json", exclude_none=True, exclude={"deployment"}))
