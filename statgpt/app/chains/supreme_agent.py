@@ -328,7 +328,7 @@ class SupremeAgentExecutor:
                 # Let's add the chunk to history and try again (if retries are left)
                 history.add_chunk_as_tool_message(response.resp)
 
-        warning_msg = '\n\n[WARNING] Maximum number of tool calls reached. Please enter "continue" to proceed.'
+        warning_msg = '\n\n[WARNING] Maximum number of agent loop iterations reached. Please enter "continue" to proceed.'
         choice.append_content(warning_msg)
         return warning_msg
 
