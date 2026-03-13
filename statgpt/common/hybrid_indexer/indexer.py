@@ -99,9 +99,7 @@ class Indexer:
         self._log_prompt(normalization_prompt, title='normalization prompt')
 
         normalize_llm = get_chat_model(
-            api_key=self._models_api_key,
-            model_config=self._config.normalize_model_config,
-            streaming=False,
+            api_key=self._models_api_key, model_config=self._config.normalize_model_config
         ).with_structured_output(schema=schemas.NormalizationOutput, method="json_schema")
 
         llm_chain = normalization_prompt | normalize_llm | (lambda d: d.normalized.lower())
@@ -118,9 +116,7 @@ class Indexer:
         self._log_prompt(harmonization_prompt, title='harmonization prompt')
 
         harmonize_llm = get_chat_model(
-            api_key=self._models_api_key,
-            model_config=self._config.harmonize_model_config,
-            streaming=False,
+            api_key=self._models_api_key, model_config=self._config.harmonize_model_config
         ).with_structured_output(schema=schemas.HarmonizationOutput, method="json_schema")
 
         llm_chain = harmonization_prompt | harmonize_llm | (lambda d: d.primary)

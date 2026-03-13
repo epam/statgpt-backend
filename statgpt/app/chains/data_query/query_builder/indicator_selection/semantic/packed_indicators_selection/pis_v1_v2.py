@@ -290,7 +290,6 @@ candidates:
             api_key=auth_context.api_key,
             azure_endpoint=self._llm_api_base,
             model_config=self._llm_model_config,
-            streaming=False,
         ).with_structured_output(self._llm_response_class, method='json_mode')
         logger.info(
             f"{self.__class__.__name__} using LLM model: {self._llm_model_config.deployment.deployment_id}"

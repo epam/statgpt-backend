@@ -719,7 +719,6 @@ class HybridSearcher:
         self._llm = get_chat_model(
             api_key=models_api_key,
             model_config=config.search_model_config,
-            streaming=False,
         )
         self._matching_index = matching_index
         self._indicators_index = indicators_index

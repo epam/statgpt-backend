@@ -169,7 +169,6 @@ class LHCLInnerSelectionChainFactory:
         llm = get_chat_model(
             api_key=chain_state.auth_context.api_key,
             model_config=self._llm_model_config,
-            streaming=False,
         ).with_structured_output(schema=SelectedCandidates, method='json_schema')
         # NOTE: can experiment with output model having 'reasoning' field to improve quality
 
