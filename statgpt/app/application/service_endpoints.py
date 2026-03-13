@@ -143,6 +143,11 @@ async def channel_datasets_metadata(
         auth_context=auth_context,
     )
 
+    for ds in datasets:
+        resolved = ds.last_completed_version and ds.last_completed_version.resolved_config
+        if resolved:
+            ds.dataset = ds.dataset.model_copy(update={"details": resolved})
+
     return ChannelDatasetsMetadataResponse(
         deployment_id=service.channel.deployment_id,
         title=service.channel.title,
