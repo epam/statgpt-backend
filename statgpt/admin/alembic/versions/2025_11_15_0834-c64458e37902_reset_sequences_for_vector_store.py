@@ -30,9 +30,7 @@ def upgrade() -> None:
     conn = op.get_bind()
 
     # Get all tables in the collections schema matching the prefixes
-    result = conn.execute(
-        sa.text(
-            """
+    result = conn.execute(sa.text("""
         SELECT table_name
         FROM information_schema.tables
         WHERE table_schema = 'collections'
@@ -41,20 +39,16 @@ def upgrade() -> None:
                OR table_name LIKE 'Indicators%'
                OR table_name LIKE 'SpecialDimensions%')
         ORDER BY table_name
-    """
-        )
-    )
+    """))
 
     tables = [row[0] for row in result]
 
     for table_name in tables:
         # Get the sequence name for the id column
         seq_result = conn.execute(
-            sa.text(
-                """
+            sa.text("""
             SELECT pg_get_serial_sequence(:full_table_name, 'id')
-        """
-            ),
+        """),
             {"full_table_name": f'collections."{table_name}"'},
         )
 
@@ -64,14 +58,12 @@ def upgrade() -> None:
             # Reset the sequence to MAX(id) + 1
             # Use COALESCE to handle empty tables (set to 1 in that case)
             conn.execute(
-                sa.text(
-                    f"""
+                sa.text(f"""
                 SELECT setval(
                     :sequence_name,
                     COALESCE((SELECT MAX(id) FROM collections."{table_name}"), 1)
                 )
-            """
-                ),
+            """),
                 {"sequence_name": sequence_name},
             )
 
