@@ -446,15 +446,13 @@ class PgVectorStore(VectorStore, DbServiceBase):
 
     def _build_delete_orphaned_query(self, document_table: str, metadata_table: str) -> TextClause:
         """Build SQL query to delete documents not referenced by any metadata."""
-        return text(
-            f"""
+        return text(f"""
             DELETE FROM collections."{document_table}"
             WHERE id NOT IN (
                 SELECT DISTINCT document_id
                 FROM collections."{metadata_table}"
             )
-        """
-        )
+        """)
 
     @staticmethod
     async def _get_duplicates(
@@ -481,8 +479,7 @@ class PgVectorStore(VectorStore, DbServiceBase):
                     _log.info(f"Table {model.__tablename__!r} does not exist.")
                     return False, 0
 
-            duplicate_check_query = text(
-                f"""
+            duplicate_check_query = text(f"""
                 WITH duplicate_groups AS (
                     SELECT d.document, COUNT(DISTINCT d.id) as doc_count
                     FROM collections."{document_model.__tablename__}" d
@@ -493,8 +490,7 @@ class PgVectorStore(VectorStore, DbServiceBase):
                 SELECT COUNT(*) as group_count,
                        COALESCE(SUM(doc_count - 1), 0) as duplicate_count
                 FROM duplicate_groups
-                """
-            )
+                """)
 
             return await self._get_duplicates(session, duplicate_check_query, params=None)
 
@@ -520,8 +516,7 @@ class PgVectorStore(VectorStore, DbServiceBase):
                 where_clause = "WHERE m.version_id = ANY(:version_ids)"
                 params = {"version_ids": list(version_ids)}
 
-            duplicate_check_query = text(
-                f"""
+            duplicate_check_query = text(f"""
                 WITH duplicate_groups AS (
                     SELECT d.document, COUNT(DISTINCT d.id) as doc_count
                     FROM collections."{document_model.__tablename__}" d
@@ -533,8 +528,7 @@ class PgVectorStore(VectorStore, DbServiceBase):
                 SELECT COUNT(*) as group_count,
                        COALESCE(SUM(doc_count - 1), 0) as duplicate_count
                 FROM duplicate_groups
-                """
-            )
+                """)
 
             return await self._get_duplicates(session, duplicate_check_query, params=params)
 
@@ -629,8 +623,7 @@ class PgVectorStore(VectorStore, DbServiceBase):
 
                 with debug_timer("deduplicate_content.remap_references"):
                     # Use a CTE to find duplicate documents and remap metadata in one query
-                    remap_query = text(
-                        f"""
+                    remap_query = text(f"""
                         WITH duplicate_mapping AS (
                             SELECT DISTINCT
                                 id as document_id,
@@ -645,8 +638,7 @@ class PgVectorStore(VectorStore, DbServiceBase):
                         FROM duplicate_mapping dm
                         WHERE m.document_id = dm.document_id
                           AND dm.document_id != dm.keeper_id
-                    """
-                    )
+                    """)
 
                     result = await session.execute(remap_query)
                     remapped_count = result.rowcount

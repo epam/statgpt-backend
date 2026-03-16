@@ -19,8 +19,7 @@ depends_on: str | Sequence[str] | None = None
 
 def upgrade() -> None:
     # Rename grantType to systemAuthType in AuthConfig for QH_SDMX21 data sources
-    op.execute(
-        """
+    op.execute("""
         UPDATE data_sources
         SET details = jsonb_set(
             details #- '{authConfig,grantType}',
@@ -30,14 +29,12 @@ def upgrade() -> None:
         WHERE type_id = (SELECT id FROM data_source_types WHERE name = 'QH_SDMX21')
         AND details -> 'authConfig' IS NOT NULL
         AND details -> 'authConfig' ? 'grantType'
-    """
-    )
+    """)
 
 
 def downgrade() -> None:
     # Rename systemAuthType back to grantType in AuthConfig for QH_SDMX21 data sources
-    op.execute(
-        """
+    op.execute("""
         UPDATE data_sources
         SET details = jsonb_set(
             details #- '{authConfig,systemAuthType}',
@@ -47,5 +44,4 @@ def downgrade() -> None:
         WHERE type_id = (SELECT id FROM data_source_types WHERE name = 'QH_SDMX21')
         AND details -> 'authConfig' IS NOT NULL
         AND details -> 'authConfig' ? 'systemAuthType'
-    """
-    )
+    """)

@@ -17,7 +17,7 @@ _task_counter = 0
 
 
 def background_task(
-    func: Callable[Param, Awaitable[RetType]]
+    func: Callable[Param, Awaitable[RetType]],
 ) -> Callable[Param, Awaitable[RetType]]:
     """Limit the amount of background tasks to `MAX_BACKGROUND_TASKS`."""
 

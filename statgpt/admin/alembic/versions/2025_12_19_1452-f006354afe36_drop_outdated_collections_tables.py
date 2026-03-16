@@ -24,8 +24,7 @@ depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
-    op.execute(
-        """
+    op.execute("""
 DO $$
 DECLARE
   r RECORD;
@@ -43,15 +42,13 @@ BEGIN
     EXECUTE format('DROP TABLE IF EXISTS %I.%I CASCADE', r.schemaname, r.tablename);
   END LOOP;
 END $$;
-"""
-    )
+""")
 
 
 def downgrade() -> None:
     # Only "_names" table can be restored to the previous state.
     op.execute("CREATE SCHEMA IF NOT EXISTS collections")
-    op.execute(
-        """
+    op.execute("""
 CREATE TABLE IF NOT EXISTS collections."_names" (
   uuid UUID PRIMARY KEY,
   collection_name VARCHAR NOT NULL,
@@ -60,5 +57,4 @@ CREATE TABLE IF NOT EXISTS collections."_names" (
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
-"""
-    )
+""")
