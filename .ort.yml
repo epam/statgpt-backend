@@ -192,3 +192,7 @@ curations:
       curations:
         concluded_license: "Apache-2.0"
         comment: "Apache 2.0 License: https://github.com/open-telemetry/opentelemetry-python/blob/v1.39.1/exporter/opentelemetry-exporter-otlp-proto-grpc/LICENSE"
+    - id: "PyPI::pyjwt:2.12.1"
+      curations:
+        concluded_license: "MIT"
+        comment: "MIT License: https://github.com/jpadilla/pyjwt/blob/2.12.1/LICENSE"
