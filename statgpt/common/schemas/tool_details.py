@@ -7,7 +7,7 @@ from statgpt.common.config import LLMModelsEnum
 from statgpt.common.config import utils as config_utils
 
 from .base import BaseYamlModel
-from .enums import AvailableDatasetsVersion, RAGVersion
+from .enums import AvailableDatasetsHeaderFormat, AvailableDatasetsVersion, RAGVersion
 from .model_config import LLMModelConfig
 
 
@@ -188,6 +188,10 @@ class AvailableDatasetsDetails(BaseToolDetails):
     include_indicator_count: bool = Field(
         default=False,
         description="Whether to include the number of indexed indicators per dataset and total.",
+    )
+    stats_header_format: AvailableDatasetsHeaderFormat = Field(
+        default=AvailableDatasetsHeaderFormat.totals,
+        description="The format of the statistics header in the tool output.",
     )
 
 

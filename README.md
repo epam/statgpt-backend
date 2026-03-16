@@ -271,13 +271,19 @@ The project uses GNU gettext for internationalizing dataset formatters. Use thes
    ```
    This creates/updates the `locales/dataset.pot` template file.
 
-2. **Update translation files** - Run to sync `.po` files with the new template:
+2. Review changes to `locales/dataset.pot` file - check git diff.
+   There should be no unexpected changes (removals, additions) -
+   they sometimes happen on Windows platforms.
+
+3. **Update translation files** - Run to sync `.po` files with the new template:
    ```bash
    make update_messages
    ```
    This updates `en/LC_MESSAGES/dataset.po` and `uk/LC_MESSAGES/dataset.po` with new strings.
 
-3. **Compile translations** - Run after translating strings in `.po` files to generate binary `.mo` files:
+4. Fill missing translations in `.po` files. Either manually or using coding agent.
+
+5. **Compile translations** - Run after translating strings in `.po` files to generate binary `.mo` files:
    ```bash
    make compile_messages
    ```

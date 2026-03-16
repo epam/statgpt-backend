@@ -7,6 +7,11 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     APP_HOME=/home/app
 
+RUN pip install --upgrade pip
+
+# CVE-2026-23949 (setuptools), CVE-2026-24049 (wheel)
+RUN pip install --no-cache-dir setuptools==80.10.2 wheel==0.46.2
+
 RUN pip install --progress-bar off --no-cache-dir poetry==2.2.1
 
 WORKDIR $APP_HOME
@@ -30,10 +35,12 @@ FROM python:3.11-alpine AS server
 # Security patches (consolidated into single layer)
 # CVE-2023-52425 (libexpat), CVE-2025-6965 (sqlite-libs), libcrypto3/libssl3
 RUN apk update && apk upgrade --no-cache \
-    libcrypto3 libssl3 libexpat sqlite-libs \
+    libcrypto3 libssl3 libexpat sqlite-libs zlib \
   && apk add --no-cache ca-certificates \
   && update-ca-certificates \
   && rm -rf /var/cache/apk/*
+
+RUN pip install --upgrade pip
 
 # CVE-2026-23949 (setuptools), CVE-2026-24049 (wheel)
 RUN pip install --no-cache-dir setuptools==80.10.2 wheel==0.46.2
