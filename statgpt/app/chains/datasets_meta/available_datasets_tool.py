@@ -17,7 +17,9 @@ class AvailableDatasetsTool(
     ):
         super().__init__(tool_config, channel_config, **kwargs)
         self._dataset_formatter_config = _create_formatter_config(
-            tool_config.details.version, channel_config.locale
+            version=tool_config.details.version,
+            locale=channel_config.locale,
+            stats_header_format=tool_config.details.stats_header_format,
         )
 
     async def _arun(self, inputs: dict) -> tuple[str, ToolArtifact]:
