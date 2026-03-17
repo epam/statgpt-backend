@@ -1,4 +1,3 @@
-import asyncio
 import hashlib
 import io
 import json
@@ -43,14 +42,10 @@ class PgVectorStore(VectorStore, DbServiceBase):
         self,
         collection_name: str,
         embedding_model: EmbeddingModel,
-        *,
-        session: AsyncSession,
-        session_lock: asyncio.Lock | None = None,
         **kwargs,
     ):
         VectorStore.__init__(self, collection_name, embedding_model, **kwargs)
-        DbServiceBase.__init__(self, session, session_lock)
-        self._lock = asyncio.Lock()
+        DbServiceBase.__init__(self)
         self._postgres_settings = PostgresSettings()
 
     @property
@@ -125,32 +120,29 @@ class PgVectorStore(VectorStore, DbServiceBase):
         return d
 
     async def _create_table_if_not_exist(self, model: type[BaseModel]) -> bool:
-        """Returns True if the table was created"""
+        """Returns True if the table was created.
+
+        Must be called within a ``_scoped_session()`` block.
+        """
 
         table_name = model.__tablename__
 
-        async with self._lock_session() as session:
-            if await self._check_if_table_exists(session, table_name):
-                _log.info(f"Table '{table_name}' exist")
-                return False
-            else:
-                await self._create_table(session, model)
-                _log.info(f"Created table '{table_name}'")
-                return True
+        if await self._check_if_table_exists(self._session, table_name):
+            _log.info(f"Table '{table_name}' exist")
+            return False
+        else:
+            await self._create_table(self._session, model)
+            _log.info(f"Created table '{table_name}'")
+            return True
 
     async def clear(self) -> None:
-        # Keep outer transaction scopes (e.g. @audit_action) intact:
-        # only commit when this method is not called inside an active transaction.
-        should_commit = not self._session.in_transaction()
-        async with self._lock_session() as session:
+        async with self._scoped_session() as session:
             for table in [self._table_name, self._metadata_table_name]:
                 if await self._check_if_table_exists(session, table):
-
                     await session.execute(text(f'DROP TABLE IF EXISTS collections."{table}"'))
                     _log.info(f"Dropped '{table}' table")
 
-            if should_commit:
-                await session.commit()
+            await session.commit()
 
     def _dataset_lock_key(self, dataset_id: uuid.UUID) -> int:
         """Generates a consistent lock key from collection_name and dataset_id.
@@ -171,15 +163,15 @@ class PgVectorStore(VectorStore, DbServiceBase):
         Returns the lock key which should be passed to _release_dataset_lock.
         This lock persists across multiple transactions until explicitly released.
         This prevents concurrent modifications to the same dataset within the channel.
+
+        Must be called within a ``_scoped_session()`` block.
         """
         lock_key = self._dataset_lock_key(dataset_id)
-        async with self._lock_session() as session:
-            # Ensure session is in a clean state before acquiring lock
-            if session.in_transaction() and not session.is_active:
-                await session.rollback()
-            await session.execute(
-                text("SELECT pg_advisory_lock(:lock_key)"), {"lock_key": lock_key}
-            )
+        session = self._session
+        # Ensure session is in a clean state before acquiring lock
+        if session.in_transaction() and not session.is_active:
+            await session.rollback()
+        await session.execute(text("SELECT pg_advisory_lock(:lock_key)"), {"lock_key": lock_key})
         _log.debug(
             f"Acquired advisory lock for collection={self._collection_name} dataset={dataset_id} (key={lock_key})"
         )
@@ -189,23 +181,25 @@ class PgVectorStore(VectorStore, DbServiceBase):
         """Releases a session-level advisory lock.
 
         Handles PendingRollback state to ensure lock is always released.
+
+        Must be called within a ``_scoped_session()`` block.
         """
-        async with self._lock_session() as session:
+        session = self._session
+        try:
+            # Rollback if session is in a failed transaction state
+            if session.in_transaction() and not session.is_active:
+                await session.rollback()
+            await session.execute(
+                text("SELECT pg_advisory_unlock(:lock_key)"), {"lock_key": lock_key}
+            )
+        except Exception as e:
+            _log.error(f"Failed to release advisory lock (key={lock_key}): {e}")
+            # Still try to rollback to clean up the session
             try:
-                # Rollback if session is in a failed transaction state
-                if session.in_transaction() and not session.is_active:
-                    await session.rollback()
-                await session.execute(
-                    text("SELECT pg_advisory_unlock(:lock_key)"), {"lock_key": lock_key}
-                )
-            except Exception as e:
-                _log.error(f"Failed to release advisory lock (key={lock_key}): {e}")
-                # Still try to rollback to clean up the session
-                try:
-                    await session.rollback()
-                except Exception:
-                    pass
-                raise
+                await session.rollback()
+            except Exception:
+                pass
+            raise
         _log.debug(f"Released advisory lock (key={lock_key})")
 
     @asynccontextmanager
@@ -234,51 +228,58 @@ class PgVectorStore(VectorStore, DbServiceBase):
     async def add_documents(
         self, documents: Iterable[Document], dataset_id: uuid.UUID, version_id: int
     ) -> None:
-        async with self._dataset_lock(dataset_id):
-            document_model: type[BaseDocument] = await self._get_document_model()
-            metadata_model: type[BaseDocumentMetadata] = await self._get_metadata_model()
+        # Phase 1: Compute ALL embeddings outside any session
+        batches_with_embeddings: list[tuple[list[Document], list[list[float]]]] = []
+        for batch in batched(documents, self._postgres_settings.batch_size):
+            embeddings = await self._embedding_model.model.aembed_documents(
+                [doc.page_content for doc in batch]
+            )
+            batches_with_embeddings.append((batch, embeddings))
 
-            await self._create_table_if_not_exist(document_model)
-            await self._create_table_if_not_exist(metadata_model)
+        # Phase 2: DB writes in a single session (advisory lock + inserts)
+        async with self._scoped_session():
+            async with self._dataset_lock(dataset_id):
+                document_model: type[BaseDocument] = await self._get_document_model()
+                metadata_model: type[BaseDocumentMetadata] = await self._get_metadata_model()
 
-            for batch in batched(documents, self._postgres_settings.batch_size):
-                embeddings = await self._embedding_model.model.aembed_documents(
-                    [doc.page_content for doc in batch]
-                )
+                await self._create_table_if_not_exist(document_model)
+                await self._create_table_if_not_exist(metadata_model)
 
-                items = []
-                for doc, embedding in zip(batch, embeddings):
-                    items.append(
+                for batch, embeddings in batches_with_embeddings:
+                    items = [
                         document_model(
                             document=self._sanitize_text(doc.page_content),
-                            embeddings=embedding,
+                            embeddings=emb,
                         )
-                    )
+                        for doc, emb in zip(batch, embeddings)
+                    ]
 
-                self._session.add_all(items)
-                await self._session.commit()
-                _log.info(f"Added {len(items)} documents")
+                    self._session.add_all(items)
+                    await self._session.commit()
+                    _log.info(f"Added {len(items)} documents")
 
-                mappings = [
-                    metadata_model(
-                        document_id=item.id,
-                        dataset_id=dataset_id,
-                        version_id=version_id,
-                        details=self._sanitize_metadata(doc.metadata),
-                    )
-                    for item, doc in zip(items, batch)
-                ]
-                self._session.add_all(mappings)
-                await self._session.commit()
-                _log.info(f"Added {len(mappings)} document mappings")
+                    mappings = [
+                        metadata_model(
+                            document_id=item.id,
+                            dataset_id=dataset_id,
+                            version_id=version_id,
+                            details=self._sanitize_metadata(doc.metadata),
+                        )
+                        for item, doc in zip(items, batch)
+                    ]
+                    self._session.add_all(mappings)
+                    await self._session.commit()
+                    _log.info(f"Added {len(mappings)} document mappings")
 
     async def _get_dataset_ids_by_version_ids(self, version_ids: list[int]) -> list[uuid.UUID]:
-        """Get all unique dataset_ids associated with given version_ids."""
+        """Get all unique dataset_ids associated with given version_ids.
+
+        Must be called within a ``_scoped_session()`` block.
+        """
         model = await self._get_metadata_model()
-        async with self._lock_session() as session:
-            res = await session.scalars(
-                select(model.dataset_id).distinct().where(model.version_id.in_(version_ids))
-            )
+        res = await self._session.scalars(
+            select(model.dataset_id).distinct().where(model.version_id.in_(version_ids))
+        )
         return [item for item in res.all()]
 
     async def remove_documents_by(
@@ -293,13 +294,13 @@ class PgVectorStore(VectorStore, DbServiceBase):
         if not dataset_id and not version_ids:
             raise ValueError("Either dataset_id or version_ids must be provided")
 
-        if dataset_id:
-            dataset_ids_to_lock = [dataset_id]
-        else:
-            dataset_ids_to_lock = await self._get_dataset_ids_by_version_ids(version_ids)  # type: ignore
+        async with self._scoped_session() as session:
+            if dataset_id:
+                dataset_ids_to_lock = [dataset_id]
+            else:
+                dataset_ids_to_lock = await self._get_dataset_ids_by_version_ids(version_ids)  # type: ignore
 
-        async with self._dataset_locks(dataset_ids_to_lock):
-            async with self._lock_session() as session:
+            async with self._dataset_locks(dataset_ids_to_lock):
                 document_ids = await self._remove_dataset_metadata(
                     session, dataset_id=dataset_id, version_ids=version_ids
                 )
@@ -373,6 +374,7 @@ class PgVectorStore(VectorStore, DbServiceBase):
         with debug_timer("vector_store._get_mapping_model"):
             mapping_model = await self._get_metadata_model()
 
+        # Embedding computation outside any session
         with debug_timer("vector_store.prepare_embeddings"):
             embedding = (await self._embedding_model.model.aembed_documents([query]))[0]
 
@@ -410,8 +412,9 @@ class PgVectorStore(VectorStore, DbServiceBase):
                 .order_by(top_k_docs_cte.c.distance, mapping_model.id)
             )
 
+        # DB query in its own session
         with debug_timer("vector_store.search.sql"):
-            async with self._lock_session() as session:
+            async with self._scoped_session() as session:
                 res = await session.execute(sql_query)
 
         with debug_timer("vector_store.search.process"):
@@ -429,7 +432,7 @@ class PgVectorStore(VectorStore, DbServiceBase):
     async def get_dataset_ids_by_documents_ids(self, ids: Iterable[int]) -> list[int]:
         model = await self._get_metadata_model()
 
-        async with self._lock_session() as session:
+        async with self._scoped_session() as session:
             res = await session.scalars(
                 select(model.dataset_id).distinct().where(model.document_id.in_(ids))
             )
@@ -438,7 +441,7 @@ class PgVectorStore(VectorStore, DbServiceBase):
     async def get_document_ids_by_dataset_id(self, dataset_id: uuid.UUID) -> list[int]:
         model = await self._get_metadata_model()
 
-        async with self._lock_session() as session:
+        async with self._scoped_session() as session:
             res = await session.scalars(
                 select(model.document_id).where(model.dataset_id == dataset_id)
             )
@@ -473,7 +476,7 @@ class PgVectorStore(VectorStore, DbServiceBase):
         document_model = await self._get_document_model()
         metadata_model = await self._get_metadata_model()
 
-        async with self._lock_session() as session:
+        async with self._scoped_session() as session:
             for model in [document_model, metadata_model]:
                 if not await self._check_if_table_exists(session, model.__tablename__):
                     _log.info(f"Table {model.__tablename__!r} does not exist.")
@@ -503,7 +506,7 @@ class PgVectorStore(VectorStore, DbServiceBase):
         document_model = await self._get_document_model()
         metadata_model = await self._get_metadata_model()
 
-        async with self._lock_session() as session:
+        async with self._scoped_session() as session:
             for model in [document_model, metadata_model]:
                 if not await self._check_if_table_exists(session, model.__tablename__):
                     _log.info(f"Table {model.__tablename__!r} does not exist.")
@@ -535,7 +538,7 @@ class PgVectorStore(VectorStore, DbServiceBase):
     async def get_total_size(self) -> int:
         metadata_model = await self._get_metadata_model()
 
-        async with self._lock_session() as session:
+        async with self._scoped_session() as session:
             if not await self._check_if_table_exists(session, metadata_model.__tablename__):
                 _log.info(f"Table {metadata_model.__tablename__!r} does not exist.")
                 return 0
@@ -550,7 +553,7 @@ class PgVectorStore(VectorStore, DbServiceBase):
     async def get_size(self, version_ids: set[int]) -> int:
         metadata_model = await self._get_metadata_model()
 
-        async with self._lock_session() as session:
+        async with self._scoped_session() as session:
             if not await self._check_if_table_exists(session, metadata_model.__tablename__):
                 _log.info(f"Table {metadata_model.__tablename__!r} does not exist.")
                 return 0
@@ -567,7 +570,7 @@ class PgVectorStore(VectorStore, DbServiceBase):
     async def get_size_per_version(self, version_ids: set[int]) -> dict[int, int]:
         metadata_model = await self._get_metadata_model()
 
-        async with self._lock_session() as session:
+        async with self._scoped_session() as session:
             if not await self._check_if_table_exists(session, metadata_model.__tablename__):
                 return {}
 
@@ -598,7 +601,7 @@ class PgVectorStore(VectorStore, DbServiceBase):
         with debug_timer("deduplicate_content._get_metadata_model"):
             metadata_model = await self._get_metadata_model()
 
-        async with self._lock_session() as session:
+        async with self._scoped_session() as session:
             try:
                 with debug_timer("deduplicate_content._check_if_table_exists"):
                     for name in [metadata_model.__tablename__, document_model.__tablename__]:
@@ -681,7 +684,7 @@ class PgVectorStore(VectorStore, DbServiceBase):
         ]
         schema = pa.schema(schema_fields)
 
-        async with self._lock_session() as session:
+        async with self._scoped_session() as session:
             # Only export documents that are referenced by metadata with specified version_ids
             matching_doc_ids = select(metadata_model.document_id.distinct()).where(
                 metadata_model.version_id.in_(version_ids)
@@ -758,7 +761,7 @@ class PgVectorStore(VectorStore, DbServiceBase):
         ]
         schema = pa.schema(schema_fields)
 
-        async with self._lock_session() as session:
+        async with self._scoped_session() as session:
             query = (
                 select(metadata_model)
                 .where(metadata_model.version_id.in_(version_ids))
@@ -845,7 +848,7 @@ class PgVectorStore(VectorStore, DbServiceBase):
         document_model = await self._get_document_model()
         metadata_model = await self._get_metadata_model()
 
-        async with self._lock_session() as session:
+        async with self._scoped_session() as session:
             doc_table_exists = await self._check_if_table_exists(
                 session, document_model.__tablename__
             )
@@ -1105,28 +1108,34 @@ class PgVectorStore(VectorStore, DbServiceBase):
         await self.clear()
         _log.info(f"Cleared existing tables for collection '{self._collection_name}'")
 
-        document_model = await self._get_document_model()
-        metadata_model = await self._get_metadata_model()
-        await self._create_table_if_not_exist(document_model)
-        await self._create_table_if_not_exist(metadata_model)
-        _log.info(f"Created tables for collection '{self._collection_name}'")
+        async with self._scoped_session():
+            document_model = await self._get_document_model()
+            metadata_model = await self._get_metadata_model()
+            await self._create_table_if_not_exist(document_model)
+            await self._create_table_if_not_exist(metadata_model)
+            _log.info(f"Created tables for collection '{self._collection_name}'")
 
-        # Skip import if this was an empty export (no parquet files)
-        if documents_path is None or mappings_path is None:
-            _log.info("Empty export detected, skipping document and mapping import")
-            doc_count = 0
-            mapping_count = 0
-        else:
-            id_mapping = await self._import_documents_from_zipfile(
-                zip_file, document_model, documents_path
-            )
-            doc_count = len(id_mapping)
-            _log.info(f"Imported {doc_count} documents")
+            # Skip import if this was an empty export (no parquet files)
+            if documents_path is None or mappings_path is None:
+                _log.info("Empty export detected, skipping document and mapping import")
+                doc_count = 0
+                mapping_count = 0
+            else:
+                id_mapping = await self._import_documents_from_zipfile(
+                    zip_file, document_model, documents_path
+                )
+                doc_count = len(id_mapping)
+                _log.info(f"Imported {doc_count} documents")
 
-            mapping_count = await self._import_mappings_from_zipfile(
-                zip_file, metadata_model, mappings_path, dataset_versions, data_sources, id_mapping
-            )
-            _log.info(f"Imported {mapping_count} mappings")
+                mapping_count = await self._import_mappings_from_zipfile(
+                    zip_file,
+                    metadata_model,
+                    mappings_path,
+                    dataset_versions,
+                    data_sources,
+                    id_mapping,
+                )
+                _log.info(f"Imported {mapping_count} mappings")
 
         _log.info(
             f"Successfully imported collection '{self._collection_name}': "

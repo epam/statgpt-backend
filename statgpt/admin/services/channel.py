@@ -18,6 +18,7 @@ from statgpt.common import utils
 from statgpt.common.auth.auth_context import AuthContext
 from statgpt.common.schemas import AuditActionType, AuditEntityType
 from statgpt.common.services import ChannelSerializer, ChannelService
+from statgpt.common.services.base import DbServiceBase
 from statgpt.common.settings.dial import dial_settings
 from statgpt.common.utils import dial_core_factory
 from statgpt.common.utils.elastic import ElasticSearchFactory
@@ -28,7 +29,9 @@ from .background_tasks import background_task
 _log = logging.getLogger(__name__)
 
 
-class AdminPortalChannelService(ChannelService):
+class AdminPortalChannelService(ChannelService, DbServiceBase):
+    def __init__(self, session=None):
+        DbServiceBase.__init__(self, session)
 
     @staticmethod
     def _parse_integrity_error(
@@ -125,7 +128,7 @@ class AdminPortalChannelService(ChannelService):
         return deleted_item
 
     async def _clear_vector_store(self, channel: models.Channel, auth_context: AuthContext) -> None:
-        vector_store_factory = VectorStoreFactory(session=self._session)
+        vector_store_factory = VectorStoreFactory()
 
         collections = [
             channel.indicator_table_name,
@@ -276,22 +279,28 @@ class AdminPortalChannelService(ChannelService):
         Deduplication is performed based on document content.
         Documents with identical content will be merged.
         """
-        channel = await self.get_model_by_id(channel_id)
-        vector_store_factory = VectorStoreFactory(session=self._session)
+        async with self._scoped_session():
+            channel = await self.get_model_by_id(channel_id)
+            # Extract scalar values while still inside the session scope:
+            available_dims_table = channel.available_dimensions_table_name
+            special_dims_table = channel.special_dimensions_table_name
+            llm_model = channel.llm_model
+
+        vector_store_factory = VectorStoreFactory()
 
         _log.info(f"Deduplicating available_dimensions for channel {channel_id}")
         available_dims_store = await vector_store_factory.get_vector_store(
-            collection_name=channel.available_dimensions_table_name,
+            collection_name=available_dims_table,
             auth_context=auth_context,
-            embedding_model_name=channel.llm_model,
+            embedding_model_name=llm_model,
         )
         await available_dims_store.deduplicate_by_document_content()
 
         _log.info(f"Deduplicating special_dimensions for channel {channel_id}")
         special_dims_store = await vector_store_factory.get_vector_store(
-            collection_name=channel.special_dimensions_table_name,
+            collection_name=special_dims_table,
             auth_context=auth_context,
-            embedding_model_name=channel.llm_model,
+            embedding_model_name=llm_model,
         )
         await special_dims_store.deduplicate_by_document_content()
 
@@ -321,10 +330,10 @@ async def deduplicate_dimensions_in_background_task(
     auth_context: AuthContext,
 ) -> None:
     try:
-        async with models.get_session_context_manager() as session:
-            await AdminPortalChannelService(session).deduplicate_channel_dimensions(
-                channel_id=channel_id,
-                auth_context=auth_context,
-            )
+        service = AdminPortalChannelService()
+        await service.deduplicate_channel_dimensions(
+            channel_id=channel_id,
+            auth_context=auth_context,
+        )
     except Exception:
         _log.exception(f"Failed to deduplicate dimensions for channel {channel_id}")

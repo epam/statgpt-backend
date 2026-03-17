@@ -199,9 +199,7 @@ class ChannelServiceFacade(DbServiceBase):
 
     async def _get_indicators_vector_store(self, auth_context: AuthContext) -> VectorStore:
         with debug_timer("chat_facade._get_indicators_vector_store"):
-            vector_store_factory = VectorStoreFactory(
-                session=self._session, session_lock=self._session_lock
-            )
+            vector_store_factory = VectorStoreFactory()
             vector_store = await vector_store_factory.get_vector_store(
                 collection_name=self._channel.indicator_table_name,
                 embedding_model_name=self._channel.llm_model,
@@ -211,9 +209,7 @@ class ChannelServiceFacade(DbServiceBase):
 
     async def _get_dimensions_vector_store(self, auth_context: AuthContext) -> VectorStore:
         with debug_timer("chat_facade._get_dimensions_vector_store"):
-            vector_store_factory = VectorStoreFactory(
-                session=self._session, session_lock=self._session_lock
-            )
+            vector_store_factory = VectorStoreFactory()
             vector_store = await vector_store_factory.get_vector_store(
                 collection_name=self._channel.available_dimensions_table_name,
                 embedding_model_name=self._channel.llm_model,
@@ -223,9 +219,7 @@ class ChannelServiceFacade(DbServiceBase):
 
     async def _get_special_dimensions_vector_store(self, auth_context: AuthContext) -> VectorStore:
         with debug_timer("chat_facade._get_special_dimensions_vector_store"):
-            vector_store_factory = VectorStoreFactory(
-                session=self._session, session_lock=self._session_lock
-            )
+            vector_store_factory = VectorStoreFactory()
             vector_store = await vector_store_factory.get_vector_store(
                 collection_name=self._channel.special_dimensions_table_name,
                 embedding_model_name=self._channel.llm_model,
