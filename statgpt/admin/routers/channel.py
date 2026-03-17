@@ -15,6 +15,7 @@ from statgpt.admin.services import AdminPortalChannelService as ChannelService
 from statgpt.admin.services import AdminPortalDataSetService as DataSetService
 from statgpt.admin.services import JobsService
 from statgpt.admin.settings.exim import JobsConfig
+from statgpt.common.data.sdmx.v21.dataset import InvalidConfigurationError
 from statgpt.common.settings.dial import dial_settings
 from statgpt.common.utils.cancel_dependency import cancel_on_disconnect
 
@@ -285,12 +286,16 @@ async def reload_indicators_for_all_channel_datasets(
     This endpoint only starts background jobs.
     """
 
-    channel_datasets = await DataSetService(session).reload_all_indicators(
-        background_tasks=background_tasks,
-        channel_id=channel_id,
-        max_n_embeddings=max_n_embeddings,
-        auth_context=SystemUserAuthContext(),
-    )
+    try:
+        channel_datasets = await DataSetService(session).reload_all_indicators(
+            background_tasks=background_tasks,
+            channel_id=channel_id,
+            max_n_embeddings=max_n_embeddings,
+            auth_context=SystemUserAuthContext(),
+        )
+    except InvalidConfigurationError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
     return schemas.ListResponse[schemas.ChannelDatasetExpanded](
         data=channel_datasets,
         limit=len(channel_datasets),
