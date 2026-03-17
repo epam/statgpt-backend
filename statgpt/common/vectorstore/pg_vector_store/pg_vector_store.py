@@ -429,7 +429,7 @@ class PgVectorStore(VectorStore, DbServiceBase):
             ]
         return result
 
-    async def get_dataset_ids_by_documents_ids(self, ids: Iterable[int]) -> list[int]:
+    async def get_dataset_ids_by_documents_ids(self, ids: Iterable[int]) -> list[uuid.UUID]:
         model = await self._get_metadata_model()
 
         async with self._scoped_session() as session:
@@ -584,7 +584,7 @@ class PgVectorStore(VectorStore, DbServiceBase):
                 .group_by(metadata_model.version_id)
             )
             result = await session.execute(query)
-            return dict(result.all())
+            return {row[0]: row[1] for row in result.all()}
 
     async def deduplicate_by_document_content(self) -> None:
         """Removes and remaps duplicate documents based on `document` field content.
@@ -644,7 +644,7 @@ class PgVectorStore(VectorStore, DbServiceBase):
                     """)
 
                     result = await session.execute(remap_query)
-                    remapped_count = result.rowcount
+                    remapped_count = result.rowcount  # type: ignore[attr-defined]
                     _log.info(f"Remapped {remapped_count} metadata rows to keeper documents")
 
                 with debug_timer("deduplicate_content.delete_orphaned"):
@@ -652,7 +652,7 @@ class PgVectorStore(VectorStore, DbServiceBase):
                         document_model.__tablename__, metadata_model.__tablename__
                     )
                     result = await session.execute(delete_query)
-                    deleted_count = result.rowcount
+                    deleted_count = result.rowcount  # type: ignore[attr-defined]
                     _log.info(f"Deleted {deleted_count} orphaned documents")
 
                 with debug_timer("deduplicate_content.commit"):
