@@ -14,6 +14,7 @@ class DbServiceBase:
         session_lock: asyncio.Lock | None = None,
     ) -> None:
         self.__session = session
+        self._scoped_session_active = False
         if session_lock is None:
             self._session_lock = asyncio.Lock()
         else:
@@ -49,12 +50,21 @@ class DbServiceBase:
         (e.g. VectorStoreFactory) works transparently.
         When a session was provided, yields it directly.
         """
+        if self._scoped_session_active:
+            raise RuntimeError(
+                "Concurrent _scoped_session() calls on the same instance "
+                "are not supported. Create a separate service instance per "
+                "concurrent coroutine, or provide a session at construction "
+                "time."
+            )
         if self.__session is not None:
             yield self._session
         else:
+            self._scoped_session_active = True
             async with get_session_context_manager() as session:
                 self.__session = session
                 try:
                     yield session
                 finally:
                     self.__session = None
+                    self._scoped_session_active = False
