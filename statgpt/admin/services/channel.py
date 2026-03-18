@@ -8,6 +8,7 @@ import yaml
 from fastapi import BackgroundTasks, HTTPException, status
 from sqlalchemy import update
 from sqlalchemy.exc import IntegrityError, NoResultFound
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql.expression import func
 
 import statgpt.common.models as models
@@ -18,7 +19,6 @@ from statgpt.common import utils
 from statgpt.common.auth.auth_context import AuthContext
 from statgpt.common.schemas import AuditActionType, AuditEntityType
 from statgpt.common.services import ChannelSerializer, ChannelService
-from statgpt.common.services.base import DbServiceBase
 from statgpt.common.settings.dial import dial_settings
 from statgpt.common.utils import dial_core_factory
 from statgpt.common.utils.elastic import ElasticSearchFactory
@@ -29,9 +29,9 @@ from .background_tasks import background_task
 _log = logging.getLogger(__name__)
 
 
-class AdminPortalChannelService(ChannelService, DbServiceBase):
-    def __init__(self, session=None):
-        DbServiceBase.__init__(self, session)
+class AdminPortalChannelService(ChannelService):
+    def __init__(self, session: AsyncSession | None = None) -> None:
+        super().__init__(session, None)
 
     @staticmethod
     def _parse_integrity_error(
