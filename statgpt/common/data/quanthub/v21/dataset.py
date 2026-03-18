@@ -1,4 +1,5 @@
 import logging
+import re
 import typing
 import uuid
 from collections.abc import Iterable
@@ -100,18 +101,24 @@ class QuanthubSdmx21DataSet(Sdmx21DataSet):
         raise ValueError(f"Unsupported property source: {property_source.source}")
 
     @staticmethod
+    def _truncate_fractional_seconds(value: str) -> str:
+        """Truncate fractional seconds to 6 digits (microseconds) for strptime compatibility."""
+        return re.sub(r'(\.\d{6})\d+', r'\1', value)
+
+    @staticmethod
     def _parse_date_with_formats(value: str, formats: list[str] | None) -> datetime | None:
+        normalized = QuanthubSdmx21DataSet._truncate_fractional_seconds(value)
         if formats:
             for fmt in formats:
                 try:
-                    return datetime.strptime(value, fmt)
+                    return datetime.strptime(normalized, fmt)
                 except ValueError:
                     _log.debug(f"Failed to parse date {value!r} with format {fmt!r}")
             _log.warning(f"Failed to parse date {value!r} with any of the formats: {formats}")
             return None
         else:
             try:
-                return datetime.fromisoformat(value)
+                return datetime.fromisoformat(normalized)
             except ValueError:
                 _log.warning(f"Failed to parse date {value!r} with ISO format")
                 return None
