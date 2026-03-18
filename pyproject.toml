@@ -42,7 +42,7 @@ dependencies = [
 
     # Authentication & Security
     'azure-identity (>=1.25.1,<2.0.0)',          # Azure authentication
-    'PyJWT (>=2.8.0,<3.0.0)',                    # JSON Web Token support
+    'PyJWT (>=2.12.1,<3.0.0)',                    # JSON Web Token support
 
     # Configuration & File handling
     'python-dotenv (>=1.0.1,<2.0.0)',            # Environment variable management
@@ -163,7 +163,7 @@ poetry-plugin-export = ">=1.8"
 optional = true
 
 [tool.poetry.group.dev.dependencies]
-black = { version = "24.10.0", extras = ["jupyter"] }
+black = { version = "26.3.1", extras = ["jupyter"] }
 isort = "5.13.2"
 langchain-cli = "^0.0.37"
 pytest = "^8.1.1"

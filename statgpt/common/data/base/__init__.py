@@ -9,6 +9,7 @@ from .config import (
     IndexerIndicatorConfig,
     IndicatorDimensionConfig,
     NonIndicatorDimensionConfig,
+    ProviderAgency,
     TimePeriodDimensionConfig,
     VirtualDimensionValue,
 )

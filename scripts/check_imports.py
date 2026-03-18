@@ -5,6 +5,7 @@ Check that modules follow architectural boundaries:
 - statgpt must only import from common (no imports from admin_portal or eval)
 - admin_portal must only import from common (no imports from statgpt or eval)
 """
+
 import ast
 import sys
 from pathlib import Path

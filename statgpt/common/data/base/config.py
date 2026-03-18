@@ -29,8 +29,16 @@ class VirtualDimensionConfig(BaseModel, IndexingHashMixin):
     )
 
 
+class ProviderAgency(BaseModel):
+    id: StrictStr
+    count: int
+    name: StrictStr
+
+
 class DatasetCitation(BaseModel):
     provider: StrictStr | None = Field(default=None)
+    provider_template: StrictStr | None = Field(default=None)
+    provider_agencies: list[ProviderAgency] | None = Field(default=None)
     last_updated: StrictStr | None = Field(default=None)
     url: StrictStr | None = Field(default=None)
     description: StrictStr | None = Field(default=None)
@@ -38,6 +46,43 @@ class DatasetCitation(BaseModel):
     def get_url(self) -> str | None:
         if self.url:
             return replace_env(self.url)
+        return None
+
+    @model_validator(mode='after')
+    def _check_provider_template_and_provider_agencies(self) -> Self:
+        if self.provider_template and not self.provider_agencies:
+            raise ValueError("provider_template is present but provider_agencies is not")
+        if not self.provider_template and self.provider_agencies:
+            raise ValueError("provider_template is not present but provider_agencies is")
+        return self
+
+    @model_validator(mode='after')
+    def _check_provider_agencies(self) -> Self:
+        if not self.provider_agencies:
+            return self
+
+        if len(self.provider_agencies) == 1:
+            raise ValueError(
+                "provider_agencies field must not be used with only 1 agency - "
+                "use 'provider' field instead"
+            )
+
+        ids = set([agency.id for agency in self.provider_agencies])
+        if len(ids) != len(self.provider_agencies):
+            raise ValueError("provider_agencies field must not contain duplicated ids")
+
+        names = set([agency.name for agency in self.provider_agencies])
+        if len(names) != len(self.provider_agencies):
+            raise ValueError("provider_agencies field must not contain duplicated names")
+
+        return self
+
+    @property
+    def provider_agency_names_with_fallback_to_provider(self) -> list[str] | None:
+        if self.provider_agencies:
+            return [agency.name for agency in self.provider_agencies]
+        if self.provider:
+            return [self.provider]
         return None
 
 

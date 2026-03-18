@@ -1,8 +1,18 @@
+import warnings
 from typing import Any
 
 import httpx
 from langchain_openai import AzureChatOpenAI, AzureOpenAIEmbeddings
 from pydantic import SecretStr
+
+# langchain_openai's _should_stream warns unconditionally when response_format is a Pydantic type,
+# even when streaming is disabled. This is a bug in langchain_openai.
+warnings.filterwarnings(
+    "ignore",
+    message="Streaming with Pydantic response_format not yet supported.",
+    category=UserWarning,
+    module=r"langchain_openai\.chat_models\.base",
+)
 
 from statgpt.common.config.logging import multiline_logger as logger
 from statgpt.common.schemas import EmbeddingsModelConfig, LLMModelConfig

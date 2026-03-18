@@ -1,11 +1,15 @@
+import logging
 from collections import defaultdict
 
 from statgpt.common.auth.auth_context import AuthContext
 from statgpt.common.data.base import DataSet
+from statgpt.common.schemas.enums import AvailableDatasetsHeaderFormat
 
 from .dataset_base import BaseDatasetFormatter, DatasetFormatterConfig
 from .dataset_detailed import DetailedDatasetFormatter
 from .dataset_simple import SimpleDatasetFormatter
+
+_log = logging.getLogger(__name__)
 
 
 class DatasetsListFormatter:
@@ -77,20 +81,92 @@ class DatasetsListFormatter:
 
         # Add overall statistics if requested
         if add_stats:
-            stats_header = f'{self._("Total datasets")}: {len(datasets)}'
-            if group_by_provider:
-                # Count unique providers
-                providers = [p for p in dataset_entries.keys() if p is not None]
-                stats_header += f'\n{self._("Total providers")}: {len(providers)}'
-            if indicator_counts is not None:
-                stats_header += (
-                    f'\n{self._("Total number of indicators")}: {sum(indicator_counts.values())}'
-                )
-            result = f'{stats_header}\n\n{datasets_list}'
+            stats_str = self._format_stats_header(
+                datasets=datasets,
+                dataset_entries=dataset_entries,
+                group_by_provider=group_by_provider,
+                indicator_counts=indicator_counts,
+            )
+            result = f'{stats_str}\n\n{datasets_list}'
         else:
             result = datasets_list
 
         return result
+
+    def _format_stats_header(
+        self,
+        datasets: list[DataSet],
+        dataset_entries: dict,
+        group_by_provider: bool,
+        indicator_counts: dict[str, int] | None,
+    ) -> str:
+        if self._config.stats_header_format == AvailableDatasetsHeaderFormat.agencies:
+            return self._format_agencies_header(
+                datasets=datasets,
+                indicator_counts=indicator_counts,
+            )
+        return self._format_totals_header(
+            datasets=datasets,
+            dataset_entries=dataset_entries,
+            group_by_provider=group_by_provider,
+            indicator_counts=indicator_counts,
+        )
+
+    def _format_totals_header(
+        self,
+        datasets: list[DataSet],
+        dataset_entries: dict,
+        group_by_provider: bool,
+        indicator_counts: dict[str, int] | None,
+    ) -> str:
+        stats_header = f'{self._("Total datasets")}: {len(datasets)}'
+        if group_by_provider:
+            providers = [p for p in dataset_entries.keys() if p is not None]
+            stats_header += f'\n{self._("Total providers")}: {len(providers)}'
+        if indicator_counts is not None:
+            stats_header += (
+                f'\n{self._("Total number of indicators")}: {sum(indicator_counts.values())}'
+            )
+        return stats_header
+
+    def _format_agencies_header(
+        self,
+        datasets: list[DataSet],
+        indicator_counts: dict[str, int] | None,
+    ) -> str:
+
+        providers_set: set[str] = set()
+        for dataset in datasets:
+            if not (citation := dataset.config.citation):
+                continue
+            agency_names = citation.provider_agency_names_with_fallback_to_provider
+            if not agency_names:
+                _log.debug(f'Dataset {dataset.entity_id} has no provider information')
+                continue
+            providers_set.update(agency_names)
+
+        n_providers = len(providers_set)
+        providers_sample = sorted(providers_set)[:3]
+        providers_sample_str = ', '.join(providers_sample)
+        and_others = ' ' + self._("and others") if n_providers > len(providers_sample) else ""
+        providers_str = self._(
+            "provided by {n_providers} agencies, including: {providers_sample_str}{and_others}."
+        ).format(
+            n_providers=n_providers,
+            providers_sample_str=providers_sample_str,
+            and_others=and_others,
+        )
+
+        n_datasets = len(datasets)
+
+        if indicator_counts is not None:
+            n_indicators = sum(indicator_counts.values())
+            return self._(
+                "I have access to {n_datasets} datasets with {n_indicators} indicators {providers_str}"
+            ).format(n_datasets=n_datasets, n_indicators=n_indicators, providers_str=providers_str)
+        return self._("I have access to {n_datasets} datasets {providers_str}").format(
+            n_datasets=n_datasets, providers_str=providers_str
+        )
 
     async def format_summary(
         self, datasets: list[DataSet], include_official_count: bool = True

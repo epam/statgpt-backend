@@ -22,8 +22,7 @@ _RAG_IMPLEMENTATIONS: dict[RAGVersion, type[BaseRAGFactory]] = {
 
 
 class FileRagArgs(ToolArgs):
-    query: str = Field(
-        description='''\
+    query: str = Field(description='''\
 The query to search an answer for.
 - Formulate the query as natural sounding question
 - Keep edits to the user query to a minimum
@@ -31,8 +30,7 @@ The query to search an answer for.
 - If user query includes phrasing like "according to publications from ..." make sure to include that phrasing in the
   query.
 - Keep query concise and to the point, any politeness or greetings should be omitted
-'''
-    )
+''')
     target_prefilter_json: t.Annotated[str | None, InjectedToolArg] = Field(
         default=None,
         description='prefilter to be used in RAG, instead of constructing it from scratch. '

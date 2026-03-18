@@ -1,9 +1,15 @@
 from statgpt.app.utils.formatters import CitationFormatterConfig, DatasetFormatterConfig
-from statgpt.common.schemas.enums import AvailableDatasetsVersion, LocaleEnum
+from statgpt.common.schemas.enums import (
+    AvailableDatasetsHeaderFormat,
+    AvailableDatasetsVersion,
+    LocaleEnum,
+)
 
 
 def _create_formatter_config(
-    version: AvailableDatasetsVersion, locale: LocaleEnum
+    version: AvailableDatasetsVersion,
+    locale: LocaleEnum,
+    stats_header_format: AvailableDatasetsHeaderFormat = AvailableDatasetsHeaderFormat.totals,
 ) -> DatasetFormatterConfig:
     """Create a dataset formatter config based on the tool configuration."""
     match version:
@@ -22,6 +28,7 @@ def _create_formatter_config(
                     use_url=True,
                 ),
                 highlight_name_in_bold=False,
+                stats_header_format=stats_header_format,
             )
         case AvailableDatasetsVersion.short:
             return DatasetFormatterConfig(
@@ -31,6 +38,7 @@ def _create_formatter_config(
                 use_description=False,
                 citation=None,
                 highlight_name_in_bold=False,
+                stats_header_format=stats_header_format,
             )
         case _:
             raise ValueError(f"Unsupported AvailableDatasetsVersion: {version}")

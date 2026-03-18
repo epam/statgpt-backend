@@ -684,7 +684,9 @@ class AdminPortalDataSetService(DataSetService):
         )
         dataset_schema = DataSetSerializer.db_to_schema(item, dataset, expand=True)
 
-        channel_results = await self._propagate_config_to_channel_datasets(item, handler)
+        channel_results = await self._propagate_config_to_channel_datasets(
+            item, handler, auth_context=auth_context
+        )
         return schemas.DataSetUpdateResponse(
             dataset=dataset_schema,
             channel_results=channel_results,
@@ -721,6 +723,7 @@ class AdminPortalDataSetService(DataSetService):
         self,
         dataset: models.DataSet,
         handler: base.DataSourceHandler,
+        auth_context: AuthContext,
     ) -> list[schemas.ChannelDatasetUpdateResult]:
         """Propagate config changes to all channel datasets that reference this dataset.
 
@@ -744,9 +747,6 @@ class AdminPortalDataSetService(DataSetService):
             channel_dataset_ids=channel_dataset_ids
         )
 
-        parsed_config = handler.parse_data_set_config(dataset.details)
-        new_config_hash = parsed_config.indexing_hash
-
         for channel_dataset in dataset.mapped_channels:
             await self._session.refresh(channel_dataset, attribute_names=["channel"])
             channel = channel_dataset.channel
@@ -765,14 +765,23 @@ class AdminPortalDataSetService(DataSetService):
                 status = schemas.ChannelDatasetUpdateStatus.INDEXING_IN_PROGRESS
             elif last_completed is None:
                 status = schemas.ChannelDatasetUpdateStatus.NO_VERSION
-            elif new_config_hash == last_completed.indexing_config_hash:
-                new_version = await self._apply_config_internal(
-                    channel_dataset, last_completed, handler, dataset.details
-                )
-                other_fields['new_version'] = new_version
-                status = schemas.ChannelDatasetUpdateStatus.AUTO_UPDATED
             else:
-                status = schemas.ChannelDatasetUpdateStatus.NEEDS_REINDEX
+                _, resolved_config = await handler.resolve_config(
+                    config=dataset.details,
+                    previous_resolved_config=last_completed.resolved_config,
+                    auth_context=auth_context,
+                )
+                resolved_parsed = handler.parse_data_set_config(resolved_config)
+                new_config_hash = resolved_parsed.indexing_hash
+
+                if new_config_hash == last_completed.indexing_config_hash:
+                    new_version = await self._apply_config_internal(
+                        channel_dataset, last_completed, handler, dataset.details
+                    )
+                    other_fields['new_version'] = new_version
+                    status = schemas.ChannelDatasetUpdateStatus.AUTO_UPDATED
+                else:
+                    status = schemas.ChannelDatasetUpdateStatus.NEEDS_REINDEX
 
             results.append(
                 schemas.ChannelDatasetUpdateResult(

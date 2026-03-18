@@ -55,8 +55,7 @@ def upgrade() -> None:
 
     # ~~~~~ Create trigger function to auto-increment version ~~~~~
 
-    op.execute(
-        """
+    op.execute("""
         CREATE OR REPLACE FUNCTION increment_channel_dataset_version()
         RETURNS TRIGGER AS $$
         BEGIN
@@ -71,19 +70,16 @@ def upgrade() -> None:
             RETURN NEW;
         END;
         $$ LANGUAGE plpgsql;
-        """
-    )
+        """)
 
     # Create the trigger
-    op.execute(
-        """
+    op.execute("""
         CREATE TRIGGER set_channel_dataset_version
             BEFORE INSERT
             ON channel_dataset_versions
             FOR EACH ROW
         EXECUTE FUNCTION increment_channel_dataset_version();
-        """
-    )
+        """)
 
     # Create index for performance
     op.create_index(
