@@ -105,9 +105,9 @@ class QuanthubSdmx21DataSet(Sdmx21DataSet):
         """Truncate fractional seconds to 6 digits (microseconds) for strptime compatibility."""
         return re.sub(r'(\.\d{6})\d+', r'\1', value)
 
-    @staticmethod
-    def _parse_date_with_formats(value: str, formats: list[str] | None) -> datetime | None:
-        normalized = QuanthubSdmx21DataSet._truncate_fractional_seconds(value)
+    @classmethod
+    def _parse_date_with_formats(cls, value: str, formats: list[str] | None) -> datetime | None:
+        normalized = cls._truncate_fractional_seconds(value)
         if formats:
             for fmt in formats:
                 try:
