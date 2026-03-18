@@ -2192,10 +2192,7 @@ class AdminPortalDataSetService(DataSetService):
             models.AutoUpdateJob, auto_update_job_id
         )
         if job is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Auto-update job {auto_update_job_id} not found",
-            )
+            raise RuntimeError(f"Auto-update job {auto_update_job_id} not found")
         return job
 
     async def _set_auto_update_job_status(
