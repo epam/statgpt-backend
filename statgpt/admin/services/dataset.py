@@ -1033,17 +1033,6 @@ class AdminPortalDataSetService(DataSetService):
             and latest_version.preprocessing_status not in StatusEnum.final_statuses()
         )
 
-    async def _set_indexing_stats(
-        self,
-        item: models.ChannelDatasetVersion,
-        indexing_stats: dict,
-    ) -> None:
-        """Merges indexing statistics into the version's indexing_stats JSONB field."""
-        item.indexing_stats = {**(item.indexing_stats or {}), **indexing_stats}
-        item.updated_at = func.now()
-        await self._session.commit()
-        await self._session.refresh(item)
-
     async def rollback_channel_dataset_to_previous_version(
         self, channel_id: int, dataset_id: int
     ) -> schemas.ChannelDatasetVersion:
@@ -1503,33 +1492,30 @@ class AdminPortalDataSetService(DataSetService):
     @staticmethod
     async def _run_semantic_indexer(
         dataset: base.DataSet,
-        db_dataset: models.DataSet,
+        source_id: int,
         vector_store: VectorStore,
-        version: models.ChannelDatasetVersion,
+        version_id: int,
         max_n_embeddings: int | None,
         auth_context: AuthContext,
-    ):
+    ) -> None:
         indicators = await dataset.get_indicators(auth_context=auth_context, allow_cached=True)
         _log.info(f"Loaded {len(indicators)} indicators.")
         if max_n_embeddings:
             indicators = indicators[:max_n_embeddings]  # for debug
 
         documents = (
-            i.to_document({IndicatorDocumentMetadataFields.DATA_SOURCE_ID: db_dataset.source_id})
+            i.to_document({IndicatorDocumentMetadataFields.DATA_SOURCE_ID: source_id})
             for i in indicators
         )
 
-        await vector_store.add_documents(
-            documents, dataset_id=db_dataset.id_, version_id=version.id
-        )
+        await vector_store.add_documents(documents, dataset_id=dataset.id, version_id=version_id)
 
     @staticmethod
     async def _run_hybrid_indexer(
-        channel: models.Channel,
-        channel_config: schemas.ChannelConfig,
+        channel: schemas.Channel,
         vector_store: VectorStore,
         dataset: base.DataSet,
-        version: models.ChannelDatasetVersion,
+        version_id: int,
         version_ids: set[int],
         harmonize_indicator: bool,
         max_n_embeddings: int | None,
@@ -1541,7 +1527,7 @@ class AdminPortalDataSetService(DataSetService):
         indicators_index = await ElasticSearchFactory.get_index(
             channel.indicators_index_name, allow_creation=True
         )
-        if (data_query_config := channel_config.data_query) is None:
+        if (data_query_config := channel.details.data_query) is None:
             raise ValueError(f"No data query configured for the channel {channel}")
         config = data_query_config.details.hybrid_search_config or HybridSearchConfig()
 
@@ -1556,7 +1542,7 @@ class AdminPortalDataSetService(DataSetService):
         )
         return await indexer.index(
             dataset,
-            version_id=version.id,
+            version_id=version_id,
             version_ids=version_ids,
             max_n_indicators=max_n_embeddings,
             auth_context=auth_context,
@@ -1564,14 +1550,14 @@ class AdminPortalDataSetService(DataSetService):
 
     @staticmethod
     async def _index_available_dimensions(
-        version: models.ChannelDatasetVersion,
-        channel: models.Channel,
+        version_id: int,
+        channel: schemas.Channel,
         dataset: base.DataSet,
-        db_dataset: models.DataSet,
+        source_id: int,
         vector_store_factory: VectorStoreFactory,
         max_n_embeddings: int | None,
         auth_context: AuthContext,
-    ):
+    ) -> None:
         vector_store = await vector_store_factory.get_vector_store(
             collection_name=channel.available_dimensions_table_name,
             embedding_model_name=channel.llm_model,
@@ -1590,11 +1576,9 @@ class AdminPortalDataSetService(DataSetService):
             for value in category_values:
                 document = value.to_document()
                 field_name = DimensionValueDocumentMetadataFields.DATA_SOURCE_ID
-                document.metadata[field_name] = db_dataset.source_id
+                document.metadata[field_name] = source_id
                 documents.append(document)
-        await vector_store.add_documents(
-            documents, dataset_id=db_dataset.id_, version_id=version.id
-        )
+        await vector_store.add_documents(documents, dataset_id=dataset.id, version_id=version_id)
 
         # ~~~~~ Special dimensions ~~~~~
 
@@ -1615,19 +1599,18 @@ class AdminPortalDataSetService(DataSetService):
             for value in category_values:
                 document = value.to_document()
                 field_name = SpecialDimensionValueDocumentMetadataFields.DATA_SOURCE_ID
-                document.metadata[field_name] = db_dataset.source_id
+                document.metadata[field_name] = source_id
                 field_name = SpecialDimensionValueDocumentMetadataFields.PROCESSOR_ID
                 document.metadata[field_name] = processor_id
                 documents.append(document)
-        await vector_store.add_documents(
-            documents, dataset_id=db_dataset.id_, version_id=version.id
-        )
+        await vector_store.add_documents(documents, dataset_id=dataset.id, version_id=version_id)
 
     async def _index_channel_indicators(
         self,
-        channel: models.Channel,
-        db_dataset: models.DataSet,
-        version: models.ChannelDatasetVersion,
+        channel: schemas.Channel,
+        source_id: int,
+        version_id: int,
+        channel_dataset_id: int,
         version_ids: set[int] | None,
         harmonize_indicator: bool,
         max_n_embeddings: int | None,
@@ -1641,30 +1624,28 @@ class AdminPortalDataSetService(DataSetService):
             auth_context=auth_context,
         )
 
-        channel_config = schemas.ChannelConfig.model_validate(channel.details)
-
-        if channel_config.data_query is None:
-            _log.info(f"No data query found for {version}, skipping indexing")
+        if channel.details.data_query is None:
+            _log.info(f"No data query found for version_id={version_id}, skipping indexing")
             return None
 
-        indexer_version = channel_config.data_query.details.indexer_version
+        indexer_version = channel.details.data_query.details.indexer_version
         _log.info(f"Indexer version: {indexer_version}")
         if indexer_version == schemas.IndexerVersion.hybrid:
             if version_ids is None:
-                res = await self.get_latest_successful_dataset_versions_for_channel(channel.id)
-                version_ids = {
-                    v.last_completed_version.version_data_id
-                    for v in res.values()
-                    if v.last_completed_version is not None
-                    and v.last_completed_version.channel_dataset_id != version.channel_dataset_id
-                }
+                async with self._scoped_session():
+                    res = await self.get_latest_successful_dataset_versions_for_channel(channel.id)
+                    version_ids = {
+                        v.last_completed_version.version_data_id
+                        for v in res.values()
+                        if v.last_completed_version is not None
+                        and v.last_completed_version.channel_dataset_id != channel_dataset_id
+                    }
 
             return await self._run_hybrid_indexer(
                 channel=channel,
-                channel_config=channel_config,
                 vector_store=vector_store,
                 dataset=dataset,
-                version=version,
+                version_id=version_id,
                 version_ids=version_ids,
                 harmonize_indicator=harmonize_indicator,
                 max_n_embeddings=max_n_embeddings,
@@ -1672,7 +1653,7 @@ class AdminPortalDataSetService(DataSetService):
             )
         elif indexer_version == schemas.IndexerVersion.semantic:
             await self._run_semantic_indexer(
-                dataset, db_dataset, vector_store, version, max_n_embeddings, auth_context
+                dataset, source_id, vector_store, version_id, max_n_embeddings, auth_context
             )
             return None
         else:
@@ -1737,11 +1718,10 @@ class AdminPortalDataSetService(DataSetService):
                 )
 
                 db_dataset: models.DataSet = await self.get_model_by_id(dataset_id)
-                version_schema = schemas.ChannelDatasetVersion.model_validate(
-                    version, from_attributes=True
-                )
-                dataset_config = version_schema.resolved_config or db_dataset.details
+                channel = await ChannelService(self._session).get_schema_by_id(channel_id)
+                dataset_config = version.resolved_config or db_dataset.details
                 entity_id = db_dataset.id_
+                source_id = db_dataset.source_id
                 dataset_title = db_dataset.title
 
                 handler = await self._get_handler(db_dataset.source_id)
@@ -1776,50 +1756,46 @@ class AdminPortalDataSetService(DataSetService):
                 if hashes_to_store is not None:
                     await self._set_version_hashes_and_metadata(version, *hashes_to_store)
 
-            # Phase D: Vector indexing — session actively used for batch inserts
+            # Phase D: Vector indexing — no DB session needed, vector stores manage their own connections
+            vector_store_factory = VectorStoreFactory()
+            indexing_stats: dict | None = None
+
+            if reindex_dimensions:
+                await self._index_available_dimensions(
+                    version_id=channel_dataset_version_id,
+                    channel=channel,
+                    dataset=dataset,
+                    source_id=source_id,
+                    vector_store_factory=vector_store_factory,
+                    max_n_embeddings=max_n_embeddings,
+                    auth_context=auth_context,
+                )
+
+            if reindex_indicators:
+                indexing_stats = await self._index_channel_indicators(
+                    channel=channel,
+                    source_id=source_id,
+                    version_id=channel_dataset_version_id,
+                    channel_dataset_id=channel_dataset_id,
+                    version_ids=version_ids,
+                    harmonize_indicator=harmonize_indicator,
+                    max_n_embeddings=max_n_embeddings,
+                    vector_store_factory=vector_store_factory,
+                    dataset=dataset,
+                    auth_context=auth_context,
+                )
+
+            # Phase E: Persist indexing stats and update status
             async with self._scoped_session():
                 version = await self._get_channel_dataset_version_or_raise(
                     channel_dataset_version_id
                 )
-                channel = await ChannelService(self._session).get_model_by_id(channel_id)
-                db_dataset = await self.get_model_by_id(dataset_id)
-
-                vector_store_factory = VectorStoreFactory()
-
-                if reindex_dimensions:
-                    await self._index_available_dimensions(
-                        version=version,
-                        channel=channel,
-                        dataset=dataset,
-                        db_dataset=db_dataset,
-                        vector_store_factory=vector_store_factory,
-                        max_n_embeddings=max_n_embeddings,
-                        auth_context=auth_context,
-                    )
-
-                if reindex_indicators:
-                    indexing_stats = await self._index_channel_indicators(
-                        channel=channel,
-                        db_dataset=db_dataset,
-                        version=version,
-                        version_ids=version_ids,
-                        harmonize_indicator=harmonize_indicator,
-                        max_n_embeddings=max_n_embeddings,
-                        vector_store_factory=vector_store_factory,
-                        dataset=dataset,
-                        auth_context=auth_context,
-                    )
-                    if indexing_stats:
-                        await self._set_indexing_stats(version, indexing_stats)
-
-            # Phase E: Status update
-            async with self._scoped_session():
-                version = await self._get_channel_dataset_version_or_raise(
-                    channel_dataset_version_id
-                )
+                if indexing_stats:
+                    version.indexing_stats = {**(version.indexing_stats or {}), **indexing_stats}
                 await self._update_channel_dataset_version_status(
                     version, new_status=status_on_completion
                 )
+
                 if status_on_completion is StatusEnum.COMPLETED:
                     channel_dataset = await self._get_channel_dataset_model_or_raise(
                         channel_dataset_id
@@ -2477,7 +2453,6 @@ class AdminPortalDataSetService(DataSetService):
         except Exception as e:
             _log.exception(f"Failed to process auto-update job {auto_update_job_id}")
             async with self._scoped_session():
-                await self._session.rollback()
                 job = await self._session.get(models.AutoUpdateJob, auto_update_job_id)
                 if job is not None:
                     job.status = StatusEnum.FAILED
