@@ -15,6 +15,8 @@ from statgpt.admin.services import AdminPortalChannelService as ChannelService
 from statgpt.admin.services import AdminPortalDataSetService as DataSetService
 from statgpt.admin.services import JobsService
 from statgpt.admin.settings.exim import JobsConfig
+from statgpt.common.data.sdmx.v21.dataset import InvalidConfigurationError
+from statgpt.common.models.database import get_session_context_manager
 from statgpt.common.settings.dial import dial_settings
 from statgpt.common.utils.cancel_dependency import cancel_on_disconnect
 
@@ -72,15 +74,15 @@ async def export_channel(
     background_tasks: BackgroundTasks,
     channel_id: int,
     scope: schemas.ExportScope = Query(default=schemas.ExportScope.FULL),
-    session: AsyncSession = Depends(models.get_session),
 ) -> schemas.Job:
     """Create a background job to export channel data to a zip file.
     Use the job id to check the status of the job.
     """
 
-    return await JobsService(session).create_export_job(
-        background_tasks, channel_id, scope=scope, auth_context=SystemUserAuthContext()
-    )
+    async with get_session_context_manager() as session:
+        return await JobsService(session).create_export_job(
+            background_tasks, channel_id, scope=scope, auth_context=SystemUserAuthContext()
+        )
 
 
 IMPORT_CHANNEL_CLEAN_UP_DESCRIPTION = (
@@ -100,20 +102,20 @@ async def import_channel(
     update_data_sources: Annotated[
         bool, Query(description='Whether to update the data sources if it already exists')
     ] = False,
-    session: AsyncSession = Depends(models.get_session),
 ) -> schemas.Job:
     """Create a background job to import a channel from a zip file.
     Use the job id to check the status of the job.
     """
 
-    return await JobsService(session).create_import_job(
-        background_tasks,
-        file,
-        clean_up,
-        update_datasets,
-        update_data_sources,
-        auth_context=SystemUserAuthContext(),
-    )
+    async with get_session_context_manager() as session:
+        return await JobsService(session).create_import_job(
+            background_tasks,
+            file,
+            clean_up,
+            update_datasets,
+            update_data_sources,
+            auth_context=SystemUserAuthContext(),
+        )
 
 
 @router.get('/{channel_id}/jobs')
@@ -278,19 +280,23 @@ async def reload_indicators_for_all_channel_datasets(
             ge=1,
         ),
     ] = None,
-    session: AsyncSession = Depends(models.get_session),
 ) -> schemas.ListResponse[schemas.ChannelDatasetExpanded]:
     """Clears existing indicators for all datasets in the channel and loads them from the data source.
     If any channel dataset is in the status `QUEUED` or `IN_PROGRESS`, it will be skipped.
     This endpoint only starts background jobs.
     """
 
-    channel_datasets = await DataSetService(session).reload_all_indicators(
-        background_tasks=background_tasks,
-        channel_id=channel_id,
-        max_n_embeddings=max_n_embeddings,
-        auth_context=SystemUserAuthContext(),
-    )
+    async with get_session_context_manager() as session:
+        try:
+            channel_datasets = await DataSetService(session).reload_all_indicators(
+                background_tasks=background_tasks,
+                channel_id=channel_id,
+                max_n_embeddings=max_n_embeddings,
+                auth_context=SystemUserAuthContext(),
+            )
+        except InvalidConfigurationError as e:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
     return schemas.ListResponse[schemas.ChannelDatasetExpanded](
         data=channel_datasets,
         limit=len(channel_datasets),
@@ -307,7 +313,6 @@ async def reload_indicators_for_all_channel_datasets(
 async def deduplicate_channel(
     background_tasks: BackgroundTasks,
     channel_id: int,
-    session: AsyncSession = Depends(models.get_session),
 ) -> schemas.Channel:
     """Deduplicates Available_Dimensions and Special_Dimensions vector stores for channel.
 
@@ -315,12 +320,13 @@ async def deduplicate_channel(
 
     The deduplication runs in the background and returns immediately with status 202 Accepted.
     """
-    service = ChannelService(session)
-    return await service.deduplicate_all_dimensions(
-        background_tasks=background_tasks,
-        channel_id=channel_id,
-        auth_context=SystemUserAuthContext(),
-    )
+    async with get_session_context_manager() as session:
+        service = ChannelService(session)
+        return await service.deduplicate_all_dimensions(
+            background_tasks=background_tasks,
+            channel_id=channel_id,
+            auth_context=SystemUserAuthContext(),
+        )
 
 
 @router.get(path="/{channel_id}/index-status")
@@ -378,19 +384,22 @@ async def reload_indicators_for_channel_dataset(
             ge=1,
         ),
     ] = None,
-    session: AsyncSession = Depends(models.get_session),
 ) -> schemas.ChannelDatasetExpanded:
     """Clears existing indicators for the dataset and loads them from the data source.
     This endpoint only starts a background job.
     """
 
-    return await DataSetService(session).reload_indicators(
-        background_tasks=background_tasks,
-        channel_id=channel_id,
-        dataset_id=dataset_id,
-        max_n_embeddings=max_n_embeddings,
-        auth_context=SystemUserAuthContext(),
-    )
+    async with get_session_context_manager() as session:
+        try:
+            return await DataSetService(session).reload_indicators(
+                background_tasks=background_tasks,
+                channel_id=channel_id,
+                dataset_id=dataset_id,
+                max_n_embeddings=max_n_embeddings,
+                auth_context=SystemUserAuthContext(),
+            )
+        except InvalidConfigurationError as e:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
 
 @router.delete("/{channel_id}/datasets/{dataset_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -483,19 +492,19 @@ async def trigger_auto_update(
     background_tasks: BackgroundTasks,
     channel_id: int,
     dataset_id: int,
-    session: AsyncSession = Depends(models.get_session),
 ) -> schemas.AutoUpdateJob:
     """Trigger an auto-update check for a channel dataset.
 
     Creates an auto-update job that checks for changes and reindexes if needed.
     The job runs in the background. Poll the job status to track progress.
     """
-    return await DataSetService(session).trigger_auto_update(
-        background_tasks=background_tasks,
-        channel_id=channel_id,
-        dataset_id=dataset_id,
-        auth_context=SystemUserAuthContext(),
-    )
+    async with get_session_context_manager() as session:
+        return await DataSetService(session).trigger_auto_update(
+            background_tasks=background_tasks,
+            channel_id=channel_id,
+            dataset_id=dataset_id,
+            auth_context=SystemUserAuthContext(),
+        )
 
 
 @router.get(path="/{channel_id}/datasets/{dataset_id}/versions/auto-update-jobs")

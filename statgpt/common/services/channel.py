@@ -1,3 +1,5 @@
+import asyncio
+
 from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -6,6 +8,8 @@ from sqlalchemy.sql.expression import func
 import statgpt.common.models as models
 import statgpt.common.schemas as schemas
 
+from .base import DbServiceBase
+
 
 class ChannelSerializer:
     @staticmethod
@@ -13,9 +17,11 @@ class ChannelSerializer:
         return schemas.Channel.model_validate(channel_db, from_attributes=True)
 
 
-class ChannelService:
-    def __init__(self, session: AsyncSession) -> None:
-        self._session = session
+class ChannelService(DbServiceBase):
+    def __init__(
+        self, session: AsyncSession | None = None, session_lock: asyncio.Lock | None = None
+    ) -> None:
+        super().__init__(session, session_lock)
 
     async def get_channels_count(self) -> int:
         query = select(func.count("*")).select_from(models.Channel)  # type: ignore

@@ -244,6 +244,13 @@ class ReadOnlySessionMakerSingleton:
 
 # Dependency
 async def get_session() -> AsyncGenerator[AsyncSession, None]:
+    """Yield a database session for use as a FastAPI dependency.
+
+    WARNING: When used with FastAPI's Depends(), this session stays open until
+    ALL BackgroundTasks complete — not just until the response is sent.
+    For endpoints that schedule background tasks, use get_session_context_manager()
+    instead to avoid holding connections for the duration of long-running tasks.
+    """
     _log.debug("get_session: Acquiring non-expiring session")
     session_maker = await SessionMakerSingleton.get_or_create()
     async with session_maker() as session:
