@@ -88,12 +88,17 @@ class SdmxOfflineDataSet(OfflineDataSet[SdmxDataSetConfig, 'Sdmx21DataSourceHand
 
 
 class InvalidConfigurationError(Exception):
-    def __init__(self, message: str, dataset_urn: str | None = None):
+    def __init__(self, message: str, entity_id: uuid.UUID, dataset_urn: str):
         super().__init__(message)
+        self.entity_id = entity_id
         self.dataset_urn = dataset_urn
 
-    def to_dict(self) -> dict[str, str | None]:
-        return {"dataset_urn": self.dataset_urn, "error": str(self)}
+    def to_dict(self) -> dict[str, str]:
+        return {
+            "entity_id": str(self.entity_id),
+            "dataset_urn": self.dataset_urn,
+            "error": str(self),
+        }
 
 
 class Sdmx21DataResponse(DataResponse):
@@ -394,7 +399,7 @@ class Sdmx21DataSet(
                 self._virtual_dimensions[dimension.entity_id] = dimension
                 self._dimensions[dimension.entity_id] = dimension
 
-        self._validate_config_and_dimensions(config, self._dimensions)
+        self._validate_config_and_dimensions(config, self._dimensions, entity_id)
 
         # Set indicator dimensions
         for dim_id, dim_conf in config.dimensions.items():
@@ -405,6 +410,7 @@ class Sdmx21DataSet(
                 ):
                     raise InvalidConfigurationError(
                         f"Indicator dimension must be code list dimension or virtual dimension: {indicator_dimension}",
+                        entity_id=entity_id,
                         dataset_urn=config.urn.short_urn(),
                     )
                 self._indicator_dimensions[dim_id] = indicator_dimension
@@ -414,6 +420,7 @@ class Sdmx21DataSet(
             if not isinstance(country_dimension, SdmxCodeListDimension | VirtualDimension):
                 raise InvalidConfigurationError(
                     f"Country dimension must be code list dimension or virtual dimension: {country_dimension}",
+                    entity_id=entity_id,
                     dataset_urn=config.urn.short_urn(),
                 )
             self._country_dimension = country_dimension
@@ -422,7 +429,9 @@ class Sdmx21DataSet(
 
     @staticmethod
     def _validate_config_and_dimensions(
-        config: SdmxDataSetConfig, dimensions: dict[str, SdmxDimension | VirtualDimension]
+        config: SdmxDataSetConfig,
+        dimensions: dict[str, SdmxDimension | VirtualDimension],
+        entity_id: uuid.UUID,
     ) -> None:
         """Validate that the dataset is properly configured and raises `InvalidConfigurationError` if not."""
 
@@ -443,7 +452,9 @@ class Sdmx21DataSet(
                 f"Dimensions is found in the dataset but not configured: {not_configured_dimensions}."
             )
         if errors:
-            raise InvalidConfigurationError(" ".join(errors), dataset_urn=config.urn.short_urn())
+            raise InvalidConfigurationError(
+                " ".join(errors), entity_id=entity_id, dataset_urn=config.urn.short_urn()
+            )
 
         return None
 
