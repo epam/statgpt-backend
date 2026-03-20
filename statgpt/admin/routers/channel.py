@@ -294,8 +294,14 @@ async def reload_indicators_for_all_channel_datasets(
                 max_n_embeddings=max_n_embeddings,
                 auth_context=SystemUserAuthContext(),
             )
-        except InvalidConfigurationError as e:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+        except ExceptionGroup as eg:
+            invalid_config_errors = [
+                e for e in eg.exceptions if isinstance(e, InvalidConfigurationError)
+            ]
+            if invalid_config_errors:
+                detail = [e.to_dict() for e in invalid_config_errors]
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=detail)
+            raise
 
     return schemas.ListResponse[schemas.ChannelDatasetExpanded](
         data=channel_datasets,
@@ -399,7 +405,7 @@ async def reload_indicators_for_channel_dataset(
                 auth_context=SystemUserAuthContext(),
             )
         except InvalidConfigurationError as e:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=e.to_dict())
 
 
 @router.delete("/{channel_id}/datasets/{dataset_id}", status_code=status.HTTP_204_NO_CONTENT)
