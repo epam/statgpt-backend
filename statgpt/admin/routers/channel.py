@@ -1,3 +1,4 @@
+import logging
 from datetime import datetime, timedelta
 from typing import Annotated
 
@@ -19,6 +20,8 @@ from statgpt.common.data.sdmx.v21.dataset import InvalidConfigurationError
 from statgpt.common.models.database import get_session_context_manager
 from statgpt.common.settings.dial import dial_settings
 from statgpt.common.utils.cancel_dependency import cancel_on_disconnect
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(
     prefix="/channels",
@@ -294,8 +297,16 @@ async def reload_indicators_for_all_channel_datasets(
                 max_n_embeddings=max_n_embeddings,
                 auth_context=SystemUserAuthContext(),
             )
-        except InvalidConfigurationError as e:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+        except ExceptionGroup as eg:
+            invalid_config_errors = [
+                e for e in eg.exceptions if isinstance(e, InvalidConfigurationError)
+            ]
+            if invalid_config_errors:
+                for err in eg.exceptions:
+                    logger.error("Error during channel reindex", exc_info=err)
+                detail = [e.to_dict() for e in invalid_config_errors]
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=detail)
+            raise
 
     return schemas.ListResponse[schemas.ChannelDatasetExpanded](
         data=channel_datasets,
@@ -399,7 +410,7 @@ async def reload_indicators_for_channel_dataset(
                 auth_context=SystemUserAuthContext(),
             )
         except InvalidConfigurationError as e:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=e.to_dict())
 
 
 @router.delete("/{channel_id}/datasets/{dataset_id}", status_code=status.HTTP_204_NO_CONTENT)
