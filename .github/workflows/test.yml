@@ -120,7 +120,6 @@ jobs:
         continue-on-error: ${{ inputs.bypass-checks || inputs.style-checks-bypassed }}
         shell: bash
         run: |
-          make remove_venv
           make lint
 
   code_checks:
@@ -230,11 +229,10 @@ jobs:
           PGVECTOR_PASSWORD: ${{ env.PGVECTOR_PASSWORD }}
           ELASTIC_CONNECTION_STRING: ${{ env.ELASTIC_CONNECTION_STRING }}
         run: |
-          make remove_venv
           make test
 
       - name: Upload test results
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         if: always()
         with:
           name: test-results
