@@ -83,10 +83,17 @@ class QuanthubSdmx21DataSourceHandler(Sdmx21DataSourceHandler):
         if allow_cached and not self._config.auth_enabled:
             # If auth is disabled, we can cache datasets for all users
             if ds := self._dataset_cache.get(str(entity_id)):
-                logger.debug(
-                    f"Returning cached dataset(id={entity_id}, urn={dataset_config.urn!r})"
-                )
-                return ds
+                if ds.config == dataset_config:
+                    logger.debug(
+                        f"Returning cached dataset(id={entity_id}, urn={dataset_config.urn!r})"
+                    )
+                    return ds
+                else:
+                    logger.info(
+                        f"Config changed for dataset(id={entity_id}, urn={dataset_config.urn!r}), "
+                        f"invalidating cache."
+                    )
+                    self._dataset_cache.remove(str(entity_id))
 
         logger.info(f"Loading dataset urn={dataset_config.urn!r}.")
 

@@ -24,7 +24,7 @@ class Cache(Generic[T]):
             if time.time() < item.expiry:
                 return item.value
             else:
-                self._remove_expired_item(key)
+                self.remove(key)
         return default
 
     def clear(self) -> None:
@@ -36,7 +36,8 @@ class Cache(Generic[T]):
         current_time = time.time()
         expired_keys = [key for key, item in self._cache.items() if current_time >= item.expiry]
         for key in expired_keys:
-            self._remove_expired_item(key)
+            self.remove(key)
 
-    def _remove_expired_item(self, key: str) -> None:
+    def remove(self, key: str) -> None:
+        """Remove a specific item from the cache by key."""
         self._cache.pop(key, None)
