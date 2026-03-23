@@ -59,10 +59,6 @@ class ProxySdmx30DataSourceHandler(Sdmx21DataSourceHandler):
         )
         return AsyncProxySdmxClient.from_config(self._config, auth_context, rate_limiter)
 
-    def _should_use_cache(self, allow_cached: bool) -> bool:
-        auth_enabled = getattr(self._config, "auth_enabled", False)
-        return allow_cached and not auth_enabled
-
     async def _load_extra_dataset_data(
         self, sdmx_client: Any, urn: Urn, structure_message: StructureMessage21 | None = None
     ) -> Mapping[str, Any]:
@@ -121,7 +117,7 @@ class ProxySdmx30DataSourceHandler(Sdmx21DataSourceHandler):
     ) -> Sdmx30ProxyDataSet | SdmxOfflineDataSet:
         dataset_config = self.parse_data_set_config(config)
 
-        if self._should_use_cache(allow_cached):
+        if allow_cached:
             if ds := self._dataset_cache.get(str(entity_id)):
                 logger.debug(
                     f"Returning cached dataset(id={entity_id}, urn={dataset_config.urn!r})"
@@ -215,7 +211,7 @@ class ProxySdmx30DataSourceHandler(Sdmx21DataSourceHandler):
                 return SdmxOfflineDataSet(entity_id, title, dataset_config, self, status)
             raise
 
-        if self._should_use_cache(allow_cached):
+        if allow_cached:
             self._dataset_cache.set(str(entity_id), result)
             logger.info(f"Cached dataset(id={entity_id}, urn={dataset_config.urn!r}).")
 

@@ -95,7 +95,13 @@ class AsyncSdmxClient:
         )
 
     async def conceptscheme(
-        self, *, agency_id: str, resource_id: str, version: str, use_cache: bool = False
+        self,
+        *,
+        agency_id: str,
+        resource_id: str,
+        version: str,
+        use_cache: bool = False,
+        dsd_urn: str | None = None,
     ) -> StructureMessage:
         return await self._get_structure(  # type: ignore[return-value]
             resource_type=Resource.conceptscheme,
@@ -106,7 +112,13 @@ class AsyncSdmxClient:
         )
 
     async def codelist(
-        self, *, agency_id: str, resource_id: str, version: str, use_cache: bool = False
+        self,
+        *,
+        agency_id: str,
+        resource_id: str,
+        version: str,
+        use_cache: bool = False,
+        dsd_urn: str | None = None,
     ) -> StructureMessage:
         return await self._get_structure(  # type: ignore[return-value]
             resource_type=Resource.codelist,
@@ -124,6 +136,7 @@ class AsyncSdmxClient:
         version: str,
         params: dict[str, str] | None = None,
         use_cache: bool = False,
+        dsd_urn: str | None = None,
     ) -> StructureMessage:
         return await self._get_structure(  # type: ignore[return-value]
             resource_type=Resource.hierarchicalcodelist,
@@ -190,6 +203,7 @@ class AsyncSdmxClient:
         dsd: DataStructureDefinition | None = None,
         use_cache: bool = False,
         tofile: os.PathLike | IO | None = None,
+        extra_headers: dict[str, str] | None = None,
     ) -> Message:
         async with self._rate_limiter.structure_limiter():
             return await self._get(
@@ -202,6 +216,7 @@ class AsyncSdmxClient:
                 dsd=dsd,
                 use_cache=use_cache,
                 tofile=tofile,
+                extra_headers=extra_headers,
             )
 
     async def _get_availability(
@@ -274,9 +289,12 @@ class AsyncSdmxClient:
         dsd: DataStructureDefinition | None = None,
         use_cache: bool = False,
         tofile: os.PathLike | IO | None = None,
+        extra_headers: dict[str, str] | None = None,
     ) -> Message:
         params = params or {}
         headers = await self._construct_headers({}, resource_type)
+        if extra_headers:
+            headers.update(extra_headers)
         req: PreparedRequest = self._sync_client.get(  # type: ignore[assignment]
             resource_type=resource_type,
             resource_id=resource_id,

@@ -27,15 +27,18 @@ class DataflowLoader:
         actual_urn = self._get_actual_urn(result_message, urn)
 
         dsd_ref = result_message.dataflow[actual_urn].structure
-        dsd = lookup_urn(result_message.structure, Urn.for_artifact(dsd_ref))
-        schemes = await self._load_concept_schemes(dsd)
+        dsd_urn = Urn.for_artifact(dsd_ref)
+        dsd = lookup_urn(result_message.structure, dsd_urn)
+        dsd_urn_header = self._format_dsd_urn(dsd_urn)
+
+        schemes = await self._load_concept_schemes(dsd, dsd_urn=dsd_urn_header)
         for scheme_msg in schemes:
             result_message.add_concept_schemes(scheme_msg.concept_scheme.values())
 
         if mode == 'shallow':
             return actual_urn, result_message
 
-        code_lists = await self._load_code_lists(result_message, actual_urn)
+        code_lists = await self._load_code_lists(result_message, actual_urn, dsd_urn=dsd_urn_header)
         for code_list_msg in code_lists:
             result_message.add_codelists(code_list_msg.codelist.values())
 
@@ -80,7 +83,7 @@ class DataflowLoader:
         )
 
     async def _load_code_lists(
-        self, dataflow_msg: StructureMessage21, urn: Urn
+        self, dataflow_msg: StructureMessage21, urn: Urn, *, dsd_urn: str | None = None
     ) -> list[StructureMessage]:
         code_lists = self._get_code_lists(dataflow_msg, urn)
 
@@ -90,6 +93,7 @@ class DataflowLoader:
                 resource_id=code_list.resource_id,
                 version=code_list.version,
                 use_cache=True,
+                dsd_urn=dsd_urn,
             )
             for code_list in code_lists
         ]
@@ -112,7 +116,9 @@ class DataflowLoader:
 
         return code_lists
 
-    async def _load_concept_schemes(self, dsd: DataStructureDefinition) -> list[StructureMessage]:
+    async def _load_concept_schemes(
+        self, dsd: DataStructureDefinition, *, dsd_urn: str | None = None
+    ) -> list[StructureMessage]:
         schemas = set(concept.urn for concept in self._get_concepts_from(dsd))
 
         tasks = [
@@ -121,11 +127,19 @@ class DataflowLoader:
                 resource_id=concept_scheme.resource_id,
                 version=concept_scheme.version,
                 use_cache=True,
+                dsd_urn=dsd_urn,
             )
             for concept_scheme in schemas
         ]
         return await async_utils.gather_with_concurrency(
             self._SETTINGS.concept_scheme_concurrency_limit, *tasks
+        )
+
+    @staticmethod
+    def _format_dsd_urn(dsd_urn: Urn) -> str:
+        return (
+            "urn:sdmx:org.sdmx.infomodel.datastructure.DataStructureDefinition="
+            f"{dsd_urn.short_urn()}"
         )
 
     @staticmethod

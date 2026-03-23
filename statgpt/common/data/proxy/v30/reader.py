@@ -42,27 +42,23 @@ References:
 
 import json
 import logging
-from collections.abc import Mapping, MutableMapping
 from typing import Any, cast
 from warnings import warn
 
 from dateutil.parser import isoparse
-from sdmx.format import Version, list_media_types
 from sdmx.message import DataMessage, Header
 from sdmx.model import common
-from sdmx.model.common import ActionType, Concept, Key
-from sdmx.model.internationalstring import InternationalString
+from sdmx.model.common import Concept
 from sdmx.model.v21 import (
+    ActionType,
     AllDimensions,
     AttributeValue,
     Code,
     DataflowDefinition,
     DataSet,
     KeyValue,
-    Observation,
-    SeriesKey,
 )
-from sdmx.reader.base import BaseReader
+from sdmx.reader.json import Reader, _org
 
 log = logging.getLogger(__name__)
 
@@ -72,8 +68,8 @@ _LEVEL_ALIASES: dict[str, str] = {"dataset": "dataSet"}
 The official SDMX-JSON 2.0.0 schema uses camelCase ``dataSet`` for both
 dimensions and attributes, but some implementations (e.g. the standard
 SDMX 3.0 API) emit lowercase ``dataset`` instead.  This mapping normalises
-the level name so that internal look-ups (e.g. :meth:`_make_key("dataSet")
-<ProxyDataReader._make_key>`) work regardless of casing.
+the level name so that internal look-ups (e.g. :meth:`Reader._make_key` with
+``"dataSet"``) work regardless of casing.
 """
 
 _CODE_ACCEPTED_KEYS: frozenset[str] = frozenset({"id", "name", "description"})
@@ -84,7 +80,7 @@ are not accepted by :class:`Code` and would raise :exc:`TypeError`.
 """
 
 
-class ProxyDataReader(BaseReader):
+class ProxyDataReader(Reader):
     """Read SDMX-JSON and expose it as instances from :mod:`sdmx.model`.
 
     Handles both the proxy SDMX-JSON format (with ``dimensionGroup`` attribute
@@ -93,10 +89,6 @@ class ProxyDataReader(BaseReader):
 
     See the module docstring for a detailed comparison of both formats.
     """
-
-    binary_content_startswith = b"{"
-    media_types = list_media_types(base="json", version=Version["1.0.0"])
-    suffixes = [".json"]
 
     @classmethod
     def detect(cls, content):
@@ -256,53 +248,6 @@ class ProxyDataReader(BaseReader):
 
         return ds
 
-    def read_obs(self, root, series_key=None, base_key=None):
-        for key, elem in root.get("observations", {}).items():
-            value = elem.pop(0) if len(elem) else None
-            o = Observation(
-                series_key=series_key,
-                dimension=self._make_key("observation", key, base=base_key),
-                value=value,
-                attached_attribute=self._make_attrs("observation", elem),
-            )
-            yield o
-
-    def _make_key(self, level, value=None, base=None):
-        """Convert a colon-separated index string into a :class:`Key`.
-
-        SDMX-JSON observations/series have keys like ``"2"`` or ``"0:1:0"``,
-        where each colon-separated token is a zero-based index into the
-        dimension values declared in the structure metadata.
-
-        Parameters
-        ----------
-        level:
-            One of ``"dataSet"``, ``"series"``, ``"observation"``.  Determines
-            which dimensions are included and what Key subclass is returned.
-            Level names are expected to be canonical (i.e. already normalised
-            via ``_LEVEL_ALIASES``).
-        value:
-            The colon-separated index string from the JSON (e.g. ``"0:1:0"``).
-            ``None`` means "fill with zeros" (used for the dataSet base key).
-        base:
-            An existing Key whose values are copied into the new one before
-            appending the new dimension values.
-        """
-        key = {"dataSet": Key, "series": SeriesKey, "observation": Key}[level]()
-
-        if base:
-            key.values.update(base.values)
-
-        dims = [d for d in self.msg.structure.dimensions if self._dim_level[d] == level]
-
-        value = ":".join(["0"] * len(dims)) if value is None else value
-
-        if len(value):
-            for index, dim in zip(map(int, value.split(":")), dims):
-                key[dim.id] = self._dim_values[dim][index]
-
-        return self.msg.structure.dimensions.order_key(key)
-
     def _make_attrs(self, level, values):
         """Resolve a data attribute array into a dict of :class:`AttributeValue`.
 
@@ -367,55 +312,3 @@ def _code_from_value(v: dict) -> Code:
     ``description`` as well (``{"id": "9", "name": "Billions", ...}``).
     """
     return Code(**{k: v[k] for k in v if k in _CODE_ACCEPTED_KEYS})
-
-
-def _org(elem: MutableMapping, cls=common.Organisation) -> common.Organisation:
-    try:
-        elem["contact"] = list(map(_contact, elem.pop("contacts")))
-    except KeyError:
-        pass
-    return cls(**maybe_parse_is(elem, "name"))
-
-
-def _contact(elem: Mapping) -> common.Contact:
-    data = depluralize(
-        maybe_parse_is(elem, "department name role"),
-        "email fax|faxe telephone uri x400",
-    )
-    if "id" in data:
-        log.debug(f"Discard unsupported Contact(id={data.pop('id')!r})")
-    try:
-        data["org_unit"] = data.pop("department")
-    except KeyError:  # pragma: no cover
-        pass
-    try:
-        data["responsibility"] = data.pop("role")
-    except KeyError:  # pragma: no cover
-        pass
-    return common.Contact(**data)
-
-
-def depluralize(elem: Mapping, names: str) -> MutableMapping:
-    """Map plural `names` in `elem` to singular.
-
-    `names` is a whitespace-separated sequence of strings; each string is either the
-    singular form and base for the plural form ("cat" → "cat" and "cats") or a pipe (|)
-    separating the singular and plural base ("fox|foxe" → "fox", "foxes").
-    """
-    result = dict(elem)
-    for name in names.split():
-        info = name.split("|")
-        try:
-            result[info[0]] = result.pop(f"{info[-1]}s")
-        except KeyError:  # pragma: no cover
-            pass
-    return result
-
-
-def maybe_parse_is(elem: Mapping, names: str) -> Mapping:
-    """Parse international string(s) with given `names` appearing on `elem`, if any."""
-    result = dict(elem)
-    for name in names.split():
-        if name in result and f"{name}s" in result:
-            result[name] = InternationalString(result.pop(f"{name}s"))
-    return result

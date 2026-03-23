@@ -5,30 +5,13 @@ from typing import Any, Protocol
 from pydantic import BaseModel, Field
 from sdmx.message import StructureMessage
 from sdmx.model.common import Agency
-from sdmx.model.v21 import Annotation, ContentConstraint
+from sdmx.model.v21 import ContentConstraint
 
 
 class Operator(StrEnum):
     ge = "ge"
     le = "le"
     eq = "eq"
-
-
-class Sdmx30AnnotationModel(BaseModel):
-    id: str | None = Field(default=None)
-    title: str | None = Field(default=None)
-    type: str | None = Field(default=None)
-    value: str | None = Field(default=None)
-    text: str | None = Field(default=None)
-
-    def to_sdmx1(self) -> Annotation:
-        return Annotation(
-            id=self.id,
-            title=self.title,
-            type=self.type,
-            text=self.text,
-            # The `value` field was added by SDMX 3.0.0, so it's not included here.
-        )
 
 
 class Sdmx30DataComponentFilter(BaseModel):
@@ -76,7 +59,7 @@ def build_availability_filters(
     return filters
 
 
-class PostAvailabilityRequestBody(BaseModel):
+class SdmxPlusAvailabilityRequestBody(BaseModel):
     """A POST request body for SDMX 3.0 availability endpoints."""
 
     filters: list[Sdmx30DataComponentFilter] | None = Field(default=None)
@@ -84,7 +67,7 @@ class PostAvailabilityRequestBody(BaseModel):
     @classmethod
     def get_from(
         cls, key: dict[str, list[str]] | None, params: dict[str, str] | None
-    ) -> "PostAvailabilityRequestBody":
+    ) -> "SdmxPlusAvailabilityRequestBody":
         return cls(filters=build_availability_filters(key, params))
 
 
