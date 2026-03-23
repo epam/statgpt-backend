@@ -16,7 +16,7 @@ from statgpt.common.data.quanthub.sdmx_schemas.v30 import (
 )
 from statgpt.common.data.sdmx.v21.ratelimiter import SdmxRateLimiter
 from statgpt.common.data.sdmx.v21.sdmx_client import AsyncSdmxClient, init_sdmx
-from statgpt.common.utils import Cache
+from statgpt.common.utils import TtlCache
 
 from .attributes_parser import AttributesParser
 from .authorizer import QuanthubAuthorizer, QuanthubAuthorizerFactory
@@ -29,8 +29,8 @@ class AsyncQuanthubClient(AsyncSdmxClient):
     Contains methods unique to QuantHub, such as fetching dynamic annotations.
     """
 
-    _annotation_cache: Cache[list[QhAnnotation]] = Cache()
-    _attributes_cache: Cache[dict[str, str | None]] = Cache()
+    _annotation_cache: TtlCache[list[QhAnnotation]] = TtlCache()
+    _attributes_cache: TtlCache[dict[str, str | None]] = TtlCache()
 
     @classmethod
     def from_config(  # type: ignore[override]

@@ -26,19 +26,5 @@ class SdmxSettings(BaseSettings):
     )
 
 
-class QuantHubSettings(BaseSettings):
-    """
-    QuantHub specific settings
-    """
-
-    model_config = SettingsConfigDict(env_prefix="quanthub_")
-
-    dataset_cache_ttl: int = Field(
-        default=3600,
-        description="Cache TTL for QuantHub datasets in seconds",
-    )
-
-
 # Create singleton instances
 sdmx_settings = SdmxSettings()
-quanthub_settings = QuantHubSettings()

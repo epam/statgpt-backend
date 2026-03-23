@@ -16,8 +16,7 @@ from statgpt.common.data.sdmx.v21.dimensions_creator import DimensionsCreator
 from statgpt.common.data.sdmx.v21.ratelimiter import SdmxRateLimiterFactory
 from statgpt.common.data.sdmx.v21.schemas import Urn
 from statgpt.common.schemas.dataset import Status
-from statgpt.common.settings.sdmx import quanthub_settings
-from statgpt.common.utils import Cache
+from statgpt.common.utils import AsyncLoadingCache
 from statgpt.common.utils.timer import debug_timer
 
 from .qh_sdmx_client import AsyncQuanthubClient
@@ -27,8 +26,7 @@ from .qh_sdmx_client import AsyncQuanthubClient
 # todo: add generic typing with QuanthubInMemorySdmx21DataSet
 class QuanthubSdmx21DataSourceHandler(Sdmx21DataSourceHandler):
 
-    # TEMP fix:
-    _dataset_cache: Cache[QuanthubSdmx21DataSet] = Cache(ttl=quanthub_settings.dataset_cache_ttl)
+    _dataset_cache: AsyncLoadingCache[QuanthubSdmx21DataSet] = AsyncLoadingCache()
 
     def __init__(self, config: QuanthubSdmxDataSourceConfig):
         super().__init__(config)
@@ -76,24 +74,8 @@ class QuanthubSdmx21DataSourceHandler(Sdmx21DataSourceHandler):
         config: dict,
         auth_context: AuthContext,
         allow_offline: bool = False,
-        allow_cached: bool = False,
     ) -> QuanthubSdmx21DataSet | SdmxOfflineDataSet:
         dataset_config = self.parse_data_set_config(config)
-
-        if allow_cached and not self._config.auth_enabled:
-            # If auth is disabled, we can cache datasets for all users
-            if ds := self._dataset_cache.get(str(entity_id)):
-                if ds.config == dataset_config:
-                    logger.debug(
-                        f"Returning cached dataset(id={entity_id}, urn={dataset_config.urn!r})"
-                    )
-                    return ds
-                else:
-                    logger.info(
-                        f"Config changed for dataset(id={entity_id}, urn={dataset_config.urn!r}), "
-                        f"invalidating cache."
-                    )
-                    self._dataset_cache.remove(str(entity_id))
 
         logger.info(f"Loading dataset urn={dataset_config.urn!r}.")
 
@@ -198,12 +180,6 @@ class QuanthubSdmx21DataSourceHandler(Sdmx21DataSourceHandler):
             else:
                 raise e
 
-        if allow_cached and not self._config.auth_enabled:
-            # If auth is disabled, cache the dataset for all users
-            # NOTE: we do not cache offline datasets
-            self._dataset_cache.set(str(entity_id), res)
-            logger.info(f"Cached dataset(id={entity_id}, urn={dataset_config.urn!r}).")
-
         return res
 
     async def get_dataset(
@@ -216,13 +192,15 @@ class QuanthubSdmx21DataSourceHandler(Sdmx21DataSourceHandler):
         allow_cached: bool = False,
     ) -> QuanthubSdmx21DataSet | SdmxOfflineDataSet:
         with debug_timer(f"QuanthubSdmx21DataSourceHandler.get_dataset: {title}"):
+            if allow_cached and not self._config.auth_enabled:
+                dataset_config = self.parse_data_set_config(config)
+                return await self._dataset_cache.get(
+                    key=str(entity_id),
+                    loader=lambda: self._get_dataset(entity_id, title, config, auth_context),
+                    validator=lambda ds: ds.config == dataset_config,
+                )
             return await self._get_dataset(
-                entity_id,
-                title,
-                config,
-                auth_context,
-                allow_offline=allow_offline,
-                allow_cached=allow_cached,
+                entity_id, title, config, auth_context, allow_offline=allow_offline
             )
 
     @staticmethod

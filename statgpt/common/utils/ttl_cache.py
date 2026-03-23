@@ -9,7 +9,7 @@ class CacheItem(NamedTuple, Generic[T]):
     expiry: float
 
 
-class Cache(Generic[T]):
+class TtlCache(Generic[T]):
     def __init__(self, ttl: int = 3600):
         self._cache: dict[str, CacheItem[T]] = {}
         self._ttl = ttl
