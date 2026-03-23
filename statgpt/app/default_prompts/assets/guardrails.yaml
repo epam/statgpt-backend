@@ -138,6 +138,9 @@ generalTopicsBlacklist:
       However, this rule DOES NOT REGULATE requests for STATISTICS
       on mentioned topics (legal, medical, etc) - if such requests don't violate other rules,
       they are ALLOWED.
+      Similarly, requests asking for advice or guidance on what data available through the chatbot
+      to use for studying a topic within the chatbot's domain MUST NOT be treated as
+      personal or professional advice.
 - |-
    Harmful or Inappropriate Content:
       * Inappropriate, offensive, or emotionally charged content
