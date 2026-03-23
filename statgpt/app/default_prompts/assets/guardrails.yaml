@@ -130,17 +130,16 @@ responsePrompt: |-
 
 generalTopicsBlacklist:
 - |-
-   Personal advice or Professional Guidance:
-      * Legal, medical, or other professional advice
-      * Counseling or therapy recommendations
-      * Any type of decision-making suggestions
-      This is applied to any form of requests for advices, recommendations, guidance on mentioned topics.
-      However, this rule DOES NOT REGULATE requests for STATISTICS
-      on mentioned topics (legal, medical, etc) - if such requests don't violate other rules,
-      they are ALLOWED.
-      Similarly, requests asking for advice or guidance on what data available through the chatbot
-      to use for studying a topic within the chatbot's domain MUST NOT be treated as
-      personal or professional advice.
+   Personal advice:
+      This covers requests for advice or guidance on personal life decisions typically provided
+      by a licensed professional (lawyer, doctor, financial advisor, therapist, etc):
+      * Legal, medical, counseling or therapy recommendations
+      * Financial advice (investment choices, career choices, etc)
+      * Any other type of personal decision-making suggestions not related to chatbot's functionality
+      This rule DOES NOT REGULATE requests for STATISTICS on mentioned topics
+      (legal, medical, etc) - they are ALLOWED if they don't violate other rules.
+      This rule DOES NOT REGULATE requests for advice or suggestions on which data
+      available through the chatbot to use within the chatbot's domain.
 - |-
    Harmful or Inappropriate Content:
       * Inappropriate, offensive, or emotionally charged content
