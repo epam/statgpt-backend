@@ -5,49 +5,52 @@ on:
     inputs:
       bypass-checks:
         type: boolean
-        default: false
         description: Do not fail pipeline if checks failed
+        default: false
       style-checks-enabled:
         type: boolean
-        default: true
         description: Enable style_checks
+        default: true
       style-checks-bypassed:
         type: boolean
-        default: false
         description: Do not fail pipeline if style_checks failed
+        default: false
       code-checks-enabled:
         type: boolean
-        default: true
         description: Enable code_checks
+        default: true
       code-checks-bypassed:
         type: boolean
-        default: false
         description: Do not fail pipeline if code_checks failed
+        default: false
       ort-enabled:
         type: boolean
-        default: true
         description: Enable ORT scanning
+        default: true
       ort-bypassed:
         type: boolean
-        default: false
         description: Do not fail pipeline if ORT scan failed
+        default: false
       ort-version:
         type: string
-        default: "latest"
         description: ORT version to use
+        default: "latest"
       python-version:
         type: string
-        default: "3.11"
         description: Python version to use
+        default: "3.11"
       poetry-version:
         type: string
-        description: "Poetry version to use"
+        description: Poetry version to use
         default: "2.1.1"
       runs-on:
         type: string
-        description: "Overrides jobs runs-on settings (json-encoded list)"
+        description: Overrides jobs runs-on settings (json-encoded list)
         default: '["ubuntu-24.04"]'
-        required: false
+      maximize-build-space:
+        type: boolean
+        description: Maximize build space by removing unwanted software
+        default: false
 
 env:
   # Database
@@ -69,11 +72,38 @@ jobs:
     if: ${{ inputs.style-checks-enabled }}
     runs-on: ${{ fromJSON(inputs.runs-on) }}
     steps:
-      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+      - name: Maximize build space
+        uses: nepalevov/maximize-build-space@046c48361370e2f3fa758bd2f10c6ce29109ef62 # v1.1.0
+        if: ${{ inputs.maximize-build-space }}
+        with:
+          remove-dotnet: "true"
+          remove-android: "true"
+          remove-haskell: "true"
+          remove-codeql: "true"
+          remove-large-packages: "false" # keep libgl1-mesa-dev
+          remove-cached-tools: "true"
+          remove-swapfile: "true"
+          remove-java: "true"
+          remove-swift: "true"
+          remove-julia: "true"
+          remove-browsers: "true"
+          remove-cloud-tools: "true"
+          remove-kubernetes-tools: "true"
+          remove-powershell: "true"
+          remove-container-tools: "true"
+          remove-rust: "true"
+          remove-python: "false" # just in case
+          remove-node: "true"
+          remove-go: "true"
+          remove-ruby: "true"
+          docker-cleanup: "true"
+          set-tmpdir: "true"
+
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           lfs: true
 
-      - uses: epam/ai-dial-ci/actions/python_prepare@2.7.3
+      - uses: epam/ai-dial-ci/actions/python_prepare@3.1.3
         with:
           python-version: ${{ inputs.python-version }}
           poetry-version: ${{ inputs.poetry-version }}
@@ -125,11 +155,38 @@ jobs:
           --health-retries 10
 
     steps:
-      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+      - name: Maximize build space
+        uses: nepalevov/maximize-build-space@046c48361370e2f3fa758bd2f10c6ce29109ef62 # v1.1.0
+        if: ${{ inputs.maximize-build-space }}
+        with:
+          remove-dotnet: "true"
+          remove-android: "true"
+          remove-haskell: "true"
+          remove-codeql: "true"
+          remove-large-packages: "false" # keep libgl1-mesa-dev
+          remove-cached-tools: "true"
+          remove-swapfile: "true"
+          remove-java: "true"
+          remove-swift: "true"
+          remove-julia: "true"
+          remove-browsers: "true"
+          remove-cloud-tools: "true"
+          remove-kubernetes-tools: "true"
+          remove-powershell: "true"
+          remove-container-tools: "true"
+          remove-rust: "true"
+          remove-python: "false" # just in case
+          remove-node: "true"
+          remove-go: "true"
+          remove-ruby: "true"
+          docker-cleanup: "true"
+          set-tmpdir: "true"
+
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           lfs: true
 
-      - uses: epam/ai-dial-ci/actions/python_prepare@2.7.3
+      - uses: epam/ai-dial-ci/actions/python_prepare@3.1.3
         with:
           python-version: ${{ inputs.python-version }}
           poetry-version: ${{ inputs.poetry-version }}
@@ -179,7 +236,7 @@ jobs:
     if: ${{ inputs.ort-enabled }}
     runs-on: ${{ fromJSON(inputs.runs-on) }}
     steps:
-      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           lfs: true
 

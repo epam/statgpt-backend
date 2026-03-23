@@ -24,6 +24,7 @@ jobs:
       python-version: "3.11"
       poetry-version: "2.1.1"
       runs-on: '["ubuntu-24.04"]'
+      maximize-build-space: false
 
   docker_build:
     runs-on: ubuntu-24.04
@@ -37,14 +38,13 @@ jobs:
 
     steps:
       - name: Maximize build space
-        uses: nepalevov/maximize-build-space@a1a975ceb44dddb1023067778f5c0111825ade6c # v1.0.1
+        uses: nepalevov/maximize-build-space@046c48361370e2f3fa758bd2f10c6ce29109ef62 # v1.1.0
         if: false # Maximize build space by removing unwanted software if set to true
         with:
           remove-dotnet: "true"
           remove-android: "true"
           remove-haskell: "true"
           remove-codeql: "true"
-          docker-cleanup: "true"
           remove-large-packages: "true"
           remove-cached-tools: "true"
           remove-swapfile: "true"
@@ -61,9 +61,10 @@ jobs:
           remove-node: "true"
           remove-go: "true"
           remove-ruby: "true"
+          docker-cleanup: "true"
           set-tmpdir: "true"
 
-      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           lfs: true
 
