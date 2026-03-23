@@ -52,6 +52,9 @@ on:
         description: Maximize build space by removing unwanted software
         default: false
 
+permissions:
+  contents: read
+
 env:
   # Database
   TEST_DATABASE_HOST: localhost
@@ -71,6 +74,8 @@ jobs:
   style_checks:
     if: ${{ inputs.style-checks-enabled }}
     runs-on: ${{ fromJSON(inputs.runs-on) }}
+    permissions:
+      contents: read
     steps:
       - name: Maximize build space
         uses: nepalevov/maximize-build-space@046c48361370e2f3fa758bd2f10c6ce29109ef62 # v1.1.0
@@ -121,6 +126,10 @@ jobs:
   code_checks:
     if: ${{ inputs.code-checks-enabled }}
     runs-on: ${{ fromJSON(inputs.runs-on) }}
+    permissions:
+      contents: read
+      actions: write
+      checks: write
 
     services:
       vectordb:
@@ -235,6 +244,9 @@ jobs:
   ort:
     if: ${{ inputs.ort-enabled }}
     runs-on: ${{ fromJSON(inputs.runs-on) }}
+    permissions:
+      contents: read
+      security-events: write
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:

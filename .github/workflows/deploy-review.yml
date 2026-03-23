@@ -1,12 +1,18 @@
 name: Deploy Review Environment
+
 on:
   issue_comment:
     types: [created]
+
+permissions:
+  contents: read
 
 jobs:
   slash-command-dispatch:
     runs-on: ubuntu-latest
     if: ${{ github.event.issue.pull_request && contains(github.event.comment.body, '/deploy-review') }}
+    permissions:
+      contents: none
     outputs:
       should-deploy: ${{ steps.check-command.outputs.should-deploy }}
       pr-number: ${{ steps.get-pr.outputs.number }}
@@ -60,6 +66,8 @@ jobs:
       name: review
     needs: slash-command-dispatch
     if: needs.slash-command-dispatch.outputs.should-deploy == 'true'
+    permissions:
+      contents: none
     steps:
       - name: Workflow run URL
         uses: peter-evans/create-or-update-comment@e8674b075228eee787fea43ef493e45ece1004c9 # v5.0.0

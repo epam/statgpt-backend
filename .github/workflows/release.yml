@@ -8,10 +8,18 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+
 jobs:
   test:
     uses: ./.github/workflows/test.yml
     secrets: inherit
+    permissions:
+      contents: read
+      actions: write
+      checks: write
+      security-events: write
     with:
       bypass-checks: false
       style-checks-enabled: true
@@ -28,6 +36,8 @@ jobs:
 
   calculate_version:
     runs-on: ubuntu-24.04
+    permissions:
+      contents: read
     outputs:
       next-version: ${{ steps.semantic_versioning.outputs.next-version }}
       next-version-without-hyphens: ${{ steps.semantic_versioning.outputs.next-version-without-hyphens }}
