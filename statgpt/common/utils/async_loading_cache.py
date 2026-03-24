@@ -68,6 +68,8 @@ class AsyncLoadingCache(Generic[T]):
 
     def remove(self, key: str) -> None:
         self._cache.pop(key, None)
+        self._locks.pop(key, None)
 
     def clear(self) -> None:
         self._cache.clear()
+        self._locks.clear()
