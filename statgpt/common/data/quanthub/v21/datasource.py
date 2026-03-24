@@ -16,6 +16,7 @@ from statgpt.common.data.sdmx.v21.dimensions_creator import DimensionsCreator
 from statgpt.common.data.sdmx.v21.ratelimiter import SdmxRateLimiterFactory
 from statgpt.common.data.sdmx.v21.schemas import Urn
 from statgpt.common.schemas.dataset import Status
+from statgpt.common.settings.sdmx import quanthub_settings
 from statgpt.common.utils import AsyncLoadingCache
 from statgpt.common.utils.timer import debug_timer
 
@@ -27,7 +28,7 @@ from .qh_sdmx_client import AsyncQuanthubClient
 class QuanthubSdmx21DataSourceHandler(Sdmx21DataSourceHandler):
 
     _dataset_cache: AsyncLoadingCache[QuanthubSdmx21DataSet | SdmxOfflineDataSet] = (
-        AsyncLoadingCache()
+        AsyncLoadingCache(ttl=quanthub_settings.dataset_cache_ttl)
     )
 
     def __init__(self, config: QuanthubSdmxDataSourceConfig):
