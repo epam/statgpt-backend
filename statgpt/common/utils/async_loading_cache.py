@@ -34,7 +34,7 @@ class AsyncLoadingCache(Generic[T]):
         if key not in self._cache:
             return False
         entry = self._cache[key]
-        if time.time() >= entry.expires_at:
+        if time.monotonic() >= entry.expires_at:
             self._cache.pop(key, None)
             return False
         if validator is not None and not validator(entry.value):
@@ -62,7 +62,7 @@ class AsyncLoadingCache(Generic[T]):
             value = await loader()
             self._cache[key] = _CacheEntry(
                 value=value,
-                expires_at=time.time() + self._ttl if self._ttl is not None else float('inf'),
+                expires_at=time.monotonic() + self._ttl if self._ttl is not None else float('inf'),
             )
             return value
 

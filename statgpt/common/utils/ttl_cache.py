@@ -15,13 +15,13 @@ class TtlCache(Generic[T]):
         self._ttl = ttl
 
     def set(self, key: str, value: T) -> None:
-        expiry = time.time() + self._ttl
+        expiry = time.monotonic() + self._ttl
         self._cache[key] = CacheItem(value=value, expiry=expiry)
 
     def get(self, key: str, default: T | None = None) -> T | None:
         if key in self._cache:
             item = self._cache[key]
-            if time.time() < item.expiry:
+            if time.monotonic() < item.expiry:
                 return item.value
             else:
                 self.remove(key)
@@ -33,7 +33,7 @@ class TtlCache(Generic[T]):
 
     def cleanup(self) -> None:
         """Remove all expired items from the cache"""
-        current_time = time.time()
+        current_time = time.monotonic()
         expired_keys = [key for key, item in self._cache.items() if current_time >= item.expiry]
         for key in expired_keys:
             self.remove(key)

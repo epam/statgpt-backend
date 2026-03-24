@@ -50,7 +50,7 @@ class TestTtlCacheGetSetBasics:
         cache: TtlCache[str] = TtlCache(ttl=60)
         cache.set("k", "v")
 
-        with patch.object(time, "time", return_value=time.time() + 120):
+        with patch.object(time, "monotonic", return_value=time.monotonic() + 120):
             assert cache.get("k") is None
 
     def test_set_overwrites_existing(self) -> None:

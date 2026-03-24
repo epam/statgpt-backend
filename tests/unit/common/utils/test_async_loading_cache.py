@@ -125,7 +125,7 @@ class TestAsyncLoadingCacheTtl:
         loader = AsyncMock(side_effect=["old", "new"])
 
         await cache.get("k", loader)
-        with patch.object(time, "time", return_value=time.time() + 120):
+        with patch.object(time, "monotonic", return_value=time.monotonic() + 120):
             result = await cache.get("k", loader)
 
         assert result == "new"
@@ -137,7 +137,7 @@ class TestAsyncLoadingCacheTtl:
         loader = AsyncMock(return_value="value")
 
         await cache.get("k", loader)
-        with patch.object(time, "time", return_value=time.time() + 999999):
+        with patch.object(time, "monotonic", return_value=time.monotonic() + 999999):
             result = await cache.get("k", loader)
 
         assert result == "value"
@@ -149,7 +149,7 @@ class TestAsyncLoadingCacheTtl:
         loader = AsyncMock(return_value="value")
 
         await cache.get("k", loader)
-        with patch.object(time, "time", return_value=time.time() + 30):
+        with patch.object(time, "monotonic", return_value=time.monotonic() + 30):
             result = await cache.get("k", loader)
 
         assert result == "value"
