@@ -91,7 +91,7 @@ class ProxyDataReader(Reader):
     """
 
     @classmethod
-    def detect(cls, content):
+    def detect(cls, content: bytes | None) -> bool:
         warn(
             "Reader.detect(bytes); use Converter.handles() instead",
             DeprecationWarning,
@@ -102,9 +102,7 @@ class ProxyDataReader(Reader):
             return False
         return content.startswith(prefix)
 
-    def convert(
-        self, data, structure=None, **kwargs
-    ):  # noqa: C901  TODO reduce complexity 15 → ≤10
+    def convert(self, data: Any, structure: Any = None, **kwargs: Any) -> DataMessage:
         msg = DataMessage()
 
         dsd = self._handle_deprecated_kwarg(structure, kwargs)
@@ -231,7 +229,7 @@ class ProxyDataReader(Reader):
 
         return msg
 
-    def read_dataset(self, root, ds_key):
+    def read_dataset(self, root: dict[str, Any], ds_key: Any) -> DataSet:
         ds = DataSet(
             action=ActionType[root["action"].lower()],
             valid_from=root.get("validFrom", None),
@@ -248,7 +246,7 @@ class ProxyDataReader(Reader):
 
         return ds
 
-    def _make_attrs(self, level, values):
+    def _make_attrs(self, level: str, values: list[Any]) -> dict[str, AttributeValue]:
         """Resolve a data attribute array into a dict of :class:`AttributeValue`.
 
         Parameters

@@ -1,4 +1,3 @@
-from statgpt.common.data.proxy.sdmx_schemas.structure_message import ProxyAvailabilityResponseBody
 import io
 from urllib.parse import urlencode
 
@@ -13,6 +12,7 @@ from statgpt.common.auth.auth_context import AuthContext
 from statgpt.common.config import multiline_logger as logger
 from statgpt.common.data.base.sdmx_schemas import SdmxPlusAvailabilityRequestBody
 from statgpt.common.data.proxy.config import ProxySdmx30DataSourceConfig
+from statgpt.common.data.proxy.sdmx_schemas.structure_message import ProxyAvailabilityResponseBody
 from statgpt.common.data.proxy.v30.reader import ProxyDataReader
 from statgpt.common.data.sdmx.v21.ratelimiter import SdmxRateLimiter
 from statgpt.common.data.sdmx.v21.sdmx_client import AsyncSdmxClient
@@ -67,13 +67,13 @@ class AsyncProxySdmxClient(AsyncSdmxClient):
     ) -> DataMessage:
         async with self._rate_limiter.data_limiter():
             return await self._proxy_data(
-            agency_id=agency_id,
-            resource_id=resource_id,
-            version=version,
-            key=key,
-            params=params,
-            dsd=dsd,
-        )
+                agency_id=agency_id,
+                resource_id=resource_id,
+                version=version,
+                key=key,
+                params=params,
+                dsd=dsd,
+            )
 
     async def conceptscheme(
         self,

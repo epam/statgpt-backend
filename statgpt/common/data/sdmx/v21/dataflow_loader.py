@@ -1,6 +1,7 @@
 from typing import Literal
 
 from sdmx.message import StructureMessage
+from sdmx.model.common import ItemScheme
 from sdmx.model.v21 import DataStructureDefinition
 
 from statgpt.common.settings.dataflow_loader import DataflowLoaderSettings
@@ -113,6 +114,8 @@ class DataflowLoader:
             core_repr = concept_item.core_representation
             if core_repr is not None and core_repr.enumerated is not None:
                 code_lists.add(Urn.for_artifact(core_repr.enumerated))
+        for item_scheme in self._get_local_representations(dsd):
+            code_lists.add(Urn.for_artifact(item_scheme))
 
         return code_lists
 
@@ -156,3 +159,20 @@ class DataflowLoader:
                 concepts.append(ConceptIdentity.from_sdmx1(dim.concept_identity))
 
         return concepts
+
+    @staticmethod
+    def _get_local_representations(dsd: DataStructureDefinition) -> list[ItemScheme]:
+        item_schemes = []
+        for attr in dsd.attributes.components:
+            if (
+                attr.local_representation is not None
+                and attr.local_representation.enumerated is not None
+            ):
+                item_schemes.append(attr.local_representation.enumerated)
+        for dim in dsd.dimensions.components:
+            if (
+                dim.local_representation is not None
+                and dim.local_representation.enumerated is not None
+            ):
+                item_schemes.append(dim.local_representation.enumerated)
+        return item_schemes
