@@ -7,7 +7,7 @@ T = TypeVar('T')
 
 
 class _CacheEntry(NamedTuple, Generic[T]):
-    future: asyncio.Future[T]
+    value: T
     expires_at: float
 
 
@@ -15,14 +15,32 @@ class AsyncLoadingCache(Generic[T]):
     """A cache that loads values asynchronously on cache miss,
     with optional validation and TTL-based expiration.
 
-    Concurrent requests for the same key are deduplicated: only one
-    load runs while other callers await its result. In-flight futures
-    are never evicted by TTL.
+    Uses per-key locks to deduplicate concurrent loads:
+    only one coroutine runs the loader while others wait
+    on the lock and then read the cached result.
     """
 
     def __init__(self, ttl: int | None = None) -> None:
         self._cache: dict[str, _CacheEntry[T]] = {}
+        self._locks: dict[str, asyncio.Lock] = {}
         self._ttl = ttl
+
+    def _get_lock(self, key: str) -> asyncio.Lock:
+        if key not in self._locks:
+            self._locks[key] = asyncio.Lock()
+        return self._locks[key]
+
+    def _is_valid(self, key: str, validator: Callable[[T], bool] | None) -> bool:
+        if key not in self._cache:
+            return False
+        entry = self._cache[key]
+        if time.time() >= entry.expires_at:
+            self._cache.pop(key, None)
+            return False
+        if validator is not None and not validator(entry.value):
+            self._cache.pop(key, None)
+            return False
+        return True
 
     async def get(
         self,
@@ -30,38 +48,23 @@ class AsyncLoadingCache(Generic[T]):
         loader: Callable[[], Awaitable[T]],
         validator: Callable[[T], bool] | None = None,
     ) -> T:
-        while True:
-            if key in self._cache:
-                entry = self._cache[key]
+        # Fast path: return cached value without acquiring lock
+        if self._is_valid(key, validator):
+            return self._cache[key].value
 
-                # TTL check (only for completed futures — in-flight ones are never evicted)
-                if entry.future.done() and time.time() >= entry.expires_at:
-                    if self._cache.get(key) is entry:
-                        self._cache.pop(key, None)
-                    continue
+        # Slow path: acquire per-key lock, then load if still missing
+        lock = self._get_lock(key)
+        async with lock:
+            # Double-check after acquiring the lock
+            if self._is_valid(key, validator):
+                return self._cache[key].value
 
-                value = await entry.future
-                if validator is None or validator(value):
-                    return value
-
-                # Validator failed — evict only if nobody replaced the entry while we awaited
-                if self._cache.get(key) is entry:
-                    self._cache.pop(key, None)
-                continue
-
-            # No entry — create one
-            future = asyncio.ensure_future(loader())
-            entry = _CacheEntry(
-                future=future,
+            value = await loader()
+            self._cache[key] = _CacheEntry(
+                value=value,
                 expires_at=time.time() + self._ttl if self._ttl is not None else float('inf'),
             )
-            self._cache[key] = entry
-            try:
-                return await future
-            except BaseException:  # includes CancelledError
-                if self._cache.get(key) is entry:
-                    self._cache.pop(key, None)
-                raise
+            return value
 
     def remove(self, key: str) -> None:
         self._cache.pop(key, None)

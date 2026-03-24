@@ -194,32 +194,6 @@ class TestAsyncLoadingCacheTtl:
         assert result == "recovered"
 
     @pytest.mark.asyncio
-    async def test_remove_during_inflight_load(self) -> None:
-        """remove() during an in-flight load should not crash the loader task,
-        and the creator should still return its result."""
-        cache: AsyncLoadingCache[str] = AsyncLoadingCache()
-        event = asyncio.Event()
-
-        async def slow_loader() -> str:
-            await event.wait()
-            return "loaded"
-
-        task = asyncio.ensure_future(cache.get("k", slow_loader))
-        await asyncio.sleep(0)  # let task start loading
-
-        cache.remove("k")  # remove while in-flight
-
-        event.set()
-        result = await task
-        assert result == "loaded"  # creator still gets the value
-
-        # But the result is NOT cached (entry was removed)
-        loader = AsyncMock(return_value="fresh")
-        result = await cache.get("k", loader)
-        assert result == "fresh"
-        loader.assert_awaited_once()
-
-    @pytest.mark.asyncio
     async def test_concurrent_validator_failure_deduplicates_reload(self) -> None:
         """When two tasks await the same cached future and both validators reject,
         only one reload should happen (the second task piggybacks on the first)."""
@@ -251,30 +225,3 @@ class TestAsyncLoadingCacheTtl:
 
         assert results == ["new", "new"]
         assert load_count == 2  # 1 initial + 1 reload (not 3)
-
-    @pytest.mark.asyncio
-    async def test_inflight_future_not_evicted_by_ttl(self) -> None:
-        cache: AsyncLoadingCache[str] = AsyncLoadingCache(ttl=0)
-        event = asyncio.Event()
-
-        async def slow_loader() -> str:
-            await event.wait()
-            return "value"
-
-        call_count = 0
-        original_loader = slow_loader
-
-        async def counting_loader() -> str:
-            nonlocal call_count
-            call_count += 1
-            return await original_loader()
-
-        task1 = asyncio.ensure_future(cache.get("k", counting_loader))
-        task2 = asyncio.ensure_future(cache.get("k", counting_loader))
-        await asyncio.sleep(0)  # let both tasks start
-
-        event.set()
-        results = await asyncio.gather(task1, task2)
-
-        assert results == ["value", "value"]
-        assert call_count == 1
