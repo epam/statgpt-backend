@@ -30,26 +30,38 @@ class AsyncLoadingCache(Generic[T]):
         loader: Callable[[], Awaitable[T]],
         validator: Callable[[T], bool] | None = None,
     ) -> T:
-        if key in self._cache:
-            entry = self._cache[key]
-            if entry.future.done() and time.time() >= entry.expires_at:
-                self._cache.pop(key, None)
-            else:
+        while True:
+            if key in self._cache:
+                entry = self._cache[key]
+
+                # TTL check (only for completed futures — in-flight ones are never evicted)
+                if entry.future.done() and time.time() >= entry.expires_at:
+                    if self._cache.get(key) is entry:
+                        self._cache.pop(key, None)
+                    continue
+
                 value = await entry.future
                 if validator is None or validator(value):
                     return value
-                self._cache.pop(key, None)
 
-        future = asyncio.ensure_future(loader())
-        self._cache[key] = _CacheEntry(
-            future=future,
-            expires_at=time.time() + self._ttl if self._ttl is not None else float('inf'),
-        )
-        try:
-            return await future
-        except BaseException:  # includes CancelledError to avoid caching canceled futures
-            self._cache.pop(key, None)
-            raise
+                # Validator failed — evict only if nobody replaced the entry while we awaited
+                if self._cache.get(key) is entry:
+                    self._cache.pop(key, None)
+                continue
+
+            # No entry — create one
+            future = asyncio.ensure_future(loader())
+            entry = _CacheEntry(
+                future=future,
+                expires_at=time.time() + self._ttl if self._ttl is not None else float('inf'),
+            )
+            self._cache[key] = entry
+            try:
+                return await future
+            except BaseException:  # includes CancelledError
+                if self._cache.get(key) is entry:
+                    self._cache.pop(key, None)
+                raise
 
     def remove(self, key: str) -> None:
         self._cache.pop(key, None)

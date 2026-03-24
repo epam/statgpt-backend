@@ -2,6 +2,7 @@
 
 import asyncio
 import time
+from collections.abc import Callable
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -164,6 +165,92 @@ class TestAsyncLoadingCacheTtl:
 
         assert result == "new"
         assert loader.await_count == 2
+
+    @pytest.mark.asyncio
+    async def test_concurrent_load_failure_propagates_to_both(self) -> None:
+        """When two tasks piggyback on the same future and it raises,
+        both should see the exception and the entry should be cleaned up for retry."""
+        cache: AsyncLoadingCache[str] = AsyncLoadingCache()
+        event = asyncio.Event()
+
+        async def failing_loader() -> str:
+            await event.wait()
+            raise ValueError("boom")
+
+        task1 = asyncio.ensure_future(cache.get("k", failing_loader))
+        task2 = asyncio.ensure_future(cache.get("k", failing_loader))
+        await asyncio.sleep(0)  # let both tasks start and piggyback
+
+        event.set()
+
+        with pytest.raises(ValueError, match="boom"):
+            await task1
+        with pytest.raises(ValueError, match="boom"):
+            await task2
+
+        # Entry should be cleaned up — next load succeeds
+        loader = AsyncMock(return_value="recovered")
+        result = await cache.get("k", loader)
+        assert result == "recovered"
+
+    @pytest.mark.asyncio
+    async def test_remove_during_inflight_load(self) -> None:
+        """remove() during an in-flight load should not crash the loader task,
+        and the creator should still return its result."""
+        cache: AsyncLoadingCache[str] = AsyncLoadingCache()
+        event = asyncio.Event()
+
+        async def slow_loader() -> str:
+            await event.wait()
+            return "loaded"
+
+        task = asyncio.ensure_future(cache.get("k", slow_loader))
+        await asyncio.sleep(0)  # let task start loading
+
+        cache.remove("k")  # remove while in-flight
+
+        event.set()
+        result = await task
+        assert result == "loaded"  # creator still gets the value
+
+        # But the result is NOT cached (entry was removed)
+        loader = AsyncMock(return_value="fresh")
+        result = await cache.get("k", loader)
+        assert result == "fresh"
+        loader.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_concurrent_validator_failure_deduplicates_reload(self) -> None:
+        """When two tasks await the same cached future and both validators reject,
+        only one reload should happen (the second task piggybacks on the first)."""
+        cache: AsyncLoadingCache[str] = AsyncLoadingCache()
+        event = asyncio.Event()
+        load_count = 0
+
+        async def counting_loader() -> str:
+            nonlocal load_count
+            load_count += 1
+            if load_count == 1:
+                return "old"
+            await event.wait()
+            return "new"
+
+        # Seed the cache with "old"
+        result = await cache.get("k", counting_loader)
+        assert result == "old"
+        assert load_count == 1
+
+        # Both tasks reject "old" via validator
+        reject_old: Callable[[str], bool] = lambda v: v != "old"
+        task1 = asyncio.ensure_future(cache.get("k", counting_loader, validator=reject_old))
+        task2 = asyncio.ensure_future(cache.get("k", counting_loader, validator=reject_old))
+        await asyncio.sleep(0)  # let both tasks discover "old" and reject it
+
+        event.set()
+        results = await asyncio.gather(task1, task2)
+
+        assert results == ["new", "new"]
+        assert load_count == 2  # 1 initial + 1 reload (not 3)
 
     @pytest.mark.asyncio
     async def test_inflight_future_not_evicted_by_ttl(self) -> None:
