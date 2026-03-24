@@ -16,7 +16,6 @@ class VectorStoreFactory:
     }
 
     def __init__(self, **kwargs):
-        # TODO: 'session' parameter seems to be required to be present in 'kwargs'!
         self._kwargs = kwargs
 
     async def get_vector_store(
