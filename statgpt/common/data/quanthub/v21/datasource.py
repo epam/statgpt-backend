@@ -26,7 +26,9 @@ from .qh_sdmx_client import AsyncQuanthubClient
 # todo: add generic typing with QuanthubInMemorySdmx21DataSet
 class QuanthubSdmx21DataSourceHandler(Sdmx21DataSourceHandler):
 
-    _dataset_cache: AsyncLoadingCache[QuanthubSdmx21DataSet] = AsyncLoadingCache()
+    _dataset_cache: AsyncLoadingCache[QuanthubSdmx21DataSet | SdmxOfflineDataSet] = (
+        AsyncLoadingCache()
+    )
 
     def __init__(self, config: QuanthubSdmxDataSourceConfig):
         super().__init__(config)
@@ -196,8 +198,15 @@ class QuanthubSdmx21DataSourceHandler(Sdmx21DataSourceHandler):
                 dataset_config = self.parse_data_set_config(config)
                 return await self._dataset_cache.get(
                     key=str(entity_id),
-                    loader=lambda: self._get_dataset(entity_id, title, config, auth_context),
-                    validator=lambda ds: ds.config == dataset_config,
+                    loader=lambda: self._get_dataset(
+                        entity_id, title, config, auth_context, allow_offline=allow_offline
+                    ),
+                    # NOTE: OfflineDataset may end up in the cache when allow_offline=True
+                    # and loading fails. The validator rejects it on the next access,
+                    # triggering a fresh load attempt (in case the upstream recovered).
+                    validator=lambda ds: (
+                        not isinstance(ds, SdmxOfflineDataSet) and ds.config == dataset_config
+                    ),
                 )
             return await self._get_dataset(
                 entity_id, title, config, auth_context, allow_offline=allow_offline
