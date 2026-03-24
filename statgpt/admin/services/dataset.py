@@ -61,6 +61,13 @@ class _DataHashes(NamedTuple):
     special_dimensions_hash: str | None
 
 
+class _ReindexParams(NamedTuple):
+    version_id: int
+    channel_dataset_id: int
+    harmonization_supported: bool
+    status_on_completion: StatusEnum
+
+
 class AutoUpdateChannelResult(NamedTuple):
     channel_id: int
     deployment_id: str
@@ -2268,16 +2275,17 @@ class AdminPortalDataSetService(DataSetService):
         await self._session.refresh(new_version)
         return new_version
 
-    async def _trigger_auto_update_reindex(
+    async def _prepare_auto_update_reindex(
         self,
         job: models.AutoUpdateJob,
         channel_dataset: models.ChannelDataset,
         new_resolved_config: dict,
         details: str,
-        auth_context: AuthContext,
-    ) -> None:
-        """Create a new version and trigger reindexing background tasks."""
+    ) -> _ReindexParams:
+        """Create a new version and prepare parameters for reindexing.
 
+        Must be called inside an active ``_scoped_session()`` block.
+        """
         new_version = await self._create_new_channel_dataset_version(
             channel_dataset_id=channel_dataset.id,
             reason="Auto-update triggered reindexing",
@@ -2300,20 +2308,34 @@ class AdminPortalDataSetService(DataSetService):
 
         await self._update_channel_dataset_version_status(new_version, StatusEnum.QUEUED)
 
+        return _ReindexParams(
+            version_id=new_version.id,
+            channel_dataset_id=channel_dataset.id,
+            harmonization_supported=harmonization_supported,
+            status_on_completion=status_on_completion,
+        )
+
+    async def _execute_auto_update_reindex(
+        self,
+        auto_update_job_id: int,
+        params: _ReindexParams,
+        auth_context: AuthContext,
+    ) -> None:
+        """Run reindexing background tasks. Must be called outside ``_scoped_session()``."""
         await self.reload_channel_dataset_in_background(
-            channel_dataset_version_id=new_version.id,
+            channel_dataset_version_id=params.version_id,
             version_ids=None,
             reindex_indicators=True,
             harmonize_indicator=False,
             reindex_dimensions=True,
             auth_context=auth_context,
             max_n_embeddings=None,
-            status_on_completion=status_on_completion,
+            status_on_completion=params.status_on_completion,
         )
 
-        if harmonization_supported:
+        if params.harmonization_supported:
             await self.reload_channel_dataset_in_background(
-                channel_dataset_version_id=new_version.id,
+                channel_dataset_version_id=params.version_id,
                 version_ids=None,
                 reindex_indicators=True,
                 harmonize_indicator=True,
@@ -2323,12 +2345,15 @@ class AdminPortalDataSetService(DataSetService):
             )
 
         await self.clear_channel_dataset_data_in_background(
-            channel_dataset_id=channel_dataset.id,
+            channel_dataset_id=params.channel_dataset_id,
             auth_context=auth_context,
         )
-        await self._set_auto_update_job_status(
-            job, StatusEnum.COMPLETED, result=schemas.AutoUpdateResult.REINDEX_TRIGGERED
-        )
+
+        async with self._scoped_session():
+            job = await self._get_auto_update_job_or_raise(auto_update_job_id)
+            await self._set_auto_update_job_status(
+                job, StatusEnum.COMPLETED, result=schemas.AutoUpdateResult.REINDEX_TRIGGERED
+            )
 
     async def process_auto_update_job(
         self,
@@ -2420,7 +2445,8 @@ class AdminPortalDataSetService(DataSetService):
                     )
                 details += f" Structure has not changed. {data_details}"
 
-            # Phase C: DB writes — trigger reindex or update status
+            # Phase C: DB writes — prepare reindex or update status
+            reindex_params: _ReindexParams | None = None
             async with self._scoped_session():
                 job = await self._get_auto_update_job_or_raise(auto_update_job_id)
                 channel_dataset = await self._get_channel_dataset_model_or_raise(channel_dataset_id)
@@ -2428,8 +2454,8 @@ class AdminPortalDataSetService(DataSetService):
                 job.base_version_id = last_completed.id
 
                 if structure_changed or data_changed:
-                    await self._trigger_auto_update_reindex(
-                        job, channel_dataset, new_resolved_config, details, auth_context
+                    reindex_params = await self._prepare_auto_update_reindex(
+                        job, channel_dataset, new_resolved_config, details
                     )
                 elif new_resolved_config != last_completed.resolved_config:
                     new_version = await self._create_config_only_version(
@@ -2449,6 +2475,14 @@ class AdminPortalDataSetService(DataSetService):
                         details=details,
                         result=schemas.AutoUpdateResult.NO_CHANGES,
                     )
+
+            # Phase D: Trigger reindex tasks (outside session scope)
+            if reindex_params is not None:
+                await self._execute_auto_update_reindex(
+                    auto_update_job_id=auto_update_job_id,
+                    params=reindex_params,
+                    auth_context=auth_context,
+                )
 
         except Exception as e:
             _log.exception(f"Failed to process auto-update job {auto_update_job_id}")
