@@ -139,6 +139,19 @@ class DataResponse(ABC):
         """Return the Python code to query the data source."""
 
     @property
+    def python_code_header(self) -> str | None:
+        """Return the header/imports portion of the Python code (for merging multiple queries)."""
+        return None
+
+    def get_python_code_body(self, suffix: str = "") -> str | None:
+        """Return the Python code body (without header/imports) for this query.
+
+        When suffix is non-empty, variable names are suffixed to avoid
+        conflicts when merging multiple queries into a single script.
+        """
+        return None
+
+    @property
     @abstractmethod
     def time_period(self) -> tuple[str, str] | None:
         """Return the time period covered by the data in this response as a tuple of (start, end)."""

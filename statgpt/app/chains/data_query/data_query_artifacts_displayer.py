@@ -178,6 +178,10 @@ class DataQueryArtifactDisplayer:
                 tasks.append(self._attach_data_response(attachments_storage, response))
             await asyncio.gather(*tasks)
 
+        merged_python = self._create_merged_python_code_attachment(responses)
+        if merged_python is not None:
+            self._choice.add_attachment(**merged_python)
+
     async def _attach_data_response(
         self, attachments_storage: AttachmentsStorage, data_response: DataResponse
     ) -> None:
@@ -187,7 +191,6 @@ class DataQueryArtifactDisplayer:
             self._attach_csv(attachments_storage, data_response),
             self._attach_markdown_json_query(data_response),
             self._attach_json_query(data_response),
-            self._attach_python_code(data_response),
         ]
 
         if self._config.plotly_graphs.enabled:
@@ -286,20 +289,48 @@ class DataQueryArtifactDisplayer:
         response = await attachments_storage.put_json(filename, chart_json)
         return dict(type=MediaTypes.PLOTLY, title=title, url=response.url)
 
-    @catch_and_log_async(logger)
-    async def _attach_python_code(self, data_response: DataResponse) -> dict[str, str] | None:
+    def _create_merged_python_code_attachment(
+        self, responses: dict[str, DataResponse]
+    ) -> dict[str, str] | None:
         if not self._config.python_code.enabled:
-            return None
-
-        data = data_response.python_code
-        if not data:
             return None
 
         assert (
             self._config.python_code.name is not None
         ), "python_code.name must be set when enabled"
-        title = data_response.enrich_attachment_name(self._config.python_code.name)
-        return dict(type=MediaTypes.MARKDOWN, title=title, data=get_python_code_markdown(data))
+
+        items = [r for r in responses.values() if r.python_code]
+        if not items:
+            return None
+
+        if len(items) == 1:
+            response = items[0]
+            title = response.enrich_attachment_name(self._config.python_code.name)
+            return dict(
+                type=MediaTypes.MARKDOWN,
+                title=title,
+                data=get_python_code_markdown(response.python_code),  # type: ignore[arg-type]
+            )
+
+        header: str | None = None
+        bodies: list[str] = []
+        for i, response in enumerate(items):
+            if header is None:
+                header = response.python_code_header
+            body = response.get_python_code_body(suffix=f"_{i + 1}")
+            if body:
+                bodies.append(f"# Dataset: {response.dataset_name}\n{body}")
+
+        if not bodies or header is None:
+            return None
+
+        merged_code = header + "\n\n" + "\n\n".join(bodies)
+        title = self._config.python_code.name.split("{")[0].rstrip(": ")
+        return dict(
+            type=MediaTypes.MARKDOWN,
+            title=title,
+            data=get_python_code_markdown(merged_code),
+        )
 
     @catch_and_log_async(logger)
     async def _attach_plotly_grid(

@@ -76,6 +76,15 @@ if t.TYPE_CHECKING:
 
 _log = logging.getLogger(__name__)
 
+_PYTHON_SDMX1_HEADER = """\
+# Uses the [sdmx1 library](https://pypi.org/project/sdmx1/)
+# Install with:
+# ```bash
+# pip install sdmx1
+# ```
+
+import sdmx"""
+
 
 class SdmxOfflineDataSet(OfflineDataSet[SdmxDataSetConfig, 'Sdmx21DataSourceHandler']):
     @property
@@ -233,6 +242,13 @@ class Sdmx21DataResponse(DataResponse):
     @property
     def python_code(self) -> str | None:
         return self.dataset.get_python_code(self.sdmx_query)
+
+    @property
+    def python_code_header(self) -> str:
+        return _PYTHON_SDMX1_HEADER
+
+    def get_python_code_body(self, suffix: str = "") -> str | None:
+        return self.dataset.get_python_code_body(self.sdmx_query, suffix=suffix)
 
     @cached_property
     def time_period(self) -> tuple[str, str] | None:
@@ -1248,33 +1264,32 @@ class Sdmx21DataSet(
         )
 
     def get_python_code(self, sdmx_query: SdmxDataSetQuery) -> str:
+        return _PYTHON_SDMX1_HEADER + "\n\n" + self.get_python_code_body(sdmx_query)
+
+    def get_python_code_body(
+        self, sdmx_query: SdmxDataSetQuery, suffix: str = ""
+    ) -> str:
         if self._datasource.config.sdmx1_source:
             provider = self._datasource.config.sdmx1_source
         else:
             provider = self._artefact.maintainer.id  # type: ignore
 
-        return self._get_python_query(
+        return self._get_python_query_body(
             provider=provider,
             resource_id=self.source_id,
             keys=sdmx_query.get_key(),
             params=sdmx_query.get_params(),
+            suffix=suffix,
         )
 
     @staticmethod
-    def _get_python_query(provider: str, resource_id: str, keys: dict, params: dict) -> str:
+    def _get_python_query_body(
+        provider: str, resource_id: str, keys: dict, params: dict, suffix: str = ""
+    ) -> str:
         return f'''\
-# Uses the [sdmx1 library](https://pypi.org/project/sdmx1/)
-# Install with:
-# ```bash
-# pip install sdmx1
-# ```
-
-import sdmx
-
-provider = sdmx.Client("{provider}")
-data_msg = provider.data(
+provider{suffix} = sdmx.Client("{provider}")
+data_msg{suffix} = provider{suffix}.data(
     "{resource_id}",
     key={keys},
     params={params}
-)\
-'''
+)'''
