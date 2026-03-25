@@ -2411,6 +2411,7 @@ class AdminPortalDataSetService(DataSetService):
         auth_context: AuthContext,
     ) -> None:
         """Process an auto-update job in the background."""
+        _log.info(f"Processing auto-update job {auto_update_job_id}")
         try:
             # Phase A: DB reads — load job, channel_dataset, check state
             async with self._scoped_session():
@@ -2425,6 +2426,9 @@ class AdminPortalDataSetService(DataSetService):
 
                 channel_dataset_id = job.channel_dataset_id
                 channel_dataset = await self._get_channel_dataset_model_or_raise(channel_dataset_id)
+                _log.info(
+                    f"Auto-update job {auto_update_job_id}: channel_dataset_id={channel_dataset_id}"
+                )
 
                 if await self._is_indexing_in_progress(channel_dataset_id):
                     msg = f"Channel dataset {channel_dataset_id} is currently being indexed."
