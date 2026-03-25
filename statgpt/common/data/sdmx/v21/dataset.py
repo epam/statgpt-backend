@@ -1266,9 +1266,7 @@ class Sdmx21DataSet(
     def get_python_code(self, sdmx_query: SdmxDataSetQuery) -> str:
         return _PYTHON_SDMX1_HEADER + "\n\n" + self.get_python_code_body(sdmx_query)
 
-    def get_python_code_body(
-        self, sdmx_query: SdmxDataSetQuery, suffix: str = ""
-    ) -> str:
+    def get_python_code_body(self, sdmx_query: SdmxDataSetQuery, suffix: str = "") -> str:
         if self._datasource.config.sdmx1_source:
             provider = self._datasource.config.sdmx1_source
         else:
