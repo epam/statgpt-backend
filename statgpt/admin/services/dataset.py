@@ -1197,6 +1197,28 @@ class AdminPortalDataSetService(DataSetService):
             if old_hash != new_hash
         ]
 
+    @staticmethod
+    def _select_versions_to_clear(
+        versions: list[models.ChannelDatasetVersion],
+    ) -> list[int]:
+        """Select old versions eligible for data clearing.
+
+        Keeps the last 2 completed versions and returns IDs of the rest
+        (completed beyond the last 2, plus any other final-status versions).
+        """
+        skip_last_completed = 2
+        versions_to_clear: list[int] = []
+        for version in versions:
+            _status = version.preprocessing_status
+            if _status == StatusEnum.COMPLETED:
+                if skip_last_completed:
+                    skip_last_completed -= 1
+                else:
+                    versions_to_clear.append(version.id)
+            elif _status in StatusEnum.final_statuses():
+                versions_to_clear.append(version.id)
+        return versions_to_clear
+
     async def clear_channel_dataset_versions_data(
         self, channel_id: int, dataset_id: int, auth_context: AuthContext
     ):
@@ -1211,17 +1233,7 @@ class AdminPortalDataSetService(DataSetService):
             limit=20, offset=0, channel_dataset_id=channel_dataset.id
         )
 
-        skip_last_completed = 2
-        versions_to_clear: list[int] = []
-        for version in versions:
-            _status = version.preprocessing_status
-            if _status == StatusEnum.COMPLETED:
-                if skip_last_completed:
-                    skip_last_completed -= 1
-                else:
-                    versions_to_clear.append(version.id)
-            elif _status in StatusEnum.final_statuses():
-                versions_to_clear.append(version.id)
+        versions_to_clear = self._select_versions_to_clear(versions)
 
         if versions_to_clear:
             await self._clear_channel_dataset_data(
@@ -1846,15 +1858,36 @@ class AdminPortalDataSetService(DataSetService):
     ) -> None:
         _log.info(f"Clear data after reindexing channel_dataset_id={channel_dataset_id}")
         try:
+            # Phase A: DB reads — load entities, set status, determine versions to clear
             async with self._scoped_session():
                 channel_dataset = await self._get_channel_dataset_model_or_raise(channel_dataset_id)
                 await self._update_channel_dataset_status(
                     channel_dataset, new_status=StatusEnum.IN_PROGRESS
                 )
 
-                await self.clear_channel_dataset_versions_data(
-                    channel_dataset.channel_id, channel_dataset.dataset_id, auth_context
+                channel: models.Channel = await ChannelService(self._session).get_model_by_id(
+                    channel_dataset.channel_id
                 )
+
+                versions = await self.get_channel_dataset_version_models(
+                    limit=20, offset=0, channel_dataset_id=channel_dataset.id
+                )
+                versions_to_clear = self._select_versions_to_clear(versions)
+
+            # Phase B: Vector store + elastic clearing — no DB session held
+            if versions_to_clear:
+                await self._clear_channel_dataset_data(
+                    channel,
+                    auth_context=auth_context,
+                    dataset_id=None,
+                    version_ids=versions_to_clear,
+                )
+            else:
+                _log.info("No versions to clear data for.")
+
+            # Phase C: DB write — update status to COMPLETED
+            async with self._scoped_session():
+                channel_dataset = await self._get_channel_dataset_model_or_raise(channel_dataset_id)
                 await self._update_channel_dataset_status(
                     channel_dataset, new_status=StatusEnum.COMPLETED
                 )
