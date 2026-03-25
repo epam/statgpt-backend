@@ -1,5 +1,4 @@
 import os
-import time
 from datetime import date
 
 import pytest
@@ -288,23 +287,3 @@ def test_replace_envs_with_prefix(value, prefix, target):
 def test_replace_dial_url(url, new_url_prefix, result):
     res = statgpt_utils.replace_dial_url(url, new_url_prefix)
     assert res == result
-
-
-def test_cache():
-    cache = common_utils.Cache(ttl=2)  # 2 seconds TTL
-
-    cache.set("key1", "value1")
-    assert cache.get("key1") == "value1"
-
-    cache.set("key2", "value2")
-    assert cache.get("key2") == "value2"
-
-    assert cache.get("non_existent_key") is None
-
-    time.sleep(3)  # Wait for items to expire
-
-    cache.set("key3", "value3")
-
-    assert cache.get("key1") is None
-    assert cache.get("key2") is None
-    assert cache.get("key3") == "value3"

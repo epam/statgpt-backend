@@ -4,9 +4,9 @@ from statgpt.common.auth.auth_context import AuthContext
 from statgpt.common.config import multiline_logger as logger
 from statgpt.common.schemas.dial import Pricing
 from statgpt.common.settings.dial import dial_settings
-from statgpt.common.utils import Cache, DialCore
+from statgpt.common.utils import DialCore, TtlCache
 
-_CACHE: Cache[Pricing] = Cache(ttl=24 * 3600)  # 24 hours
+_CACHE: TtlCache[Pricing] = TtlCache(ttl=24 * 3600)  # 24 hours
 
 
 class ModelPricingAuthContext(AuthContext):
