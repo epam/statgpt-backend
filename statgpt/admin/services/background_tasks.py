@@ -43,11 +43,18 @@ def background_task(
                 )
 
                 try:
-                    result = await func(*args, **kwargs)
+                    async with asyncio.timeout(_SETTINGS.task_timeout) as timeout_scope:
+                        result = await func(*args, **kwargs)
                     _log.info(f"[{task_id}] Completed successfully")
                     return result
                 except asyncio.CancelledError:
                     _log.warning(f"[{task_id}] Was cancelled")
+                    raise
+                except TimeoutError:
+                    if timeout_scope.expired():
+                        _log.error(f"[{task_id}] Timed out after {_SETTINGS.task_timeout}s")
+                    else:
+                        _log.error(f"[{task_id}] Failed with inner timeout")
                     raise
                 except Exception as e:
                     _log.error(f"[{task_id}] Failed with exception: {e}")
