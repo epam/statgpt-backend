@@ -4,7 +4,6 @@ Batch auto-update script for all datasets in channels with `allow_auto_update` e
 
 import asyncio
 import logging
-import sys
 
 import statgpt.common.schemas as schemas
 from statgpt.admin.auth.auth_context import SystemUserAuthContext
@@ -143,11 +142,9 @@ async def main() -> None:
         _log.info(_SEPARATOR)
         if not success:
             _log.error("Batch auto-update finished with failures")
-            sys.exit(1)
         _log.info("Batch auto-update script completed successfully")
     except Exception:
         _log.exception("Error in batch auto-update script:")
-        sys.exit(1)
 
 
 if __name__ == "__main__":

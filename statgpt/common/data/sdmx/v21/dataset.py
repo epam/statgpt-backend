@@ -625,7 +625,7 @@ class Sdmx21DataSet(
             f'{self.source_id}. Will extract available combinations for following indicator dimensions: {indicator_ids}'
         )
 
-        time_start = time.time()
+        time_start = time.monotonic()
 
         query = DataSetAvailabilityQuery(dimensions_queries_dict={})
         avail_query_resp = await self.availability_query(query=query, auth_context=auth_context)
@@ -653,7 +653,7 @@ class Sdmx21DataSet(
             f"{self.source_id}. Number of series extracted: {len(series)}. Number of queries sent: {queries_count}"
         )
 
-        elapsed_time = time.time() - time_start
+        elapsed_time = time.monotonic() - time_start
         _log.info(f'{self.source_id}. elapsed time: {elapsed_time :.3f} sec')
 
         virtual_indicator_dimensions = self.virtual_indicator_dimensions()

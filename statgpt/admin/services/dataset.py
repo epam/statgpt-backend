@@ -735,6 +735,7 @@ class AdminPortalDataSetService(DataSetService):
         await self._session.refresh(dataset, attribute_names=["mapped_channels"])
 
         if not dataset.mapped_channels:
+            _log.info(f"Dataset(id={dataset.id_}): no mapped channels, skipping config propagation")
             return []
 
         results: list[schemas.ChannelDatasetUpdateResult] = []
@@ -762,8 +763,16 @@ class AdminPortalDataSetService(DataSetService):
                 and latest_version.preprocessing_status not in StatusEnum.final_statuses()
             ):
                 status = schemas.ChannelDatasetUpdateStatus.INDEXING_IN_PROGRESS
+                _log.info(
+                    f"ChannelDataset(dataset={dataset.id_}, channel={channel.deployment_id!r}):"
+                    f" indexing in progress, skipping"
+                )
             elif last_completed is None:
                 status = schemas.ChannelDatasetUpdateStatus.NO_VERSION
+                _log.info(
+                    f"ChannelDataset(dataset={dataset.id_}, channel={channel.deployment_id!r}):"
+                    f" no completed version, skipping"
+                )
             else:
                 _, resolved_config = await handler.resolve_config(
                     config=dataset.details,
@@ -779,8 +788,16 @@ class AdminPortalDataSetService(DataSetService):
                     )
                     other_fields['new_version'] = new_version
                     status = schemas.ChannelDatasetUpdateStatus.AUTO_UPDATED
+                    _log.info(
+                        f"ChannelDataset(dataset={dataset.id_}, channel={channel.deployment_id!r}):"
+                        f" auto-updated with new version"
+                    )
                 else:
                     status = schemas.ChannelDatasetUpdateStatus.NEEDS_REINDEX
+                    _log.info(
+                        f"ChannelDataset(dataset={dataset.id_}, channel={channel.deployment_id!r}):"
+                        f" indexing hash changed, needs reindex"
+                    )
 
             results.append(
                 schemas.ChannelDatasetUpdateResult(
