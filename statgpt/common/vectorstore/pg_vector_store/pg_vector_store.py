@@ -1,8 +1,10 @@
+import asyncio
 import hashlib
 import io
 import json
 import logging
 import os
+import time
 import uuid
 import zipfile
 from collections.abc import AsyncIterator, Iterable
@@ -155,8 +157,15 @@ class PgVectorStore(VectorStore):
         # Use first 8 bytes to generate a bigint for PostgreSQL advisory lock
         return int.from_bytes(hash_bytes[:8], byteorder='big', signed=True)
 
-    async def _acquire_dataset_lock(self, session: AsyncSession, dataset_id: uuid.UUID) -> int:
+    async def _acquire_dataset_lock(
+        self,
+        session: AsyncSession,
+        dataset_id: uuid.UUID,
+    ) -> int:
         """Acquires a session-level advisory lock for the given dataset_id within this channel.
+
+        Uses pg_try_advisory_lock with a polling loop instead of the blocking
+        pg_advisory_lock to avoid hanging indefinitely when the lock is contended.
 
         Returns the lock key which should be passed to _release_dataset_lock.
         This lock persists across multiple transactions until explicitly released.
@@ -166,11 +175,26 @@ class PgVectorStore(VectorStore):
         # Ensure session is in a clean state before acquiring lock
         if session.in_transaction() and not session.is_active:
             await session.rollback()
-        await session.execute(text("SELECT pg_advisory_lock(:lock_key)"), {"lock_key": lock_key})
-        _log.debug(
-            f"Acquired advisory lock for collection={self._collection_name} dataset={dataset_id} (key={lock_key})"
-        )
-        return lock_key
+
+        timeout_s = self._postgres_settings.advisory_lock_timeout
+        poll_interval_s = self._postgres_settings.advisory_lock_poll_interval
+        deadline = time.monotonic() + timeout_s
+        while True:
+            result = await session.execute(
+                text("SELECT pg_try_advisory_lock(:lock_key)"), {"lock_key": lock_key}
+            )
+            if result.scalar():
+                _log.debug(
+                    f"Acquired advisory lock for collection={self._collection_name} "
+                    f"dataset={dataset_id} (key={lock_key})"
+                )
+                return lock_key
+            if time.monotonic() >= deadline:
+                raise TimeoutError(
+                    f"Could not acquire advisory lock for collection={self._collection_name} "
+                    f"dataset={dataset_id} (key={lock_key}) within {timeout_s}s"
+                )
+            await asyncio.sleep(poll_interval_s)
 
     async def _release_dataset_lock(self, session: AsyncSession, lock_key: int) -> None:
         """Releases a session-level advisory lock.
