@@ -231,7 +231,7 @@ class QuanthubSdmx21DataSourceHandler(Sdmx21DataSourceHandler):
                 return SdmxOfflineDataSet(entity_id, title, dataset_config, self, status)
             raise
 
-        return res
+        return result
 
     async def get_dataset(
         self,
