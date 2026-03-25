@@ -31,7 +31,9 @@ from statgpt.common.utils.timer import debug_timer
 class ProxySdmx30DataSourceHandler(Sdmx21DataSourceHandler):
     """SDMX 3.0 proxy source that is parsed via sdmx1 (SDMX 2.1) models."""
 
-    _dataset_cache: TtlCache[Sdmx30ProxyDataSet] = TtlCache(ttl=proxy_sdmx_settings.dataset_cache_ttl)
+    _dataset_cache: TtlCache[Sdmx30ProxyDataSet] = TtlCache(
+        ttl=proxy_sdmx_settings.dataset_cache_ttl
+    )
 
     def __init__(self, config: ProxySdmx30DataSourceConfig):
         super().__init__(config)
