@@ -9,22 +9,22 @@ class CacheItem(NamedTuple, Generic[T]):
     expiry: float
 
 
-class Cache(Generic[T]):
+class TtlCache(Generic[T]):
     def __init__(self, ttl: int = 3600):
         self._cache: dict[str, CacheItem[T]] = {}
         self._ttl = ttl
 
     def set(self, key: str, value: T) -> None:
-        expiry = time.time() + self._ttl
+        expiry = time.monotonic() + self._ttl
         self._cache[key] = CacheItem(value=value, expiry=expiry)
 
     def get(self, key: str, default: T | None = None) -> T | None:
         if key in self._cache:
             item = self._cache[key]
-            if time.time() < item.expiry:
+            if time.monotonic() < item.expiry:
                 return item.value
             else:
-                self._remove_expired_item(key)
+                self.remove(key)
         return default
 
     def clear(self) -> None:
@@ -33,10 +33,11 @@ class Cache(Generic[T]):
 
     def cleanup(self) -> None:
         """Remove all expired items from the cache"""
-        current_time = time.time()
+        current_time = time.monotonic()
         expired_keys = [key for key, item in self._cache.items() if current_time >= item.expiry]
         for key in expired_keys:
-            self._remove_expired_item(key)
+            self.remove(key)
 
-    def _remove_expired_item(self, key: str) -> None:
+    def remove(self, key: str) -> None:
+        """Remove a specific item from the cache by key."""
         self._cache.pop(key, None)
