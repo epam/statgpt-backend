@@ -120,7 +120,7 @@ class AdminPortalChannelService(ChannelService):
 
         await self._clear_vector_store(item, auth_context)
 
-        if self.is_channel_hybrid(item):
+        if self.is_channel_hybrid(deleted_item):
             await self._clear_elastic_indexes(item)
 
         await self._session.delete(item)

@@ -177,7 +177,7 @@ class PgVectorStore(VectorStore):
             await session.rollback()
 
         timeout_s = self._postgres_settings.advisory_lock_timeout
-        poll_interval_s = self._postgres_settings.advisory_lock_poll_interval
+        current_interval = 0.1
         deadline = time.monotonic() + timeout_s
         while True:
             result = await session.execute(
@@ -189,12 +189,14 @@ class PgVectorStore(VectorStore):
                     f"dataset={dataset_id} (key={lock_key})"
                 )
                 return lock_key
-            if time.monotonic() >= deadline:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
                 raise TimeoutError(
                     f"Could not acquire advisory lock for collection={self._collection_name} "
                     f"dataset={dataset_id} (key={lock_key}) within {timeout_s}s"
                 )
-            await asyncio.sleep(poll_interval_s)
+            await asyncio.sleep(min(current_interval, remaining))
+            current_interval = min(current_interval * 1.5, 5.0)
 
     async def _release_dataset_lock(self, session: AsyncSession, lock_key: int) -> None:
         """Releases a session-level advisory lock.

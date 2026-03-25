@@ -886,23 +886,34 @@ class AdminPortalDataSetService(DataSetService):
     async def remove_channel_dataset(
         self, channel_id: int, dataset_id: int, auth_context: AuthContext
     ) -> None:
-        channel: models.Channel = await ChannelService(self._session).get_model_by_id(channel_id)
-        dataset: models.DataSet = await self.get_model_by_id(dataset_id)
-        channel_dataset = await self.get_channel_dataset_model_or_none(
-            channel_id=channel.id, dataset_id=dataset.id
-        )
-        if not channel_dataset:
-            return
+        # Phase A: DB reads
+        async with self._scoped_session():
+            channel: schemas.Channel = await ChannelService(self._session).get_schema_by_id(
+                channel_id
+            )
+            dataset: models.DataSet = await self.get_model_by_id(dataset_id)
+            channel_dataset = await self.get_channel_dataset_model_or_none(
+                channel_id=channel.id, dataset_id=dataset.id
+            )
+            if not channel_dataset:
+                return
+            dataset_uuid = dataset.id_
+            channel_dataset_id = channel_dataset.id
 
+        # Phase B: Clear data — no DB session held
         await self._clear_channel_dataset_data(
-            channel, auth_context=auth_context, dataset_id=dataset.id_, version_ids=None
+            channel, auth_context=auth_context, dataset_id=dataset_uuid, version_ids=None
         )
-        await self._session.delete(channel_dataset)
-        await self._session.commit()
+
+        # Phase C: DB write — delete channel_dataset
+        async with self._scoped_session():
+            channel_dataset = await self._get_channel_dataset_model_or_raise(channel_dataset_id)
+            await self._session.delete(channel_dataset)
+            await self._session.commit()
 
     async def _clear_channel_dataset_data(
         self,
-        channel: models.Channel,
+        channel: schemas.Channel,
         auth_context: AuthContext,
         *,
         dataset_id: uuid.UUID | None,
@@ -919,7 +930,7 @@ class AdminPortalDataSetService(DataSetService):
 
     async def _clear_vector_stores(
         self,
-        channel: models.Channel,
+        channel: schemas.Channel,
         auth_context: AuthContext,
         dataset_id: uuid.UUID | None,
         version_ids: list[int] | None,
@@ -941,7 +952,7 @@ class AdminPortalDataSetService(DataSetService):
 
     @staticmethod
     async def _clear_elastic_indices(
-        channel: models.Channel, *, dataset_id: uuid.UUID | None, version_ids: list[int] | None
+        channel: schemas.Channel, *, dataset_id: uuid.UUID | None, version_ids: list[int] | None
     ) -> None:
         _log.info("[Elastic] Clearing existing indicators in the matching and indicators indexes")
 
@@ -1222,7 +1233,7 @@ class AdminPortalDataSetService(DataSetService):
     async def clear_channel_dataset_versions_data(
         self, channel_id: int, dataset_id: int, auth_context: AuthContext
     ):
-        channel: models.Channel = await ChannelService(self._session).get_model_by_id(channel_id)
+        channel: schemas.Channel = await ChannelService(self._session).get_schema_by_id(channel_id)
         dataset: models.DataSet = await self.get_model_by_id(dataset_id)
         channel_dataset = await self.get_channel_dataset_model_or_raise(
             channel_id=channel_id, dataset_id=dataset.id
@@ -1314,7 +1325,7 @@ class AdminPortalDataSetService(DataSetService):
         auth_context: AuthContext,
         max_n_embeddings: int | None = None,
     ) -> list[schemas.ChannelDatasetExpanded]:
-        channel: models.Channel = await ChannelService(self._session).get_model_by_id(channel_id)
+        channel: schemas.Channel = await ChannelService(self._session).get_schema_by_id(channel_id)
         channel_datasets: list[models.ChannelDataset] = await self.get_channel_dataset_models(
             limit=None, offset=0, channel_id=channel.id
         )
@@ -1405,7 +1416,7 @@ class AdminPortalDataSetService(DataSetService):
         auth_context: AuthContext,
         max_n_embeddings: int | None = None,
     ) -> schemas.ChannelDatasetExpanded:
-        channel: models.Channel = await ChannelService(self._session).get_model_by_id(channel_id)
+        channel: schemas.Channel = await ChannelService(self._session).get_schema_by_id(channel_id)
         dataset: schemas.DataSet = await self.get_schema_by_id(dataset_id, auth_context)
         channel_dataset = await self.get_channel_dataset_model_or_raise(
             channel_id=channel_id, dataset_id=dataset_id
@@ -1465,7 +1476,7 @@ class AdminPortalDataSetService(DataSetService):
         )
 
     @classmethod
-    def _is_harmonization_supported(cls, channel: models.Channel) -> bool:
+    def _is_harmonization_supported(cls, channel: schemas.Channel) -> bool:
         return ChannelService.is_channel_hybrid(channel)
 
     @staticmethod
@@ -1865,7 +1876,7 @@ class AdminPortalDataSetService(DataSetService):
                     channel_dataset, new_status=StatusEnum.IN_PROGRESS
                 )
 
-                channel: models.Channel = await ChannelService(self._session).get_model_by_id(
+                channel: schemas.Channel = await ChannelService(self._session).get_schema_by_id(
                     channel_dataset.channel_id
                 )
 
@@ -2350,7 +2361,7 @@ class AdminPortalDataSetService(DataSetService):
             result=schemas.AutoUpdateResult.REINDEX_TRIGGERED,
         )
 
-        channel = channel_dataset.channel
+        channel = ChannelSerializer.db_to_schema(channel_dataset.channel)
         harmonization_supported = self._is_harmonization_supported(channel)
         status_on_completion = (
             StatusEnum.QUEUED if harmonization_supported else StatusEnum.COMPLETED

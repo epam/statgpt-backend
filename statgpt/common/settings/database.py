@@ -46,10 +46,6 @@ class PostgresSettings(BaseSettings):
         default=300.0, description="Timeout in seconds for acquiring pg_advisory_lock"
     )
 
-    advisory_lock_poll_interval: PositiveFloat = Field(
-        default=0.5, description="Poll interval in seconds for pg_try_advisory_lock retries"
-    )
-
     alembic_max_retries: PositiveInt = Field(
         default=3, description="Maximum number of alembic version check retry attempts"
     )
