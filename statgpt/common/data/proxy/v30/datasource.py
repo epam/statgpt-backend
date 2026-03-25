@@ -24,14 +24,14 @@ from statgpt.common.data.sdmx.v21.schemas import StructureMessage21, Urn
 from statgpt.common.data.sdmx.v21.urn_utils import is_wildcarded_version, lookup_urn
 from statgpt.common.schemas.dataset import Status
 from statgpt.common.settings.sdmx import proxy_sdmx_settings
-from statgpt.common.utils import Cache
+from statgpt.common.utils import TtlCache
 from statgpt.common.utils.timer import debug_timer
 
 
 class ProxySdmx30DataSourceHandler(Sdmx21DataSourceHandler):
     """SDMX 3.0 proxy source that is parsed via sdmx1 (SDMX 2.1) models."""
 
-    _dataset_cache: Cache[Sdmx30ProxyDataSet] = Cache(ttl=proxy_sdmx_settings.dataset_cache_ttl)
+    _dataset_cache: TtlCache[Sdmx30ProxyDataSet] = TtlCache(ttl=proxy_sdmx_settings.dataset_cache_ttl)
 
     def __init__(self, config: ProxySdmx30DataSourceConfig):
         super().__init__(config)
