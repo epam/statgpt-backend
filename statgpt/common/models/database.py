@@ -244,6 +244,13 @@ class ReadOnlySessionMakerSingleton:
 
 # Dependency
 async def get_session() -> AsyncGenerator[AsyncSession, None]:
+    """Yield a database session for use as a FastAPI dependency.
+
+    WARNING: When used with FastAPI's Depends(), this session stays open until
+    ALL BackgroundTasks complete — not just until the response is sent.
+    For endpoints that schedule background tasks, use get_session_context_manager()
+    instead to avoid holding connections for the duration of long-running tasks.
+    """
     _log.debug("get_session: Acquiring non-expiring session")
     session_maker = await SessionMakerSingleton.get_or_create()
     async with session_maker() as session:
@@ -272,32 +279,32 @@ async def get_readonly_session() -> AsyncGenerator[AsyncSession, None]:
 
 
 @asynccontextmanager
-async def get_session_contex_manager() -> AsyncGenerator[AsyncSession, None]:
-    _log.debug("get_session_contex_manager: Acquiring non-expiring session")
+async def get_session_context_manager() -> AsyncGenerator[AsyncSession, None]:
+    _log.debug("get_session_context_manager: Acquiring non-expiring session")
     session_maker = await SessionMakerSingleton.get_or_create()
     async with session_maker() as session:
         session_id = id(session)
         _log.debug(
-            f"get_session_contex_manager: Session opened (id={session_id}, expire_on_commit=False)"
+            f"get_session_context_manager: Session opened (id={session_id}, expire_on_commit=False)"
         )
         _track_session(session)
         try:
             yield session
         finally:
-            _log.debug(f"get_session_contex_manager: Session closed (id={session_id})")
+            _log.debug(f"get_session_context_manager: Session closed (id={session_id})")
 
 
 @asynccontextmanager
-async def get_readonly_session_contex_manager() -> AsyncGenerator[AsyncSession, None]:
-    _log.debug("get_readonly_session_contex_manager: Acquiring non-expiring read-only session")
+async def get_readonly_session_context_manager() -> AsyncGenerator[AsyncSession, None]:
+    _log.debug("get_readonly_session_context_manager: Acquiring non-expiring read-only session")
     session_maker = await ReadOnlySessionMakerSingleton.get_or_create()
     async with session_maker() as session:
         session_id = id(session)
         _log.debug(
-            f"get_readonly_session_contex_manager: Session opened (id={session_id}, expire_on_commit=False)"
+            f"get_readonly_session_context_manager: Session opened (id={session_id}, expire_on_commit=False)"
         )
         _track_session(session)
         try:
             yield session
         finally:
-            _log.debug(f"get_readonly_session_contex_manager: Session closed (id={session_id})")
+            _log.debug(f"get_readonly_session_context_manager: Session closed (id={session_id})")

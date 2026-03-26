@@ -4,7 +4,6 @@ Batch auto-update script for all datasets in channels with `allow_auto_update` e
 
 import asyncio
 import logging
-import sys
 
 import statgpt.common.schemas as schemas
 from statgpt.admin.auth.auth_context import SystemUserAuthContext
@@ -14,7 +13,7 @@ from statgpt.admin.services.channel import (
 )
 from statgpt.admin.services.dataset import AdminPortalDataSetService, auto_update_in_background_task
 from statgpt.common.auth.auth_context import AuthContext
-from statgpt.common.models import get_session_contex_manager, optional_msi_token_manager_context
+from statgpt.common.models import get_session_context_manager, optional_msi_token_manager_context
 
 _log = logging.getLogger(__name__)
 _SEPARATOR = "-" * 50
@@ -23,7 +22,7 @@ _SEPARATOR = "-" * 50
 async def _discover_and_create_jobs() -> list[schemas.AutoUpdateJob]:
     """Find auto-update channels and create jobs for their datasets."""
     _log.info(_SEPARATOR)
-    async with get_session_contex_manager() as session:
+    async with get_session_context_manager() as session:
         channel_service = AdminPortalChannelService(session)
         all_channels = await channel_service.get_channels_schemas(limit=None, offset=0)
         channel_ids = [
@@ -62,14 +61,14 @@ async def _process_jobs(jobs: list[schemas.AutoUpdateJob], auth_context: AuthCon
 
 async def _get_reindex_channel_ids(job_ids: list[int]) -> set[int]:
     """Get channel IDs that had at least one reindex triggered."""
-    async with get_session_contex_manager() as session:
+    async with get_session_context_manager() as session:
         return await AdminPortalDataSetService(session).get_reindex_channel_ids(job_ids)
 
 
 async def _log_results(job_ids: list[int]) -> bool:
     """Log per-channel summary and return `True` if all jobs succeeded."""
     _log.info(_SEPARATOR)
-    async with get_session_contex_manager() as session:
+    async with get_session_context_manager() as session:
         results = await AdminPortalDataSetService(session).get_auto_update_results(job_ids)
 
     for r in results:
@@ -143,11 +142,9 @@ async def main() -> None:
         _log.info(_SEPARATOR)
         if not success:
             _log.error("Batch auto-update finished with failures")
-            sys.exit(1)
         _log.info("Batch auto-update script completed successfully")
     except Exception:
         _log.exception("Error in batch auto-update script:")
-        sys.exit(1)
 
 
 if __name__ == "__main__":

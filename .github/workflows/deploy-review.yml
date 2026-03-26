@@ -1,12 +1,18 @@
 name: Deploy Review Environment
+
 on:
   issue_comment:
     types: [created]
+
+permissions:
+  contents: read
 
 jobs:
   slash-command-dispatch:
     runs-on: ubuntu-latest
     if: ${{ github.event.issue.pull_request && contains(github.event.comment.body, '/deploy-review') }}
+    permissions:
+      contents: none
     outputs:
       should-deploy: ${{ steps.check-command.outputs.should-deploy }}
       pr-number: ${{ steps.get-pr.outputs.number }}
@@ -60,6 +66,8 @@ jobs:
       name: review
     needs: slash-command-dispatch
     if: needs.slash-command-dispatch.outputs.should-deploy == 'true'
+    permissions:
+      contents: none
     steps:
       - name: Workflow run URL
         uses: peter-evans/create-or-update-comment@e8674b075228eee787fea43ef493e45ece1004c9 # v5.0.0
@@ -112,7 +120,7 @@ jobs:
 
       - name: Deploy environment
         id: deploy
-        uses: digital-blueprint/gitlab-pipeline-trigger-action@20e77989b24af658ba138a0aa5291bdc657f1505 # v1.3.0
+        uses: digital-blueprint/gitlab-pipeline-trigger-action@c59b56e9d2688ab42c1304322ac8831a4ef6f7d2 # v1.4.0
         with:
           host: ${{ secrets.DEPLOY_HOST }}
           trigger_token: ${{ secrets.DEPLOY_TRIGGER_TOKEN }}

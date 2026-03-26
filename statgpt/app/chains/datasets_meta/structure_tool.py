@@ -38,6 +38,7 @@ class DatasetStructureTool(
                 use_provider=True,
                 use_last_updated=True,
                 use_url=True,
+                include_provider_agencies=tool_config.details.include_provider_agencies,
             ),
             highlight_name_in_bold=True,
             list_level=0,

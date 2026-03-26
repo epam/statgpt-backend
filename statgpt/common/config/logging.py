@@ -35,7 +35,7 @@ class LoggingConfig:
         for name in ["statgpt", "statgpt-ml", "__main__"]:
             logging.getLogger(name).setLevel(cls.LOGGING_SETTINGS.level)
 
-        for name in ["common.models.database"]:
+        for name in ["statgpt.common.models.database"]:
             logging.getLogger(name).setLevel(cls.LOGGING_SETTINGS.level_db)
 
         for name in ["uvicorn", "uvicorn.error", "uvicorn.access"]:

@@ -9,7 +9,7 @@ from statgpt.app.security import create_auth_context
 from statgpt.app.services.chat_facade import ChannelServiceFacade
 from statgpt.app.services.onboarding import OnboardingService, OnboardingState
 from statgpt.common.auth.auth_context import AuthContext
-from statgpt.common.models.database import get_readonly_session_contex_manager
+from statgpt.common.models.database import get_readonly_session_context_manager
 from statgpt.common.schemas.onboarding import OnboardingConfig
 
 _log = logging.getLogger(__name__)
@@ -21,7 +21,7 @@ class ChannelOnboardingCompletion(ChatCompletion):
         self._deployment_id = deployment_id
 
     async def chat_completion(self, request: Request, response: Response) -> None:
-        async with get_readonly_session_contex_manager() as db_session:
+        async with get_readonly_session_context_manager() as db_session:
             try:
                 service = await ChannelServiceFacade.get_channel(db_session, self._deployment_id)
             except Exception as e:
@@ -55,7 +55,7 @@ class ChannelOnboardingCompletion(ChatCompletion):
                 )
 
     async def configuration(self, request: ConfigurationRequest) -> ConfigurationResponse | dict:
-        async with get_readonly_session_contex_manager() as db_session:
+        async with get_readonly_session_context_manager() as db_session:
             try:
                 service = await ChannelServiceFacade.get_channel(db_session, self._deployment_id)
             except Exception as e:

@@ -5,9 +5,13 @@ FROM python:3.11-alpine AS builder
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    PIP_PROGRESS_BAR=off \
+    PIP_ROOT_USER_ACTION=ignore \
     APP_HOME=/home/app
 
-RUN pip install --progress-bar off --no-cache-dir poetry==2.2.1
+RUN pip install --upgrade pip && pip install poetry==2.2.1
 
 WORKDIR $APP_HOME
 
@@ -21,6 +25,9 @@ COPY ./statgpt/app $APP_HOME/statgpt/app
 COPY ./statgpt/common $APP_HOME/statgpt/common
 RUN poetry install --no-interaction --no-ansi --no-cache --no-root --only main
 
+# CVE-2026-23949 (jaraco.context vendored in setuptools), CVE-2026-24049 (wheel vendored in setuptools)
+RUN .venv/bin/pip install "setuptools==80.10.2" "wheel==0.46.2"
+
 ############################
 # Runtime stage
 ############################
@@ -29,19 +36,23 @@ FROM python:3.11-alpine AS server
 # Security patches (consolidated into single layer)
 # CVE-2023-52425 (libexpat), CVE-2025-6965 (sqlite-libs), libcrypto3/libssl3
 RUN apk update && apk upgrade --no-cache \
-    libcrypto3 libssl3 libexpat sqlite-libs \
+    libcrypto3 libssl3 libexpat sqlite-libs zlib \
   && apk add --no-cache ca-certificates \
   && update-ca-certificates \
   && rm -rf /var/cache/apk/*
 
-# CVE-2026-23949 (setuptools), CVE-2026-24049 (wheel)
-RUN pip install --no-cache-dir setuptools==80.10.2 wheel==0.46.2
-
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    PIP_ROOT_USER_ACTION=ignore \
     APP_HOME=/home/app \
     WEB_CONCURRENCY=1 \
     PYDANTIC_V2=True
+
+# CVE-2026-23949 (jaraco.context vendored in setuptools), CVE-2026-24049 (wheel vendored in setuptools)
+RUN pip install --upgrade pip \
+  && pip install "setuptools==80.10.2" "wheel==0.46.2"
 
 WORKDIR $APP_HOME
 

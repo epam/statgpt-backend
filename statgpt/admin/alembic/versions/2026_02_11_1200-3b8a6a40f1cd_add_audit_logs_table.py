@@ -66,24 +66,20 @@ def upgrade() -> None:
         ['entity_type', 'item_id'],
         unique=False,
     )
-    op.execute(
-        """
+    op.execute("""
         CREATE OR REPLACE FUNCTION prevent_audit_log_mutation()
         RETURNS trigger AS $$
         BEGIN
             RAISE EXCEPTION 'audit_logs rows are immutable';
         END;
         $$ LANGUAGE plpgsql;
-        """
-    )
-    op.execute(
-        """
+        """)
+    op.execute("""
         CREATE TRIGGER trg_prevent_audit_log_mutation
         BEFORE UPDATE OR DELETE ON audit_logs
         FOR EACH ROW
         EXECUTE FUNCTION prevent_audit_log_mutation();
-        """
-    )
+        """)
 
 
 def downgrade() -> None:

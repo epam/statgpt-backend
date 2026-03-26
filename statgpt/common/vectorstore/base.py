@@ -67,6 +67,10 @@ class VectorStore(ABC):
         """Returns the number of documents in the vector store for the specified version IDs."""
 
     @abstractmethod
+    async def get_size_per_version(self, version_ids: set[int]) -> dict[int, int]:
+        """Returns the number of documents per version_id."""
+
+    @abstractmethod
     async def export_to_folder(self, folder_path: str, version_ids: set[int]) -> None:
         """Exports the vector store data to the specified folder."""
 

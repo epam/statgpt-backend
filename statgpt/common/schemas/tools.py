@@ -2,6 +2,7 @@ from pydantic import Field
 
 from .base import BaseYamlModel
 from .data_query_tool import DataQueryDetails
+from .dataset_structure_tool import DatasetStructureToolDetails
 from .enums import ToolTypes
 from .tool_details import (
     AvailableDatasetsDetails,
@@ -49,7 +50,7 @@ class DatasetsMetadataTool(BaseToolConfig):
 
 class DatasetStructureTool(BaseToolConfig):
     type: ToolTypes = ToolTypes.DATASET_STRUCTURE
-    details: BaseToolDetails = Field(default_factory=BaseToolDetails)
+    details: DatasetStructureToolDetails = Field(default_factory=DatasetStructureToolDetails)
 
 
 class DataQueryTool(BaseToolConfig):

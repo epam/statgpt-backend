@@ -199,9 +199,7 @@ class ChannelServiceFacade(DbServiceBase):
 
     async def _get_indicators_vector_store(self, auth_context: AuthContext) -> VectorStore:
         with debug_timer("chat_facade._get_indicators_vector_store"):
-            vector_store_factory = VectorStoreFactory(
-                session=self._session, session_lock=self._session_lock
-            )
+            vector_store_factory = VectorStoreFactory()
             vector_store = await vector_store_factory.get_vector_store(
                 collection_name=self._channel.indicator_table_name,
                 embedding_model_name=self._channel.llm_model,
@@ -211,9 +209,7 @@ class ChannelServiceFacade(DbServiceBase):
 
     async def _get_dimensions_vector_store(self, auth_context: AuthContext) -> VectorStore:
         with debug_timer("chat_facade._get_dimensions_vector_store"):
-            vector_store_factory = VectorStoreFactory(
-                session=self._session, session_lock=self._session_lock
-            )
+            vector_store_factory = VectorStoreFactory()
             vector_store = await vector_store_factory.get_vector_store(
                 collection_name=self._channel.available_dimensions_table_name,
                 embedding_model_name=self._channel.llm_model,
@@ -223,9 +219,7 @@ class ChannelServiceFacade(DbServiceBase):
 
     async def _get_special_dimensions_vector_store(self, auth_context: AuthContext) -> VectorStore:
         with debug_timer("chat_facade._get_special_dimensions_vector_store"):
-            vector_store_factory = VectorStoreFactory(
-                session=self._session, session_lock=self._session_lock
-            )
+            vector_store_factory = VectorStoreFactory()
             vector_store = await vector_store_factory.get_vector_store(
                 collection_name=self._channel.special_dimensions_table_name,
                 embedding_model_name=self._channel.llm_model,
@@ -410,6 +404,21 @@ class ChannelServiceFacade(DbServiceBase):
 
     async def list_available_datasets(self, auth_context: AuthContext) -> list[VersionedDataSet]:
         return await self._load_datasets(auth_context)
+
+    async def get_indicator_counts(
+        self, auth_context: AuthContext, versioned_datasets: list[VersionedDataSet]
+    ) -> dict[str, int]:
+        """Get indicator count per dataset `entity_id`."""
+        vector_store = await self._get_indicators_vector_store(auth_context)
+        version_to_entity = {
+            ds.version.version_data_id: ds.data.entity_id for ds in versioned_datasets
+        }
+        counts_by_version = await vector_store.get_size_per_version(set(version_to_entity.keys()))
+        return {
+            version_to_entity[vid]: count
+            for vid, count in counts_by_version.items()
+            if vid in version_to_entity
+        }
 
     async def get_dataset_hierarchy(self, auth_context: AuthContext) -> DatasetHierarchy | None:
         """Get first available dataset hierarchy from the channel data sources."""

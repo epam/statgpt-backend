@@ -92,6 +92,11 @@ class AvailableDatasetsVersion(StrEnum):
     full = "full"
 
 
+class AvailableDatasetsHeaderFormat(StrEnum):
+    totals = "totals"
+    agencies = "agencies"
+
+
 _LANGUAGE_NAMES = {
     "en": "English",
     "uk": "Ukrainian",
