@@ -138,11 +138,6 @@ class DataResponse(ABC):
     def python_code(self) -> str | None:
         """Return the Python code to query the data source."""
 
-    @property
-    def python_code_header(self) -> str | None:
-        """Return the header/imports portion of the Python code (for merging multiple queries)."""
-        return None
-
     def get_python_code_body(self, suffix: str = "") -> str | None:
         """Return the Python code body (without header/imports) for this query.
 

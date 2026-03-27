@@ -76,15 +76,6 @@ if t.TYPE_CHECKING:
 
 _log = logging.getLogger(__name__)
 
-_PYTHON_SDMX1_HEADER = """\
-# Uses the [sdmx1 library](https://pypi.org/project/sdmx1/)
-# Install with:
-# ```bash
-# pip install sdmx1
-# ```
-
-import sdmx"""
-
 
 class SdmxOfflineDataSet(OfflineDataSet[SdmxDataSetConfig, 'Sdmx21DataSourceHandler']):
     @property
@@ -241,11 +232,7 @@ class Sdmx21DataResponse(DataResponse):
 
     @property
     def python_code(self) -> str | None:
-        return self.dataset.get_python_code(self.sdmx_query)
-
-    @property
-    def python_code_header(self) -> str:
-        return _PYTHON_SDMX1_HEADER
+        return self.get_python_code_body()
 
     def get_python_code_body(self, suffix: str = "") -> str | None:
         return self.dataset.get_python_code_body(self.sdmx_query, suffix=suffix)
@@ -1262,9 +1249,6 @@ class Sdmx21DataSet(
                 parsing_status=DataParsingStatus.SUCCESS,
             ),
         )
-
-    def get_python_code(self, sdmx_query: SdmxDataSetQuery) -> str:
-        return _PYTHON_SDMX1_HEADER + "\n\n" + self.get_python_code_body(sdmx_query)
 
     def get_python_code_body(self, sdmx_query: SdmxDataSetQuery, suffix: str = "") -> str:
         if self._datasource.config.sdmx1_source:
