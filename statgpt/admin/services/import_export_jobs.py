@@ -32,6 +32,7 @@ _log = logging.getLogger(__name__)
 
 
 class ExportMetadata(BaseModel):
+    export_version: int | None = None
     export_start_datetime: str
     export_finish_datetime: str
     scope: schemas.ExportScope = schemas.ExportScope.FULL
@@ -270,6 +271,7 @@ class JobsService:
 
                 export_finish_datetime = datetime.now().isoformat()
                 metadata = ExportMetadata(
+                    export_version=JobsConfig.CURRENT_EXPORT_VERSION,
                     export_start_datetime=export_start_datetime,
                     export_finish_datetime=export_finish_datetime,
                     scope=scope,
@@ -341,6 +343,32 @@ class JobsService:
 
             _log.info(f"Download completed: {downloaded / (1024 * 1024):.2f} MB total")
 
+    @staticmethod
+    def _validate_export_version(metadata: ExportMetadata) -> None:
+        """Validate that the archive export version is supported.
+
+        Raises ValueError with a user-friendly message when the version is
+        missing (legacy archive) or not in the supported set.
+        """
+        version = metadata.export_version
+        supported = JobsConfig.SUPPORTED_EXPORT_VERSIONS
+
+        if version is None:
+            raise ValueError(
+                "The archive does not contain export version information. "
+                "It was likely created by an older version of the application "
+                "and may be incompatible. "
+                "Please re-export the channel with the current version of the application."
+            )
+
+        if version not in supported:
+            supported_str = ", ".join(str(v) for v in sorted(supported))
+            raise ValueError(
+                f"Unsupported archive version: {version}. "
+                f"This application supports archive versions: {supported_str}. "
+                f"Please re-export the channel with a compatible version of the application."
+            )
+
     async def _import_data_from_zip(
         self,
         job: models.Job,
@@ -358,14 +386,21 @@ class JobsService:
             try:
                 with zip_file.open("metadata.json") as meta_file:
                     metadata = ExportMetadata.model_validate_json(meta_file.read())
+                    self._validate_export_version(metadata)
                     deployment_id = metadata.deployment_id
                     scope = metadata.scope
             except KeyError:
-                _log.info("metadata.json is absent in import zip; proceeding with defaults")
-            except ValidationError as e:
-                _log.warning(
-                    "Invalid metadata.json in import zip; proceeding with defaults.", exc_info=e
+                raise ValueError(
+                    "The archive does not contain metadata.json. "
+                    "It may be corrupted or created by an incompatible version of the application. "
+                    "Please re-export the channel with the current version of the application."
                 )
+            except ValidationError as e:
+                raise ValueError(
+                    "The archive contains invalid metadata. "
+                    "It may be corrupted or created by an incompatible version of the application. "
+                    "Please re-export the channel with the current version of the application."
+                ) from e
 
             channel_service = ChannelService(session)
             channel_db = await channel_service.import_channel_from_zip(
