@@ -230,7 +230,6 @@ class Sdmx21DataResponse(DataResponse):
             ),
         ).model_dump(by_alias=True)
 
-    @property
     def get_python_code_body(self, suffix: str = "") -> str | None:
         return self.dataset.get_python_code_body(self.sdmx_query, suffix=suffix)
 
