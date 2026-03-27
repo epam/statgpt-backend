@@ -61,6 +61,13 @@ class _DataHashes(NamedTuple):
     special_dimensions_hash: str | None
 
 
+class _ReindexParams(NamedTuple):
+    version_id: int
+    channel_dataset_id: int
+    harmonization_supported: bool
+    status_on_completion: StatusEnum
+
+
 class AutoUpdateChannelResult(NamedTuple):
     channel_id: int
     deployment_id: str
@@ -879,23 +886,34 @@ class AdminPortalDataSetService(DataSetService):
     async def remove_channel_dataset(
         self, channel_id: int, dataset_id: int, auth_context: AuthContext
     ) -> None:
-        channel: models.Channel = await ChannelService(self._session).get_model_by_id(channel_id)
-        dataset: models.DataSet = await self.get_model_by_id(dataset_id)
-        channel_dataset = await self.get_channel_dataset_model_or_none(
-            channel_id=channel.id, dataset_id=dataset.id
-        )
-        if not channel_dataset:
-            return
+        # Phase A: DB reads
+        async with self._scoped_session():
+            channel: schemas.Channel = await ChannelService(self._session).get_schema_by_id(
+                channel_id
+            )
+            dataset: models.DataSet = await self.get_model_by_id(dataset_id)
+            channel_dataset = await self.get_channel_dataset_model_or_none(
+                channel_id=channel.id, dataset_id=dataset.id
+            )
+            if not channel_dataset:
+                return
+            dataset_uuid = dataset.id_
+            channel_dataset_id = channel_dataset.id
 
+        # Phase B: Clear data — no DB session held
         await self._clear_channel_dataset_data(
-            channel, auth_context=auth_context, dataset_id=dataset.id_, version_ids=None
+            channel, auth_context=auth_context, dataset_id=dataset_uuid, version_ids=None
         )
-        await self._session.delete(channel_dataset)
-        await self._session.commit()
+
+        # Phase C: DB write — delete channel_dataset
+        async with self._scoped_session():
+            channel_dataset = await self._get_channel_dataset_model_or_raise(channel_dataset_id)
+            await self._session.delete(channel_dataset)
+            await self._session.commit()
 
     async def _clear_channel_dataset_data(
         self,
-        channel: models.Channel,
+        channel: schemas.Channel,
         auth_context: AuthContext,
         *,
         dataset_id: uuid.UUID | None,
@@ -912,7 +930,7 @@ class AdminPortalDataSetService(DataSetService):
 
     async def _clear_vector_stores(
         self,
-        channel: models.Channel,
+        channel: schemas.Channel,
         auth_context: AuthContext,
         dataset_id: uuid.UUID | None,
         version_ids: list[int] | None,
@@ -934,7 +952,7 @@ class AdminPortalDataSetService(DataSetService):
 
     @staticmethod
     async def _clear_elastic_indices(
-        channel: models.Channel, *, dataset_id: uuid.UUID | None, version_ids: list[int] | None
+        channel: schemas.Channel, *, dataset_id: uuid.UUID | None, version_ids: list[int] | None
     ) -> None:
         _log.info("[Elastic] Clearing existing indicators in the matching and indicators indexes")
 
@@ -1190,20 +1208,15 @@ class AdminPortalDataSetService(DataSetService):
             if old_hash != new_hash
         ]
 
-    async def clear_channel_dataset_versions_data(
-        self, channel_id: int, dataset_id: int, auth_context: AuthContext
-    ):
-        channel: models.Channel = await ChannelService(self._session).get_model_by_id(channel_id)
-        dataset: models.DataSet = await self.get_model_by_id(dataset_id)
-        channel_dataset = await self.get_channel_dataset_model_or_raise(
-            channel_id=channel_id, dataset_id=dataset.id
-        )
+    @staticmethod
+    def _select_versions_to_clear(
+        versions: list[models.ChannelDatasetVersion],
+    ) -> list[int]:
+        """Select old versions eligible for data clearing.
 
-        # We don't need to clear older versions since most likely they have been already cleared
-        versions = await self.get_channel_dataset_version_models(
-            limit=20, offset=0, channel_dataset_id=channel_dataset.id
-        )
-
+        Keeps the last 2 completed versions and returns IDs of the rest
+        (completed beyond the last 2, plus any other final-status versions).
+        """
         skip_last_completed = 2
         versions_to_clear: list[int] = []
         for version in versions:
@@ -1215,6 +1228,23 @@ class AdminPortalDataSetService(DataSetService):
                     versions_to_clear.append(version.id)
             elif _status in StatusEnum.final_statuses():
                 versions_to_clear.append(version.id)
+        return versions_to_clear
+
+    async def clear_channel_dataset_versions_data(
+        self, channel_id: int, dataset_id: int, auth_context: AuthContext
+    ):
+        channel: schemas.Channel = await ChannelService(self._session).get_schema_by_id(channel_id)
+        dataset: models.DataSet = await self.get_model_by_id(dataset_id)
+        channel_dataset = await self.get_channel_dataset_model_or_raise(
+            channel_id=channel_id, dataset_id=dataset.id
+        )
+
+        # We don't need to clear older versions since most likely they have been already cleared
+        versions = await self.get_channel_dataset_version_models(
+            limit=20, offset=0, channel_dataset_id=channel_dataset.id
+        )
+
+        versions_to_clear = self._select_versions_to_clear(versions)
 
         if versions_to_clear:
             await self._clear_channel_dataset_data(
@@ -1295,7 +1325,7 @@ class AdminPortalDataSetService(DataSetService):
         auth_context: AuthContext,
         max_n_embeddings: int | None = None,
     ) -> list[schemas.ChannelDatasetExpanded]:
-        channel: models.Channel = await ChannelService(self._session).get_model_by_id(channel_id)
+        channel: schemas.Channel = await ChannelService(self._session).get_schema_by_id(channel_id)
         channel_datasets: list[models.ChannelDataset] = await self.get_channel_dataset_models(
             limit=None, offset=0, channel_id=channel.id
         )
@@ -1386,7 +1416,7 @@ class AdminPortalDataSetService(DataSetService):
         auth_context: AuthContext,
         max_n_embeddings: int | None = None,
     ) -> schemas.ChannelDatasetExpanded:
-        channel: models.Channel = await ChannelService(self._session).get_model_by_id(channel_id)
+        channel: schemas.Channel = await ChannelService(self._session).get_schema_by_id(channel_id)
         dataset: schemas.DataSet = await self.get_schema_by_id(dataset_id, auth_context)
         channel_dataset = await self.get_channel_dataset_model_or_raise(
             channel_id=channel_id, dataset_id=dataset_id
@@ -1446,7 +1476,7 @@ class AdminPortalDataSetService(DataSetService):
         )
 
     @classmethod
-    def _is_harmonization_supported(cls, channel: models.Channel) -> bool:
+    def _is_harmonization_supported(cls, channel: schemas.Channel) -> bool:
         return ChannelService.is_channel_hybrid(channel)
 
     @staticmethod
@@ -1839,15 +1869,36 @@ class AdminPortalDataSetService(DataSetService):
     ) -> None:
         _log.info(f"Clear data after reindexing channel_dataset_id={channel_dataset_id}")
         try:
+            # Phase A: DB reads — load entities, set status, determine versions to clear
             async with self._scoped_session():
                 channel_dataset = await self._get_channel_dataset_model_or_raise(channel_dataset_id)
                 await self._update_channel_dataset_status(
                     channel_dataset, new_status=StatusEnum.IN_PROGRESS
                 )
 
-                await self.clear_channel_dataset_versions_data(
-                    channel_dataset.channel_id, channel_dataset.dataset_id, auth_context
+                channel: schemas.Channel = await ChannelService(self._session).get_schema_by_id(
+                    channel_dataset.channel_id
                 )
+
+                versions = await self.get_channel_dataset_version_models(
+                    limit=20, offset=0, channel_dataset_id=channel_dataset.id
+                )
+                versions_to_clear = self._select_versions_to_clear(versions)
+
+            # Phase B: Vector store + elastic clearing — no DB session held
+            if versions_to_clear:
+                await self._clear_channel_dataset_data(
+                    channel,
+                    auth_context=auth_context,
+                    dataset_id=None,
+                    version_ids=versions_to_clear,
+                )
+            else:
+                _log.info("No versions to clear data for.")
+
+            # Phase C: DB write — update status to COMPLETED
+            async with self._scoped_session():
+                channel_dataset = await self._get_channel_dataset_model_or_raise(channel_dataset_id)
                 await self._update_channel_dataset_status(
                     channel_dataset, new_status=StatusEnum.COMPLETED
                 )
@@ -2285,16 +2336,17 @@ class AdminPortalDataSetService(DataSetService):
         await self._session.refresh(new_version)
         return new_version
 
-    async def _trigger_auto_update_reindex(
+    async def _prepare_auto_update_reindex(
         self,
         job: models.AutoUpdateJob,
         channel_dataset: models.ChannelDataset,
         new_resolved_config: dict,
         details: str,
-        auth_context: AuthContext,
-    ) -> None:
-        """Create a new version and trigger reindexing background tasks."""
+    ) -> _ReindexParams:
+        """Create a new version and prepare parameters for reindexing.
 
+        Must be called inside an active ``_scoped_session()`` block.
+        """
         new_version = await self._create_new_channel_dataset_version(
             channel_dataset_id=channel_dataset.id,
             reason="Auto-update triggered reindexing",
@@ -2309,7 +2361,7 @@ class AdminPortalDataSetService(DataSetService):
             result=schemas.AutoUpdateResult.REINDEX_TRIGGERED,
         )
 
-        channel = channel_dataset.channel
+        channel = ChannelSerializer.db_to_schema(channel_dataset.channel)
         harmonization_supported = self._is_harmonization_supported(channel)
         status_on_completion = (
             StatusEnum.QUEUED if harmonization_supported else StatusEnum.COMPLETED
@@ -2317,20 +2369,34 @@ class AdminPortalDataSetService(DataSetService):
 
         await self._update_channel_dataset_version_status(new_version, StatusEnum.QUEUED)
 
+        return _ReindexParams(
+            version_id=new_version.id,
+            channel_dataset_id=channel_dataset.id,
+            harmonization_supported=harmonization_supported,
+            status_on_completion=status_on_completion,
+        )
+
+    async def _execute_auto_update_reindex(
+        self,
+        auto_update_job_id: int,
+        params: _ReindexParams,
+        auth_context: AuthContext,
+    ) -> None:
+        """Run reindexing background tasks. Must be called outside ``_scoped_session()``."""
         await self.reload_channel_dataset_in_background(
-            channel_dataset_version_id=new_version.id,
+            channel_dataset_version_id=params.version_id,
             version_ids=None,
             reindex_indicators=True,
             harmonize_indicator=False,
             reindex_dimensions=True,
             auth_context=auth_context,
             max_n_embeddings=None,
-            status_on_completion=status_on_completion,
+            status_on_completion=params.status_on_completion,
         )
 
-        if harmonization_supported:
+        if params.harmonization_supported:
             await self.reload_channel_dataset_in_background(
-                channel_dataset_version_id=new_version.id,
+                channel_dataset_version_id=params.version_id,
                 version_ids=None,
                 reindex_indicators=True,
                 harmonize_indicator=True,
@@ -2340,12 +2406,15 @@ class AdminPortalDataSetService(DataSetService):
             )
 
         await self.clear_channel_dataset_data_in_background(
-            channel_dataset_id=channel_dataset.id,
+            channel_dataset_id=params.channel_dataset_id,
             auth_context=auth_context,
         )
-        await self._set_auto_update_job_status(
-            job, StatusEnum.COMPLETED, result=schemas.AutoUpdateResult.REINDEX_TRIGGERED
-        )
+
+        async with self._scoped_session():
+            job = await self._get_auto_update_job_or_raise(auto_update_job_id)
+            await self._set_auto_update_job_status(
+                job, StatusEnum.COMPLETED, result=schemas.AutoUpdateResult.REINDEX_TRIGGERED
+            )
 
     async def process_auto_update_job(
         self,
@@ -2353,6 +2422,7 @@ class AdminPortalDataSetService(DataSetService):
         auth_context: AuthContext,
     ) -> None:
         """Process an auto-update job in the background."""
+        _log.info(f"Processing auto-update job {auto_update_job_id}")
         try:
             # Phase A: DB reads — load job, channel_dataset, check state
             async with self._scoped_session():
@@ -2367,6 +2437,9 @@ class AdminPortalDataSetService(DataSetService):
 
                 channel_dataset_id = job.channel_dataset_id
                 channel_dataset = await self._get_channel_dataset_model_or_raise(channel_dataset_id)
+                _log.info(
+                    f"Auto-update job {auto_update_job_id}: channel_dataset_id={channel_dataset_id}"
+                )
 
                 if await self._is_indexing_in_progress(channel_dataset_id):
                     msg = f"Channel dataset {channel_dataset_id} is currently being indexed."
@@ -2437,7 +2510,8 @@ class AdminPortalDataSetService(DataSetService):
                     )
                 details += f" Structure has not changed. {data_details}"
 
-            # Phase C: DB writes — trigger reindex or update status
+            # Phase C: DB writes — prepare reindex or update status
+            reindex_params: _ReindexParams | None = None
             async with self._scoped_session():
                 job = await self._get_auto_update_job_or_raise(auto_update_job_id)
                 channel_dataset = await self._get_channel_dataset_model_or_raise(channel_dataset_id)
@@ -2445,8 +2519,8 @@ class AdminPortalDataSetService(DataSetService):
                 job.base_version_id = last_completed.id
 
                 if structure_changed or data_changed:
-                    await self._trigger_auto_update_reindex(
-                        job, channel_dataset, new_resolved_config, details, auth_context
+                    reindex_params = await self._prepare_auto_update_reindex(
+                        job, channel_dataset, new_resolved_config, details
                     )
                 elif new_resolved_config != last_completed.resolved_config:
                     new_version = await self._create_config_only_version(
@@ -2466,6 +2540,14 @@ class AdminPortalDataSetService(DataSetService):
                         details=details,
                         result=schemas.AutoUpdateResult.NO_CHANGES,
                     )
+
+            # Phase D: Trigger reindex tasks (outside session scope)
+            if reindex_params is not None:
+                await self._execute_auto_update_reindex(
+                    auto_update_job_id=auto_update_job_id,
+                    params=reindex_params,
+                    auth_context=auth_context,
+                )
 
         except Exception as e:
             _log.exception(f"Failed to process auto-update job {auto_update_job_id}")
