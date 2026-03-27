@@ -322,12 +322,12 @@ class DataQueryArtifactDisplayer:
     async def _create_merged_python_code_attachment(
         self, responses: dict[str, DataResponse]
     ) -> dict[str, str] | None:
-        if not self._config.python_code.enabled:
+        if not self._config.merged_python_code.enabled:
             return None
 
         assert (
-            self._config.python_code.name is not None
-        ), "python_code.name must be set when enabled"
+            self._config.merged_python_code.name is not None
+        ), "merged_python_code.name must be set when enabled"
 
         items = [r for r in responses.values() if r.get_python_code_body()]
         if not items:
@@ -335,7 +335,7 @@ class DataQueryArtifactDisplayer:
 
         if len(items) == 1:
             response = items[0]
-            title = response.enrich_attachment_name(self._config.python_code.name)
+            title = self._config.merged_python_code.name
             code = _PYTHON_SDMX1_HEADER + "\n\n" + response.get_python_code_body()  # type: ignore[operator]
             return dict(
                 type=MediaTypes.MARKDOWN,
@@ -344,8 +344,8 @@ class DataQueryArtifactDisplayer:
             )
 
         bodies: list[str] = []
-        for i, response in enumerate(items):
-            body = response.get_python_code_body(suffix=f"_{i + 1}")
+        for i, response in enumerate(items, start=1):
+            body = response.get_python_code_body(suffix=f"_{i}")
             if body:
                 bodies.append(f"# Dataset: {response.dataset_name}\n{body}")
 
@@ -353,7 +353,7 @@ class DataQueryArtifactDisplayer:
             return None
 
         merged_code = _PYTHON_SDMX1_HEADER + "\n\n" + "\n\n".join(bodies)
-        title = "Python Code"
+        title = self._config.merged_python_code.name
         return dict(
             type=MediaTypes.MARKDOWN,
             title=title,
