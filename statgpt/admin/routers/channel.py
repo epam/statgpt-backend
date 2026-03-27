@@ -414,12 +414,8 @@ async def reload_indicators_for_channel_dataset(
 
 
 @router.delete("/{channel_id}/datasets/{dataset_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def remove_channel_dataset(
-    channel_id: int,
-    dataset_id: int,
-    session: AsyncSession = Depends(models.get_session),
-):
-    await DataSetService(session).remove_channel_dataset(
+async def remove_channel_dataset(channel_id: int, dataset_id: int):
+    await DataSetService().remove_channel_dataset(
         channel_id=channel_id, dataset_id=dataset_id, auth_context=SystemUserAuthContext()
     )
 
