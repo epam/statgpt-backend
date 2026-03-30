@@ -1,7 +1,5 @@
-from __future__ import annotations
-
-import asyncio
 import logging
+import uuid
 from abc import ABC, abstractmethod
 from collections.abc import Iterable
 from dataclasses import dataclass
@@ -12,9 +10,9 @@ from aidial_sdk.chat_completion.form import Button, FormMetaclass
 from aidial_sdk.pydantic.v2 import ConfigDict as DialConfigDict
 from aidial_sdk.pydantic.v2 import Field as DialField
 from pydantic import BaseModel, ConfigDict, Field, computed_field
-from sqlalchemy.ext.asyncio import AsyncSession
 
 import statgpt.common.models as models
+import statgpt.common.schemas as schemas
 from statgpt.app import utils
 from statgpt.app.settings.dial_app import dial_app_settings
 from statgpt.common.auth.auth_context import AuthContext
@@ -25,14 +23,15 @@ from statgpt.common.data.base import (
     DataSourceHandler,
     DimensionCategory,
 )
+from statgpt.common.data.manager import DataManager
 from statgpt.common.data.sdmx.common import ComplexIndicator
+from statgpt.common.models.database import get_readonly_session_context_manager
 from statgpt.common.schemas import ChannelConfig, ChannelDatasetVersion
 from statgpt.common.schemas.data_query_tool import SpecialDimensionsProcessor
 from statgpt.common.services import (
     ChannelService,
     DataSetService,
     DataSourceService,
-    DataSourceTypeService,
     GlossaryOfTermsService,
 )
 from statgpt.common.services.base import DbServiceBase
@@ -84,7 +83,7 @@ class ScoredCandidate(BaseModel, ABC):
         pass
 
     @staticmethod
-    def convert_candidates_to_llm_string(candidates: list[ScoredCandidate]):
+    def convert_candidates_to_llm_string(candidates: list["ScoredCandidate"]):
         if not candidates:
             return ''
         # NOTE: we do not pass dataset info to LLM
@@ -161,8 +160,28 @@ class ScoredIndicatorCandidate(ScoredCandidate):
 
 
 @dataclass
+class _DatasetRecord:
+    """Lightweight dataset record extracted from an ORM model within a session."""
+
+    id: int
+    id_: uuid.UUID
+    title: str
+    details: dict[str, Any]
+    source_id: int
+
+    @classmethod
+    def from_model(cls, db: models.DataSet) -> "_DatasetRecord":
+        return cls(
+            id=db.id,
+            id_=db.id_,
+            title=db.title,
+            details=db.details,
+            source_id=db.source_id,
+        )
+
+
+@dataclass
 class VersionedDataSet:
-    model: models.DataSet
     version: ChannelDatasetVersion
     data: DataSet
 
@@ -182,8 +201,8 @@ class BaseChannelConfiguration(BaseModel, metaclass=FormMetaclass):
 
 
 class ChannelServiceFacade(DbServiceBase):
-    def __init__(self, session: AsyncSession, channel: models.Channel) -> None:
-        super().__init__(session, asyncio.Lock())
+    def __init__(self, channel: schemas.Channel) -> None:
+        super().__init__(session=None)
         self._channel = channel
         self._handler_classes: dict[int, type[DataSourceHandler]] = {}
 
@@ -194,7 +213,7 @@ class ChannelServiceFacade(DbServiceBase):
             gc_debugger.track_object(self, f"ChannelServiceFacade_{id(self)}")
 
     @property
-    def channel(self) -> models.Channel:
+    def channel(self) -> schemas.Channel:
         return self._channel
 
     async def _get_indicators_vector_store(self, auth_context: AuthContext) -> VectorStore:
@@ -228,15 +247,11 @@ class ChannelServiceFacade(DbServiceBase):
         return vector_store
 
     @classmethod
-    async def get_all_channels(cls, session: AsyncSession) -> list["ChannelServiceFacade"]:
-        channels = await ChannelService(session).get_channels_db(limit=None, offset=0)
-
-        return [cls(session=session, channel=item) for item in channels]
-
-    @classmethod
-    async def get_channel(cls, session: AsyncSession, deployment_id: str) -> "ChannelServiceFacade":
-        channel = await ChannelService(session).get_channel_by_deployment_id(deployment_id)
-        return cls(session=session, channel=channel)
+    async def get_channel(cls, deployment_id: str) -> "ChannelServiceFacade":
+        async with get_readonly_session_context_manager() as session:
+            service = ChannelService(session)
+            channel = await service.get_channel_schema_by_deployment_id(deployment_id)
+        return cls(channel=channel)
 
     @property
     def deployment_id(self) -> str:
@@ -244,7 +259,7 @@ class ChannelServiceFacade(DbServiceBase):
 
     @property
     def channel_config(self) -> ChannelConfig:
-        return ChannelConfig.model_validate(self._channel.details)
+        return self._channel.details
 
     @property
     def dial_channel_configuration(self) -> dict[str, Any]:
@@ -284,36 +299,36 @@ class ChannelServiceFacade(DbServiceBase):
     def get_country_named_entity_type(self) -> str:
         return self.channel_config.country_named_entity_type.strip()
 
-    async def get_available_terms(self) -> list[models.GlossaryTerm]:
-        glossary_service = GlossaryOfTermsService(
-            session=self._session, session_lock=self._session_lock
-        )
-        return await glossary_service.get_term_models_by_channel(
-            channel_id=self._channel.id, limit=None, offset=0
-        )
+    async def get_available_terms(self) -> list[schemas.GlossaryTerm]:
+        async with self._scoped_readonly_session() as session:
+            service = GlossaryOfTermsService(session, session_lock=None)
+            return await service.get_term_schemas_by_channel(
+                channel_id=self._channel.id, limit=None, offset=0
+            )
 
     async def _get_indicators_from_documents(
         self, documents: Iterable[ScoredVectorStoreDocument]
     ) -> list[VectorStoreIndicator]:
-        res = []
+        doc_list = list(documents)
+        if not doc_list:
+            return []
 
-        data_sources = {
-            ds.id: ds
-            for ds in await DataSourceService(
-                self._session, session_lock=self._session_lock
-            ).get_data_sources_models(
-                limit=None,
-                offset=0,
-                ids={
-                    doc.metadata[IndicatorDocumentMetadataFields.DATA_SOURCE_ID]
-                    for doc in documents
-                },
-            )
+        source_ids = {
+            doc.metadata[IndicatorDocumentMetadataFields.DATA_SOURCE_ID] for doc in doc_list
         }
+        async with self._scoped_readonly_session() as session:
+            source_service = DataSourceService(session, session_lock=None)
+            data_sources = await source_service.get_data_sources_schemas(
+                limit=None, offset=0, ids=source_ids
+            )
 
-        for doc in documents:
-            data_source = data_sources[doc.metadata[IndicatorDocumentMetadataFields.DATA_SOURCE_ID]]
-            handler = await self._get_handler_class(data_source.type, config=data_source.details)
+        handlers = {}
+        for ds in data_sources:
+            handlers[ds.id] = await self._get_handler_class(ds.type.id, ds.type.name, ds.details)
+
+        res = []
+        for doc in doc_list:
+            handler = handlers[doc.metadata[IndicatorDocumentMetadataFields.DATA_SOURCE_ID]]
             res.append(
                 VectorStoreIndicator(
                     document=doc,
@@ -326,79 +341,84 @@ class ChannelServiceFacade(DbServiceBase):
     async def _get_dimension_categories_from_documents(
         self, documents: Iterable[ScoredVectorStoreDocument]
     ) -> list[DimensionCategory]:
-        result = []
-        data_sources = {
-            ds.id: ds
-            for ds in await DataSourceService(
-                self._session, session_lock=self._session_lock
-            ).get_data_sources_models(
-                limit=None,
-                offset=0,
-                ids={
-                    doc.metadata[DimensionValueDocumentMetadataFields.DATA_SOURCE_ID]
-                    for doc in documents
-                },
+        doc_list = list(documents)
+        if not doc_list:
+            return []
+
+        source_ids = {
+            doc.metadata[DimensionValueDocumentMetadataFields.DATA_SOURCE_ID] for doc in doc_list
+        }
+        async with self._scoped_readonly_session() as session:
+            source_service = DataSourceService(session, session_lock=None)
+            data_sources = await source_service.get_data_sources_schemas(
+                limit=None, offset=0, ids=source_ids
             )
-        }
-        handlers = {
-            ds.id: await self._get_handler_class(ds.type, ds.details)
-            for ds in data_sources.values()
-        }
-        for doc in documents:
+
+        handlers = {}
+        for ds in data_sources:
+            handlers[ds.id] = await self._get_handler_class(ds.type.id, ds.type.name, ds.details)
+
+        result = []
+        for doc in doc_list:
             handler = handlers[doc.metadata[DimensionValueDocumentMetadataFields.DATA_SOURCE_ID]]
             result.append(await handler.document_to_dimension_category(doc))
         return result
 
     @staticmethod
     def _get_config_for_query(
-        db_dataset: models.DataSet,
+        dataset_details: dict,
         version: ChannelDatasetVersion,
     ) -> dict:
         """Get config for querying - prefer resolved_config if available."""
         if version.resolved_config is not None:
             return version.resolved_config
-        return db_dataset.details
+        return dataset_details
 
     async def _load_datasets(self, auth_context: AuthContext) -> list[VersionedDataSet]:
-        dataset_service = DataSetService(self._session, session_lock=self._session_lock)
-        data_source_service = DataSourceService(self._session, session_lock=self._session_lock)
+        async with self._scoped_readonly_session() as session:
+            dataset_service = DataSetService(session, session_lock=None)
+            data_source_service = DataSourceService(session, session_lock=None)
 
-        last_versions = await dataset_service.get_latest_successful_dataset_versions_for_channel(
-            channel_id=self._channel.id
-        )
-        versions = {
-            k: item.last_completed_version
-            for k, item in last_versions.items()
-            if item.last_completed_version is not None
-        }
-        dataset_models = await dataset_service.get_datasets_models(
-            limit=None, offset=0, ids=versions.keys()
-        )
-        data_sources = {
-            ds.id: ds
-            for ds in await data_source_service.get_data_sources_models(
-                limit=None, offset=0, ids={ds.source_id for ds in dataset_models}
+            last_versions = (
+                await dataset_service.get_latest_successful_dataset_versions_for_channel(
+                    channel_id=self._channel.id
+                )
             )
-        }
+            versions = {
+                k: item.last_completed_version
+                for k, item in last_versions.items()
+                if item.last_completed_version is not None
+            }
+            dataset_models = await dataset_service.get_datasets_models(
+                limit=None, offset=0, ids=versions.keys()
+            )
+            datasets = [_DatasetRecord.from_model(db) for db in dataset_models]
+            data_sources = {
+                ds.id: ds
+                for ds in await data_source_service.get_data_sources_schemas(
+                    limit=None, offset=0, ids={ds.source_id for ds in datasets}
+                )
+            }
 
         res = []
-        for db_dataset in dataset_models:
-            data_source = data_sources[db_dataset.source_id]
-            handler = await self._get_handler_class(data_source.type, config=data_source.details)
-            config_to_use = self._get_config_for_query(db_dataset, versions[db_dataset.id])
+        for dataset in datasets:
+            data_source = data_sources[dataset.source_id]
+            handler = await self._get_handler_class(
+                data_source.type.id, data_source.type.name, data_source.details
+            )
+            version = versions[dataset.id]
+            config_to_use = self._get_config_for_query(dataset.details, version)
             if await handler.is_dataset_available(config_to_use, auth_context):
                 ds = await handler.get_dataset(
-                    entity_id=db_dataset.id_,
-                    title=db_dataset.title,
+                    entity_id=dataset.id_,
+                    title=dataset.title,
                     config=config_to_use,
                     auth_context=auth_context,
                     allow_offline=True,
                     allow_cached=True,
                 )
                 if ds.status.status == 'online':
-                    res.append(
-                        VersionedDataSet(model=db_dataset, version=versions[db_dataset.id], data=ds)
-                    )
+                    res.append(VersionedDataSet(version=version, data=ds))
 
         return res
 
@@ -422,14 +442,14 @@ class ChannelServiceFacade(DbServiceBase):
 
     async def get_dataset_hierarchy(self, auth_context: AuthContext) -> DatasetHierarchy | None:
         """Get first available dataset hierarchy from the channel data sources."""
+        async with self._scoped_readonly_session() as session:
+            data_source_service = DataSourceService(session, session_lock=None)
+            data_sources = await data_source_service.get_data_sources_schemas_by(
+                channel_id=self._channel.id
+            )
 
-        data_source_service = DataSourceService(self._session, session_lock=self._session_lock)
-        data_sources = await data_source_service.get_data_sources_models_by(
-            channel_id=self._channel.id
-        )
-
-        for source in data_sources:
-            handler = await self._get_handler_class(source.type, config=source.details)
+        for ds in data_sources:
+            handler = await self._get_handler_class(ds.type.id, ds.type.name, ds.details)
             hierarchy = await handler.get_dataset_hierarchy(auth_context=auth_context)
             if hierarchy is not None:
                 return hierarchy
@@ -445,15 +465,10 @@ class ChannelServiceFacade(DbServiceBase):
         return None
 
     async def _get_handler_class(
-        self, data_source_type: models.DataSourceType, config: dict
+        self, type_id: int, type_name: str, config: dict
     ) -> DataSourceHandler:
-        type_id = data_source_type.id
-
         if type_id not in self._handler_classes:
-            handler_class = await DataSourceTypeService.get_data_source_handler_class(
-                data_source_type
-            )
-            self._handler_classes[type_id] = handler_class
+            self._handler_classes[type_id] = DataManager.get_data_source_handler_class(type_name)
 
         cls = self._handler_classes[type_id]
         handler_config = cls.parse_config(config)

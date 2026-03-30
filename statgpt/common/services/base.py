@@ -5,6 +5,7 @@ from contextlib import asynccontextmanager
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from statgpt.common.models import get_session_context_manager
+from statgpt.common.models.database import get_readonly_session_context_manager
 
 
 class DbServiceBase:
@@ -62,6 +63,32 @@ class DbServiceBase:
         else:
             self._scoped_session_active = True
             async with get_session_context_manager() as session:
+                self.__session = session
+                try:
+                    yield session
+                finally:
+                    self.__session = None
+                    self._scoped_session_active = False
+
+    @asynccontextmanager
+    async def _scoped_readonly_session(self) -> AsyncIterator[AsyncSession]:
+        """Yield a short-lived readonly session.
+
+        Same as ``_scoped_session()`` but creates a readonly session via
+        ``get_readonly_session_context_manager()`` when none is provided.
+        """
+        if self._scoped_session_active:
+            raise RuntimeError(
+                "Concurrent _scoped_readonly_session() calls on the same "
+                "instance are not supported. Create a separate service "
+                "instance per concurrent coroutine, or provide a session "
+                "at construction time."
+            )
+        if self.__session is not None:
+            yield self._session
+        else:
+            self._scoped_session_active = True
+            async with get_readonly_session_context_manager() as session:
                 self.__session = session
                 try:
                     yield session
