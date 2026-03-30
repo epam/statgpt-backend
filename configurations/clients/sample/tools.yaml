@@ -139,6 +139,9 @@ tools:
         pythonCode:
           enabledStr: "True"
           name: "Python Code: {dataset_source_id}"
+        mergedPythonCode:
+          enabledStr: "True"
+          name: "Python Code"
       stagesConfig:
         debugOnly: true
         toolCallName: "Searching for data: {query}"

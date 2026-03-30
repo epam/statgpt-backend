@@ -126,7 +126,7 @@ class DataQueryAttachments(BaseYamlModel):
         )
     )
     merged_python_code: ToolAttachment = Field(
-        default_factory=lambda: ToolAttachment(enabled_str="True", name="Python Code")
+        default_factory=lambda: ToolAttachment(enabled_str="False", name="Python Code")
     )
 
 

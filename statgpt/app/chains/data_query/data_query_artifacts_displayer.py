@@ -311,9 +311,8 @@ class DataQueryArtifactDisplayer:
         if not body:
             return None
 
-        assert (
-            self._config.python_code.name is not None
-        ), "python_code.name must be set when enabled"
+        if self._config.python_code.name is None:
+            raise ValueError("python_code.name must be set when enabled")
         code = _PYTHON_SDMX1_HEADER + "\n\n" + body
         title = data_response.enrich_attachment_name(self._config.python_code.name)
         return dict(type=MediaTypes.MARKDOWN, title=title, data=get_python_code_markdown(code))
@@ -325,9 +324,8 @@ class DataQueryArtifactDisplayer:
         if not self._config.merged_python_code.enabled:
             return None
 
-        assert (
-            self._config.merged_python_code.name is not None
-        ), "merged_python_code.name must be set when enabled"
+        if self._config.merged_python_code.name is None:
+            raise ValueError("merged_python_code.name must be set when enabled")
 
         items = [r for r in responses.values() if r.get_python_code_body()]
         if not items:
