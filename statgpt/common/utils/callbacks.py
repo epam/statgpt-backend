@@ -96,8 +96,32 @@ class LCMessageLoggerAsync(AsyncCallbackHandler):
 class TokenUsageByModelsCallback(AsyncCallbackHandler):
     """Callback to track token usage across different models."""
 
-    def on_llm_end(self, response: LLMResult, **kwargs: t.Any) -> None:  # type: ignore[override]
-        deployment_id = None
+    def __init__(self) -> None:
+        super().__init__()
+        self._deployment_ids: dict[UUID, str] = {}
+
+    def on_chat_model_start(  # type: ignore[override]
+        self,
+        serialized: dict[str, t.Any],
+        messages: list[list[t.Any]],
+        *,
+        run_id: UUID,
+        **kwargs: t.Any,
+    ) -> None:
+        if serialized['id'][-1] == 'AzureChatOpenAI':
+            try:
+                self._deployment_ids[run_id] = serialized['kwargs']['deployment_name']
+            except (KeyError, TypeError):
+                pass
+
+    def on_llm_end(  # type: ignore[override]
+        self,
+        response: LLMResult,
+        *,
+        run_id: UUID,
+        **kwargs: t.Any,
+    ) -> None:
+        deployment_id = self._deployment_ids.pop(run_id, None)
 
         try:
             generation = response.generations[0][0]
@@ -111,7 +135,7 @@ class TokenUsageByModelsCallback(AsyncCallbackHandler):
                 else:
                     usage_metadata = None
 
-                if generation.generation_info:
+                if not deployment_id and generation.generation_info:
                     deployment_id = generation.generation_info.get('model_name')
             except AttributeError:
                 usage_metadata = None
