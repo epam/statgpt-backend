@@ -69,7 +69,7 @@ class FileRagDetails(BaseToolDetails):
 
     # For Dial RAG:
     deployment_id_raw: str = Field(
-        default="dial-rag-pgvector",
+        default="statgpt-dial-rag-pgvector",
         validation_alias=AliasChoices("deployment_id", "deploymentId"),
         description="The DIAL deployment ID to use for the file RAG tool. Supports $env:{VAR} syntax.",
     )
