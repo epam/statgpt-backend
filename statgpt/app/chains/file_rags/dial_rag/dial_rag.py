@@ -209,7 +209,7 @@ class DialRagAgentFactory(BaseRAGFactory):
 
         dial_rag_client = self._init_dial_rag_client(auth_context)
         rag_stream = await dial_rag_client.chat.completions.create(
-            model=self._tool_config.details.deployment_id,
+            model=self._tool_config.details.get_deployment_id(),
             stream=True,
             messages=[ChatCompletionUserMessageParam(role='user', content=query)],
             extra_body=configuration_params,
@@ -218,7 +218,7 @@ class DialRagAgentFactory(BaseRAGFactory):
         dial_streamer = OpenAiToDialStreamer(
             target,
             choice,
-            deployment=self._tool_config.details.deployment_id,
+            deployment=self._tool_config.details.get_deployment_id(),
             stream_content=False,
             show_debug_stages=state.get(StateVarsConfig.SHOW_DEBUG_STAGES, False),
             stages_config=self._tool_config.details.stages_config,

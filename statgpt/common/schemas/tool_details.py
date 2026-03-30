@@ -1,7 +1,7 @@
 import re
 from typing import Any
 
-from pydantic import Field
+from pydantic import AliasChoices, Field
 
 from statgpt.common.config import LLMModelsEnum
 from statgpt.common.config import utils as config_utils
@@ -68,9 +68,10 @@ class FileRagDetails(BaseToolDetails):
     version: RAGVersion
 
     # For Dial RAG:
-    deployment_id: str = Field(
+    deployment_id_raw: str = Field(
         default="dial-rag-pgvector",
-        description="The DIAL deployment ID to use for the file RAG tool",
+        validation_alias=AliasChoices("deployment_id", "deploymentId"),
+        description="The DIAL deployment ID to use for the file RAG tool. Supports $env:{VAR} syntax.",
     )
     metadata_endpoint: str = Field(default="/indexing/documents/metadata")
     prefilter_llm_model_config: LLMModelConfig = Field(default_factory=LLMModelConfig)
@@ -94,6 +95,9 @@ class FileRagDetails(BaseToolDetails):
         "corresponding to the 'latest'",
     )
 
+    def get_deployment_id(self) -> str:
+        return config_utils.replace_env(self.deployment_id_raw)
+
     def get_attachment_url_override(self) -> str | None:
         if self.attachment_url_override is None or not self.attachment_url_override.strip():
             return None
@@ -108,7 +112,10 @@ class WebSearchDetails(BaseToolDetails):
             description="The list of allowed domains for the web search tool"
         )
 
-    deployment_id: str = Field(description="The DIAL deployment_id of the web search agent")
+    deployment_id_raw: str = Field(
+        validation_alias=AliasChoices("deployment_id", "deploymentId"),
+        description="The DIAL deployment_id of the web search agent. Supports $env:{VAR} syntax.",
+    )
     domains: Domains | None = Field(
         default=None, description="The list of allowed domains for the web search tool"
     )
@@ -127,9 +134,15 @@ class WebSearchDetails(BaseToolDetails):
         ),
     )
 
+    def get_deployment_id(self) -> str:
+        return config_utils.replace_env(self.deployment_id_raw)
+
 
 class WebSearchAgentDetails(BaseToolDetails):
-    deployment_id: str = Field(description="The DIAL deployment_id of the web search agent")
+    deployment_id_raw: str = Field(
+        validation_alias=AliasChoices("deployment_id", "deploymentId"),
+        description="The DIAL deployment_id of the web search agent. Supports $env:{VAR} syntax.",
+    )
     configuration: dict[str, Any] | None = Field(
         default=None, description="The configuration for the web search agent"
     )
@@ -151,6 +164,9 @@ class WebSearchAgentDetails(BaseToolDetails):
             " Otherwise, it returns only the URLs of the attachments."
         ),
     )
+
+    def get_deployment_id(self) -> str:
+        return config_utils.replace_env(self.deployment_id_raw)
 
 
 class PublicationType(BaseYamlModel):

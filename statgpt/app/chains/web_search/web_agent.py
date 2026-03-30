@@ -17,7 +17,7 @@ class WebSearchAgentTool(StatGptTool[WebSearchToolConfig], tool_type=ToolTypes.W
     def __init__(self, tool_config: WebSearchToolConfig, channel_config: ChannelConfig, **kwargs):
         super().__init__(tool_config, channel_config, **kwargs)
 
-        deployment_id = tool_config.details.deployment_id
+        deployment_id = tool_config.details.get_deployment_id()
         stages_config = tool_config.details.stages_config
         system_prompt = tool_config.details.system_prompt
         configuration = tool_config.details.configuration
