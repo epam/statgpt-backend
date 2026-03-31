@@ -34,7 +34,6 @@ from statgpt.common.services import (
     DataSourceService,
     GlossaryOfTermsService,
 )
-from statgpt.common.services.base import DbServiceBase
 from statgpt.common.settings.application import application_settings
 from statgpt.common.settings.document import (
     DimensionValueDocumentMetadataFields,
@@ -200,9 +199,8 @@ class BaseChannelConfiguration(BaseModel, metaclass=FormMetaclass):
     )
 
 
-class ChannelServiceFacade(DbServiceBase):
+class ChannelServiceFacade:
     def __init__(self, channel: schemas.Channel) -> None:
-        super().__init__(session=None)
         self._channel = channel
         self._handler_classes: dict[int, type[DataSourceHandler]] = {}
 
@@ -300,7 +298,7 @@ class ChannelServiceFacade(DbServiceBase):
         return self.channel_config.country_named_entity_type.strip()
 
     async def get_available_terms(self) -> list[schemas.GlossaryTerm]:
-        async with self._scoped_readonly_session() as session:
+        async with get_readonly_session_context_manager() as session:
             service = GlossaryOfTermsService(session, session_lock=None)
             return await service.get_term_schemas_by_channel(
                 channel_id=self._channel.id, limit=None, offset=0
@@ -316,7 +314,7 @@ class ChannelServiceFacade(DbServiceBase):
         source_ids = {
             doc.metadata[IndicatorDocumentMetadataFields.DATA_SOURCE_ID] for doc in doc_list
         }
-        async with self._scoped_readonly_session() as session:
+        async with get_readonly_session_context_manager() as session:
             source_service = DataSourceService(session, session_lock=None)
             data_sources = await source_service.get_data_sources_schemas(
                 limit=None, offset=0, ids=source_ids
@@ -348,7 +346,7 @@ class ChannelServiceFacade(DbServiceBase):
         source_ids = {
             doc.metadata[DimensionValueDocumentMetadataFields.DATA_SOURCE_ID] for doc in doc_list
         }
-        async with self._scoped_readonly_session() as session:
+        async with get_readonly_session_context_manager() as session:
             source_service = DataSourceService(session, session_lock=None)
             data_sources = await source_service.get_data_sources_schemas(
                 limit=None, offset=0, ids=source_ids
@@ -375,7 +373,7 @@ class ChannelServiceFacade(DbServiceBase):
         return dataset_details
 
     async def _load_datasets(self, auth_context: AuthContext) -> list[VersionedDataSet]:
-        async with self._scoped_readonly_session() as session:
+        async with get_readonly_session_context_manager() as session:
             dataset_service = DataSetService(session, session_lock=None)
             data_source_service = DataSourceService(session, session_lock=None)
 
@@ -442,7 +440,7 @@ class ChannelServiceFacade(DbServiceBase):
 
     async def get_dataset_hierarchy(self, auth_context: AuthContext) -> DatasetHierarchy | None:
         """Get first available dataset hierarchy from the channel data sources."""
-        async with self._scoped_readonly_session() as session:
+        async with get_readonly_session_context_manager() as session:
             data_source_service = DataSourceService(session, session_lock=None)
             data_sources = await data_source_service.get_data_sources_schemas_by(
                 channel_id=self._channel.id
