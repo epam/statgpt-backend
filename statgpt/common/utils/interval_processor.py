@@ -20,12 +20,18 @@ class IntervalType(StrEnum):
 class Duration(BaseModel):
     years: int = Field()
     months: int = Field()
+    quarters: int = Field(default=0)
     interval_type: IntervalType = Field()
 
     @model_validator(mode="after")
     def validate_duration(self) -> Self:
-        if self.years <= 0 and self.months <= 0 and not self.interval_type == IntervalType.NOW:
-            raise ValueError("Either years or months must be greater than 0")
+        if (
+            self.years <= 0
+            and self.months <= 0
+            and self.quarters <= 0
+            and not self.interval_type == IntervalType.NOW
+        ):
+            raise ValueError("Either years, months, or quarters must be greater than 0")
         return self
 
 
@@ -33,36 +39,39 @@ class IntervalProcessor:
     """
     Process interval strings to generate date ranges.
 
-    Supported interval formats:
+    Units: years (y/year/years), months (m/month/months), quarters (q/quarter/quarters).
+    Separators: space or underscore. Number is optional (defaults to 1).
+    Quarters are calendar-aligned (Q1=Jan-Mar … Q4=Oct-Dec) and only
+    supported in calendar-aligned types (last/next/to_date/from_now).
 
-        Note: All examples assume current date is 2025-10-10
+    Interval types (examples assume current date is 2025-10-10, in Q4):
 
-        - "last <n> years/months"
-            Calendar years/months preceding current date
-            Example: "last 1 year" → 2024-01-01 to 2024-12-31
+    Type      Description                               Example          Result
+    ────────  ────────────────────────────────────────  ───────────────  ──────────────────────────
+    regular   Rolling offset from current date          "-1y"            2024-10-10 … 2025-10-10
+              (quarters are forbidden)                  "-3m"            2025-07-10 … 2025-10-10
+                                                        "1y"             2025-10-10 … 2026-10-10
+    last      Completed calendar periods before current "last 1y"        2024-01-01 … 2024-12-31
+                                                        "last 1m"        2025-09-01 … 2025-09-30
+                                                        "last 1q"        2025-07-01 … 2025-09-30
+    next      Calendar periods after current            "next 1y"        2026-01-01 … 2026-12-31
+                                                        "next 1m"        2025-11-01 … 2025-11-30
+                                                        "next 1q"        2026-01-01 … 2026-03-31
+    to_date   Start of current period to current date   "1y to date"     2025-01-01 … 2025-10-10
+                                                        "1m to date"     2025-10-01 … 2025-10-10
+                                                        "1q to date"     2025-10-01 … 2025-10-10
+    from_now  Current date to end of current period     "1y from now"    2025-10-10 … 2025-12-31
+                                                        "1m from now"    2025-10-10 … 2025-10-31
+                                                        "1q from now"    2025-10-10 … 2025-12-31
 
-        - "next <n> years/months"
-            Calendar years/months following current date
-            Example: "next 1 year" → 2026-01-01 to 2026-12-31
-
-        - "<n> years/months to date"
-            From start of past calendar year/month until current date
-            Example: "1 year to date" → 2025-01-01 to 2025-10-10
-
-        - "<n> years/months from now"
-            From current date until end of future calendar year/month
-            Example: "1 year from now" → 2025-10-10 to 2026-12-31
-
-        - "(+-)?<n> years/months"
-            Relative period from current date
-            Example: "1 year" → 2025-10-10 to 2026-10-10
-            Example: "-1 year" → 2024-10-10 to 2025-10-10
+    See tests/unit/test_interval_processor.py for all accepted input variants.
     """
 
     _NUMBER = r"[1-9]\d*"
     _YEARS = r"y(?:ears?)?"
     _MONTHS = r"m(?:onths?)?"
-    _UNITS = f"{_YEARS}|{_MONTHS}"
+    _QUARTERS = r"q(?:uarters?)?"
+    _UNITS = f"{_YEARS}|{_MONTHS}|{_QUARTERS}"
     _SPACE = r"[_ ]"
     _SIGN = r"[-+]"
     _LAST_NEXT = (
@@ -88,6 +97,8 @@ class IntervalProcessor:
         if interval_str == "now":
             return Duration(years=0, months=0, interval_type=IntervalType.NOW)
 
+        quarters = 0
+
         if match := self._last_next_pattern.match(interval_str):
             prefix = match.group("prefix")
             interval_type = IntervalType(prefix)
@@ -98,6 +109,10 @@ class IntervalProcessor:
             elif units.startswith('m'):
                 years = 0
                 months = int(match.group("number") or 1)
+            elif units.startswith('q'):
+                years = 0
+                months = 0
+                quarters = int(match.group("number") or 1)
             else:
                 raise ValueError(f"Invalid interval format: {interval_str}")
         elif match := self._to_date_from_now_pattern.match(interval_str):
@@ -110,6 +125,10 @@ class IntervalProcessor:
             elif units.startswith('m'):
                 years = 0
                 months = int(match.group("number") or 1)
+            elif units.startswith('q'):
+                years = 0
+                months = 0
+                quarters = int(match.group("number") or 1)
             else:
                 raise ValueError(f"Invalid interval format: {interval_str}")
         elif match := (
@@ -143,11 +162,13 @@ class IntervalProcessor:
             raise ValueError(f"Invalid interval format: {interval_str}")
         if months < 2 and units == 'months':
             raise ValueError(f"Invalid interval format: {interval_str}")
+        if quarters < 2 and units == 'quarters':
+            raise ValueError(f"Invalid interval format: {interval_str}")
 
-        return Duration(years=years, months=months, interval_type=interval_type)
+        return Duration(years=years, months=months, quarters=quarters, interval_type=interval_type)
 
     def _process_to_date(
-        self, years: int, months: int, date: datetime, interval_str: str
+        self, years: int, months: int, quarters: int, date: datetime, interval_str: str
     ) -> tuple[datetime, datetime]:
         if years > 0:
             start_date = datetime(date.year + 1, 1, 1) - relativedelta(years=years)
@@ -155,12 +176,15 @@ class IntervalProcessor:
             # use relativedelta in case `date` is December (12th month) to avoid overflow
             next_month_start = (date + relativedelta(months=1)).replace(day=1)
             start_date = next_month_start - relativedelta(months=months)
+        elif quarters > 0:
+            current_q_start = datetime(date.year, (date.month - 1) // 3 * 3 + 1, 1)
+            start_date = current_q_start - relativedelta(months=(quarters - 1) * 3)
         else:
             raise ValueError(f"Invalid interval format: {interval_str}")
         return start_date, date
 
     def _process_from_now(
-        self, years: int, months: int, date: datetime, interval_str: str
+        self, years: int, months: int, quarters: int, date: datetime, interval_str: str
     ) -> tuple[datetime, datetime]:
         if years > 0:
             end_date = datetime(date.year - 1, 12, 31) + relativedelta(years=years)
@@ -170,12 +194,15 @@ class IntervalProcessor:
                 + relativedelta(months=months)
                 - relativedelta(days=1)
             )
+        elif quarters > 0:
+            current_q_start = datetime(date.year, (date.month - 1) // 3 * 3 + 1, 1)
+            end_date = current_q_start + relativedelta(months=quarters * 3) - relativedelta(days=1)
         else:
             raise ValueError(f"Invalid interval format: {interval_str}")
         return date, end_date
 
     def _process_last(
-        self, years: int, months: int, date: datetime, interval_str: str
+        self, years: int, months: int, quarters: int, date: datetime, interval_str: str
     ) -> tuple[datetime, datetime]:
         if years > 0:
             start_date = datetime(date.year, 1, 1) - relativedelta(years=years)
@@ -183,12 +210,16 @@ class IntervalProcessor:
         elif months > 0:
             start_date = datetime(date.year, date.month, 1) - relativedelta(months=months)
             end_date = datetime(date.year, date.month, 1) - relativedelta(days=1)
+        elif quarters > 0:
+            current_q_start = datetime(date.year, (date.month - 1) // 3 * 3 + 1, 1)
+            start_date = current_q_start - relativedelta(months=quarters * 3)
+            end_date = current_q_start - relativedelta(days=1)
         else:
             raise ValueError(f"Invalid interval format: {interval_str}")
         return start_date, end_date
 
     def _process_next(
-        self, years: int, months: int, date: datetime, interval_str: str
+        self, years: int, months: int, quarters: int, date: datetime, interval_str: str
     ) -> tuple[datetime, datetime]:
         if years > 0:
             start_date = datetime(date.year, 1, 1) + relativedelta(years=1)
@@ -200,6 +231,12 @@ class IntervalProcessor:
             # use relativedelta in case `date` is December (12th month) to avoid overflow
             next_month_start = (date + relativedelta(months=1)).replace(day=1)
             end_date = next_month_start + relativedelta(months=months) - relativedelta(days=1)
+        elif quarters > 0:
+            current_q_start = datetime(date.year, (date.month - 1) // 3 * 3 + 1, 1)
+            start_date = current_q_start + relativedelta(months=3)
+            end_date = (
+                current_q_start + relativedelta(months=(quarters + 1) * 3) - relativedelta(days=1)
+            )
         else:
             raise ValueError(f"Invalid interval format: {interval_str}")
         return start_date, end_date
@@ -233,16 +270,17 @@ class IntervalProcessor:
             date = datetime.now()
 
         duration = self._parse_duration(interval_str)
-        years, months, interval_type = duration.years, duration.months, duration.interval_type
+        years, months, quarters = duration.years, duration.months, duration.quarters
+        interval_type = duration.interval_type
 
         if interval_type == IntervalType.TO_DATE:
-            return self._process_to_date(years, months, date, interval_str)
+            return self._process_to_date(years, months, quarters, date, interval_str)
         elif interval_type == IntervalType.FROM_NOW:
-            return self._process_from_now(years, months, date, interval_str)
+            return self._process_from_now(years, months, quarters, date, interval_str)
         elif interval_type == IntervalType.LAST:
-            return self._process_last(years, months, date, interval_str)
+            return self._process_last(years, months, quarters, date, interval_str)
         elif interval_type == IntervalType.NEXT:
-            return self._process_next(years, months, date, interval_str)
+            return self._process_next(years, months, quarters, date, interval_str)
         elif interval_type == IntervalType.REGULAR_NEGATIVE:
             return self._process_regular_negative(years, months, date)
         elif interval_type == IntervalType.REGULAR_POSITIVE:
@@ -261,14 +299,15 @@ class IntervalProcessor:
             date = datetime.now()
 
         duration = self._parse_duration(relative_datetime)
-        years, months, interval_type = duration.years, duration.months, duration.interval_type
+        years, months, quarters = duration.years, duration.months, duration.quarters
+        interval_type = duration.interval_type
 
         if interval_type == IntervalType.NOW:
             return date
         elif interval_type == IntervalType.TO_DATE:
-            return self._process_to_date(years, months, date, relative_datetime)[0]
+            return self._process_to_date(years, months, quarters, date, relative_datetime)[0]
         elif interval_type == IntervalType.FROM_NOW:
-            return self._process_from_now(years, months, date, relative_datetime)[1]
+            return self._process_from_now(years, months, quarters, date, relative_datetime)[1]
         elif interval_type == IntervalType.REGULAR_NEGATIVE:
             return self._process_regular_negative(years, months, date)[0]
         elif interval_type == IntervalType.REGULAR_POSITIVE:
