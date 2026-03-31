@@ -203,12 +203,12 @@ curations:
     - id: "PyPI::langgraph-checkpoint:4.0.0"
       curations:
         concluded_license: "MIT"
-        comment: "MIT License: https://github.com/langchain-ai/langgraph/blob/checkpoint%3D%3D4.0.0/LICENSE"
+        comment: "MIT License: https://github.com/langchain-ai/langgraph/blob/checkpoint%3D%3D4.0.0/libs/checkpoint/LICENSE"
     - id: "PyPI::langgraph-prebuilt:1.0.8"
       curations:
         concluded_license: "MIT"
-        comment: "MIT License: https://github.com/langchain-ai/langgraph/blob/1.0.8/LICENSE"
+        comment: "MIT License: https://github.com/langchain-ai/langgraph/blob/prebuilt%3D%3D1.0.8/libs/prebuilt/LICENSE"
     - id: "PyPI::langgraph-sdk:0.3.3"
       curations:
         concluded_license: "MIT"
-        comment: "MIT License: https://github.com/langchain-ai/langgraph/blob/0.3.3/LICENSE"
+        comment: "MIT License: https://github.com/langchain-ai/langgraph/blob/sdk%3D%3D0.3.3/libs/sdk-py/LICENSE"
