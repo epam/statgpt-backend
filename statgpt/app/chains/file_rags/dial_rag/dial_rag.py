@@ -78,7 +78,7 @@ class DialRagAgentFactory(BaseRAGFactory):
         try:
             metadata_loader = DialRagMetadataLoader.create_for_local_or_remote(
                 auth_context=auth_context,
-                metadata_endpoint=self._tool_config.details.metadata_endpoint,
+                metadata_endpoint=self._tool_config.details.get_metadata_endpoint(),
             )
             metadata_resp = await metadata_loader.load()
             metadata = DialRagMetadata.from_response(metadata_resp)

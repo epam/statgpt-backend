@@ -72,8 +72,14 @@ class FileRagDetails(BaseToolDetails):
         default="statgpt-dial-rag-pgvector",
         validation_alias=AliasChoices("deployment_id", "deploymentId"),
         description="The DIAL deployment ID to use for the file RAG tool. Supports $env:{VAR} syntax.",
+        serialization_alias="deploymentId"
     )
-    metadata_endpoint: str = Field(default="/indexing/documents/metadata")
+    metadata_endpoint_raw: str = Field(
+        default="/indexing/documents/metadata",
+        validation_alias=AliasChoices("metadata_endpoint", "metadataEndpoint"),
+        description="The metadata endpoint path for DIAL RAG. Supports $env:{VAR} syntax.",
+        serialization_alias="metadataEndpoint",
+    )
     prefilter_llm_model_config: LLMModelConfig = Field(default_factory=LLMModelConfig)
     always_show_stages: bool = Field(
         default=False,
@@ -98,6 +104,9 @@ class FileRagDetails(BaseToolDetails):
     def get_deployment_id(self) -> str:
         return config_utils.replace_env(self.deployment_id_raw)
 
+    def get_metadata_endpoint(self) -> str:
+        return config_utils.replace_env(self.metadata_endpoint_raw)
+
     def get_attachment_url_override(self) -> str | None:
         if self.attachment_url_override is None or not self.attachment_url_override.strip():
             return None
@@ -115,6 +124,7 @@ class WebSearchDetails(BaseToolDetails):
     deployment_id_raw: str = Field(
         validation_alias=AliasChoices("deployment_id", "deploymentId"),
         description="The DIAL deployment_id of the web search agent. Supports $env:{VAR} syntax.",
+        serialization_alias="deploymentId"
     )
     domains: Domains | None = Field(
         default=None, description="The list of allowed domains for the web search tool"
@@ -142,6 +152,7 @@ class WebSearchAgentDetails(BaseToolDetails):
     deployment_id_raw: str = Field(
         validation_alias=AliasChoices("deployment_id", "deploymentId"),
         description="The DIAL deployment_id of the web search agent. Supports $env:{VAR} syntax.",
+        serialization_alias="deploymentId"
     )
     configuration: dict[str, Any] | None = Field(
         default=None, description="The configuration for the web search agent"
