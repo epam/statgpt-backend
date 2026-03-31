@@ -203,7 +203,7 @@ curations:
     - id: "PyPI::langgraph-checkpoint:4.0.0"
       curations:
         concluded_license: "MIT"
-        comment: "MIT License: https://github.com/langchain-ai/langgraph/blob/0.4.0/LICENSE"
+        comment: "MIT License: https://github.com/langchain-ai/langgraph/blob/checkpoint%3D%3D4.0.0/LICENSE"
     - id: "PyPI::langgraph-prebuilt:1.0.8"
       curations:
         concluded_license: "MIT"
