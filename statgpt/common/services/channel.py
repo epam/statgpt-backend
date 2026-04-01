@@ -42,6 +42,10 @@ class ChannelService(DbServiceBase):
         q_result = await self._session.execute(query)
         return q_result.scalar_one()
 
+    async def get_channel_schema_by_deployment_id(self, deployment_id: str) -> schemas.Channel:
+        channel = await self.get_channel_by_deployment_id(deployment_id)
+        return ChannelSerializer.db_to_schema(channel)
+
     async def _get_item_or_raise(self, item_id: int) -> models.Channel:
         item: models.Channel | None = await self._session.get(models.Channel, item_id)
         if not item:

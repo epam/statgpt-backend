@@ -18,7 +18,6 @@ from statgpt.app.services.chat_facade import ChannelServiceFacade
 from statgpt.app.settings.dial_app import dial_app_settings
 from statgpt.app.utils.dial_exceptions import RateLimitException
 from statgpt.app.utils.dial_stages import optional_timed_stage
-from statgpt.common.models.database import get_readonly_session_context_manager
 from statgpt.common.schemas.dial import Pricing
 from statgpt.common.schemas.token_usage import TokenUsagePricedItem
 from statgpt.common.settings.application import application_settings
@@ -57,31 +56,28 @@ class ChannelCompletion(ChatCompletion):
                 f"request_start_{self._deployment_id}_{start_time.isoformat()}"
             )
 
-        async with get_readonly_session_context_manager() as db_session:
-            try:
-                service = await ChannelServiceFacade.get_channel(db_session, self._deployment_id)
-            except Exception as e:
-                _log.error(e)
-                raise DIALException(
-                    status_code=404,
-                    code="deployment_not_found",
-                    message="The API deployment for this resource does not exist.",
-                )
-            await self._channel_completion(request, response, service, start_time, configuration)
+        try:
+            service = await ChannelServiceFacade.get_channel(self._deployment_id)
+        except Exception as e:
+            _log.error(e)
+            raise DIALException(
+                status_code=404,
+                code="deployment_not_found",
+                message="The API deployment for this resource does not exist.",
+            )
+        await self._channel_completion(request, response, service, start_time, configuration)
 
     async def configuration(self, request: ConfigurationRequest) -> ConfigurationResponse | dict:
-
-        async with get_readonly_session_context_manager() as db_session:
-            try:
-                service = await ChannelServiceFacade.get_channel(db_session, self._deployment_id)
-            except Exception as e:
-                _log.error(e)
-                raise DIALException(
-                    status_code=404,
-                    code="deployment_not_found",
-                    message="The API deployment for this resource does not exist.",
-                )
-            return service.dial_channel_configuration
+        try:
+            service = await ChannelServiceFacade.get_channel(self._deployment_id)
+        except Exception as e:
+            _log.error(e)
+            raise DIALException(
+                status_code=404,
+                code="deployment_not_found",
+                message="The API deployment for this resource does not exist.",
+            )
+        return service.dial_channel_configuration
 
     @classmethod
     async def _channel_completion(
