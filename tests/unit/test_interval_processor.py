@@ -515,6 +515,7 @@ def test_next(
         "1m1q",
         "-1m1q",
         # plural with count < 2
+        "quarters",
         "1quarters",
     ],
 )
@@ -528,6 +529,69 @@ def test_default_current_date(processor: IntervalProcessor) -> None:
     start, end = processor.get_interval("-1y")
     assert start == datetime(2024, 10, 10)
     assert end == datetime(2025, 10, 10)
+
+
+@pytest.mark.parametrize(
+    "interval_str,current_date,expected_date",
+    [
+        # ── now ──
+        ("now", datetime(2025, 10, 10), datetime(2025, 10, 10)),
+        # ── regular negative → returns start date ──
+        ("-1y", datetime(2025, 10, 10), datetime(2024, 10, 10)),
+        ("-1y2m", datetime(2025, 10, 10), datetime(2024, 8, 10)),
+        ("-3m", datetime(2025, 10, 10), datetime(2025, 7, 10)),
+        ("-month", datetime(2025, 10, 10), datetime(2025, 9, 10)),
+        ("-1m", datetime(2025, 3, 31), datetime(2025, 2, 28)),
+        # ── regular positive → returns end date ──
+        ("1y", datetime(2025, 10, 10), datetime(2026, 10, 10)),
+        ("3m", datetime(2025, 10, 10), datetime(2026, 1, 10)),
+        ("1y2m", datetime(2025, 10, 10), datetime(2026, 12, 10)),
+        ("1m", datetime(2025, 12, 10), datetime(2026, 1, 10)),
+        ("1m", datetime(2025, 1, 31), datetime(2025, 2, 28)),
+        # ── to_date → returns start of period ──
+        ("y_to_date", datetime(2025, 10, 10), datetime(2025, 1, 1)),
+        ("2y_to_date", datetime(2025, 10, 10), datetime(2024, 1, 1)),
+        ("m_to_date", datetime(2025, 10, 10), datetime(2025, 10, 1)),
+        ("2m_to_date", datetime(2025, 10, 10), datetime(2025, 9, 1)),
+        ("q_to_date", datetime(2025, 10, 10), datetime(2025, 10, 1)),
+        ("2q_to_date", datetime(2025, 10, 10), datetime(2025, 7, 1)),
+        ("q_to_date", datetime(2025, 8, 15), datetime(2025, 7, 1)),
+        # ── from_now → returns end of period ──
+        ("y_from_now", datetime(2025, 10, 10), datetime(2025, 12, 31)),
+        ("2y_from_now", datetime(2025, 10, 10), datetime(2026, 12, 31)),
+        ("m_from_now", datetime(2025, 10, 10), datetime(2025, 10, 31)),
+        ("2m_from_now", datetime(2025, 10, 10), datetime(2025, 11, 30)),
+        ("q_from_now", datetime(2025, 10, 10), datetime(2025, 12, 31)),
+        ("2q_from_now", datetime(2025, 10, 10), datetime(2026, 3, 31)),
+        ("q_from_now", datetime(2025, 8, 15), datetime(2025, 9, 30)),
+    ],
+)
+def test_get_absolute_date(
+    processor: IntervalProcessor,
+    interval_str: str,
+    current_date: datetime,
+    expected_date: datetime,
+) -> None:
+    result = processor.get_absolute_date(interval_str, current_date)
+    assert result == expected_date
+
+
+@pytest.mark.parametrize(
+    "interval_str",
+    [
+        "last_year",
+        "last_quarter",
+        "last_month",
+        "next_year",
+        "next_quarter",
+        "next_month",
+    ],
+)
+def test_get_absolute_date_invalid_for_last_next(
+    processor: IntervalProcessor, interval_str: str
+) -> None:
+    with pytest.raises(ValueError, match="Invalid relative format"):
+        processor.get_absolute_date(interval_str, datetime(2025, 10, 10))
 
 
 @pytest.mark.parametrize(
