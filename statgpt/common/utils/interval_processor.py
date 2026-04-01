@@ -91,6 +91,11 @@ class IntervalProcessor:
         # any interval with months only and +/- sign from date
         self._regular_months_pattern = re.compile(self._REGULAR_MONTHS)
 
+    @staticmethod
+    def _get_quarter_start(date: datetime) -> datetime:
+        month = (date.month - 1) // 3 * 3 + 1
+        return datetime(date.year, month, 1)
+
     def _parse_duration(self, interval_str: str) -> Duration:
         """Parse the interval string to get years and months"""
 
@@ -177,7 +182,7 @@ class IntervalProcessor:
             next_month_start = (date + relativedelta(months=1)).replace(day=1)
             start_date = next_month_start - relativedelta(months=months)
         elif quarters > 0:
-            current_q_start = datetime(date.year, (date.month - 1) // 3 * 3 + 1, 1)
+            current_q_start = self._get_quarter_start(date)
             start_date = current_q_start - relativedelta(months=(quarters - 1) * 3)
         else:
             raise ValueError(f"Invalid interval format: {interval_str}")
@@ -195,7 +200,7 @@ class IntervalProcessor:
                 - relativedelta(days=1)
             )
         elif quarters > 0:
-            current_q_start = datetime(date.year, (date.month - 1) // 3 * 3 + 1, 1)
+            current_q_start = self._get_quarter_start(date)
             end_date = current_q_start + relativedelta(months=quarters * 3) - relativedelta(days=1)
         else:
             raise ValueError(f"Invalid interval format: {interval_str}")
@@ -211,7 +216,7 @@ class IntervalProcessor:
             start_date = datetime(date.year, date.month, 1) - relativedelta(months=months)
             end_date = datetime(date.year, date.month, 1) - relativedelta(days=1)
         elif quarters > 0:
-            current_q_start = datetime(date.year, (date.month - 1) // 3 * 3 + 1, 1)
+            current_q_start = self._get_quarter_start(date)
             start_date = current_q_start - relativedelta(months=quarters * 3)
             end_date = current_q_start - relativedelta(days=1)
         else:
@@ -232,7 +237,7 @@ class IntervalProcessor:
             next_month_start = (date + relativedelta(months=1)).replace(day=1)
             end_date = next_month_start + relativedelta(months=months) - relativedelta(days=1)
         elif quarters > 0:
-            current_q_start = datetime(date.year, (date.month - 1) // 3 * 3 + 1, 1)
+            current_q_start = self._get_quarter_start(date)
             start_date = current_q_start + relativedelta(months=3)
             end_date = (
                 current_q_start + relativedelta(months=(quarters + 1) * 3) - relativedelta(days=1)
