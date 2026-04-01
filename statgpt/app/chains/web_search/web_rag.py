@@ -30,7 +30,7 @@ class WebSearchTool(StatGptTool[WebSearchToolConfig], tool_type=ToolTypes.WEB_SE
         super().__init__(tool_config, channel_config, **kwargs)
 
         kwargs = dict(
-            deployment_id=tool_config.details.deployment_id,
+            deployment_id=tool_config.details.get_deployment_id(),
             stages_config=tool_config.details.stages_config,
         )
         if tool_config.details.urls_only:
