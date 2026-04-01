@@ -293,39 +293,66 @@ class IntervalProcessor:
         else:
             raise ValueError(f"Invalid interval format: {interval_str}")
 
-    def get_absolute_date(self, relative_datetime: str, date: datetime | None = None) -> datetime:
+    def get_absolute_date(self, pattern: str, date: datetime | None = None) -> datetime:
         """
-        Get the relative date to the datetime
-        :param relative_datetime: The relative datetime string
+        Get the relative date to the datetime.
+
+        For last/next interval types, a ``:start`` or ``:end`` suffix is required
+        to select which bound of the interval to return, e.g. ``last_1y:start``,
+        ``next_2q:end``.  The suffix is only valid on last/next patterns.
+
+        :param pattern: The relative datetime string
         :param date: The reference date
         :return: datetime of relative date
         """
         if date is None:
             date = datetime.now()
 
-        duration = self._parse_duration(relative_datetime)
+        bound: str | None = None
+        if pattern.endswith(":start"):
+            bound = "start"
+            pattern = pattern[:-6]
+        elif pattern.endswith(":end"):
+            bound = "end"
+            pattern = pattern[:-4]
+
+        duration = self._parse_duration(pattern)
         years, months, quarters = duration.years, duration.months, duration.quarters
         interval_type = duration.interval_type
+
+        if interval_type in (IntervalType.LAST, IntervalType.NEXT):
+            if bound is None:
+                raise ValueError(f"Invalid relative format: {pattern}")
+            if interval_type == IntervalType.LAST:
+                start, end = self._process_last(years, months, quarters, date, pattern)
+            else:
+                start, end = self._process_next(years, months, quarters, date, pattern)
+            return start if bound == "start" else end
+
+        if bound is not None:
+            raise ValueError(
+                f":start/:end suffix is only valid for last/next patterns, got: {pattern}"
+            )
 
         if interval_type == IntervalType.NOW:
             return date
         elif interval_type == IntervalType.TO_DATE:
-            return self._process_to_date(years, months, quarters, date, relative_datetime)[0]
+            return self._process_to_date(years, months, quarters, date, pattern)[0]
         elif interval_type == IntervalType.FROM_NOW:
-            return self._process_from_now(years, months, quarters, date, relative_datetime)[1]
+            return self._process_from_now(years, months, quarters, date, pattern)[1]
         elif interval_type == IntervalType.REGULAR_NEGATIVE:
             return self._process_regular_negative(years, months, date)[0]
         elif interval_type == IntervalType.REGULAR_POSITIVE:
             return self._process_regular_positive(years, months, date)[1]
         else:
-            raise ValueError(f"Invalid relative format: {relative_datetime}")
+            raise ValueError(f"Invalid relative format: {pattern}")
 
-    def get_absolute_date_str(self, relative_datetime: str, date: datetime | None = None) -> str:
+    def get_absolute_date_str(self, pattern: str, date: datetime | None = None) -> str:
         """
         Get the relative date to the date string
-        :param relative_datetime: The relative datetime string
+        :param pattern: The relative datetime string
         :param date: The reference date
         :return: iso date string
         """
-        res = self.get_absolute_date(relative_datetime, date)
+        res = self.get_absolute_date(pattern, date)
         return res.date().isoformat()
