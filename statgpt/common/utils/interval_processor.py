@@ -182,6 +182,8 @@ class IntervalProcessor:
         elif duration.quarters > 0:
             current_q_start = self._get_quarter_start(date)
             start_date = current_q_start - relativedelta(months=(duration.quarters - 1) * 3)
+        else:
+            raise ValueError("Either years, months, or quarters must be greater than 0")
         return start_date, date
 
     def _process_from_now(self, duration: Duration, date: datetime) -> tuple[datetime, datetime]:
@@ -200,6 +202,8 @@ class IntervalProcessor:
                 + relativedelta(months=duration.quarters * 3)
                 - relativedelta(days=1)
             )
+        else:
+            raise ValueError("Either years, months, or quarters must be greater than 0")
         return date, end_date
 
     def _process_last(self, duration: Duration, date: datetime) -> tuple[datetime, datetime]:
@@ -213,6 +217,8 @@ class IntervalProcessor:
             current_q_start = self._get_quarter_start(date)
             start_date = current_q_start - relativedelta(months=duration.quarters * 3)
             end_date = current_q_start - relativedelta(days=1)
+        else:
+            raise ValueError("Either years, months, or quarters must be greater than 0")
         return start_date, end_date
 
     def _process_next(self, duration: Duration, date: datetime) -> tuple[datetime, datetime]:
@@ -238,6 +244,8 @@ class IntervalProcessor:
                 + relativedelta(months=(duration.quarters + 1) * 3)
                 - relativedelta(days=1)
             )
+        else:
+            raise ValueError("Either years, months, or quarters must be greater than 0")
         return start_date, end_date
 
     def _process_regular_negative(
