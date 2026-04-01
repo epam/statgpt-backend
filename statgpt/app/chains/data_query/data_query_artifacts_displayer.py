@@ -26,6 +26,15 @@ IMPORTANT: Some of the data could not be parsed correctly and is not included in
 It will be still visible to the user in the table view in the UI.
 """
 
+_PYTHON_SDMX1_HEADER = """\
+# Uses the [sdmx1 library](https://pypi.org/project/sdmx1/)
+# Install with:
+# ```bash
+# pip install sdmx1
+# ```
+
+import sdmx"""
+
 
 class DataQueryArtifactDisplayer:
     def __init__(
@@ -178,6 +187,11 @@ class DataQueryArtifactDisplayer:
                 tasks.append(self._attach_data_response(attachments_storage, response))
             await asyncio.gather(*tasks)
 
+        if self._chat_config.merge_python_code:
+            merged_python = await self._create_merged_python_code_attachment(responses)
+            if merged_python is not None:
+                self._choice.add_attachment(**merged_python)
+
     async def _attach_data_response(
         self, attachments_storage: AttachmentsStorage, data_response: DataResponse
     ) -> None:
@@ -187,8 +201,10 @@ class DataQueryArtifactDisplayer:
             self._attach_csv(attachments_storage, data_response),
             self._attach_markdown_json_query(data_response),
             self._attach_json_query(data_response),
-            self._attach_python_code(data_response),
         ]
+
+        if not self._chat_config.merge_python_code:
+            tasks.append(self._attach_python_code(data_response))
 
         if self._config.plotly_graphs.enabled:
             assert (
@@ -291,15 +307,56 @@ class DataQueryArtifactDisplayer:
         if not self._config.python_code.enabled:
             return None
 
-        data = data_response.python_code
-        if not data:
+        body = data_response.get_python_code_body()
+        if not body:
             return None
 
-        assert (
-            self._config.python_code.name is not None
-        ), "python_code.name must be set when enabled"
+        if self._config.python_code.name is None:
+            raise ValueError("python_code.name must be set when enabled")
+        code = _PYTHON_SDMX1_HEADER + "\n\n" + body
         title = data_response.enrich_attachment_name(self._config.python_code.name)
-        return dict(type=MediaTypes.MARKDOWN, title=title, data=get_python_code_markdown(data))
+        return dict(type=MediaTypes.MARKDOWN, title=title, data=get_python_code_markdown(code))
+
+    @catch_and_log_async(logger)
+    async def _create_merged_python_code_attachment(
+        self, responses: dict[str, DataResponse]
+    ) -> dict[str, str] | None:
+        if not self._config.merged_python_code.enabled:
+            return None
+
+        if self._config.merged_python_code.name is None:
+            raise ValueError("merged_python_code.name must be set when enabled")
+
+        items = [r for r in responses.values() if r.get_python_code_body()]
+        if not items:
+            return None
+
+        if len(items) == 1:
+            response = items[0]
+            title = self._config.merged_python_code.name
+            code = _PYTHON_SDMX1_HEADER + "\n\n" + response.get_python_code_body()  # type: ignore[operator]
+            return dict(
+                type=MediaTypes.MARKDOWN,
+                title=title,
+                data=get_python_code_markdown(code),
+            )
+
+        bodies: list[str] = []
+        for i, response in enumerate(items, start=1):
+            body = response.get_python_code_body(suffix=f"_{i}")
+            if body:
+                bodies.append(f"# Dataset: {response.dataset_name}\n{body}")
+
+        if not bodies:
+            return None
+
+        merged_code = _PYTHON_SDMX1_HEADER + "\n\n" + "\n\n".join(bodies)
+        title = self._config.merged_python_code.name
+        return dict(
+            type=MediaTypes.MARKDOWN,
+            title=title,
+            data=get_python_code_markdown(merged_code),
+        )
 
     @catch_and_log_async(logger)
     async def _attach_plotly_grid(

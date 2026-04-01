@@ -125,6 +125,9 @@ class DataQueryAttachments(BaseYamlModel):
             enabled_str="False", name="Python Code: {dataset_source_id}"
         )
     )
+    merged_python_code: ToolAttachment = Field(
+        default_factory=lambda: ToolAttachment(enabled_str="False", name="Python Code")
+    )
 
 
 class DataQueryLLMModels(BaseYamlModel):

@@ -23,6 +23,11 @@ class StatGPTConfiguration(BaseModel):
         description="Enable debug attachments in the chat responses.",
         default=dial_app_settings.dial_show_debug_attachments,
     )
+    merge_python_code: bool = Field(
+        description="When True, multiple python code snippets are merged into a single attachment. "
+        "When False, each dataset produces a separate python code attachment.",
+        default=False,
+    )
 
     @field_validator('timezone')
     @classmethod

@@ -31,7 +31,7 @@ class LCMessageLoggerAsync(AsyncCallbackHandler):
     def langchain_msg_2_role_content(self, msg: BaseMessage):
         res = {'role': msg.type, 'content': msg.content}
         if self._log_tool_calls:
-            if tool_calls := msg.additional_kwargs.get('tool_calls'):
+            if tool_calls := getattr(msg, 'tool_calls', None):
                 res['tool_calls'] = tool_calls
             if tool_call_id := getattr(msg, 'tool_call_id', None):
                 res['tool_call_id'] = tool_call_id

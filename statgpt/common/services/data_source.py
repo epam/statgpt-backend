@@ -156,6 +156,11 @@ class DataSourceService(DbServiceBase):
         items = await self.get_data_sources_models(limit=limit, offset=offset, ids=ids)
         return [DataSourceSerializer.db_to_schema(item) for item in items]
 
+    async def get_data_sources_schemas_by(self, channel_id: int) -> list[schemas.DataSource]:
+        """Get data source schemas for data sources used by the given channel datasets."""
+        items = await self.get_data_sources_models_by(channel_id)
+        return [DataSourceSerializer.db_to_schema(item) for item in items]
+
     async def _get_item_or_raise(self, item_id: int) -> models.DataSource:
         async with self._lock_session() as session:
             item: models.DataSource | None = await session.get(models.DataSource, item_id)
