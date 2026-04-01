@@ -97,7 +97,7 @@ class IntervalProcessor:
         return datetime(date.year, month, 1)
 
     def _parse_duration(self, interval_str: str) -> Duration:
-        """Parse the interval string to get years and months"""
+        """Parse the interval string to get years, months, and quarters"""
 
         if interval_str == "now":
             return Duration(years=0, months=0, interval_type=IntervalType.NOW)
@@ -172,78 +172,72 @@ class IntervalProcessor:
 
         return Duration(years=years, months=months, quarters=quarters, interval_type=interval_type)
 
-    def _process_to_date(
-        self, years: int, months: int, quarters: int, date: datetime, interval_str: str
-    ) -> tuple[datetime, datetime]:
-        if years > 0:
-            start_date = datetime(date.year + 1, 1, 1) - relativedelta(years=years)
-        elif months > 0:
+    def _process_to_date(self, duration: Duration, date: datetime) -> tuple[datetime, datetime]:
+        if duration.years > 0:
+            start_date = datetime(date.year + 1, 1, 1) - relativedelta(years=duration.years)
+        elif duration.months > 0:
             # use relativedelta in case `date` is December (12th month) to avoid overflow
             next_month_start = (date + relativedelta(months=1)).replace(day=1)
-            start_date = next_month_start - relativedelta(months=months)
-        elif quarters > 0:
+            start_date = next_month_start - relativedelta(months=duration.months)
+        elif duration.quarters > 0:
             current_q_start = self._get_quarter_start(date)
-            start_date = current_q_start - relativedelta(months=(quarters - 1) * 3)
-        else:
-            raise ValueError(f"Invalid interval format: {interval_str}")
+            start_date = current_q_start - relativedelta(months=(duration.quarters - 1) * 3)
         return start_date, date
 
-    def _process_from_now(
-        self, years: int, months: int, quarters: int, date: datetime, interval_str: str
-    ) -> tuple[datetime, datetime]:
-        if years > 0:
-            end_date = datetime(date.year - 1, 12, 31) + relativedelta(years=years)
-        elif months > 0:
+    def _process_from_now(self, duration: Duration, date: datetime) -> tuple[datetime, datetime]:
+        if duration.years > 0:
+            end_date = datetime(date.year - 1, 12, 31) + relativedelta(years=duration.years)
+        elif duration.months > 0:
             end_date = (
                 datetime(date.year, date.month, 1)
-                + relativedelta(months=months)
+                + relativedelta(months=duration.months)
                 - relativedelta(days=1)
             )
-        elif quarters > 0:
+        elif duration.quarters > 0:
             current_q_start = self._get_quarter_start(date)
-            end_date = current_q_start + relativedelta(months=quarters * 3) - relativedelta(days=1)
-        else:
-            raise ValueError(f"Invalid interval format: {interval_str}")
+            end_date = (
+                current_q_start
+                + relativedelta(months=duration.quarters * 3)
+                - relativedelta(days=1)
+            )
         return date, end_date
 
-    def _process_last(
-        self, years: int, months: int, quarters: int, date: datetime, interval_str: str
-    ) -> tuple[datetime, datetime]:
-        if years > 0:
-            start_date = datetime(date.year, 1, 1) - relativedelta(years=years)
+    def _process_last(self, duration: Duration, date: datetime) -> tuple[datetime, datetime]:
+        if duration.years > 0:
+            start_date = datetime(date.year, 1, 1) - relativedelta(years=duration.years)
             end_date = datetime(date.year, 1, 1) - relativedelta(days=1)
-        elif months > 0:
-            start_date = datetime(date.year, date.month, 1) - relativedelta(months=months)
+        elif duration.months > 0:
+            start_date = datetime(date.year, date.month, 1) - relativedelta(months=duration.months)
             end_date = datetime(date.year, date.month, 1) - relativedelta(days=1)
-        elif quarters > 0:
+        elif duration.quarters > 0:
             current_q_start = self._get_quarter_start(date)
-            start_date = current_q_start - relativedelta(months=quarters * 3)
+            start_date = current_q_start - relativedelta(months=duration.quarters * 3)
             end_date = current_q_start - relativedelta(days=1)
-        else:
-            raise ValueError(f"Invalid interval format: {interval_str}")
         return start_date, end_date
 
-    def _process_next(
-        self, years: int, months: int, quarters: int, date: datetime, interval_str: str
-    ) -> tuple[datetime, datetime]:
-        if years > 0:
+    def _process_next(self, duration: Duration, date: datetime) -> tuple[datetime, datetime]:
+        if duration.years > 0:
             start_date = datetime(date.year, 1, 1) + relativedelta(years=1)
             end_date = (
-                datetime(date.year, 1, 1) + relativedelta(years=years + 1) - relativedelta(days=1)
+                datetime(date.year, 1, 1)
+                + relativedelta(years=duration.years + 1)
+                - relativedelta(days=1)
             )
-        elif months > 0:
+        elif duration.months > 0:
             start_date = datetime(date.year, date.month, 1) + relativedelta(months=1)
             # use relativedelta in case `date` is December (12th month) to avoid overflow
             next_month_start = (date + relativedelta(months=1)).replace(day=1)
-            end_date = next_month_start + relativedelta(months=months) - relativedelta(days=1)
-        elif quarters > 0:
+            end_date = (
+                next_month_start + relativedelta(months=duration.months) - relativedelta(days=1)
+            )
+        elif duration.quarters > 0:
             current_q_start = self._get_quarter_start(date)
             start_date = current_q_start + relativedelta(months=3)
             end_date = (
-                current_q_start + relativedelta(months=(quarters + 1) * 3) - relativedelta(days=1)
+                current_q_start
+                + relativedelta(months=(duration.quarters + 1) * 3)
+                - relativedelta(days=1)
             )
-        else:
-            raise ValueError(f"Invalid interval format: {interval_str}")
         return start_date, end_date
 
     def _process_regular_negative(
@@ -275,23 +269,22 @@ class IntervalProcessor:
             date = datetime.now()
 
         duration = self._parse_duration(interval_str)
-        years, months, quarters = duration.years, duration.months, duration.quarters
-        interval_type = duration.interval_type
 
-        if interval_type == IntervalType.TO_DATE:
-            return self._process_to_date(years, months, quarters, date, interval_str)
-        elif interval_type == IntervalType.FROM_NOW:
-            return self._process_from_now(years, months, quarters, date, interval_str)
-        elif interval_type == IntervalType.LAST:
-            return self._process_last(years, months, quarters, date, interval_str)
-        elif interval_type == IntervalType.NEXT:
-            return self._process_next(years, months, quarters, date, interval_str)
-        elif interval_type == IntervalType.REGULAR_NEGATIVE:
-            return self._process_regular_negative(years, months, date)
-        elif interval_type == IntervalType.REGULAR_POSITIVE:
-            return self._process_regular_positive(years, months, date)
-        else:
-            raise ValueError(f"Invalid interval format: {interval_str}")
+        match duration.interval_type:
+            case IntervalType.TO_DATE:
+                return self._process_to_date(duration, date)
+            case IntervalType.FROM_NOW:
+                return self._process_from_now(duration, date)
+            case IntervalType.LAST:
+                return self._process_last(duration, date)
+            case IntervalType.NEXT:
+                return self._process_next(duration, date)
+            case IntervalType.REGULAR_NEGATIVE:
+                return self._process_regular_negative(duration.years, duration.months, date)
+            case IntervalType.REGULAR_POSITIVE:
+                return self._process_regular_positive(duration.years, duration.months, date)
+            case _:
+                raise ValueError(f"Invalid interval format: {interval_str}")
 
     def get_absolute_date(self, pattern: str, date: datetime | None = None) -> datetime:
         """
@@ -317,16 +310,14 @@ class IntervalProcessor:
             pattern = pattern[:-4]
 
         duration = self._parse_duration(pattern)
-        years, months, quarters = duration.years, duration.months, duration.quarters
-        interval_type = duration.interval_type
 
-        if interval_type in (IntervalType.LAST, IntervalType.NEXT):
+        if duration.interval_type in (IntervalType.LAST, IntervalType.NEXT):
             if bound is None:
                 raise ValueError(f"Invalid relative format: {pattern}")
-            if interval_type == IntervalType.LAST:
-                start, end = self._process_last(years, months, quarters, date, pattern)
+            if duration.interval_type == IntervalType.LAST:
+                start, end = self._process_last(duration, date)
             else:
-                start, end = self._process_next(years, months, quarters, date, pattern)
+                start, end = self._process_next(duration, date)
             return start if bound == "start" else end
 
         if bound is not None:
@@ -334,18 +325,19 @@ class IntervalProcessor:
                 f":start/:end suffix is only valid for last/next patterns, got: {pattern}"
             )
 
-        if interval_type == IntervalType.NOW:
-            return date
-        elif interval_type == IntervalType.TO_DATE:
-            return self._process_to_date(years, months, quarters, date, pattern)[0]
-        elif interval_type == IntervalType.FROM_NOW:
-            return self._process_from_now(years, months, quarters, date, pattern)[1]
-        elif interval_type == IntervalType.REGULAR_NEGATIVE:
-            return self._process_regular_negative(years, months, date)[0]
-        elif interval_type == IntervalType.REGULAR_POSITIVE:
-            return self._process_regular_positive(years, months, date)[1]
-        else:
-            raise ValueError(f"Invalid relative format: {pattern}")
+        match duration.interval_type:
+            case IntervalType.NOW:
+                return date
+            case IntervalType.TO_DATE:
+                return self._process_to_date(duration, date)[0]
+            case IntervalType.FROM_NOW:
+                return self._process_from_now(duration, date)[1]
+            case IntervalType.REGULAR_NEGATIVE:
+                return self._process_regular_negative(duration.years, duration.months, date)[0]
+            case IntervalType.REGULAR_POSITIVE:
+                return self._process_regular_positive(duration.years, duration.months, date)[1]
+            case _:
+                raise ValueError(f"Invalid relative format: {pattern}")
 
     def get_absolute_date_str(self, pattern: str, date: datetime | None = None) -> str:
         """
