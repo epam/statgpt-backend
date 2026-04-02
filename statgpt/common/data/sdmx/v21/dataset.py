@@ -18,7 +18,7 @@ import sdmx.model.common
 from dateutil.parser import parse
 from sdmx.message import DataMessage, StructureMessage
 from sdmx.model.common import Code
-from sdmx.model.v21 import DataflowDefinition as DataFlow
+from sdmx.model.v21 import DataflowDefinition as DataFlow, TimeDimension
 
 from statgpt.common.auth.auth_context import AuthContext
 from statgpt.common.data.base import (
@@ -1259,6 +1259,21 @@ class Sdmx21DataSet(
             keys=sdmx_query.get_key(),
             params=sdmx_query.get_params(),
         )
+
+    def _dict_key_to_sdmx_string(self, keys: dict[str, list[str]]) -> str:
+        """Convert a dict key to an SDMX REST key string in DSD dimension order.
+
+        The SDMX 2.1 REST API expects key as ordered dimension values
+        separated by '.', with '+' joining multiple values within a dimension.
+        Time dimensions are excluded (handled via query params).
+        """
+        parts = []
+        for dim in self._artefact.structure.dimensions:
+            if isinstance(dim, TimeDimension):
+                continue
+            values = keys.get(dim.id, [])
+            parts.append("+".join(values))
+        return ".".join(parts)
 
     @staticmethod
     def _get_python_query(provider: str, resource_id: str, keys: dict, params: dict) -> str:
