@@ -18,7 +18,7 @@ import sdmx.model.common
 from dateutil.parser import parse
 from sdmx.message import DataMessage, StructureMessage
 from sdmx.model.common import Code
-from sdmx.model.v21 import DataflowDefinition as DataFlow
+from sdmx.model.v21 import DataflowDefinition as DataFlow, TimeDimension
 
 from statgpt.common.auth.auth_context import AuthContext
 from statgpt.common.data.base import (
@@ -1274,8 +1274,6 @@ class Sdmx21DataSet(
         separated by '.', with '+' joining multiple values within a dimension.
         Time dimensions are excluded (handled via query params).
         """
-        from sdmx.model.v21 import TimeDimension
-
         parts = []
         for dim in self._artefact.structure.dimensions:
             if isinstance(dim, TimeDimension):
