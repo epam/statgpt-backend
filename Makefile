@@ -1,6 +1,7 @@
-POETRY_PYTHON ?= $(if $(pythonLocation),$(pythonLocation)/bin/python,python3)
 SRC_DIRS = statgpt scripts tests
 MYPY_DIRS = statgpt scripts
+POETRY ?= poetry
+PYTHON ?= python3
 
 -include .env
 export
@@ -8,71 +9,79 @@ export
 # AI DIAL SDK: pydantic v2 mode
 export PYDANTIC_V2=True
 
-remove_venv:
-	poetry env remove --all || true
-	$(POETRY_PYTHON) -m venv .venv
-
 init_venv:
-	poetry env use .venv/bin/python
+	$(POETRY) env use $(PYTHON)
+
+install: init_venv
+	$(POETRY) install -E cli -E beta-mcp
 
 install_dev: init_venv
-	poetry install -E cli -E beta-mcp --with dev
+	$(POETRY) install -E cli -E beta-mcp --with dev
 
 install_all: init_venv
-	poetry install -E cli -E beta-mcp --with dev,experiments
+	$(POETRY) install -E cli -E beta-mcp --with dev,experiments
+
+clean:
+	-$(POETRY) env remove --all
 
 format: install_dev
-	poetry run autoflake ${SRC_DIRS}
-	poetry run black ${SRC_DIRS}
-	poetry run isort ${SRC_DIRS}
+	$(POETRY) run autoflake $(SRC_DIRS)
+	$(POETRY) run black $(SRC_DIRS)
+	$(POETRY) run isort $(SRC_DIRS)
 
 mypy: install_dev
-	poetry run mypy --show-error-codes ${MYPY_DIRS} ${ARGS}
+	$(POETRY) run mypy --show-error-codes $(MYPY_DIRS) $(ARGS)
 
 lint: install_dev
-	poetry check --lock
-	poetry run flake8 ${SRC_DIRS}
-	poetry run black ${SRC_DIRS} --check
-	poetry run isort ${SRC_DIRS} --check-only --diff
-	poetry run autoflake ${SRC_DIRS} --check
+	$(POETRY) check --lock
+	$(POETRY) run flake8 $(SRC_DIRS)
+	$(POETRY) run black $(SRC_DIRS) --check
+	$(POETRY) run isort $(SRC_DIRS) --check-only --diff
+	$(POETRY) run autoflake $(SRC_DIRS) --check
 	# for now we only check data abstractions and services packages
-	poetry run mypy --show-error-codes ${MYPY_DIRS}
-	poetry run python scripts/check_imports.py
+	$(POETRY) run mypy --show-error-codes $(MYPY_DIRS)
+	$(POETRY) run python scripts/check_imports.py
 
 statgpt_cli: install_dev
-	poetry run python -m statgpt.cli $(ARGS)
+	$(POETRY) run python -m statgpt.cli $(ARGS)
 
 statgpt_admin:
-	poetry run python -m statgpt.admin.app $(ARGS)
+	$(POETRY) run python -m statgpt.admin.app $(ARGS)
+
+statgpt_fix_statuses:
+	$(POETRY) run python -m statgpt.admin.fix_statuses
+
+statgpt_auto_update:
+	$(POETRY) run python -m statgpt.admin.auto_update
 
 statgpt_app:
-	poetry run python -m statgpt.app.app $(ARGS)
+	$(POETRY) run python -m statgpt.app.app $(ARGS)
 
 install_pre_commit_hooks:
-	pre-commit install
+	$(POETRY) run pre-commit install
 
 db_migrate:
-	poetry run alembic -c alembic.ini upgrade head
+	$(POETRY) run alembic -c alembic.ini upgrade head
 
 db_downgrade:
-	poetry run alembic -c alembic.ini downgrade -1
+	$(POETRY) run alembic -c alembic.ini downgrade -1
 
 db_autogenerate:
-	poetry run alembic -c alembic.ini revision --autogenerate -m "$(MESSAGE)"
+	$(POETRY) run alembic -c alembic.ini revision --autogenerate -m "$(MESSAGE)"
 
 test_db_migrate: export PGVECTOR_HOST=$(TEST_DATABASE_HOST)
 test_db_migrate: export PGVECTOR_PORT=$(TEST_DATABASE_PORT)
 test_db_migrate: export PGVECTOR_DATABASE=$(TEST_DATABASE)
 test_db_migrate: export ELASTIC_CONNECTION_STRING=$(TEST_ELASTIC_CONNECTION_STRING)
 test_db_migrate: install_dev
-	poetry run alembic -c alembic.ini upgrade head
+	$(POETRY) run alembic -c alembic.ini upgrade head
 
 test_unit: export PGVECTOR_HOST=$(TEST_DATABASE_HOST)
 test_unit: export PGVECTOR_PORT=$(TEST_DATABASE_PORT)
 test_unit: export PGVECTOR_DATABASE=$(TEST_DATABASE)
 test_unit: export ELASTIC_CONNECTION_STRING=$(TEST_ELASTIC_CONNECTION_STRING)
 test_unit: install_dev
-	poetry run pytest tests/unit --junitxml=reports/tests-unit.xml
+	$(POETRY) run pytest tests/unit --junitxml=reports/tests-unit.xml
 
 test_integration: export EMBEDDING_DEFAULT_MODEL=text-embedding-3-large
 test_integration: export PGVECTOR_HOST=$(TEST_DATABASE_HOST)
@@ -80,7 +89,7 @@ test_integration: export PGVECTOR_PORT=$(TEST_DATABASE_PORT)
 test_integration: export PGVECTOR_DATABASE=$(TEST_DATABASE)
 test_integration: export ELASTIC_CONNECTION_STRING=$(TEST_ELASTIC_CONNECTION_STRING)
 test_integration: test_db_migrate
-	poetry run pytest tests/integration --junitxml=reports/tests-int.xml
+	$(POETRY) run pytest tests/integration --junitxml=reports/tests-int.xml
 
 test: test_unit test_integration
 

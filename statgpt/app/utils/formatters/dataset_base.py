@@ -5,7 +5,7 @@ from pydantic import BaseModel, Field
 
 from statgpt.common.auth.auth_context import AuthContext
 from statgpt.common.data.base import DataSet
-from statgpt.common.schemas.enums import LocaleEnum
+from statgpt.common.schemas.enums import AvailableDatasetsHeaderFormat, LocaleEnum
 
 from .base import BaseFormatter
 from .citation import CitationFormatterConfig
@@ -22,6 +22,7 @@ class DatasetFormatterConfig(BaseModel):
     highlight_name_in_bold: bool = True
     official_dataset_label: str | None = None
     citation: CitationFormatterConfig | None = None
+    stats_header_format: AvailableDatasetsHeaderFormat = AvailableDatasetsHeaderFormat.totals
     list_level: int = Field(
         default=1,
         description="0 means dataset name is not a list item, 1 means it is a top-level list item, etc.",
@@ -58,5 +59,5 @@ class BaseDatasetFormatter(BaseFormatter, ABC):
         return last_updated
 
     @abstractmethod
-    async def format(self, dataset: DataSet) -> str:
+    async def format(self, dataset: DataSet, indicator_count: int | None = None) -> str:
         pass

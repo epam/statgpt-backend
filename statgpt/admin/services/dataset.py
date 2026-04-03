@@ -3,6 +3,7 @@ import logging
 import os.path
 import uuid
 import zipfile
+from collections import Counter, defaultdict
 from collections.abc import Generator, Iterable
 from typing import Any, NamedTuple
 
@@ -10,17 +11,26 @@ import yaml
 from fastapi import BackgroundTasks, HTTPException, status
 from pydantic import ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.sql.expression import func, text, update
+from sqlalchemy.orm import selectinload
+from sqlalchemy.sql.expression import func, select, text, update
 
 import statgpt.common.models as models
 import statgpt.common.schemas as schemas
+from statgpt.admin.audit.decorators import audit_action
+from statgpt.admin.auth.auth_context import SystemUserAuthContext
 from statgpt.admin.settings.exim import ExImSettings, JobsConfig
 from statgpt.common import utils
 from statgpt.common.auth.auth_context import AuthContext
 from statgpt.common.data import base
 from statgpt.common.data.base.dataset import DataSetConfigType
 from statgpt.common.hybrid_indexer import Indexer
-from statgpt.common.schemas import ChannelIndexStatusScope, HybridSearchConfig
+from statgpt.common.schemas import (
+    AuditActionType,
+    AuditEntityType,
+    AutoUpdateResult,
+    ChannelIndexStatusScope,
+    HybridSearchConfig,
+)
 from statgpt.common.schemas import PreprocessingStatusEnum as StatusEnum
 from statgpt.common.services import (
     ChannelDataSetSerializer,
@@ -41,7 +51,6 @@ from statgpt.common.vectorstore import VectorStore, VectorStoreFactory
 from .background_tasks import background_task
 from .channel import AdminPortalChannelService as ChannelService
 from .data_source import AdminPortalDataSourceService as DataSourceService
-from .data_source import DataSourceTypeService
 
 _log = logging.getLogger(__name__)
 
@@ -52,10 +61,26 @@ class _DataHashes(NamedTuple):
     special_dimensions_hash: str | None
 
 
+class _ReindexParams(NamedTuple):
+    version_id: int
+    channel_dataset_id: int
+    harmonization_supported: bool
+    status_on_completion: StatusEnum
+
+
+class AutoUpdateChannelResult(NamedTuple):
+    channel_id: int
+    deployment_id: str
+    total: int
+    failed: int
+    summary: str
+    failed_reasons: list[str]
+
+
 class AdminPortalDataSetService(DataSetService):
 
-    def __init__(self, session: AsyncSession) -> None:
-        super().__init__(session, None)  # No need for session lock in Admin Portal
+    def __init__(self, session: AsyncSession | None = None) -> None:
+        super().__init__(session, None)
 
     _EXIM_SETTINGS = ExImSettings()
 
@@ -71,7 +96,7 @@ class AdminPortalDataSetService(DataSetService):
         latest_completed_versions: dict[int, LastCompletedVersions],
     ) -> None:
         _log.info("Exporting vector store data...")
-        vector_store_factory = VectorStoreFactory(session=self._session)
+        vector_store_factory = VectorStoreFactory()
 
         # collect last completed version ids
         version_ids: set[int] = set()
@@ -376,7 +401,7 @@ class AdminPortalDataSetService(DataSetService):
         auth_context: AuthContext,
     ) -> None:
         _log.info("Importing vector store data...")
-        vector_store_factory = VectorStoreFactory(session=self._session)
+        vector_store_factory = VectorStoreFactory()
 
         dataset_versions: dict[uuid.UUID, int] = {
             dataset.id_: versions[dataset.id].id for dataset in datasets
@@ -572,6 +597,7 @@ class AdminPortalDataSetService(DataSetService):
             )
         return parsed_config
 
+    @audit_action(entity_type=AuditEntityType.DATASET, action_type=AuditActionType.CREATE)
     async def create_dataset(
         self, data: schemas.DataSetBase, auth_context: AuthContext
     ) -> schemas.DataSet:
@@ -586,7 +612,7 @@ class AdminPortalDataSetService(DataSetService):
         )
 
         self._session.add(item)
-        await self._session.commit()
+        await self._session.flush()
 
         dataset = await handler.get_dataset(
             entity_id=item.id_,
@@ -637,6 +663,7 @@ class AdminPortalDataSetService(DataSetService):
         structure = await handler.get_dataset_structure(config, auth_context=auth_context)
         return structure.model_dump(mode='json', by_alias=True)
 
+    @audit_action(entity_type=AuditEntityType.DATASET, action_type=AuditActionType.UPDATE)
     async def update(
         self, item_id: int, data: schemas.DataSetUpdateRequest, auth_context: AuthContext
     ) -> schemas.DataSetUpdateResponse:
@@ -651,7 +678,7 @@ class AdminPortalDataSetService(DataSetService):
             item.details = dataset_config.model_dump(mode='json', by_alias=True)
 
         item.updated_at = func.now()
-        await self._session.commit()
+        await self._session.flush()
         await self._session.refresh(item)
 
         dataset = await handler.get_dataset(
@@ -663,13 +690,21 @@ class AdminPortalDataSetService(DataSetService):
         )
         dataset_schema = DataSetSerializer.db_to_schema(item, dataset, expand=True)
 
-        channel_results = await self._propagate_config_to_channel_datasets(item, handler)
+        channel_results = await self._propagate_config_to_channel_datasets(
+            item, handler, auth_context=auth_context
+        )
         return schemas.DataSetUpdateResponse(
             dataset=dataset_schema,
             channel_results=channel_results,
         )
 
-    async def delete(self, item_id: int) -> None:
+    @audit_action(entity_type=AuditEntityType.DATASET, action_type=AuditActionType.DELETE)
+    async def delete(self, item_id: int) -> schemas.DataSet:
+        deleted_item = await self.get_schema_by_id(
+            item_id,
+            auth_context=SystemUserAuthContext(),
+            allow_offline=True,
+        )
         item = await self.get_model_by_id(item_id)
 
         count = await self.get_channel_datasets_count(dataset_id=item.id)
@@ -687,12 +722,14 @@ class AdminPortalDataSetService(DataSetService):
 
         _log.info(f"Deleting dataset(id={item.id}): {item.title!r}")
         await self._session.delete(item)
-        await self._session.commit()
+        await self._session.flush()
+        return deleted_item
 
     async def _propagate_config_to_channel_datasets(
         self,
         dataset: models.DataSet,
         handler: base.DataSourceHandler,
+        auth_context: AuthContext,
     ) -> list[schemas.ChannelDatasetUpdateResult]:
         """Propagate config changes to all channel datasets that reference this dataset.
 
@@ -705,6 +742,7 @@ class AdminPortalDataSetService(DataSetService):
         await self._session.refresh(dataset, attribute_names=["mapped_channels"])
 
         if not dataset.mapped_channels:
+            _log.info(f"Dataset(id={dataset.id_}): no mapped channels, skipping config propagation")
             return []
 
         results: list[schemas.ChannelDatasetUpdateResult] = []
@@ -715,9 +753,6 @@ class AdminPortalDataSetService(DataSetService):
         last_completed_mapping = await self._get_latest_successful_channel_dataset_versions(
             channel_dataset_ids=channel_dataset_ids
         )
-
-        parsed_config = handler.parse_data_set_config(dataset.details)
-        new_config_hash = parsed_config.indexing_hash
 
         for channel_dataset in dataset.mapped_channels:
             await self._session.refresh(channel_dataset, attribute_names=["channel"])
@@ -735,16 +770,41 @@ class AdminPortalDataSetService(DataSetService):
                 and latest_version.preprocessing_status not in StatusEnum.final_statuses()
             ):
                 status = schemas.ChannelDatasetUpdateStatus.INDEXING_IN_PROGRESS
+                _log.info(
+                    f"ChannelDataset(dataset={dataset.id_}, channel={channel.deployment_id!r}):"
+                    f" indexing in progress, skipping"
+                )
             elif last_completed is None:
                 status = schemas.ChannelDatasetUpdateStatus.NO_VERSION
-            elif new_config_hash == last_completed.indexing_config_hash:
-                new_version = await self._apply_config_internal(
-                    channel_dataset, last_completed, handler, dataset.details
+                _log.info(
+                    f"ChannelDataset(dataset={dataset.id_}, channel={channel.deployment_id!r}):"
+                    f" no completed version, skipping"
                 )
-                other_fields['new_version'] = new_version
-                status = schemas.ChannelDatasetUpdateStatus.AUTO_UPDATED
             else:
-                status = schemas.ChannelDatasetUpdateStatus.NEEDS_REINDEX
+                _, resolved_config = await handler.resolve_config(
+                    config=dataset.details,
+                    previous_resolved_config=last_completed.resolved_config,
+                    auth_context=auth_context,
+                )
+                resolved_parsed = handler.parse_data_set_config(resolved_config)
+                new_config_hash = resolved_parsed.indexing_hash
+
+                if new_config_hash == last_completed.indexing_config_hash:
+                    new_version = await self._apply_config_internal(
+                        channel_dataset, last_completed, handler, dataset.details
+                    )
+                    other_fields['new_version'] = new_version
+                    status = schemas.ChannelDatasetUpdateStatus.AUTO_UPDATED
+                    _log.info(
+                        f"ChannelDataset(dataset={dataset.id_}, channel={channel.deployment_id!r}):"
+                        f" auto-updated with new version"
+                    )
+                else:
+                    status = schemas.ChannelDatasetUpdateStatus.NEEDS_REINDEX
+                    _log.info(
+                        f"ChannelDataset(dataset={dataset.id_}, channel={channel.deployment_id!r}):"
+                        f" indexing hash changed, needs reindex"
+                    )
 
             results.append(
                 schemas.ChannelDatasetUpdateResult(
@@ -795,7 +855,7 @@ class AdminPortalDataSetService(DataSetService):
         )
 
         self._session.add(new_item)
-        await self._session.commit()
+        await self._session.flush()
         await self._session.refresh(new_item)
         return schemas.ChannelDatasetVersion.model_validate(new_item, from_attributes=True)
 
@@ -826,23 +886,34 @@ class AdminPortalDataSetService(DataSetService):
     async def remove_channel_dataset(
         self, channel_id: int, dataset_id: int, auth_context: AuthContext
     ) -> None:
-        channel: models.Channel = await ChannelService(self._session).get_model_by_id(channel_id)
-        dataset: models.DataSet = await self.get_model_by_id(dataset_id)
-        channel_dataset = await self.get_channel_dataset_model_or_none(
-            channel_id=channel.id, dataset_id=dataset.id
-        )
-        if not channel_dataset:
-            return
+        # Phase A: DB reads
+        async with self._scoped_session():
+            channel: schemas.Channel = await ChannelService(self._session).get_schema_by_id(
+                channel_id
+            )
+            dataset: models.DataSet = await self.get_model_by_id(dataset_id)
+            channel_dataset = await self.get_channel_dataset_model_or_none(
+                channel_id=channel.id, dataset_id=dataset.id
+            )
+            if not channel_dataset:
+                return
+            dataset_uuid = dataset.id_
+            channel_dataset_id = channel_dataset.id
 
+        # Phase B: Clear data — no DB session held
         await self._clear_channel_dataset_data(
-            channel, auth_context=auth_context, dataset_id=dataset.id_, version_ids=None
+            channel, auth_context=auth_context, dataset_id=dataset_uuid, version_ids=None
         )
-        await self._session.delete(channel_dataset)
-        await self._session.commit()
+
+        # Phase C: DB write — delete channel_dataset
+        async with self._scoped_session():
+            channel_dataset = await self._get_channel_dataset_model_or_raise(channel_dataset_id)
+            await self._session.delete(channel_dataset)
+            await self._session.commit()
 
     async def _clear_channel_dataset_data(
         self,
-        channel: models.Channel,
+        channel: schemas.Channel,
         auth_context: AuthContext,
         *,
         dataset_id: uuid.UUID | None,
@@ -859,12 +930,12 @@ class AdminPortalDataSetService(DataSetService):
 
     async def _clear_vector_stores(
         self,
-        channel: models.Channel,
+        channel: schemas.Channel,
         auth_context: AuthContext,
         dataset_id: uuid.UUID | None,
         version_ids: list[int] | None,
     ) -> None:
-        vector_store_factory = VectorStoreFactory(session=self._session)
+        vector_store_factory = VectorStoreFactory()
 
         collections = [
             channel.indicator_table_name,
@@ -881,7 +952,7 @@ class AdminPortalDataSetService(DataSetService):
 
     @staticmethod
     async def _clear_elastic_indices(
-        channel: models.Channel, *, dataset_id: uuid.UUID | None, version_ids: list[int] | None
+        channel: schemas.Channel, *, dataset_id: uuid.UUID | None, version_ids: list[int] | None
     ) -> None:
         _log.info("[Elastic] Clearing existing indicators in the matching and indicators indexes")
 
@@ -908,7 +979,11 @@ class AdminPortalDataSetService(DataSetService):
         _log.info(f"[Elastic] Indicators index cleared: {res2}")
 
     async def _create_new_channel_dataset_version(
-        self, channel_dataset_id: int, reason: str, preprocessing_status: StatusEnum
+        self,
+        channel_dataset_id: int,
+        reason: str,
+        preprocessing_status: StatusEnum,
+        resolved_config: dict | None = None,
     ) -> models.ChannelDatasetVersion:
         item = models.ChannelDatasetVersion(
             channel_dataset_id=channel_dataset_id,
@@ -916,6 +991,8 @@ class AdminPortalDataSetService(DataSetService):
             preprocessing_status=preprocessing_status,
             creation_reason=reason,
         )
+        if resolved_config is not None:
+            item.resolved_config = resolved_config
 
         self._session.add(item)
         await self._session.commit()
@@ -981,6 +1058,16 @@ class AdminPortalDataSetService(DataSetService):
             await self._session.commit()
             await self._session.refresh(item)
 
+    async def _is_indexing_in_progress(self, channel_dataset_id: int) -> bool:
+        """Checks if indexing is currently in progress for the given channel dataset."""
+        latest_version = await self._get_latest_channel_dataset_version_model(
+            channel_dataset_id=channel_dataset_id
+        )
+        return (
+            latest_version is not None
+            and latest_version.preprocessing_status not in StatusEnum.final_statuses()
+        )
+
     async def rollback_channel_dataset_to_previous_version(
         self, channel_id: int, dataset_id: int
     ) -> schemas.ChannelDatasetVersion:
@@ -990,10 +1077,7 @@ class AdminPortalDataSetService(DataSetService):
             channel_id=channel.id, dataset_id=dataset.id
         )
 
-        last_version = await self._get_latest_channel_dataset_version_schema(
-            channel_dataset_id=channel_dataset.id
-        )
-        if last_version and last_version.preprocessing_status not in StatusEnum.final_statuses():
+        if await self._is_indexing_in_progress(channel_dataset.id):
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
                 detail="Cannot roll back while the indexing is in progress.",
@@ -1124,20 +1208,15 @@ class AdminPortalDataSetService(DataSetService):
             if old_hash != new_hash
         ]
 
-    async def clear_channel_dataset_versions_data(
-        self, channel_id: int, dataset_id: int, auth_context: AuthContext
-    ):
-        channel: models.Channel = await ChannelService(self._session).get_model_by_id(channel_id)
-        dataset: models.DataSet = await self.get_model_by_id(dataset_id)
-        channel_dataset = await self.get_channel_dataset_model_or_raise(
-            channel_id=channel_id, dataset_id=dataset.id
-        )
+    @staticmethod
+    def _select_versions_to_clear(
+        versions: list[models.ChannelDatasetVersion],
+    ) -> list[int]:
+        """Select old versions eligible for data clearing.
 
-        # We don't need to clear older versions since most likely they have been already cleared
-        versions = await self.get_channel_dataset_version_models(
-            limit=20, offset=0, channel_dataset_id=channel_dataset.id
-        )
-
+        Keeps the last 2 completed versions and returns IDs of the rest
+        (completed beyond the last 2, plus any other final-status versions).
+        """
         skip_last_completed = 2
         versions_to_clear: list[int] = []
         for version in versions:
@@ -1149,6 +1228,23 @@ class AdminPortalDataSetService(DataSetService):
                     versions_to_clear.append(version.id)
             elif _status in StatusEnum.final_statuses():
                 versions_to_clear.append(version.id)
+        return versions_to_clear
+
+    async def clear_channel_dataset_versions_data(
+        self, channel_id: int, dataset_id: int, auth_context: AuthContext
+    ):
+        channel: schemas.Channel = await ChannelService(self._session).get_schema_by_id(channel_id)
+        dataset: models.DataSet = await self.get_model_by_id(dataset_id)
+        channel_dataset = await self.get_channel_dataset_model_or_raise(
+            channel_id=channel_id, dataset_id=dataset.id
+        )
+
+        # We don't need to clear older versions since most likely they have been already cleared
+        versions = await self.get_channel_dataset_version_models(
+            limit=20, offset=0, channel_dataset_id=channel_dataset.id
+        )
+
+        versions_to_clear = self._select_versions_to_clear(versions)
 
         if versions_to_clear:
             await self._clear_channel_dataset_data(
@@ -1157,33 +1253,70 @@ class AdminPortalDataSetService(DataSetService):
         else:
             _log.info("No versions to clear data for.")
 
-    async def set_failed_status_for_channel_dataset_version(self) -> None:
-        """Sets the status of all not-completed channel dataset versions to FAILED."""
+    async def _set_failed_status(
+        self,
+        model: Any,
+        status_column: Any,
+        status_field_name: str,
+    ) -> int:
+        """Sets the status of all stuck records to FAILED for the given model.
 
-        _log.info("Setting FAILED status for all non-completed channel dataset versions...")
+        Returns:
+             the number of updated rows.
+        """
+        table_name = model.__tablename__
+
+        _log.info(f"Setting FAILED status for all non-completed {table_name}...")
 
         query = (
-            update(models.ChannelDatasetVersion)
+            update(model)
             .where(
-                models.ChannelDatasetVersion.preprocessing_status.notin_(
-                    StatusEnum.final_statuses()
-                ),
-                models.ChannelDatasetVersion.updated_at < text("NOW() - INTERVAL '12 hours'"),
+                status_column.notin_(StatusEnum.final_statuses()),
+                model.updated_at < text("NOW() - INTERVAL '12 hours'"),
             )
             .values(
-                preprocessing_status=StatusEnum.FAILED,
+                **{status_field_name: StatusEnum.FAILED},
                 reason_for_failure=func.coalesce(
-                    models.ChannelDatasetVersion.reason_for_failure,
-                    "The version had invalid status.",
+                    model.reason_for_failure,  # type: ignore[attr-defined]
+                    "Stuck in a non-final status with no recorded failure reason."
+                    " Marked as FAILED by fix_statuses script.",
                 ),
                 updated_at=func.now(),
             )
         )
 
         result = await self._session.execute(query)
+        row_count: int = result.rowcount  # type: ignore[attr-defined]
+
+        _log.info(f"Updated {row_count} {table_name} record(s) to FAILED status")
+        return row_count
+
+    async def set_failed_status_for_channel_dataset_version(self) -> None:
+        """Sets the status of all not-completed channel dataset versions to FAILED."""
+        await self._set_failed_status(
+            models.ChannelDatasetVersion,
+            models.ChannelDatasetVersion.preprocessing_status,
+            "preprocessing_status",
+        )
         await self._session.commit()
 
-        _log.info(f"Updated {result.rowcount} channel dataset version(s) to FAILED status")  # type: ignore[attr-defined]
+    async def set_failed_status_for_stuck_jobs(self) -> None:
+        """Sets the status of all stuck Job records to FAILED."""
+        await self._set_failed_status(
+            models.Job,
+            models.Job.status,
+            "status",
+        )
+        await self._session.commit()
+
+    async def set_failed_status_for_stuck_auto_update_jobs(self) -> None:
+        """Sets the status of all stuck AutoUpdateJob records to FAILED."""
+        await self._set_failed_status(
+            models.AutoUpdateJob,
+            models.AutoUpdateJob.status,
+            "status",
+        )
+        await self._session.commit()
 
     async def reload_all_indicators(
         self,
@@ -1192,7 +1325,7 @@ class AdminPortalDataSetService(DataSetService):
         auth_context: AuthContext,
         max_n_embeddings: int | None = None,
     ) -> list[schemas.ChannelDatasetExpanded]:
-        channel: models.Channel = await ChannelService(self._session).get_model_by_id(channel_id)
+        channel: schemas.Channel = await ChannelService(self._session).get_schema_by_id(channel_id)
         channel_datasets: list[models.ChannelDataset] = await self.get_channel_dataset_models(
             limit=None, offset=0, channel_id=channel.id
         )
@@ -1283,7 +1416,7 @@ class AdminPortalDataSetService(DataSetService):
         auth_context: AuthContext,
         max_n_embeddings: int | None = None,
     ) -> schemas.ChannelDatasetExpanded:
-        channel: models.Channel = await ChannelService(self._session).get_model_by_id(channel_id)
+        channel: schemas.Channel = await ChannelService(self._session).get_schema_by_id(channel_id)
         dataset: schemas.DataSet = await self.get_schema_by_id(dataset_id, auth_context)
         channel_dataset = await self.get_channel_dataset_model_or_raise(
             channel_id=channel_id, dataset_id=dataset_id
@@ -1343,7 +1476,7 @@ class AdminPortalDataSetService(DataSetService):
         )
 
     @classmethod
-    def _is_harmonization_supported(cls, channel: models.Channel) -> bool:
+    def _is_harmonization_supported(cls, channel: schemas.Channel) -> bool:
         return ChannelService.is_channel_hybrid(channel)
 
     @staticmethod
@@ -1406,45 +1539,42 @@ class AdminPortalDataSetService(DataSetService):
     @staticmethod
     async def _run_semantic_indexer(
         dataset: base.DataSet,
-        db_dataset: models.DataSet,
+        source_id: int,
         vector_store: VectorStore,
-        version: models.ChannelDatasetVersion,
+        version_id: int,
         max_n_embeddings: int | None,
         auth_context: AuthContext,
-    ):
+    ) -> None:
         indicators = await dataset.get_indicators(auth_context=auth_context, allow_cached=True)
         _log.info(f"Loaded {len(indicators)} indicators.")
         if max_n_embeddings:
             indicators = indicators[:max_n_embeddings]  # for debug
 
         documents = (
-            i.to_document({IndicatorDocumentMetadataFields.DATA_SOURCE_ID: db_dataset.source_id})
+            i.to_document({IndicatorDocumentMetadataFields.DATA_SOURCE_ID: source_id})
             for i in indicators
         )
 
-        await vector_store.add_documents(
-            documents, dataset_id=db_dataset.id_, version_id=version.id
-        )
+        await vector_store.add_documents(documents, dataset_id=dataset.id, version_id=version_id)
 
     @staticmethod
     async def _run_hybrid_indexer(
-        channel: models.Channel,
-        channel_config: schemas.ChannelConfig,
+        channel: schemas.Channel,
         vector_store: VectorStore,
         dataset: base.DataSet,
-        version: models.ChannelDatasetVersion,
+        version_id: int,
         version_ids: set[int],
         harmonize_indicator: bool,
         max_n_embeddings: int | None,
         auth_context: AuthContext,
-    ):
+    ) -> dict:
         matching_index = await ElasticSearchFactory.get_index(
             channel.matching_index_name, allow_creation=True
         )
         indicators_index = await ElasticSearchFactory.get_index(
             channel.indicators_index_name, allow_creation=True
         )
-        if (data_query_config := channel_config.data_query) is None:
+        if (data_query_config := channel.details.data_query) is None:
             raise ValueError(f"No data query configured for the channel {channel}")
         config = data_query_config.details.hybrid_search_config or HybridSearchConfig()
 
@@ -1457,9 +1587,9 @@ class AdminPortalDataSetService(DataSetService):
             normalize=not harmonize_indicator,
             harmonize=harmonize_indicator,
         )
-        await indexer.index(
+        return await indexer.index(
             dataset,
-            version_id=version.id,
+            version_id=version_id,
             version_ids=version_ids,
             max_n_indicators=max_n_embeddings,
             auth_context=auth_context,
@@ -1467,14 +1597,14 @@ class AdminPortalDataSetService(DataSetService):
 
     @staticmethod
     async def _index_available_dimensions(
-        version: models.ChannelDatasetVersion,
-        channel: models.Channel,
+        version_id: int,
+        channel: schemas.Channel,
         dataset: base.DataSet,
-        db_dataset: models.DataSet,
+        source_id: int,
         vector_store_factory: VectorStoreFactory,
         max_n_embeddings: int | None,
         auth_context: AuthContext,
-    ):
+    ) -> None:
         vector_store = await vector_store_factory.get_vector_store(
             collection_name=channel.available_dimensions_table_name,
             embedding_model_name=channel.llm_model,
@@ -1493,11 +1623,9 @@ class AdminPortalDataSetService(DataSetService):
             for value in category_values:
                 document = value.to_document()
                 field_name = DimensionValueDocumentMetadataFields.DATA_SOURCE_ID
-                document.metadata[field_name] = db_dataset.source_id
+                document.metadata[field_name] = source_id
                 documents.append(document)
-        await vector_store.add_documents(
-            documents, dataset_id=db_dataset.id_, version_id=version.id
-        )
+        await vector_store.add_documents(documents, dataset_id=dataset.id, version_id=version_id)
 
         # ~~~~~ Special dimensions ~~~~~
 
@@ -1518,56 +1646,53 @@ class AdminPortalDataSetService(DataSetService):
             for value in category_values:
                 document = value.to_document()
                 field_name = SpecialDimensionValueDocumentMetadataFields.DATA_SOURCE_ID
-                document.metadata[field_name] = db_dataset.source_id
+                document.metadata[field_name] = source_id
                 field_name = SpecialDimensionValueDocumentMetadataFields.PROCESSOR_ID
                 document.metadata[field_name] = processor_id
                 documents.append(document)
-        await vector_store.add_documents(
-            documents, dataset_id=db_dataset.id_, version_id=version.id
-        )
+        await vector_store.add_documents(documents, dataset_id=dataset.id, version_id=version_id)
 
     async def _index_channel_indicators(
         self,
-        channel: models.Channel,
-        db_dataset: models.DataSet,
-        version: models.ChannelDatasetVersion,
+        channel: schemas.Channel,
+        source_id: int,
+        version_id: int,
+        channel_dataset_id: int,
         version_ids: set[int] | None,
         harmonize_indicator: bool,
         max_n_embeddings: int | None,
         vector_store_factory: VectorStoreFactory,
         dataset: base.DataSet,
         auth_context: AuthContext,
-    ):
+    ) -> dict | None:
         vector_store = await vector_store_factory.get_vector_store(
             collection_name=channel.indicator_table_name,
             embedding_model_name=channel.llm_model,
             auth_context=auth_context,
         )
 
-        channel_config = schemas.ChannelConfig.model_validate(channel.details)
+        if channel.details.data_query is None:
+            _log.info(f"No data query found for version_id={version_id}, skipping indexing")
+            return None
 
-        if channel_config.data_query is None:
-            _log.info(f"No data query found for {version}, skipping indexing")
-            return
-
-        indexer_version = channel_config.data_query.details.indexer_version
+        indexer_version = channel.details.data_query.details.indexer_version
         _log.info(f"Indexer version: {indexer_version}")
         if indexer_version == schemas.IndexerVersion.hybrid:
             if version_ids is None:
-                res = await self.get_latest_successful_dataset_versions_for_channel(channel.id)
-                version_ids = {
-                    v.last_completed_version.version_data_id
-                    for v in res.values()
-                    if v.last_completed_version is not None
-                    and v.last_completed_version.channel_dataset_id != version.channel_dataset_id
-                }
+                async with self._scoped_session():
+                    res = await self.get_latest_successful_dataset_versions_for_channel(channel.id)
+                    version_ids = {
+                        v.last_completed_version.version_data_id
+                        for v in res.values()
+                        if v.last_completed_version is not None
+                        and v.last_completed_version.channel_dataset_id != channel_dataset_id
+                    }
 
-            await self._run_hybrid_indexer(
+            return await self._run_hybrid_indexer(
                 channel=channel,
-                channel_config=channel_config,
                 vector_store=vector_store,
                 dataset=dataset,
-                version=version,
+                version_id=version_id,
                 version_ids=version_ids,
                 harmonize_indicator=harmonize_indicator,
                 max_n_embeddings=max_n_embeddings,
@@ -1575,8 +1700,9 @@ class AdminPortalDataSetService(DataSetService):
             )
         elif indexer_version == schemas.IndexerVersion.semantic:
             await self._run_semantic_indexer(
-                dataset, db_dataset, vector_store, version, max_n_embeddings, auth_context
+                dataset, source_id, vector_store, version_id, max_n_embeddings, auth_context
             )
+            return None
         else:
             raise RuntimeError(f"Unknown indexer version: {indexer_version}")
 
@@ -1612,73 +1738,92 @@ class AdminPortalDataSetService(DataSetService):
         max_n_embeddings: int | None,
         status_on_completion: StatusEnum = StatusEnum.COMPLETED,
     ) -> None:
-        version = await self._get_channel_dataset_version_or_raise(channel_dataset_version_id)
-
-        _log.info(f"Start processing {version}")
         try:
-            if await self._invalid_version_status(version):
-                return
+            # Phase A: DB reads — load entities, convert to schemas/session-independent objects
+            async with self._scoped_session():
+                version = await self._get_channel_dataset_version_or_raise(
+                    channel_dataset_version_id
+                )
+                _log.info(f"Start processing {version}")
 
-            await self._update_channel_dataset_version_status(
-                version, new_status=StatusEnum.IN_PROGRESS
-            )
+                if await self._invalid_version_status(version):
+                    return
 
-            channel_dataset = await self._get_channel_dataset_model_or_raise(
-                version.channel_dataset_id
-            )
-            _log.info(
-                f"Processing version(id={version.id}, version={version.version}) of {channel_dataset}"
-            )
-            channel = await ChannelService(self._session).get_model_by_id(
-                channel_dataset.channel_id
-            )
-            db_dataset: models.DataSet = await self.get_model_by_id(channel_dataset.dataset_id)
-            handler_class = await DataSourceTypeService(
-                self._session
-            ).get_data_source_handler_class_by_id(db_dataset.source.type_id)
-            config = handler_class.parse_config(db_dataset.source.details)
+                await self._update_channel_dataset_version_status(
+                    version, new_status=StatusEnum.IN_PROGRESS
+                )
 
-            handler = handler_class(config=config)
+                channel_dataset = await self._get_channel_dataset_model_or_raise(
+                    version.channel_dataset_id
+                )
+                channel_dataset_id = channel_dataset.id
+                channel_id = channel_dataset.channel_id
+                dataset_id = channel_dataset.dataset_id
+                _log.info(
+                    f"Processing version(id={version.id}, version={version.version})"
+                    f" of {channel_dataset}"
+                )
+
+                db_dataset: models.DataSet = await self.get_model_by_id(dataset_id)
+                channel = await ChannelService(self._session).get_schema_by_id(channel_id)
+                dataset_config = version.resolved_config or db_dataset.details
+                entity_id = db_dataset.id_
+                source_id = db_dataset.source_id
+                dataset_title = db_dataset.title
+
+                handler = await self._get_handler(db_dataset.source_id)
+
+            # Phase B: Network I/O — no session needed
             dataset = await handler.get_dataset(
-                entity_id=db_dataset.id_,
-                title=db_dataset.title,
-                config=db_dataset.details,
+                entity_id=entity_id,
+                title=dataset_title,
+                config=dataset_config,
                 auth_context=auth_context,
-                allow_offline=False,  # Unable to reindex offline dataset
+                allow_offline=False,
             )
 
-            # Extract and store resolved config from loaded dataset
             resolved_config = dataset.get_resolved_config()
-            await self._set_resolved_config(version, resolved_config)
 
+            hashes_to_store: tuple[str, str, dict, _DataHashes] | None = None
             if reindex_dimensions or (reindex_indicators and not harmonize_indicator):
                 config_hash = dataset.config.indexing_hash
                 structure_hash, meta = await handler.get_structure_hash_and_metadata(
-                    dataset_config=db_dataset.details, auth_context=auth_context
+                    dataset_config=dataset_config, auth_context=auth_context
                 )
                 data_hashes = await self._get_data_hashes(dataset, auth_context, allow_cached=True)
-                await self._set_version_hashes_and_metadata(
-                    version, config_hash, structure_hash, meta, data_hashes
-                )
+                hashes_to_store = (config_hash, structure_hash, meta, data_hashes)
 
-            vector_store_factory = VectorStoreFactory(session=self._session)
+            # Phase C: DB writes — store resolved config, hashes, metadata
+            async with self._scoped_session():
+                version = await self._get_channel_dataset_version_or_raise(
+                    channel_dataset_version_id
+                )
+                await self._set_resolved_config(version, resolved_config)
+
+                if hashes_to_store is not None:
+                    await self._set_version_hashes_and_metadata(version, *hashes_to_store)
+
+            # Phase D: Vector indexing — no DB session needed, vector stores manage their own connections
+            vector_store_factory = VectorStoreFactory()
+            indexing_stats: dict | None = None
 
             if reindex_dimensions:
                 await self._index_available_dimensions(
-                    version=version,
+                    version_id=channel_dataset_version_id,
                     channel=channel,
                     dataset=dataset,
-                    db_dataset=db_dataset,
+                    source_id=source_id,
                     vector_store_factory=vector_store_factory,
                     max_n_embeddings=max_n_embeddings,
                     auth_context=auth_context,
                 )
 
             if reindex_indicators:
-                await self._index_channel_indicators(
+                indexing_stats = await self._index_channel_indicators(
                     channel=channel,
-                    db_dataset=db_dataset,
-                    version=version,
+                    source_id=source_id,
+                    version_id=channel_dataset_version_id,
+                    channel_dataset_id=channel_dataset_id,
                     version_ids=version_ids,
                     harmonize_indicator=harmonize_indicator,
                     max_n_embeddings=max_n_embeddings,
@@ -1687,42 +1832,85 @@ class AdminPortalDataSetService(DataSetService):
                     auth_context=auth_context,
                 )
 
-            await self._update_channel_dataset_version_status(
-                version, new_status=status_on_completion
-            )
-            if status_on_completion is StatusEnum.COMPLETED:
-                await self._update_channel_dataset_status(
-                    channel_dataset, new_status=StatusEnum.QUEUED
+            # Phase E: Persist indexing stats and update status
+            async with self._scoped_session():
+                version = await self._get_channel_dataset_version_or_raise(
+                    channel_dataset_version_id
                 )
-            _log.info(f'Finished processing {version} of {channel_dataset}')
+                if indexing_stats:
+                    version.indexing_stats = {**(version.indexing_stats or {}), **indexing_stats}
+                await self._update_channel_dataset_version_status(
+                    version, new_status=status_on_completion
+                )
+
+                if status_on_completion is StatusEnum.COMPLETED:
+                    channel_dataset = await self._get_channel_dataset_model_or_raise(
+                        channel_dataset_id
+                    )
+                    await self._update_channel_dataset_status(
+                        channel_dataset, new_status=StatusEnum.QUEUED
+                    )
+                _log.info(
+                    f'Finished processing version_id={channel_dataset_version_id}'
+                    f' of channel_dataset_id={channel_dataset_id}'
+                )
         except Exception as e:
-            _log.exception(f"Failed to reindex {version}")
-            await self._update_channel_dataset_version_status(
-                version, new_status=StatusEnum.FAILED, reason_for_failure=str(e)
-            )
+            _log.exception(f"Failed to reindex version_id={channel_dataset_version_id}")
+            async with self._scoped_session():
+                version = await self._get_channel_dataset_version_or_raise(
+                    channel_dataset_version_id
+                )
+                await self._update_channel_dataset_version_status(
+                    version, new_status=StatusEnum.FAILED, reason_for_failure=str(e)
+                )
 
     async def clear_channel_dataset_data_in_background(
         self, channel_dataset_id: int, auth_context: AuthContext
     ) -> None:
-        channel_dataset = await self._get_channel_dataset_model_or_raise(channel_dataset_id)
-
-        _log.info(f"Clear data after reindexing {channel_dataset}")
+        _log.info(f"Clear data after reindexing channel_dataset_id={channel_dataset_id}")
         try:
-            await self._update_channel_dataset_status(
-                channel_dataset, new_status=StatusEnum.IN_PROGRESS
-            )
+            # Phase A: DB reads — load entities, set status, determine versions to clear
+            async with self._scoped_session():
+                channel_dataset = await self._get_channel_dataset_model_or_raise(channel_dataset_id)
+                await self._update_channel_dataset_status(
+                    channel_dataset, new_status=StatusEnum.IN_PROGRESS
+                )
 
-            # In case of failure, we clear the data that might have been partially indexed
-            # In case of success, we clear previous version data to save space
-            await self.clear_channel_dataset_versions_data(
-                channel_dataset.channel_id, channel_dataset.dataset_id, auth_context
-            )
-            await self._update_channel_dataset_status(
-                channel_dataset, new_status=StatusEnum.COMPLETED
-            )
+                channel: schemas.Channel = await ChannelService(self._session).get_schema_by_id(
+                    channel_dataset.channel_id
+                )
+
+                versions = await self.get_channel_dataset_version_models(
+                    limit=20, offset=0, channel_dataset_id=channel_dataset.id
+                )
+                versions_to_clear = self._select_versions_to_clear(versions)
+
+            # Phase B: Vector store + elastic clearing — no DB session held
+            if versions_to_clear:
+                await self._clear_channel_dataset_data(
+                    channel,
+                    auth_context=auth_context,
+                    dataset_id=None,
+                    version_ids=versions_to_clear,
+                )
+            else:
+                _log.info("No versions to clear data for.")
+
+            # Phase C: DB write — update status to COMPLETED
+            async with self._scoped_session():
+                channel_dataset = await self._get_channel_dataset_model_or_raise(channel_dataset_id)
+                await self._update_channel_dataset_status(
+                    channel_dataset, new_status=StatusEnum.COMPLETED
+                )
         except Exception:
-            _log.exception(f"Failed to clear data after reindexing {channel_dataset}")
-            await self._update_channel_dataset_status(channel_dataset, new_status=StatusEnum.FAILED)
+            _log.exception(
+                f"Failed to clear data after reindexing channel_dataset_id={channel_dataset_id}"
+            )
+            async with self._scoped_session():
+                channel_dataset = await self._get_channel_dataset_model_or_raise(channel_dataset_id)
+                await self._update_channel_dataset_status(
+                    channel_dataset, new_status=StatusEnum.FAILED
+                )
 
     async def _get_deduplication_status_by_versions(
         self,
@@ -1846,7 +2034,7 @@ class AdminPortalDataSetService(DataSetService):
     ) -> schemas.ChannelIndexStatus:
         """Checks index status for channel"""
         channel = await ChannelService(self._session).get_model_by_id(channel_id)
-        vector_store_factory = VectorStoreFactory(session=self._session)
+        vector_store_factory = VectorStoreFactory()
 
         available_dims_store = await vector_store_factory.get_vector_store(
             collection_name=channel.available_dimensions_table_name,
@@ -1881,6 +2069,511 @@ class AdminPortalDataSetService(DataSetService):
         else:
             raise ValueError(f"Unknown scope: {scope}")
 
+    async def trigger_auto_update(
+        self,
+        background_tasks: BackgroundTasks,
+        channel_id: int,
+        dataset_id: int,
+        auth_context: AuthContext,
+    ) -> schemas.AutoUpdateJob:
+        channel_dataset = await self.get_channel_dataset_model_or_raise(
+            channel_id=channel_id, dataset_id=dataset_id
+        )
+
+        job = models.AutoUpdateJob(
+            channel_dataset_id=channel_dataset.id,
+            status=StatusEnum.QUEUED,
+        )
+        self._session.add(job)
+        await self._session.commit()
+        await self._session.refresh(job)
+
+        background_tasks.add_task(
+            auto_update_in_background_task,
+            auto_update_job_id=job.id,
+            auth_context=auth_context,
+        )
+
+        return schemas.AutoUpdateJob.model_validate(job, from_attributes=True)
+
+    async def get_auto_update_job_by_id(self, job_id: int) -> schemas.AutoUpdateJob:
+        job: models.AutoUpdateJob | None = await self._session.get(models.AutoUpdateJob, job_id)
+        if job is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Auto-update job not found"
+            )
+        return schemas.AutoUpdateJob.model_validate(job, from_attributes=True)
+
+    async def get_auto_update_jobs(
+        self,
+        channel_dataset_id: int,
+        limit: int,
+        offset: int,
+    ) -> list[schemas.AutoUpdateJob]:
+        """Get paginated list of auto-update jobs for a channel dataset."""
+        query = (
+            select(models.AutoUpdateJob)
+            .where(models.AutoUpdateJob.channel_dataset_id == channel_dataset_id)
+            .order_by(models.AutoUpdateJob.id.desc())
+            .limit(limit)
+            .offset(offset)
+        )
+        result = await self._session.scalars(query)
+        return [
+            schemas.AutoUpdateJob.model_validate(job, from_attributes=True) for job in result.all()
+        ]
+
+    async def get_auto_update_jobs_count(self, channel_dataset_id: int) -> int:
+        """Get total count of auto-update jobs for a channel dataset."""
+        query = (
+            select(func.count())
+            .select_from(models.AutoUpdateJob)
+            .where(models.AutoUpdateJob.channel_dataset_id == channel_dataset_id)
+        )
+        return await self._session.scalar(query) or 0
+
+    async def create_auto_update_jobs(self, channel_ids: list[int]) -> list[schemas.AutoUpdateJob]:
+        """Create AutoUpdateJob records for all datasets in the given channels.
+
+        Returns a list of created job schemas.
+        """
+        result = await self._session.execute(
+            select(models.ChannelDataset)
+            .where(models.ChannelDataset.channel_id.in_(channel_ids))
+            .options(selectinload(models.ChannelDataset.channel))
+        )
+        channel_datasets = list(result.scalars().all())
+
+        jobs: list[models.AutoUpdateJob] = []
+        for cd in channel_datasets:
+            job = models.AutoUpdateJob(channel_dataset_id=cd.id, status=StatusEnum.QUEUED)
+            self._session.add(job)
+            jobs.append(job)
+        await self._session.commit()
+
+        # Log per-channel summary
+        channels_by_id = {cd.channel.id: cd.channel for cd in channel_datasets}
+        counts = Counter(cd.channel_id for cd in channel_datasets)
+        for ch_id, count in counts.items():
+            ch = channels_by_id[ch_id]
+            _log.info(
+                f"Created {count} auto-update job(s) for channel '{ch.deployment_id}' (id={ch_id})"
+            )
+
+        return [schemas.AutoUpdateJob.model_validate(job, from_attributes=True) for job in jobs]
+
+    async def get_reindex_channel_ids(self, job_ids: list[int]) -> set[int]:
+        """Get channel IDs that had at least one REINDEX_TRIGGERED result."""
+        result = await self._session.execute(
+            select(models.AutoUpdateJob)
+            .where(models.AutoUpdateJob.id.in_(job_ids))
+            .where(models.AutoUpdateJob.result == AutoUpdateResult.REINDEX_TRIGGERED)
+            .options(selectinload(models.AutoUpdateJob.channel_dataset))
+        )
+        jobs = list(result.scalars().all())
+        return {j.channel_dataset.channel_id for j in jobs}
+
+    async def get_auto_update_results(self, job_ids: list[int]) -> list[AutoUpdateChannelResult]:
+        """Collect per-channel auto-update results."""
+        result = await self._session.execute(
+            select(models.AutoUpdateJob)
+            .where(models.AutoUpdateJob.id.in_(job_ids))
+            .options(
+                selectinload(models.AutoUpdateJob.channel_dataset).selectinload(
+                    models.ChannelDataset.channel
+                ),
+                selectinload(models.AutoUpdateJob.created_version),
+            )
+        )
+        jobs = list(result.scalars().all())
+
+        channel_jobs: defaultdict[int, list[models.AutoUpdateJob]] = defaultdict(list)
+        for job in jobs:
+            channel_jobs[job.channel_dataset.channel.id].append(job)
+
+        results: list[AutoUpdateChannelResult] = []
+        for channel_id, ch_jobs in channel_jobs.items():
+            ch = ch_jobs[0].channel_dataset.channel
+            results.append(
+                AutoUpdateChannelResult(
+                    channel_id=channel_id,
+                    deployment_id=ch.deployment_id,
+                    total=len(ch_jobs),
+                    failed=sum(1 for j in ch_jobs if j.status == StatusEnum.FAILED),
+                    summary=self._format_result_summary(ch_jobs),
+                    failed_reasons=[
+                        f"job {j.id}: {j.reason_for_failure}"
+                        for j in ch_jobs
+                        if j.status == StatusEnum.FAILED
+                    ],
+                )
+            )
+        return results
+
+    @staticmethod
+    def _format_result_summary(jobs: list[models.AutoUpdateJob]) -> str:
+        """Build a human-readable summary of auto-update results."""
+        reindex_statuses: dict[str, Counter[str]] = defaultdict(Counter)
+        job_statuses: list[str] = []
+        for job in jobs:
+            job_status = job.result.value if job.result else job.status.value
+            job_statuses.append(job_status)
+            if job.created_version is not None:
+                reindex_statuses[job_status][job.created_version.preprocessing_status.value] += 1
+        result_counts = Counter(job_statuses)
+
+        parts: list[str] = []
+        for job_status, count in result_counts.most_common():
+            part = f"{count} {job_status}"
+            if job_status in reindex_statuses:
+                breakdown = ", ".join(f"{c} {s}" for s, c in reindex_statuses[job_status].items())
+                part += f" ({breakdown})"
+            parts.append(part)
+        return ", ".join(parts)
+
+    async def _get_auto_update_job_or_raise(self, auto_update_job_id: int) -> models.AutoUpdateJob:
+        job: models.AutoUpdateJob | None = await self._session.get(
+            models.AutoUpdateJob, auto_update_job_id
+        )
+        if job is None:
+            raise RuntimeError(f"Auto-update job {auto_update_job_id} not found")
+        return job
+
+    async def _set_auto_update_job_status(
+        self,
+        job: models.AutoUpdateJob,
+        status: StatusEnum,
+        *,
+        details: str | None = None,
+        result: schemas.AutoUpdateResult | None = None,
+        reason_for_failure: str | None = None,
+    ) -> None:
+        job.status = status
+
+        if details is not None:
+            job.details = details
+        if reason_for_failure is not None:
+            job.reason_for_failure = reason_for_failure
+        if result is not None:
+            job.result = result
+
+        job.updated_at = func.now()
+        await self._session.commit()
+        await self._session.refresh(job)
+
+    async def _get_last_completed_version(
+        self, channel_dataset_id: int
+    ) -> schemas.ChannelDatasetVersion | None:
+        last_completed_mapping = await self._get_latest_successful_channel_dataset_versions(
+            channel_dataset_ids=[channel_dataset_id]
+        )
+        last_completed_versions = last_completed_mapping.get(channel_dataset_id)
+        return last_completed_versions.last_completed_version if last_completed_versions else None
+
+    async def _get_data_changed(
+        self,
+        handler: base.DataSourceHandler,
+        channel_dataset: models.ChannelDataset,
+        new_resolved_config: dict,
+        last_completed: schemas.ChannelDatasetVersion,
+        auth_context: AuthContext,
+    ) -> tuple[bool, str]:
+        dataset = await handler.get_dataset(
+            entity_id=channel_dataset.dataset.id_,
+            title=channel_dataset.dataset.title,
+            config=new_resolved_config,
+            auth_context=auth_context,
+            allow_offline=False,
+        )
+        data_hashes = await self._get_data_hashes(
+            dataset, auth_context=auth_context, allow_cached=False
+        )
+
+        changed = []
+        if last_completed.indicator_dimensions_hash != data_hashes.indicator_dimensions_hash:
+            changed.append("indicator")
+        if (
+            last_completed.non_indicator_dimensions_hash
+            != data_hashes.non_indicator_dimensions_hash
+        ):
+            changed.append("non-indicator")
+
+        if last_completed.special_dimensions_hash != data_hashes.special_dimensions_hash:
+            changed.append("special")
+
+        if changed:
+            changed_dimensions = ", ".join(changed)
+            return True, f"Data in {changed_dimensions} dimensions has changed."
+        else:
+            return False, "Data has not changed."
+
+    async def _create_config_only_version(
+        self,
+        channel_dataset: models.ChannelDataset,
+        last_completed: schemas.ChannelDatasetVersion,
+        new_resolved_config: dict,
+    ) -> models.ChannelDatasetVersion:
+        """Create a new version with updated config, reusing data from the last completed version.
+
+        Used when the config changed (e.g., URN version updated) but the actual data is unchanged,
+        so no reindexing is needed.
+        """
+        new_version = models.ChannelDatasetVersion(
+            channel_dataset_id=channel_dataset.id,
+            preprocessing_status=StatusEnum.COMPLETED,
+            pointer_to=last_completed.version_data_id,
+            creation_reason="Auto-update: config updated without reindexing",
+            resolved_config=new_resolved_config,
+            indexing_config_hash=last_completed.indexing_config_hash,
+            structure_metadata=last_completed.structure_metadata,
+            structure_hash=last_completed.structure_hash,
+            indicator_dimensions_hash=last_completed.indicator_dimensions_hash,
+            non_indicator_dimensions_hash=last_completed.non_indicator_dimensions_hash,
+            special_dimensions_hash=last_completed.special_dimensions_hash,
+        )
+        self._session.add(new_version)
+        await self._session.commit()
+        await self._session.refresh(new_version)
+        return new_version
+
+    async def _prepare_auto_update_reindex(
+        self,
+        job: models.AutoUpdateJob,
+        channel_dataset: models.ChannelDataset,
+        new_resolved_config: dict,
+        details: str,
+    ) -> _ReindexParams:
+        """Create a new version and prepare parameters for reindexing.
+
+        Must be called inside an active ``_scoped_session()`` block.
+        """
+        new_version = await self._create_new_channel_dataset_version(
+            channel_dataset_id=channel_dataset.id,
+            reason="Auto-update triggered reindexing",
+            preprocessing_status=StatusEnum.NOT_STARTED,
+            resolved_config=new_resolved_config,
+        )
+        job.created_version_id = new_version.id
+        await self._set_auto_update_job_status(
+            job,
+            StatusEnum.IN_PROGRESS,
+            details=details,
+            result=schemas.AutoUpdateResult.REINDEX_TRIGGERED,
+        )
+
+        channel = ChannelSerializer.db_to_schema(channel_dataset.channel)
+        harmonization_supported = self._is_harmonization_supported(channel)
+        status_on_completion = (
+            StatusEnum.QUEUED if harmonization_supported else StatusEnum.COMPLETED
+        )
+
+        await self._update_channel_dataset_version_status(new_version, StatusEnum.QUEUED)
+
+        return _ReindexParams(
+            version_id=new_version.id,
+            channel_dataset_id=channel_dataset.id,
+            harmonization_supported=harmonization_supported,
+            status_on_completion=status_on_completion,
+        )
+
+    async def _execute_auto_update_reindex(
+        self,
+        auto_update_job_id: int,
+        params: _ReindexParams,
+        auth_context: AuthContext,
+    ) -> None:
+        """Run reindexing background tasks. Must be called outside ``_scoped_session()``."""
+        await self.reload_channel_dataset_in_background(
+            channel_dataset_version_id=params.version_id,
+            version_ids=None,
+            reindex_indicators=True,
+            harmonize_indicator=False,
+            reindex_dimensions=True,
+            auth_context=auth_context,
+            max_n_embeddings=None,
+            status_on_completion=params.status_on_completion,
+        )
+
+        if params.harmonization_supported:
+            await self.reload_channel_dataset_in_background(
+                channel_dataset_version_id=params.version_id,
+                version_ids=None,
+                reindex_indicators=True,
+                harmonize_indicator=True,
+                reindex_dimensions=False,
+                auth_context=auth_context,
+                max_n_embeddings=None,
+            )
+
+        await self.clear_channel_dataset_data_in_background(
+            channel_dataset_id=params.channel_dataset_id,
+            auth_context=auth_context,
+        )
+
+        async with self._scoped_session():
+            job = await self._get_auto_update_job_or_raise(auto_update_job_id)
+            await self._set_auto_update_job_status(
+                job, StatusEnum.COMPLETED, result=schemas.AutoUpdateResult.REINDEX_TRIGGERED
+            )
+
+    async def process_auto_update_job(
+        self,
+        auto_update_job_id: int,
+        auth_context: AuthContext,
+    ) -> None:
+        """Process an auto-update job in the background."""
+        _log.info(f"Processing auto-update job {auto_update_job_id}")
+        try:
+            # Phase A: DB reads — load job, channel_dataset, check state
+            async with self._scoped_session():
+                job: models.AutoUpdateJob | None = await self._session.get(
+                    models.AutoUpdateJob, auto_update_job_id
+                )
+                if job is None:
+                    _log.error(f"Auto-update job {auto_update_job_id} not found")
+                    return
+
+                await self._set_auto_update_job_status(job=job, status=StatusEnum.IN_PROGRESS)
+
+                channel_dataset_id = job.channel_dataset_id
+                channel_dataset = await self._get_channel_dataset_model_or_raise(channel_dataset_id)
+                _log.info(
+                    f"Auto-update job {auto_update_job_id}: channel_dataset_id={channel_dataset_id}"
+                )
+
+                if await self._is_indexing_in_progress(channel_dataset_id):
+                    msg = f"Channel dataset {channel_dataset_id} is currently being indexed."
+                    await self._set_auto_update_job_status(
+                        job=job, status=StatusEnum.FAILED, reason_for_failure=msg
+                    )
+                    return
+
+                last_completed = await self._get_last_completed_version(channel_dataset_id)
+                if last_completed is None:
+                    await self._set_auto_update_job_status(
+                        job,
+                        StatusEnum.COMPLETED,
+                        result=schemas.AutoUpdateResult.NO_COMPLETED_VERSION,
+                    )
+                    return
+
+                job.base_version_id = last_completed.id
+
+                db_dataset: models.DataSet = await self.get_model_by_id(channel_dataset.dataset_id)
+                handler = await self._get_handler(db_dataset.source_id)
+                dataset_details = db_dataset.details
+
+            # Phase B: Network I/O — no session needed
+            # last_completed is a schema, so resolved_config is accessible without a session
+            details, new_resolved_config = await handler.resolve_config(
+                config=dataset_details,
+                previous_resolved_config=last_completed.resolved_config,
+                auth_context=auth_context,
+            )
+
+            validation_result = await handler.validate_dataset_config(
+                new_resolved_config, auth_context=auth_context, mode="return"
+            )
+            if not validation_result.is_valid:
+                async with self._scoped_session():
+                    job = await self._get_auto_update_job_or_raise(auto_update_job_id)
+                    await self._set_auto_update_job_status(
+                        job=job,
+                        status=StatusEnum.COMPLETED,
+                        result=schemas.AutoUpdateResult.CONFIG_INCOMPATIBLE,
+                        details=details,
+                        reason_for_failure="; ".join(validation_result.errors),
+                    )
+                return
+
+            structure_hash, structure_meta = await handler.get_structure_hash_and_metadata(
+                dataset_config=new_resolved_config, auth_context=auth_context
+            )
+            structure_changed = last_completed.structure_hash != structure_hash
+
+            if structure_changed:
+                structure_changes = handler.get_structure_metadata_diff(
+                    old_metadata=last_completed.structure_metadata, new_metadata=structure_meta
+                )
+                details += f" Structure has changed: {structure_changes}."
+                data_changed = None
+            else:
+                async with self._scoped_session():
+                    channel_dataset = await self._get_channel_dataset_model_or_raise(
+                        channel_dataset_id
+                    )
+                    await self._session.refresh(
+                        channel_dataset, attribute_names=["channel", "dataset"]
+                    )
+                    data_changed, data_details = await self._get_data_changed(
+                        handler, channel_dataset, new_resolved_config, last_completed, auth_context
+                    )
+                details += f" Structure has not changed. {data_details}"
+
+            # Phase C: DB writes — prepare reindex or update status
+            reindex_params: _ReindexParams | None = None
+            async with self._scoped_session():
+                job = await self._get_auto_update_job_or_raise(auto_update_job_id)
+                channel_dataset = await self._get_channel_dataset_model_or_raise(channel_dataset_id)
+                await self._session.refresh(channel_dataset, attribute_names=["channel", "dataset"])
+                job.base_version_id = last_completed.id
+
+                if structure_changed or data_changed:
+                    reindex_params = await self._prepare_auto_update_reindex(
+                        job, channel_dataset, new_resolved_config, details
+                    )
+                elif new_resolved_config != last_completed.resolved_config:
+                    new_version = await self._create_config_only_version(
+                        channel_dataset, last_completed, new_resolved_config
+                    )
+                    job.created_version_id = new_version.id
+                    await self._set_auto_update_job_status(
+                        job,
+                        StatusEnum.COMPLETED,
+                        details=details,
+                        result=schemas.AutoUpdateResult.CONFIG_UPDATED,
+                    )
+                else:
+                    await self._set_auto_update_job_status(
+                        job,
+                        StatusEnum.COMPLETED,
+                        details=details,
+                        result=schemas.AutoUpdateResult.NO_CHANGES,
+                    )
+
+            # Phase D: Trigger reindex tasks (outside session scope)
+            if reindex_params is not None:
+                await self._execute_auto_update_reindex(
+                    auto_update_job_id=auto_update_job_id,
+                    params=reindex_params,
+                    auth_context=auth_context,
+                )
+
+        except Exception as e:
+            _log.exception(f"Failed to process auto-update job {auto_update_job_id}")
+            async with self._scoped_session():
+                job = await self._session.get(models.AutoUpdateJob, auto_update_job_id)
+                if job is not None:
+                    job.status = StatusEnum.FAILED
+                    job.reason_for_failure = str(e)
+                    await self._session.commit()
+
+
+@background_task
+async def auto_update_in_background_task(
+    auto_update_job_id: int,
+    auth_context: AuthContext,
+) -> None:
+    """Background task wrapper for auto-update job processing."""
+    try:
+        service = AdminPortalDataSetService()
+        await service.process_auto_update_job(
+            auto_update_job_id=auto_update_job_id,
+            auth_context=auth_context,
+        )
+    except Exception as e:
+        _log.exception(e)
+
 
 @background_task
 async def reload_indicators_in_background_task(
@@ -1894,18 +2587,17 @@ async def reload_indicators_in_background_task(
     status_on_completion: StatusEnum = StatusEnum.COMPLETED,
 ) -> None:
     try:
-        async with models.get_session_contex_manager() as session:
-            service = AdminPortalDataSetService(session)
-            await service.reload_channel_dataset_in_background(
-                channel_dataset_version_id=channel_dataset_version_id,
-                version_ids=version_ids,
-                reindex_indicators=reindex_indicators,
-                harmonize_indicator=harmonize_indicator,
-                reindex_dimensions=reindex_dimensions,
-                auth_context=auth_context,
-                max_n_embeddings=max_n_embeddings,
-                status_on_completion=status_on_completion,
-            )
+        service = AdminPortalDataSetService()
+        await service.reload_channel_dataset_in_background(
+            channel_dataset_version_id=channel_dataset_version_id,
+            version_ids=version_ids,
+            reindex_indicators=reindex_indicators,
+            harmonize_indicator=harmonize_indicator,
+            reindex_dimensions=reindex_dimensions,
+            auth_context=auth_context,
+            max_n_embeddings=max_n_embeddings,
+            status_on_completion=status_on_completion,
+        )
     except Exception as e:
         _log.exception(e)
 
@@ -1915,11 +2607,10 @@ async def clear_channel_dataset_data_in_background_task(
     channel_dataset_id: int, auth_context: AuthContext
 ) -> None:
     try:
-        async with models.get_session_contex_manager() as session:
-            service = AdminPortalDataSetService(session)
-            await service.clear_channel_dataset_data_in_background(
-                channel_dataset_id=channel_dataset_id,
-                auth_context=auth_context,
-            )
+        service = AdminPortalDataSetService()
+        await service.clear_channel_dataset_data_in_background(
+            channel_dataset_id=channel_dataset_id,
+            auth_context=auth_context,
+        )
     except Exception as e:
         _log.exception(e)

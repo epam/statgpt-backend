@@ -1,4 +1,4 @@
-from .cache import Cache
+from .async_loading_cache import AsyncLoadingCache
 from .db_mixins import DateMixin, IdMixin
 from .dial import (
     AttachmentResponse,
@@ -47,3 +47,4 @@ from .time_utils import (
     get_ts_utcnow,
     get_ts_utcnow_str,
 )
+from .ttl_cache import TtlCache

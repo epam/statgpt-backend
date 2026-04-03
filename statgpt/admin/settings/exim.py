@@ -21,6 +21,12 @@ class ExImSettings(BaseSettings):
 class JobsConfig:
     """Import/Export jobs configuration."""
 
+    CURRENT_EXPORT_VERSION: int = 1
+    """Increment when making breaking changes to the export archive format."""
+
+    SUPPORTED_EXPORT_VERSIONS: set[int] = {1}
+    """Set of archive versions that this application can import."""
+
     JOBS_RETENTION_HOURS = 24
     """The default hours after which jobs are cleared when `clear_jobs` is called."""
 
@@ -55,4 +61,5 @@ class JobsConfig:
         'non_indicator_dimensions_hash',
         'special_dimensions_hash',
         'resolved_config',
+        'indexing_stats',
     }

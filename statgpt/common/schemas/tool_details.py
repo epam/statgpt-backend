@@ -1,13 +1,13 @@
 import re
 from typing import Any
 
-from pydantic import Field
+from pydantic import AliasChoices, Field
 
 from statgpt.common.config import LLMModelsEnum
 from statgpt.common.config import utils as config_utils
 
 from .base import BaseYamlModel
-from .enums import AvailableDatasetsVersion, RAGVersion
+from .enums import AvailableDatasetsHeaderFormat, AvailableDatasetsVersion, RAGVersion
 from .model_config import LLMModelConfig
 
 
@@ -68,11 +68,18 @@ class FileRagDetails(BaseToolDetails):
     version: RAGVersion
 
     # For Dial RAG:
-    deployment_id: str = Field(
-        default="dial-rag-pgvector",
-        description="The DIAL deployment ID to use for the file RAG tool",
+    deployment_id_raw: str = Field(
+        default="statgpt-dial-rag-pgvector",
+        validation_alias=AliasChoices("deployment_id", "deploymentId"),
+        description="The DIAL deployment ID to use for the file RAG tool. Supports $env:{VAR} syntax.",
+        serialization_alias="deploymentId",
     )
-    metadata_endpoint: str = Field(default="/indexing/documents/metadata")
+    metadata_endpoint_raw: str = Field(
+        default="/indexing/documents/metadata",
+        validation_alias=AliasChoices("metadata_endpoint", "metadataEndpoint"),
+        description="The metadata endpoint path for DIAL RAG. Supports $env:{VAR} syntax.",
+        serialization_alias="metadataEndpoint",
+    )
     prefilter_llm_model_config: LLMModelConfig = Field(default_factory=LLMModelConfig)
     always_show_stages: bool = Field(
         default=False,
@@ -94,6 +101,12 @@ class FileRagDetails(BaseToolDetails):
         "corresponding to the 'latest'",
     )
 
+    def get_deployment_id(self) -> str:
+        return config_utils.replace_env(self.deployment_id_raw)
+
+    def get_metadata_endpoint(self) -> str:
+        return config_utils.replace_env(self.metadata_endpoint_raw)
+
     def get_attachment_url_override(self) -> str | None:
         if self.attachment_url_override is None or not self.attachment_url_override.strip():
             return None
@@ -108,7 +121,11 @@ class WebSearchDetails(BaseToolDetails):
             description="The list of allowed domains for the web search tool"
         )
 
-    deployment_id: str = Field(description="The DIAL deployment_id of the web search agent")
+    deployment_id_raw: str = Field(
+        validation_alias=AliasChoices("deployment_id", "deploymentId"),
+        description="The DIAL deployment_id of the web search agent. Supports $env:{VAR} syntax.",
+        serialization_alias="deploymentId",
+    )
     domains: Domains | None = Field(
         default=None, description="The list of allowed domains for the web search tool"
     )
@@ -127,9 +144,16 @@ class WebSearchDetails(BaseToolDetails):
         ),
     )
 
+    def get_deployment_id(self) -> str:
+        return config_utils.replace_env(self.deployment_id_raw)
+
 
 class WebSearchAgentDetails(BaseToolDetails):
-    deployment_id: str = Field(description="The DIAL deployment_id of the web search agent")
+    deployment_id_raw: str = Field(
+        validation_alias=AliasChoices("deployment_id", "deploymentId"),
+        description="The DIAL deployment_id of the web search agent. Supports $env:{VAR} syntax.",
+        serialization_alias="deploymentId",
+    )
     configuration: dict[str, Any] | None = Field(
         default=None, description="The configuration for the web search agent"
     )
@@ -151,6 +175,9 @@ class WebSearchAgentDetails(BaseToolDetails):
             " Otherwise, it returns only the URLs of the attachments."
         ),
     )
+
+    def get_deployment_id(self) -> str:
+        return config_utils.replace_env(self.deployment_id_raw)
 
 
 class PublicationType(BaseYamlModel):
@@ -184,6 +211,14 @@ class AvailableDatasetsDetails(BaseToolDetails):
     version: AvailableDatasetsVersion = Field(
         default=AvailableDatasetsVersion.short,
         description="The version of the available datasets tool",
+    )
+    include_indicator_count: bool = Field(
+        default=False,
+        description="Whether to include the number of indexed indicators per dataset and total.",
+    )
+    stats_header_format: AvailableDatasetsHeaderFormat = Field(
+        default=AvailableDatasetsHeaderFormat.totals,
+        description="The format of the statistics header in the tool output.",
     )
 
 

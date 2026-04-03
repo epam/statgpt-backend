@@ -1,11 +1,19 @@
+import datetime
 import uuid
 from typing import Any
 
-from sqlalchemy import ForeignKey, String, UniqueConstraint
+from sqlalchemy import DateTime, Enum, ForeignKey, Index, String, UniqueConstraint
 from sqlalchemy.dialects import postgresql
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.sql import func
 
-from statgpt.common.schemas import JobType, PreprocessingStatusEnum
+from statgpt.common.schemas import (
+    AuditActionType,
+    AuditEntityType,
+    AutoUpdateResult,
+    JobType,
+    PreprocessingStatusEnum,
+)
 from statgpt.common.settings.elastic import ElasticSearchSettings
 from statgpt.common.settings.langchain import langchain_settings
 from statgpt.common.utils import DateMixin, IdMixin
@@ -25,7 +33,7 @@ class Channel(DefaultBase):
     title: Mapped[str]
     description: Mapped[str]
     deployment_id: Mapped[str] = mapped_column(unique=True)
-    llm_model: Mapped[str] = mapped_column(default=langchain_settings.default_model.value)
+    llm_model: Mapped[str] = mapped_column(default=langchain_settings.embedding_default_model.value)
     details: Mapped[dict[str, Any]] = mapped_column(type_=postgresql.JSONB)
 
     # ~~~~~ Relationships ~~~~~
@@ -143,7 +151,9 @@ class ChannelDatasetVersion(DefaultBase):
     __tablename__ = "channel_dataset_versions"
     __table_args__ = (
         UniqueConstraint(
-            'channel_dataset_id', 'version', name='uix_unique_version_for_channel_dataset'
+            "channel_dataset_id",
+            "version",
+            name="uix_unique_version_for_channel_dataset",
         ),
     )
 
@@ -151,7 +161,7 @@ class ChannelDatasetVersion(DefaultBase):
     version: Mapped[int] = mapped_column(default=0)  # will be auto-incremented by trigger
     preprocessing_status: Mapped[PreprocessingStatusEnum]
     pointer_to: Mapped[int | None] = mapped_column(
-        ForeignKey("channel_dataset_versions.id", ondelete='SET NULL'), default=None
+        ForeignKey("channel_dataset_versions.id", ondelete="SET NULL"), default=None
     )
 
     creation_reason: Mapped[str]
@@ -169,19 +179,21 @@ class ChannelDatasetVersion(DefaultBase):
     indexing_config_hash: Mapped[str | None] = mapped_column(type_=String(10), default=None)
     # Resolved configuration at indexing time (e.g. dynamic URN version resolved to concrete version)
     resolved_config: Mapped[dict | None] = mapped_column(type_=postgresql.JSONB, default=None)
+    # Indexing statistics (normalization/harmonization error counts)
+    indexing_stats: Mapped[dict | None] = mapped_column(type_=postgresql.JSONB, default=None)
 
     # relationships
     channel_dataset: Mapped[ChannelDataset] = relationship(back_populates="versions")
     pointer = relationship(
         "ChannelDatasetVersion",
-        remote_side='ChannelDatasetVersion.id',
+        remote_side="ChannelDatasetVersion.id",
         back_populates="pointing_versions",
         cascade="all",
         passive_deletes=True,
     )
     pointing_versions = relationship(
         "ChannelDatasetVersion",
-        remote_side='ChannelDatasetVersion.pointer_to',
+        remote_side="ChannelDatasetVersion.pointer_to",
         back_populates="pointer",
         cascade="all, delete-orphan",
         passive_deletes=True,
@@ -234,3 +246,73 @@ class GlossaryTerm(DefaultBase):
 
     def __repr__(self) -> str:
         return f"GlossaryTerm(id={self.id!r}, channel_id={self.channel_id!r}, term={self.term!r})"
+
+
+class AuditLog(IdMixin, Base):
+    __tablename__ = "audit_logs"
+    __table_args__ = (
+        Index("ix_audit_logs_created_at", "created_at"),
+        Index("ix_audit_logs_entity_type_entity_id", "entity_type", "entity_id"),
+        Index("ix_audit_logs_entity_type_item_id", "entity_type", "item_id"),
+    )
+
+    entity_type: Mapped[AuditEntityType] = mapped_column(
+        Enum(AuditEntityType, values_callable=lambda e: [x.value for x in e]),
+    )
+    action_type: Mapped[AuditActionType] = mapped_column(
+        Enum(AuditActionType, values_callable=lambda e: [x.value for x in e]),
+    )
+
+    item_id: Mapped[int]
+    entity_id: Mapped[str]
+    entity_name: Mapped[str]
+    state_after: Mapped[dict[str, Any] | None] = mapped_column(type_=postgresql.JSONB)
+
+    performed_by: Mapped[str]
+    performed_by_name: Mapped[str]
+    trace_id: Mapped[str]
+
+    created_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+
+class AutoUpdateJob(DefaultBase):
+    """A job record for tracking auto-update operations on channel dataset versions."""
+
+    __tablename__ = "auto_update_jobs"
+
+    channel_dataset_id: Mapped[int] = mapped_column(ForeignKey("channel_datasets.id"))
+    base_version_id: Mapped[int | None] = mapped_column(
+        ForeignKey("channel_dataset_versions.id", ondelete="CASCADE"), default=None
+    )
+    """The base version used for comparison (last completed version at job creation time)."""
+
+    created_version_id: Mapped[int | None] = mapped_column(
+        ForeignKey("channel_dataset_versions.id", ondelete="CASCADE"), default=None
+    )
+    """The newly created version after reindexing (set when reindex is triggered)."""
+
+    status: Mapped[PreprocessingStatusEnum]
+    """Execution status of the job."""
+
+    result: Mapped[AutoUpdateResult | None] = mapped_column(default=None)
+    """Outcome of the auto-update (set when job completes)."""
+
+    details: Mapped[str | None] = mapped_column(default=None)
+    reason_for_failure: Mapped[str | None] = mapped_column(default=None)
+
+    # Relationships
+    channel_dataset: Mapped[ChannelDataset] = relationship()
+    base_version: Mapped[ChannelDatasetVersion | None] = relationship(
+        foreign_keys=[base_version_id]
+    )
+    created_version: Mapped[ChannelDatasetVersion | None] = relationship(
+        foreign_keys=[created_version_id]
+    )
+
+    def __repr__(self) -> str:
+        return (
+            f"AutoUpdateJob(id={self.id!r}, channel_dataset_id={self.channel_dataset_id!r}, "
+            f"status={self.status!r}, result={self.result!r})"
+        )

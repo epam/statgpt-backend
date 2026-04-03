@@ -19,6 +19,7 @@ from dateutil.parser import parse
 from sdmx.message import DataMessage, StructureMessage
 from sdmx.model.common import Code
 from sdmx.model.v21 import DataflowDefinition as DataFlow
+from sdmx.model.v21 import TimeDimension
 
 from statgpt.common.auth.auth_context import AuthContext
 from statgpt.common.data.base import (
@@ -88,7 +89,17 @@ class SdmxOfflineDataSet(OfflineDataSet[SdmxDataSetConfig, 'Sdmx21DataSourceHand
 
 
 class InvalidConfigurationError(Exception):
-    pass
+    def __init__(self, message: str, entity_id: uuid.UUID, dataset_urn: str):
+        super().__init__(message)
+        self.entity_id = entity_id
+        self.dataset_urn = dataset_urn
+
+    def to_dict(self) -> dict[str, str]:
+        return {
+            "entity_id": str(self.entity_id),
+            "dataset_urn": self.dataset_urn,
+            "error": str(self),
+        }
 
 
 class Sdmx21DataResponse(DataResponse):
@@ -220,9 +231,8 @@ class Sdmx21DataResponse(DataResponse):
             ),
         ).model_dump(by_alias=True)
 
-    @property
-    def python_code(self) -> str | None:
-        return self.dataset.get_python_code(self.sdmx_query)
+    def get_python_code_body(self, suffix: str = "") -> str | None:
+        return self.dataset.get_python_code_body(self.sdmx_query, suffix=suffix)
 
     @cached_property
     def time_period(self) -> tuple[str, str] | None:
@@ -278,7 +288,7 @@ class Sdmx21DataResponse(DataResponse):
         return template.format(
             dataset_source_id=self.dataset.source_id,
             dataset_name=self.dataset.name,
-            figure_title=figure.layout.title.text.replace('<br>', ' '),
+            figure_title=(figure.layout.title.text or '').replace('<br>', ' '),
         )
 
     @staticmethod
@@ -389,7 +399,7 @@ class Sdmx21DataSet(
                 self._virtual_dimensions[dimension.entity_id] = dimension
                 self._dimensions[dimension.entity_id] = dimension
 
-        self._validate_config_and_dimensions(config, self._dimensions)
+        self._validate_config_and_dimensions(config, self._dimensions, entity_id)
 
         # Set indicator dimensions
         for dim_id, dim_conf in config.dimensions.items():
@@ -399,7 +409,9 @@ class Sdmx21DataSet(
                     indicator_dimension, VirtualDimension
                 ):
                     raise InvalidConfigurationError(
-                        f"Indicator dimension must be code list dimension or virtual dimension: {indicator_dimension}"
+                        f"Indicator dimension must be code list dimension or virtual dimension: {indicator_dimension}",
+                        entity_id=entity_id,
+                        dataset_urn=config.urn.short_urn(),
                     )
                 self._indicator_dimensions[dim_id] = indicator_dimension
 
@@ -407,7 +419,9 @@ class Sdmx21DataSet(
             country_dimension = self._dimensions[country_dimension_id]
             if not isinstance(country_dimension, SdmxCodeListDimension | VirtualDimension):
                 raise InvalidConfigurationError(
-                    f"Country dimension must be code list dimension or virtual dimension: {country_dimension}"
+                    f"Country dimension must be code list dimension or virtual dimension: {country_dimension}",
+                    entity_id=entity_id,
+                    dataset_urn=config.urn.short_urn(),
                 )
             self._country_dimension = country_dimension
         else:
@@ -415,7 +429,9 @@ class Sdmx21DataSet(
 
     @staticmethod
     def _validate_config_and_dimensions(
-        config: SdmxDataSetConfig, dimensions: dict[str, SdmxDimension | VirtualDimension]
+        config: SdmxDataSetConfig,
+        dimensions: dict[str, SdmxDimension | VirtualDimension],
+        entity_id: uuid.UUID,
     ) -> None:
         """Validate that the dataset is properly configured and raises `InvalidConfigurationError` if not."""
 
@@ -436,7 +452,9 @@ class Sdmx21DataSet(
                 f"Dimensions is found in the dataset but not configured: {not_configured_dimensions}."
             )
         if errors:
-            raise InvalidConfigurationError(" ".join(errors))
+            raise InvalidConfigurationError(
+                " ".join(errors), entity_id=entity_id, dataset_urn=config.urn.short_urn()
+            )
 
         return None
 
@@ -607,7 +625,7 @@ class Sdmx21DataSet(
             f'{self.source_id}. Will extract available combinations for following indicator dimensions: {indicator_ids}'
         )
 
-        time_start = time.time()
+        time_start = time.monotonic()
 
         query = DataSetAvailabilityQuery(dimensions_queries_dict={})
         avail_query_resp = await self.availability_query(query=query, auth_context=auth_context)
@@ -635,7 +653,7 @@ class Sdmx21DataSet(
             f"{self.source_id}. Number of series extracted: {len(series)}. Number of queries sent: {queries_count}"
         )
 
-        elapsed_time = time.time() - time_start
+        elapsed_time = time.monotonic() - time_start
         _log.info(f'{self.source_id}. elapsed time: {elapsed_time :.3f} sec')
 
         virtual_indicator_dimensions = self.virtual_indicator_dimensions()
@@ -1229,34 +1247,50 @@ class Sdmx21DataSet(
             ),
         )
 
-    def get_python_code(self, sdmx_query: SdmxDataSetQuery) -> str:
+    def get_python_code_body(self, sdmx_query: SdmxDataSetQuery, suffix: str = "") -> str:
         if self._datasource.config.sdmx1_source:
             provider = self._datasource.config.sdmx1_source
         else:
             provider = self._artefact.maintainer.id  # type: ignore
 
-        return self._get_python_query(
+        flow_ref = (
+            f"{self._artefact.maintainer.id}"  # type: ignore[union-attr]
+            f",{self._artefact.id}"
+            f",{self._artefact.version}"
+        )
+        key_string = self._dict_key_to_sdmx_string(sdmx_query.get_key())
+
+        return self._get_python_query_body(
             provider=provider,
-            resource_id=self.source_id,
-            keys=sdmx_query.get_key(),
+            flow_ref=flow_ref,
+            key=key_string,
             params=sdmx_query.get_params(),
+            suffix=suffix,
         )
 
+    def _dict_key_to_sdmx_string(self, keys: dict[str, list[str]]) -> str:
+        """Convert a dict key to an SDMX REST key string in DSD dimension order.
+
+        The SDMX 2.1 REST API expects key as ordered dimension values
+        separated by '.', with '+' joining multiple values within a dimension.
+        Time dimensions are excluded (handled via query params).
+        """
+        parts = []
+        for dim in self._artefact.structure.dimensions:
+            if isinstance(dim, TimeDimension):
+                continue
+            values = keys.get(dim.id, [])
+            parts.append("+".join(values))
+        return ".".join(parts)
+
     @staticmethod
-    def _get_python_query(provider: str, resource_id: str, keys: dict, params: dict) -> str:
+    def _get_python_query_body(
+        provider: str, flow_ref: str, key: str, params: dict, suffix: str = ""
+    ) -> str:
         return f'''\
-# Uses the [sdmx1 library](https://pypi.org/project/sdmx1/)
-# Install with:
-# ```bash
-# pip install sdmx1
-# ```
-
-import sdmx
-
-provider = sdmx.Client("{provider}")
-data_msg = provider.data(
-    "{resource_id}",
-    key={keys},
+provider{suffix} = sdmx.Client("{provider}")
+data_msg{suffix} = provider{suffix}.data(
+    "{flow_ref}",
+    key="{key}",
     params={params}
-)\
-'''
+)'''

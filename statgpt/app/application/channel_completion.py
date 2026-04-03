@@ -16,8 +16,8 @@ from statgpt.app.schemas.dial_app_configuration import StatGPTConfiguration
 from statgpt.app.security import create_auth_context
 from statgpt.app.services.chat_facade import ChannelServiceFacade
 from statgpt.app.settings.dial_app import dial_app_settings
+from statgpt.app.utils.dial_exceptions import RateLimitException
 from statgpt.app.utils.dial_stages import optional_timed_stage
-from statgpt.common.models.database import get_readonly_session_contex_manager
 from statgpt.common.schemas.dial import Pricing
 from statgpt.common.schemas.token_usage import TokenUsagePricedItem
 from statgpt.common.settings.application import application_settings
@@ -56,31 +56,28 @@ class ChannelCompletion(ChatCompletion):
                 f"request_start_{self._deployment_id}_{start_time.isoformat()}"
             )
 
-        async with get_readonly_session_contex_manager() as db_session:
-            try:
-                service = await ChannelServiceFacade.get_channel(db_session, self._deployment_id)
-            except Exception as e:
-                _log.error(e)
-                raise DIALException(
-                    status_code=404,
-                    code="deployment_not_found",
-                    message="The API deployment for this resource does not exist.",
-                )
-            await self._channel_completion(request, response, service, start_time, configuration)
+        try:
+            service = await ChannelServiceFacade.get_channel(self._deployment_id)
+        except Exception as e:
+            _log.error(e)
+            raise DIALException(
+                status_code=404,
+                code="deployment_not_found",
+                message="The API deployment for this resource does not exist.",
+            )
+        await self._channel_completion(request, response, service, start_time, configuration)
 
     async def configuration(self, request: ConfigurationRequest) -> ConfigurationResponse | dict:
-
-        async with get_readonly_session_contex_manager() as db_session:
-            try:
-                service = await ChannelServiceFacade.get_channel(db_session, self._deployment_id)
-            except Exception as e:
-                _log.error(e)
-                raise DIALException(
-                    status_code=404,
-                    code="deployment_not_found",
-                    message="The API deployment for this resource does not exist.",
-                )
-            return service.dial_channel_configuration
+        try:
+            service = await ChannelServiceFacade.get_channel(self._deployment_id)
+        except Exception as e:
+            _log.error(e)
+            raise DIALException(
+                status_code=404,
+                code="deployment_not_found",
+                message="The API deployment for this resource does not exist.",
+            )
+        return service.dial_channel_configuration
 
     @classmethod
     async def _channel_completion(
@@ -93,6 +90,7 @@ class ChannelCompletion(ChatCompletion):
     ) -> None:
         main_chain_factory = MainChainFactory(service.channel_config)
         chain = await main_chain_factory.create_chain()
+        dial_exception: DIALException | None = None
         with response.create_choice() as choice:
             try:
                 auth_context = await create_auth_context(
@@ -135,14 +133,24 @@ class ChannelCompletion(ChatCompletion):
                         )
                     state = ChainParameters.get_state(chains_response)
                     state[StateVarsConfig.ERROR] = None
-                except openai.ContentFilterFinishReasonError as e:
-                    _log.exception(e)
-                    choice.append_content(
-                        "The query was blocked by the LLM provider content filter for violating safety guidelines."
-                    )
+                except openai.RateLimitError as e:
+                    _log.warning("openai.RateLimitError", exc_info=e)
                     state[StateVarsConfig.ERROR] = str(e)
+                    dial_exception = RateLimitException.from_openai_error(e)
+                except openai.BadRequestError as e:
+                    _log.exception("openai.BadRequestError")
+                    if isinstance(error := e.body, dict) and error.get("code") == "content_filter":
+                        raise DIALException(status_code=400, **error) from None
+
+                    choice.append_content("An error occurred while processing your request.")
+                    state[StateVarsConfig.ERROR] = str(e)
+                except openai.ContentFilterFinishReasonError as e:
+                    _log.exception("openai.ContentFilterFinishReasonError")
+                    raise DIALException(
+                        message=str(e), status_code=400, param="prompt", code="content_filter"
+                    ) from None
                 except Exception as e:
-                    _log.exception(e)
+                    _log.exception("Exception")
                     choice.append_content("An error occurred while processing your request.")
                     state[StateVarsConfig.ERROR] = str(e)
 
@@ -161,6 +169,8 @@ class ChannelCompletion(ChatCompletion):
 
             cls._add_usage_per_model(priced_usage, response)
             cls.set_dial_state(state, choice)
+            if dial_exception:
+                raise dial_exception
 
     @staticmethod
     def init_state(request: Request) -> dict:

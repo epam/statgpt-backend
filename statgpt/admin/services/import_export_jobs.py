@@ -16,8 +16,11 @@ from sqlalchemy.sql.expression import func
 
 import statgpt.common.models as models
 import statgpt.common.schemas as schemas
+from statgpt.admin.audit.context import AuditContext, get_audit_context, update_audit_context
+from statgpt.admin.audit.decorators import audit_action
 from statgpt.admin.settings.exim import JobsConfig
 from statgpt.common.auth.auth_context import AuthContext
+from statgpt.common.schemas import AuditActionType, AuditEntityType
 from statgpt.common.settings.dial import dial_settings
 from statgpt.common.utils import AttachmentResponse, AttachmentsStorage, attachments_storage_factory
 
@@ -29,6 +32,7 @@ _log = logging.getLogger(__name__)
 
 
 class ExportMetadata(BaseModel):
+    export_version: int | None = None
     export_start_datetime: str
     export_finish_datetime: str
     scope: schemas.ExportScope = schemas.ExportScope.FULL
@@ -164,6 +168,7 @@ class JobsService:
 
         return schemas.Job.model_validate(job, from_attributes=True)
 
+    @audit_action(entity_type=AuditEntityType.IMPORT_JOB, action_type=AuditActionType.CREATE)
     async def create_import_job(
         self,
         background_tasks: BackgroundTasks,
@@ -178,7 +183,7 @@ class JobsService:
             status=schemas.PreprocessingStatusEnum.NOT_STARTED,
         )
         self._session.add(job)
-        await self._session.commit()
+        await self._session.flush()
 
         try:
             if not file.filename or not file.content_type:
@@ -195,25 +200,28 @@ class JobsService:
                     content=file.file,  # type: ignore
                 )
                 job.file = resp.url
+
+            _log.info(
+                f"Creating import job with args: {clean_up=}, {update_datasets=}, {update_data_sources=}"
+            )
+            background_tasks.add_task(
+                import_channel_in_background_task,
+                job.id,
+                clean_up,
+                update_datasets,
+                update_data_sources,
+                auth_context,
+                get_audit_context(),
+            )
+            job.status = schemas.PreprocessingStatusEnum.QUEUED
         except Exception as e:
             _log.exception(e)
             job.reason_for_failure = str(e)
-            await self._update_job_status(job, schemas.PreprocessingStatusEnum.FAILED)
-            return schemas.Job.model_validate(job, from_attributes=True)
+            job.status = schemas.PreprocessingStatusEnum.FAILED
 
-        _log.info(
-            f"Creating import job with args: {clean_up=}, {update_datasets=}, {update_data_sources=}"
-        )
-        background_tasks.add_task(
-            import_channel_in_background_task,
-            job.id,
-            clean_up,
-            update_datasets,
-            update_data_sources,
-            auth_context,
-        )
-        await self._update_job_status(job, schemas.PreprocessingStatusEnum.QUEUED)
-
+        job.updated_at = func.now()
+        await self._session.flush()
+        await self._session.refresh(job)
         return schemas.Job.model_validate(job, from_attributes=True)
 
     @staticmethod
@@ -222,7 +230,7 @@ class JobsService:
     ) -> str:
         """Export channel data including datasets and embeddings to the folder."""
 
-        async with models.get_readonly_session_contex_manager() as session:
+        async with models.get_readonly_session_context_manager() as session:
             channel_service = ChannelService(session)
             channel_db = await channel_service.export_channel_to_folder(
                 channel_id, data_dir, scope=scope, auth_context=auth_context
@@ -241,7 +249,7 @@ class JobsService:
 
     async def export_channel_in_background(
         self, job_id: int, scope: schemas.ExportScope, auth_context: AuthContext
-    ) -> None:
+    ) -> schemas.Job:
         _log.info(f"Exporting channel data to zip file. Job id={job_id}")
         job: models.Job = await self.get_job_model_by_id(job_id)
         await self._update_job_status(job, schemas.PreprocessingStatusEnum.IN_PROGRESS)
@@ -263,6 +271,7 @@ class JobsService:
 
                 export_finish_datetime = datetime.now().isoformat()
                 metadata = ExportMetadata(
+                    export_version=JobsConfig.CURRENT_EXPORT_VERSION,
                     export_start_datetime=export_start_datetime,
                     export_finish_datetime=export_finish_datetime,
                     scope=scope,
@@ -291,10 +300,11 @@ class JobsService:
             _log.exception(e)
             job.reason_for_failure = str(e)
             await self._update_job_status(job, schemas.PreprocessingStatusEnum.FAILED)
-            return
+            return schemas.Job.model_validate(job, from_attributes=True)
 
         job.file = file_url
         await self._update_job_status(job, schemas.PreprocessingStatusEnum.COMPLETED)
+        return schemas.Job.model_validate(job, from_attributes=True)
 
     @staticmethod
     async def download_zip_file(
@@ -333,6 +343,32 @@ class JobsService:
 
             _log.info(f"Download completed: {downloaded / (1024 * 1024):.2f} MB total")
 
+    @staticmethod
+    def _validate_export_version(metadata: ExportMetadata) -> None:
+        """Validate that the archive export version is supported.
+
+        Raises ValueError with a user-friendly message when the version is
+        missing (legacy archive) or not in the supported set.
+        """
+        version = metadata.export_version
+        supported = JobsConfig.SUPPORTED_EXPORT_VERSIONS
+
+        if version is None:
+            raise ValueError(
+                "The archive does not contain export version information. "
+                "It was likely created by an older version of the application "
+                "and may be incompatible. "
+                "Please re-export the channel with the current version of the application."
+            )
+
+        if version not in supported:
+            supported_str = ", ".join(str(v) for v in sorted(supported))
+            raise ValueError(
+                f"Unsupported archive version: {version}. "
+                f"This application supports archive versions: {supported_str}. "
+                f"Please re-export the channel with a compatible version of the application."
+            )
+
     async def _import_data_from_zip(
         self,
         job: models.Job,
@@ -344,20 +380,27 @@ class JobsService:
     ) -> int:
         """Import channel data including datasets and embeddings from the zip file."""
 
-        async with models.get_session_contex_manager() as session:
+        async with models.get_session_context_manager() as session:
             deployment_id = None
             scope = schemas.ExportScope.FULL
             try:
                 with zip_file.open("metadata.json") as meta_file:
                     metadata = ExportMetadata.model_validate_json(meta_file.read())
+                    self._validate_export_version(metadata)
                     deployment_id = metadata.deployment_id
                     scope = metadata.scope
             except KeyError:
-                _log.info("metadata.json is absent in import zip; proceeding with defaults")
-            except ValidationError as e:
-                _log.warning(
-                    "Invalid metadata.json in import zip; proceeding with defaults.", exc_info=e
+                raise ValueError(
+                    "The archive does not contain metadata.json. "
+                    "It may be corrupted or created by an incompatible version of the application. "
+                    "Please re-export the channel with the current version of the application."
                 )
+            except ValidationError as e:
+                raise ValueError(
+                    "The archive contains invalid metadata. "
+                    "It may be corrupted or created by an incompatible version of the application. "
+                    "Please re-export the channel with the current version of the application."
+                ) from e
 
             channel_service = ChannelService(session)
             channel_db = await channel_service.import_channel_from_zip(
@@ -393,7 +436,7 @@ class JobsService:
         update_datasets: bool,
         update_data_sources: bool,
         auth_context: AuthContext,
-    ) -> None:
+    ) -> schemas.Job:
         _log.info(f"Importing channel from zip file. Job id={job_id}")
         job: models.Job = await self.get_job_model_by_id(job_id)
         await self._update_job_status(job, schemas.PreprocessingStatusEnum.IN_PROGRESS)
@@ -420,17 +463,18 @@ class JobsService:
             _log.exception(e)
             job.reason_for_failure = str(e)
             await self._update_job_status(job, schemas.PreprocessingStatusEnum.FAILED)
-            return
+            return schemas.Job.model_validate(job, from_attributes=True)
 
         await self._update_job_status(job, schemas.PreprocessingStatusEnum.COMPLETED)
         _log.info(f"Channel(id={channel_id}) imported successfully. Job id={job_id}")
+        return schemas.Job.model_validate(job, from_attributes=True)
 
 
 async def export_channel_in_background_task(
     job_id: int, scope: schemas.ExportScope, auth_context: AuthContext
 ) -> None:
     try:
-        async with models.get_session_contex_manager() as session:
+        async with models.get_session_context_manager() as session:
             service = JobsService(session)
             await service.export_channel_in_background(
                 job_id=job_id, scope=scope, auth_context=auth_context
@@ -445,9 +489,11 @@ async def import_channel_in_background_task(
     update_datasets: bool,
     update_data_sources: bool,
     auth_context: AuthContext,
+    audit_context: AuditContext,
 ) -> None:
     try:
-        async with models.get_session_contex_manager() as session:
+        update_audit_context(audit_context)
+        async with models.get_session_context_manager() as session:
             service = JobsService(session)
             await service.import_channel_in_background(
                 job_id=job_id,

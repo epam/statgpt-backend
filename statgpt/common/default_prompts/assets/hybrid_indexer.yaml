@@ -44,7 +44,7 @@ harmonize:
 
   userPrompt: |-
     Statement:
-    {statement}
+    {input}
 
     Indicators:
     {indicators}

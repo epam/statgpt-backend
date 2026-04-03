@@ -6,6 +6,26 @@ class EmbeddingModelsEnum(StrEnum):
     TEXT_EMBEDDING_3_LARGE = "text-embedding-3-large"
 
 
+class ReasoningEffortEnum(StrEnum):
+    """Reasoning effort levels for GPT-5 models."""
+
+    NONE = "none"
+    """No reasoning mode - standard inference."""
+    MINIMAL = "minimal"
+    LOW = "low"
+    MEDIUM = "medium"
+    HIGH = "high"
+    XHIGH = "xhigh"
+
+
+class VerbosityEnum(StrEnum):
+    """Output verbosity levels for GPT-5 models."""
+
+    LOW = "low"
+    MEDIUM = "medium"
+    HIGH = "high"
+
+
 class LLMModelsEnum(StrEnum):
     # Gemini models
     GEMINI_2_0_FLASH_LITE_001 = "gemini-2.0-flash-lite-001"
@@ -30,6 +50,14 @@ class LLMModelsEnum(StrEnum):
     GPT_4_1_MINI_2025_04_14 = "gpt-4.1-mini-2025-04-14"
     GPT_4_1_NANO_2025_04_14 = "gpt-4.1-nano-2025-04-14"
 
+    GPT_4_1_2025_04_14_HF = "gpt-4.1-2025-04-14-hf"
+    """GPT-4.1 models with high content filters."""
+
+    # GPT-5 models
+    GPT_5_MINI_2025_08_07 = "gpt-5-mini-2025-08-07"
+    GPT_5_1_2025_11_13 = "gpt-5.1-2025-11-13"
+    GPT_5_2_2025_12_11 = "gpt-5.2-2025-12-11"
+
     @property
     def deployment_id(self) -> str:
         return os.getenv(f"LLM_MODELS_{self.name}", self.value)
@@ -41,4 +69,14 @@ class LLMModelsEnum(StrEnum):
             LLMModelsEnum.GPT_4_1_2025_04_14,
             LLMModelsEnum.GPT_4_1_MINI_2025_04_14,
             LLMModelsEnum.GPT_4_1_NANO_2025_04_14,
+            LLMModelsEnum.GPT_4_1_2025_04_14_HF,
+        }
+
+    @property
+    def is_gpt_5_family(self) -> bool:
+        """Check if the model belongs to the GPT-5 family."""
+        return self in {
+            LLMModelsEnum.GPT_5_MINI_2025_08_07,
+            LLMModelsEnum.GPT_5_1_2025_11_13,
+            LLMModelsEnum.GPT_5_2_2025_12_11,
         }

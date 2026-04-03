@@ -2,7 +2,6 @@ from aidial_sdk.exceptions import HTTPException as DIALException
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi import Request as FastAPIRequest
 from fastapi import status
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from statgpt.app.schemas import (
     ChannelDatasetsMetadataResponse,
@@ -14,7 +13,7 @@ from statgpt.app.services.chat_facade import ChannelServiceFacade
 from statgpt.app.settings.dial_app import dial_app_settings
 from statgpt.common.auth.auth_context import AuthContext
 from statgpt.common.config import Versions
-from statgpt.common.models.database import get_readonly_session
+from statgpt.common.models.database import get_readonly_session_context_manager
 from statgpt.common.services.dataset import DataSetService
 
 router = APIRouter()
@@ -87,7 +86,6 @@ async def settings() -> SettingsResponse:
 async def channel_metadata(
     deployment_id: str = Depends(_get_deployment_id),
     auth_context: AuthContext = Depends(_get_auth_context),
-    session: AsyncSession = Depends(get_readonly_session),
 ) -> ChannelMetadataResponse:
     """Returns channel metadata.
 
@@ -97,7 +95,7 @@ async def channel_metadata(
     """
 
     try:
-        service = await ChannelServiceFacade.get_channel(session, deployment_id)
+        service = await ChannelServiceFacade.get_channel(deployment_id)
     except Exception:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -119,7 +117,6 @@ async def channel_metadata(
 async def channel_datasets_metadata(
     deployment_id: str = Depends(_get_deployment_id),
     auth_context: AuthContext = Depends(_get_auth_context),
-    session: AsyncSession = Depends(get_readonly_session),
 ) -> ChannelDatasetsMetadataResponse:
     """Returns datasets metadata for the channel.
 
@@ -129,19 +126,25 @@ async def channel_datasets_metadata(
     """
 
     try:
-        service = await ChannelServiceFacade.get_channel(session, deployment_id)
+        service = await ChannelServiceFacade.get_channel(deployment_id)
     except Exception:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="The API deployment for this resource does not exist.",
         )
 
-    datasets = await DataSetService(session).get_channel_dataset_schemas(
-        limit=None,
-        offset=0,
-        channel_id=service.channel.id,
-        auth_context=auth_context,
-    )
+    async with get_readonly_session_context_manager() as session:
+        datasets = await DataSetService(session).get_channel_dataset_schemas(
+            limit=None,
+            offset=0,
+            channel_id=service.channel.id,
+            auth_context=auth_context,
+        )
+
+    for ds in datasets:
+        resolved = ds.last_completed_version and ds.last_completed_version.resolved_config
+        if resolved:
+            ds.dataset = ds.dataset.model_copy(update={"details": resolved})
 
     return ChannelDatasetsMetadataResponse(
         deployment_id=service.channel.deployment_id,

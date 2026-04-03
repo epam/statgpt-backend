@@ -12,9 +12,11 @@ from sqlalchemy.sql.expression import func
 
 import statgpt.common.models as models
 import statgpt.common.schemas as schemas
+from statgpt.admin.audit.decorators import audit_action
 from statgpt.admin.settings.exim import JobsConfig
 from statgpt.common import utils
 from statgpt.common.data import DataSourceConfig
+from statgpt.common.schemas import AuditActionType, AuditEntityType
 from statgpt.common.services import DataSourceSerializer, DataSourceService, DataSourceTypeService
 
 _log = logging.getLogger(__name__)
@@ -45,6 +47,7 @@ class AdminPortalDataSourceService(DataSourceService):
             )
         return parsed_config
 
+    @audit_action(entity_type=AuditEntityType.DATA_SOURCE, action_type=AuditActionType.CREATE)
     async def create_data_source(self, data: schemas.DataSourceBase) -> schemas.DataSource:
         parsed_config = await self._parse_details_field(data.type_id, data.details)
 
@@ -56,7 +59,7 @@ class AdminPortalDataSourceService(DataSourceService):
         )
 
         self._session.add(item)
-        await self._session.commit()
+        await self._session.flush()
 
         await self._session.refresh(item, attribute_names=["type"])
         return DataSourceSerializer.db_to_schema(item)
@@ -107,6 +110,7 @@ class AdminPortalDataSourceService(DataSourceService):
 
         return data_sources
 
+    @audit_action(entity_type=AuditEntityType.DATA_SOURCE, action_type=AuditActionType.UPDATE)
     async def update(self, item_id: int, data: schemas.DataSourceUpdate) -> schemas.DataSource:
 
         item = await self._get_item_or_raise(item_id)
@@ -122,14 +126,18 @@ class AdminPortalDataSourceService(DataSourceService):
             .returning(models.DataSource)
         )
         item = (await self._session.execute(query)).scalar_one()
-        await self._session.commit()
+        await self._session.flush()
 
         await self._session.refresh(item, attribute_names=["type"])
         return DataSourceSerializer.db_to_schema(item)
 
-    async def delete(self, item_id: int) -> None:
+    @audit_action(entity_type=AuditEntityType.DATA_SOURCE, action_type=AuditActionType.DELETE)
+    async def delete(self, item_id: int) -> schemas.DataSource:
         item = await self._get_item_or_raise(item_id)
+        await self._session.refresh(item, attribute_names=["type"])
+        deleted_item = DataSourceSerializer.db_to_schema(item)
         _log.info(f"Deleting {item}")
 
         await self._session.delete(item)
-        await self._session.commit()
+        await self._session.flush()
+        return deleted_item

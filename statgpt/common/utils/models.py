@@ -1,8 +1,18 @@
+import warnings
 from typing import Any
 
 import httpx
 from langchain_openai import AzureChatOpenAI, AzureOpenAIEmbeddings
 from pydantic import SecretStr
+
+# langchain_openai's _should_stream warns unconditionally when response_format is a Pydantic type,
+# even when streaming is disabled. This is a bug in langchain_openai.
+warnings.filterwarnings(
+    "ignore",
+    message="Streaming with Pydantic response_format not yet supported.",
+    category=UserWarning,
+    module=r"langchain_openai\.chat_models\.base",
+)
 
 from statgpt.common.config.logging import multiline_logger as logger
 from statgpt.common.schemas import EmbeddingsModelConfig, LLMModelConfig
@@ -15,9 +25,7 @@ def get_chat_model(
     model_config: LLMModelConfig,
     azure_endpoint: str = dial_settings.url,
     timeout: httpx.Timeout | None = None,
-    **kwargs,
 ) -> AzureChatOpenAI:
-    # default params
     if not isinstance(api_key, SecretStr):
         api_key = SecretStr(api_key)
     if not timeout:
@@ -26,13 +34,12 @@ def get_chat_model(
         azure_endpoint=azure_endpoint,
         api_version=model_config.api_version,
         azure_deployment=model_config.deployment.deployment_id,
-        temperature=model_config.temperature,
-        seed=model_config.seed,
         max_retries=10,
         api_key=api_key,  # since we use SecretStr, it won't be logged
         timeout=timeout,  # timeouts are crucial!
     )
-    params.update(kwargs)  # update default params
+
+    params.update(model_config.model_dump(mode="json", exclude_none=True, exclude={"deployment"}))
 
     if model_config.deployment.is_gpt_41_family:
         callback = BrokenResponseInterceptor(regex_pattern=r'\s{5,}')
@@ -49,7 +56,6 @@ def get_embeddings_model(
     api_key: str | SecretStr,
     model_config: EmbeddingsModelConfig,
     azure_endpoint: str = dial_settings.url,
-    **kwargs,
 ) -> AzureOpenAIEmbeddings:
     if not isinstance(api_key, SecretStr):
         api_key = SecretStr(api_key)
@@ -60,7 +66,6 @@ def get_embeddings_model(
         max_retries=10,
         api_key=api_key,  # since we use SecretStr, it won't be logged
     )
-    params.update(kwargs)  # update default params
     api_key_log = f'{api_key.get_secret_value()[:3]}*****{api_key.get_secret_value()[-2:]}'
     logger.info(
         f'creating langchain embeddings with the following params: {params}, Api key: {api_key_log}'

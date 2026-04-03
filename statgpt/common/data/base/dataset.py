@@ -133,10 +133,13 @@ class DataResponse(ABC):
     def json_query(self) -> dict | None:
         """Return the query in JSON format."""
 
-    @property
     @abstractmethod
-    def python_code(self) -> str | None:
-        """Return the Python code to query the data source."""
+    def get_python_code_body(self, suffix: str = "") -> str | None:
+        """Return the Python code body (without header/imports) for this query.
+
+        When suffix is non-empty, variable names are suffixed to avoid
+        conflicts when merging multiple queries into a single script.
+        """
 
     @property
     @abstractmethod

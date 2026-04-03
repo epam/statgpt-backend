@@ -1,3 +1,5 @@
+import asyncio
+
 from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -6,6 +8,8 @@ from sqlalchemy.sql.expression import func
 import statgpt.common.models as models
 import statgpt.common.schemas as schemas
 
+from .base import DbServiceBase
+
 
 class ChannelSerializer:
     @staticmethod
@@ -13,9 +17,11 @@ class ChannelSerializer:
         return schemas.Channel.model_validate(channel_db, from_attributes=True)
 
 
-class ChannelService:
-    def __init__(self, session: AsyncSession) -> None:
-        self._session = session
+class ChannelService(DbServiceBase):
+    def __init__(
+        self, session: AsyncSession | None = None, session_lock: asyncio.Lock | None = None
+    ) -> None:
+        super().__init__(session, session_lock)
 
     async def get_channels_count(self) -> int:
         query = select(func.count("*")).select_from(models.Channel)  # type: ignore
@@ -27,7 +33,7 @@ class ChannelService:
         q_result = await self._session.execute(query)
         return [item for item in q_result.scalars().all()]
 
-    async def get_channels_schemas(self, limit: int, offset: int) -> list[schemas.Channel]:
+    async def get_channels_schemas(self, limit: int | None, offset: int) -> list[schemas.Channel]:
         channels = await self.get_channels_db(limit, offset)
         return [ChannelSerializer.db_to_schema(item) for item in channels]
 
@@ -35,6 +41,10 @@ class ChannelService:
         query = select(models.Channel).where(models.Channel.deployment_id == deployment_id)
         q_result = await self._session.execute(query)
         return q_result.scalar_one()
+
+    async def get_channel_schema_by_deployment_id(self, deployment_id: str) -> schemas.Channel:
+        channel = await self.get_channel_by_deployment_id(deployment_id)
+        return ChannelSerializer.db_to_schema(channel)
 
     async def _get_item_or_raise(self, item_id: int) -> models.Channel:
         item: models.Channel | None = await self._session.get(models.Channel, item_id)
@@ -52,10 +62,9 @@ class ChannelService:
         return ChannelSerializer.db_to_schema(item)
 
     @staticmethod
-    def is_channel_hybrid(channel: models.Channel) -> bool:
+    def is_channel_hybrid(channel: schemas.Channel) -> bool:
         """Returns `True` if the channel is using hybrid indexer."""
-        channel_config = schemas.ChannelConfig.model_validate(channel.details)
-        if channel_config.data_query is None:
+        if channel.details.data_query is None:
             return False
-        indexer_version = channel_config.data_query.details.indexer_version
+        indexer_version = channel.details.data_query.details.indexer_version
         return indexer_version == schemas.IndexerVersion.hybrid

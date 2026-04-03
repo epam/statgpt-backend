@@ -1,5 +1,8 @@
 from pydantic import BaseModel, Field
 
+from statgpt.common.settings.elastic import ElasticSearchSettings
+
+from .auditable import Auditable
 from .base import BaseYamlModel, DbDefaultBase
 from .enums import ChannelIndexStatusScope, LocaleEnum
 from .model_config import LLMModelConfig
@@ -18,6 +21,8 @@ from .tools import (
     WebSearchAgentTool,
     WebSearchTool,
 )
+
+_elasticsearch_settings = ElasticSearchSettings()
 
 
 class SupremeAgentConfig(BaseYamlModel):
@@ -208,8 +213,38 @@ class ChannelUpdate(BaseModel):
     details: ChannelConfig | None = Field(default=None)
 
 
-class Channel(DbDefaultBase, ChannelBase):
-    pass
+class Channel(DbDefaultBase, ChannelBase, Auditable):
+    def get_entity_id(self) -> str:
+        return self.deployment_id
+
+    def get_entity_name(self) -> str:
+        return self.title
+
+    def get_state_after(self) -> dict:
+        return self.model_dump(mode='json', exclude={"created_at", "updated_at"})
+
+    def get_item_id(self) -> int:
+        return self.id
+
+    @property
+    def indicator_table_name(self) -> str:
+        return f"Indicators_{self.id}"
+
+    @property
+    def available_dimensions_table_name(self) -> str:
+        return f"AvailableDimensions_{self.id}"
+
+    @property
+    def special_dimensions_table_name(self) -> str:
+        return f"SpecialDimensions_{self.id}"
+
+    @property
+    def matching_index_name(self) -> str:
+        return f"{_elasticsearch_settings.matching_index}_{self.id}"
+
+    @property
+    def indicators_index_name(self) -> str:
+        return f"{_elasticsearch_settings.indicators_index}_{self.id}"
 
 
 class DeduplicationStatus(BaseModel):

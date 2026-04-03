@@ -3,7 +3,7 @@ from pydantic import Field
 from statgpt.app.chains.parameters import ChainParameters
 from statgpt.app.chains.tools import StatGptTool, ToolArgs
 from statgpt.app.schemas import ToolArtifact, ToolMessageState
-from statgpt.common import models
+from statgpt.common import schemas
 from statgpt.common.schemas import ToolTypes
 from statgpt.common.schemas.tools import AvailableTermsTool as AvailableTermsToolConfig
 from statgpt.common.schemas.tools import TermDefinitionsTool as TermDefinitionsToolConfig
@@ -32,7 +32,7 @@ class AvailableTermsTool(
 
         return response, ToolArtifact(state=ToolMessageState(type=self.tool_type))
 
-    def _terms_to_markdown(self, terms: list[models.GlossaryTerm]) -> list[str]:
+    def _terms_to_markdown(self, terms: list[schemas.GlossaryTerm]) -> list[str]:
         include_domain = self._tool_config.details.include_domain
         include_source = self._tool_config.details.include_source
 
@@ -103,7 +103,7 @@ class TermDefinitionsTool(
         return response, ToolArtifact(state=ToolMessageState(type=self.tool_type))
 
     @staticmethod
-    def term_definition_to_markdown(terms: list[str], all_terms: list[models.GlossaryTerm]) -> str:
+    def term_definition_to_markdown(terms: list[str], all_terms: list[schemas.GlossaryTerm]) -> str:
         all_terms_dict = {term.term.lower(): term for term in all_terms}
 
         response = "## Glossary term definitions:\n"

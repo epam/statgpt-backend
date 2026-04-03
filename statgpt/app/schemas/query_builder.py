@@ -2,7 +2,7 @@ import typing as t
 
 import pandas as pd
 from aidial_sdk.chat_completion import Choice
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field
 
 from statgpt.app.config import StateVarsConfig
 from statgpt.app.services.chat_facade import (
@@ -65,12 +65,8 @@ class DatasetDimQueries(BaseModel):
 
 
 class DateTimeQueryResponse(BaseModel):
-    # NOTE: we use default=False value for "forecast" and "time_period_specified" fields
-    # to allow DataQuery state to have empty DateTimeQueryResponse
+    # NOTE: default values are required for DataQuery state to have empty DateTimeQueryResponse
 
-    forecast: bool = Field(
-        default=False, description="Whether time period is related to a forecast"
-    )
     start: str | None = Field(default=None, description="The start date formatted as 'YYYY-MM-DD'")
     end: str | None = Field(default=None, description="The end date formatted as 'YYYY-MM-DD'")
     time_period_specified: bool = Field(
@@ -99,17 +95,6 @@ class DateTimeQueryResponse(BaseModel):
                 operator=QueryOperator.LESS_THAN_OR_EQUALS,
             )
         return None
-
-    @model_validator(mode='after')
-    def _check_hallucinations_in_time_period_specified(self):
-        if not self.time_period_specified:
-            if self.forecast or self.start is not None or self.end is not None:
-                logger.warning(
-                    'HALLUCINATION! LLM incorrectly did not set "time_period_specified" to True: '
-                    f'{self}. overriding to True'
-                )
-                self.time_period_specified = True
-        return self
 
 
 class NamedEntity(BaseModel):

@@ -70,6 +70,7 @@ tools:
       fake_call:
         tool_call_id: *available_datasets_call_id
       version: full
+      include_indicator_count: true
 
   - type: dataset_structure
     <<: *shared_settings
@@ -113,6 +114,7 @@ tools:
 
       Keep in mind: tool works best when detailed and concise query is provided
     details:
+      allowAutoUpdate: true
       indexerVersion: "hybrid"
       indicatorSelectionVersion: "hybrid"
       hybridSearchConfig:
@@ -137,6 +139,9 @@ tools:
         pythonCode:
           enabledStr: "True"
           name: "Python Code: {dataset_source_id}"
+        mergedPythonCode:
+          enabledStr: "True"
+          name: "Python Code"
       stagesConfig:
         debugOnly: true
         toolCallName: "Searching for data: {query}"

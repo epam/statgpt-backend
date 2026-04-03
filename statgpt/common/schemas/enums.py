@@ -92,6 +92,11 @@ class AvailableDatasetsVersion(StrEnum):
     full = "full"
 
 
+class AvailableDatasetsHeaderFormat(StrEnum):
+    totals = "totals"
+    agencies = "agencies"
+
+
 _LANGUAGE_NAMES = {
     "en": "English",
     "uk": "Ukrainian",
@@ -130,3 +135,35 @@ class ChannelDatasetUpdateStatus(StrEnum):
     NEEDS_REINDEX = "needs_reindex"
     NO_VERSION = "no_version"
     INDEXING_IN_PROGRESS = "indexing_in_progress"
+
+
+class AuditEntityType(StrEnum):
+    CHANNEL = "channel"
+    DATASET = "dataset"
+    DATA_SOURCE = "data_source"
+    IMPORT_JOB = "import_job"
+
+
+class AuditActionType(StrEnum):
+    CREATE = "create"
+    UPDATE = "update"
+    DELETE = "delete"
+
+
+class AutoUpdateResult(StrEnum):
+    """Result of an auto-update job execution."""
+
+    NO_COMPLETED_VERSION = "NO_COMPLETED_VERSION"
+    """No base version to update from."""
+
+    NO_CHANGES = "NO_CHANGES"
+    """Dataset is up to date."""
+
+    CONFIG_UPDATED = "CONFIG_UPDATED"
+    """Config updated (e.g., URN version changed) but data unchanged, no reindexing needed."""
+
+    CONFIG_INCOMPATIBLE = "CONFIG_INCOMPATIBLE"
+    """New version found but config not applicable."""
+
+    REINDEX_TRIGGERED = "REINDEX_TRIGGERED"
+    """Reindexing started (check created_version.preprocessing_status for completion)."""

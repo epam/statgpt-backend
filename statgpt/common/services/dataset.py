@@ -86,7 +86,11 @@ class ChannelDataSetSerializer:
 class DataSetService(DbServiceBase):
     _SETTINGS = DataflowLoaderSettings()
 
-    def __init__(self, session: AsyncSession, session_lock: asyncio.Lock | None = None) -> None:
+    def __init__(
+        self,
+        session: AsyncSession | None = None,
+        session_lock: asyncio.Lock | None = None,
+    ) -> None:
         super().__init__(session, session_lock)
 
     @staticmethod

@@ -125,6 +125,9 @@ class DataQueryAttachments(BaseYamlModel):
             enabled_str="False", name="Python Code: {dataset_source_id}"
         )
     )
+    merged_python_code: ToolAttachment = Field(
+        default_factory=lambda: ToolAttachment(enabled_str="False", name="Python Code")
+    )
 
 
 class DataQueryLLMModels(BaseYamlModel):
@@ -268,6 +271,10 @@ class DataQueryDetails(BaseToolDetails):
     prompts: DataQueryPrompts = Field(default_factory=DataQueryPrompts)  # type: ignore
     messages: DataQueryMessages = Field(default_factory=DataQueryMessages)  # type: ignore
     attachments: DataQueryAttachments = Field(default_factory=DataQueryAttachments)  # type: ignore
+    allow_auto_update: bool = Field(
+        default=False,
+        description="Whether datasets in this channel should be auto-updated by the batch auto-update script.",
+    )
     tool_response_max_cells: PositiveInt = Field(
         default=300,
         description=(
