@@ -3,27 +3,9 @@ from enum import StrEnum
 from pydantic import Field, SecretStr, model_validator
 
 from statgpt.common.config import utils as config_utils
+from statgpt.common.data.base.property_source import PropertySource, PropertySourceEnum
 from statgpt.common.data.sdmx.common.config import SdmxDataSetConfig, SdmxDataSourceConfig
 from statgpt.common.schemas.base import BaseYamlModel
-
-
-class PropertySourceEnum(StrEnum):
-    ANNOTATION = "annotation"
-    """Retrieve the property from an SDMX annotation."""
-    ATTRIBUTE = "attribute"
-    """Retrieve the property from an SDMX attribute."""
-    CITATION = "citation"
-    """Retrieve the property from the dataset citation configuration."""
-    VALUE = "value"
-    """Use a fixed value specified in the `field`."""
-
-
-class PropertySource(BaseYamlModel):
-    source: PropertySourceEnum = Field()
-    field: str = Field(description="The field name in the source")
-    formats: list[str] | None = Field(
-        default=None, description="The list of non-default formats to try when parsing the value"
-    )
 
 
 class QuanthubDataSetConfig(SdmxDataSetConfig):

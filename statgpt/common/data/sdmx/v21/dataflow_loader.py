@@ -1,6 +1,8 @@
+from collections.abc import Callable
 from typing import Literal
 
 from sdmx.message import StructureMessage
+from sdmx.model.common import ItemScheme
 from sdmx.model.v21 import DataStructureDefinition
 
 from statgpt.common.settings.dataflow_loader import DataflowLoaderSettings
@@ -8,14 +10,21 @@ from statgpt.common.utils import async_utils
 
 from .schemas import ConceptIdentity, StructureMessage21, Urn
 from .sdmx_client import AsyncSdmxClient
+from .urn_utils import lookup_urn
 
 
 class DataflowLoader:
 
     _SETTINGS = DataflowLoaderSettings()
 
-    def __init__(self, client: AsyncSdmxClient):
+    def __init__(
+        self,
+        client: AsyncSdmxClient,
+        *,
+        structure_extra_headers: Callable[[str | None], dict[str, str] | None] | None = None,
+    ):
         self._client: AsyncSdmxClient = client
+        self._structure_extra_headers = structure_extra_headers
 
     async def load_structure_message(
         self, urn: Urn, mode: Literal['full', 'shallow']
@@ -25,14 +34,19 @@ class DataflowLoader:
 
         actual_urn = self._get_actual_urn(result_message, urn)
 
-        schemes = await self._load_concept_schemes(result_message.dataflow[actual_urn].structure)
+        dsd_ref = result_message.dataflow[actual_urn].structure
+        dsd_urn = Urn.for_artifact(dsd_ref)
+        dsd = lookup_urn(result_message.structure, dsd_urn)
+        dsd_urn_header = self._format_dsd_urn(dsd_urn)
+
+        schemes = await self._load_concept_schemes(dsd, dsd_urn=dsd_urn_header)
         for scheme_msg in schemes:
             result_message.add_concept_schemes(scheme_msg.concept_scheme.values())
 
         if mode == 'shallow':
             return actual_urn, result_message
 
-        code_lists = await self._load_code_lists(result_message, actual_urn)
+        code_lists = await self._load_code_lists(result_message, actual_urn, dsd_urn=dsd_urn_header)
         for code_list_msg in code_lists:
             result_message.add_codelists(code_list_msg.codelist.values())
 
@@ -77,16 +91,20 @@ class DataflowLoader:
         )
 
     async def _load_code_lists(
-        self, dataflow_msg: StructureMessage21, urn: Urn
+        self, dataflow_msg: StructureMessage21, urn: Urn, *, dsd_urn: str | None = None
     ) -> list[StructureMessage]:
         code_lists = self._get_code_lists(dataflow_msg, urn)
 
+        extra_headers = (
+            self._structure_extra_headers(dsd_urn) if self._structure_extra_headers else None
+        )
         tasks = [
             self._client.codelist(
                 agency_id=code_list.agency_id,
                 resource_id=code_list.resource_id,
                 version=code_list.version,
                 use_cache=True,
+                extra_headers=extra_headers,
             )
             for code_list in code_lists
         ]
@@ -95,33 +113,49 @@ class DataflowLoader:
         )
 
     def _get_code_lists(self, dataflow_msg: StructureMessage21, urn: Urn) -> set[Urn]:
-        dsd: DataStructureDefinition = dataflow_msg.dataflow[urn].structure
+        dsd_ref = dataflow_msg.dataflow[urn].structure
+        dsd: DataStructureDefinition = lookup_urn(dataflow_msg.structure, Urn.for_artifact(dsd_ref))
 
         code_lists = set()
         for concept in self._get_concepts_from(dsd):
-            concept_scheme = dataflow_msg.concept_scheme[concept.urn]
+            concept_scheme = lookup_urn(dataflow_msg.concept_scheme, concept.urn)
             concept_item = concept_scheme.items[concept.id]
 
             core_repr = concept_item.core_representation
             if core_repr is not None and core_repr.enumerated is not None:
                 code_lists.add(Urn.for_artifact(core_repr.enumerated))
+        for item_scheme in self._get_local_representations(dsd):
+            code_lists.add(Urn.for_artifact(item_scheme))
 
         return code_lists
 
-    async def _load_concept_schemes(self, dsd: DataStructureDefinition) -> list[StructureMessage]:
+    async def _load_concept_schemes(
+        self, dsd: DataStructureDefinition, *, dsd_urn: str | None = None
+    ) -> list[StructureMessage]:
         schemas = set(concept.urn for concept in self._get_concepts_from(dsd))
 
+        extra_headers = (
+            self._structure_extra_headers(dsd_urn) if self._structure_extra_headers else None
+        )
         tasks = [
             self._client.conceptscheme(
                 agency_id=concept_scheme.agency_id,
                 resource_id=concept_scheme.resource_id,
                 version=concept_scheme.version,
                 use_cache=True,
+                extra_headers=extra_headers,
             )
             for concept_scheme in schemas
         ]
         return await async_utils.gather_with_concurrency(
             self._SETTINGS.concept_scheme_concurrency_limit, *tasks
+        )
+
+    @staticmethod
+    def _format_dsd_urn(dsd_urn: Urn) -> str:
+        return (
+            "urn:sdmx:org.sdmx.infomodel.datastructure.DataStructureDefinition="
+            f"{dsd_urn.short_urn()}"
         )
 
     @staticmethod
@@ -138,3 +172,20 @@ class DataflowLoader:
                 concepts.append(ConceptIdentity.from_sdmx1(dim.concept_identity))
 
         return concepts
+
+    @staticmethod
+    def _get_local_representations(dsd: DataStructureDefinition) -> list[ItemScheme]:
+        item_schemes = []
+        for attr in dsd.attributes.components:
+            if (
+                attr.local_representation is not None
+                and attr.local_representation.enumerated is not None
+            ):
+                item_schemes.append(attr.local_representation.enumerated)
+        for dim in dsd.dimensions.components:
+            if (
+                dim.local_representation is not None
+                and dim.local_representation.enumerated is not None
+            ):
+                item_schemes.append(dim.local_representation.enumerated)
+        return item_schemes
