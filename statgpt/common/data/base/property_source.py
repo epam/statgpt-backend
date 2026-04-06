@@ -1,6 +1,8 @@
 from enum import StrEnum
 
-from pydantic import BaseModel, ConfigDict, Field, alias_generators
+from pydantic import Field
+
+from .base import BaseModel
 
 
 class PropertySourceEnum(StrEnum):
@@ -15,10 +17,6 @@ class PropertySourceEnum(StrEnum):
 
 
 class PropertySource(BaseModel):
-    model_config = ConfigDict(
-        alias_generator=alias_generators.to_camel, populate_by_name=True, extra="allow"
-    )
-
     source: PropertySourceEnum = Field()
     field: str = Field(description="The field name in the source")
     formats: list[str] | None = Field(
