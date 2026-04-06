@@ -1,20 +1,20 @@
 """Add Proxy SDMX 3.0 datasource type
 
 Revision ID: 2f0f6f2f0d7b
-Revises: 75cf43005ed1
-Create Date: 2026-03-05 12:00:00.000000
+Revises: 2263b2983f56
+Create Date: 2026-04-02 12:00:00.000000
 
 """
 
-from typing import Sequence, Union
+from collections.abc import Sequence
 
 from alembic import op
 
 # revision identifiers, used by Alembic.
 revision: str = '2f0f6f2f0d7b'
-down_revision: Union[str, None] = '75cf43005ed1'
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+down_revision: str | None = '2263b2983f56'
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:

@@ -19,7 +19,7 @@ from statgpt.common.data.sdmx.v21.sdmx_client import AsyncSdmxClient
 
 
 class AsyncProxySdmxClient(AsyncSdmxClient):
-    """Async client for Proxy SDMX 3.0 sources based on QuantHub client ehavior."""
+    """Async client for Proxy SDMX 3.0 sources based on Statgpt proxy client ehavior."""
 
     _DATA_PARAM_ALLOWLIST = {"startPeriod", "endPeriod", "firstNObservations", "lastNObservations"}
     _DATA_ACCEPT_DEFAULT = "application/vnd.sdmx.data+json;version=2.0.0"
@@ -146,7 +146,7 @@ class AsyncProxySdmxClient(AsyncSdmxClient):
         params: dict[str, str] | None,
         dsd: DataStructureDefinition | None,
     ) -> StructureMessage:
-        """Fetch available constraints from the QuantHub SDMX API."""
+        """Fetch available constraints from the Statgpt proxy SDMX API."""
         url = self._build_url(
             path=f"/availability/dataflow/{agency_id}/{resource_id}/{version}", params=None
         )
@@ -171,8 +171,7 @@ class AsyncProxySdmxClient(AsyncSdmxClient):
         ).prepare()
 
         try:
-            async with self._rate_limiter.availability_limiter():
-                response = await self._perform_request(req)
+            response = await self._perform_request(req)
         except httpx.HTTPStatusError as e:
             if e.response.status_code in [400, 404]:
                 logger.error(f"Bad request for URL {url!r}: {e.response.text}")
@@ -206,11 +205,7 @@ class AsyncProxySdmxClient(AsyncSdmxClient):
             params=converted,
         )
 
-        response, req = await self._perform_get(
-            url,
-            Resource.data,
-            limiter=self._rate_limiter.data_limiter,
-        )
+        response, req = await self._perform_get(url, Resource.data)
         if response is None:
             return DataMessage()
 
@@ -296,11 +291,7 @@ class AsyncProxySdmxClient(AsyncSdmxClient):
         return result or None
 
     async def _perform_get(
-        self,
-        url: str,
-        resource: Resource,
-        *,
-        limiter,
+        self, url: str, resource: Resource
     ) -> tuple[httpx.Response | None, requests.PreparedRequest]:
         headers = await self._construct_headers({}, resource)
         if resource == Resource.data and "accept" not in {key.lower() for key in headers}:
@@ -308,8 +299,7 @@ class AsyncProxySdmxClient(AsyncSdmxClient):
         req = requests.Request(method="GET", url=url, headers=headers).prepare()
 
         try:
-            async with limiter():
-                response = await self._perform_request(req)
+            response = await self._perform_request(req)
         except httpx.HTTPStatusError as e:
             if e.response.status_code in [400, 404]:
                 logger.error(f"Bad request for URL {url!r}: {e.response.text}")
