@@ -5,7 +5,7 @@ from collections.abc import Iterable
 from sdmx.model.v21 import DataflowDefinition as DataFlow
 
 from statgpt.common.data.base.updated_at_mixin import UpdatedAtMixin
-from statgpt.common.data.proxy.sdmx_schemas.structure_message import ProxyAnnotation
+from statgpt.common.data.statgpt_sdmx_proxy.sdmx_schemas.structure_message import ProxyAnnotation
 from statgpt.common.data.sdmx.common import SdmxDimension
 from statgpt.common.data.sdmx.common.config import SdmxDataSetConfig
 from statgpt.common.data.sdmx.v21.attribute import Sdmx21Attribute
@@ -13,18 +13,18 @@ from statgpt.common.data.sdmx.v21.dataset import Sdmx21DataSet
 from statgpt.common.data.sdmx.v21.query import SdmxDataSetQuery
 
 if typing.TYPE_CHECKING:
-    from .datasource import ProxySdmx30DataSourceHandler
+    from .datasource import StatGptSdmxProxyDataSourceHandler as DataSourceHandler
 
 
-class Sdmx30ProxyDataSet(UpdatedAtMixin, Sdmx21DataSet):
-    """Proxy SDMX 3.0 dataset parsed via sdmx1 (SDMX 2.1) models."""
+class StatGptSdmxProxyDataSet(UpdatedAtMixin, Sdmx21DataSet):
+    """Dataset for StatGPT SDMX proxy (SDMX 3.0 API, parsed as SDMX 2.1 models)."""
 
     def __init__(
         self,
         entity_id: uuid.UUID,
         title: str,
         config: SdmxDataSetConfig,
-        handler: 'ProxySdmx30DataSourceHandler',
+        handler: 'DataSourceHandler',
         dataflow: DataFlow,
         locale: str,
         dimensions: Iterable[SdmxDimension],

@@ -37,20 +37,18 @@ class QuantHubSettings(BaseSettings):
     )
 
 
-class ProxySdmxSettings(BaseSettings):
-    """
-    Proxy SDMX specific settings
-    """
+class StatGptSdmxProxySettings(BaseSettings):
+    """Settings for StatGPT SDMX proxy data sources."""
 
     model_config = SettingsConfigDict(env_prefix="proxy_sdmx_")
 
     dataset_cache_ttl: int = Field(
         default=3600,
-        description="Cache TTL for Proxy SDMX datasets in seconds",
+        description="Cache TTL for StatGPT SDMX proxy datasets in seconds",
     )
 
 
 # Create singleton instances
 sdmx_settings = SdmxSettings()
 quanthub_settings = QuantHubSettings()
-proxy_sdmx_settings = ProxySdmxSettings()
+statgpt_sdmx_proxy_settings = StatGptSdmxProxySettings()

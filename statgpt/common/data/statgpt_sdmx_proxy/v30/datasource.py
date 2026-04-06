@@ -8,10 +8,12 @@ from sdmx.model.v21 import DataflowDefinition as DataFlow
 from statgpt.common.auth.auth_context import AuthContext
 from statgpt.common.config import multiline_logger as logger
 from statgpt.common.data.base import DataSourceType
-from statgpt.common.data.proxy.config import ProxySdmx30DataSourceConfig
-from statgpt.common.data.proxy.sdmx_schemas.structure_message import ProxyAnnotation
-from statgpt.common.data.proxy.v30.dataset import Sdmx30ProxyDataSet
-from statgpt.common.data.proxy.v30.sdmx_client import AsyncProxySdmxClient
+from statgpt.common.data.statgpt_sdmx_proxy.config import StatGptSdmxProxyDataSourceConfig
+from statgpt.common.data.statgpt_sdmx_proxy.sdmx_schemas.structure_message import ProxyAnnotation
+from statgpt.common.data.statgpt_sdmx_proxy.v30.dataset import StatGptSdmxProxyDataSet
+from statgpt.common.data.statgpt_sdmx_proxy.v30.sdmx_client import (
+    AsyncStatGptSdmxProxyClient as SdmxClient,
+)
 from statgpt.common.data.quanthub.config import QuanthubDataSetConfig
 from statgpt.common.data.sdmx.v21.attribute import Sdmx21Attribute
 from statgpt.common.data.sdmx.v21.attributes_creator import Sdmx21AttributesCreator
@@ -23,43 +25,43 @@ from statgpt.common.data.sdmx.v21.ratelimiter import SdmxRateLimiterFactory
 from statgpt.common.data.sdmx.v21.schemas import StructureMessage21, Urn
 from statgpt.common.data.sdmx.v21.urn_utils import is_wildcarded_version, lookup_urn
 from statgpt.common.schemas.dataset import Status
-from statgpt.common.settings.sdmx import proxy_sdmx_settings
+from statgpt.common.settings.sdmx import statgpt_sdmx_proxy_settings
 from statgpt.common.utils import TtlCache
 from statgpt.common.utils.timer import debug_timer
 
 
-class ProxySdmx30DataSourceHandler(Sdmx21DataSourceHandler):
-    """SDMX 3.0 proxy source that is parsed via sdmx1 (SDMX 2.1) models."""
+class StatGptSdmxProxyDataSourceHandler(Sdmx21DataSourceHandler):
+    """StatGPT SDMX proxy data source (SDMX 3.0 API, parsed as SDMX 2.1 models)."""
 
-    _dataset_cache: TtlCache[Sdmx30ProxyDataSet] = TtlCache(
-        ttl=proxy_sdmx_settings.dataset_cache_ttl
+    _dataset_cache: TtlCache[StatGptSdmxProxyDataSet] = TtlCache(
+        ttl=statgpt_sdmx_proxy_settings.dataset_cache_ttl
     )
 
-    def __init__(self, config: ProxySdmx30DataSourceConfig):
+    def __init__(self, config: StatGptSdmxProxyDataSourceConfig):
         super().__init__(config)
-        self._config: ProxySdmx30DataSourceConfig = config  # for type hinting
+        self._config: StatGptSdmxProxyDataSourceConfig = config  # for type hinting
 
     @staticmethod
     def data_source_type() -> DataSourceType:
         return DataSourceType(
             type_id="PROXY_SDMX30",
-            name="Proxy SDMX 3.0",
-            description="SDMX 3.0 proxy data source (parsed with sdmx1)",
+            name="StatGPT SDMX Proxy",
+            description="StatGPT SDMX 3.0 proxy API (parsed with SDMX 2.1 models)",
         )
 
     @staticmethod
-    def parse_config(d: dict) -> ProxySdmx30DataSourceConfig:
-        return ProxySdmx30DataSourceConfig.model_validate(d)
+    def parse_config(d: dict) -> StatGptSdmxProxyDataSourceConfig:
+        return StatGptSdmxProxyDataSourceConfig.model_validate(d)
 
     @staticmethod
     def parse_data_set_config(d: dict) -> QuanthubDataSetConfig:
         return QuanthubDataSetConfig.model_validate(d)
 
-    async def create_sdmx_client(self, auth_context: AuthContext) -> AsyncProxySdmxClient:
+    async def create_sdmx_client(self, auth_context: AuthContext) -> SdmxClient:
         rate_limiter = await SdmxRateLimiterFactory.get(
             self._config.get_id(), self._config.rate_limits
         )
-        return AsyncProxySdmxClient.from_config(self._config, auth_context, rate_limiter)
+        return SdmxClient.from_config(self._config, auth_context, rate_limiter)
 
     async def _load_extra_dataset_data(
         self, sdmx_client: Any, urn: Urn, structure_message: StructureMessage21 | None = None
@@ -95,8 +97,8 @@ class ProxySdmx30DataSourceHandler(Sdmx21DataSourceHandler):
         dimensions: list[Any],
         attributes: list[Sdmx21Attribute],
         extra_data: Mapping[str, Any],
-    ) -> Sdmx30ProxyDataSet:
-        return Sdmx30ProxyDataSet(
+    ) -> StatGptSdmxProxyDataSet:
+        return StatGptSdmxProxyDataSet(
             entity_id=entity_id,
             title=title,
             config=dataset_config,
@@ -116,7 +118,7 @@ class ProxySdmx30DataSourceHandler(Sdmx21DataSourceHandler):
         auth_context: AuthContext,
         allow_offline: bool = False,
         allow_cached: bool = False,
-    ) -> Sdmx30ProxyDataSet | SdmxOfflineDataSet:
+    ) -> StatGptSdmxProxyDataSet | SdmxOfflineDataSet:
         dataset_config = self.parse_data_set_config(config)
 
         if allow_cached:
@@ -227,8 +229,8 @@ class ProxySdmx30DataSourceHandler(Sdmx21DataSourceHandler):
         auth_context: AuthContext,
         allow_offline: bool = False,
         allow_cached: bool = False,
-    ) -> Sdmx30ProxyDataSet | SdmxOfflineDataSet:
-        with debug_timer(f"ProxySdmx30DataSourceHandler.get_dataset: {title}"):
+    ) -> StatGptSdmxProxyDataSet | SdmxOfflineDataSet:
+        with debug_timer(f"StatGptSdmxProxyDataSourceHandler.get_dataset: {title}"):
             return await self._get_dataset(
                 entity_id,
                 title,
@@ -244,4 +246,6 @@ class ProxySdmx30DataSourceHandler(Sdmx21DataSourceHandler):
         and the use of "latest" version is not supported by all registries.
         Listing all datasets is unavailable in this handler.
         """
-        raise NotImplementedError("Listing all datasets is unavailable sdmx proxy handler")
+        raise NotImplementedError(
+            "Listing all datasets is unavailable for StatGPT SDMX proxy handler"
+        )

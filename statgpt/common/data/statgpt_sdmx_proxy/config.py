@@ -3,8 +3,8 @@ from pydantic import Field
 from statgpt.common.data.sdmx.common.config import SdmxDataSourceConfig
 
 
-class ProxySdmx30DataSourceConfig(SdmxDataSourceConfig):
-    """Configuration for SDMX 3.0 proxy data sources that still use sdmx1 parsing."""
+class StatGptSdmxProxyDataSourceConfig(SdmxDataSourceConfig):
+    """Configuration for StatGPT SDMX proxy data sources (SDMX 3.0 API, parsed as SDMX 2.1)."""
 
     versions: set[str] = Field(
         default_factory=set,

@@ -11,15 +11,17 @@ from sdmx.session import ResponseIO
 from statgpt.common.auth.auth_context import AuthContext
 from statgpt.common.config import multiline_logger as logger
 from statgpt.common.data.base.sdmx_schemas import SdmxPlusAvailabilityRequestBody
-from statgpt.common.data.proxy.config import ProxySdmx30DataSourceConfig
-from statgpt.common.data.proxy.sdmx_schemas.structure_message import ProxyAvailabilityResponseBody
-from statgpt.common.data.proxy.v30.reader import ProxyDataReader
+from statgpt.common.data.statgpt_sdmx_proxy.config import StatGptSdmxProxyDataSourceConfig
+from statgpt.common.data.statgpt_sdmx_proxy.sdmx_schemas.structure_message import (
+    ProxyAvailabilityResponseBody,
+)
+from statgpt.common.data.statgpt_sdmx_proxy.v30.reader import StatGptSdmxProxyDataReader
 from statgpt.common.data.sdmx.v21.ratelimiter import SdmxRateLimiter
 from statgpt.common.data.sdmx.v21.sdmx_client import AsyncSdmxClient
 
 
-class AsyncProxySdmxClient(AsyncSdmxClient):
-    """Async client for Proxy SDMX 3.0 sources based on Statgpt proxy client ehavior."""
+class AsyncStatGptSdmxProxyClient(AsyncSdmxClient):
+    """Async client for StatGPT SDMX proxy (SDMX 3.0 API, SDMX-JSON parsed as SDMX 2.1 models)."""
 
     _DATA_PARAM_ALLOWLIST = {"startPeriod", "endPeriod", "firstNObservations", "lastNObservations"}
     _DATA_ACCEPT_DEFAULT = "application/vnd.sdmx.data+json;version=2.0.0"
@@ -27,10 +29,10 @@ class AsyncProxySdmxClient(AsyncSdmxClient):
     @classmethod
     def from_config(  # type: ignore[override]
         cls,
-        config: ProxySdmx30DataSourceConfig,
+        config: StatGptSdmxProxyDataSourceConfig,
         auth_context: AuthContext,
         rate_limiter: SdmxRateLimiter,
-    ) -> "AsyncProxySdmxClient":
+    ) -> "AsyncStatGptSdmxProxyClient":
         return super().from_config(config, auth_context, rate_limiter)  # type: ignore[return-value]
 
     async def availableconstraint(
@@ -146,7 +148,7 @@ class AsyncProxySdmxClient(AsyncSdmxClient):
         params: dict[str, str] | None,
         dsd: DataStructureDefinition | None,
     ) -> StructureMessage:
-        """Fetch available constraints from the Statgpt proxy SDMX API."""
+        """Fetch available constraints from the StatGPT SDMX proxy API."""
         url = self._build_url(
             path=f"/availability/dataflow/{agency_id}/{resource_id}/{version}", params=None
         )
@@ -213,11 +215,11 @@ class AsyncProxySdmxClient(AsyncSdmxClient):
         requests_response = self._convert_response(httpx_response, req)
         try:
             response_content: io.IOBase = ResponseIO(response)
-            msg = ProxyDataReader().convert(response_content, structure=dsd)
+            msg = StatGptSdmxProxyDataReader().convert(response_content, structure=dsd)
             msg.response = requests_response
         except Exception:
             logger.error(
-                "Failed to parse proxy SDMX response: url=%r content-type=%r body=%r",
+                "Failed to parse StatGPT SDMX proxy response: url=%r content-type=%r body=%r",
                 requests_response.url,
                 requests_response.headers.get("content-type"),
                 requests_response.text[:1000],

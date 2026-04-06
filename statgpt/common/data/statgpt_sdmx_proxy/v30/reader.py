@@ -80,7 +80,7 @@ are not accepted by :class:`Code` and would raise :exc:`TypeError`.
 """
 
 
-class ProxyDataReader(Reader):
+class StatGptSdmxProxyDataReader(Reader):
     """Read SDMX-JSON and expose it as instances from :mod:`sdmx.model`.
 
     Handles both the proxy SDMX-JSON format (with ``dimensionGroup`` attribute

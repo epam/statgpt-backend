@@ -79,7 +79,7 @@ class ProxyAvailabilityData(BaseModel):
 
 
 class ProxyAvailabilityResponseBody(BaseModel):
-    """A response body in the JSON format for Proxy SDMX 3.0 API."""
+    """A response body in the JSON format for the StatGPT SDMX proxy API."""
 
     data: ProxyAvailabilityData = Field()
 
@@ -93,12 +93,12 @@ class ProxyDataflow(BaseModel):
 
 
 class ProxyStructureData(BaseModel):
-    """Structure data in the JSON format for Proxy SDMX 3.0 API."""
+    """Structure data in the JSON format for the StatGPT SDMX proxy API."""
 
     dataflows: list[ProxyDataflow] = Field(default_factory=list)
 
 
 class ProxyDataflowMessage(BaseModel):
-    """A response body in the JSON format for Proxy SDMX 3.0 API."""
+    """A response body in the JSON format for the StatGPT SDMX proxy API."""
 
     data: ProxyStructureData = Field()
