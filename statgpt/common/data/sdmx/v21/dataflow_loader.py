@@ -1,3 +1,4 @@
+from collections.abc import Callable
 from typing import Literal
 
 from sdmx.message import StructureMessage
@@ -16,8 +17,14 @@ class DataflowLoader:
 
     _SETTINGS = DataflowLoaderSettings()
 
-    def __init__(self, client: AsyncSdmxClient):
+    def __init__(
+        self,
+        client: AsyncSdmxClient,
+        *,
+        structure_extra_headers: Callable[[str | None], dict[str, str] | None] | None = None,
+    ):
         self._client: AsyncSdmxClient = client
+        self._structure_extra_headers = structure_extra_headers
 
     async def load_structure_message(
         self, urn: Urn, mode: Literal['full', 'shallow']
@@ -88,13 +95,16 @@ class DataflowLoader:
     ) -> list[StructureMessage]:
         code_lists = self._get_code_lists(dataflow_msg, urn)
 
+        extra_headers = (
+            self._structure_extra_headers(dsd_urn) if self._structure_extra_headers else None
+        )
         tasks = [
             self._client.codelist(
                 agency_id=code_list.agency_id,
                 resource_id=code_list.resource_id,
                 version=code_list.version,
                 use_cache=True,
-                dsd_urn=dsd_urn,
+                extra_headers=extra_headers,
             )
             for code_list in code_lists
         ]
@@ -124,13 +134,16 @@ class DataflowLoader:
     ) -> list[StructureMessage]:
         schemas = set(concept.urn for concept in self._get_concepts_from(dsd))
 
+        extra_headers = (
+            self._structure_extra_headers(dsd_urn) if self._structure_extra_headers else None
+        )
         tasks = [
             self._client.conceptscheme(
                 agency_id=concept_scheme.agency_id,
                 resource_id=concept_scheme.resource_id,
                 version=concept_scheme.version,
                 use_cache=True,
-                dsd_urn=dsd_urn,
+                extra_headers=extra_headers,
             )
             for concept_scheme in schemas
         ]

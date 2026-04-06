@@ -4,8 +4,8 @@ from collections.abc import Iterable
 
 from sdmx.model.v21 import DataflowDefinition as DataFlow
 
+from statgpt.common.data.base.sdmx_schemas import Sdmx30AnnotationModel
 from statgpt.common.data.base.updated_at_mixin import UpdatedAtMixin
-from statgpt.common.data.statgpt_sdmx_proxy.sdmx_schemas.structure_message import ProxyAnnotation
 from statgpt.common.data.sdmx.common import SdmxDimension
 from statgpt.common.data.sdmx.common.config import SdmxDataSetConfig
 from statgpt.common.data.sdmx.v21.attribute import Sdmx21Attribute
@@ -29,7 +29,7 @@ class StatGptSdmxProxyDataSet(UpdatedAtMixin, Sdmx21DataSet):
         locale: str,
         dimensions: Iterable[SdmxDimension],
         attributes: Iterable[Sdmx21Attribute],
-        annotations: Iterable[ProxyAnnotation],
+        annotations: Iterable[Sdmx30AnnotationModel],
     ):
         super().__init__(
             entity_id=entity_id,
@@ -50,7 +50,7 @@ class StatGptSdmxProxyDataSet(UpdatedAtMixin, Sdmx21DataSet):
             params.pop("detail", None)
         return params
 
-    def _get_annotation_by_id(self, annotation_id: str) -> ProxyAnnotation | None:
+    def _get_annotation_by_id(self, annotation_id: str) -> Sdmx30AnnotationModel | None:
         return next((a for a in self._annotations if a.id == annotation_id), None)
 
     def _get_annotation_value_by_id(self, annotation_id: str) -> str | None:

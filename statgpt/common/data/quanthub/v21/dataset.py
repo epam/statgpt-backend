@@ -1,9 +1,7 @@
 import logging
-import re
 import typing
 import uuid
 from collections.abc import Iterable
-from datetime import datetime
 
 import pandas as pd
 from sdmx.message import StructureMessage
@@ -15,9 +13,9 @@ from sdmx.model.v21 import DataStructureDefinition
 from statgpt.common.auth.auth_context import AuthContext
 from statgpt.common.data.base import DataResponseStatus, DataSetAvailabilityQuery, DataSetQuery
 from statgpt.common.data.base.property_source import PropertySource, PropertySourceEnum
+from statgpt.common.data.base.sdmx_schemas import Sdmx30AnnotationModel
 from statgpt.common.data.base.updated_at_mixin import UpdatedAtMixin
 from statgpt.common.data.quanthub.config import QuanthubDataSetConfig
-from statgpt.common.data.quanthub.sdmx_schemas.v30 import QhAnnotation
 from statgpt.common.data.sdmx import Sdmx21DataSet
 from statgpt.common.data.sdmx.common import SdmxDimension
 from statgpt.common.data.sdmx.v21.attribute import Sdmx21Attribute
@@ -45,7 +43,7 @@ class QuanthubSdmx21DataSet(UpdatedAtMixin, Sdmx21DataSet):
         dimensions: Iterable[SdmxDimension],
         attributes: Iterable[Sdmx21Attribute],
         attribute_values: dict[str, str | None],
-        annotations: Iterable[QhAnnotation],
+        annotations: Iterable[Sdmx30AnnotationModel],
     ):
         super().__init__(
             entity_id=entity_id,
@@ -70,7 +68,7 @@ class QuanthubSdmx21DataSet(UpdatedAtMixin, Sdmx21DataSet):
                 _log.warning("Data explorer URL is not configured for the data source: %s", self._datasource.source_id)  # type: ignore
         return super().dataset_url
 
-    def _get_annotation_by_id(self, annotation_id: str) -> QhAnnotation | None:
+    def _get_annotation_by_id(self, annotation_id: str) -> Sdmx30AnnotationModel | None:
         return next((a for a in self._annotations if a.id == annotation_id), None)
 
     def _get_annotation_value_by_id(self, annotation_id: str) -> str | None:
@@ -97,37 +95,6 @@ class QuanthubSdmx21DataSet(UpdatedAtMixin, Sdmx21DataSet):
         if getter := mapping.get(property_source.source):
             return getter(property_source.field)
         raise ValueError(f"Unsupported property source: {property_source.source}")
-
-    @staticmethod
-    def _truncate_fractional_seconds(value: str) -> str:
-        """Truncate fractional seconds to 6 digits (microseconds) for strptime compatibility."""
-        return re.sub(r'(\.\d{6})\d+', r'\1', value)
-
-    @classmethod
-    def _parse_date_with_formats(cls, value: str, formats: list[str] | None) -> datetime | None:
-        normalized = cls._truncate_fractional_seconds(value)
-        if formats:
-            for fmt in formats:
-                try:
-                    return datetime.strptime(normalized, fmt)
-                except ValueError:
-                    _log.debug(f"Failed to parse date {value!r} with format {fmt!r}")
-            _log.warning(f"Failed to parse date {value!r} with any of the formats: {formats}")
-            return None
-        else:
-            try:
-                return datetime.fromisoformat(normalized)
-            except ValueError:
-                _log.warning(f"Failed to parse date {value!r} with ISO format")
-                return None
-
-    async def updated_at(self, auth_context: AuthContext) -> datetime | None:
-        for property_source in self._config.updated_at:
-            value = self._get_property_value_by_source(property_source)
-            if value and (value := value.strip()):
-                if res := self._parse_date_with_formats(value, property_source.formats):
-                    return res
-        return None
 
     def _get_data_explorer_url(
         self,

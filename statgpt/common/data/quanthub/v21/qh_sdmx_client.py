@@ -6,10 +6,12 @@ from sdmx.model.v21 import DataStructureDefinition
 
 from statgpt.common.auth.auth_context import AuthContext
 from statgpt.common.config import multiline_logger as logger
-from statgpt.common.data.base.sdmx_schemas import SdmxPlusAvailabilityRequestBody
+from statgpt.common.data.base.sdmx_schemas import (
+    Sdmx30AnnotationModel,
+    SdmxPlusAvailabilityRequestBody,
+)
 from statgpt.common.data.quanthub.config import QuanthubSdmxDataSourceConfig
 from statgpt.common.data.quanthub.sdmx_schemas.v30 import (
-    QhAnnotation,
     QhAvailabilityResponseBody,
     QhDataflowMessage,
     QhDataMessage,
@@ -29,7 +31,7 @@ class AsyncQuanthubClient(AsyncSdmxClient):
     Contains methods unique to QuantHub, such as fetching dynamic annotations.
     """
 
-    _annotation_cache: TtlCache[list[QhAnnotation]] = TtlCache()
+    _annotation_cache: TtlCache[list[Sdmx30AnnotationModel]] = TtlCache()
     _attributes_cache: TtlCache[dict[str, str | None]] = TtlCache()
 
     @classmethod
@@ -151,7 +153,7 @@ class AsyncQuanthubClient(AsyncSdmxClient):
 
     async def dynamic_dataflow_annotations(
         self, *, agency_id: str, resource_id: str, version: str
-    ) -> list[QhAnnotation]:
+    ) -> list[Sdmx30AnnotationModel]:
         """Fetch dynamic annotations for a given dataflow."""
 
         if not self._annotations_url:

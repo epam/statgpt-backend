@@ -53,7 +53,7 @@ class ProxyDataConstraint(BaseModel):
     version: str = Field()
     agency_id: str = Field(alias="agencyID")
 
-    annotations: list["ProxyAnnotation"] = Field(default_factory=list)
+    annotations: list[Sdmx30AnnotationModel] = Field(default_factory=list)
     cube_regions: list[ProxyCubeRegion] = Field(alias="cubeRegions")
 
     def to_sdmx1(self) -> ContentConstraint:
@@ -66,10 +66,6 @@ class ProxyDataConstraint(BaseModel):
             annotations=self.annotations,
             cube_regions=self.cube_regions,
         )
-
-
-class ProxyAnnotation(Sdmx30AnnotationModel):
-    pass
 
 
 class ProxyAvailabilityData(BaseModel):
@@ -88,7 +84,7 @@ class ProxyAvailabilityResponseBody(BaseModel):
 
 
 class ProxyDataflow(BaseModel):
-    annotations: list[ProxyAnnotation] = Field(default_factory=list)
+    annotations: list[Sdmx30AnnotationModel] = Field(default_factory=list)
     # Add other fields as needed
 
 

@@ -1,4 +1,3 @@
-# Mocks for integration tests. (dummy)
 import os
 from io import BytesIO
 from typing import AnyStr

@@ -1,4 +1,5 @@
 import logging
+import re
 from datetime import datetime
 
 from statgpt.common.auth.auth_context import AuthContext
@@ -46,17 +47,23 @@ class UpdatedAtMixin:
         raise ValueError(f"Unsupported property source: {property_source.source}")
 
     @staticmethod
+    def _truncate_fractional_seconds(value: str) -> str:
+        """Truncate fractional seconds to 6 digits (microseconds) for strptime compatibility."""
+        return re.sub(r"(\.\d{6})\d+", r"\1", value)
+
+    @staticmethod
     def _parse_date_with_formats(value: str, formats: list[str] | None) -> datetime | None:
+        normalized = UpdatedAtMixin._truncate_fractional_seconds(value)
         if formats:
             for fmt in formats:
                 try:
-                    return datetime.strptime(value, fmt)
+                    return datetime.strptime(normalized, fmt)
                 except ValueError:
                     _log.debug("Failed to parse date %r with format %r", value, fmt)
             _log.warning("Failed to parse date %r with any of the formats: %s", value, formats)
             return None
         try:
-            return datetime.fromisoformat(value)
+            return datetime.fromisoformat(normalized)
         except ValueError:
             _log.warning("Failed to parse date %r with ISO format", value)
             return None

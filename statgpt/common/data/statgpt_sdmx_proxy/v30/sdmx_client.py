@@ -11,13 +11,18 @@ from sdmx.session import ResponseIO
 from statgpt.common.auth.auth_context import AuthContext
 from statgpt.common.config import multiline_logger as logger
 from statgpt.common.data.base.sdmx_schemas import SdmxPlusAvailabilityRequestBody
+from statgpt.common.data.sdmx.v21.ratelimiter import SdmxRateLimiter
+from statgpt.common.data.sdmx.v21.sdmx_client import AsyncSdmxClient
 from statgpt.common.data.statgpt_sdmx_proxy.config import StatGptSdmxProxyDataSourceConfig
 from statgpt.common.data.statgpt_sdmx_proxy.sdmx_schemas.structure_message import (
     ProxyAvailabilityResponseBody,
 )
 from statgpt.common.data.statgpt_sdmx_proxy.v30.reader import StatGptSdmxProxyDataReader
-from statgpt.common.data.sdmx.v21.ratelimiter import SdmxRateLimiter
-from statgpt.common.data.sdmx.v21.sdmx_client import AsyncSdmxClient
+
+
+def proxy_structure_extra_headers(dsd_urn: str | None) -> dict[str, str] | None:
+    """Headers for proxy structure requests (disambiguates artefacts that share identity)."""
+    return {"X-Source-Artefact-Urn": dsd_urn} if dsd_urn else None
 
 
 class AsyncStatGptSdmxProxyClient(AsyncSdmxClient):
@@ -76,66 +81,6 @@ class AsyncStatGptSdmxProxyClient(AsyncSdmxClient):
                 params=params,
                 dsd=dsd,
             )
-
-    async def conceptscheme(
-        self,
-        *,
-        agency_id: str,
-        resource_id: str,
-        version: str,
-        use_cache: bool = False,
-        dsd_urn: str | None = None,
-    ) -> StructureMessage:
-        return await self._get_structure(  # type: ignore[return-value]
-            resource_type=Resource.conceptscheme,
-            agency_id=agency_id,
-            resource_id=resource_id,
-            version=version,
-            use_cache=use_cache,
-            extra_headers=self._dsd_urn_headers(dsd_urn),
-        )
-
-    async def codelist(
-        self,
-        *,
-        agency_id: str,
-        resource_id: str,
-        version: str,
-        use_cache: bool = False,
-        dsd_urn: str | None = None,
-    ) -> StructureMessage:
-        return await self._get_structure(  # type: ignore[return-value]
-            resource_type=Resource.codelist,
-            agency_id=agency_id,
-            resource_id=resource_id,
-            version=version,
-            use_cache=use_cache,
-            extra_headers=self._dsd_urn_headers(dsd_urn),
-        )
-
-    async def hierarchicalcodelist(
-        self,
-        *,
-        agency_id: str,
-        resource_id: str,
-        version: str,
-        params: dict[str, str] | None = None,
-        use_cache: bool = False,
-        dsd_urn: str | None = None,
-    ) -> StructureMessage:
-        return await self._get_structure(  # type: ignore[return-value]
-            resource_type=Resource.hierarchicalcodelist,
-            agency_id=agency_id,
-            resource_id=resource_id,
-            version=version,
-            params=params,
-            use_cache=use_cache,
-            extra_headers=self._dsd_urn_headers(dsd_urn),
-        )
-
-    @staticmethod
-    def _dsd_urn_headers(dsd_urn: str | None) -> dict[str, str] | None:
-        return {"X-Source-Artefact-Urn": dsd_urn} if dsd_urn else None
 
     async def _proxy_available_constraint(
         self,

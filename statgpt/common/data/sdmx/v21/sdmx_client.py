@@ -30,14 +30,6 @@ class AsyncSdmxClient:
 
     _LOADING: set[str] = set()
     """Urls of SDMX requests that are currently being loaded."""
-    _SENSITIVE_HEADER_KEYS = {
-        "authorization",
-        "proxy-authorization",
-        "x-api-key",
-        "x-auth-token",
-        "api-key",
-        "apikey",
-    }
 
     @classmethod
     def from_config(
@@ -101,7 +93,7 @@ class AsyncSdmxClient:
         resource_id: str,
         version: str,
         use_cache: bool = False,
-        dsd_urn: str | None = None,
+        extra_headers: dict[str, str] | None = None,
     ) -> StructureMessage:
         return await self._get_structure(  # type: ignore[return-value]
             resource_type=Resource.conceptscheme,
@@ -109,6 +101,7 @@ class AsyncSdmxClient:
             resource_id=resource_id,
             version=version,
             use_cache=use_cache,
+            extra_headers=extra_headers,
         )
 
     async def codelist(
@@ -118,7 +111,7 @@ class AsyncSdmxClient:
         resource_id: str,
         version: str,
         use_cache: bool = False,
-        dsd_urn: str | None = None,
+        extra_headers: dict[str, str] | None = None,
     ) -> StructureMessage:
         return await self._get_structure(  # type: ignore[return-value]
             resource_type=Resource.codelist,
@@ -126,6 +119,7 @@ class AsyncSdmxClient:
             resource_id=resource_id,
             version=version,
             use_cache=use_cache,
+            extra_headers=extra_headers,
         )
 
     async def hierarchicalcodelist(
@@ -136,7 +130,7 @@ class AsyncSdmxClient:
         version: str,
         params: dict[str, str] | None = None,
         use_cache: bool = False,
-        dsd_urn: str | None = None,
+        extra_headers: dict[str, str] | None = None,
     ) -> StructureMessage:
         return await self._get_structure(  # type: ignore[return-value]
             resource_type=Resource.hierarchicalcodelist,
@@ -145,6 +139,7 @@ class AsyncSdmxClient:
             version=version,
             params=params,
             use_cache=use_cache,
+            extra_headers=extra_headers,
         )
 
     async def availableconstraint(

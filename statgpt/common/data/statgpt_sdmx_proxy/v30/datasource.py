@@ -8,12 +8,7 @@ from sdmx.model.v21 import DataflowDefinition as DataFlow
 from statgpt.common.auth.auth_context import AuthContext
 from statgpt.common.config import multiline_logger as logger
 from statgpt.common.data.base import DataSourceType
-from statgpt.common.data.statgpt_sdmx_proxy.config import StatGptSdmxProxyDataSourceConfig
-from statgpt.common.data.statgpt_sdmx_proxy.sdmx_schemas.structure_message import ProxyAnnotation
-from statgpt.common.data.statgpt_sdmx_proxy.v30.dataset import StatGptSdmxProxyDataSet
-from statgpt.common.data.statgpt_sdmx_proxy.v30.sdmx_client import (
-    AsyncStatGptSdmxProxyClient as SdmxClient,
-)
+from statgpt.common.data.base.sdmx_schemas import Sdmx30AnnotationModel
 from statgpt.common.data.quanthub.config import QuanthubDataSetConfig
 from statgpt.common.data.sdmx.v21.attribute import Sdmx21Attribute
 from statgpt.common.data.sdmx.v21.attributes_creator import Sdmx21AttributesCreator
@@ -24,6 +19,12 @@ from statgpt.common.data.sdmx.v21.dimensions_creator import DimensionsCreator
 from statgpt.common.data.sdmx.v21.ratelimiter import SdmxRateLimiterFactory
 from statgpt.common.data.sdmx.v21.schemas import StructureMessage21, Urn
 from statgpt.common.data.sdmx.v21.urn_utils import is_wildcarded_version, lookup_urn
+from statgpt.common.data.statgpt_sdmx_proxy.config import StatGptSdmxProxyDataSourceConfig
+from statgpt.common.data.statgpt_sdmx_proxy.v30.dataset import StatGptSdmxProxyDataSet
+from statgpt.common.data.statgpt_sdmx_proxy.v30.sdmx_client import (
+    AsyncStatGptSdmxProxyClient as SdmxClient,
+)
+from statgpt.common.data.statgpt_sdmx_proxy.v30.sdmx_client import proxy_structure_extra_headers
 from statgpt.common.schemas.dataset import Status
 from statgpt.common.settings.sdmx import statgpt_sdmx_proxy_settings
 from statgpt.common.utils import TtlCache
@@ -77,9 +78,9 @@ class StatGptSdmxProxyDataSourceHandler(Sdmx21DataSourceHandler):
         return {"annotations": annotations}
 
     @staticmethod
-    def _to_proxy_annotation(annotation: BaseAnnotation) -> ProxyAnnotation:
+    def _to_proxy_annotation(annotation: BaseAnnotation) -> Sdmx30AnnotationModel:
         text = str(annotation.text) if annotation.text else None
-        return ProxyAnnotation(
+        return Sdmx30AnnotationModel(
             id=annotation.id,
             title=annotation.title,
             type=annotation.type,
@@ -137,7 +138,9 @@ class StatGptSdmxProxyDataSourceHandler(Sdmx21DataSourceHandler):
                 resource_id=dataset_config.urn.resource_id,
                 version=dataset_config.urn.version,
             )
-            dataflow_loader = DataflowLoader(sdmx_client)
+            dataflow_loader = DataflowLoader(
+                sdmx_client, structure_extra_headers=proxy_structure_extra_headers
+            )
             urn, structure_message = await dataflow_loader.load_structure_message(urn, mode="full")
         except Exception:
             if allow_offline:

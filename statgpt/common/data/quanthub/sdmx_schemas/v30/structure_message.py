@@ -10,10 +10,6 @@ from statgpt.common.data.base.sdmx_schemas import (
 )
 
 
-class QhAnnotation(Sdmx30AnnotationModel):
-    pass
-
-
 class QhSelectionValue(BaseModel):
     member_value: str = Field(alias='memberValue')
 
@@ -55,7 +51,7 @@ class QhDataConstraint(BaseModel):
     version: str = Field()
     agency_id: str = Field(alias='agencyID')
 
-    annotations: list[QhAnnotation] = Field(default_factory=list)
+    annotations: list[Sdmx30AnnotationModel] = Field(default_factory=list)
     cube_regions: list[QhCubeRegion] = Field(alias='cubeRegions')
 
     def to_sdmx1(self) -> ContentConstraint:
@@ -85,7 +81,7 @@ class QhAvailabilityResponseBody(BaseModel):
 
 
 class QhDataflow(BaseModel):
-    annotations: list[QhAnnotation] = Field(default_factory=list)
+    annotations: list[Sdmx30AnnotationModel] = Field(default_factory=list)
     # Add other fields as needed
 
 
