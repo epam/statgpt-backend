@@ -143,16 +143,16 @@ class DelayedStage(StageInterface):
 
 
 class DummyStage(StageInterface):
-    """A dummy stage that does nothing."""
+    """A silent dummy stage that does nothing."""
 
     def append_content(self, content: str):
-        _log.warning("The content is being appended to a dummy stage and will be ignored.")
+        pass
 
     def append_name(self, name: str):
-        _log.warning("The name is being appended to a dummy stage and will be ignored.")
+        pass
 
     def add_attachment(self, *args, **kwargs):
-        _log.warning("The attachment is being added to a dummy stage and will be ignored.")
+        pass
 
     def open(self):
         pass
@@ -175,6 +175,35 @@ class DummyStage(StageInterface):
 
     def __bool__(self):
         return False
+
+
+class WarningDummyStage(DummyStage):
+    """A dummy stage that logs warnings when content is appended."""
+
+    def append_content(self, content: str):
+        _log.warning("The content is being appended to a dummy stage and will be ignored.")
+
+    def append_name(self, name: str):
+        _log.warning("The name is being appended to a dummy stage and will be ignored.")
+
+    def add_attachment(self, *args, **kwargs):
+        _log.warning("The attachment is being added to a dummy stage and will be ignored.")
+
+
+class NullChoice:
+    """A no-op Choice replacement for contexts without DIAL streaming (e.g., MCP)."""
+
+    def create_stage(self, *args, **kwargs):
+        return DummyStage()
+
+    def append_content(self, content: str):
+        pass
+
+    def add_attachment(self, *args, **kwargs):
+        _log.warning("add_attachment() called on NullChoice — ignored in MCP context.")
+
+    def set_state(self, state: dict):
+        _log.warning("set_state() called on NullChoice — tools should not call this.")
 
 
 @contextmanager
@@ -214,8 +243,8 @@ def delayed_timed_stage(choice: Choice, *args, **kwargs):
 @contextmanager
 def optional_stage(stage_generator: AbstractContextManager[StageInterface], enabled: bool):
     if not enabled:
-        # Create a dummy stage that does nothing
-        stage_generator = DummyStage()
+        # Create a dummy stage that logs warnings
+        stage_generator = WarningDummyStage()
 
     with stage_generator as stage:
         yield stage

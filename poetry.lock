@@ -4180,7 +4180,7 @@ files = [
     {file = "markdown_it_py-4.0.0-py3-none-any.whl", hash = "sha256:87327c59b172c5011896038353a81343b6754500a08cd7a4973bb48c6d578147"},
     {file = "markdown_it_py-4.0.0.tar.gz", hash = "sha256:cb0a2b4aa34f932c007117b194e945bd74e0ec24133ceb5bac59009cda1cb9f3"},
 ]
-markers = {main = "extra == \"beta-mcp\" or extra == \"cli\""}
+markers = {main = "extra == \"cli\" or extra == \"beta-mcp\""}
 
 [package.dependencies]
 mdurl = ">=0.1,<1.0"
@@ -4368,7 +4368,7 @@ files = [
     {file = "mdurl-0.1.2-py3-none-any.whl", hash = "sha256:84008a41e51615a49fc9966191ff91509e3c40b939176e643fd50a5c2196b8f8"},
     {file = "mdurl-0.1.2.tar.gz", hash = "sha256:bb413d29f5eea38f31dd4754dd7377d4465116fb207585f97bf925588687c1ba"},
 ]
-markers = {main = "extra == \"beta-mcp\" or extra == \"cli\""}
+markers = {main = "extra == \"cli\" or extra == \"beta-mcp\""}
 
 [[package]]
 name = "mistune"
@@ -6604,7 +6604,7 @@ files = [
     {file = "pygments-2.20.0-py3-none-any.whl", hash = "sha256:81a9e26dd42fd28a23a2d169d86d7ac03b46e2f8b59ed4698fb4785f946d0176"},
     {file = "pygments-2.20.0.tar.gz", hash = "sha256:6757cd03768053ff99f3039c1a36d6c0aa0b263438fcab17520b30a303a82b5f"},
 ]
-markers = {main = "extra == \"beta-mcp\" or extra == \"cli\""}
+markers = {main = "extra == \"cli\" or extra == \"beta-mcp\""}
 
 [package.extras]
 windows-terminal = ["colorama (>=0.4.6)"]
@@ -7702,7 +7702,7 @@ files = [
     {file = "rich-13.9.4-py3-none-any.whl", hash = "sha256:6049d5e6ec054bf2779ab3358186963bac2ea89175919d699e378b99738c2a90"},
     {file = "rich-13.9.4.tar.gz", hash = "sha256:439594978a49a09530cff7ebc4b5c7103ef57baf48d5ea3184f21d9a2befa098"},
 ]
-markers = {main = "extra == \"beta-mcp\" or extra == \"cli\""}
+markers = {main = "extra == \"cli\" or extra == \"beta-mcp\""}
 
 [package.dependencies]
 markdown-it-py = ">=2.2.0"
@@ -9606,4 +9606,4 @@ cli = ["httpx", "msal", "prompt-toolkit", "python-keycloak", "questionary", "ric
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.11,<3.12"
-content-hash = "664ee33af0eb630615f247edbe5a23ca487dfd9d9acfb158ed9e747f02ca3db6"
+content-hash = "39d450e0c8ecd8002fd9ab7ad2e18195a734ea8add8c8d5ee20e92ff324827ef"

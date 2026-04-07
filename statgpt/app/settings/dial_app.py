@@ -71,6 +71,18 @@ class DialAppSettings(BaseSettings):
         description="Skip tools execution step",
     )
 
+    statgpt_mcp_enabled: bool = Field(
+        default=False,
+        alias="STATGPT_MCP_ENABLED",
+        description="Flag to enable the embedded MCP server for external tool access",
+    )
+
+    statgpt_mcp_path: str = Field(
+        default="/api/v1/mcp",
+        alias="STATGPT_MCP_PATH",
+        description="Path to mount the MCP server at",
+    )
+
     dial_system_user_context_roles: str | None = Field(
         default=None,
         alias="DIAL_SYSTEM_USER_CONTEXT_ROLES",
