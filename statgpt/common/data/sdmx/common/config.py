@@ -56,6 +56,7 @@ class SdmxConfig(BaseModel):
     name: str = Field()
     headers: SdmxHeaders = Field(default_factory=SdmxHeaders)
     supports: SdmxSupport = Field(default_factory=SdmxSupport)
+    versions: set[str] = Field(default_factory=lambda: {"2.1"})
 
     def get_url(self) -> str:
         """Return the URL for the SDMX data source, replacing environment variables if necessary."""

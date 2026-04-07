@@ -19,6 +19,7 @@ from dateutil.parser import parse
 from sdmx.message import DataMessage, StructureMessage
 from sdmx.model.common import Code
 from sdmx.model.v21 import DataflowDefinition as DataFlow
+from sdmx.model.v21 import TimeDimension
 
 from statgpt.common.auth.auth_context import AuthContext
 from statgpt.common.data.base import (
@@ -1165,6 +1166,9 @@ class Sdmx21DataSet(
     async def _include_attributes(self, df: pd.DataFrame) -> pd.DataFrame:
         return await asyncio.to_thread(self._include_attributes_sync, df)
 
+    def _get_query_params(self, sdmx_query: SdmxDataSetQuery) -> dict:
+        return sdmx_query.get_params()
+
     async def _query_sdmx_data(
         self, sdmx_query: SdmxDataSetQuery, auth_context: AuthContext
     ) -> DataMessage:
@@ -1175,7 +1179,7 @@ class Sdmx21DataSet(
             resource_id=self._artefact.id,
             version=self._artefact.version,  # type: ignore
             key=sdmx_query.get_key(),
-            params=sdmx_query.get_params(),
+            params=self._get_query_params(sdmx_query),
             dsd=self._artefact.structure,
         )
         return data_msg
@@ -1252,22 +1256,44 @@ class Sdmx21DataSet(
         else:
             provider = self._artefact.maintainer.id  # type: ignore
 
+        flow_ref = (
+            f"{self._artefact.maintainer.id}"  # type: ignore[union-attr]
+            f",{self._artefact.id}"
+            f",{self._artefact.version}"
+        )
+        key_string = self._dict_key_to_sdmx_string(sdmx_query.get_key())
+
         return self._get_python_query_body(
             provider=provider,
-            resource_id=self.source_id,
-            keys=sdmx_query.get_key(),
+            flow_ref=flow_ref,
+            key=key_string,
             params=sdmx_query.get_params(),
             suffix=suffix,
         )
 
+    def _dict_key_to_sdmx_string(self, keys: dict[str, list[str]]) -> str:
+        """Convert a dict key to an SDMX REST key string in DSD dimension order.
+
+        The SDMX 2.1 REST API expects key as ordered dimension values
+        separated by '.', with '+' joining multiple values within a dimension.
+        Time dimensions are excluded (handled via query params).
+        """
+        parts = []
+        for dim in self._artefact.structure.dimensions:
+            if isinstance(dim, TimeDimension):
+                continue
+            values = keys.get(dim.id, [])
+            parts.append("+".join(values))
+        return ".".join(parts)
+
     @staticmethod
     def _get_python_query_body(
-        provider: str, resource_id: str, keys: dict, params: dict, suffix: str = ""
+        provider: str, flow_ref: str, key: str, params: dict, suffix: str = ""
     ) -> str:
         return f'''\
 provider{suffix} = sdmx.Client("{provider}")
 data_msg{suffix} = provider{suffix}.data(
-    "{resource_id}",
-    key={keys},
+    "{flow_ref}",
+    key="{key}",
     params={params}
 )'''

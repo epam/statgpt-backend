@@ -15,15 +15,15 @@ from statgpt.common.services import DataSourceTypeService
 
 @pytest.mark.asyncio
 async def test_data_source_types(session):
-    """The database created by alembic migration always has two data source types."""
+    """The database created by alembic migration always has three data source types."""
 
     service = DataSourceTypeService(session)
 
     count = await service.get_count()
-    assert count == 2
+    assert count == 3
 
     types = await service.get_data_source_types(100, 0)
-    assert {ds_type.name for ds_type in types} == {"SDMX21", "QH_SDMX21"}
+    assert {ds_type.name for ds_type in types} == {"SDMX21", "QH_SDMX21", "PROXY_SDMX30"}
 
 
 @pytest.mark.asyncio

@@ -10,6 +10,7 @@ from statgpt.common.data.sdmx.common import (
 )
 from statgpt.common.data.sdmx.common.codelist import BaseSdmxCodeList
 from statgpt.common.data.sdmx.v21.schemas import StructureMessage21, Urn
+from statgpt.common.data.sdmx.v21.urn_utils import lookup_urn
 
 
 class DimensionsCreator:
@@ -27,7 +28,8 @@ class DimensionsCreator:
 
     @property
     def _dsd(self) -> DataStructureDefinition:
-        return self._structure_message.dataflow[self._urn].structure
+        dsd_ref = self._structure_message.dataflow[self._urn].structure
+        return lookup_urn(self._structure_message.structure, Urn.for_artifact(dsd_ref))
 
     @property
     def _sdmx_dimensions(self) -> list[common.DimensionComponent]:
@@ -85,7 +87,7 @@ class DimensionsCreator:
             raise ValueError(f"{dimension=} does not contain required concept_identity.parent")
 
         urn = Urn.for_artifact(concept_identity.parent)  # type: ignore[arg-type]
-        schema = self._structure_message.concept_scheme[urn]
+        schema = lookup_urn(self._structure_message.concept_scheme, urn)
         return schema.items[concept_identity.id]
 
     def _create_dimension_from_concept(
@@ -187,7 +189,7 @@ class DimensionsCreator:
 
         # Actually, `code_list_ref` is a valid code list, but it does not contain the data,
         # since we are loading the codelist separately.
-        code_list = self._structure_message.codelist[Urn.for_artifact(code_list_ref)]
+        code_list = lookup_urn(self._structure_message.codelist, Urn.for_artifact(code_list_ref))
 
         indexed_codelist = InMemoryCodeList(code_list, self._locale)
         return self._create_sdmx_code_list_dimension(dimension, name, description, indexed_codelist)
