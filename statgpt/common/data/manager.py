@@ -1,19 +1,24 @@
+from statgpt.common.data.sdmx.common import SdmxDataSourceConfig
+
 from .base.datasource import DataSourceConfig, DataSourceHandler
 from .quanthub.config import QuanthubSdmxDataSourceConfig
 from .quanthub.v21.datasource import QuanthubSdmx21DataSourceHandler
 from .sdmx import Sdmx21DataSourceHandler
-from .sdmx.common import SdmxDataSourceConfig
+from .statgpt_sdmx_proxy.config import StatGptSdmxProxyDataSourceConfig
+from .statgpt_sdmx_proxy.v30.datasource import StatGptSdmxProxyDataSourceHandler
 
 
 class DataManager:
     _config_mapping: dict[str, type[DataSourceConfig]] = {
         "SDMX21": SdmxDataSourceConfig,
         "QH_SDMX21": QuanthubSdmxDataSourceConfig,
+        "PROXY_SDMX30": StatGptSdmxProxyDataSourceConfig,
     }
 
     _handlers_mapping: dict[str, type[DataSourceHandler]] = {
         "SDMX21": Sdmx21DataSourceHandler,
         "QH_SDMX21": QuanthubSdmx21DataSourceHandler,
+        "PROXY_SDMX30": StatGptSdmxProxyDataSourceHandler,
     }
 
     @classmethod

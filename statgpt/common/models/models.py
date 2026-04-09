@@ -284,12 +284,12 @@ class AutoUpdateJob(DefaultBase):
 
     channel_dataset_id: Mapped[int] = mapped_column(ForeignKey("channel_datasets.id"))
     base_version_id: Mapped[int | None] = mapped_column(
-        ForeignKey("channel_dataset_versions.id"), default=None
+        ForeignKey("channel_dataset_versions.id", ondelete="CASCADE"), default=None
     )
     """The base version used for comparison (last completed version at job creation time)."""
 
     created_version_id: Mapped[int | None] = mapped_column(
-        ForeignKey("channel_dataset_versions.id"), default=None
+        ForeignKey("channel_dataset_versions.id", ondelete="CASCADE"), default=None
     )
     """The newly created version after reindexing (set when reindex is triggered)."""
 
