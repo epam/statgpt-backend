@@ -15,12 +15,6 @@ from .exceptions import InvalidLLMStreamResponse
 
 
 class LCMessageLoggerAsync(AsyncCallbackHandler):
-    # NOTE: According to https://python.langchain.com/docs/modules/callbacks/async_callbacks
-    # "If you are planning to use the async API,
-    # it is recommended to use AsyncCallbackHandler to avoid blocking the runloop."
-    #
-    # For sync callback handler, subclass from 'BaseCallbackHandler'
-
     """
     Default LangChain logging (when using set_debug(True)) produces looooots of redundant logs.
     Here we define our custom langchain logger.
@@ -47,9 +41,12 @@ class LCMessageLoggerAsync(AsyncCallbackHandler):
         self._log_token_usage = log_token_usage
         self._log_tool_calls = log_tool_calls
 
-    def on_chat_model_start(
-        self, serialized: dict[str, t.Any], messages: list[list[BaseMessage]], **kwargs: t.Any
-    ) -> t.Any:
+    async def on_chat_model_start(
+        self,
+        serialized: dict[str, t.Any],
+        messages: list[list[BaseMessage]],
+        **kwargs: t.Any,
+    ) -> None:
         """Run when Chat Model starts running."""
         if len(messages) != 1:
             raise ValueError(f'expected "messages" to have len 1, got: {len(messages)}')
@@ -69,7 +66,11 @@ class LCMessageLoggerAsync(AsyncCallbackHandler):
 
         logger.info(f'call to {model} with {len(msgs_list)} messages:\n{msgs_str}')
 
-    def on_llm_end(self, response: LLMResult, **kwargs: t.Any) -> t.Any:
+    async def on_llm_end(
+        self,
+        response: LLMResult,
+        **kwargs: t.Any,
+    ) -> None:
         """Run when LLM ends running."""
         generations = response.generations
         if len(generations) != 1:
@@ -100,27 +101,27 @@ class TokenUsageByModelsCallback(AsyncCallbackHandler):
         super().__init__()
         self._deployment_ids: dict[UUID, str] = {}
 
-    def on_chat_model_start(
+    async def on_chat_model_start(
         self,
         serialized: dict[str, t.Any],
         messages: list[list[t.Any]],
         *,
         run_id: UUID,
         **kwargs: t.Any,
-    ) -> t.Any:
+    ) -> None:
         if serialized['id'][-1] == 'AzureChatOpenAI':
             try:
                 self._deployment_ids[run_id] = serialized['kwargs']['deployment_name']
             except (KeyError, TypeError):
                 pass
 
-    def on_llm_end(
+    async def on_llm_end(
         self,
         response: LLMResult,
         *,
         run_id: UUID,
         **kwargs: t.Any,
-    ) -> t.Any:
+    ) -> None:
         deployment_id = self._deployment_ids.pop(run_id, None)
 
         try:
