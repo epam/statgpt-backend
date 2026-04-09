@@ -205,13 +205,22 @@ class SupremeAgent:
 
     @classmethod
     def _create_system_prompt(cls, channel_config: ChannelConfig) -> str:
+        template = supreme_agent_default_prompts.system_prompt
+
+        general = (
+            channel_config.supreme_agent.general or supreme_agent_default_prompts.default_general
+        )
+        no_calc = (
+            channel_config.supreme_agent.no_calculations_and_analytics
+            or supreme_agent_default_prompts.default_no_calculations_and_analytics
+        )
+        template = template.replace("<<general>>", general)
+        template = template.replace("<<no_calculations_and_analytics>>", no_calc)
+
         if channel_config.supreme_agent.additional_context:
-            return (
-                supreme_agent_default_prompts.system_prompt
-                + "\n\n"
-                + supreme_agent_default_prompts.additional_context_wrapper_section
-            )
-        return supreme_agent_default_prompts.system_prompt
+            template += "\n\n" + supreme_agent_default_prompts.additional_context_wrapper_section
+
+        return template
 
     @classmethod
     def _create_chain(
