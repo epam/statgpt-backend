@@ -100,27 +100,27 @@ class TokenUsageByModelsCallback(AsyncCallbackHandler):
         super().__init__()
         self._deployment_ids: dict[UUID, str] = {}
 
-    def on_chat_model_start(  # type: ignore[override]
+    def on_chat_model_start(
         self,
         serialized: dict[str, t.Any],
         messages: list[list[t.Any]],
         *,
         run_id: UUID,
         **kwargs: t.Any,
-    ) -> None:
+    ) -> t.Any:
         if serialized['id'][-1] == 'AzureChatOpenAI':
             try:
                 self._deployment_ids[run_id] = serialized['kwargs']['deployment_name']
             except (KeyError, TypeError):
                 pass
 
-    def on_llm_end(  # type: ignore[override]
+    def on_llm_end(
         self,
         response: LLMResult,
         *,
         run_id: UUID,
         **kwargs: t.Any,
-    ) -> None:
+    ) -> t.Any:
         deployment_id = self._deployment_ids.pop(run_id, None)
 
         try:
