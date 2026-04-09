@@ -99,7 +99,7 @@ class TokenUsageByModelsCallback(AsyncCallbackHandler):
 
     def __init__(self) -> None:
         super().__init__()
-        self._deployment_ids: dict[UUID, str] = {}
+        self._run_2_deployment: dict[UUID, str] = {}
 
     async def on_chat_model_start(
         self,
@@ -111,7 +111,7 @@ class TokenUsageByModelsCallback(AsyncCallbackHandler):
     ) -> None:
         if serialized['id'][-1] == 'AzureChatOpenAI':
             try:
-                self._deployment_ids[run_id] = serialized['kwargs']['deployment_name']
+                self._run_2_deployment[run_id] = serialized['kwargs']['deployment_name']
             except (KeyError, TypeError):
                 pass
 
@@ -122,7 +122,7 @@ class TokenUsageByModelsCallback(AsyncCallbackHandler):
         run_id: UUID,
         **kwargs: t.Any,
     ) -> None:
-        deployment_id = self._deployment_ids.pop(run_id, None)
+        deployment_id = self._run_2_deployment.pop(run_id, None)
 
         try:
             generation = response.generations[0][0]
