@@ -11,7 +11,7 @@ class SdmxSettings(BaseSettings):
 
     cache_dir: str | None = Field(default=None, description="Directory for SDMX cache")
 
-    sdmx_client_cache_ttl: int = Field(
+    client_cache_ttl: int = Field(
         default=3600,
         description="TTL for in-memory SDMX metadata/structure cache in seconds",
     )

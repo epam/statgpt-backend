@@ -30,7 +30,7 @@ def init_sdmx(config: SdmxDataSourceConfig):
 class AsyncSdmxClient:
     """Async client for interacting with the SDMX API."""
 
-    _cache: AsyncLoadingCache[Message] = AsyncLoadingCache(ttl=sdmx_settings.sdmx_client_cache_ttl)
+    _cache: AsyncLoadingCache[Message] = AsyncLoadingCache(ttl=sdmx_settings.client_cache_ttl)
 
     @classmethod
     def from_config(
