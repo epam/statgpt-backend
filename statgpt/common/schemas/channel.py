@@ -139,9 +139,7 @@ class ConversationStartersConfig(BaseYamlModel):
 
 
 class ChannelConfig(BaseYamlModel):
-    locale: LocaleEnum = Field(
-        default=LocaleEnum.EN, description="The locale of the channel"
-    )
+    locale: LocaleEnum = Field(default=LocaleEnum.EN, description="The locale of the channel")
     conversation_starters: ConversationStartersConfig | None = Field(
         default=None, description="The conversation starters configuration"
     )
@@ -156,9 +154,7 @@ class ChannelConfig(BaseYamlModel):
         default="Country/Reference Area",
         description="The country named entity type used for named entity extraction",
     )
-    supreme_agent: SupremeAgentConfig = Field(
-        description="The supreme agent configuration"
-    )
+    supreme_agent: SupremeAgentConfig = Field(description="The supreme agent configuration")
     out_of_scope: OutOfScopeConfig | None = Field(
         None, description="The out of scope configuration"
     )
@@ -204,9 +200,7 @@ class ChannelConfig(BaseYamlModel):
     @property
     def tools(self) -> list[BaseToolConfig]:
         tools = [
-            getattr(self, field)
-            for field in self.tool_fields
-            if getattr(self, field) is not None
+            getattr(self, field) for field in self.tool_fields if getattr(self, field) is not None
         ]
         tools = [tool for tool in tools if tool.enabled]
         return tools
@@ -229,9 +223,7 @@ class ChannelBase(BaseModel):
 class ChannelUpdate(BaseModel):
     title: str | None = Field(default=None)
     description: str | None = Field(default=None)
-    deployment_id: str | None = Field(
-        default=None, description="Must be unique for each channel"
-    )
+    deployment_id: str | None = Field(default=None, description="Must be unique for each channel")
     llm_model: str | None = Field(default=None)
     details: ChannelConfig | None = Field(default=None)
 
@@ -310,17 +302,13 @@ class VectorStoreStatus(BaseModel):
     deduplication: DeduplicationStatus = Field(
         description="Deduplication status information for the channel"
     )
-    sizes: VectorStoreSizes = Field(
-        description="Size information for the channel vector store"
-    )
+    sizes: VectorStoreSizes = Field(description="Size information for the channel vector store")
 
 
 class ChannelIndexStatus(BaseModel):
     """Status information about channel index"""
 
-    scope: ChannelIndexStatusScope = Field(
-        description="The scope of the channel index status"
-    )
+    scope: ChannelIndexStatusScope = Field(description="The scope of the channel index status")
     vector_store: VectorStoreStatus = Field(
         description="Vector store status information for the channel"
     )
