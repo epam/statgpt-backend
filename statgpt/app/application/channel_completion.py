@@ -30,6 +30,7 @@ from statgpt.common.utils.callbacks import (
     TokenUsageByModelsCallback,
 )
 from statgpt.common.utils.dial.model_pricing import ModelPricingAuthContext, ModelPricingGetter
+from statgpt.common.utils.llm_call_duration_context import llm_call_duration_context
 from statgpt.common.utils.token_usage_context import TokenUsageManager, token_usage_context
 from statgpt.common.utils.token_usage_utils import TokenUsageCostCalculator, TokenUsageDisplayer
 
@@ -126,7 +127,10 @@ class ChannelCompletion(ChatCompletion):
             if langchain_settings.use_llm_duration_callback:
                 callbacks.append(LLMCallDurationCallback())
 
-            with token_usage_context() as token_usage_manager:
+            with (
+                llm_call_duration_context() as duration_manager,
+                token_usage_context() as token_usage_manager,
+            ):
                 callbacks.append(TokenUsageByModelsCallback())
                 state = ChainParameters.get_state(inputs)  # default in case of error
                 try:
@@ -161,6 +165,11 @@ class ChannelCompletion(ChatCompletion):
                     state[StateVarsConfig.ERROR] = str(e)
 
                 priced_usage = await cls._calc_token_usage_costs(token_usage_manager)
+
+                if langchain_settings.use_llm_duration_callback:
+                    state[StateVarsConfig.LLM_CALL_DURATIONS] = [
+                        item.model_dump() for item in duration_manager.get_durations()
+                    ]
 
             token_usage_config = service.channel_config.token_usage
             show_cost_stage = (

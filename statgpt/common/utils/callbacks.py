@@ -9,7 +9,9 @@ from langchain_core.outputs import ChatGeneration, ChatGenerationChunk, Generati
 from langchain_core.outputs.llm_result import LLMResult
 
 from statgpt.common.config import multiline_logger as logger
+from statgpt.common.schemas.llm_call_duration import LLMCallDurationItem
 from statgpt.common.schemas.token_usage import TokenUsageItem
+from statgpt.common.utils.llm_call_duration_context import get_llm_call_duration_manager
 from statgpt.common.utils.token_usage_context import get_token_usage_manager
 
 from .exceptions import InvalidLLMStreamResponse
@@ -220,6 +222,18 @@ class LLMCallDurationCallback(AsyncCallbackHandler):
             deployment_id = 'unknown'
 
         logger.info(f"LLM call duration for model {deployment_id!r}: {duration_s:.2f}s")
+
+        try:
+            duration_manager = get_llm_call_duration_manager()
+            duration_manager.add_duration(
+                LLMCallDurationItem(
+                    deployment=deployment_id,
+                    model=deployment_id,
+                    duration_s=round(duration_s, 3),
+                )
+            )
+        except LookupError:
+            pass
 
     async def on_llm_error(
         self,
