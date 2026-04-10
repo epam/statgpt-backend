@@ -133,11 +133,7 @@ class StatGptSdmxProxyDataSourceHandler(Sdmx21DataSourceHandler):
             df_annotations = [] if dataflow is None else dataflow.annotations
             annotations = [self._to_proxy_annotation(a) for a in df_annotations]
         except Exception:
-            if allow_offline:
-                msg = "Failed to load additional dataset metadata."
-                logger.exception(f"{msg}. See exception details below.")
-                status = Status(status='offline', details=msg)
-                return SdmxOfflineDataSet(entity_id, title, dataset_config, self, status)
+            logger.exception(f"Failed to parse annotations for the dataflow({urn}).")
             annotations = []
 
         try:
