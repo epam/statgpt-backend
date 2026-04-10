@@ -24,7 +24,11 @@ from statgpt.common.settings.application import application_settings
 from statgpt.common.settings.dial import dial_settings
 from statgpt.common.settings.langchain import langchain_settings
 from statgpt.common.utils import dial_core_factory
-from statgpt.common.utils.callbacks import LCMessageLoggerAsync, TokenUsageByModelsCallback
+from statgpt.common.utils.callbacks import (
+    LCMessageLoggerAsync,
+    LLMCallDurationCallback,
+    TokenUsageByModelsCallback,
+)
 from statgpt.common.utils.dial.model_pricing import ModelPricingAuthContext, ModelPricingGetter
 from statgpt.common.utils.token_usage_context import TokenUsageManager, token_usage_context
 from statgpt.common.utils.token_usage_utils import TokenUsageCostCalculator, TokenUsageDisplayer
@@ -119,6 +123,8 @@ class ChannelCompletion(ChatCompletion):
             callbacks: list = []
             if langchain_settings.use_custom_logger_callback:
                 callbacks.append(LCMessageLoggerAsync())
+            if langchain_settings.use_llm_duration_callback:
+                callbacks.append(LLMCallDurationCallback())
 
             with token_usage_context() as token_usage_manager:
                 callbacks.append(TokenUsageByModelsCallback())

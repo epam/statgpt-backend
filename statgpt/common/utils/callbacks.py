@@ -101,7 +101,6 @@ class TokenUsageByModelsCallback(AsyncCallbackHandler):
     def __init__(self) -> None:
         super().__init__()
         self._run_2_deployment: dict[UUID, str] = {}
-        self._start_times: dict[UUID, float] = {}
 
     async def on_chat_model_start(
         self,
@@ -111,7 +110,6 @@ class TokenUsageByModelsCallback(AsyncCallbackHandler):
         run_id: UUID,
         **kwargs: t.Any,
     ) -> None:
-        self._start_times[run_id] = time.monotonic()
         try:
             self._run_2_deployment[run_id] = serialized['kwargs']['deployment_name']
         except (KeyError, TypeError):
@@ -124,8 +122,6 @@ class TokenUsageByModelsCallback(AsyncCallbackHandler):
         run_id: UUID,
         **kwargs: t.Any,
     ) -> None:
-        start_time = self._start_times.pop(run_id, None)
-        duration_s = time.monotonic() - start_time if start_time is not None else None
         deployment_id = self._run_2_deployment.pop(run_id, None)
 
         try:
@@ -166,11 +162,9 @@ class TokenUsageByModelsCallback(AsyncCallbackHandler):
         if not deployment_id:
             deployment_id = 'unknown'
 
-        duration_str = f", duration={duration_s:.2f}s" if duration_s is not None else ""
         logger.info(
             f"Token usage for model {deployment_id!r}:"
             f" prompt_tokens={prompt_tokens!r}, completion_tokens={completion_tokens!r}"
-            f"{duration_str}"
         )
 
         token_usage_manager = get_token_usage_manager()
@@ -182,6 +176,60 @@ class TokenUsageByModelsCallback(AsyncCallbackHandler):
                 completion_tokens=completion_tokens,
             )
         )
+
+
+class LLMCallDurationCallback(AsyncCallbackHandler):
+    """Callback to track and log LLM call duration."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._start_times: dict[UUID, float] = {}
+        self._run_2_deployment: dict[UUID, str] = {}
+
+    async def on_chat_model_start(
+        self,
+        serialized: dict[str, t.Any],
+        messages: list[list[t.Any]],
+        *,
+        run_id: UUID,
+        **kwargs: t.Any,
+    ) -> None:
+        self._start_times[run_id] = time.monotonic()
+        try:
+            self._run_2_deployment[run_id] = serialized['kwargs']['deployment_name']
+        except (KeyError, TypeError):
+            pass
+
+    async def on_llm_end(
+        self,
+        response: LLMResult,
+        *,
+        run_id: UUID,
+        **kwargs: t.Any,
+    ) -> None:
+        start_time = self._start_times.pop(run_id, None)
+        deployment_id = self._run_2_deployment.pop(run_id, None)
+        if start_time is None:
+            return
+
+        duration_s = time.monotonic() - start_time
+
+        if not deployment_id and response.llm_output:
+            deployment_id = response.llm_output.get('model_name')
+        if not deployment_id:
+            deployment_id = 'unknown'
+
+        logger.info(f"LLM call duration for model {deployment_id!r}: {duration_s:.2f}s")
+
+    async def on_llm_error(
+        self,
+        error: BaseException,
+        *,
+        run_id: UUID,
+        **kwargs: t.Any,
+    ) -> None:
+        self._start_times.pop(run_id, None)
+        self._run_2_deployment.pop(run_id, None)
 
 
 class BrokenResponseInterceptor(AsyncCallbackHandler):
