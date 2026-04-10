@@ -133,7 +133,7 @@ class AsyncStatGptSdmxProxyClient(AsyncSdmxClient):
             return await self._cache.get(  # type: ignore[return-value]
                 key=url,
                 loader=lambda: self._fetch_proxy_available_constraint(
-                    url=url, key=key, params=params
+                    url=url, key=None, params=None
                 ),
             )
 

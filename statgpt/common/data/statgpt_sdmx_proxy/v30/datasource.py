@@ -94,6 +94,7 @@ class StatGptSdmxProxyDataSourceHandler(Sdmx21DataSourceHandler):
                 sdmx_client, structure_extra_headers=proxy_structure_extra_headers
             )
             urn, structure_message = await dataflow_loader.load_structure_message(urn, mode="full")
+            dataflow = structure_message.dataflow[urn]
         except Exception:
             if allow_offline:
                 msg = f"Failed to load the dataflow or its associated structures. urn={dataset_config.urn!r}"
@@ -129,15 +130,12 @@ class StatGptSdmxProxyDataSourceHandler(Sdmx21DataSourceHandler):
             raise
 
         try:
-            dataflow = structure_message.dataflow.get(urn)
-            df_annotations = [] if dataflow is None else dataflow.annotations
-            annotations = [self._to_proxy_annotation(a) for a in df_annotations]
+            annotations = [self._to_proxy_annotation(a) for a in dataflow.annotations]
         except Exception:
             logger.exception(f"Failed to parse annotations for the dataflow({urn}).")
             annotations = []
 
         try:
-            dataflow = structure_message.dataflow[urn]
             if is_wildcarded_version(dataflow.structure.version):
                 dataflow.structure = lookup_urn(
                     structure_message.structure, Urn.for_artifact(dataflow.structure)

@@ -237,7 +237,7 @@ class AsyncQuanthubClient(AsyncSdmxClient):
                 raise ValueError("`use_cache` is not supported with `key` or `params`")
             return await self._cache.get(  # type: ignore[return-value]
                 key=url,
-                loader=lambda: self._fetch_qh_available_constraint(url=url, key=key, params=params),
+                loader=lambda: self._fetch_qh_available_constraint(url=url, key=None, params=None),
             )
 
         return await self._fetch_qh_available_constraint(url=url, key=key, params=params)
