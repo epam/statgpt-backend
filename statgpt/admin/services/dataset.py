@@ -782,9 +782,7 @@ class AdminPortalDataSetService(DataSetService):
                 )
             else:
                 _, resolved_config = await handler.resolve_config(
-                    config=dataset.details,
-                    previous_resolved_config=last_completed.resolved_config,
-                    auth_context=auth_context,
+                    config=dataset.details, auth_context=auth_context
                 )
                 resolved_parsed = handler.parse_data_set_config(resolved_config)
                 new_config_hash = resolved_parsed.indexing_hash
@@ -2465,7 +2463,7 @@ class AdminPortalDataSetService(DataSetService):
 
             # Phase B: Network I/O — no session needed
             # last_completed is a schema, so resolved_config is accessible without a session
-            details, new_resolved_config = await handler.resolve_config(
+            details, new_resolved_config = await handler.reresolve_config(
                 config=dataset_details,
                 previous_resolved_config=last_completed.resolved_config,
                 auth_context=auth_context,
