@@ -59,7 +59,6 @@ class AsyncStatGptSdmxProxyClient(AsyncSdmxClient):
                 use_cache=use_cache,
                 key=key,
                 params=params,
-                dsd=dsd,
             )
 
     async def data(
@@ -82,32 +81,16 @@ class AsyncStatGptSdmxProxyClient(AsyncSdmxClient):
                 dsd=dsd,
             )
 
-    async def _proxy_available_constraint(
+    async def _fetch_proxy_available_constraint(
         self,
         *,
-        agency_id: str,
-        resource_id: str,
-        version: str,
-        use_cache: bool,
+        url: str,
         key: dict[str, list[str]] | None,
         params: dict[str, str] | None,
-        dsd: DataStructureDefinition | None,
     ) -> StructureMessage:
         """Fetch available constraints from the StatGPT SDMX proxy API."""
-        url = self._build_url(
-            path=f"/availability/dataflow/{agency_id}/{resource_id}/{version}", params=None
-        )
-
-        if use_cache:
-            if key or params:
-                raise ValueError("`use_cache` is not supported with `key` or `params`")
-
-            cached_response = await self._get_item_from_cache(url)
-            if cached_response is not None:
-                return cached_response  # type: ignore[return-value]
-
-        key = {} if key is None else key
-        req_body_obj = SdmxPlusAvailabilityRequestBody.get_from(key=key, params=params)
+        resolved_key = {} if key is None else key
+        req_body_obj = SdmxPlusAvailabilityRequestBody.get_from(key=resolved_key, params=params)
         body = req_body_obj.model_dump(mode='json', exclude_none=True, by_alias=True)
         headers = {'accept': 'application/vnd.sdmx.structure+json;version=2.0.0'}
         req = requests.Request(
@@ -128,11 +111,33 @@ class AsyncStatGptSdmxProxyClient(AsyncSdmxClient):
 
         resp_body_obj = ProxyAvailabilityResponseBody.model_validate(response.json())
         structure_msg = resp_body_obj.to_sdmx1()
+        return structure_msg
+
+    async def _proxy_available_constraint(
+        self,
+        *,
+        agency_id: str,
+        resource_id: str,
+        version: str,
+        use_cache: bool,
+        key: dict[str, list[str]] | None,
+        params: dict[str, str] | None,
+    ) -> StructureMessage:
+        url = self._build_url(
+            path=f"/availability/dataflow/{agency_id}/{resource_id}/{version}", params=None
+        )
 
         if use_cache:
-            self._sync_client.cache[url] = structure_msg
+            if key or params:
+                raise ValueError("`use_cache` is not supported with `key` or `params`")
+            return await self._cache.get(  # type: ignore[return-value]
+                key=url,
+                loader=lambda: self._fetch_proxy_available_constraint(
+                    url=url, key=key, params=params
+                ),
+            )
 
-        return structure_msg
+        return await self._fetch_proxy_available_constraint(url=url, key=key, params=params)
 
     async def _proxy_data(
         self,

@@ -19,6 +19,8 @@ from statgpt.common.config import multiline_logger as logger
 from statgpt.common.data.sdmx.common.authorizer import IAuthorizer
 from statgpt.common.data.sdmx.common.config import SdmxDataSourceConfig
 from statgpt.common.data.sdmx.v21.ratelimiter import SdmxRateLimiter
+from statgpt.common.settings.sdmx import sdmx_settings
+from statgpt.common.utils import AsyncLoadingCache
 
 
 def init_sdmx(config: SdmxDataSourceConfig):
@@ -28,8 +30,7 @@ def init_sdmx(config: SdmxDataSourceConfig):
 class AsyncSdmxClient:
     """Async client for interacting with the SDMX API."""
 
-    _LOADING: set[str] = set()
-    """Urls of SDMX requests that are currently being loaded."""
+    _cache: AsyncLoadingCache[Message] = AsyncLoadingCache(ttl=sdmx_settings.sdmx_client_cache_ttl)
 
     @classmethod
     def from_config(
@@ -302,18 +303,12 @@ class AsyncSdmxClient:
         )
 
         if use_cache:
-            cached_response = await self._get_item_from_cache(req.url)  # type: ignore[arg-type]
-            if cached_response is not None:
-                return cached_response
+            return await self._cache.get(
+                key=req.url,  # type: ignore[arg-type]
+                loader=lambda: self._fetch(req, tofile=tofile),
+            )
 
-        httpx_response = await self._perform_request(req)
-        response = self._convert_response(httpx_response, req)
-        msg = self._parse_response(response, tofile=tofile)
-
-        if use_cache:
-            self._sync_client.cache[req.url] = msg  # type: ignore[index]
-
-        return msg
+        return await self._fetch(req, tofile=tofile)
 
     async def _construct_headers(
         self, headers: dict[str, str], resource: Resource
@@ -325,17 +320,12 @@ class AsyncSdmxClient:
         default_headers = self._sync_client.source.headers.get(resource.name, {})
         return {**default_headers, **auth_headers, **headers}
 
-    async def _get_item_from_cache(self, url: str, timeout: int = 120) -> Message | None:
-        waited: float = 0.0
-        while url in self._LOADING and waited < timeout:
-            # Wait for the request to finish if it's currently being loaded
-            await asyncio.sleep(0.5)
-            waited += 0.5
-
-        return self._sync_client.cache.get(url)
+    async def _fetch(self, req: PreparedRequest, tofile: os.PathLike | IO | None = None) -> Message:
+        httpx_response = await self._perform_request(req)
+        response = self._convert_response(httpx_response, req)
+        return self._parse_response(response, tofile=tofile)
 
     async def _perform_request(self, req: PreparedRequest, max_retries=3, delay=3) -> Response:
-        self._LOADING.add(req.url)  # type: ignore[arg-type]
         attempts = 0
         try:
             while True:
@@ -375,8 +365,6 @@ class AsyncSdmxClient:
                 f"{req.method} {req.url} body={req.body!r}"
             )
             raise
-        finally:
-            self._LOADING.discard(req.url)  # type: ignore[arg-type]
 
     @staticmethod
     def _convert_response(httpx_resp: httpx.Response, req: PreparedRequest) -> requests.Response:
