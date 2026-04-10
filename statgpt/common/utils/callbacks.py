@@ -109,11 +109,10 @@ class TokenUsageByModelsCallback(AsyncCallbackHandler):
         run_id: UUID,
         **kwargs: t.Any,
     ) -> None:
-        if serialized['id'][-1] == 'AzureChatOpenAI':
-            try:
-                self._run_2_deployment[run_id] = serialized['kwargs']['deployment_name']
-            except (KeyError, TypeError):
-                pass
+        try:
+            self._run_2_deployment[run_id] = serialized['kwargs']['deployment_name']
+        except (KeyError, TypeError):
+            pass
 
     async def on_llm_end(
         self,
