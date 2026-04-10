@@ -2463,11 +2463,16 @@ class AdminPortalDataSetService(DataSetService):
 
             # Phase B: Network I/O — no session needed
             # last_completed is a schema, so resolved_config is accessible without a session
-            details, new_resolved_config = await handler.reresolve_config(
-                config=dataset_details,
-                previous_resolved_config=last_completed.resolved_config,
-                auth_context=auth_context,
-            )
+            if last_completed.resolved_config is None:
+                details, new_resolved_config = await handler.resolve_config(
+                    config=dataset_details, auth_context=auth_context
+                )
+            else:
+                details, new_resolved_config = await handler.reresolve_config(
+                    config=dataset_details,
+                    previous_resolved_config=last_completed.resolved_config,
+                    auth_context=auth_context,
+                )
 
             validation_result = await handler.validate_dataset_config(
                 new_resolved_config, auth_context=auth_context, mode="return"
