@@ -49,14 +49,14 @@ class SupremeAgentConfig(BaseYamlModel):
         default="",
         description="Additional context for the supreme agent",
     )
-    general: str = Field(
+    general_section: str = Field(
         default="",
         description=(
             "Custom content for the 'General' section of the system prompt."
             " If empty, the default content is used."
         ),
     )
-    no_calculations_and_analytics: str = Field(
+    no_calculations_section: str = Field(
         default="",
         description=(
             "Custom content for the 'No Calculations and Analytics' section of the system prompt."
