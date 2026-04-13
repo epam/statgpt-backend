@@ -228,7 +228,6 @@ class LLMCallDurationCallback(AsyncCallbackHandler):
             duration_manager.add_duration(
                 LLMCallDurationItem(
                     deployment=deployment_id,
-                    model=deployment_id,
                     duration_s=round(duration_s, 3),
                 )
             )
