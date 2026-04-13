@@ -18,8 +18,9 @@ systemPrompt: |-
   ## General
 
   {general_section}
-  5. **Today's date** is `{datetime_now}`. 
-  6. All data points, facts and analysis that are timestamped **after today's date**
+
+  -  **Today's date** is `{datetime_now}`. 
+  -  All data points, facts and analysis that are timestamped **after today's date**
      are forecasted and should be treated as such. All data points, facts and analysis that are timestamped **before
      today's date** are historical and should be treated as such. It's important to **adjust responses language**
      accordingly.
