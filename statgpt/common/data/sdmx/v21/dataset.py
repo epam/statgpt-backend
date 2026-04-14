@@ -1038,6 +1038,8 @@ class Sdmx21DataSet(
         elif len(constraints) != 1:
             raise ValueError("Unexpected quantity of constraints in structure message")
         constraint = constraints[0]
+        if len(constraint.data_content_region) == 0:
+            return DataSetAvailabilityQuery()  # empty query
         if len(constraint.data_content_region) != 1:
             raise ValueError("Unexpected quantity of cube-regions in constraint")
         cube_region = constraint.data_content_region[0]
@@ -1251,10 +1253,11 @@ class Sdmx21DataSet(
         )
 
     def get_python_code_body(self, sdmx_query: SdmxDataSetQuery, suffix: str = "") -> str:
-        if self._datasource.config.sdmx1_source:
-            provider = self._datasource.config.sdmx1_source
-        else:
-            provider = self._artefact.maintainer.id  # type: ignore
+        provider = (
+            self._config.sdmx1_source
+            or self._datasource.config.sdmx1_source
+            or self._artefact.maintainer.id  # type: ignore[union-attr]
+        )
 
         flow_ref = (
             f"{self._artefact.maintainer.id}"  # type: ignore[union-attr]
