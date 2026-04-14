@@ -227,7 +227,7 @@ class DataSetService(DbServiceBase):
         self, dataset_uuid: str | uuid.UUID, expand: bool = False
     ) -> models.DataSet:
         """Retrieve a models.DataSet by external UUID (`id_`) from dataset configs."""
-
+        dataset_uuid = uuid.UUID(str(dataset_uuid))
         query = select(models.DataSet).where(models.DataSet.id_ == dataset_uuid)
         if expand:
             query = query.options(
