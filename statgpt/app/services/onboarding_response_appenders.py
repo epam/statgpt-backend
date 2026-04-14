@@ -67,6 +67,9 @@ class PredefinedDataQueryResponseAppender(BaseResponseAppender[PredefinedDataQue
         if dataset is None:
             _log.warning("Dataset with id %s not found", urn)
             return
+        sdmx1_source = getattr(dataset, 'resolved_sdmx1_source', None) or getattr(
+            dataset.config, 'sdmx1_source', None
+        )
         json_query_metadata = JsonQueryMetadata(
             country_dimension=dataset.config.country_dimension,
             indicator_dimensions=dataset.config.indicator_dimensions,
@@ -75,6 +78,7 @@ class PredefinedDataQueryResponseAppender(BaseResponseAppender[PredefinedDataQue
         json_query = JsonQueryWithMetadata.from_query(
             query=self._get_relative_time_period_aware_query(self._response.query),
             metadata=json_query_metadata,
+            sdmx1_source=sdmx1_source,
         ).model_dump(by_alias=True)
         json_query_content = json.dumps(json_query)
         choice.add_attachment(

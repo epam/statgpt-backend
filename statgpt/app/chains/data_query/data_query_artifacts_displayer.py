@@ -8,6 +8,7 @@ from aidial_sdk.chat_completion import Choice
 
 from statgpt.app.schemas.dial_app_configuration import StatGPTConfiguration
 from statgpt.app.schemas.tool_artifact import DataQueryArtifact
+from statgpt.app.services.python_code_generator import PYTHON_SDMX1_HEADER as _PYTHON_SDMX1_HEADER
 from statgpt.app.utils import get_json_markdown, get_python_code_markdown
 from statgpt.common.auth.auth_context import AuthContext
 from statgpt.common.config import logger
@@ -25,15 +26,6 @@ _PARSING_PARTIALLY_FAILED_DISCLAIMER = """
 IMPORTANT: Some of the data could not be parsed correctly and is not included in the data shown below. \
 It will be still visible to the user in the table view in the UI.
 """
-
-_PYTHON_SDMX1_HEADER = """\
-# Uses the [sdmx1 library](https://pypi.org/project/sdmx1/)
-# Install with:
-# ```bash
-# pip install sdmx1
-# ```
-
-import sdmx"""
 
 
 class DataQueryArtifactDisplayer:

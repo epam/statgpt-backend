@@ -1,6 +1,6 @@
 from enum import StrEnum
 
-from pydantic import Field
+from pydantic import Field, field_validator
 
 from .base import BaseYamlModel
 
@@ -23,6 +23,13 @@ class JsonComponentQuery(BaseYamlModel):
     operator: JsonQueryOperator = Field(description="The operator of the query")
     values: list[str] = Field(description="The values of the query")
 
+    @field_validator("values", mode="before")
+    @classmethod
+    def _coerce_values(cls, v: object) -> list[str]:
+        if isinstance(v, str):
+            return v.split(",")
+        return v  # type: ignore[return-value]
+
 
 class JsonQueryMetadata(BaseYamlModel):
     country_dimension: str = Field(description="The country dimension code")
@@ -37,7 +44,18 @@ class JsonQuery(BaseYamlModel):
 
 class JsonQueryWithMetadata(JsonQuery):
     metadata: JsonQueryMetadata = Field(description="The metadata of the query")
+    sdmx1_source: str | None = Field(default=None, description="The sdmx1 library source id")
 
     @classmethod
-    def from_query(cls, query: JsonQuery, metadata: JsonQueryMetadata) -> "JsonQueryWithMetadata":
-        return cls(urn=query.urn, filters=query.filters, metadata=metadata)
+    def from_query(
+        cls,
+        query: JsonQuery,
+        metadata: JsonQueryMetadata,
+        sdmx1_source: str | None = None,
+    ) -> "JsonQueryWithMetadata":
+        return cls(
+            urn=query.urn,
+            filters=query.filters,
+            metadata=metadata,
+            sdmx1_source=sdmx1_source,
+        )

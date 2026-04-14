@@ -215,6 +215,7 @@ class Sdmx21DataResponse(DataResponse):
     def json_query_old(self) -> dict:
         return {
             'urn': self.dataset.short_urn,
+            'sdmx1Source': self.dataset.resolved_sdmx1_source,
             'metadata': self._get_dataset_metadata_as_dict(),
             'filters': self._to_sdmx_filters(self.sdmx_query),
         }
@@ -229,6 +230,7 @@ class Sdmx21DataResponse(DataResponse):
                 indicator_dimensions=self.dataset.config.indicator_dimensions,
                 dataset_url=self.dataset.dataset_url,
             ),
+            sdmx1_source=self.dataset.resolved_sdmx1_source,
         ).model_dump(by_alias=True)
 
     def get_python_code_body(self, suffix: str = "") -> str | None:
@@ -1252,12 +1254,16 @@ class Sdmx21DataSet(
             ),
         )
 
-    def get_python_code_body(self, sdmx_query: SdmxDataSetQuery, suffix: str = "") -> str:
-        provider = (
+    @property
+    def resolved_sdmx1_source(self) -> str:
+        return (
             self._config.sdmx1_source
             or self._datasource.config.sdmx1_source
             or self._artefact.maintainer.id  # type: ignore[union-attr]
         )
+
+    def get_python_code_body(self, sdmx_query: SdmxDataSetQuery, suffix: str = "") -> str:
+        provider = self.resolved_sdmx1_source
 
         flow_ref = (
             f"{self._artefact.maintainer.id}"  # type: ignore[union-attr]
