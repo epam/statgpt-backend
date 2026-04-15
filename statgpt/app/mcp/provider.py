@@ -72,6 +72,7 @@ class _McpToolAdapter(Tool):
             "name": self._langchain_tool.name,
             "args": {**arguments, "inputs": self._inputs},
             "id": str(uuid4()),
+            "type": "tool_call",
         }
         result = await self._langchain_tool.ainvoke(tool_call)
         content = result.content if isinstance(result.content, str) else str(result.content)
