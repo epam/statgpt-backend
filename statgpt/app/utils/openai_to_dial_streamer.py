@@ -1,11 +1,14 @@
 import json
+import time
 from typing import Any
 
 from aidial_sdk.chat_completion import Choice, Stage
 from openai.types.chat import ChatCompletionChunk
 
 from statgpt.common.schemas import StagesConfig
+from statgpt.common.schemas.llm_call_duration import LLMCallDurationItem
 from statgpt.common.schemas.token_usage import TokenUsageItem
+from statgpt.common.utils.llm_call_duration_context import get_llm_call_duration_manager
 from statgpt.common.utils.token_usage_context import get_token_usage_manager
 
 
@@ -39,12 +42,15 @@ class OpenAiToDialStreamer:
         self._content = ""
         self._stages: dict[int, Stage] = {}
         self._attachments: list[dict[str, Any]] = []
+        self._start_time: float | None = None
 
     def __enter__(self):
+        self._start_time = time.monotonic()
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         self._exit_opened_stages(exc_type, exc_val, exc_tb)
+        self._update_llm_call_duration()
         return False
 
     @property
@@ -159,3 +165,21 @@ class OpenAiToDialStreamer:
                     completion_tokens=usage['completion_tokens'],
                 )
             )
+
+    def _update_llm_call_duration(self) -> None:
+        if self._start_time is None:
+            return
+
+        duration_s = time.monotonic() - self._start_time
+
+        try:
+            duration_manager = get_llm_call_duration_manager()
+        except LookupError:
+            return
+
+        duration_manager.add_duration(
+            LLMCallDurationItem(
+                deployment=self._deployment,
+                duration_s=duration_s,
+            )
+        )
