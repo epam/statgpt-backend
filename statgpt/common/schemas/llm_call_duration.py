@@ -18,5 +18,5 @@ class LLMCallDurationItem(BaseModel):
 
         return LLMCallDurationItem(
             deployment=self.deployment,
-            duration_s=round(self.duration_s + other.duration_s, 3),
+            duration_s=self.duration_s + other.duration_s,
         )

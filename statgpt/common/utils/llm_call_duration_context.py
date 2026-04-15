@@ -4,14 +4,16 @@ from contextvars import ContextVar
 
 from statgpt.common.schemas.llm_call_duration import LLMCallDurationItem
 
-_llm_call_duration_context_var: ContextVar = ContextVar("llm_call_duration_context")
+_llm_call_duration_context_var: ContextVar["LLMCallDurationManager"] = ContextVar(
+    "llm_call_duration_context"
+)
 
 
 class LLMCallDurationManager:
-    def __init__(self):
-        self._durations = {}
+    def __init__(self) -> None:
+        self._durations: dict[str, LLMCallDurationItem] = {}
 
-    def add_duration(self, item: LLMCallDurationItem):
+    def add_duration(self, item: LLMCallDurationItem) -> None:
         if item.id not in self._durations:
             self._durations[item.id] = item
         else:
