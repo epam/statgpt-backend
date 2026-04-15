@@ -1,6 +1,5 @@
 import json
 
-from aidial_sdk.chat_completion import Choice
 from langchain_core.prompts import (
     ChatPromptTemplate,
     MessagesPlaceholder,
@@ -12,7 +11,7 @@ from pydantic import BaseModel, Field
 from statgpt.app.chains.parameters import ChainParameters
 from statgpt.app.config import ChainParametersConfig, StateVarsConfig
 from statgpt.app.default_prompts import guardrails_default_prompts
-from statgpt.app.utils.dial_stages import optional_timed_stage
+from statgpt.app.utils.dial_stages import ChoiceI, optional_timed_stage
 from statgpt.app.utils.message_history import History
 from statgpt.common.schemas import ChannelConfig
 from statgpt.common.utils.markdown import format_as_markdown_list
@@ -51,7 +50,7 @@ class OutOfScopeChecker:
     @staticmethod
     def _start_new_conversation(
         inputs: dict,
-        choice: Choice,
+        choice: ChoiceI,
         out_of_scope_msgs_count: int,
         start_new_conversation_messages_threshold: int,
         start_new_conversation_message: str,

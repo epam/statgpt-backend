@@ -60,7 +60,7 @@ class _McpToolAdapter(Tool):
     def __init__(
         self,
         langchain_tool: StatGptTool,
-        inputs: dict,
+        inputs: dict[str, Any],
         **kwargs: Any,
     ):
         super().__init__(**kwargs)

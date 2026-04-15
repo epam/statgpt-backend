@@ -1,6 +1,8 @@
 import logging
 import sys
-from contextlib import asynccontextmanager
+from collections.abc import Callable
+from contextlib import AbstractAsyncContextManager, asynccontextmanager
+from typing import Any
 
 from aidial_sdk import DIALApp
 from aidial_sdk import logger as dial_logger
@@ -48,7 +50,7 @@ class DialAppFactory:
     def create_app(self) -> DIALApp:
         _log.info("Creating DIAL app name=%s", dial_app_settings.dial_app_name)
 
-        lifespan = base_lifespan
+        lifespan: Callable[[StatGPTApp], AbstractAsyncContextManager[Any]] = base_lifespan
         mcp_app = None
 
         if dial_app_settings.statgpt_mcp_enabled:
@@ -59,7 +61,7 @@ class DialAppFactory:
                 mcp_app = mcp.http_app(path="/", transport="streamable-http", stateless_http=True)
 
                 @asynccontextmanager
-                async def combined_lifespan(app_):
+                async def combined_lifespan(app_: StatGPTApp):
                     async with base_lifespan(app_):
                         async with mcp_app.lifespan(app_):
                             yield

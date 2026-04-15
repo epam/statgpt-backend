@@ -4,11 +4,11 @@ import string
 
 import pandas as pd
 import plotly.graph_objects as go
-from aidial_sdk.chat_completion import Choice
 
 from statgpt.app.schemas.dial_app_configuration import StatGPTConfiguration
 from statgpt.app.schemas.tool_artifact import DataQueryArtifact
 from statgpt.app.utils import get_json_markdown, get_python_code_markdown
+from statgpt.app.utils.dial_stages import ChoiceI
 from statgpt.common.auth.auth_context import AuthContext
 from statgpt.common.config import logger
 from statgpt.common.data.base import DataResponse
@@ -39,7 +39,7 @@ import sdmx"""
 class DataQueryArtifactDisplayer:
     def __init__(
         self,
-        choice: Choice,
+        choice: ChoiceI,
         config: DataQueryAttachments,
         chat_config: StatGPTConfiguration,
         max_cells: int,
