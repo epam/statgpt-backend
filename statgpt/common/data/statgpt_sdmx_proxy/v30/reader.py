@@ -320,9 +320,7 @@ class StatGptSdmxProxyDataReader(Reader):
                 result[attr.id] = av
         return result
 
-    def _resolve_dataset_level_slot(
-        self, attr: Any, raw: Any
-    ) -> AttributeValue | None:
+    def _resolve_dataset_level_slot(self, attr: Any, raw: Any) -> AttributeValue | None:
         if raw is None:
             return AttributeValue(value=None, value_for=attr)  # type: ignore[arg-type]
 
