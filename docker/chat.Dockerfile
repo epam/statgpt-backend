@@ -35,8 +35,9 @@ FROM python:3.11-alpine AS server
 
 # Security patches (consolidated into single layer)
 # CVE-2023-52425 (libexpat), CVE-2025-6965 (sqlite-libs), libcrypto3/libssl3
+# CVE-2026-40200 (musl)
 RUN apk update && apk upgrade --no-cache \
-    libcrypto3 libssl3 libexpat sqlite-libs zlib \
+    libcrypto3 libssl3 libexpat sqlite-libs zlib musl musl-utils \
   && apk add --no-cache ca-certificates \
   && update-ca-certificates \
   && rm -rf /var/cache/apk/*
