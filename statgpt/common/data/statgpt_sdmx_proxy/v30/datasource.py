@@ -142,7 +142,9 @@ class StatGptSdmxProxyDataSourceHandler(Sdmx21DataSourceHandler):
                     version=urn.version,
                 )
             except Exception:
-                logger.exception(f"Failed to load dataset-level attributes for the dataflow({urn}).")
+                logger.exception(
+                    f"Failed to load dataset-level attributes for the dataflow({urn})."
+                )
                 attribute_values = {}
         else:
             attribute_values = {}
