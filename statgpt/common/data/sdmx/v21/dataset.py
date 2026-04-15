@@ -88,6 +88,13 @@ class SdmxOfflineDataSet(OfflineDataSet[SdmxDataSetConfig, 'Sdmx21DataSourceHand
     def description(self) -> str:
         return ''
 
+    def get_resolved_sdmx1_source(self) -> str | None:
+        return (
+            self.config.sdmx1_source
+            or self._datasource.config.sdmx1_source
+            or self.config.urn.agency_id
+        )
+
 
 class InvalidConfigurationError(Exception):
     def __init__(self, message: str, entity_id: uuid.UUID, dataset_urn: str):
@@ -229,6 +236,7 @@ class Sdmx21DataResponse(DataResponse):
             metadata=JsonQueryMetadata(
                 country_dimension=self.dataset.config.country_dimension,
                 indicator_dimensions=self.dataset.config.indicator_dimensions,
+                time_period_dimension=self.dataset.config.time_period_dimension[0],
                 dataset_url=self.dataset.dataset_url,
             ),
             sdmx1_source=self.dataset.resolved_sdmx1_source,
@@ -1263,6 +1271,9 @@ class Sdmx21DataSet(
             or self._artefact.maintainer.id  # type: ignore[union-attr]
         )
 
+    def get_resolved_sdmx1_source(self) -> str | None:
+        return self.resolved_sdmx1_source
+
     def get_python_code_body(self, sdmx_query: SdmxDataSetQuery, suffix: str = "") -> str:
         provider = self.resolved_sdmx1_source
 
@@ -1295,4 +1306,3 @@ class Sdmx21DataSet(
             values = keys.get(dim.id, [])
             parts.append("+".join(values))
         return ".".join(parts)
-

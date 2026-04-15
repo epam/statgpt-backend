@@ -67,12 +67,11 @@ class PredefinedDataQueryResponseAppender(BaseResponseAppender[PredefinedDataQue
         if dataset is None:
             _log.warning("Dataset with id %s not found", urn)
             return
-        sdmx1_source = getattr(dataset, 'resolved_sdmx1_source', None) or getattr(
-            dataset.config, 'sdmx1_source', None
-        )
+        sdmx1_source = dataset.get_resolved_sdmx1_source()
         json_query_metadata = JsonQueryMetadata(
             country_dimension=dataset.config.country_dimension,
             indicator_dimensions=dataset.config.indicator_dimensions,
+            time_period_dimension=dataset.config.time_period_dimension[0],
             dataset_url=dataset.dataset_url,
         )
         json_query = JsonQueryWithMetadata.from_query(

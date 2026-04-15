@@ -221,6 +221,10 @@ class DataSet(BaseEntity, Generic[DataSetConfigType, DataSourceHandlerType], ABC
     def status(self) -> Status:
         pass
 
+    @abstractmethod
+    def get_resolved_sdmx1_source(self) -> str | None:
+        """Return resolved SDMX 1.0 source identifier if available."""
+
     @property
     @abstractmethod
     def default_value_codes(self) -> list[str]:
@@ -305,6 +309,9 @@ class OfflineDataSet(DataSet, Generic[DataSetConfigType, DataSourceHandlerType],
     @property
     def default_value_codes(self) -> list[str]:
         return []
+
+    def get_resolved_sdmx1_source(self) -> str | None:
+        return None
 
     @property
     def dataset_url(self) -> str | None:

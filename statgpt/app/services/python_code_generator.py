@@ -57,15 +57,6 @@ def _build_params_from_filters(filters: list[JsonComponentQuery]) -> dict[str, s
     return params
 
 
-def _detect_time_component(filters: list[JsonComponentQuery]) -> str:
-    """Detect the time dimension component code from filters."""
-    time_operators = {JsonQueryOperator.BETWEEN, JsonQueryOperator.GE, JsonQueryOperator.LE}
-    for f in filters:
-        if f.operator in time_operators:
-            return f.component_code
-    return "TIME_PERIOD"
-
-
 def generate_python_code_from_query(
     query: JsonQueryWithMetadata,
     suffix: str = "",
@@ -75,7 +66,7 @@ def generate_python_code_from_query(
 
     provider = query.sdmx1_source or agency_id
 
-    time_component = _detect_time_component(query.filters)
+    time_component = query.metadata.time_period_dimension
     key = _build_key_from_filters(query.filters, time_component)
 
     time_filters = [f for f in query.filters if f.component_code == time_component]
