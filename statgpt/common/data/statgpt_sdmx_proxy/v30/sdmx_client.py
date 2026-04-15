@@ -6,7 +6,7 @@ import httpx
 import requests
 from sdmx import Resource
 from sdmx.message import DataMessage, StructureMessage
-from sdmx.model.v21 import DataStructureDefinition
+from sdmx.model.v21 import AttributeValue, Code, DataStructureDefinition
 from sdmx.session import ResponseIO
 
 from statgpt.common.auth.auth_context import AuthContext
@@ -15,14 +15,28 @@ from statgpt.common.data.base.sdmx_schemas import SdmxPlusAvailabilityRequestBod
 from statgpt.common.data.sdmx.v21.ratelimiter import SdmxRateLimiter
 from statgpt.common.data.sdmx.v21.sdmx_client import AsyncSdmxClient
 from statgpt.common.data.statgpt_sdmx_proxy.config import StatGptSdmxProxyDataSourceConfig
-from statgpt.common.data.statgpt_sdmx_proxy.sdmx_schemas.dataset_level_attributes_payload import (
-    parse_dataset_level_attributes_map,
-)
 from statgpt.common.data.statgpt_sdmx_proxy.sdmx_schemas.structure_message import (
     ProxyAvailabilityResponseBody,
 )
 from statgpt.common.data.statgpt_sdmx_proxy.v30.reader import StatGptSdmxProxyDataReader
 from statgpt.common.utils import TtlCache
+
+
+def _sdmx_attribute_value_display(av: AttributeValue) -> str | None:
+    val = av.value
+    if val is None:
+        return None
+    if isinstance(val, Code):
+        return val.id
+    return str(val)
+
+
+def _dataset_level_attribute_map_from_data_message(msg: DataMessage) -> dict[str, str | None]:
+    """Build the same ``dict`` shape as the Pydantic dataset-attribute parser."""
+    if len(msg.data) != 1:
+        return {}
+    ds = msg.data[0]
+    return {attr_id: _sdmx_attribute_value_display(av) for attr_id, av in ds.attrib.items()}
 
 
 def proxy_structure_extra_headers(dsd_urn: str | None) -> dict[str, str] | None:
@@ -98,11 +112,36 @@ class AsyncStatGptSdmxProxyClient(AsyncSdmxClient):
         if (item := self._attributes_cache.get(url)) is not None:
             return item
 
-        response, _ = await self._perform_get(url, Resource.data)
-        if response is None:
-            return {}
+        async with self._rate_limiter.data_limiter():
+            response, req = await self._perform_get(url, Resource.data)
+            if response is None:
+                return {}
 
-        result = parse_dataset_level_attributes_map(response.json())
+            httpx_response = response
+            requests_response = self._convert_response(httpx_response, req)
+            response_content: io.IOBase = ResponseIO(httpx_response)
+            try:
+                msg = StatGptSdmxProxyDataReader().convert(response_content, structure=None)
+                msg.response = requests_response
+            except Exception:
+                logger.error(
+                    "Failed to parse dataset-level attributes response: url=%r content-type=%r body=%r",
+                    requests_response.url,
+                    requests_response.headers.get("content-type"),
+                    requests_response.text[:1000],
+                )
+                result = {}
+            else:
+                if isinstance(msg, DataMessage):
+                    result = _dataset_level_attribute_map_from_data_message(msg)
+                else:
+                    logger.error(
+                        "Unexpected response message type: %s for URL %r",
+                        type(msg).__name__,
+                        req.url,
+                    )
+                    result = {}
+
         self._attributes_cache.set(url, result)
         return result
 

@@ -215,9 +215,7 @@ class StatGptSdmxProxyDataReader(Reader):
                 self._attr_level[da] = canonical
 
                 if not len(values):
-                    log.warning(f"No AttributeValues for attribute {repr(da)}; skip")
-                    continue
-
+                    log.debug(f"No AttributeValues for attribute {repr(da)}; skip")
                 self._attr_values[da] = values
 
         self.msg = msg
@@ -234,6 +232,7 @@ class StatGptSdmxProxyDataReader(Reader):
             action=ActionType[root["action"].lower()],
             valid_from=root.get("validFrom", None),
         )
+        ds.attrib.update(self._make_dataset_level_attrs(root.get("attributes", [])))
 
         # Process series
         for key_values, elem in root.get("series", {}).items():
@@ -296,6 +295,53 @@ class StatGptSdmxProxyDataReader(Reader):
             av = self._attr_values[attr][index]
             result[av.value_for.id] = av
         return result
+
+    def _make_dataset_level_attrs(self, values: list[Any]) -> dict[str, AttributeValue]:
+        """Resolve ``dataSets[].attributes`` for components at the ``dataSet`` level.
+
+        Unlike :meth:`_make_attrs` for ``series``/``observation``, supports ``null``,
+        out-of-band strings, inline lists (e.g. localized text), integer indices into
+        coded value lists (including empty lists), and implicit indices when the JSON
+        omits trailing positions but a component has a single coded value.
+        """
+        attrs = [a for a in self.msg.structure.attributes if self._attr_level[a] == "dataSet"]
+        result: dict[str, AttributeValue] = {}
+        for idx, attr in enumerate(attrs):
+            if idx < len(values):
+                raw: Any = values[idx]
+            else:
+                coded = self._attr_values.get(attr, [])
+                raw = 0 if len(coded) == 1 else None
+                if raw is None:
+                    continue
+
+            av = self._resolve_dataset_level_slot(attr, raw)
+            if av is not None:
+                result[attr.id] = av
+        return result
+
+    def _resolve_dataset_level_slot(
+        self, attr: Any, raw: Any
+    ) -> AttributeValue | None:
+        if raw is None:
+            return AttributeValue(value=None, value_for=attr)  # type: ignore[arg-type]
+
+        if isinstance(raw, str):
+            return AttributeValue(value=raw, value_for=attr)
+
+        if isinstance(raw, list):
+            joined = ", ".join(str(v) for v in raw if v is not None) or None
+            if joined is None:
+                return AttributeValue(value=None, value_for=attr)  # type: ignore[arg-type]
+            return AttributeValue(value=joined, value_for=attr)
+
+        if not isinstance(raw, int):
+            return AttributeValue(value=str(raw), value_for=attr)
+
+        coded = self._attr_values.get(attr, [])
+        if not len(coded) or raw >= len(coded):
+            return AttributeValue(value=None, value_for=attr)  # type: ignore[arg-type]
+        return coded[raw]
 
 
 def _code_from_value(v: dict) -> Code:
