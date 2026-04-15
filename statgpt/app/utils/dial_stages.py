@@ -5,14 +5,33 @@ from collections.abc import Callable
 from contextlib import AbstractContextManager, contextmanager
 from datetime import datetime
 from time import perf_counter
+from typing import Any, Protocol, runtime_checkable
 
-from aidial_sdk.chat_completion import Attachment, Choice, Stage
+from aidial_sdk.chat_completion import Attachment, Stage
 from aidial_sdk.chat_completion.enums import Status
 from aidial_sdk.chat_completion.stage import ChunkQueue, ContentStream
 
 from statgpt.app.settings.dial_app import dial_app_settings
 
 _log = logging.getLogger(__name__)
+
+
+@runtime_checkable
+class ChoiceI(Protocol):
+    """Structural protocol for Choice-like objects.
+
+    Both ``aidial_sdk.chat_completion.Choice`` and ``NullChoice`` satisfy this
+    protocol, so Pydantic's ``isinstance`` check (used with
+    ``arbitrary_types_allowed``) passes for either.
+    """
+
+    def create_stage(self, *args: Any, **kwargs: Any) -> Any: ...
+
+    def append_content(self, content: str) -> Any: ...
+
+    def add_attachment(self, *args: Any, **kwargs: Any) -> Any: ...
+
+    def set_state(self, state: dict) -> Any: ...
 
 
 class StageInterface(ABC):
@@ -225,7 +244,7 @@ def _add_timing_to_stage(stage_generator):
 
 
 @contextmanager
-def timed_stage(choice: Choice, *args, **kwargs):
+def timed_stage(choice: ChoiceI, *args, **kwargs):
     """Context manager for creating a timed stage."""
     stage_generator = choice.create_stage(*args, **kwargs)
     with _add_timing_to_stage(stage_generator) as stage:
@@ -233,7 +252,7 @@ def timed_stage(choice: Choice, *args, **kwargs):
 
 
 @contextmanager
-def delayed_timed_stage(choice: Choice, *args, **kwargs):
+def delayed_timed_stage(choice: ChoiceI, *args, **kwargs):
     """Context manager for creating a delayed timed stage."""
     stage_generator = DelayedStage(lambda: choice.create_stage(*args, **kwargs))
     with _add_timing_to_stage(stage_generator) as stage:
@@ -251,7 +270,7 @@ def optional_stage(stage_generator: AbstractContextManager[StageInterface], enab
 
 
 @contextmanager
-def optional_timed_stage(choice: Choice, *args, enabled: bool, **kwargs):
+def optional_timed_stage(choice: ChoiceI, *args, enabled: bool, **kwargs):
     """Context manager for creating an optional timed stage."""
     stage_generator = timed_stage(choice, *args, **kwargs)
     with optional_stage(stage_generator, enabled) as stage:
@@ -259,7 +278,7 @@ def optional_timed_stage(choice: Choice, *args, enabled: bool, **kwargs):
 
 
 @contextmanager
-def optional_delayed_timed_stage(choice: Choice, *args, enabled: bool, **kwargs):
+def optional_delayed_timed_stage(choice: ChoiceI, *args, enabled: bool, **kwargs):
     """Context manager for creating an optional delayed timed stage."""
     stage_generator = delayed_timed_stage(choice, *args, **kwargs)
     with optional_stage(stage_generator, enabled) as stage:
