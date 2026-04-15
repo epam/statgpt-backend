@@ -1,5 +1,6 @@
 import re
 
+from statgpt.common.data.sdmx.python_code import generate_python_query_body
 from statgpt.common.schemas.query import (
     JsonComponentQuery,
     JsonQueryOperator,
@@ -63,22 +64,6 @@ def _detect_time_component(filters: list[JsonComponentQuery]) -> str:
         if f.operator in time_operators:
             return f.component_code
     return "TIME_PERIOD"
-
-
-def generate_python_query_body(
-    provider: str,
-    flow_ref: str,
-    key: str,
-    params: dict[str, str],
-    suffix: str = "",
-) -> str:
-    return f'''\
-provider{suffix} = sdmx.Client("{provider}")
-data_msg{suffix} = provider{suffix}.data(
-    "{flow_ref}",
-    key="{key}",
-    params={params}
-)'''
 
 
 def generate_python_code_from_query(

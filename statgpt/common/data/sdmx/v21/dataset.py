@@ -49,6 +49,7 @@ from statgpt.common.data.sdmx.common import (
     SdmxDimension,
     UrnReference,
 )
+from statgpt.common.data.sdmx.python_code import generate_python_query_body
 from statgpt.common.schemas.dataset import Status
 from statgpt.common.schemas.enums import DataParsingStatus, DataRequestStatus
 from statgpt.common.schemas.query import (
@@ -1272,7 +1273,7 @@ class Sdmx21DataSet(
         )
         key_string = self._dict_key_to_sdmx_string(sdmx_query.get_key())
 
-        return self._get_python_query_body(
+        return generate_python_query_body(
             provider=provider,
             flow_ref=flow_ref,
             key=key_string,
@@ -1295,14 +1296,3 @@ class Sdmx21DataSet(
             parts.append("+".join(values))
         return ".".join(parts)
 
-    @staticmethod
-    def _get_python_query_body(
-        provider: str, flow_ref: str, key: str, params: dict, suffix: str = ""
-    ) -> str:
-        return f'''\
-provider{suffix} = sdmx.Client("{provider}")
-data_msg{suffix} = provider{suffix}.data(
-    "{flow_ref}",
-    key="{key}",
-    params={params}
-)'''
