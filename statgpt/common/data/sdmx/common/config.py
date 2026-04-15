@@ -56,6 +56,7 @@ class SdmxConfig(BaseModel):
     name: str = Field()
     headers: SdmxHeaders = Field(default_factory=SdmxHeaders)
     supports: SdmxSupport = Field(default_factory=SdmxSupport)
+    versions: set[str] = Field(default_factory=lambda: {"2.1"})
 
     def get_url(self) -> str:
         """Return the URL for the SDMX data source, replacing environment variables if necessary."""
@@ -193,6 +194,13 @@ class SdmxDataSetConfigMixin:
             "E.g. in SDMX standard codes are `_Z` - Not Applicable/Not Available, `_T` - Total, etc. "
             "If not set, the default value codes from the data source configuration will be used. "
             "If set to an empty list, no default value codes will be used."
+        ),
+    )
+    sdmx1_source: str | None = Field(
+        default=None,
+        description=(
+            "Optional sdmx1 library source id for generated Python attachment code for this dataset. "
+            "When unset, the data source `sdmx1_source` is used; if that is also unset, the dataflow maintainer id is used."
         ),
     )
 

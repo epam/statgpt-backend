@@ -42,6 +42,11 @@ class ConceptIdentity:
     @classmethod
     def from_sdmx1(cls, concept_identity: Concept) -> "ConceptIdentity":
         concept_schema = concept_identity.parent
+        if concept_schema is None:
+            raise ValueError(
+                f"Concept {concept_identity.id!r} has no parent ConceptScheme "
+                f"(concept_identity={concept_identity!r})"
+            )
         return cls(
             urn=Urn.for_artifact(concept_schema),  # type: ignore[arg-type]
             id=concept_identity.id,

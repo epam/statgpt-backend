@@ -6,10 +6,12 @@ from sdmx.model.v21 import DataStructureDefinition
 
 from statgpt.common.auth.auth_context import AuthContext
 from statgpt.common.config import multiline_logger as logger
+from statgpt.common.data.base.sdmx_schemas import (
+    Sdmx30AnnotationModel,
+    SdmxPlusAvailabilityRequestBody,
+)
 from statgpt.common.data.quanthub.config import QuanthubSdmxDataSourceConfig
 from statgpt.common.data.quanthub.sdmx_schemas.v30 import (
-    QhAnnotation,
-    QhAvailabilityRequestBody,
     QhAvailabilityResponseBody,
     QhDataflowMessage,
     QhDataMessage,
@@ -29,7 +31,7 @@ class AsyncQuanthubClient(AsyncSdmxClient):
     Contains methods unique to QuantHub, such as fetching dynamic annotations.
     """
 
-    _annotation_cache: TtlCache[list[QhAnnotation]] = TtlCache()
+    _annotation_cache: TtlCache[list[Sdmx30AnnotationModel]] = TtlCache()
     _attributes_cache: TtlCache[dict[str, str | None]] = TtlCache()
 
     @classmethod
@@ -151,7 +153,7 @@ class AsyncQuanthubClient(AsyncSdmxClient):
 
     async def dynamic_dataflow_annotations(
         self, *, agency_id: str, resource_id: str, version: str
-    ) -> list[QhAnnotation]:
+    ) -> list[Sdmx30AnnotationModel]:
         """Fetch dynamic annotations for a given dataflow."""
 
         if not self._annotations_url:
@@ -183,33 +185,19 @@ class AsyncQuanthubClient(AsyncSdmxClient):
         self._annotation_cache.set(url, response_data.data.dataflows[0].annotations)
         return response_data.data.dataflows[0].annotations
 
-    async def _qh_available_constraint(
+    async def _fetch_qh_available_constraint(
         self,
         *,
-        agency_id: str,
-        resource_id: str,
-        version: str,
-        use_cache: bool,
+        url: str,
         key: dict[str, list[str]] | None,
         params: dict[str, str] | None,
     ) -> StructureMessage:
         """Fetch available constraints from the QuantHub SDMX API."""
-
-        url = f"{self._availability_via_post_url}/availability/dataflow/{agency_id}/{resource_id}/{version}"
-
-        if use_cache:
-            if key or params:
-                raise ValueError("`use_cache` is not supported with `key` or `params`")
-
-            cached_response = await self._get_item_from_cache(url)
-            if cached_response is not None:
-                return cached_response  # type: ignore[return-value]
-
         headers = await self._construct_headers(
             {'accept': 'application/json'}, Resource.availableconstraint
         )
-        key = {} if key is None else key
-        req_body_obj = QhAvailabilityRequestBody.get_from(key=key, params=params)
+        resolved_key = {} if key is None else key
+        req_body_obj = SdmxPlusAvailabilityRequestBody.get_from(key=resolved_key, params=params)
 
         req = requests.Request(
             method="POST",
@@ -230,8 +218,26 @@ class AsyncQuanthubClient(AsyncSdmxClient):
 
         resp_body_obj = QhAvailabilityResponseBody.model_validate(response.json())
         structure_msg = resp_body_obj.to_sdmx1()
+        return structure_msg
+
+    async def _qh_available_constraint(
+        self,
+        *,
+        agency_id: str,
+        resource_id: str,
+        version: str,
+        use_cache: bool,
+        key: dict[str, list[str]] | None,
+        params: dict[str, str] | None,
+    ) -> StructureMessage:
+        url = f"{self._availability_via_post_url}/availability/dataflow/{agency_id}/{resource_id}/{version}"
 
         if use_cache:
-            self._sync_client.cache[url] = structure_msg
+            if key or params:
+                raise ValueError("`use_cache` is not supported with `key` or `params`")
+            return await self._cache.get(  # type: ignore[return-value]
+                key=url,
+                loader=lambda: self._fetch_qh_available_constraint(url=url, key=None, params=None),
+            )
 
-        return structure_msg
+        return await self._fetch_qh_available_constraint(url=url, key=key, params=params)

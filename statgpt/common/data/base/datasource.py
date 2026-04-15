@@ -181,20 +181,41 @@ class DataSourceHandler(
     async def resolve_config(
         self,
         config: dict,
-        previous_resolved_config: dict | None,
         auth_context: AuthContext,
     ) -> tuple[str, dict]:
         """Resolve dynamic values in the dataset config to actual values.
 
-        Resolves URN version='latest' (or other dynamic values) to actual version.
-        In the future, may also update other fields such as dimensions if they can be dynamically resolved.
+        Builds the resolved config from the given config, replacing dynamic
+        values (e.g. URN version='latest') with actual values.
 
         Args:
-            config: The current dataset configuration
+            config: The dataset configuration to resolve
+            auth_context: Authentication context for API calls
+
+        Returns:
+            A string describing the resolution details
+            and the new resolved config with dynamic values replaced by actual values.
+        """
+
+    @abstractmethod
+    async def reresolve_config(
+        self,
+        config: dict,
+        previous_resolved_config: dict,
+        auth_context: AuthContext,
+    ) -> tuple[str, dict]:
+        """Re-resolve a previously resolved config to detect upstream changes.
+
+        Checks whether dynamic values (e.g. URN version) have changed since
+        the previous resolution. Uses the previous resolved config as the base,
+        updating only the dynamic values.
+
+        Args:
+            config: The current dataset configuration (used to obtain dynamic references)
             previous_resolved_config: The previously resolved config (from last completed version)
             auth_context: Authentication context for API calls
 
         Returns:
-            A string describing the resolution details (e.g., what was resolved and if there were any changes)
-            and the new resolved config with dynamic values replaced by actual values.
+            A string describing the resolution details
+            and the re-resolved config.
         """

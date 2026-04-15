@@ -1038,6 +1038,8 @@ class Sdmx21DataSet(
         elif len(constraints) != 1:
             raise ValueError("Unexpected quantity of constraints in structure message")
         constraint = constraints[0]
+        if len(constraint.data_content_region) == 0:
+            return DataSetAvailabilityQuery()  # empty query
         if len(constraint.data_content_region) != 1:
             raise ValueError("Unexpected quantity of cube-regions in constraint")
         cube_region = constraint.data_content_region[0]
@@ -1166,6 +1168,9 @@ class Sdmx21DataSet(
     async def _include_attributes(self, df: pd.DataFrame) -> pd.DataFrame:
         return await asyncio.to_thread(self._include_attributes_sync, df)
 
+    def _get_query_params(self, sdmx_query: SdmxDataSetQuery) -> dict:
+        return sdmx_query.get_params()
+
     async def _query_sdmx_data(
         self, sdmx_query: SdmxDataSetQuery, auth_context: AuthContext
     ) -> DataMessage:
@@ -1176,7 +1181,7 @@ class Sdmx21DataSet(
             resource_id=self._artefact.id,
             version=self._artefact.version,  # type: ignore
             key=sdmx_query.get_key(),
-            params=sdmx_query.get_params(),
+            params=self._get_query_params(sdmx_query),
             dsd=self._artefact.structure,
         )
         return data_msg
@@ -1248,10 +1253,11 @@ class Sdmx21DataSet(
         )
 
     def get_python_code_body(self, sdmx_query: SdmxDataSetQuery, suffix: str = "") -> str:
-        if self._datasource.config.sdmx1_source:
-            provider = self._datasource.config.sdmx1_source
-        else:
-            provider = self._artefact.maintainer.id  # type: ignore
+        provider = (
+            self._config.sdmx1_source
+            or self._datasource.config.sdmx1_source
+            or self._artefact.maintainer.id  # type: ignore[union-attr]
+        )
 
         flow_ref = (
             f"{self._artefact.maintainer.id}"  # type: ignore[union-attr]
