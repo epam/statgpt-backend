@@ -1,3 +1,4 @@
+import logging
 from collections.abc import Callable
 from typing import Literal
 
@@ -11,6 +12,8 @@ from statgpt.common.utils import async_utils
 from .schemas import ConceptIdentity, StructureMessage21, Urn
 from .sdmx_client import AsyncSdmxClient
 from .urn_utils import lookup_urn
+
+_log = logging.getLogger(__name__)
 
 
 class DataflowLoader:
@@ -39,7 +42,14 @@ class DataflowLoader:
         dsd = lookup_urn(result_message.structure, dsd_urn)
         dsd_urn_header = self._format_dsd_urn(dsd_urn)
 
-        schemes = await self._load_concept_schemes(dsd, dsd_urn=dsd_urn_header)
+        try:
+            schemes = await self._load_concept_schemes(dsd, dsd_urn=dsd_urn_header)
+        except Exception:
+            _log.exception("Failed to load concept schemes. urn=%s", urn)
+            if (resp := dataflow_msg.response) is not None:
+                _log.info("Dataflow response for urn=%s: %i %s", urn, resp.status_code, resp.url)
+                _log.info("Dataflow response body for urn=%s: %s", urn, resp.text)
+            raise
         for scheme_msg in schemes:
             result_message.add_concept_schemes(scheme_msg.concept_scheme.values())
 
