@@ -9,11 +9,12 @@ from fastmcp.server.providers import Provider
 from fastmcp.tools import Tool, ToolResult
 from mcp.types import TextContent
 from pydantic import PrivateAttr
+from starlette.datastructures import Headers
 
 from statgpt.app.chains.tools import StatGptTool
 from statgpt.app.config import ChainParametersConfig
 from statgpt.app.schemas.dial_app_configuration import StatGPTConfiguration
-from statgpt.app.security import create_auth_context
+from statgpt.app.security import DialAuthCredentials, create_auth_context
 from statgpt.app.services.chat_facade import ChannelServiceFacade
 from statgpt.app.utils.dial_stages import DummyStage, NullChoice
 from statgpt.common.auth.auth_context import AuthContext
@@ -22,29 +23,10 @@ from statgpt.common.schemas import BaseToolConfig, ChannelConfig
 _log = logging.getLogger(__name__)
 
 
-class _HeaderOnlyDialRequest:
-    """Adapter for auth checks from MCP HTTP headers."""
-
-    def __init__(self, headers: dict[str, str]):
-        self._api_key = headers.get("api-key") or headers.get("x-api-key")
-        token = headers.get("authorization")
-        self._bearer_token = (
-            token[7:] if token is not None and token.startswith("Bearer ") else None
-        )
-
-    @property
-    def api_key(self) -> str | None:
-        return self._api_key
-
-    @property
-    def bearer_token(self) -> str | None:
-        return self._bearer_token
-
-
 def _build_mcp_inputs(
     auth_context: AuthContext,
     data_service: ChannelServiceFacade,
-) -> dict:
+) -> dict[str, Any]:
     configuration = StatGPTConfiguration()
     return {
         ChainParametersConfig.CHOICE: NullChoice(),
@@ -73,7 +55,7 @@ class _McpToolAdapter(Tool):
     """A FastMCP Tool backed by a StatGptTool instance."""
 
     _langchain_tool: StatGptTool = PrivateAttr()
-    _inputs: dict = PrivateAttr()
+    _inputs: dict[str, Any] = PrivateAttr()
 
     def __init__(
         self,
@@ -86,10 +68,9 @@ class _McpToolAdapter(Tool):
         self._inputs = inputs
 
     async def run(self, arguments: dict[str, Any]) -> ToolResult:
-        arguments["inputs"] = self._inputs
         tool_call = {
             "name": self._langchain_tool.name,
-            "args": arguments,
+            "args": {**arguments, "inputs": self._inputs},
             "id": str(uuid4()),
         }
         result = await self._langchain_tool.ainvoke(tool_call)
@@ -100,14 +81,12 @@ class _McpToolAdapter(Tool):
 class ChannelToolProvider(Provider):
     """MCP Provider that dynamically serves tools from a StatGPT channel config."""
 
-    def _get_headers(self) -> dict[str, str]:
+    def _get_headers(self) -> Headers:
         request = get_http_request()
-        return dict(request.headers)
+        return request.headers
 
-    async def _resolve_context(
-        self, headers: dict[str, str]
-    ) -> tuple[AuthContext, ChannelServiceFacade]:
-        auth_context = await create_auth_context(_HeaderOnlyDialRequest(headers))
+    async def _resolve_context(self, headers: Headers) -> tuple[AuthContext, ChannelServiceFacade]:
+        auth_context = await create_auth_context(DialAuthCredentials.from_headers(headers))
         deployment_id = headers.get("x-dial-application-id")
         if not deployment_id:
             raise ValueError("Missing x-dial-application-id header")
@@ -118,11 +97,9 @@ class ChannelToolProvider(Provider):
         self,
         tool_config: BaseToolConfig,
         channel_config: ChannelConfig,
-        auth_context: AuthContext,
-        channel_service: ChannelServiceFacade,
+        inputs: dict[str, Any],
     ) -> _McpToolAdapter:
         langchain_tool = StatGptTool.from_config(tool_config, channel_config)
-        inputs = _build_mcp_inputs(auth_context, channel_service)
         return _McpToolAdapter(
             langchain_tool=langchain_tool,
             inputs=inputs,
@@ -140,15 +117,14 @@ class ChannelToolProvider(Provider):
             return []
 
         channel_config = channel_service.channel_config
+        inputs = _build_mcp_inputs(auth_context, channel_service)
         tools: list[Tool] = []
         for tool_config in channel_config.tools:
             try:
-                mcp_tool = self._create_mcp_tool(
-                    tool_config, channel_config, auth_context, channel_service
-                )
+                mcp_tool = self._create_mcp_tool(tool_config, channel_config, inputs)
                 tools.append(mcp_tool)
             except Exception:
-                _log.warning(f"Failed to create MCP tool for {tool_config.name}", exc_info=True)
+                _log.warning("Failed to create MCP tool for %s", tool_config.name, exc_info=True)
         return tools
 
     async def _get_tool(self, name: str, version=None) -> Tool | None:
@@ -160,11 +136,10 @@ class ChannelToolProvider(Provider):
             return None
 
         channel_config = channel_service.channel_config
+        inputs = _build_mcp_inputs(auth_context, channel_service)
         for tool_config in channel_config.tools:
             if tool_config.name == name:
-                return self._create_mcp_tool(
-                    tool_config, channel_config, auth_context, channel_service
-                )
+                return self._create_mcp_tool(tool_config, channel_config, inputs)
         return None
 
 

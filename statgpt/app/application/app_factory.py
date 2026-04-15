@@ -104,7 +104,7 @@ class DialAppFactory:
 
         if mcp_app:
             mcp_path = dial_app_settings.statgpt_mcp_path
-            _log.info(f"Mounting MCP app at {mcp_path}")
+            _log.info("Mounting MCP app at %s", mcp_path)
             app.mount(mcp_path, mcp_app)
 
         # Add memory debug endpoints (only in development)
