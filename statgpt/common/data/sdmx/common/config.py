@@ -196,6 +196,13 @@ class SdmxDataSetConfigMixin:
             "If set to an empty list, no default value codes will be used."
         ),
     )
+    sdmx1_source: str | None = Field(
+        default=None,
+        description=(
+            "Optional sdmx1 library source id for generated Python attachment code for this dataset. "
+            "When unset, the data source `sdmx1_source` is used; if that is also unset, the dataflow maintainer id is used."
+        ),
+    )
 
 
 class SdmxDataSetConfigTemplate(SdmxDataSetConfigMixin, DataSetConfigTemplate):
