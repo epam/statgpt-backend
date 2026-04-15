@@ -1,4 +1,5 @@
 import io
+from typing import cast
 from urllib.parse import urlencode
 
 import httpx
@@ -18,6 +19,7 @@ from statgpt.common.data.statgpt_sdmx_proxy.sdmx_schemas.structure_message impor
     ProxyAvailabilityResponseBody,
 )
 from statgpt.common.data.statgpt_sdmx_proxy.v30.reader import StatGptSdmxProxyDataReader
+from statgpt.common.utils import TtlCache
 
 
 def proxy_structure_extra_headers(dsd_urn: str | None) -> dict[str, str] | None:
@@ -30,6 +32,7 @@ class AsyncStatGptSdmxProxyClient(AsyncSdmxClient):
 
     _DATA_PARAM_ALLOWLIST = {"startPeriod", "endPeriod", "firstNObservations", "lastNObservations"}
     _DATA_ACCEPT_DEFAULT = "application/vnd.sdmx.data+json;version=2.0.0"
+    _attributes_cache: TtlCache[dict[str, str | None]] = TtlCache()
 
     @classmethod
     def from_config(  # type: ignore[override]
@@ -81,6 +84,25 @@ class AsyncStatGptSdmxProxyClient(AsyncSdmxClient):
                 dsd=dsd,
             )
 
+    async def dataset_level_attributes(
+        self, *, agency_id: str, resource_id: str, version: str
+    ) -> dict[str, str | None]:
+        """Fetch dataset-level attributes and their resolved values for a dataflow."""
+        url = self._build_url(
+            path=f"/data/dataflow/{agency_id}/{resource_id}/{version}/*",
+            params={"attributes": "dataset", "measures": "none", "limit": "1"},
+        )
+        if (item := self._attributes_cache.get(url)) is not None:
+            return item
+
+        response, _ = await self._perform_get(url, Resource.data)
+        if response is None:
+            return {}
+
+        result = self._parse_dataset_level_attributes(response.json())
+        self._attributes_cache.set(url, result)
+        return result
+
     async def _fetch_proxy_available_constraint(
         self,
         *,
@@ -130,10 +152,13 @@ class AsyncStatGptSdmxProxyClient(AsyncSdmxClient):
         if use_cache:
             if key or params:
                 raise ValueError("`use_cache` is not supported with `key` or `params`")
-            return await self._cache.get(  # type: ignore[return-value]
-                key=url,
-                loader=lambda: self._fetch_proxy_available_constraint(
-                    url=url, key=None, params=None
+            return cast(
+                StructureMessage,
+                await self._cache.get(
+                    key=url,
+                    loader=lambda: self._fetch_proxy_available_constraint(
+                        url=url, key=None, params=None
+                    ),
                 ),
             )
 
@@ -215,6 +240,90 @@ class AsyncStatGptSdmxProxyClient(AsyncSdmxClient):
         if params:
             return f"{url}?{urlencode(params, doseq=True)}"
         return url
+
+    @staticmethod
+    def _parse_dataset_level_attributes(payload: dict) -> dict[str, str | None]:
+        data = payload.get("data", payload)
+        data_sets = data.get("dataSets")
+        if not isinstance(data_sets, list) or len(data_sets) != 1:
+            return {}
+
+        dataset = data_sets[0]
+        indices = dataset.get("attributes")
+        if not isinstance(indices, list):
+            return {}
+
+        structure = None
+        structures = data.get("structures")
+        if isinstance(structures, list) and structures:
+            structure = structures[0]
+        elif isinstance(payload.get("structure"), dict):
+            structure = payload["structure"]
+        if not isinstance(structure, dict):
+            return {}
+
+        attrs_node = structure.get("attributes")
+        if not isinstance(attrs_node, dict):
+            return {}
+
+        attrs_defs = attrs_node.get("dataSet", attrs_node.get("dataset"))
+        if not isinstance(attrs_defs, list):
+            return {}
+
+        result: dict[str, str | None] = {}
+        for idx, attr_def in enumerate(attrs_defs):
+            if not isinstance(attr_def, dict):
+                continue
+            attr_def_dict = cast(dict[str, object], attr_def)
+            attr_id = attr_def_dict.get("id")
+            if not isinstance(attr_id, str):
+                continue
+
+            if idx < len(indices):
+                raw_value_index = indices[idx]
+            else:
+                raw_value_index = AsyncStatGptSdmxProxyClient._infer_missing_dataset_attr_index(
+                    attr_def_dict
+                )
+                if raw_value_index is None:
+                    continue
+
+            result[attr_id] = AsyncStatGptSdmxProxyClient._resolve_dataset_attr_value(
+                attr_def_dict, raw_value_index
+            )
+        return result
+
+    @staticmethod
+    def _infer_missing_dataset_attr_index(attr_def: dict) -> int | None:
+        """Infer omitted trailing attribute index when SDMX-JSON compacts payload."""
+        values = attr_def.get("values")
+        if isinstance(values, list) and len(values) == 1:
+            return 0
+        return None
+
+    @staticmethod
+    def _resolve_dataset_attr_value(attr_def: dict, raw_value_index: object) -> str | None:
+        if raw_value_index is None:
+            return None
+        if isinstance(raw_value_index, str):
+            return raw_value_index
+        if isinstance(raw_value_index, list):
+            return ", ".join(str(v) for v in raw_value_index if v is not None) or None
+        if not isinstance(raw_value_index, int):
+            return str(raw_value_index)
+
+        values = attr_def.get("values")
+        if not isinstance(values, list) or raw_value_index >= len(values):
+            return None
+
+        value = values[raw_value_index]
+        if isinstance(value, dict):
+            for key in ("id", "name", "value"):
+                candidate = value.get(key)
+                if isinstance(candidate, str):
+                    return candidate
+            return None
+        return str(value)
 
     @staticmethod
     def _filter_params(params: dict[str, str] | None, allowlist: set[str]) -> dict[str, str] | None:

@@ -5,6 +5,7 @@ from sdmx.model.common import BaseAnnotation
 from statgpt.common.auth.auth_context import AuthContext
 from statgpt.common.config import multiline_logger as logger
 from statgpt.common.data.base import DataSourceType
+from statgpt.common.data.base.property_source import PropertySourceEnum
 from statgpt.common.data.base.sdmx_schemas import Sdmx30AnnotationModel
 from statgpt.common.data.quanthub.config import QuanthubDataSetConfig
 from statgpt.common.data.sdmx.v21.attributes_creator import Sdmx21AttributesCreator
@@ -71,6 +72,10 @@ class StatGptSdmxProxyDataSourceHandler(Sdmx21DataSourceHandler):
             text=text,
         )
 
+    @staticmethod
+    def _requires_dataset_level_attributes(config: QuanthubDataSetConfig) -> bool:
+        return any(source.source == PropertySourceEnum.ATTRIBUTE for source in config.updated_at)
+
     async def _get_dataset(  # type: ignore[override]
         self,
         entity_id: uuid.UUID,
@@ -129,6 +134,19 @@ class StatGptSdmxProxyDataSourceHandler(Sdmx21DataSourceHandler):
                 return SdmxOfflineDataSet(entity_id, title, dataset_config, self, status)
             raise
 
+        if self._requires_dataset_level_attributes(dataset_config):
+            try:
+                attribute_values = await sdmx_client.dataset_level_attributes(
+                    agency_id=urn.agency_id,
+                    resource_id=urn.resource_id,
+                    version=urn.version,
+                )
+            except Exception:
+                logger.exception(f"Failed to load dataset-level attributes for the dataflow({urn}).")
+                attribute_values = {}
+        else:
+            attribute_values = {}
+
         try:
             annotations = [self._to_proxy_annotation(a) for a in dataflow.annotations]
         except Exception:
@@ -149,6 +167,7 @@ class StatGptSdmxProxyDataSourceHandler(Sdmx21DataSourceHandler):
                 locale=self._config.locale,
                 dimensions=dimensions,
                 attributes=attributes,
+                attribute_values=attribute_values,
                 annotations=annotations,
             )
         except InvalidConfigurationError as e:
