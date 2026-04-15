@@ -32,7 +32,7 @@ def _sdmx_attribute_value_display(av: AttributeValue) -> str | None:
 
 
 def _dataset_level_attribute_map_from_data_message(msg: DataMessage) -> dict[str, str | None]:
-    """Build the same ``dict`` shape as the Pydantic dataset-attribute parser."""
+    """Extract dataset-level attributes from a DataMessage as a flat {id: display_value} dict."""
     if len(msg.data) != 1:
         return {}
     ds = msg.data[0]
@@ -117,9 +117,8 @@ class AsyncStatGptSdmxProxyClient(AsyncSdmxClient):
             if response is None:
                 return {}
 
-            httpx_response = response
-            requests_response = self._convert_response(httpx_response, req)
-            response_content: io.IOBase = ResponseIO(httpx_response)
+            requests_response = self._convert_response(response, req)
+            response_content: io.IOBase = ResponseIO(response)
             try:
                 msg = StatGptSdmxProxyDataReader().convert(response_content, structure=None)
                 msg.response = requests_response
@@ -228,8 +227,7 @@ class AsyncStatGptSdmxProxyClient(AsyncSdmxClient):
         if response is None:
             return DataMessage()
 
-        httpx_response = response
-        requests_response = self._convert_response(httpx_response, req)
+        requests_response = self._convert_response(response, req)
         try:
             response_content: io.IOBase = ResponseIO(response)
             msg = StatGptSdmxProxyDataReader().convert(response_content, structure=dsd)

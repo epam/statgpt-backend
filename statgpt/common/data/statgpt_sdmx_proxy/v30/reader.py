@@ -215,7 +215,7 @@ class StatGptSdmxProxyDataReader(Reader):
                 self._attr_level[da] = canonical
 
                 if not len(values):
-                    log.debug(f"No AttributeValues for attribute {repr(da)}; skip")
+                    log.debug(f"No AttributeValues for attribute {repr(da)}")
                 self._attr_values[da] = values
 
         self.msg = msg
