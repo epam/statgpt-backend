@@ -22,6 +22,10 @@ class LLMCallDurationManager:
     def get_durations(self) -> list[LLMCallDurationItem]:
         return list(self._durations.values())
 
+    @property
+    def total_duration_s(self) -> float:
+        return sum(item.duration_s for item in self._durations.values())
+
 
 @contextmanager
 def llm_call_duration_context() -> Generator[LLMCallDurationManager, None, None]:
