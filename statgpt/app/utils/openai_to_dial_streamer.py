@@ -172,9 +172,8 @@ class OpenAiToDialStreamer:
 
         duration_s = time.monotonic() - self._start_time
 
-        try:
-            duration_manager = get_llm_call_duration_manager()
-        except LookupError:
+        duration_manager = get_llm_call_duration_manager()
+        if duration_manager is None:
             return
 
         duration_manager.add_duration(

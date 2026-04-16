@@ -128,7 +128,9 @@ class ChannelCompletion(ChatCompletion):
                 callbacks.append(LLMCallDurationCallback())
 
             with (
-                llm_call_duration_context() as duration_manager,
+                llm_call_duration_context(
+                    enabled=langchain_settings.use_llm_duration_callback
+                ) as duration_manager,
                 token_usage_context() as token_usage_manager,
             ):
                 callbacks.append(TokenUsageByModelsCallback())
@@ -166,7 +168,7 @@ class ChannelCompletion(ChatCompletion):
 
                 priced_usage = await cls._calc_token_usage_costs(token_usage_manager)
 
-                if langchain_settings.use_llm_duration_callback:
+                if duration_manager is not None:
                     state[StateVarsConfig.LLM_CALL_DURATIONS] = [
                         item.to_rounded_dict() for item in duration_manager.get_durations()
                     ]

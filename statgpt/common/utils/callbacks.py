@@ -235,13 +235,11 @@ class LLMCallDurationCallback(AsyncCallbackHandler):
 
         logger.info(f"LLM call duration for model {deployment_id!r}: {duration_s:.2f}s")
 
-        try:
-            duration_manager = get_llm_call_duration_manager()
+        duration_manager = get_llm_call_duration_manager()
+        if duration_manager is not None:
             duration_manager.add_duration(
                 LLMCallDurationItem(deployment=deployment_id, duration_s=duration_s)
             )
-        except LookupError:
-            pass
 
     async def on_llm_error(
         self,
