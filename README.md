@@ -200,12 +200,12 @@ _Not implemented yet, TODO: create a script that generates config based on .env 
 
    See [CLI documentation](statgpt/cli/README.md) for more commands.
 
-## MCP (Beta)
+## MCP
 
-### StatGPT MCP (Beta)
+### StatGPT MCP
 
-The main application includes an optional MCP server that exposes the SupremeAgent's tools to external MCP clients
-(Claude Code, Cursor, etc.). It is disabled by default and must be enabled via environment variable.
+The main application includes an MCP server that exposes the SupremeAgent's tools to external MCP clients
+(Claude Code, Cursor, etc.).
 
 See [MCP Server setup instructions](statgpt/app/README.md#mcp-server) for details.
 

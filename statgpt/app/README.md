@@ -23,14 +23,13 @@ the [common README file](../common/README.md).
 | DIAL_RAG_PGVECTOR_URL          |    No    | URL for the RAG with pgvector, only for local development                                                                                                                                                                                            |                                              |                     |
 | DIAL_RAG_PGVECTOR_API_KEY      |    No    | API key for the RAG with pgvector, only for local development                                                                                                                                                                                        |                                              |                     |
 | TTYD_TOOL_PLAIN_CONTENT_*      |    No    | Environment variables for the Plain Content tool to replace in the files content. Replace `*` with the variable name.                                                                                                                                |                                              |                     |
-| STATGPT_MCP_ENABLED            |    No    | Enable the embedded MCP server for external tool access (see [MCP Server](#mcp-server) section)                                                                                                                                                      | `true`, `false`                              | `false`             |
-| STATGPT_MCP_PATH               |    No    | Path to mount the MCP server at                                                                                                                                                                                                                      |                                              | `/api/v1/mcp`       |
+| STATGPT_MCP_PATH               |    No    | Path to mount the MCP server at (see [MCP Server](#mcp-server) section)                                                                                                                                                                              |                                              | `/api/v1/mcp`       |
 
 ## MCP Server
 
 StatGPT can expose its tools via the [Model Context Protocol (MCP)](https://modelcontextprotocol.io/), allowing external clients (Claude Code, Cursor, etc.) to use StatGPT tools directly.
 
-When enabled via `STATGPT_MCP_ENABLED=true`, the MCP server is mounted at the path configured by `STATGPT_MCP_PATH` (default: `/api/v1/mcp`).
+The MCP server is mounted at the path configured by `STATGPT_MCP_PATH` (default: `/api/v1/mcp`).
 
 ### DIAL Core Configuration
 

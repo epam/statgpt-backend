@@ -1,8 +1,5 @@
 import logging
-import sys
-from collections.abc import Callable
-from contextlib import AbstractAsyncContextManager, asynccontextmanager
-from typing import Any
+from contextlib import asynccontextmanager
 
 from aidial_sdk import DIALApp
 from aidial_sdk import logger as dial_logger
@@ -11,6 +8,7 @@ from aidial_sdk.deployment.configuration import ConfigurationResponse
 from aidial_sdk.telemetry.types import MetricsConfig, TelemetryConfig, TracingConfig
 from fastapi import Request as FastAPIRequest
 
+from statgpt.app.mcp.app import mcp
 from statgpt.app.settings.dial_app import dial_app_settings
 from statgpt.common.settings.application import application_settings
 from statgpt.common.settings.dial import dial_settings
@@ -50,30 +48,13 @@ class DialAppFactory:
     def create_app(self) -> DIALApp:
         _log.info("Creating DIAL app name=%s", dial_app_settings.dial_app_name)
 
-        lifespan: Callable[[StatGPTApp], AbstractAsyncContextManager[Any]] = base_lifespan
-        mcp_app = None
+        mcp_app = mcp.http_app(path="/", transport="streamable-http", stateless_http=True)
 
-        if dial_app_settings.statgpt_mcp_enabled:
-            _log.info("StatGPT MCP is enabled. Initializing MCP app...")
-            try:
-                from statgpt.app.mcp.app import mcp
-
-                mcp_app = mcp.http_app(path="/", transport="streamable-http", stateless_http=True)
-
-                @asynccontextmanager
-                async def combined_lifespan(app_: StatGPTApp):
-                    async with base_lifespan(app_):
-                        async with mcp_app.lifespan(app_):
-                            yield
-
-                lifespan = combined_lifespan
-            except ImportError as e:
-                _log.error(
-                    "MCP is enabled, but optional beta-mcp dependencies are not installed: %s", e
-                )
-                sys.exit(1)
-        else:
-            _log.info("StatGPT MCP is disabled.")
+        @asynccontextmanager
+        async def lifespan(app_: StatGPTApp):  # noqa: E306
+            async with base_lifespan(app_):
+                async with mcp_app.lifespan(app_):
+                    yield
 
         app = StatGPTApp(
             dial_url=dial_settings.url,
@@ -104,10 +85,9 @@ class DialAppFactory:
         )
         app.include_router(service_router)
 
-        if mcp_app:
-            mcp_path = dial_app_settings.statgpt_mcp_path
-            _log.info("Mounting MCP app at %s", mcp_path)
-            app.mount(mcp_path, mcp_app)
+        mcp_path = dial_app_settings.statgpt_mcp_path
+        _log.info("Mounting MCP app at %s", mcp_path)
+        app.mount(mcp_path, mcp_app)
 
         # Add memory debug endpoints (only in development)
         if application_settings.memory_debug:
