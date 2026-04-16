@@ -168,7 +168,7 @@ class ChannelCompletion(ChatCompletion):
 
                 if langchain_settings.use_llm_duration_callback:
                     state[StateVarsConfig.LLM_CALL_DURATIONS] = [
-                        item.to_dict() for item in duration_manager.get_durations()
+                        item.to_rounded_dict() for item in duration_manager.get_durations()
                     ]
 
             token_usage_config = service.channel_config.token_usage
