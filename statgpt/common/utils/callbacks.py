@@ -17,19 +17,19 @@ from statgpt.common.utils.token_usage_context import get_token_usage_manager
 from .exceptions import InvalidLLMStreamResponse
 
 
-def _extract_deployment_id(response: LLMResult, fallback: str | None = None) -> str:
-    """Extract deployment_id from an LLMResult, falling back through known sources."""
-    deployment_id = fallback
+def _extract_deployment_id(response: LLMResult, value: str | None = None) -> str:
+    """
+    Extract deployment_id from an LLMResult, falling back through known sources.
+    value: primary value to use, if provided.
+    """
+    if value:
+        return value
 
     try:
-        generation = response.generations[0][0]
-    except IndexError:
-        generation = None
-
-    if not deployment_id and isinstance(generation, ChatGeneration):
-        generation_info = generation.generation_info
-        if generation_info:
-            deployment_id = generation_info.get('model_name')
+        if gen_info := response.generations[0][0].generation_info:
+            deployment_id = gen_info.get('model_name')
+    except Exception:
+        pass
 
     if not deployment_id and response.llm_output:
         deployment_id = response.llm_output.get('model_name')
@@ -144,7 +144,7 @@ class TokenUsageByModelsCallback(AsyncCallbackHandler):
         run_id: UUID,
         **kwargs: t.Any,
     ) -> None:
-        deployment_fallback = self._run_2_deployment.pop(run_id, None)
+        deployment_id = self._run_2_deployment.pop(run_id, None)
 
         try:
             generation = response.generations[0][0]
@@ -175,7 +175,7 @@ class TokenUsageByModelsCallback(AsyncCallbackHandler):
             completion_tokens = token_usage.get("completion_tokens", 0)
             prompt_tokens = token_usage.get("prompt_tokens", 0)
 
-        deployment_id = _extract_deployment_id(response, fallback=deployment_fallback)
+        deployment_id = _extract_deployment_id(response, value=deployment_id)
 
         logger.info(
             f"Token usage for model {deployment_id!r}:"
@@ -223,23 +223,20 @@ class LLMCallDurationCallback(AsyncCallbackHandler):
         **kwargs: t.Any,
     ) -> None:
         start_time = self._start_times.pop(run_id, None)
-        deployment_fallback = self._run_2_deployment.pop(run_id, None)
+        deployment_id = self._run_2_deployment.pop(run_id, None)
         if start_time is None:
             return
 
         duration_s = time.monotonic() - start_time
 
-        deployment_id = _extract_deployment_id(response, fallback=deployment_fallback)
+        deployment_id = _extract_deployment_id(response, value=deployment_id)
 
         logger.info(f"LLM call duration for model {deployment_id!r}: {duration_s:.2f}s")
 
         try:
             duration_manager = get_llm_call_duration_manager()
             duration_manager.add_duration(
-                LLMCallDurationItem(
-                    deployment=deployment_id,
-                    duration_s=duration_s,
-                )
+                LLMCallDurationItem(deployment=deployment_id, duration_s=duration_s)
             )
         except LookupError:
             pass
