@@ -37,5 +37,7 @@ class DialAuthCredentials(DialAuthCredentialsI):
         """
         api_key = headers.get("api-key") or headers.get("x-api-key")
         token = headers.get("authorization")
-        bearer_token = token[7:] if token is not None and token.startswith("Bearer ") else None
+        bearer_token = (
+            token[7:] if token is not None and token.lower().startswith("bearer ") else None
+        )
         return cls(api_key=api_key, bearer_token=bearer_token)

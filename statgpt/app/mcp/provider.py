@@ -8,6 +8,7 @@ from fastmcp.exceptions import ToolError
 from fastmcp.server.dependencies import get_http_request
 from fastmcp.server.providers import Provider
 from fastmcp.tools import Tool, ToolResult
+from fastmcp.utilities.versions import VersionSpec
 from mcp.types import TextContent
 from pydantic import PrivateAttr
 from starlette.datastructures import Headers
@@ -143,7 +144,7 @@ class ChannelToolProvider(Provider):
                 _log.warning("Failed to create MCP tool for %s", tool_config.name, exc_info=True)
         return tools
 
-    async def _get_tool(self, name: str, version=None) -> Tool | None:
+    async def _get_tool(self, name: str, version: VersionSpec | None = None) -> Tool | None:
         try:
             headers = self._get_headers()
             auth_context, channel_service = await self._resolve_context(headers)
