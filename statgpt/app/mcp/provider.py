@@ -42,18 +42,6 @@ def _build_mcp_inputs(
     }
 
 
-def _get_tool_input_schema(tool: StatGptTool) -> dict[str, Any]:
-    """Get JSON Schema for tool parameters, excluding injected args."""
-    schema = tool.get_input_schema().model_json_schema()
-    # Remove fields that are injected and not user-facing
-    props = schema.get("properties", {})
-    props.pop("inputs", None)
-    required = schema.get("required", [])
-    if "inputs" in required:
-        required.remove("inputs")
-    return schema
-
-
 class _McpToolAdapter(Tool):
     """A FastMCP Tool backed by a StatGptTool instance."""
 
@@ -116,7 +104,7 @@ class ChannelToolProvider(Provider):
             inputs=inputs,
             name=tool_config.name,
             description=tool_config.description,
-            parameters=_get_tool_input_schema(langchain_tool),
+            parameters=langchain_tool.get_public_args_schema(),
         )
 
     async def _list_tools(self) -> Sequence[Tool]:
