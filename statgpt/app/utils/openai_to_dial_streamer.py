@@ -1,7 +1,7 @@
 import json
 from typing import Any
 
-from aidial_sdk.chat_completion import Choice, Stage
+from aidial_sdk.chat_completion import Stage
 from openai.types.chat import ChatCompletionChunk
 
 from statgpt.app.utils.dial_stages import ChoiceI
@@ -13,7 +13,7 @@ from statgpt.common.utils.token_usage_context import get_token_usage_manager
 class OpenAiToDialStreamer:
     def __init__(
         self,
-        target: Choice | Stage,
+        target: ChoiceI | Stage,
         choice: ChoiceI,
         deployment: str,
         show_debug_stages: bool,
