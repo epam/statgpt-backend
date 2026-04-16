@@ -4,6 +4,7 @@ from datetime import datetime
 from typing import Any
 from uuid import uuid4
 
+from fastmcp.exceptions import ToolError
 from fastmcp.server.dependencies import get_http_request
 from fastmcp.server.providers import Provider
 from fastmcp.tools import Tool, ToolResult
@@ -15,6 +16,7 @@ from statgpt.app.chains.tools import StatGptTool
 from statgpt.app.config import ChainParametersConfig
 from statgpt.app.schemas.dial_app_configuration import StatGPTConfiguration
 from statgpt.app.security import DialAuthCredentials, create_auth_context
+from statgpt.app.security.exceptions import AuthenticationError, AuthorizationError
 from statgpt.app.services.chat_facade import ChannelServiceFacade
 from statgpt.app.utils.dial_stages import DummyStage, NullChoice
 from statgpt.common.auth.auth_context import AuthContext
@@ -74,7 +76,14 @@ class _McpToolAdapter(Tool):
             "id": str(uuid4()),
             "type": "tool_call",
         }
-        result = await self._langchain_tool.ainvoke(tool_call)
+        try:
+            result = await self._langchain_tool.ainvoke(tool_call)
+        except Exception:
+            # Catch-all for unexpected errors. Known error cases should return
+            # proper content or raise a custom exception caught in a dedicated
+            # except block above this one.
+            _log.exception("Error executing MCP tool %s", self._langchain_tool.name)
+            raise ToolError(f"{self._langchain_tool.name} tool failed to execute")
         content = result.content if isinstance(result.content, str) else str(result.content)
         return ToolResult(content=[TextContent(type="text", text=content)])
 
@@ -113,6 +122,12 @@ class ChannelToolProvider(Provider):
         try:
             headers = self._get_headers()
             auth_context, channel_service = await self._resolve_context(headers)
+        except (AuthenticationError, AuthorizationError) as e:
+            _log.warning("Auth error resolving channel context for tools/list: %s", e)
+            return []
+        except ValueError as e:
+            _log.warning("Configuration error resolving channel context for tools/list: %s", e)
+            return []
         except Exception:
             _log.exception("Could not resolve channel context for tools/list")
             return []
@@ -132,8 +147,16 @@ class ChannelToolProvider(Provider):
         try:
             headers = self._get_headers()
             auth_context, channel_service = await self._resolve_context(headers)
+        except (AuthenticationError, AuthorizationError) as e:
+            _log.warning("Auth error resolving channel context for tools/call (%s): %s", name, e)
+            return None
+        except ValueError as e:
+            _log.warning(
+                "Configuration error resolving channel context for tools/call (%s): %s", name, e
+            )
+            return None
         except Exception:
-            _log.exception("Could not resolve channel context for tools/call")
+            _log.exception("Could not resolve channel context for tools/call (%s)", name)
             return None
 
         channel_config = channel_service.channel_config
