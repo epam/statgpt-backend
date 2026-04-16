@@ -184,17 +184,17 @@ class ChannelConfig(BaseYamlModel):
     @property
     def tool_fields(self) -> list[str]:
         return [
-            "available_datasets",
-            "datasets_metadata",
-            "dataset_structure",
-            "available_publications",
-            "available_terms",
-            "data_query",
-            "file_rag",
-            "plain_content",
-            "term_definitions",
-            "web_search",
-            "web_search_agent",
+            'available_datasets',
+            'datasets_metadata',
+            'dataset_structure',
+            'available_publications',
+            'available_terms',
+            'data_query',
+            'file_rag',
+            'plain_content',
+            'term_definitions',
+            'web_search',
+            'web_search_agent',
         ]
 
     @property
@@ -236,7 +236,7 @@ class Channel(DbDefaultBase, ChannelBase, Auditable):
         return self.title
 
     def get_state_after(self) -> dict:
-        return self.model_dump(mode="json", exclude={"created_at", "updated_at"})
+        return self.model_dump(mode='json', exclude={'created_at', 'updated_at'})
 
     def get_item_id(self) -> int:
         return self.id
