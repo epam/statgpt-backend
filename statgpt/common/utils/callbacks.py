@@ -25,6 +25,8 @@ def _extract_deployment_id(response: LLMResult, value: str | None = None) -> str
     if value:
         return value
 
+    deployment_id = None
+
     try:
         if gen_info := response.generations[0][0].generation_info:
             deployment_id = gen_info.get('model_name')
