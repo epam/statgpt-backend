@@ -20,3 +20,6 @@ class LLMCallDurationItem(BaseModel):
             deployment=self.deployment,
             duration_s=self.duration_s + other.duration_s,
         )
+
+    def to_dict(self) -> dict:
+        return {**self.model_dump(), 'duration_s': round(self.duration_s, 3)}
