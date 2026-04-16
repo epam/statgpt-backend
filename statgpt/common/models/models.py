@@ -282,7 +282,9 @@ class AutoUpdateJob(DefaultBase):
 
     __tablename__ = "auto_update_jobs"
 
-    channel_dataset_id: Mapped[int] = mapped_column(ForeignKey("channel_datasets.id"))
+    channel_dataset_id: Mapped[int] = mapped_column(
+        ForeignKey("channel_datasets.id", ondelete="CASCADE")
+    )
     base_version_id: Mapped[int | None] = mapped_column(
         ForeignKey("channel_dataset_versions.id", ondelete="CASCADE"), default=None
     )
