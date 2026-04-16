@@ -236,7 +236,7 @@ class Channel(DbDefaultBase, ChannelBase, Auditable):
         return self.title
 
     def get_state_after(self) -> dict:
-        return self.model_dump(mode='json', exclude={'created_at', 'updated_at'})
+        return self.model_dump(mode='json', exclude={"created_at", "updated_at"})
 
     def get_item_id(self) -> int:
         return self.id
