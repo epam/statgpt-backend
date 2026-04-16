@@ -30,7 +30,7 @@ def _extract_deployment_id(response: LLMResult, value: str | None = None) -> str
     try:
         if gen_info := response.generations[0][0].generation_info:
             deployment_id = gen_info.get('model_name')
-    except Exception:
+    except (IndexError, AttributeError):
         pass
 
     if not deployment_id and response.llm_output:
