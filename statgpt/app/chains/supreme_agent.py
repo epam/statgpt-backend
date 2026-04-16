@@ -408,10 +408,15 @@ class SupremeAgentExecutor:
             f"| {(first_token_time - start_time_of_last_request).total_seconds():.2f} "
             "| Time since the agent's last request and the first token received in response to it |\n"
         )
-        total_llm_duration = get_llm_call_duration_manager().total_duration_s
-        performance_stage.append_content(
-            "| Total LLM calls duration "
-            "| | "
-            f"| {total_llm_duration:.3f} "
-            "| Sum of all LLM call durations |\n"
-        )
+        try:
+            total_llm_duration = get_llm_call_duration_manager().total_duration_s
+        except LookupError:
+            total_llm_duration = None
+
+        if total_llm_duration is not None:
+            performance_stage.append_content(
+                "| Total LLM calls duration "
+                "| | "
+                f"| {total_llm_duration:.3f} "
+                "| Sum of all LLM call durations |\n"
+            )
