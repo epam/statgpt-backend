@@ -58,6 +58,7 @@ def _parse_time_value(time_val: str) -> tuple[int, int, str]:
     """
     Parse time value into (year, period_order, original_value).
     period_order: months 1-12, quarters mapped to starting month (Q1=1, Q2=4, Q3=7, Q4=10), annual 999.
+    Monthly periods may be SDMX-style (YYYY-MNN) or ISO calendar month (YYYY-MM).
     """
     parts = time_val.split('-')
     try:
@@ -83,6 +84,11 @@ def _parse_time_value(time_val: str) -> tuple[int, int, str]:
                 return (year, month, time_val)
             except ValueError:
                 raise ValueError(f"Invalid time period format: {time_val}")
+        elif parts[1].isdigit():
+            # ISO-style calendar month YYYY-MM (e.g. 1964-01), common in SDMX / tabular time
+            month = int(parts[1])
+            if 1 <= month <= 12:
+                return (year, month, time_val)
 
     if len(parts) == 3:
         try:
@@ -100,7 +106,7 @@ def _parse_time_value(time_val: str) -> tuple[int, int, str]:
 def get_time_period_bounds(values: list[str]) -> tuple[str, str] | None:
     """
     Get the time period bounds from a list of time period values.
-    Handles annual (2023), quarterly (2024-Q1), monthly (2023-M01), and date (2023-10-03) formats.
+    Handles annual (2023), quarterly (2024-Q1), monthly (2023-M01 or 1964-01), and date (2023-10-03) formats.
     """
     if not values:
         return None

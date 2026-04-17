@@ -31,6 +31,14 @@ from statgpt.common.utils.time_utils import (
         # Monthly only
         (["2023-M01", "2023-M12", "2023-M06"], ("2023-M01", "2023-M12")),
         (["2022-M12", "2023-M01", "2023-M02"], ("2022-M12", "2023-M02")),
+        # ISO-style calendar month YYYY-MM (no M prefix), e.g. 1964-01
+        (["1964-01"], ("1964-01", "1964-01")),
+        (["1964-01", "1964-06", "1964-12"], ("1964-01", "1964-12")),
+        (["1963-12", "1964-01"], ("1963-12", "1964-01")),
+        (["1964-1", "1964-12"], ("1964-1", "1964-12")),  # unpadded month digit
+        (["1964-01", "1964-M06"], ("1964-01", "1964-M06")),  # mixed with M-prefixed month
+        # Same calendar month, two string forms (tie-break on original string)
+        (["2023-M01", "2023-01"], ("2023-01", "2023-M01")),
         # Date only
         (["1983-10-03"], ("1983-10-03", "1983-10-03")),
         (
@@ -125,6 +133,12 @@ def test_get_time_period_bounds_invalid_format():
 
     with pytest.raises(ValueError, match="Invalid time period format"):
         get_time_period_bounds(["2023-02-29"])  # Not a leap year
+
+    with pytest.raises(ValueError, match="Invalid time period format"):
+        get_time_period_bounds(["2023-13"])  # invalid month in YYYY-MM
+
+    with pytest.raises(ValueError, match="Invalid time period format"):
+        get_time_period_bounds(["2023-00"])  # invalid month in YYYY-MM
 
 
 class TestGetTsNowStr:
