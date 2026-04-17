@@ -31,6 +31,13 @@ from statgpt.common.utils.time_utils import (
         # Monthly only
         (["2023-M01", "2023-M12", "2023-M06"], ("2023-M01", "2023-M12")),
         (["2022-M12", "2023-M01", "2023-M02"], ("2022-M12", "2023-M02")),
+        # Date only
+        (["1983-10-03"], ("1983-10-03", "1983-10-03")),
+        (
+            ["1983-10-03", "1983-10-11", "1983-10-05"],
+            ("1983-10-03", "1983-10-11"),
+        ),
+        (["1983-10-03", "1984-01-01"], ("1983-10-03", "1984-01-01")),
         # Mixed frequencies - annual and quarterly
         (["2021", "2021-Q4"], ("2021", "2021")),  # Prefer annual at end
         (["2021-Q1", "2021"], ("2021-Q1", "2021")),  # Annual exists for end year
@@ -88,6 +95,12 @@ def test_get_time_period_bounds_invalid_format():
 
     with pytest.raises(ValueError, match="Invalid time period format"):
         get_time_period_bounds(["2023-MXX"])  # Invalid month format
+
+    with pytest.raises(ValueError, match="Invalid time period format"):
+        get_time_period_bounds(["2023-13-01"])  # Invalid date month
+
+    with pytest.raises(ValueError, match="Invalid time period format"):
+        get_time_period_bounds(["2023-02-30"])  # Invalid date day
 
 
 class TestGetTsNowStr:

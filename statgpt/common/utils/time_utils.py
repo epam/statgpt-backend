@@ -84,13 +84,23 @@ def _parse_time_value(time_val: str) -> tuple[int, int, str]:
             except ValueError:
                 raise ValueError(f"Invalid time period format: {time_val}")
 
+    if len(parts) == 3:
+        try:
+            month = int(parts[1])
+            day = int(parts[2])
+            # Validate full date periods (YYYY-MM-DD) and keep period_order aligned with month.
+            date(year, month, day)
+            return (year, month, time_val)
+        except ValueError:
+            raise ValueError(f"Invalid time period format: {time_val}")
+
     raise ValueError(f"Invalid time period format: {time_val}")
 
 
 def get_time_period_bounds(values: list[str]) -> tuple[str, str] | None:
     """
     Get the time period bounds from a list of time period values.
-    Handles annual (2023), quarterly (2024-Q1), and monthly (2023-M01) formats.
+    Handles annual (2023), quarterly (2024-Q1), monthly (2023-M01), and date (2023-10-03) formats.
     """
     if not values:
         return None
