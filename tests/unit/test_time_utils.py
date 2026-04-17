@@ -73,6 +73,9 @@ from statgpt.common.utils.time_utils import (
         (["2020-M12", "2021-Q1", "2021-M01"], ("2020-M12", "2021-Q1")),
         (["2020", "2021-Q1"], ("2020", "2021-Q1")),
         (["2020-Q4", "2021"], ("2020-Q4", "2021")),
+        # Mixed frequencies with dates
+        (["1983", "1983-10-03"], ("1983", "1983")),
+        (["1982-Q4", "1983-10-03"], ("1982-Q4", "1983-10-03")),
     ],
 )
 def test_get_time_period_bounds(values, expected):
