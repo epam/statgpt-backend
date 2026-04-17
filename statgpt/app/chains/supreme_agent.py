@@ -410,6 +410,13 @@ class SupremeAgentExecutor:
         )
         duration_manager = get_llm_call_duration_manager()
         if duration_manager is not None:
+            for item in duration_manager.get_durations():
+                performance_stage.append_content(
+                    f"| LLM call duration: {item.deployment} "
+                    "| | "
+                    f"| {item.duration_s:.3f} "
+                    f"| Cumulative duration for {item.deployment} |\n"
+                )
             performance_stage.append_content(
                 "| Total LLM calls duration "
                 "| | "
