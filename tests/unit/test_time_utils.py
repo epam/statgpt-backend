@@ -76,6 +76,24 @@ from statgpt.common.utils.time_utils import (
         # Mixed frequencies with dates
         (["1983", "1983-10-03"], ("1983", "1983")),
         (["1982-Q4", "1983-10-03"], ("1982-Q4", "1983-10-03")),
+        # Dates within a single calendar year (min/max day in that year)
+        (["2023-01-01", "2023-06-15", "2023-12-31"], ("2023-01-01", "2023-12-31")),
+        (["2025-02-01", "2025-02-28"], ("2025-02-01", "2025-02-28")),
+        # Dates spanning multiple calendar years
+        (["2021-03-01", "2023-09-30"], ("2021-03-01", "2023-09-30")),
+        (["2020-12-31", "2022-01-01", "2024-06-01"], ("2020-12-31", "2024-06-01")),
+        # Calendar year boundary (Dec 31 → Jan 1)
+        (["2023-12-31", "2024-01-01"], ("2023-12-31", "2024-01-01")),
+        (["1999-12-31", "2000-01-01"], ("1999-12-31", "2000-01-01")),
+        # Annual marker + daily observations (years + in-year range)
+        (["2022", "2023-06-01", "2024-12-31"], ("2022", "2024-12-31")),
+        (["2022", "2023-01-01", "2023-12-31"], ("2022", "2023-12-31")),
+        # Monthly (M) + daily in same month — sort tie-break uses string order on third tuple field
+        (["2023-M06", "2023-06-01", "2023-06-30"], ("2023-06-01", "2023-M06")),
+        # Duplicate period strings (min/max unchanged)
+        (["2023-M01", "2023-M01", "2023-M12"], ("2023-M01", "2023-M12")),
+        # Leap year: Feb 29 and surrounding days
+        (["2024-02-28", "2024-02-29", "2024-03-01"], ("2024-02-28", "2024-03-01")),
     ],
 )
 def test_get_time_period_bounds(values, expected):
@@ -104,6 +122,9 @@ def test_get_time_period_bounds_invalid_format():
 
     with pytest.raises(ValueError, match="Invalid time period format"):
         get_time_period_bounds(["2023-02-30"])  # Invalid date day
+
+    with pytest.raises(ValueError, match="Invalid time period format"):
+        get_time_period_bounds(["2023-02-29"])  # Not a leap year
 
 
 class TestGetTsNowStr:
