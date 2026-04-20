@@ -46,23 +46,23 @@ from statgpt.common.utils.time_utils import (
             ("1983-10-03", "1983-10-11"),
         ),
         (["1983-10-03", "1984-01-01"], ("1983-10-03", "1984-01-01")),
-        # Mixed frequencies - annual and quarterly
-        (["2021", "2021-Q4"], ("2021", "2021")),  # Prefer annual at end
-        (["2021-Q1", "2021"], ("2021-Q1", "2021")),  # Annual exists for end year
+        # Mixed frequencies - annual and quarterly (year subsumes quarter/month/day)
+        (["2021", "2021-Q4"], ("2021", "2021")),
+        (["2021-Q1", "2021"], ("2021", "2021")),
         (["2020-Q4", "2021", "2021-Q2"], ("2020-Q4", "2021")),  # Annual at end
         (["2020", "2021-Q1", "2021-Q4"], ("2020", "2021-Q4")),  # No annual for 2021
         # Mixed frequencies - annual and monthly
-        (["2021", "2021-M12"], ("2021", "2021")),  # Prefer annual at end
-        (["2021-M01", "2021"], ("2021-M01", "2021")),  # Annual exists for end year
+        (["2021", "2021-M12"], ("2021", "2021")),
+        (["2021-M01", "2021"], ("2021", "2021")),
         (["2020-M12", "2021", "2021-M06"], ("2020-M12", "2021")),  # Annual at end
         # Mixed frequencies - quarterly and monthly
         (["2021-Q1", "2021-M10"], ("2021-Q1", "2021-M10")),  # Q1 (Jan-Mar) < M10 (Oct)
         (["2025-Q1", "2025-M10"], ("2025-Q1", "2025-M10")),  # Q1 < M10 within year
         (["2021-Q4", "2021-M01"], ("2021-M01", "2021-Q4")),  # M01 (Jan) < Q4 (Oct-Dec)
-        (["2021-M01", "2021-Q1"], ("2021-M01", "2021-Q1")),  # M01 and Q1 both start Jan
-        (["2021-M02", "2021-Q1"], ("2021-Q1", "2021-M02")),  # Q1 (Jan) < M02 (Feb)
-        (["2021-M03", "2021-Q1"], ("2021-Q1", "2021-M03")),  # Q1 (Jan) < M03 (Mar)
-        (["2021-M04", "2021-Q2"], ("2021-M04", "2021-Q2")),  # M04 and Q2 both start Apr
+        (["2021-M01", "2021-Q1"], ("2021-Q1", "2021-Q1")),  # M01 within Q1
+        (["2021-M02", "2021-Q1"], ("2021-Q1", "2021-Q1")),  # M02 within Q1
+        (["2021-M03", "2021-Q1"], ("2021-Q1", "2021-Q1")),  # M03 within Q1
+        (["2021-M04", "2021-Q2"], ("2021-Q2", "2021-Q2")),  # M04 within Q2
         # Mixed all frequencies
         (
             ["2022", "2021-Q1", "2022-Q2", "2022-Q3", "2023-M01", "2023-M02"],
@@ -73,8 +73,8 @@ from statgpt.common.utils.time_utils import (
         # Edge cases with sorting
         (["2024", "2023-Q4", "2024-M01"], ("2023-Q4", "2024")),  # Annual exists for 2024
         (["1998", "2005-Q1", "2024-Q4", "2025-M12"], ("1998", "2025-M12")),
-        # Same year different frequencies
-        (["2023-Q1", "2023-Q2", "2023-M06"], ("2023-Q1", "2023-M06")),  # Q1 < Q2 < M06
+        # Same year different frequencies (M06 lies in Q2, subsumed)
+        (["2023-Q1", "2023-Q2", "2023-M06"], ("2023-Q1", "2023-Q2")),
         (["2023", "2023-Q4", "2023-M12"], ("2023", "2023")),  # Annual preferred
         (["2021-Q1", "2021-Q2", "2021-M02"], ("2021-Q1", "2021-Q2")),  # Q1 < M02 < Q2
         # Cross-year boundaries
@@ -96,8 +96,13 @@ from statgpt.common.utils.time_utils import (
         # Annual marker + daily observations (years + in-year range)
         (["2022", "2023-06-01", "2024-12-31"], ("2022", "2024-12-31")),
         (["2022", "2023-01-01", "2023-12-31"], ("2022", "2023-12-31")),
-        # Monthly (M) + daily in same month — sort tie-break uses string order on third tuple field
-        (["2023-M06", "2023-06-01", "2023-06-30"], ("2023-06-01", "2023-M06")),
+        # Month subsumes days in that month
+        (["2023-M06", "2023-06-01", "2023-06-30"], ("2023-M06", "2023-M06")),
+        # Coarser span wins: year > quarter > month > day
+        (["1982-M10", "1982-10-03"], ("1982-M10", "1982-M10")),
+        (["1982-Q4", "1982-10-03"], ("1982-Q4", "1982-Q4")),
+        (["1982-Q4", "1982-M10"], ("1982-Q4", "1982-Q4")),
+        (["1982-Q4", "1982"], ("1982", "1982")),
         # Duplicate period strings (min/max unchanged)
         (["2023-M01", "2023-M01", "2023-M12"], ("2023-M01", "2023-M12")),
         # Leap year: Feb 29 and surrounding days
