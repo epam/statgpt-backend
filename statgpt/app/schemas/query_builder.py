@@ -1,7 +1,6 @@
 import typing as t
 
 import pandas as pd
-from aidial_sdk.chat_completion import Choice
 from pydantic import BaseModel, ConfigDict, Field
 
 from statgpt.app.config import StateVarsConfig
@@ -11,6 +10,7 @@ from statgpt.app.services.chat_facade import (
     ScoredIndicatorCandidate,
     VersionedDataSet,
 )
+from statgpt.app.utils.dial_stages import ChoiceI
 from statgpt.common.auth.auth_context import AuthContext
 from statgpt.common.config import multiline_logger as logger
 from statgpt.common.data.base import (
@@ -339,7 +339,7 @@ class ChainState(BaseModel):
     """
 
     auth_context: AuthContext
-    choice: Choice
+    choice: ChoiceI
     target: t.Any
     state: dict[str, t.Any] = Field(default_factory=dict)
     data_service: ChannelServiceFacade
