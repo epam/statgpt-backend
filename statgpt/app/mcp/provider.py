@@ -19,7 +19,6 @@ from statgpt.app.schemas.dial_app_configuration import StatGPTConfiguration
 from statgpt.app.security import DialAuthCredentials, create_auth_context
 from statgpt.app.security.exceptions import AuthenticationError, AuthorizationError
 from statgpt.app.services.chat_facade import ChannelServiceFacade
-from statgpt.app.settings.dial_app import MCP_DEPLOYMENT_ID_PATH_PARAM
 from statgpt.app.utils.dial_stages import DummyStage, NullChoice
 from statgpt.common.auth.auth_context import AuthContext
 from statgpt.common.schemas import BaseToolConfig, ChannelConfig
@@ -83,9 +82,9 @@ class ChannelToolProvider(Provider):
 
     async def _resolve_context(self, request: Request) -> tuple[AuthContext, ChannelServiceFacade]:
         auth_context = await create_auth_context(DialAuthCredentials.from_headers(request.headers))
-        deployment_id = request.path_params.get(MCP_DEPLOYMENT_ID_PATH_PARAM)
+        deployment_id = request.path_params.get("deployment_id")
         if not deployment_id:
-            raise ValueError(f"Missing {MCP_DEPLOYMENT_ID_PATH_PARAM} in path")
+            raise ValueError("Missing deployment_id in path")
         channel_service = await ChannelServiceFacade.get_channel(deployment_id)
         return auth_context, channel_service
 

@@ -85,7 +85,7 @@ class DialAppFactory:
         )
         app.include_router(service_router)
 
-        mcp_path = dial_app_settings.statgpt_mcp_path
+        mcp_path = "/api/v1/{deployment_id}/mcp"
         _log.info("Mounting MCP app at %s", mcp_path)
         app.mount(mcp_path, mcp_app)
 
