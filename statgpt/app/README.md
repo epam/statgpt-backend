@@ -23,3 +23,59 @@ the [common README file](../common/README.md).
 | DIAL_RAG_PGVECTOR_URL          |    No    | URL for the RAG with pgvector, only for local development                                                                                                                                                                                            |                                              |                     |
 | DIAL_RAG_PGVECTOR_API_KEY      |    No    | API key for the RAG with pgvector, only for local development                                                                                                                                                                                        |                                              |                     |
 | TTYD_TOOL_PLAIN_CONTENT_*      |    No    | Environment variables for the Plain Content tool to replace in the files content. Replace `*` with the variable name.                                                                                                                                |                                              |                     |
+
+## MCP Server
+
+StatGPT can expose its tools via the [Model Context Protocol (MCP)](https://modelcontextprotocol.io/), allowing external clients (Claude Code, Cursor, etc.) to use StatGPT tools directly.
+
+The MCP server is mounted at `/api/v1/{deployment_id}/mcp`. The `{deployment_id}` placeholder is resolved per request from the URL path and is used to look up the channel configuration.
+
+### DIAL Core Configuration
+
+To expose an existing StatGPT application's tools over MCP, add an `mcp` section to its entry in DIAL Core's `applications` config. The rest of the application fields (`endpoint`, `features`, etc.) are expected to already exist.
+
+In the example below, `statgpt-sample` is the application's `deployment_id` — the same id is embedded in both the chat completion endpoint and the MCP endpoint.
+
+```json
+{
+  "applications": {
+    "statgpt-sample": {
+      "displayName": "StatGPT Sample",
+      "displayVersion": "default",
+      "description": "<description>",
+      "endpoint": "http://<host>/openai/deployments/statgpt-sample/chat/completions",
+      "forwardAuthToken": true,
+      "features": {
+        "configurationEndpoint": "http://<host>/openai/deployments/statgpt-sample/configuration"
+      },
+      "mcp": {
+        "endpoint": "http://<host>/api/v1/statgpt-sample/mcp/",
+        "transport": "http",
+        "allowedTools": [],
+        "configDelivery": "header",
+        "forwardPerRequestKey": true
+      }
+    }
+  }
+}
+```
+
+> `mcp.endpoint` must point to the StatGPT app's MCP URL with the application's `deployment_id` substituted into the path, followed by a trailing `/`: `http://<host>/api/v1/<deployment_id>/mcp/`.
+
+### Example: Claude Code Configuration
+
+Add the following to your Claude Code MCP settings (replace `<dial-core>` and `<app-name>` with your DIAL Core host and the application id, e.g. `statgpt-sample`):
+
+```json
+{
+  "mcpServers": {
+    "statgpt": {
+      "type": "streamable-http",
+      "url": "http://<dial-core>/v1/toolset/<app-name>/mcp",
+      "headers": {
+        "api-key": "<your-dial-api-key>"
+      }
+    }
+  }
+}
+```
