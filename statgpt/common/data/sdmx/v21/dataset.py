@@ -1039,6 +1039,8 @@ class Sdmx21DataSet(
         elif len(constraints) != 1:
             raise ValueError("Unexpected quantity of constraints in structure message")
         constraint = constraints[0]
+        if len(constraint.data_content_region) == 0:
+            return DataSetAvailabilityQuery()  # empty query
         if len(constraint.data_content_region) != 1:
             raise ValueError("Unexpected quantity of cube-regions in constraint")
         cube_region = constraint.data_content_region[0]
