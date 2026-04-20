@@ -29,6 +29,20 @@ def run_dial_app(app: DIALApp):
     uvicorn.run(app, port=5000, log_config=None)
 
 
+from opentelemetry import trace
+from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import BatchSpanProcessor
+
+provider = TracerProvider()
+provider.add_span_processor(BatchSpanProcessor(OTLPSpanExporter()))
+trace.set_tracer_provider(provider)
+
+import mlflow
+
+mlflow.langchain.autolog()
+
+
 from statgpt.app.application.app_factory import DialAppFactory
 
 app_factory = DialAppFactory()
