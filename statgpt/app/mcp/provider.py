@@ -11,7 +11,7 @@ from fastmcp.tools import Tool, ToolResult
 from fastmcp.utilities.versions import VersionSpec
 from mcp.types import TextContent
 from pydantic import PrivateAttr
-from starlette.datastructures import Headers
+from starlette.requests import Request
 
 from statgpt.app.chains.tools import StatGptTool
 from statgpt.app.config import ChainParametersConfig
@@ -19,6 +19,7 @@ from statgpt.app.schemas.dial_app_configuration import StatGPTConfiguration
 from statgpt.app.security import DialAuthCredentials, create_auth_context
 from statgpt.app.security.exceptions import AuthenticationError, AuthorizationError
 from statgpt.app.services.chat_facade import ChannelServiceFacade
+from statgpt.app.settings.dial_app import MCP_DEPLOYMENT_ID_PATH_PARAM
 from statgpt.app.utils.dial_stages import DummyStage, NullChoice
 from statgpt.common.auth.auth_context import AuthContext
 from statgpt.common.schemas import BaseToolConfig, ChannelConfig
@@ -80,15 +81,11 @@ class _McpToolAdapter(Tool):
 class ChannelToolProvider(Provider):
     """MCP Provider that dynamically serves tools from a StatGPT channel config."""
 
-    def _get_headers(self) -> Headers:
-        request = get_http_request()
-        return request.headers
-
-    async def _resolve_context(self, headers: Headers) -> tuple[AuthContext, ChannelServiceFacade]:
-        auth_context = await create_auth_context(DialAuthCredentials.from_headers(headers))
-        deployment_id = headers.get("x-dial-application-id")
+    async def _resolve_context(self, request: Request) -> tuple[AuthContext, ChannelServiceFacade]:
+        auth_context = await create_auth_context(DialAuthCredentials.from_headers(request.headers))
+        deployment_id = request.path_params.get(MCP_DEPLOYMENT_ID_PATH_PARAM)
         if not deployment_id:
-            raise ValueError("Missing x-dial-application-id header")
+            raise ValueError(f"Missing {MCP_DEPLOYMENT_ID_PATH_PARAM} in path")
         channel_service = await ChannelServiceFacade.get_channel(deployment_id)
         return auth_context, channel_service
 
@@ -109,8 +106,7 @@ class ChannelToolProvider(Provider):
 
     async def _list_tools(self) -> Sequence[Tool]:
         try:
-            headers = self._get_headers()
-            auth_context, channel_service = await self._resolve_context(headers)
+            auth_context, channel_service = await self._resolve_context(get_http_request())
         except (AuthenticationError, AuthorizationError) as e:
             _log.warning("Auth error resolving channel context for tools/list: %s", e)
             return []
@@ -134,8 +130,7 @@ class ChannelToolProvider(Provider):
 
     async def _get_tool(self, name: str, version: VersionSpec | None = None) -> Tool | None:
         try:
-            headers = self._get_headers()
-            auth_context, channel_service = await self._resolve_context(headers)
+            auth_context, channel_service = await self._resolve_context(get_http_request())
         except (AuthenticationError, AuthorizationError) as e:
             _log.warning("Auth error resolving channel context for tools/call (%s): %s", name, e)
             return None

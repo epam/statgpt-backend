@@ -1,5 +1,8 @@
-from pydantic import Field
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+MCP_DEPLOYMENT_ID_PATH_PARAM = "deployment_id"
+_MCP_PATH_DEPLOYMENT_ID_PLACEHOLDER = "{" + MCP_DEPLOYMENT_ID_PATH_PARAM + "}"
 
 
 class DialAppSettings(BaseSettings):
@@ -72,10 +75,26 @@ class DialAppSettings(BaseSettings):
     )
 
     statgpt_mcp_path: str = Field(
-        default="/api/v1/mcp",
+        default=f"/api/v1/{_MCP_PATH_DEPLOYMENT_ID_PLACEHOLDER}/mcp",
         alias="STATGPT_MCP_PATH",
-        description="Path to mount the MCP server at",
+        description=(
+            "Path template to mount the MCP server at. Must start with '/' "
+            f"and contain the '{_MCP_PATH_DEPLOYMENT_ID_PLACEHOLDER}' "
+            "placeholder; the value is resolved per request from the URL path."
+        ),
     )
+
+    @field_validator("statgpt_mcp_path")
+    @classmethod
+    def _validate_mcp_path(cls, value: str) -> str:
+        if not value.startswith("/"):
+            raise ValueError("STATGPT_MCP_PATH must start with '/'")
+        if _MCP_PATH_DEPLOYMENT_ID_PLACEHOLDER not in value:
+            raise ValueError(
+                f"STATGPT_MCP_PATH must contain the "
+                f"'{_MCP_PATH_DEPLOYMENT_ID_PLACEHOLDER}' placeholder"
+            )
+        return value
 
     dial_system_user_context_roles: str | None = Field(
         default=None,

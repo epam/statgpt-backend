@@ -29,63 +29,50 @@ the [common README file](../common/README.md).
 
 StatGPT can expose its tools via the [Model Context Protocol (MCP)](https://modelcontextprotocol.io/), allowing external clients (Claude Code, Cursor, etc.) to use StatGPT tools directly.
 
-The MCP server is mounted at the path configured by `STATGPT_MCP_PATH` (default: `/api/v1/mcp`).
+The MCP server is mounted at the path configured by `STATGPT_MCP_PATH` (default: `/api/v1/{deployment_id}/mcp`). The `{deployment_id}` placeholder is resolved per request from the URL path and is used to look up the channel configuration.
 
 ### DIAL Core Configuration
 
-To register the MCP server in DIAL Core, two config entries are needed:
+To expose an existing StatGPT application's tools over MCP, add an `mcp` section to its entry in DIAL Core's `applications` config. The rest of the application fields (`endpoint`, `features`, etc.) are expected to already exist.
 
-**1. Application type schema** — defines the MCP transport and endpoint:
-
-```json
-"applicationTypeSchemas": [
-  {
-    "$schema": "https://dial.epam.com/application_type_schemas/schema#",
-    "$id": "https://dial.epam.com/application_type_schemas/<statgpt-mcp>",
-    "dial:applicationTypeDisplayName": "<StatGPT MCP>",
-    "dial:applicationTypeMcp": {
-      "dial:endpoint": "http://<host>/<path>",
-      "dial:transport": "HTTP",
-      "dial:mcpConfigDelivery": "HEADER",
-      "dial:forwardPerRequestKey": true
-    },
-    "dial:appendApplicationPropertiesHeader": false
-  }
-]
-```
-
-> `dial:endpoint` should point to the MCP app URL, e.g. if the app runs on port 5000 with the default path, the endpoint is `http://localhost:5000/api/v1/mcp`.
-
-**2. Application instance** — registers the application using the schema:
+In the example below, `statgpt-sample` is the application's `deployment_id` — the same id is embedded in both the chat completion endpoint and the MCP endpoint.
 
 ```json
-"applications": {
-  "<statgpt-mcp-1>": {
-    "displayName": "<StatGPT MCP Application>",
-    "description": "<Test application for StatGPT MCP toolset>",
-    "application_type_schema_id": "https://dial.epam.com/application_type_schemas/<statgpt-mcp>",
-    "application_properties": {},
-    "forwardAuthToken": true
+{
+  "applications": {
+    "statgpt-sample": {
+      "displayName": "StatGPT Sample",
+      "displayVersion": "default",
+      "description": "<description>",
+      "endpoint": "http://<host>/openai/deployments/statgpt-sample/chat/completions",
+      "forwardAuthToken": true,
+      "features": {
+        "configurationEndpoint": "http://<host>/openai/deployments/statgpt-sample/configuration"
+      },
+      "mcp": {
+        "endpoint": "http://<host>/api/v1/statgpt-sample/mcp/",
+        "transport": "http",
+        "allowedTools": [],
+        "configDelivery": "header",
+        "forwardPerRequestKey": true
+      }
+    }
   }
 }
 ```
 
-> Fields in `<>` are intended for updating, other fields are optionally updated.
-
-**MCP endpoint URL pattern:** `http(s)://<dial-core>/v1/toolset/<app-name>/mcp`
-
-For example, if the application name is `statgpt-mcp-1` and DIAL Core runs on `localhost:8080`, the MCP URL for clients is: `http://localhost:8080/v1/toolset/statgpt-mcp-1/mcp`
+> `mcp.endpoint` must point to the StatGPT app's MCP URL with the application's `deployment_id` substituted into the path, followed by a trailing `/`. For the default `STATGPT_MCP_PATH`, this is `http://<host>/api/v1/<deployment_id>/mcp/`.
 
 ### Example: Claude Code Configuration
 
-Add the following to your Claude Code MCP settings:
+Add the following to your Claude Code MCP settings (replace `<dial-core>` and `<app-name>` with your DIAL Core host and the application id, e.g. `statgpt-sample`):
 
 ```json
 {
   "mcpServers": {
     "statgpt": {
       "type": "streamable-http",
-      "url": "http://localhost:8080/v1/toolset/statgpt-mcp-1/mcp",
+      "url": "http://<dial-core>/v1/toolset/<app-name>/mcp",
       "headers": {
         "api-key": "<your-dial-api-key>"
       }
