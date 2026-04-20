@@ -1,12 +1,13 @@
 import typing as t
 from datetime import datetime
 
-from aidial_sdk.chat_completion import Choice, Request, Stage
+from aidial_sdk.chat_completion import Request, Stage
 
 from statgpt.app.config import ChainParametersConfig
 from statgpt.app.schemas.dial_app_configuration import StatGPTConfiguration
 from statgpt.app.schemas.file_rags.dial_rag import RagFilterDial
 from statgpt.app.services.chat_facade import ChannelServiceFacade, VersionedDataSet
+from statgpt.app.utils.dial_stages import ChoiceI
 from statgpt.app.utils.message_history import History
 from statgpt.common.auth.auth_context import AuthContext
 from statgpt.common.data.base import DataResponse, DataSetQuery, DimensionQuery
@@ -46,7 +47,7 @@ class ChainParameters:
         return data[ChainParametersConfig.AUTH_CONTEXT]
 
     @staticmethod
-    def get_choice(data: dict) -> Choice:
+    def get_choice(data: dict) -> ChoiceI:
         return data[ChainParametersConfig.CHOICE]
 
     @staticmethod
