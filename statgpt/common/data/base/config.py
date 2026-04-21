@@ -108,7 +108,6 @@ class IndexerIndicatorConfig(BaseModel):
             "When False, primary is taken from first dimension only."
         ),
     )
-
     annotations: Annotated[IndexerIndicatorAnnotationConfig | None, IndexingField()] = Field(
         default=None
     )
