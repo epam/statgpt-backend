@@ -5,14 +5,33 @@ from collections.abc import Callable
 from contextlib import AbstractContextManager, contextmanager
 from datetime import datetime
 from time import perf_counter
+from typing import Any, Protocol, runtime_checkable
 
-from aidial_sdk.chat_completion import Attachment, Choice, Stage
+from aidial_sdk.chat_completion import Attachment, Stage
 from aidial_sdk.chat_completion.enums import Status
 from aidial_sdk.chat_completion.stage import ChunkQueue, ContentStream
 
 from statgpt.app.settings.dial_app import dial_app_settings
 
 _log = logging.getLogger(__name__)
+
+
+@runtime_checkable
+class ChoiceI(Protocol):
+    """Structural protocol for Choice-like objects.
+
+    Both ``aidial_sdk.chat_completion.Choice`` and ``NullChoice`` satisfy this
+    protocol, so Pydantic's ``isinstance`` check (used with
+    ``arbitrary_types_allowed``) passes for either.
+    """
+
+    def create_stage(self, *args: Any, **kwargs: Any) -> Any: ...
+
+    def append_content(self, content: str) -> Any: ...
+
+    def add_attachment(self, *args: Any, **kwargs: Any) -> Any: ...
+
+    def set_state(self, state: dict) -> Any: ...
 
 
 class StageInterface(ABC):
@@ -143,16 +162,16 @@ class DelayedStage(StageInterface):
 
 
 class DummyStage(StageInterface):
-    """A dummy stage that does nothing."""
+    """A silent dummy stage that does nothing."""
 
     def append_content(self, content: str):
-        _log.warning("The content is being appended to a dummy stage and will be ignored.")
+        pass
 
     def append_name(self, name: str):
-        _log.warning("The name is being appended to a dummy stage and will be ignored.")
+        pass
 
     def add_attachment(self, *args, **kwargs):
-        _log.warning("The attachment is being added to a dummy stage and will be ignored.")
+        pass
 
     def open(self):
         pass
@@ -177,6 +196,35 @@ class DummyStage(StageInterface):
         return False
 
 
+class WarningDummyStage(DummyStage):
+    """A dummy stage that logs warnings when content is appended."""
+
+    def append_content(self, content: str):
+        _log.warning("The content is being appended to a dummy stage and will be ignored.")
+
+    def append_name(self, name: str):
+        _log.warning("The name is being appended to a dummy stage and will be ignored.")
+
+    def add_attachment(self, *args, **kwargs):
+        _log.warning("The attachment is being added to a dummy stage and will be ignored.")
+
+
+class NullChoice:
+    """A no-op Choice replacement for contexts without DIAL streaming (e.g., MCP)."""
+
+    def create_stage(self, *args, **kwargs):
+        return DummyStage()
+
+    def append_content(self, content: str):
+        pass
+
+    def add_attachment(self, *args, **kwargs):
+        _log.warning("add_attachment() called on NullChoice — ignored in MCP context.")
+
+    def set_state(self, state: dict):
+        _log.warning("set_state() called on NullChoice — tools should not call this.")
+
+
 @contextmanager
 def _add_timing_to_stage(stage_generator):
     """Internal context manager that adds timing information to any stage."""
@@ -196,7 +244,7 @@ def _add_timing_to_stage(stage_generator):
 
 
 @contextmanager
-def timed_stage(choice: Choice, *args, **kwargs):
+def timed_stage(choice: ChoiceI, *args, **kwargs):
     """Context manager for creating a timed stage."""
     stage_generator = choice.create_stage(*args, **kwargs)
     with _add_timing_to_stage(stage_generator) as stage:
@@ -204,7 +252,7 @@ def timed_stage(choice: Choice, *args, **kwargs):
 
 
 @contextmanager
-def delayed_timed_stage(choice: Choice, *args, **kwargs):
+def delayed_timed_stage(choice: ChoiceI, *args, **kwargs):
     """Context manager for creating a delayed timed stage."""
     stage_generator = DelayedStage(lambda: choice.create_stage(*args, **kwargs))
     with _add_timing_to_stage(stage_generator) as stage:
@@ -214,15 +262,15 @@ def delayed_timed_stage(choice: Choice, *args, **kwargs):
 @contextmanager
 def optional_stage(stage_generator: AbstractContextManager[StageInterface], enabled: bool):
     if not enabled:
-        # Create a dummy stage that does nothing
-        stage_generator = DummyStage()
+        # Create a dummy stage that logs warnings
+        stage_generator = WarningDummyStage()
 
     with stage_generator as stage:
         yield stage
 
 
 @contextmanager
-def optional_timed_stage(choice: Choice, *args, enabled: bool, **kwargs):
+def optional_timed_stage(choice: ChoiceI, *args, enabled: bool, **kwargs):
     """Context manager for creating an optional timed stage."""
     stage_generator = timed_stage(choice, *args, **kwargs)
     with optional_stage(stage_generator, enabled) as stage:
@@ -230,7 +278,7 @@ def optional_timed_stage(choice: Choice, *args, enabled: bool, **kwargs):
 
 
 @contextmanager
-def optional_delayed_timed_stage(choice: Choice, *args, enabled: bool, **kwargs):
+def optional_delayed_timed_stage(choice: ChoiceI, *args, enabled: bool, **kwargs):
     """Context manager for creating an optional delayed timed stage."""
     stage_generator = delayed_timed_stage(choice, *args, **kwargs)
     with optional_stage(stage_generator, enabled) as stage:
