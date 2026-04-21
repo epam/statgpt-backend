@@ -80,6 +80,7 @@ class PredefinedDataQueryResponseAppender(BaseResponseAppender[PredefinedDataQue
             query=self._get_relative_time_period_aware_query(
                 self._response.query, time_period_dimension
             ),
+            metadata=json_query_metadata,
             sdmx1_source=sdmx1_source,
         ).model_dump(by_alias=True)
         json_query_content = json.dumps(json_query)

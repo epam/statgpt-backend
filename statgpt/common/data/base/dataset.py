@@ -240,7 +240,7 @@ class DataSet(BaseEntity, Generic[DataSetConfigType, DataSourceHandlerType], ABC
 
     @abstractmethod
     def get_resolved_sdmx1_source(self) -> str | None:
-        """Return resolved SDMX 1.0 source identifier if available."""
+        """Return resolved sdmx1 library source identifier if available."""
 
     def sdmx_rest_key_dimension_codes(self) -> list[str] | None:
         """Non-time dimension codes in DSD order for SDMX 2.1 REST data keys.
