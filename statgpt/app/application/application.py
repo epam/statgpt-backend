@@ -17,6 +17,8 @@ from statgpt.common.services.data_preloader import preload_data
 
 @asynccontextmanager
 async def lifespan(app: "StatGPTApp"):
+    # for testing purposes
+    os.environ["MLFLOW_TRACING_ENABLED"] = "true"
     if os.getenv("MLFLOW_TRACING_ENABLED", "").lower() == "true":
         import mlflow.langchain
 
