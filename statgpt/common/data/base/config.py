@@ -100,11 +100,6 @@ class IndexerIndicatorConfig(BaseModel):
             "When False, primary is taken from first dimension name and normalized."
         ),
     )
-    use_code_list_description: Annotated[bool, IndexingField()] = Field(
-        default=False,
-        description="Reserved for future use. Currently not implemented.",
-        # TODO: implement or remove
-    )
     super_primary: Annotated[bool, IndexingField()] = Field(
         default=False,
         description=(

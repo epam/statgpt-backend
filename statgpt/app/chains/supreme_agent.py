@@ -4,7 +4,7 @@ from copy import deepcopy
 from datetime import datetime
 from typing import NamedTuple
 
-from aidial_sdk.chat_completion import Choice, FunctionCall
+from aidial_sdk.chat_completion import FunctionCall
 from aidial_sdk.chat_completion import Message as DialMessage
 from aidial_sdk.chat_completion import Role
 from aidial_sdk.chat_completion import ToolCall as DialToolCall
@@ -30,7 +30,11 @@ from statgpt.app.schemas import (
 )
 from statgpt.app.schemas.dial_app_configuration import StatGPTConfiguration
 from statgpt.app.schemas.tool_artifact import DataQueryArtifact
-from statgpt.app.utils.dial_stages import optional_delayed_timed_stage, optional_timed_stage
+from statgpt.app.utils.dial_stages import (
+    ChoiceI,
+    optional_delayed_timed_stage,
+    optional_timed_stage,
+)
 from statgpt.app.utils.message_history import History
 from statgpt.common.auth.auth_context import AuthContext
 from statgpt.common.config import multiline_logger as logger
@@ -144,14 +148,14 @@ class _SupremeAgentResponse(NamedTuple):
 
 
 class SupremeAgent:
-    def __init__(self, choice: Choice, chain: Runnable):
+    def __init__(self, choice: ChoiceI, chain: Runnable):
         self._choice = choice
         self._chain = chain
 
     @classmethod
     def create(
         cls,
-        choice: Choice,
+        choice: ChoiceI,
         auth_context: AuthContext,
         channel_config: ChannelConfig,
         tools: list[StatGptTool],
