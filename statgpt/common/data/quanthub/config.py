@@ -153,18 +153,11 @@ class QuanthubSdmxDataSourceConfig(SdmxDataSourceConfig):
         default=None,
         description="The SDMX 3.0 URL for availability via POST. If not set, the default availability endpoint will be used.",
     )
-    data_explorer_url: str | None = Field(
-        default=None,
-        description=(
-            "The URL to the Quanthub Data Explorer. If set, it is used for creating URL queries with preset "
-            "facet values, and URLs in data query responses point to the Data Explorer instead of the API."
-        ),
-    )
     use_data_explorer_for_dataset_url: bool = Field(
         default=False,
         description=(
-            "If true and data_explorer_url is set, dataset URLs will point to data explorer instead of the dataset "
-            "pages configure in dataset citations."
+            "If true and a data explorer URL is resolved (dataset or data source), dataset URLs "
+            "will point to the data explorer instead of citation URLs."
         ),
     )
 
@@ -186,9 +179,4 @@ class QuanthubSdmxDataSourceConfig(SdmxDataSourceConfig):
     def get_availability_via_post_url(self) -> str | None:
         if self.availability_via_post_url:
             return config_utils.replace_env(self.availability_via_post_url)
-        return None
-
-    def get_data_explorer_url(self) -> str | None:
-        if self.data_explorer_url:
-            return config_utils.replace_env(self.data_explorer_url)
         return None

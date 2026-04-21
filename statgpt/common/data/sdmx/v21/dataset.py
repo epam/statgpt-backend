@@ -19,6 +19,7 @@ from dateutil.parser import parse
 from sdmx.message import DataMessage, StructureMessage
 from sdmx.model.common import Code
 from sdmx.model.v21 import DataflowDefinition as DataFlow
+from sdmx.model.v21 import DataStructureDefinition
 from sdmx.model.v21 import TimeDimension
 
 from statgpt.common.auth.auth_context import AuthContext
@@ -70,6 +71,7 @@ from .query import (
     TimeDimensionQuery,
 )
 from .schemas import Urn
+from .utils import convert_keys_to_str
 
 if t.TYPE_CHECKING:
     from statgpt.common.data.sdmx.v21.datasource import Sdmx21DataSourceHandler
@@ -521,7 +523,44 @@ class Sdmx21DataSet(
     def dataset_url(self) -> str | None:
         if self.config.citation and self.config.citation.url:
             return self.config.citation.get_url()
+        if base := self._resolved_data_explorer_base_url():
+            return f"{base}?urn={self._short_urn}"
         return None
+
+    def _resolved_data_explorer_base_url(self) -> str | None:
+        if url := self.config.get_data_explorer_url():
+            return url
+        return self._datasource.config.get_data_explorer_url()
+
+    def _format_data_explorer_url(
+        self,
+        base_url: str,
+        dsd: DataStructureDefinition,
+        key_dict: dict[str, list[str]],
+        sdmx_query: SdmxDataSetQuery,
+    ) -> str:
+        params: dict[str, str] = {
+            'urn': self._short_urn,
+            'filter': convert_keys_to_str(dsd, key_dict),
+        }
+
+        try:
+            if td_query := sdmx_query.time_dimension_query:
+                start_period = td_query.start_period
+                end_period = td_query.end_period
+            else:
+                start_period = None
+                end_period = None
+
+            if start_period:
+                params['startPeriod'] = start_period if '-' in start_period else f"{start_period}-A"
+            if end_period:
+                params['endPeriod'] = end_period if '-' in end_period else f"{end_period}-A"
+        except Exception as e:
+            _log.exception(e)
+
+        params_str = '&'.join([f'{k}={v}' for k, v in params.items()])
+        return f"{base_url}?{params_str}"
 
     async def _get_available_series(
         self,
@@ -1228,7 +1267,15 @@ class Sdmx21DataSet(
                 ),
             )
 
-        url = self._get_query_url(data_msg.response)  # type: ignore
+        if explorer_base := self._resolved_data_explorer_base_url():
+            url = self._format_data_explorer_url(
+                base_url=explorer_base,
+                dsd=self._artefact.structure,
+                key_dict=sdmx_query.get_key(),
+                sdmx_query=sdmx_query,
+            )
+        else:
+            url = self._get_query_url(data_msg.response)  # type: ignore
 
         try:
             sdmx_pandas = await self._data_msg_to_dataframe(data_msg)
