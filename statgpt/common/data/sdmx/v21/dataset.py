@@ -19,8 +19,7 @@ from dateutil.parser import parse
 from sdmx.message import DataMessage, StructureMessage
 from sdmx.model.common import Code
 from sdmx.model.v21 import DataflowDefinition as DataFlow
-from sdmx.model.v21 import DataStructureDefinition
-from sdmx.model.v21 import TimeDimension
+from sdmx.model.v21 import DataStructureDefinition, TimeDimension
 
 from statgpt.common.auth.auth_context import AuthContext
 from statgpt.common.data.base import (
