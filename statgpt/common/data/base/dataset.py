@@ -242,6 +242,14 @@ class DataSet(BaseEntity, Generic[DataSetConfigType, DataSourceHandlerType], ABC
     def get_resolved_sdmx1_source(self) -> str | None:
         """Return resolved SDMX 1.0 source identifier if available."""
 
+    def sdmx_rest_key_dimension_codes(self) -> list[str] | None:
+        """Non-time dimension codes in DSD order for SDMX 2.1 REST data keys.
+
+        ``None`` when this dataset type does not expose an SDMX DSD key order
+        (callers fall back to filter order for Python code generation).
+        """
+        return None
+
     @property
     @abstractmethod
     def default_value_codes(self) -> list[str]:

@@ -228,7 +228,7 @@ class Sdmx21DataResponse(DataResponse):
     def json_query_old(self) -> dict:
         return {
             'urn': self.dataset.short_urn,
-            'sdmx1Source': self.dataset.resolved_sdmx1_source,
+            'sdmx1Source': self.dataset.get_resolved_sdmx1_source(),
             'metadata': self._get_dataset_metadata_as_dict(),
             'filters': self._to_sdmx_filters(self.sdmx_query),
         }
@@ -243,8 +243,9 @@ class Sdmx21DataResponse(DataResponse):
                 indicator_dimensions=self.dataset.config.indicator_dimensions,
                 time_period_dimension=self.dataset.config.time_period_dimension[0],
                 dataset_url=self.dataset.dataset_url,
+                rest_key_dimension_codes=self.dataset.sdmx_rest_key_dimension_codes(),
             ),
-            sdmx1_source=self.dataset.resolved_sdmx1_source,
+            sdmx1_source=self.dataset.get_resolved_sdmx1_source(),
         ).model_dump(by_alias=True)
 
     def get_python_code_body(self, suffix: str = "") -> str | None:
@@ -295,9 +296,11 @@ class Sdmx21DataResponse(DataResponse):
 
     def _get_dataset_metadata_as_dict(self) -> dict[str, t.Any]:
         dataset_config = self.dataset.config
+        time_dim_id, _ = dataset_config.time_period_dimension
         return {
             'countryDimension': dataset_config.country_dimension,
             'indicatorDimensions': dataset_config.indicator_dimensions,
+            'timePeriodDimension': time_dim_id,
         }
 
     def _graph_name(self, figure: go.Figure, template: str) -> str:
@@ -308,22 +311,23 @@ class Sdmx21DataResponse(DataResponse):
         )
 
     @staticmethod
-    def _to_sdmx_filters(sdmx_query: SdmxDataSetQuery) -> list[dict[str, str]]:
-        res = [
+    def _to_sdmx_filters(sdmx_query: SdmxDataSetQuery) -> list[dict[str, str | list[str]]]:
+        res: list[dict[str, str | list[str]]] = [
             {
                 "componentCode": k,
                 "operator": "in",
-                "values": ','.join(v),
+                "values": list(v),
             }
             for k, v in sdmx_query.categorical_dimensions.items()
         ]
 
         if sdmx_query.time_dimension_query:
+            tq = sdmx_query.time_dimension_query
             res.append(
                 {
-                    "componentCode": sdmx_query.time_dimension_query.time_dimension_id,
+                    "componentCode": tq.time_dimension_id,
                     "operator": "between",
-                    "values": f"{sdmx_query.time_dimension_query.start_period},{sdmx_query.time_dimension_query.end_period}",
+                    "values": [str(tq.start_period), str(tq.end_period)],
                 }
             )
 
@@ -1268,19 +1272,17 @@ class Sdmx21DataSet(
             ),
         )
 
-    @property
-    def resolved_sdmx1_source(self) -> str:
+    def get_resolved_sdmx1_source(self) -> str | None:
         return (
             self._config.sdmx1_source
             or self._datasource.config.sdmx1_source
             or self._artefact.maintainer.id  # type: ignore[union-attr]
         )
 
-    def get_resolved_sdmx1_source(self) -> str | None:
-        return self.resolved_sdmx1_source
-
     def get_python_code_body(self, sdmx_query: SdmxDataSetQuery, suffix: str = "") -> str:
-        provider = self.resolved_sdmx1_source
+        provider = self.get_resolved_sdmx1_source()
+        if provider is None:
+            raise RuntimeError("Cannot generate Python code without a resolved SDMX 1 source")
 
         flow_ref = (
             f"{self._artefact.maintainer.id}"  # type: ignore[union-attr]
@@ -1297,6 +1299,14 @@ class Sdmx21DataSet(
             suffix=suffix,
         )
 
+    def sdmx_rest_key_dimension_codes(self) -> list[str]:
+        """Non-time DSD dimension codes in REST key order."""
+        return [
+            dim.id
+            for dim in self._artefact.structure.dimensions  # type: ignore[union-attr]
+            if not isinstance(dim, TimeDimension)
+        ]
+
     def _dict_key_to_sdmx_string(self, keys: dict[str, list[str]]) -> str:
         """Convert a dict key to an SDMX REST key string in DSD dimension order.
 
@@ -1305,9 +1315,7 @@ class Sdmx21DataSet(
         Time dimensions are excluded (handled via query params).
         """
         parts = []
-        for dim in self._artefact.structure.dimensions:
-            if isinstance(dim, TimeDimension):
-                continue
-            values = keys.get(dim.id, [])
+        for dim_id in self.sdmx_rest_key_dimension_codes():
+            values = keys.get(dim_id, [])
             parts.append("+".join(values))
         return ".".join(parts)

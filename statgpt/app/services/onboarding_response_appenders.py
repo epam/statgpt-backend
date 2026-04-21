@@ -68,15 +68,18 @@ class PredefinedDataQueryResponseAppender(BaseResponseAppender[PredefinedDataQue
             _log.warning("Dataset with id %s not found", urn)
             return
         sdmx1_source = dataset.get_resolved_sdmx1_source()
+        time_period_dimension = dataset.config.time_period_dimension[0]
         json_query_metadata = JsonQueryMetadata(
             country_dimension=dataset.config.country_dimension,
             indicator_dimensions=dataset.config.indicator_dimensions,
-            time_period_dimension=dataset.config.time_period_dimension[0],
+            time_period_dimension=time_period_dimension,
             dataset_url=dataset.dataset_url,
+            rest_key_dimension_codes=dataset.sdmx_rest_key_dimension_codes(),
         )
         json_query = JsonQueryWithMetadata.from_query(
-            query=self._get_relative_time_period_aware_query(self._response.query),
-            metadata=json_query_metadata,
+            query=self._get_relative_time_period_aware_query(
+                self._response.query, time_period_dimension
+            ),
             sdmx1_source=sdmx1_source,
         ).model_dump(by_alias=True)
         json_query_content = json.dumps(json_query)
@@ -95,9 +98,11 @@ class PredefinedDataQueryResponseAppender(BaseResponseAppender[PredefinedDataQue
         await self._append_json_query_attachment(choice, channel_service, auth_context)
         choice.append_content(self._response.text)
 
-    def _get_relative_time_period_aware_query(self, query: JsonQuery) -> JsonQuery:
+    def _get_relative_time_period_aware_query(
+        self, query: JsonQuery, time_period_dimension: str
+    ) -> JsonQuery:
         for filter in query.filters:
-            if filter.component_code == "TIME_PERIOD":
+            if filter.component_code == time_period_dimension:
                 filter.values = [
                     time_period_utils.get_relative_aware_time_period(value)
                     for value in filter.values

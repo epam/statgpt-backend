@@ -141,6 +141,11 @@ async def generate_python_attachment(
         Access this endpoint through the Dial Core API at
         "/v1/deployments/{deployment_id}/route/python-attachment".
     """
-    return GeneratePythonCodeResponse(
-        python_code=generate_merged_python_code(body.queries),
-    )
+    try:
+        python_code = generate_merged_python_code(body.queries)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        ) from e
+    return GeneratePythonCodeResponse(python_code=python_code)

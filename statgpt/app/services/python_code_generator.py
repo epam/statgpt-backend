@@ -1,4 +1,5 @@
-import re
+import logging
+from typing import Never
 
 from statgpt.common.data.sdmx.python_code import generate_python_query_body
 from statgpt.common.schemas.query import (
@@ -6,6 +7,8 @@ from statgpt.common.schemas.query import (
     JsonQueryOperator,
     JsonQueryWithMetadata,
 )
+
+logger = logging.getLogger(__name__)
 
 PYTHON_SDMX1_HEADER = """\
 # Uses the [sdmx1 library](https://pypi.org/project/sdmx1/)
@@ -16,26 +19,33 @@ PYTHON_SDMX1_HEADER = """\
 
 import sdmx"""
 
-_URN_PATTERN = re.compile(r"^(?P<agency>[^:]+):(?P<resource>[^(]+)\((?P<version>[^)]+)\)$")
-
-
-def _parse_urn(urn: str) -> tuple[str, str, str]:
-    """Parse short URN like 'AGENCY:RESOURCE(VERSION)' into (agency_id, resource_id, version)."""
-    match = _URN_PATTERN.match(urn)
-    if not match:
-        raise ValueError(f"Invalid URN format: {urn!r}")
-    return match.group("agency"), match.group("resource"), match.group("version")
-
 
 def _build_flow_ref(agency_id: str, resource_id: str, version: str) -> str:
     return f"{agency_id},{resource_id},{version}"
 
 
-def _build_key_from_filters(filters: list[JsonComponentQuery], time_component: str) -> str:
-    """Build SDMX key string from non-time categorical filters.
+def _build_key_from_filters(
+    filters: list[JsonComponentQuery],
+    time_component: str,
+    rest_key_dimension_codes: list[str] | None,
+) -> str:
+    """Build SDMX REST key string from categorical filters.
 
-    Joins multiple values per dimension with '+' and dimensions with '.'.
+    When ``rest_key_dimension_codes`` is set (DSD order, excluding time), the key
+    matches SDMX 2.1 expectations: ``'.'`` between dimensions, ``'+'`` within a
+    dimension, and ``''`` for dimensions with no filter (wildcard slot).
+
+    If that hint is absent, key segments follow the filter list order (legacy).
     """
+    by_code = {f.component_code: f for f in filters}
+    if rest_key_dimension_codes:
+        parts: list[str] = []
+        for dim_code in rest_key_dimension_codes:
+            if dim_code == time_component:
+                continue
+            f = by_code.get(dim_code)
+            parts.append("+".join(f.values) if f is not None else "")
+        return ".".join(parts)
     parts = []
     for f in filters:
         if f.component_code == time_component:
@@ -44,16 +54,75 @@ def _build_key_from_filters(filters: list[JsonComponentQuery], time_component: s
     return ".".join(parts)
 
 
+def _time_filter_context(f: JsonComponentQuery) -> str:
+    return (
+        f"time filter on {f.component_code!r}: operator={f.operator!r}, "
+        f"n_values={len(f.values)}"
+    )
+
+
+def _invalid_time_filter(reason: str, f: JsonComponentQuery) -> Never:
+    msg = f"{reason} ({_time_filter_context(f)})."
+    logger.warning(msg)
+    raise ValueError(msg)
+
+
+def _time_filter_rest_params(f: JsonComponentQuery) -> dict[str, str]:
+    """Return ``startPeriod`` / ``endPeriod`` entries implied by one time filter."""
+    op = f.operator
+    values = f.values
+    n = len(values)
+
+    if op == JsonQueryOperator.BETWEEN:
+        if n != 2:
+            _invalid_time_filter(
+                f"BETWEEN requires exactly two period values; got {n}",
+                f,
+            )
+        return {"startPeriod": values[0], "endPeriod": values[1]}
+
+    if op == JsonQueryOperator.GE:
+        if not values:
+            _invalid_time_filter("GE requires at least one period", f)
+        return {"startPeriod": values[0]}
+
+    if op == JsonQueryOperator.LE:
+        if not values:
+            _invalid_time_filter("LE requires at least one period", f)
+        return {"endPeriod": values[0]}
+
+    if op == JsonQueryOperator.IN:
+        if n == 1:
+            p = values[0]
+            return {"startPeriod": p, "endPeriod": p}
+        if not values:
+            _invalid_time_filter("IN requires at least one period", f)
+        _invalid_time_filter(
+            "Time dimension 'in' with multiple values cannot be expressed as a single "
+            "sdmx1 startPeriod/endPeriod request; use BETWEEN or separate queries",
+            f,
+        )
+
+    if op in (JsonQueryOperator.GT, JsonQueryOperator.LT):
+        _invalid_time_filter(
+            f"Exclusive time bound {op!r} is not supported for Python sdmx1 snippets: "
+            "SDMX REST only supports inclusive startPeriod/endPeriod; "
+            "use ge/le/between instead",
+            f,
+        )
+
+    _invalid_time_filter(f"Unsupported time filter operator {op!r}", f)
+
+
 def _build_params_from_filters(filters: list[JsonComponentQuery]) -> dict[str, str]:
+    """Map time-dimension filters to SDMX REST ``startPeriod`` / ``endPeriod``.
+
+    SDMX uses inclusive bounds only; ``gt`` / ``lt`` cannot be translated faithfully
+    without calendar-aware stepping, so they are rejected.
+    """
     params: dict[str, str] = {"detail": "full"}
     for f in filters:
-        if f.operator == JsonQueryOperator.BETWEEN and len(f.values) == 2:
-            params["startPeriod"] = f.values[0]
-            params["endPeriod"] = f.values[1]
-        elif f.operator == JsonQueryOperator.GE and f.values:
-            params["startPeriod"] = f.values[0]
-        elif f.operator == JsonQueryOperator.LE and f.values:
-            params["endPeriod"] = f.values[0]
+        params.update(_time_filter_rest_params(f))
     return params
 
 
@@ -61,13 +130,16 @@ def generate_python_code_from_query(
     query: JsonQueryWithMetadata,
     suffix: str = "",
 ) -> str:
-    agency_id, resource_id, version = _parse_urn(query.urn)
-    flow_ref = _build_flow_ref(agency_id, resource_id, version)
+    flow_ref = _build_flow_ref(query.agency_id, query.resource_id, query.version)
 
-    provider = query.sdmx1_source or agency_id
+    provider = query.sdmx1_source or query.agency_id
 
     time_component = query.metadata.time_period_dimension
-    key = _build_key_from_filters(query.filters, time_component)
+    key = _build_key_from_filters(
+        query.filters,
+        time_component,
+        query.metadata.rest_key_dimension_codes,
+    )
 
     time_filters = [f for f in query.filters if f.component_code == time_component]
     params = _build_params_from_filters(time_filters)
