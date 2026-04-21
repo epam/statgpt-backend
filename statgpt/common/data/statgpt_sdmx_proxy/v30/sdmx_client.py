@@ -1,11 +1,12 @@
 import io
+from typing import cast
 from urllib.parse import urlencode
 
 import httpx
 import requests
 from sdmx import Resource
 from sdmx.message import DataMessage, StructureMessage
-from sdmx.model.v21 import DataStructureDefinition
+from sdmx.model.v21 import AttributeValue, Code, DataStructureDefinition
 from sdmx.session import ResponseIO
 
 from statgpt.common.auth.auth_context import AuthContext
@@ -18,6 +19,24 @@ from statgpt.common.data.statgpt_sdmx_proxy.sdmx_schemas.structure_message impor
     ProxyAvailabilityResponseBody,
 )
 from statgpt.common.data.statgpt_sdmx_proxy.v30.reader import StatGptSdmxProxyDataReader
+from statgpt.common.utils import TtlCache
+
+
+def _sdmx_attribute_value_display(av: AttributeValue) -> str | None:
+    val = av.value
+    if val is None:
+        return None
+    if isinstance(val, Code):
+        return val.id
+    return str(val)
+
+
+def _dataset_level_attribute_map_from_data_message(msg: DataMessage) -> dict[str, str | None]:
+    """Extract dataset-level attributes from a DataMessage as a flat {id: display_value} dict."""
+    if len(msg.data) != 1:
+        return {}
+    ds = msg.data[0]
+    return {attr_id: _sdmx_attribute_value_display(av) for attr_id, av in ds.attrib.items()}
 
 
 def proxy_structure_extra_headers(dsd_urn: str | None) -> dict[str, str] | None:
@@ -30,6 +49,7 @@ class AsyncStatGptSdmxProxyClient(AsyncSdmxClient):
 
     _DATA_PARAM_ALLOWLIST = {"startPeriod", "endPeriod", "firstNObservations", "lastNObservations"}
     _DATA_ACCEPT_DEFAULT = "application/vnd.sdmx.data+json;version=2.0.0"
+    _attributes_cache: TtlCache[dict[str, str | None]] = TtlCache()
 
     @classmethod
     def from_config(  # type: ignore[override]
@@ -81,6 +101,49 @@ class AsyncStatGptSdmxProxyClient(AsyncSdmxClient):
                 dsd=dsd,
             )
 
+    async def dataset_level_attributes(
+        self, *, agency_id: str, resource_id: str, version: str
+    ) -> dict[str, str | None]:
+        """Fetch dataset-level attributes and their resolved values for a dataflow."""
+        url = self._build_url(
+            path=f"/data/dataflow/{agency_id}/{resource_id}/{version}/*",
+            params={"attributes": "dataset", "measures": "none", "limit": "1"},
+        )
+        if (item := self._attributes_cache.get(url)) is not None:
+            return item
+
+        async with self._rate_limiter.data_limiter():
+            response, req = await self._perform_get(url, Resource.data)
+            if response is None:
+                return {}
+
+            requests_response = self._convert_response(response, req)
+            response_content: io.IOBase = ResponseIO(response)
+            try:
+                msg = StatGptSdmxProxyDataReader().convert(response_content, structure=None)
+                msg.response = requests_response
+            except Exception:
+                logger.error(
+                    "Failed to parse dataset-level attributes response: url=%r content-type=%r body=%r",
+                    requests_response.url,
+                    requests_response.headers.get("content-type"),
+                    requests_response.text[:1000],
+                )
+                result = {}
+            else:
+                if isinstance(msg, DataMessage):
+                    result = _dataset_level_attribute_map_from_data_message(msg)
+                else:
+                    logger.error(
+                        "Unexpected response message type: %s for URL %r",
+                        type(msg).__name__,
+                        req.url,
+                    )
+                    result = {}
+
+        self._attributes_cache.set(url, result)
+        return result
+
     async def _fetch_proxy_available_constraint(
         self,
         *,
@@ -130,10 +193,13 @@ class AsyncStatGptSdmxProxyClient(AsyncSdmxClient):
         if use_cache:
             if key or params:
                 raise ValueError("`use_cache` is not supported with `key` or `params`")
-            return await self._cache.get(  # type: ignore[return-value]
-                key=url,
-                loader=lambda: self._fetch_proxy_available_constraint(
-                    url=url, key=None, params=None
+            return cast(
+                StructureMessage,
+                await self._cache.get(
+                    key=url,
+                    loader=lambda: self._fetch_proxy_available_constraint(
+                        url=url, key=None, params=None
+                    ),
                 ),
             )
 
@@ -161,8 +227,7 @@ class AsyncStatGptSdmxProxyClient(AsyncSdmxClient):
         if response is None:
             return DataMessage()
 
-        httpx_response = response
-        requests_response = self._convert_response(httpx_response, req)
+        requests_response = self._convert_response(response, req)
         try:
             response_content: io.IOBase = ResponseIO(response)
             msg = StatGptSdmxProxyDataReader().convert(response_content, structure=dsd)

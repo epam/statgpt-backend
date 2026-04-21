@@ -120,6 +120,7 @@ class Sdmx21DataResponse(DataResponse):
         url: str | None,
         status: DataResponseStatus,
     ):
+        super().__init__()
         self.dataset = dataset
         self.sdmx_query = sdmx_query
         self.df = df
@@ -159,6 +160,10 @@ class Sdmx21DataResponse(DataResponse):
             dataset_source_id=self.dataset.source_id,
             dataset_name=self.dataset.name,
         )
+
+    @property
+    def resource_path(self) -> str:
+        return self.dataset.source_id
 
     def merge(self, other: "DataResponse") -> "Sdmx21DataResponse":
         if not isinstance(other, Sdmx21DataResponse):

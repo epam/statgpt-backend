@@ -65,7 +65,6 @@ dataSets:
         description: *bop-description
         indicator:
           unpack: true
-          useCodeListDescription: true
 
   - id_: "8f771002-6ae1-41d9-accc-77dae7c88afe"
     <<: *shared_settings
@@ -112,4 +111,3 @@ dataSets:
         description: *weo-description
         indicator:
           unpack: true
-          useCodeListDescription: true

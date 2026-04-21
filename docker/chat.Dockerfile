@@ -18,12 +18,12 @@ WORKDIR $APP_HOME
 # Install dependencies first to leverage Docker layer caching
 COPY pyproject.toml poetry.lock poetry.toml ./
 RUN poetry install --no-interaction --no-ansi --no-cache --no-root \
-  --no-directory --only main
+  --no-directory --only main -E mcp
 
 # Copy source code and install the project
 COPY ./statgpt/app $APP_HOME/statgpt/app
 COPY ./statgpt/common $APP_HOME/statgpt/common
-RUN poetry install --no-interaction --no-ansi --no-cache --no-root --only main
+RUN poetry install --no-interaction --no-ansi --no-cache --no-root --only main -E mcp
 
 # CVE-2026-23949 (jaraco.context vendored in setuptools), CVE-2026-24049 (wheel vendored in setuptools)
 RUN .venv/bin/pip install "setuptools==80.10.2" "wheel==0.46.2"
@@ -35,8 +35,9 @@ FROM python:3.11-alpine AS server
 
 # Security patches (consolidated into single layer)
 # CVE-2023-52425 (libexpat), CVE-2025-6965 (sqlite-libs), libcrypto3/libssl3
+# CVE-2026-40200 (musl)
 RUN apk update && apk upgrade --no-cache \
-    libcrypto3 libssl3 libexpat sqlite-libs zlib \
+    libcrypto3 libssl3 libexpat sqlite-libs zlib musl musl-utils \
   && apk add --no-cache ca-certificates \
   && update-ca-certificates \
   && rm -rf /var/cache/apk/*

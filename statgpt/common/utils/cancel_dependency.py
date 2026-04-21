@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import uuid
 from collections.abc import AsyncGenerator
 
 from fastapi import HTTPException, Request
@@ -30,25 +31,23 @@ async def cancel_on_disconnect(request: Request) -> AsyncGenerator[None, None]:
         yield
         return
 
+    request_id = uuid.uuid4().hex[:8]
+    _log.debug("Request %s [%s] started", request.url, request_id)
+
     watch_task = asyncio.create_task(_watcher(request, handler_task))
     try:
         yield
+        _log.debug("Request %s [%s] completed", request.url, request_id)
     except asyncio.CancelledError:
-        # Optional: map to 499 like nginx "Client Closed Request"
-        _log.warning("Request was cancelled due to client disconnect")
+        _log.info("Request %s [%s] cancelled due to client disconnect", request.url, request_id)
         raise HTTPException(status_code=499, detail="Client closed request") from None
     finally:
         watch_task.cancel()
 
 
 async def _watcher(request: Request, handler_task: asyncio.Task, interval: float = 2.0) -> None:
-    _log.info(f"Watching {request.url}")
-
     while True:
         if await request.is_disconnected():
-            _log.info(f"Cancelling handler task for {request.url}")
             handler_task.cancel()
             return
-        else:
-            _log.debug(f"Request {request.url} still connected")
         await asyncio.sleep(interval)

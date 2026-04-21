@@ -10,7 +10,7 @@ from statgpt.app.schemas import (
     GeneratePythonCodeResponse,
     SettingsResponse,
 )
-from statgpt.app.security import create_auth_context
+from statgpt.app.security import DialAuthCredentials, create_auth_context
 from statgpt.app.services.chat_facade import ChannelServiceFacade
 from statgpt.app.services.python_code_generator import generate_merged_python_code
 from statgpt.app.settings.dial_app import dial_app_settings
@@ -22,36 +22,9 @@ from statgpt.common.services.dataset import DataSetService
 router = APIRouter()
 
 
-class _HeaderOnlyDialRequest:
-    """Minimal adapter for auth checks in non-DIAL FastAPI endpoints.
-
-    `create_auth_context()` expects `aidial_sdk.chat_completion.Request`, but for metadata GET routes
-    we only have headers. Auth logic uses only `.bearer_token` and `.api_key`.
-    """
-
-    def __init__(self, api_key: str | None, bearer_token: str | None):
-        self._api_key = api_key
-        self._bearer_token = bearer_token
-
-    @property
-    def api_key(self) -> str | None:
-        return self._api_key
-
-    @property
-    def bearer_token(self) -> str | None:
-        return self._bearer_token
-
-    @classmethod
-    def from_request(cls, request: FastAPIRequest) -> "_HeaderOnlyDialRequest":
-        api_key = request.headers.get("api-key") or request.headers.get("x-api-key")
-        token = request.headers.get("authorization")
-        bearer_token = token[7:] if token is not None and token.startswith("Bearer ") else None
-        return cls(api_key=api_key, bearer_token=bearer_token)
-
-
 async def _get_auth_context(request: FastAPIRequest) -> AuthContext:
     try:
-        return await create_auth_context(_HeaderOnlyDialRequest.from_request(request))
+        return await create_auth_context(DialAuthCredentials.from_headers(request.headers))
     except ValueError as e:
         raise DIALException(
             status_code=401,

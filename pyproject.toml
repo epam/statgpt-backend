@@ -46,7 +46,7 @@ dependencies = [
     # Configuration & File handling
     'python-dotenv (>=1.0.1,<2.0.0)',            # Environment variable management
     'pyyaml (>=6.0.1,<7.0.0)',                   # YAML file support
-    'python-multipart (>=0.0.22,<0.1.0)',        # Multipart form data (for FastAPI file uploads)
+    'python-multipart (>=0.0.26,<0.1.0)',        # Multipart form data (for FastAPI file uploads)
 
     # Utilities
     'python-dateutil (>=2.9.0.post0,<3.0.0)',    # Date/time utilities
@@ -70,8 +70,8 @@ cli = [
     "httpx>=0.28.1,<0.29.0",
     "python-keycloak>=4.0.0,<5.0.0",
 ]
-beta-mcp = [
-    "fastmcp>=3.0.0b1,<4.0.0",
+mcp = [
+    "fastmcp>=3.2.0,<4.0.0",
 ]
 
 [project.scripts]
@@ -165,8 +165,8 @@ optional = true
 black = { version = "26.3.1", extras = ["jupyter"] }
 isort = "5.13.2"
 langchain-cli = "^0.0.37"
-pytest = "^8.1.1"
-pytest-asyncio = "^0.23.7"
+pytest = "^9.0.3"
+pytest-asyncio = "^1.0.0"
 pytest-cov = "^5.0.0"
 pytest-mock = "^3.14.0"
 pytest-sugar = "^1.0.0"

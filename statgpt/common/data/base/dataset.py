@@ -3,7 +3,7 @@ from __future__ import annotations
 import uuid
 from abc import ABC, abstractmethod
 from collections.abc import Sequence
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Generic, TypeVar
 
 import pandas as pd
@@ -68,6 +68,14 @@ class DataResponseStatus(BaseModel):
 class DataResponse(ABC):
     """Base class for data responses from datasets."""
 
+    def __init__(self) -> None:
+        self._created_at = datetime.now(timezone.utc)
+
+    @property
+    def created_at(self) -> datetime:
+        """UTC timestamp of when the response object was created (data received)."""
+        return self._created_at
+
     @property
     @abstractmethod
     def status(self) -> DataResponseStatus:
@@ -96,6 +104,15 @@ class DataResponse(ABC):
     @abstractmethod
     def enrich_attachment_name(self, value: str) -> str:
         """Replace placeholders in the attachment name with actual values."""
+
+    @property
+    @abstractmethod
+    def resource_path(self) -> str:
+        """Human-readable path component identifying the dataset for resource URIs.
+
+        Used to build URIs for attachments (e.g. MCP inline resources). The returned
+        value is not URL-encoded — callers should encode it as needed.
+        """
 
     @abstractmethod
     def merge(self, other: "DataResponse") -> "DataResponse":
