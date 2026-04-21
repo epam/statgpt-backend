@@ -31,23 +31,38 @@ from statgpt.common.utils.time_utils import (
         # Monthly only
         (["2023-M01", "2023-M12", "2023-M06"], ("2023-M01", "2023-M12")),
         (["2022-M12", "2023-M01", "2023-M02"], ("2022-M12", "2023-M02")),
-        # Mixed frequencies - annual and quarterly
-        (["2021", "2021-Q4"], ("2021", "2021")),  # Prefer annual at end
-        (["2021-Q1", "2021"], ("2021-Q1", "2021")),  # Annual exists for end year
+        # ISO-style calendar month YYYY-MM (no M prefix), e.g. 1964-01
+        (["1964-01"], ("1964-01", "1964-01")),
+        (["1964-01", "1964-06", "1964-12"], ("1964-01", "1964-12")),
+        (["1963-12", "1964-01"], ("1963-12", "1964-01")),
+        (["1964-1", "1964-12"], ("1964-1", "1964-12")),  # unpadded month digit
+        (["1964-01", "1964-M06"], ("1964-01", "1964-M06")),  # mixed with M-prefixed month
+        # Same calendar month, two string forms (tie-break on original string)
+        (["2023-M01", "2023-01"], ("2023-01", "2023-M01")),
+        # Date only
+        (["1983-10-03"], ("1983-10-03", "1983-10-03")),
+        (
+            ["1983-10-03", "1983-10-11", "1983-10-05"],
+            ("1983-10-03", "1983-10-11"),
+        ),
+        (["1983-10-03", "1984-01-01"], ("1983-10-03", "1984-01-01")),
+        # Mixed frequencies - annual and quarterly (year subsumes quarter/month/day)
+        (["2021", "2021-Q4"], ("2021", "2021")),
+        (["2021-Q1", "2021"], ("2021", "2021")),
         (["2020-Q4", "2021", "2021-Q2"], ("2020-Q4", "2021")),  # Annual at end
         (["2020", "2021-Q1", "2021-Q4"], ("2020", "2021-Q4")),  # No annual for 2021
         # Mixed frequencies - annual and monthly
-        (["2021", "2021-M12"], ("2021", "2021")),  # Prefer annual at end
-        (["2021-M01", "2021"], ("2021-M01", "2021")),  # Annual exists for end year
+        (["2021", "2021-M12"], ("2021", "2021")),
+        (["2021-M01", "2021"], ("2021", "2021")),
         (["2020-M12", "2021", "2021-M06"], ("2020-M12", "2021")),  # Annual at end
         # Mixed frequencies - quarterly and monthly
         (["2021-Q1", "2021-M10"], ("2021-Q1", "2021-M10")),  # Q1 (Jan-Mar) < M10 (Oct)
         (["2025-Q1", "2025-M10"], ("2025-Q1", "2025-M10")),  # Q1 < M10 within year
         (["2021-Q4", "2021-M01"], ("2021-M01", "2021-Q4")),  # M01 (Jan) < Q4 (Oct-Dec)
-        (["2021-M01", "2021-Q1"], ("2021-M01", "2021-Q1")),  # M01 and Q1 both start Jan
-        (["2021-M02", "2021-Q1"], ("2021-Q1", "2021-M02")),  # Q1 (Jan) < M02 (Feb)
-        (["2021-M03", "2021-Q1"], ("2021-Q1", "2021-M03")),  # Q1 (Jan) < M03 (Mar)
-        (["2021-M04", "2021-Q2"], ("2021-M04", "2021-Q2")),  # M04 and Q2 both start Apr
+        (["2021-M01", "2021-Q1"], ("2021-Q1", "2021-Q1")),  # M01 within Q1
+        (["2021-M02", "2021-Q1"], ("2021-Q1", "2021-Q1")),  # M02 within Q1
+        (["2021-M03", "2021-Q1"], ("2021-Q1", "2021-Q1")),  # M03 within Q1
+        (["2021-M04", "2021-Q2"], ("2021-Q2", "2021-Q2")),  # M04 within Q2
         # Mixed all frequencies
         (
             ["2022", "2021-Q1", "2022-Q2", "2022-Q3", "2023-M01", "2023-M02"],
@@ -58,14 +73,40 @@ from statgpt.common.utils.time_utils import (
         # Edge cases with sorting
         (["2024", "2023-Q4", "2024-M01"], ("2023-Q4", "2024")),  # Annual exists for 2024
         (["1998", "2005-Q1", "2024-Q4", "2025-M12"], ("1998", "2025-M12")),
-        # Same year different frequencies
-        (["2023-Q1", "2023-Q2", "2023-M06"], ("2023-Q1", "2023-M06")),  # Q1 < Q2 < M06
+        # Same year different frequencies (M06 lies in Q2, subsumed)
+        (["2023-Q1", "2023-Q2", "2023-M06"], ("2023-Q1", "2023-Q2")),
         (["2023", "2023-Q4", "2023-M12"], ("2023", "2023")),  # Annual preferred
         (["2021-Q1", "2021-Q2", "2021-M02"], ("2021-Q1", "2021-Q2")),  # Q1 < M02 < Q2
         # Cross-year boundaries
         (["2020-M12", "2021-Q1", "2021-M01"], ("2020-M12", "2021-Q1")),
         (["2020", "2021-Q1"], ("2020", "2021-Q1")),
         (["2020-Q4", "2021"], ("2020-Q4", "2021")),
+        # Mixed frequencies with dates
+        (["1983", "1983-10-03"], ("1983", "1983")),
+        (["1982-Q4", "1983-10-03"], ("1982-Q4", "1983-10-03")),
+        # Dates within a single calendar year (min/max day in that year)
+        (["2023-01-01", "2023-06-15", "2023-12-31"], ("2023-01-01", "2023-12-31")),
+        (["2025-02-01", "2025-02-28"], ("2025-02-01", "2025-02-28")),
+        # Dates spanning multiple calendar years
+        (["2021-03-01", "2023-09-30"], ("2021-03-01", "2023-09-30")),
+        (["2020-12-31", "2022-01-01", "2024-06-01"], ("2020-12-31", "2024-06-01")),
+        # Calendar year boundary (Dec 31 → Jan 1)
+        (["2023-12-31", "2024-01-01"], ("2023-12-31", "2024-01-01")),
+        (["1999-12-31", "2000-01-01"], ("1999-12-31", "2000-01-01")),
+        # Annual marker + daily observations (years + in-year range)
+        (["2022", "2023-06-01", "2024-12-31"], ("2022", "2024-12-31")),
+        (["2022", "2023-01-01", "2023-12-31"], ("2022", "2023-12-31")),
+        # Month subsumes days in that month
+        (["2023-M06", "2023-06-01", "2023-06-30"], ("2023-M06", "2023-M06")),
+        # Coarser span wins: year > quarter > month > day
+        (["1982-M10", "1982-10-03"], ("1982-M10", "1982-M10")),
+        (["1982-Q4", "1982-10-03"], ("1982-Q4", "1982-Q4")),
+        (["1982-Q4", "1982-M10"], ("1982-Q4", "1982-Q4")),
+        (["1982-Q4", "1982"], ("1982", "1982")),
+        # Duplicate period strings (min/max unchanged)
+        (["2023-M01", "2023-M01", "2023-M12"], ("2023-M01", "2023-M12")),
+        # Leap year: Feb 29 and surrounding days
+        (["2024-02-28", "2024-02-29", "2024-03-01"], ("2024-02-28", "2024-03-01")),
     ],
 )
 def test_get_time_period_bounds(values, expected):
@@ -88,6 +129,21 @@ def test_get_time_period_bounds_invalid_format():
 
     with pytest.raises(ValueError, match="Invalid time period format"):
         get_time_period_bounds(["2023-MXX"])  # Invalid month format
+
+    with pytest.raises(ValueError, match="Invalid time period format"):
+        get_time_period_bounds(["2023-13-01"])  # Invalid date month
+
+    with pytest.raises(ValueError, match="Invalid time period format"):
+        get_time_period_bounds(["2023-02-30"])  # Invalid date day
+
+    with pytest.raises(ValueError, match="Invalid time period format"):
+        get_time_period_bounds(["2023-02-29"])  # Not a leap year
+
+    with pytest.raises(ValueError, match="Invalid time period format"):
+        get_time_period_bounds(["2023-13"])  # invalid month in YYYY-MM
+
+    with pytest.raises(ValueError, match="Invalid time period format"):
+        get_time_period_bounds(["2023-00"])  # invalid month in YYYY-MM
 
 
 class TestGetTsNowStr:
