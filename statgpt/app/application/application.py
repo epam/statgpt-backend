@@ -1,5 +1,4 @@
 import asyncio
-import os
 from collections.abc import Sequence
 from contextlib import asynccontextmanager
 
@@ -14,15 +13,12 @@ from fastapi import params as fastapi_params
 from statgpt.common.models import DatabaseHealthChecker, optional_msi_token_manager_context
 from statgpt.common.services.data_preloader import preload_data
 
+import mlflow.langchain
 
 @asynccontextmanager
 async def lifespan(app: "StatGPTApp"):
-    # for testing purposes
-    os.environ["MLFLOW_TRACING_ENABLED"] = "true"
-    if os.getenv("MLFLOW_TRACING_ENABLED", "").lower() == "true":
-        import mlflow.langchain
 
-        mlflow.langchain.autolog()
+    mlflow.langchain.autolog()
 
     async with optional_msi_token_manager_context():
         # Check resources' availability:
