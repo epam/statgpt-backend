@@ -8,7 +8,7 @@ import plotly.graph_objects as go
 from statgpt.app.schemas.dial_app_configuration import StatGPTConfiguration
 from statgpt.app.schemas.tool_artifact import DataQueryArtifact
 from statgpt.app.services.python_code_generator import PYTHON_SDMX1_HEADER as _PYTHON_SDMX1_HEADER
-from statgpt.app.utils import get_json_markdown, get_python_code_markdown
+from statgpt.app.utils import get_python_code_markdown
 from statgpt.app.utils.dial_stages import ChoiceI
 from statgpt.common.auth.auth_context import AuthContext
 from statgpt.common.config import logger
@@ -191,7 +191,6 @@ class DataQueryArtifactDisplayer:
             self._attach_custom_table(attachments_storage, data_response),
             self._attach_plotly_grid(attachments_storage, data_response),
             self._attach_csv(attachments_storage, data_response),
-            self._attach_markdown_json_query(data_response),
             self._attach_json_query(data_response),
         ]
 
@@ -238,22 +237,6 @@ class DataQueryArtifactDisplayer:
         )
         title = data_response.enrich_attachment_name(self._config.csv_file.name)
         return dict(type=response.content_type, title=title, url=response.url)
-
-    @catch_and_log_async(logger)
-    async def _attach_markdown_json_query(
-        self, data_response: DataResponse
-    ) -> dict[str, str] | None:
-        if not self._config.json_query.enabled:
-            return None
-
-        data = data_response.json_query
-        if data is None:
-            return None
-
-        assert self._config.json_query.name is not None, "json_query.name must be set when enabled"
-        content = get_json_markdown(json.dumps(data, ensure_ascii=False, indent=2))
-        title = data_response.enrich_attachment_name(self._config.json_query.name)
-        return dict(type=MediaTypes.MARKDOWN, title=title, data=content)
 
     @catch_and_log_async(logger)
     async def _attach_json_query(self, data_response: DataResponse) -> dict[str, str] | None:
