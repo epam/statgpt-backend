@@ -6,10 +6,13 @@ from fastapi import status
 from statgpt.app.schemas import (
     ChannelDatasetsMetadataResponse,
     ChannelMetadataResponse,
+    GeneratePythonCodeRequest,
+    GeneratePythonCodeResponse,
     SettingsResponse,
 )
 from statgpt.app.security import DialAuthCredentials, create_auth_context
 from statgpt.app.services.chat_facade import ChannelServiceFacade
+from statgpt.app.services.python_code_generator import generate_merged_python_code
 from statgpt.app.settings.dial_app import dial_app_settings
 from statgpt.common.auth.auth_context import AuthContext
 from statgpt.common.config import Versions
@@ -125,3 +128,24 @@ async def channel_datasets_metadata(
         n_datasets=len(datasets),
         datasets=datasets,
     )
+
+
+@router.post("/python-attachment")
+async def generate_python_attachment(
+    body: GeneratePythonCodeRequest,
+    auth_context: AuthContext = Depends(_get_auth_context),
+) -> GeneratePythonCodeResponse:
+    """Generate Python attachment from JSON query objects.
+
+    NOTE:
+        Access this endpoint through the Dial Core API at
+        "/v1/deployments/{deployment_id}/route/python-attachment".
+    """
+    try:
+        python_code = generate_merged_python_code(body.queries)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        ) from e
+    return GeneratePythonCodeResponse(python_code=python_code)

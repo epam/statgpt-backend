@@ -282,6 +282,10 @@ class DataSetConfig(BaseDataSetConfig, ABC, IndexingHashMixin):
         raise ValueError("Time period dimension not found in dataset configuration")
 
     @property
+    def time_period_dimension_id(self) -> str:
+        return self.time_period_dimension[0]
+
+    @property
     def dimension_all_values(self) -> dict[str, VirtualDimensionValue]:
         return {
             dim_id: dim_config.all_values
