@@ -1,4 +1,3 @@
-import logging
 from typing import Never
 
 from statgpt.common.data.sdmx.python_code import generate_python_query_body
@@ -7,8 +6,6 @@ from statgpt.common.schemas.query import (
     JsonQueryOperator,
     JsonQueryWithMetadata,
 )
-
-logger = logging.getLogger(__name__)
 
 PYTHON_SDMX1_HEADER = """\
 # Uses the [sdmx1 library](https://pypi.org/project/sdmx1/)
@@ -37,8 +34,8 @@ def _build_key_from_filters(
 
     If that hint is absent, key segments follow the filter list order (legacy).
     """
-    by_code = {f.component_code: f for f in filters}
     if rest_key_dimension_codes:
+        by_code = {f.component_code: f for f in filters}
         parts: list[str] = []
         for dim_code in rest_key_dimension_codes:
             if dim_code == time_component:
@@ -54,17 +51,11 @@ def _build_key_from_filters(
     return ".".join(parts)
 
 
-def _time_filter_context(f: JsonComponentQuery) -> str:
-    return (
-        f"time filter on {f.component_code!r}: operator={f.operator!r}, "
-        f"n_values={len(f.values)}"
-    )
-
-
 def _invalid_time_filter(reason: str, f: JsonComponentQuery) -> Never:
-    msg = f"{reason} ({_time_filter_context(f)})."
-    logger.warning(msg)
-    raise ValueError(msg)
+    raise ValueError(
+        f"{reason} (time filter on {f.component_code!r}: "
+        f"operator={f.operator!r}, n_values={len(f.values)})."
+    )
 
 
 def _time_filter_rest_params(f: JsonComponentQuery) -> dict[str, str]:

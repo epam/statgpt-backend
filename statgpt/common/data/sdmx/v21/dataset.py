@@ -232,9 +232,9 @@ class Sdmx21DataResponse(DataResponse):
             metadata=JsonQueryMetadata(
                 country_dimension=self.dataset.config.country_dimension,
                 indicator_dimensions=self.dataset.config.indicator_dimensions,
-                time_period_dimension=self.dataset.config.time_period_dimension[0],
+                time_period_dimension=self.dataset.config.time_period_dimension_id,
                 dataset_url=self.dataset.dataset_url,
-                rest_key_dimension_codes=self.dataset.sdmx_rest_key_dimension_codes(),
+                rest_key_dimension_codes=self.dataset.sdmx_rest_key_dimension_codes,
             ),
             sdmx1_source=self.dataset.get_resolved_sdmx1_source(),
         ).model_dump(by_alias=True)
@@ -1258,6 +1258,7 @@ class Sdmx21DataSet(
             suffix=suffix,
         )
 
+    @cached_property
     def sdmx_rest_key_dimension_codes(self) -> list[str]:
         """Non-time DSD dimension codes in REST key order."""
         return [
@@ -1274,7 +1275,7 @@ class Sdmx21DataSet(
         Time dimensions are excluded (handled via query params).
         """
         parts = []
-        for dim_id in self.sdmx_rest_key_dimension_codes():
+        for dim_id in self.sdmx_rest_key_dimension_codes:
             values = keys.get(dim_id, [])
             parts.append("+".join(values))
         return ".".join(parts)

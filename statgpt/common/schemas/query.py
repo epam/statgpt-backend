@@ -24,22 +24,7 @@ class JsonQueryOperator(StrEnum):
 class JsonComponentQuery(BaseYamlModel):
     component_code: str = Field(description="The code of the component")
     operator: JsonQueryOperator = Field(description="The operator of the query")
-    values: list[str] = Field(
-        description=(
-            "The values of the query. A single string is treated as one value "
-            "(not split on commas)."
-        )
-    )
-
-    @field_validator("values", mode="before")
-    @classmethod
-    def _coerce_values(cls, v: object) -> list[str]:
-        if isinstance(v, str):
-            stripped = v.strip()
-            return [] if not stripped else [stripped]
-        if isinstance(v, (list, tuple)):
-            return [str(item) for item in v]
-        raise ValueError(f"values must be a str or list[str]; got {type(v).__name__}")
+    values: list[str] = Field(description="The values of the query")
 
 
 class JsonQueryMetadata(BaseYamlModel):

@@ -67,21 +67,19 @@ class PredefinedDataQueryResponseAppender(BaseResponseAppender[PredefinedDataQue
         if dataset is None:
             _log.warning("Dataset with id %s not found", urn)
             return
-        sdmx1_source = dataset.get_resolved_sdmx1_source()
-        time_period_dimension, _ = dataset.config.time_period_dimension
         json_query_metadata = JsonQueryMetadata(
             country_dimension=dataset.config.country_dimension,
             indicator_dimensions=dataset.config.indicator_dimensions,
-            time_period_dimension=time_period_dimension,
+            time_period_dimension=dataset.config.time_period_dimension_id,
             dataset_url=dataset.dataset_url,
-            rest_key_dimension_codes=dataset.sdmx_rest_key_dimension_codes(),
+            rest_key_dimension_codes=dataset.sdmx_rest_key_dimension_codes,
         )
         json_query = JsonQueryWithMetadata.from_query(
             query=self._get_relative_time_period_aware_query(
-                self._response.query, time_period_dimension
+                self._response.query, dataset.config.time_period_dimension_id
             ),
             metadata=json_query_metadata,
-            sdmx1_source=sdmx1_source,
+            sdmx1_source=dataset.get_resolved_sdmx1_source(),
         ).model_dump(by_alias=True)
         json_query_content = json.dumps(json_query)
         choice.add_attachment(

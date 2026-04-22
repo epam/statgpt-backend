@@ -30,6 +30,7 @@ class ChannelDatasetsMetadataResponse(BaseModel):
 class GeneratePythonCodeRequest(BaseModel):
     queries: list[JsonQueryWithMetadata] = Field(
         min_length=1,
+        max_length=64,
         description="List of JSON queries with metadata to generate Python code for",
     )
 
