@@ -275,10 +275,10 @@ class AsyncStatGptSdmxProxyClient(AsyncSdmxClient):
                 parts.append("+".join(values))
         return ".".join(parts).rstrip(".") or "*"
 
-    def _build_url(self, *, path: str, params: dict[str, str | list[str]] | None) -> str:
+    def _build_url(self, *, path: str, params: dict[str, str] | None) -> str:
         url = f"{self._sync_client.source.url}{path}"
         if params:
-            return f"{url}?{urlencode(params, doseq=True)}"
+            return f"{url}?{urlencode(params)}"
         return url
 
     @staticmethod
@@ -290,11 +290,11 @@ class AsyncStatGptSdmxProxyClient(AsyncSdmxClient):
     @staticmethod
     def _convert_time_params(
         params: dict[str, str] | None,
-    ) -> dict[str, str | list[str]] | None:
+    ) -> dict[str, str] | None:
         """Convert startPeriod/endPeriod to SDMX 3.0 c[TIME_PERIOD] filter syntax."""
         if not params:
             return None
-        result: dict[str, str | list[str]] = {}
+        result: dict[str, str] = {}
         time_filters: list[str] = []
         for k, v in params.items():
             if k == "startPeriod":
@@ -304,7 +304,7 @@ class AsyncStatGptSdmxProxyClient(AsyncSdmxClient):
             else:
                 result[k] = v
         if time_filters:
-            result["c[TIME_PERIOD]"] = time_filters
+            result["c[TIME_PERIOD]"] = "+".join(time_filters)
         return result or None
 
     async def _perform_get(
