@@ -92,11 +92,11 @@ def _time_filter_rest_params(f: JsonComponentQuery) -> dict[str, str]:
         return {"endPeriod": values[0]}
 
     if op == JsonQueryOperator.IN:
+        if not values:
+            _invalid_time_filter("IN requires at least one period", f)
         if n == 1:
             p = values[0]
             return {"startPeriod": p, "endPeriod": p}
-        if not values:
-            _invalid_time_filter("IN requires at least one period", f)
         _invalid_time_filter(
             "Time dimension 'in' with multiple values cannot be expressed as a single "
             "sdmx1 startPeriod/endPeriod request; use BETWEEN or separate queries",
@@ -156,11 +156,11 @@ def generate_python_code_from_query(
 def generate_merged_python_code(queries: list[JsonQueryWithMetadata]) -> str:
     if len(queries) == 1:
         body = generate_python_code_from_query(queries[0])
-        return PYTHON_SDMX1_HEADER + "\n\n" + body
+    else:
+        sections = [
+            f"# Dataset: {query.urn}\n{generate_python_code_from_query(query, suffix=f'_{i}')}"
+            for i, query in enumerate(queries, start=1)
+        ]
+        body = "\n\n".join(sections)
 
-    bodies: list[str] = []
-    for i, query in enumerate(queries, start=1):
-        body = generate_python_code_from_query(query, suffix=f"_{i}")
-        bodies.append(f"# Dataset: {query.urn}\n{body}")
-
-    return PYTHON_SDMX1_HEADER + "\n\n" + "\n\n".join(bodies)
+    return PYTHON_SDMX1_HEADER + "\n\n" + body

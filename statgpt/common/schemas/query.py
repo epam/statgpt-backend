@@ -63,7 +63,8 @@ class JsonQuery(BaseYamlModel):
     filters: list[JsonComponentQuery] = Field(description="The list of component queries")
 
     _URN_PATTERN: ClassVar[re.Pattern[str]] = re.compile(
-        r"^(?P<agency>[^:]+):(?P<resource>[^(]+)\((?P<version>[^)]+)\)$"
+        r"^(?P<agency>[A-Za-z0-9_.-]+):(?P<resource>[A-Za-z0-9_.-]+)"
+        r"\((?P<version>[A-Za-z0-9_.-]+)\)$"
     )
 
     @field_validator("urn")

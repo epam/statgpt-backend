@@ -1,8 +1,10 @@
 import pytest
 
 from statgpt.app.services.python_code_generator import (
+    PYTHON_SDMX1_HEADER,
     _build_key_from_filters,
     _build_params_from_filters,
+    generate_merged_python_code,
     generate_python_code_from_query,
 )
 from statgpt.common.schemas.query import (
@@ -164,3 +166,37 @@ def test_build_params_in_multiple_values_rejected() -> None:
                 )
             ]
         )
+
+
+def _make_query(urn: str) -> JsonQueryWithMetadata:
+    return JsonQueryWithMetadata(
+        urn=urn,
+        filters=[
+            JsonComponentQuery(component_code="A", operator=JsonQueryOperator.IN, values=["a1"]),
+        ],
+        metadata=JsonQueryMetadata(
+            country_dimension="A",
+            indicator_dimensions=["B"],
+            time_period_dimension="TIME_PERIOD",
+        ),
+    )
+
+
+def test_generate_merged_python_code_single_query_has_header_and_no_suffix() -> None:
+    code = generate_merged_python_code([_make_query(_VALID_URN)])
+
+    assert code.startswith(PYTHON_SDMX1_HEADER + "\n\n")
+    assert "# Dataset:" not in code
+    assert "data_msg_1" not in code
+
+
+def test_generate_merged_python_code_multi_query_separates_sections() -> None:
+    urn_a = "ESTAT:DF_A(1.0)"
+    urn_b = "ESTAT:DF_B(1.0)"
+    code = generate_merged_python_code([_make_query(urn_a), _make_query(urn_b)])
+
+    assert code.count(PYTHON_SDMX1_HEADER) == 1
+    assert code.startswith(PYTHON_SDMX1_HEADER + "\n\n")
+    assert f"# Dataset: {urn_a}" in code
+    assert f"# Dataset: {urn_b}" in code
+    assert "provider_1" in code and "provider_2" in code

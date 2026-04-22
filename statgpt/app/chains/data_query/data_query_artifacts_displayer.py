@@ -7,7 +7,7 @@ import plotly.graph_objects as go
 
 from statgpt.app.schemas.dial_app_configuration import StatGPTConfiguration
 from statgpt.app.schemas.tool_artifact import DataQueryArtifact
-from statgpt.app.services.python_code_generator import PYTHON_SDMX1_HEADER as _PYTHON_SDMX1_HEADER
+from statgpt.app.services.python_code_generator import PYTHON_SDMX1_HEADER
 from statgpt.app.utils import get_python_code_markdown
 from statgpt.app.utils.dial_stages import ChoiceI
 from statgpt.common.auth.auth_context import AuthContext
@@ -288,7 +288,7 @@ class DataQueryArtifactDisplayer:
 
         if self._config.python_code.name is None:
             raise ValueError("python_code.name must be set when enabled")
-        code = _PYTHON_SDMX1_HEADER + "\n\n" + body
+        code = PYTHON_SDMX1_HEADER + "\n\n" + body
         title = data_response.enrich_attachment_name(self._config.python_code.name)
         return dict(type=MediaTypes.MARKDOWN, title=title, data=get_python_code_markdown(code))
 
@@ -309,7 +309,7 @@ class DataQueryArtifactDisplayer:
         if len(items) == 1:
             response = items[0]
             title = self._config.merged_python_code.name
-            code = _PYTHON_SDMX1_HEADER + "\n\n" + response.get_python_code_body()  # type: ignore[operator]
+            code = PYTHON_SDMX1_HEADER + "\n\n" + response.get_python_code_body()  # type: ignore[operator]
             return dict(
                 type=MediaTypes.MARKDOWN,
                 title=title,
@@ -325,7 +325,7 @@ class DataQueryArtifactDisplayer:
         if not bodies:
             return None
 
-        merged_code = _PYTHON_SDMX1_HEADER + "\n\n" + "\n\n".join(bodies)
+        merged_code = PYTHON_SDMX1_HEADER + "\n\n" + "\n\n".join(bodies)
         title = self._config.merged_python_code.name
         return dict(
             type=MediaTypes.MARKDOWN,
