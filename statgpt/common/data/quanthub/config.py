@@ -153,13 +153,6 @@ class QuanthubSdmxDataSourceConfig(SdmxDataSourceConfig):
         default=None,
         description="The SDMX 3.0 URL for availability via POST. If not set, the default availability endpoint will be used.",
     )
-    use_data_explorer_for_dataset_url: bool = Field(
-        default=False,
-        description=(
-            "If true and a data explorer URL is resolved (dataset or data source), dataset URLs "
-            "will point to the data explorer instead of citation URLs."
-        ),
-    )
 
     @property
     def has_api_key_header(self) -> bool:

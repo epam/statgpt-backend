@@ -171,6 +171,13 @@ class SdmxDataSourceConfig(DataSourceConfig):
             "data_explorer_url, for example to build preset explorer links instead of raw API URLs."
         ),
     )
+    use_data_explorer_for_dataset_url: bool = Field(
+        default=False,
+        description=(
+            "If true and a data explorer URL is resolved (dataset or data source), dataset URLs "
+            "will point to the data explorer instead of citation URLs."
+        ),
+    )
     dataset_hierarchy: (
         DefaultDataSetHierarchyConfig | CategorySchemaDataSetHierarchyConfig | None
     ) = Field(

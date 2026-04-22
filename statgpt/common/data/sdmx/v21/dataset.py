@@ -520,10 +520,15 @@ class Sdmx21DataSet(
 
     @property
     def dataset_url(self) -> str | None:
+        if self._datasource.config.use_data_explorer_for_dataset_url:
+            if base := self._resolved_data_explorer_base_url():
+                return f"{base}?urn={self._short_urn}"
+            _log.warning(
+                "Data explorer URL is not configured on the dataset or data source: %s",
+                self._datasource.source_id,
+            )
         if self.config.citation and self.config.citation.url:
             return self.config.citation.get_url()
-        if base := self._resolved_data_explorer_base_url():
-            return f"{base}?urn={self._short_urn}"
         return None
 
     def _resolved_data_explorer_base_url(self) -> str | None:

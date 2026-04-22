@@ -1,4 +1,3 @@
-import logging
 import typing
 import uuid
 from collections.abc import Iterable
@@ -19,9 +18,6 @@ from statgpt.common.data.sdmx.v21.attribute import Sdmx21Attribute
 
 if typing.TYPE_CHECKING:
     from statgpt.common.data.quanthub.v21.datasource import QuanthubSdmx21DataSourceHandler
-
-
-_log = logging.getLogger(__name__)
 
 
 class QuanthubSdmx21DataSet(UpdatedAtMixin, Sdmx21DataSet):
@@ -51,18 +47,6 @@ class QuanthubSdmx21DataSet(UpdatedAtMixin, Sdmx21DataSet):
         self._config: QuanthubDataSetConfig = config
         self._attribute_values = attribute_values
         self._annotations = list(annotations)
-
-    @property
-    def dataset_url(self) -> str | None:
-        if self._datasource.config.use_data_explorer_for_dataset_url:  # type: ignore
-            if data_explorer_url := self._resolved_data_explorer_base_url():
-                return f"{data_explorer_url}?urn={self._short_urn}"
-            else:
-                _log.warning(
-                    "Data explorer URL is not configured on the dataset or data source: %s",
-                    self._datasource.source_id,  # type: ignore
-                )
-        return super().dataset_url
 
     def _get_annotation_by_id(self, annotation_id: str) -> Sdmx30AnnotationModel | None:
         return next((a for a in self._annotations if a.id == annotation_id), None)
