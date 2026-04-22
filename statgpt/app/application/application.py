@@ -2,6 +2,7 @@ import asyncio
 from collections.abc import Sequence
 from contextlib import asynccontextmanager
 
+import mlflow.langchain
 from aidial_sdk import DIALApp
 from aidial_sdk.chat_completion import ChatCompletion
 from aidial_sdk.deployment.configuration import ConfigurationRequest
@@ -13,7 +14,6 @@ from fastapi import params as fastapi_params
 from statgpt.common.models import DatabaseHealthChecker, optional_msi_token_manager_context
 from statgpt.common.services.data_preloader import preload_data
 
-import mlflow.langchain
 
 @asynccontextmanager
 async def lifespan(app: "StatGPTApp"):
