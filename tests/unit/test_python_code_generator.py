@@ -14,7 +14,7 @@ from statgpt.common.schemas.query import (
     JsonQueryWithMetadata,
 )
 
-_VALID_URN = "ESTAT:DF_COVID(1.0)"
+_VALID_URN = "IMF:WEO(1.0)"
 
 
 def test_json_query_urn_derived_ids() -> None:
@@ -27,8 +27,8 @@ def test_json_query_urn_derived_ids() -> None:
             time_period_dimension="TIME_PERIOD",
         ),
     )
-    assert query.agency_id == "ESTAT"
-    assert query.resource_id == "DF_COVID"
+    assert query.agency_id == "IMF"
+    assert query.resource_id == "WEO"
     assert query.version == "1.0"
 
 
@@ -191,8 +191,8 @@ def test_generate_merged_python_code_single_query_has_header_and_no_suffix() -> 
 
 
 def test_generate_merged_python_code_multi_query_separates_sections() -> None:
-    urn_a = "ESTAT:DF_A(1.0)"
-    urn_b = "ESTAT:DF_B(1.0)"
+    urn_a = "IMF:DF_A(1.0)"
+    urn_b = "IMF:DF_B(1.0)"
     code = generate_merged_python_code([_make_query(urn_a), _make_query(urn_b)])
 
     assert code.count(PYTHON_SDMX1_HEADER) == 1
