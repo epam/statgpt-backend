@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from collections.abc import Sequence
 from datetime import datetime
@@ -9,13 +10,15 @@ from fastmcp.server.dependencies import get_http_request
 from fastmcp.server.providers import Provider
 from fastmcp.tools import Tool, ToolResult
 from fastmcp.utilities.versions import VersionSpec
-from mcp.types import TextContent
+from mcp.types import ContentBlock, TextContent
 from pydantic import PrivateAttr
 from starlette.requests import Request
 
 from statgpt.app.chains.tools import StatGptTool
 from statgpt.app.config import ChainParametersConfig
+from statgpt.app.mcp.attachments import data_query_artifact_to_resources
 from statgpt.app.schemas.dial_app_configuration import StatGPTConfiguration
+from statgpt.app.schemas.tool_artifact import DataQueryArtifact
 from statgpt.app.security import DialAuthCredentials, create_auth_context
 from statgpt.app.security.exceptions import AuthenticationError, AuthorizationError
 from statgpt.app.services.chat_facade import ChannelServiceFacade
@@ -73,8 +76,13 @@ class _McpToolAdapter(Tool):
             # except block above this one.
             _log.exception("Error executing MCP tool %s", self._langchain_tool.name)
             raise ToolError(f"{self._langchain_tool.name} tool failed to execute")
-        content = result.content if isinstance(result.content, str) else str(result.content)
-        return ToolResult(content=[TextContent(type="text", text=content)])
+        text = result.content if isinstance(result.content, str) else str(result.content)
+        content: list[ContentBlock] = [TextContent(type="text", text=text)]
+        if isinstance(result.artifact, DataQueryArtifact):
+            # to_csv is CPU-bound and can block on large dataframes; offload to a worker thread.
+            resources = await asyncio.to_thread(data_query_artifact_to_resources, result.artifact)
+            content.extend(resources)
+        return ToolResult(content=content)
 
 
 class ChannelToolProvider(Provider):
