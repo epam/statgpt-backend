@@ -238,8 +238,8 @@ class DataSet(BaseEntity, Generic[DataSetConfigType, DataSourceHandlerType], ABC
         """Return resolved sdmx1 library source identifier if available."""
 
     @property
-    def sdmx_rest_key_dimension_codes(self) -> list[str] | None:
-        """Non-time dimension codes in DSD order for SDMX 2.1 REST data keys.
+    def sdmx_key_dimension_ids_in_dsd_order(self) -> list[str] | None:
+        """Non-time dimension ids in DSD order for SDMX 2.1 REST data keys.
 
         ``None`` when this dataset type does not expose an SDMX DSD key order
         (callers fall back to filter order for Python code generation).

@@ -72,7 +72,7 @@ class PredefinedDataQueryResponseAppender(BaseResponseAppender[PredefinedDataQue
             indicator_dimensions=dataset.config.indicator_dimensions,
             time_period_dimension=dataset.config.time_period_dimension_id,
             dataset_url=dataset.dataset_url,
-            rest_key_dimension_codes=dataset.sdmx_rest_key_dimension_codes,
+            key_dimension_ids_in_dsd_order=dataset.sdmx_key_dimension_ids_in_dsd_order,
         )
         json_query = JsonQueryWithMetadata.from_query(
             query=self._get_relative_time_period_aware_query(

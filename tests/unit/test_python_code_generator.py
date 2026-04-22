@@ -92,7 +92,7 @@ def test_build_key_from_filters_legacy_filter_order_when_no_hint() -> None:
     assert key == "d1.a1"
 
 
-def test_generate_python_code_uses_rest_key_dimension_codes() -> None:
+def test_generate_python_code_uses_key_dimension_ids_in_dsd_order() -> None:
     query = JsonQueryWithMetadata(
         urn=_VALID_URN,
         filters=[
@@ -107,7 +107,7 @@ def test_generate_python_code_uses_rest_key_dimension_codes() -> None:
             country_dimension="A",
             indicator_dimensions=["B"],
             time_period_dimension="TIME_PERIOD",
-            rest_key_dimension_codes=["A", "B", "C"],
+            key_dimension_ids_in_dsd_order=["A", "B", "C"],
         ),
         sdmx1_source=None,
     )

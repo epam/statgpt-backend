@@ -234,7 +234,7 @@ class Sdmx21DataResponse(DataResponse):
                 indicator_dimensions=self.dataset.config.indicator_dimensions,
                 time_period_dimension=self.dataset.config.time_period_dimension_id,
                 dataset_url=self.dataset.dataset_url,
-                rest_key_dimension_codes=self.dataset.sdmx_rest_key_dimension_codes,
+                key_dimension_ids_in_dsd_order=self.dataset.sdmx_key_dimension_ids_in_dsd_order,
             ),
             sdmx1_source=self.dataset.get_resolved_sdmx1_source(),
         ).model_dump(by_alias=True)
@@ -1259,8 +1259,8 @@ class Sdmx21DataSet(
         )
 
     @cached_property
-    def sdmx_rest_key_dimension_codes(self) -> list[str]:
-        """Non-time DSD dimension codes in REST key order."""
+    def sdmx_key_dimension_ids_in_dsd_order(self) -> list[str]:
+        """Non-time DSD dimension ids in REST key order."""
         return [
             dim.id
             for dim in self._artefact.structure.dimensions  # type: ignore[union-attr]
@@ -1275,7 +1275,7 @@ class Sdmx21DataSet(
         Time dimensions are excluded (handled via query params).
         """
         parts = []
-        for dim_id in self.sdmx_rest_key_dimension_codes:
+        for dim_id in self.sdmx_key_dimension_ids_in_dsd_order:
             values = keys.get(dim_id, [])
             parts.append("+".join(values))
         return ".".join(parts)

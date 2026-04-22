@@ -22,22 +22,22 @@ class JsonQueryOperator(StrEnum):
 
 
 class JsonComponentQuery(BaseYamlModel):
-    component_code: str = Field(description="The code of the component")
+    component_code: str = Field(description="The id of the component")
     operator: JsonQueryOperator = Field(description="The operator of the query")
     values: list[str] = Field(description="The values of the query")
 
 
 class JsonQueryMetadata(BaseYamlModel):
-    country_dimension: str = Field(description="The country dimension code")
-    indicator_dimensions: list[str] = Field(description="The indicator dimension codes")
+    country_dimension: str = Field(description="The country dimension id")
+    indicator_dimensions: list[str] = Field(description="The indicator dimension ids")
     time_period_dimension: str = Field(
-        description="The time period dimension code (must match the dataset DSD / filters)."
+        description="The time period dimension id (must match the dataset DSD / filters)."
     )
     dataset_url: str | None = Field(default=None, description="URL of the dataset")
-    rest_key_dimension_codes: list[str] | None = Field(
+    key_dimension_ids_in_dsd_order: list[str] | None = Field(
         default=None,
         description=(
-            "Non-time dimension codes in DSD order for SDMX 2.1 REST series keys; "
+            "Non-time dimension ids in DSD order for SDMX 2.1 REST series keys; "
             "dimensions without a filter appear as empty key segments."
         ),
     )
