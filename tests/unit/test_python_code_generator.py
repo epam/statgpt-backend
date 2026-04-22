@@ -135,7 +135,11 @@ def test_build_params_rejects_gt_lt_and_malformed_between() -> None:
         )
     with pytest.raises(ValueError, match="BETWEEN requires exactly two"):
         _build_params_from_filters(
-            [JsonComponentQuery(component_code=t, operator=JsonQueryOperator.BETWEEN, values=["2020"])]
+            [
+                JsonComponentQuery(
+                    component_code=t, operator=JsonQueryOperator.BETWEEN, values=["2020"]
+                )
+            ]
         )
 
 
