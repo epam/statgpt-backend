@@ -168,7 +168,9 @@ class SdmxDataSourceConfig(DataSourceConfig):
         default=None,
         description=(
             "Default base URL of the data explorer UI. Used when a dataset does not set "
-            "data_explorer_url, for example to build preset explorer links instead of raw API URLs."
+            "data_explorer_url, for example to build preset explorer links instead of raw API URLs. "
+            "When set, query-result URLs always use this explorer link. Whether dataset-level "
+            "`dataset_url` also uses it is controlled by `use_data_explorer_for_dataset_url`."
         ),
     )
     use_data_explorer_for_dataset_url: bool = Field(

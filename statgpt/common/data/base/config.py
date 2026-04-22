@@ -201,9 +201,8 @@ class BaseDataSetConfig(BaseModel):
     data_explorer_url: str | None = Field(
         default=None,
         description=(
-            "Base URL of the data explorer UI for this dataset. When set, it overrides the "
-            "data source default for explorer links in query results and for dataset_url when "
-            "no citation URL is configured."
+            "Base URL of the data explorer UI for this dataset. "
+            "If not set, falls back to `SdmxDataSourceConfig.data_explorer_url`."
         ),
     )
     indexer: Annotated[IndexerConfig | None, IndexingField()] = Field(default=None)

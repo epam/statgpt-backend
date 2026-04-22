@@ -10,6 +10,7 @@ import uuid
 from collections.abc import Iterable, Sequence
 from datetime import datetime
 from functools import cached_property
+from urllib.parse import quote, urlencode
 
 import pandas as pd
 import plotly.graph_objects as go
@@ -563,8 +564,8 @@ class Sdmx21DataSet(
         except Exception as e:
             _log.exception(e)
 
-        params_str = '&'.join([f'{k}={v}' for k, v in params.items()])
-        return f"{base_url}?{params_str}"
+        query_string = urlencode(params, quote_via=quote, safe='+,.:*')
+        return f"{base_url}?{query_string}"
 
     async def _get_available_series(
         self,
