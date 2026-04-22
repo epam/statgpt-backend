@@ -246,7 +246,7 @@ class DataQueryArtifactDisplayer:
         if not self._config.json_query.enabled:
             return None
 
-        data = data_response.json_query_old
+        data = data_response.json_query
         if data is None:
             return None
 

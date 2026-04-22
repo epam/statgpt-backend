@@ -225,15 +225,6 @@ class Sdmx21DataResponse(DataResponse):
         return self._url
 
     @property
-    def json_query_old(self) -> dict:
-        return {
-            'urn': self.dataset.short_urn,
-            'sdmx1Source': self.dataset.get_resolved_sdmx1_source(),
-            'metadata': self._get_dataset_metadata_as_dict(),
-            'filters': self._to_sdmx_filters(self.sdmx_query),
-        }
-
-    @property
     def json_query(self) -> dict:
         return JsonQueryWithMetadata(
             urn=self.dataset.short_urn,
@@ -294,44 +285,12 @@ class Sdmx21DataResponse(DataResponse):
         df = df[sorted_columns].copy()
         return df
 
-    def _get_dataset_metadata_as_dict(self) -> dict[str, t.Any]:
-        dataset_config = self.dataset.config
-        time_dim_id, _ = dataset_config.time_period_dimension
-        return {
-            'countryDimension': dataset_config.country_dimension,
-            'indicatorDimensions': dataset_config.indicator_dimensions,
-            'timePeriodDimension': time_dim_id,
-        }
-
     def _graph_name(self, figure: go.Figure, template: str) -> str:
         return template.format(
             dataset_source_id=self.dataset.source_id,
             dataset_name=self.dataset.name,
             figure_title=(figure.layout.title.text or '').replace('<br>', ' '),
         )
-
-    @staticmethod
-    def _to_sdmx_filters(sdmx_query: SdmxDataSetQuery) -> list[dict[str, str | list[str]]]:
-        res: list[dict[str, str | list[str]]] = [
-            {
-                "componentCode": k,
-                "operator": "in",
-                "values": list(v),
-            }
-            for k, v in sdmx_query.categorical_dimensions.items()
-        ]
-
-        if sdmx_query.time_dimension_query:
-            tq = sdmx_query.time_dimension_query
-            res.append(
-                {
-                    "componentCode": tq.time_dimension_id,
-                    "operator": "between",
-                    "values": [str(tq.start_period), str(tq.end_period)],
-                }
-            )
-
-        return res
 
     @staticmethod
     def _create_time_dimension_query(

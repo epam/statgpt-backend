@@ -142,11 +142,6 @@ class DataResponse(ABC):
 
     @property
     @abstractmethod
-    def json_query_old(self) -> dict | None:
-        """Return the query in JSON format. [Deprecated, use `json_query` instead]"""
-
-    @property
-    @abstractmethod
     def json_query(self) -> dict | None:
         """Return the query in JSON format."""
 
