@@ -1238,7 +1238,9 @@ class Sdmx21DataSet(
                 ),
             )
 
-        if explorer_base := self._resolved_data_explorer_base_url():
+        if not self.config.view_in_data_explorer:
+            url = None
+        elif explorer_base := self._resolved_data_explorer_base_url():
             url = self._format_data_explorer_url(
                 base_url=explorer_base,
                 dsd=self._artefact.structure,
@@ -1247,10 +1249,7 @@ class Sdmx21DataSet(
             )
         else:
             http_response = data_msg.response
-            url = str(http_response.url) if http_response is not None else None
-
-        if not self.config.view_in_data_explorer:
-            url = None
+            url = http_response.url if http_response is not None else None
 
         try:
             sdmx_pandas = await self._data_msg_to_dataframe(data_msg)
