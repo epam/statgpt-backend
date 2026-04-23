@@ -198,11 +198,19 @@ DIMENSION_CONFIG_TYPES = Annotated[
 class BaseDataSetConfig(BaseModel):
     is_official: bool = Field(default=False)
     citation: DatasetCitation | None = Field(default=None)
+    view_in_data_explorer: bool = Field(
+        default=True,
+        description=(
+            "Whether to include 'View data in explorer' links for this dataset in formatted query "
+            "results when a query URL is available."
+        ),
+    )
     data_explorer_url: str | None = Field(
         default=None,
         description=(
-            "Base URL of the data explorer UI for this dataset. "
-            "If not set, falls back to `SdmxDataSourceConfig.data_explorer_url`."
+            "Base URL of the data explorer UI for this dataset. When set, it overrides the "
+            "data source default for explorer links in query results and for dataset_url when "
+            "no citation URL is configured."
         ),
     )
     indexer: Annotated[IndexerConfig | None, IndexingField()] = Field(default=None)
