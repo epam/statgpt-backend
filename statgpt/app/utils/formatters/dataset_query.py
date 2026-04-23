@@ -84,7 +84,7 @@ class DatasetQueryFormatter(BaseFormatter):
             header += f' {dial_app_settings.official_dataset_label}'
         return header
 
-    def _format_execution_result(self, dataset: DataSet, data_response: DataResponse) -> list[str]:
+    def _format_execution_result(self, data_response: DataResponse) -> list[str]:
         """Format execution result section."""
         lines = []
 
@@ -112,7 +112,7 @@ class DatasetQueryFormatter(BaseFormatter):
                 f'💡 **{self._("Advice")}:** {self._("Most likely, the query is generally correct, but there is no data for the specified time period.")} {self._("You may want to try selecting a different time period.")} {self._("Another option is to try to find relevant data in other datasets or using other tools.")}'
             )
 
-        if dataset.config.view_in_data_explorer and data_response.url_query:
+        if data_response.url_query:
             lines.append("")
             lines.append(f'[🔍 {self._("View data in explorer")}]({data_response.url_query})')
 
@@ -283,7 +283,7 @@ class DatasetQueryFormatter(BaseFormatter):
         lines: list[str] = [self._format_header(dataset)]
 
         if data_response:
-            lines.extend(self._format_execution_result(dataset, data_response))
+            lines.extend(self._format_execution_result(data_response))
         lines.extend(await self._format_basic_info(query, dataset, citation, data_response))
         lines.extend(self._format_query_dimensions(dataset, query))
         lines.extend(self._format_missing_dimensions(dataset, query, availability))

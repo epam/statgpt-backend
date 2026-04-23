@@ -14,7 +14,6 @@ from urllib.parse import quote, urlencode
 
 import pandas as pd
 import plotly.graph_objects as go
-import requests
 import sdmx.model.common
 from dateutil.parser import parse
 from sdmx.message import DataMessage, StructureMessage
@@ -1119,13 +1118,6 @@ class Sdmx21DataSet(
 
         return results
 
-    def _get_query_url(self, response: requests.Response) -> str:
-        url = response.url
-        request_headers = response.request.headers
-        if "Ocp-Apim-Subscription-Key" in request_headers:
-            url += f"&subscription-key={request_headers['Ocp-Apim-Subscription-Key']}"
-        return url
-
     async def availability_query(
         self, query: DataSetAvailabilityQuery, auth_context: AuthContext
     ) -> DataSetAvailabilityQuery:
@@ -1254,7 +1246,11 @@ class Sdmx21DataSet(
                 sdmx_query=sdmx_query,
             )
         else:
-            url = self._get_query_url(data_msg.response)  # type: ignore
+            http_response = data_msg.response
+            url = str(http_response.url) if http_response is not None else None
+
+        if not self.config.view_in_data_explorer:
+            url = None
 
         try:
             sdmx_pandas = await self._data_msg_to_dataframe(data_msg)
