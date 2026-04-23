@@ -5,12 +5,11 @@ import pytest
 from statgpt.common.utils.misc import (
     argparse_parse_int_or_none,
     batched,
-    create_base64_uuid,
     crc32_hash,
     crc32_hash_incremental,
+    create_base64_uuid,
     str2bool,
 )
-
 
 # ---------------------------------------------------------------------------
 # batched
