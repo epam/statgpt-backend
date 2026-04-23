@@ -1,8 +1,8 @@
 import asyncio
+import os
 from collections.abc import Sequence
 from contextlib import asynccontextmanager
 
-import mlflow.langchain
 from aidial_sdk import DIALApp
 from aidial_sdk.chat_completion import ChatCompletion
 from aidial_sdk.deployment.configuration import ConfigurationRequest
@@ -18,7 +18,10 @@ from statgpt.common.services.data_preloader import preload_data
 @asynccontextmanager
 async def lifespan(app: "StatGPTApp"):
 
-    mlflow.langchain.autolog()
+    if os.getenv("MLFLOW_TRACING_ENABLED", "").lower() == "true":
+        import mlflow.langchain
+
+        mlflow.langchain.autolog()
 
     async with optional_msi_token_manager_context():
         # Check resources' availability:
