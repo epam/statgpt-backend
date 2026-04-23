@@ -1,5 +1,3 @@
-from typing import Optional
-
 from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -18,17 +16,17 @@ class OidcAuthSettings(BaseSettings):
         description="If enabled, all admin endpoints require OIDC authentication",
     )
 
-    oidc_configuration_endpoint: Optional[str] = Field(
+    oidc_configuration_endpoint: str | None = Field(
         default=None, alias="OIDC_CONFIGURATION_ENDPOINT", description="OIDC Configuration Endpoint"
     )
 
-    oidc_client_id: Optional[str] = Field(
+    oidc_client_id: str | None = Field(
         default=None, alias="OIDC_CLIENT_ID", description="OIDC Client ID"
     )
 
-    oidc_issuer: Optional[str] = Field(default=None, alias="OIDC_ISSUER", description="OIDC Issuer")
+    oidc_issuer: str | None = Field(default=None, alias="OIDC_ISSUER", description="OIDC Issuer")
 
-    oidc_username_claim: Optional[str] = Field(
+    oidc_username_claim: str | None = Field(
         default=None, alias="OIDC_USERNAME_CLAIM", description="OIDC Username Claim"
     )
     oidc_audit_user_id_claim: str = Field(
@@ -43,11 +41,11 @@ class OidcAuthSettings(BaseSettings):
     )
 
     # Admin roles settings
-    admin_roles_claim: Optional[str] = Field(
+    admin_roles_claim: str | None = Field(
         default=None, alias="ADMIN_ROLES_CLAIM", description="OIDC Admin Roles Claim"
     )
 
-    admin_roles_values: Optional[str] = Field(
+    admin_roles_values: str | None = Field(
         default=None,
         alias="ADMIN_ROLES_VALUES",
         description="OIDC Admin Roles Values (comma-separated)",
@@ -60,13 +58,13 @@ class OidcAuthSettings(BaseSettings):
         description="If enabled, the admin portal will check for scopes in the OIDC token",
     )
 
-    admin_scope_claim: Optional[str] = Field(
+    admin_scope_claim: str | None = Field(
         default=None,
         alias="ADMIN_SCOPE_CLAIM",
         description="The name of the custom access token field that contains scope information",
     )
 
-    admin_scope_value: Optional[str] = Field(
+    admin_scope_value: str | None = Field(
         default=None,
         alias="ADMIN_SCOPE_VALUE",
         description="Required scope claim value to get access to admin portal",

@@ -10,16 +10,16 @@ import uuid
 from collections.abc import Iterable, Sequence
 from datetime import datetime
 from functools import cached_property
+from urllib.parse import quote, urlencode
 
 import pandas as pd
 import plotly.graph_objects as go
-import requests
 import sdmx.model.common
 from dateutil.parser import parse
 from sdmx.message import DataMessage, StructureMessage
 from sdmx.model.common import Code
 from sdmx.model.v21 import DataflowDefinition as DataFlow
-from sdmx.model.v21 import TimeDimension
+from sdmx.model.v21 import DataStructureDefinition, TimeDimension
 
 from statgpt.common.auth.auth_context import AuthContext
 from statgpt.common.data.base import (
@@ -71,6 +71,7 @@ from .query import (
     TimeDimensionQuery,
 )
 from .schemas import Urn
+from .utils import convert_keys_to_str
 
 if t.TYPE_CHECKING:
     from statgpt.common.data.sdmx.v21.datasource import Sdmx21DataSourceHandler
@@ -493,9 +494,51 @@ class Sdmx21DataSet(
 
     @property
     def dataset_url(self) -> str | None:
+        if self._datasource.config.use_data_explorer_for_dataset_url:
+            if base := self._resolved_data_explorer_base_url():
+                return f"{base}?urn={self._short_urn}"
+            _log.warning(
+                "Data explorer URL is not configured on the dataset or data source: %s",
+                self._datasource.source_id,
+            )
         if self.config.citation and self.config.citation.url:
             return self.config.citation.get_url()
         return None
+
+    def _resolved_data_explorer_base_url(self) -> str | None:
+        if url := self.config.get_data_explorer_url():
+            return url
+        return self._datasource.config.get_data_explorer_url()
+
+    def _format_data_explorer_url(
+        self,
+        base_url: str,
+        dsd: DataStructureDefinition,
+        key_dict: dict[str, list[str]],
+        sdmx_query: SdmxDataSetQuery,
+    ) -> str:
+        params: dict[str, str] = {
+            'urn': self._short_urn,
+            'filter': convert_keys_to_str(dsd, key_dict),
+        }
+
+        try:
+            if td_query := sdmx_query.time_dimension_query:
+                start_period = td_query.start_period
+                end_period = td_query.end_period
+            else:
+                start_period = None
+                end_period = None
+
+            if start_period:
+                params['startPeriod'] = start_period if '-' in start_period else f"{start_period}-A"
+            if end_period:
+                params['endPeriod'] = end_period if '-' in end_period else f"{end_period}-A"
+        except Exception as e:
+            _log.exception(e)
+
+        query_string = urlencode(params, quote_via=quote, safe='+,.:*')
+        return f"{base_url}?{query_string}"
 
     async def _get_available_series(
         self,
@@ -1075,13 +1118,6 @@ class Sdmx21DataSet(
 
         return results
 
-    def _get_query_url(self, response: requests.Response) -> str:
-        url = response.url
-        request_headers = response.request.headers
-        if "Ocp-Apim-Subscription-Key" in request_headers:
-            url += f"&subscription-key={request_headers['Ocp-Apim-Subscription-Key']}"
-        return url
-
     async def availability_query(
         self, query: DataSetAvailabilityQuery, auth_context: AuthContext
     ) -> DataSetAvailabilityQuery:
@@ -1202,7 +1238,18 @@ class Sdmx21DataSet(
                 ),
             )
 
-        url = self._get_query_url(data_msg.response)  # type: ignore
+        if not self.config.view_in_data_explorer:
+            url = None
+        elif explorer_base := self._resolved_data_explorer_base_url():
+            url = self._format_data_explorer_url(
+                base_url=explorer_base,
+                dsd=self._artefact.structure,
+                key_dict=sdmx_query.get_key(),
+                sdmx_query=sdmx_query,
+            )
+        else:
+            http_response = data_msg.response
+            url = http_response.url if http_response is not None else None
 
         try:
             sdmx_pandas = await self._data_msg_to_dataframe(data_msg)
