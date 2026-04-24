@@ -7,7 +7,6 @@ import tempfile
 import tracemalloc
 from collections import defaultdict
 from datetime import datetime
-from typing import Optional
 
 from statgpt.common.config import multiline_logger as logger
 
@@ -75,7 +74,7 @@ class MemoryProfiler:
 
         return snapshot_id
 
-    def _load_snapshot(self, index: int) -> Optional[tracemalloc.Snapshot]:
+    def _load_snapshot(self, index: int) -> tracemalloc.Snapshot | None:
         """Load a snapshot from disk."""
         if index < 0:
             index = len(self.snapshot_metadata) + index
