@@ -14,6 +14,18 @@ warnings.filterwarnings(
     module=r"langchain_openai\.chat_models\.base",
 )
 
+# langchain_openai serializes openai SDK's generic ParsedChatCompletion[ContentType] after a
+# structured-output call. Under pydantic 2.11+ this emits a spurious
+# PydanticSerializationUnexpectedValue for the `parsed` field (generic TypeVar vs. a concrete
+# BaseModel value), even though `parsed` is already in the `exclude` set and is not serialized.
+# Tracked upstream: openai-python PR #2885 (still open as of 2026-04-23).
+warnings.filterwarnings(
+    "ignore",
+    message=r"Pydantic serializer warnings:[\s\S]*field_name='parsed'",
+    category=UserWarning,
+    module=r"pydantic\.main",
+)
+
 from statgpt.common.config.logging import multiline_logger as logger
 from statgpt.common.schemas import EmbeddingsModelConfig, LLMModelConfig
 from statgpt.common.settings.dial import dial_settings
