@@ -235,8 +235,8 @@ class SupremeAgent:
             chat_bot_language_instructions=format_as_markdown_list(
                 channel_config.supreme_agent.language_instructions, list_type="ordered"
             ),
+            additional_instructions=channel_config.supreme_agent.additional_instructions,
             additional_context=channel_config.supreme_agent.additional_context,
-            default_guardrails=channel_config.supreme_agent.default_guardrails,
         )
         model = get_chat_model(
             api_key=auth_context.api_key,
