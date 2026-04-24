@@ -19,6 +19,7 @@ from dateutil.parser import parse
 from sdmx.message import DataMessage, StructureMessage
 from sdmx.model.common import Code
 from sdmx.model.v21 import DataflowDefinition as DataFlow
+from sdmx.model.v21 import TimeDimension
 
 from statgpt.common.auth.auth_context import AuthContext
 from statgpt.common.data.base import (
@@ -1038,6 +1039,8 @@ class Sdmx21DataSet(
         elif len(constraints) != 1:
             raise ValueError("Unexpected quantity of constraints in structure message")
         constraint = constraints[0]
+        if len(constraint.data_content_region) == 0:
+            return DataSetAvailabilityQuery()  # empty query
         if len(constraint.data_content_region) != 1:
             raise ValueError("Unexpected quantity of cube-regions in constraint")
         cube_region = constraint.data_content_region[0]
@@ -1253,15 +1256,37 @@ class Sdmx21DataSet(
         else:
             provider = self._artefact.maintainer.id  # type: ignore
 
+        flow_ref = (
+            f"{self._artefact.maintainer.id}"  # type: ignore[union-attr]
+            f",{self._artefact.id}"
+            f",{self._artefact.version}"
+        )
+        key_string = self._dict_key_to_sdmx_string(sdmx_query.get_key())
+
         return self._get_python_query(
             provider=provider,
-            resource_id=self.source_id,
-            keys=sdmx_query.get_key(),
+            flow_ref=flow_ref,
+            key=key_string,
             params=sdmx_query.get_params(),
         )
 
+    def _dict_key_to_sdmx_string(self, keys: dict[str, list[str]]) -> str:
+        """Convert a dict key to an SDMX REST key string in DSD dimension order.
+
+        The SDMX 2.1 REST API expects key as ordered dimension values
+        separated by '.', with '+' joining multiple values within a dimension.
+        Time dimensions are excluded (handled via query params).
+        """
+        parts = []
+        for dim in self._artefact.structure.dimensions:
+            if isinstance(dim, TimeDimension):
+                continue
+            values = keys.get(dim.id, [])
+            parts.append("+".join(values))
+        return ".".join(parts)
+
     @staticmethod
-    def _get_python_query(provider: str, resource_id: str, keys: dict, params: dict) -> str:
+    def _get_python_query(provider: str, flow_ref: str, key: str, params: dict) -> str:
         return f'''\
 # Uses the [sdmx1 library](https://pypi.org/project/sdmx1/)
 # Install with:
@@ -1273,8 +1298,8 @@ import sdmx
 
 provider = sdmx.Client("{provider}")
 data_msg = provider.data(
-    "{resource_id}",
-    key={keys},
+    "{flow_ref}",
+    key="{key}",
     params={params}
 )\
 '''

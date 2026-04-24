@@ -43,7 +43,7 @@ class GlossaryOfTermsService(DbServiceBase):
         return [item for item in q_result.scalars().all()]
 
     async def get_term_schemas_by_channel(
-        self, channel_id: int, limit: int, offset: int
+        self, channel_id: int, limit: int | None, offset: int
     ) -> list[schemas.GlossaryTerm]:
         terms = await self.get_term_models_by_channel(channel_id, limit, offset)
         return [schemas.GlossaryTerm.model_validate(item, from_attributes=True) for item in terms]

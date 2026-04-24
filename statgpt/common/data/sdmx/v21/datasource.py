@@ -597,44 +597,45 @@ class Sdmx21DataSourceHandler(
         merged = resolved.with_non_indexing_fields_from(current)
         return merged.model_dump(mode="json", by_alias=True)
 
-    async def resolve_config(
-        self,
-        config: dict,
-        previous_resolved_config: dict | None,
-        auth_context: AuthContext,
-    ) -> tuple[str, dict]:
-        """Resolve dynamic values in the dataset config to actual values.
-
-        Resolves URN version='latest' (or other dynamic values) to actual version.
-        In the future, may also update other fields such as dimensions if they can be dynamically resolved.
-
-        Returns:
-            A string describing the resolution details (e.g., what was resolved and if there were any changes)
-            and the new resolved config with dynamic values replaced by actual values.
-        """
+    async def _resolve_urn(
+        self, config: dict, auth_context: AuthContext
+    ) -> tuple[SdmxDataSetConfig, UrnReference]:
+        """Parse config and resolve its URN to actual values."""
         dataset_config = self.parse_data_set_config(config)
-
         actual_urn, _ = await self._load_dataset_structure_message(
             urn_ref=dataset_config.urn, auth_context=auth_context
         )
         resolved_urn_ref = UrnReference.model_validate(actual_urn, from_attributes=True)
+        return dataset_config, resolved_urn_ref
 
-        previous_config_obj = None
-        if previous_resolved_config is not None:
-            previous_config_obj = self.parse_data_set_config(previous_resolved_config)
-            if previous_config_obj.urn == resolved_urn_ref:
-                details = f"URN={dataset_config.urn} resolved to the same actual URN={resolved_urn_ref} as before."
-                return details, previous_resolved_config
-            else:
-                details = (
-                    f"URN={dataset_config.urn} resolved to a different actual URN."
-                    f" Previous: {previous_config_obj.urn}, New: {resolved_urn_ref}"
-                )
-        else:
-            details = f"URN={dataset_config.urn} resolved to actual URN={resolved_urn_ref}."
+    async def resolve_config(
+        self,
+        config: dict,
+        auth_context: AuthContext,
+    ) -> tuple[str, dict]:
+        dataset_config, resolved_urn_ref = await self._resolve_urn(config, auth_context)
+        details = f"URN={dataset_config.urn} resolved to actual URN={resolved_urn_ref}."
+        resolved_config_obj = dataset_config.model_copy(update={"urn": resolved_urn_ref})
+        new_resolved_config = resolved_config_obj.model_dump(mode="json", by_alias=True)
+        return details, new_resolved_config
 
-        resolved_config_obj = (previous_config_obj or dataset_config).model_copy(
-            update={"urn": resolved_urn_ref}
+    async def reresolve_config(
+        self,
+        config: dict,
+        previous_resolved_config: dict,
+        auth_context: AuthContext,
+    ) -> tuple[str, dict]:
+        dataset_config, resolved_urn_ref = await self._resolve_urn(config, auth_context)
+        previous_config_obj = self.parse_data_set_config(previous_resolved_config)
+
+        if previous_config_obj.urn == resolved_urn_ref:
+            details = f"URN={dataset_config.urn} resolved to the same actual URN={resolved_urn_ref} as before."
+            return details, previous_resolved_config
+
+        details = (
+            f"URN={dataset_config.urn} resolved to a different actual URN."
+            f" Previous: {previous_config_obj.urn}, New: {resolved_urn_ref}"
         )
+        resolved_config_obj = previous_config_obj.model_copy(update={"urn": resolved_urn_ref})
         new_resolved_config = resolved_config_obj.model_dump(mode="json", by_alias=True)
         return details, new_resolved_config
