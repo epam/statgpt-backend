@@ -49,6 +49,13 @@ class SupremeAgentConfig(BaseYamlModel):
         default="",
         description="Additional context for the supreme agent",
     )
+    default_guardrails: str = Field(
+        default="",
+        description=(
+            "Default guardrails text injected into the supreme agent's system prompt."
+            " Rendered as an empty string when None."
+        ),
+    )
 
 
 class OutOfScopeConfig(BaseYamlModel):

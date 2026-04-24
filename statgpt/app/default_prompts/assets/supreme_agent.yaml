@@ -11,6 +11,10 @@ systemPrompt: |-
 
   {chat_bot_language_instructions}
 
+  # Default Guardrails
+
+  {default_guardrails}
+
   # Instructions
 
   The following instructions are **mandatory** for all responses. **Adhere to them strictly**.
