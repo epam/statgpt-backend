@@ -212,3 +212,11 @@ curations:
       curations:
         concluded_license: "MIT"
         comment: "MIT License: https://github.com/langchain-ai/langgraph/blob/sdk%3D%3D0.3.3/libs/sdk-py/LICENSE"
+    - id: "PyPI::cachetools:6.2.4"
+      curations:
+        concluded_license: "MIT"
+        comment: "MIT License: https://github.com/tkem/cachetools/blob/v6.2.4/LICENSE"
+    - id: "PyPI::gitdb:4.0.12"
+      curations:
+        concluded_license: "BSD-3-Clause"
+        comment: "BSD 3-Clause License: https://github.com/gitpython-developers/gitdb/blob/4.0.12/LICENSE"
