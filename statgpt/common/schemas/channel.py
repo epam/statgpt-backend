@@ -47,7 +47,7 @@ class SupremeAgentConfig(BaseYamlModel):
     )
     additional_instructions: str = Field(
         default="",
-        description=("Additional instructions to put to the agent's system prompt"),
+        description="Additional instructions to put to the agent's system prompt",
     )
     additional_context: str = Field(
         default="",
