@@ -45,6 +45,10 @@ class SupremeAgentConfig(BaseYamlModel):
         default_factory=LLMModelConfig,
         description="LLM model configuration for the supreme agent",
     )
+    additional_instructions: str = Field(
+        default="",
+        description="Additional instructions to put to the agent's system prompt",
+    )
     additional_context: str = Field(
         default="",
         description="Additional context for the supreme agent",
