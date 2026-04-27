@@ -48,11 +48,6 @@ class LangChainSettings(BaseSettings):
         description="Use custom logger callback for LangChain",
     )
 
-    use_llm_duration_callback: bool = Field(
-        default=False,
-        description="Log LLM call duration for each model invocation",
-    )
-
     def configure(self):
         lc_globals.set_verbose(self.verbose)
         lc_globals.set_debug(self.debug)

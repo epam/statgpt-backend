@@ -124,12 +124,12 @@ class ChannelCompletion(ChatCompletion):
             callbacks: list = []
             if langchain_settings.use_custom_logger_callback:
                 callbacks.append(LCMessageLoggerAsync())
-            if langchain_settings.use_llm_duration_callback:
+            if dial_app_settings.track_llm_call_durations:
                 callbacks.append(LLMCallDurationCallback())
 
             with (
                 llm_call_duration_context(
-                    enabled=langchain_settings.use_llm_duration_callback
+                    enabled=dial_app_settings.track_llm_call_durations
                 ) as duration_manager,
                 token_usage_context() as token_usage_manager,
             ):
