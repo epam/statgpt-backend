@@ -1,4 +1,5 @@
 import abc
+import time
 from typing import Any
 
 from aidial_sdk.chat_completion import Attachment
@@ -10,6 +11,8 @@ from statgpt.app.utils import OpenAiToDialStreamer, openai
 from statgpt.app.utils.dial_stages import optional_stage, timed_stage
 from statgpt.common.config import multiline_logger as logger
 from statgpt.common.schemas import StagesConfig
+from statgpt.common.schemas.llm_call_duration import LLMCallDurationItem
+from statgpt.common.utils.llm_call_duration_context import get_llm_call_duration_manager
 
 
 class ResponseProducerABC(abc.ABC):
@@ -91,18 +94,32 @@ class RagResponseProducer(ResponseProducerABC):
             stages_config=self._stages_config,
         )
 
+        time_start = time.monotonic()
+        res = None
+
         with dial_streamer:
             try:
                 async for chunk in stream:
                     dial_streamer.send_chunk(chunk)
             except APIError as e:
                 logger.exception(e)
-                return "<error>Something went wrong</error>"
+                res = "<error>Something went wrong</error>"
 
-            if self._attachments_metadata:
-                return dial_streamer.content_with_attachments_metadata
-            else:
-                return dial_streamer.content
+            if res is None:
+                if self._attachments_metadata:
+                    res = dial_streamer.content_with_attachments_metadata
+                else:
+                    res = dial_streamer.content
+
+        duration_s = time.monotonic() - time_start
+
+        duration_manager = get_llm_call_duration_manager()
+        if duration_manager is not None:
+            duration_manager.add_duration(
+                LLMCallDurationItem(deployment=self._deployment_id, duration_s=duration_s)
+            )
+
+        return res
 
 
 class UrlOnlyResponseProducer(ResponseProducerABC):
