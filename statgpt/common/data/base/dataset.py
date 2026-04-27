@@ -142,11 +142,6 @@ class DataResponse(ABC):
 
     @property
     @abstractmethod
-    def json_query_old(self) -> dict | None:
-        """Return the query in JSON format. [Deprecated, use `json_query` instead]"""
-
-    @property
-    @abstractmethod
     def json_query(self) -> dict | None:
         """Return the query in JSON format."""
 
@@ -238,6 +233,19 @@ class DataSet(BaseEntity, Generic[DataSetConfigType, DataSourceHandlerType], ABC
     def status(self) -> Status:
         pass
 
+    @abstractmethod
+    def get_resolved_sdmx1_source(self) -> str | None:
+        """Return resolved sdmx1 library source identifier if available."""
+
+    @property
+    def sdmx_key_dimension_ids_in_dsd_order(self) -> list[str] | None:
+        """Non-time dimension ids in DSD order for SDMX 2.1 REST data keys.
+
+        ``None`` when this dataset type does not expose an SDMX DSD key order
+        (callers fall back to filter order for Python code generation).
+        """
+        return None
+
     @property
     @abstractmethod
     def default_value_codes(self) -> list[str]:
@@ -322,6 +330,9 @@ class OfflineDataSet(DataSet, Generic[DataSetConfigType, DataSourceHandlerType],
     @property
     def default_value_codes(self) -> list[str]:
         return []
+
+    def get_resolved_sdmx1_source(self) -> str | None:
+        return None
 
     @property
     def dataset_url(self) -> str | None:
