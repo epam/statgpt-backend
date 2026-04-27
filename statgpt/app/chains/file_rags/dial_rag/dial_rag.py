@@ -213,6 +213,7 @@ class DialRagAgentFactory(BaseRAGFactory):
         dial_rag_client = self._init_dial_rag_client(auth_context)
         deployment_name = self._tool_config.details.get_deployment_id()
 
+        time_start = time.monotonic()
         rag_stream = await dial_rag_client.chat.completions.create(
             model=deployment_name,
             stream=True,
@@ -228,8 +229,6 @@ class DialRagAgentFactory(BaseRAGFactory):
             show_debug_stages=state.get(StateVarsConfig.SHOW_DEBUG_STAGES, False),
             stages_config=self._tool_config.details.stages_config,
         )
-
-        time_start = time.monotonic()
 
         with dial_streamer:
             try:

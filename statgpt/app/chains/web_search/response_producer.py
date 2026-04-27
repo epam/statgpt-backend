@@ -84,6 +84,7 @@ class RagResponseProducer(ResponseProducerABC):
                 )
             )
 
+        time_start = time.monotonic()
         stream = await client.chat.completions.create(**kwargs)
         dial_streamer = OpenAiToDialStreamer(
             target,
@@ -94,7 +95,6 @@ class RagResponseProducer(ResponseProducerABC):
             stages_config=self._stages_config,
         )
 
-        time_start = time.monotonic()
         res = None
 
         with dial_streamer:
