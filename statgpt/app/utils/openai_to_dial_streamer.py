@@ -2,9 +2,10 @@ import json
 import time
 from typing import Any
 
-from aidial_sdk.chat_completion import Choice, Stage
+from aidial_sdk.chat_completion import Stage
 from openai.types.chat import ChatCompletionChunk
 
+from statgpt.app.utils.dial_stages import ChoiceI
 from statgpt.common.schemas import StagesConfig
 from statgpt.common.schemas.llm_call_duration import LLMCallDurationItem
 from statgpt.common.schemas.token_usage import TokenUsageItem
@@ -15,8 +16,8 @@ from statgpt.common.utils.token_usage_context import get_token_usage_manager
 class OpenAiToDialStreamer:
     def __init__(
         self,
-        target: Choice | Stage,
-        choice: Choice,
+        target: ChoiceI | Stage,
+        choice: ChoiceI,
         deployment: str,
         show_debug_stages: bool,
         stages_config: StagesConfig,

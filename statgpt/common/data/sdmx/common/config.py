@@ -164,6 +164,22 @@ class SdmxDataSourceConfig(DataSourceConfig):
         default_factory=SdmxRateLimitsConfig,
         description="The rate limits configuration for the SDMX data source",
     )
+    data_explorer_url: str | None = Field(
+        default=None,
+        description=(
+            "Default base URL of the data explorer UI. Used when a dataset does not set "
+            "data_explorer_url, for example to build preset explorer links instead of raw API URLs. "
+            "When set, query-result URLs always use this explorer link. Whether dataset-level "
+            "`dataset_url` also uses it is controlled by `use_data_explorer_for_dataset_url`."
+        ),
+    )
+    use_data_explorer_for_dataset_url: bool = Field(
+        default=False,
+        description=(
+            "If true and a data explorer URL is resolved (dataset or data source), dataset URLs "
+            "will point to the data explorer instead of citation URLs."
+        ),
+    )
     dataset_hierarchy: (
         DefaultDataSetHierarchyConfig | CategorySchemaDataSetHierarchyConfig | None
     ) = Field(
@@ -171,6 +187,11 @@ class SdmxDataSourceConfig(DataSourceConfig):
         discriminator='type',
         description="The configuration of the dataset hierarchy for this data source",
     )
+
+    def get_data_explorer_url(self) -> str | None:
+        if self.data_explorer_url:
+            return config_utils.replace_env(self.data_explorer_url)
+        return None
 
     def get_id(self) -> str:
         return self.sdmx_config.id

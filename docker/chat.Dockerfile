@@ -18,12 +18,12 @@ WORKDIR $APP_HOME
 # Install dependencies first to leverage Docker layer caching
 COPY pyproject.toml poetry.lock poetry.toml ./
 RUN poetry install --no-interaction --no-ansi --no-cache --no-root \
-  --no-directory --only main
+  --no-directory --only main -E mcp
 
 # Copy source code and install the project
 COPY ./statgpt/app $APP_HOME/statgpt/app
 COPY ./statgpt/common $APP_HOME/statgpt/common
-RUN poetry install --no-interaction --no-ansi --no-cache --no-root --only main
+RUN poetry install --no-interaction --no-ansi --no-cache --no-root --only main -E mcp
 
 # CVE-2026-23949 (jaraco.context vendored in setuptools), CVE-2026-24049 (wheel vendored in setuptools)
 RUN .venv/bin/pip install "setuptools==80.10.2" "wheel==0.46.2"

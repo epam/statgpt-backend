@@ -1,3 +1,5 @@
+from calendar import monthrange
+from dataclasses import dataclass
 from datetime import date, datetime, timezone
 
 MONTH_SHORT_NAMES = [
@@ -30,6 +32,90 @@ MONTH_NAMES = [
     "December",
 ]
 
+# Coarser (wider) periods have a higher rank: year > quarter > month > day
+_G_DAY = 1
+_G_MONTH = 2
+_G_QUARTER = 3
+_G_YEAR = 4
+
+
+@dataclass(frozen=True)
+class _Period:
+    start: date
+    end: date
+    granularity: int
+    original: str
+
+
+def _last_day_of_month(year: int, month: int) -> int:
+    return monthrange(year, month)[1]
+
+
+def _quarter_bounds(year: int, quarter: int) -> tuple[date, date]:
+    first_month = {1: 1, 2: 4, 3: 7, 4: 10}[quarter]
+    last_month = {1: 3, 2: 6, 3: 9, 4: 12}[quarter]
+    start = date(year, first_month, 1)
+    end = date(year, last_month, _last_day_of_month(year, last_month))
+    return start, end
+
+
+def _parse_period(time_val: str) -> _Period:
+    """
+    Parse a time string into calendar bounds and granularity.
+    Granularity rank: annual (_G_YEAR) > quarter > month > day (_G_DAY).
+    """
+    parts = time_val.split('-')
+    try:
+        year = int(parts[0])
+    except ValueError:
+        raise ValueError(f"Invalid time period format: {time_val}")
+
+    if len(parts) == 1:
+        start = date(year, 1, 1)
+        end = date(year, 12, 31)
+        return _Period(start, end, _G_YEAR, time_val)
+
+    if len(parts) == 2:
+        if parts[1].startswith('Q'):
+            try:
+                quarter = int(parts[1][1:])
+                start, end = _quarter_bounds(year, quarter)
+                return _Period(start, end, _G_QUARTER, time_val)
+            except (ValueError, KeyError):
+                raise ValueError(f"Invalid time period format: {time_val}")
+        if parts[1].startswith('M'):
+            try:
+                month = int(parts[1][1:])
+            except ValueError:
+                raise ValueError(f"Invalid time period format: {time_val}")
+            start = date(year, month, 1)
+            end = date(year, month, _last_day_of_month(year, month))
+            return _Period(start, end, _G_MONTH, time_val)
+        if parts[1].isdigit():
+            month = int(parts[1])
+            if 1 <= month <= 12:
+                start = date(year, month, 1)
+                end = date(year, month, _last_day_of_month(year, month))
+                return _Period(start, end, _G_MONTH, time_val)
+
+    if len(parts) == 3:
+        try:
+            month = int(parts[1])
+            day = int(parts[2])
+            d = date(year, month, day)
+            return _Period(d, d, _G_DAY, time_val)
+        except ValueError:
+            raise ValueError(f"Invalid time period format: {time_val}")
+
+    raise ValueError(f"Invalid time period format: {time_val}")
+
+
+def _is_subsumed_by_coarser(finer: _Period, coarser: _Period) -> bool:
+    """True if coarser strictly outranks finer and fully covers its [start, end]."""
+    if coarser.granularity <= finer.granularity:
+        return False
+    return finer.start >= coarser.start and finer.end <= coarser.end
+
 
 def get_ts_now_str(ts_format="%Y%m%d-%H%M%S") -> str:
     return datetime.now().strftime(ts_format)
@@ -54,65 +140,28 @@ def get_today_date_long() -> str:
     return format_date_long(date_=date.today())
 
 
-def _parse_time_value(time_val: str) -> tuple[int, int, str]:
-    """
-    Parse time value into (year, period_order, original_value).
-    period_order: months 1-12, quarters mapped to starting month (Q1=1, Q2=4, Q3=7, Q4=10), annual 999.
-    """
-    parts = time_val.split('-')
-    try:
-        year = int(parts[0])
-    except ValueError:
-        raise ValueError(f"Invalid time period format: {time_val}")
-
-    if len(parts) == 1:
-        return (year, 999, time_val)  # Annual
-
-    if len(parts) == 2:
-        if parts[1].startswith('Q'):
-            try:
-                quarter = int(parts[1][1:])
-                # Map quarters to their starting month: Q1=Jan, Q2=Apr, Q3=Jul, Q4=Oct
-                quarter_to_month = {1: 1, 2: 4, 3: 7, 4: 10}
-                return (year, quarter_to_month[quarter], time_val)
-            except (ValueError, KeyError):
-                raise ValueError(f"Invalid time period format: {time_val}")
-        elif parts[1].startswith('M'):
-            try:
-                month = int(parts[1][1:])
-                return (year, month, time_val)
-            except ValueError:
-                raise ValueError(f"Invalid time period format: {time_val}")
-
-    raise ValueError(f"Invalid time period format: {time_val}")
-
-
 def get_time_period_bounds(values: list[str]) -> tuple[str, str] | None:
     """
     Get the time period bounds from a list of time period values.
-    Handles annual (2023), quarterly (2024-Q1), and monthly (2023-M01) formats.
+
+    Coarser periods (year > quarter > month > day) subsume finer ones when the finer
+    span lies fully inside the coarser span (same calendar semantics). Bounds are then
+    the earliest start and latest end among the remaining periods; ties break by
+    lexicographic order of the original strings.
     """
     if not values:
         return None
 
-    parsed_values = [_parse_time_value(v) for v in values]
-    parsed_values.sort()
+    periods = [_parse_period(v) for v in values]
 
-    start_year, start_order, start_value = parsed_values[0]
-    end_year, end_order, end_value = parsed_values[-1]
+    def kept(p: _Period) -> bool:
+        return not any(_is_subsumed_by_coarser(p, q) for q in periods if q is not p)
 
-    values_set = set(values)
-    start_year_str = str(start_year)
-    end_year_str = str(end_year)
+    remaining = [p for p in periods if kept(p)]
+    if not remaining:
+        # e.g. empty input already handled; single impossible case — fallback to full list
+        remaining = periods
 
-    # Prefer annual at start unless it's Q1/M01 with only one sub-year period
-    if start_year_str in values_set:
-        sub_year_count = sum(1 for v in values if v.startswith(f"{start_year}-"))
-        if not (start_order == 1 and sub_year_count == 1):
-            start_value = start_year_str
-
-    # Always prefer annual at end if it exists
-    if end_year_str in values_set:
-        end_value = end_year_str
-
-    return start_value, end_value
+    start_p = min(remaining, key=lambda p: (p.start, p.original))
+    end_p = max(remaining, key=lambda p: (p.end, p.original))
+    return start_p.original, end_p.original

@@ -10,16 +10,16 @@ import uuid
 from collections.abc import Iterable, Sequence
 from datetime import datetime
 from functools import cached_property
+from urllib.parse import quote, urlencode
 
 import pandas as pd
 import plotly.graph_objects as go
-import requests
 import sdmx.model.common
 from dateutil.parser import parse
 from sdmx.message import DataMessage, StructureMessage
 from sdmx.model.common import Code
 from sdmx.model.v21 import DataflowDefinition as DataFlow
-from sdmx.model.v21 import TimeDimension
+from sdmx.model.v21 import DataStructureDefinition, TimeDimension
 
 from statgpt.common.auth.auth_context import AuthContext
 from statgpt.common.data.base import (
@@ -49,6 +49,7 @@ from statgpt.common.data.sdmx.common import (
     SdmxDimension,
     UrnReference,
 )
+from statgpt.common.data.sdmx.python_code import generate_python_query_body
 from statgpt.common.schemas.dataset import Status
 from statgpt.common.schemas.enums import DataParsingStatus, DataRequestStatus
 from statgpt.common.schemas.query import (
@@ -70,6 +71,7 @@ from .query import (
     TimeDimensionQuery,
 )
 from .schemas import Urn
+from .utils import convert_keys_to_str
 
 if t.TYPE_CHECKING:
     from statgpt.common.data.sdmx.v21.datasource import Sdmx21DataSourceHandler
@@ -86,6 +88,13 @@ class SdmxOfflineDataSet(OfflineDataSet[SdmxDataSetConfig, 'Sdmx21DataSourceHand
     @property
     def description(self) -> str:
         return ''
+
+    def get_resolved_sdmx1_source(self) -> str | None:
+        return (
+            self.config.sdmx1_source
+            or self._datasource.config.sdmx1_source
+            or self.config.urn.agency_id
+        )
 
 
 class InvalidConfigurationError(Exception):
@@ -112,6 +121,7 @@ class Sdmx21DataResponse(DataResponse):
         url: str | None,
         status: DataResponseStatus,
     ):
+        super().__init__()
         self.dataset = dataset
         self.sdmx_query = sdmx_query
         self.df = df
@@ -151,6 +161,10 @@ class Sdmx21DataResponse(DataResponse):
             dataset_source_id=self.dataset.source_id,
             dataset_name=self.dataset.name,
         )
+
+    @property
+    def resource_path(self) -> str:
+        return self.dataset.source_id
 
     def merge(self, other: "DataResponse") -> "Sdmx21DataResponse":
         if not isinstance(other, Sdmx21DataResponse):
@@ -212,14 +226,6 @@ class Sdmx21DataResponse(DataResponse):
         return self._url
 
     @property
-    def json_query_old(self) -> dict:
-        return {
-            'urn': self.dataset.short_urn,
-            'metadata': self._get_dataset_metadata_as_dict(),
-            'filters': self._to_sdmx_filters(self.sdmx_query),
-        }
-
-    @property
     def json_query(self) -> dict:
         return JsonQueryWithMetadata(
             urn=self.dataset.short_urn,
@@ -227,8 +233,11 @@ class Sdmx21DataResponse(DataResponse):
             metadata=JsonQueryMetadata(
                 country_dimension=self.dataset.config.country_dimension,
                 indicator_dimensions=self.dataset.config.indicator_dimensions,
+                time_period_dimension=self.dataset.config.time_period_dimension_id,
                 dataset_url=self.dataset.dataset_url,
+                key_dimension_ids_in_dsd_order=self.dataset.sdmx_key_dimension_ids_in_dsd_order,
             ),
+            sdmx1_source=self.dataset.get_resolved_sdmx1_source(),
         ).model_dump(by_alias=True)
 
     def get_python_code_body(self, suffix: str = "") -> str | None:
@@ -277,41 +286,12 @@ class Sdmx21DataResponse(DataResponse):
         df = df[sorted_columns].copy()
         return df
 
-    def _get_dataset_metadata_as_dict(self) -> dict[str, t.Any]:
-        dataset_config = self.dataset.config
-        return {
-            'countryDimension': dataset_config.country_dimension,
-            'indicatorDimensions': dataset_config.indicator_dimensions,
-        }
-
     def _graph_name(self, figure: go.Figure, template: str) -> str:
         return template.format(
             dataset_source_id=self.dataset.source_id,
             dataset_name=self.dataset.name,
             figure_title=(figure.layout.title.text or '').replace('<br>', ' '),
         )
-
-    @staticmethod
-    def _to_sdmx_filters(sdmx_query: SdmxDataSetQuery) -> list[dict[str, str]]:
-        res = [
-            {
-                "componentCode": k,
-                "operator": "in",
-                "values": ','.join(v),
-            }
-            for k, v in sdmx_query.categorical_dimensions.items()
-        ]
-
-        if sdmx_query.time_dimension_query:
-            res.append(
-                {
-                    "componentCode": sdmx_query.time_dimension_query.time_dimension_id,
-                    "operator": "between",
-                    "values": f"{sdmx_query.time_dimension_query.start_period},{sdmx_query.time_dimension_query.end_period}",
-                }
-            )
-
-        return res
 
     @staticmethod
     def _create_time_dimension_query(
@@ -514,9 +494,51 @@ class Sdmx21DataSet(
 
     @property
     def dataset_url(self) -> str | None:
+        if self._datasource.config.use_data_explorer_for_dataset_url:
+            if base := self._resolved_data_explorer_base_url():
+                return f"{base}?urn={self._short_urn}"
+            _log.warning(
+                "Data explorer URL is not configured on the dataset or data source: %s",
+                self._datasource.source_id,
+            )
         if self.config.citation and self.config.citation.url:
             return self.config.citation.get_url()
         return None
+
+    def _resolved_data_explorer_base_url(self) -> str | None:
+        if url := self.config.get_data_explorer_url():
+            return url
+        return self._datasource.config.get_data_explorer_url()
+
+    def _format_data_explorer_url(
+        self,
+        base_url: str,
+        dsd: DataStructureDefinition,
+        key_dict: dict[str, list[str]],
+        sdmx_query: SdmxDataSetQuery,
+    ) -> str:
+        params: dict[str, str] = {
+            'urn': self._short_urn,
+            'filter': convert_keys_to_str(dsd, key_dict),
+        }
+
+        try:
+            if td_query := sdmx_query.time_dimension_query:
+                start_period = td_query.start_period
+                end_period = td_query.end_period
+            else:
+                start_period = None
+                end_period = None
+
+            if start_period:
+                params['startPeriod'] = start_period if '-' in start_period else f"{start_period}-A"
+            if end_period:
+                params['endPeriod'] = end_period if '-' in end_period else f"{end_period}-A"
+        except Exception as e:
+            _log.exception(e)
+
+        query_string = urlencode(params, quote_via=quote, safe='+,.:*')
+        return f"{base_url}?{query_string}"
 
     async def _get_available_series(
         self,
@@ -1096,13 +1118,6 @@ class Sdmx21DataSet(
 
         return results
 
-    def _get_query_url(self, response: requests.Response) -> str:
-        url = response.url
-        request_headers = response.request.headers
-        if "Ocp-Apim-Subscription-Key" in request_headers:
-            url += f"&subscription-key={request_headers['Ocp-Apim-Subscription-Key']}"
-        return url
-
     async def availability_query(
         self, query: DataSetAvailabilityQuery, auth_context: AuthContext
     ) -> DataSetAvailabilityQuery:
@@ -1223,7 +1238,18 @@ class Sdmx21DataSet(
                 ),
             )
 
-        url = self._get_query_url(data_msg.response)  # type: ignore
+        if not self.config.view_in_data_explorer:
+            url = None
+        elif explorer_base := self._resolved_data_explorer_base_url():
+            url = self._format_data_explorer_url(
+                base_url=explorer_base,
+                dsd=self._artefact.structure,
+                key_dict=sdmx_query.get_key(),
+                sdmx_query=sdmx_query,
+            )
+        else:
+            http_response = data_msg.response
+            url = http_response.url if http_response is not None else None
 
         try:
             sdmx_pandas = await self._data_msg_to_dataframe(data_msg)
@@ -1252,12 +1278,17 @@ class Sdmx21DataSet(
             ),
         )
 
-    def get_python_code_body(self, sdmx_query: SdmxDataSetQuery, suffix: str = "") -> str:
-        provider = (
+    def get_resolved_sdmx1_source(self) -> str | None:
+        return (
             self._config.sdmx1_source
             or self._datasource.config.sdmx1_source
             or self._artefact.maintainer.id  # type: ignore[union-attr]
         )
+
+    def get_python_code_body(self, sdmx_query: SdmxDataSetQuery, suffix: str = "") -> str:
+        provider = self.get_resolved_sdmx1_source()
+        if provider is None:
+            raise RuntimeError("Cannot generate Python code without a resolved SDMX 1 source")
 
         flow_ref = (
             f"{self._artefact.maintainer.id}"  # type: ignore[union-attr]
@@ -1266,13 +1297,22 @@ class Sdmx21DataSet(
         )
         key_string = self._dict_key_to_sdmx_string(sdmx_query.get_key())
 
-        return self._get_python_query_body(
+        return generate_python_query_body(
             provider=provider,
             flow_ref=flow_ref,
             key=key_string,
             params=sdmx_query.get_params(),
             suffix=suffix,
         )
+
+    @cached_property
+    def sdmx_key_dimension_ids_in_dsd_order(self) -> list[str]:
+        """Non-time DSD dimension ids in REST key order."""
+        return [
+            dim.id
+            for dim in self._artefact.structure.dimensions  # type: ignore[union-attr]
+            if not isinstance(dim, TimeDimension)
+        ]
 
     def _dict_key_to_sdmx_string(self, keys: dict[str, list[str]]) -> str:
         """Convert a dict key to an SDMX REST key string in DSD dimension order.
@@ -1282,21 +1322,7 @@ class Sdmx21DataSet(
         Time dimensions are excluded (handled via query params).
         """
         parts = []
-        for dim in self._artefact.structure.dimensions:
-            if isinstance(dim, TimeDimension):
-                continue
-            values = keys.get(dim.id, [])
+        for dim_id in self.sdmx_key_dimension_ids_in_dsd_order:
+            values = keys.get(dim_id, [])
             parts.append("+".join(values))
         return ".".join(parts)
-
-    @staticmethod
-    def _get_python_query_body(
-        provider: str, flow_ref: str, key: str, params: dict, suffix: str = ""
-    ) -> str:
-        return f'''\
-provider{suffix} = sdmx.Client("{provider}")
-data_msg{suffix} = provider{suffix}.data(
-    "{flow_ref}",
-    key="{key}",
-    params={params}
-)'''
