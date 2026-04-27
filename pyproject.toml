@@ -59,7 +59,7 @@ dependencies = [
     'babel (>=2.17.0,<3.0.0)',                   # Internationalization
     'aiofiles (>=25.1.0,<26.0.0)',               # Async file operations
     'pyarrow (>=20.0.0,<21.0.0)',                # Parquet support for import/export
-    'mlflow-skinny (>3.1.4)',                   # LangChain autologger for LLM tracing
+    'openinference-instrumentation-langchain (>=0.1.30,<1.0.0)',  # LangChain OTEL instrumentor for LLM tracing
 ]
 
 [project.optional-dependencies]
@@ -147,7 +147,7 @@ module = ["aidial_sdk.*"]
 follow_untyped_imports = true
 
 [[tool.mypy.overrides]]
-module = ["msal.*", "keycloak.*", "mlflow.*"]
+module = ["msal.*", "keycloak.*", "openinference.*"]
 ignore_missing_imports = true
 
 [tool.poetry]

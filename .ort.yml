@@ -220,3 +220,23 @@ curations:
       curations:
         concluded_license: "BSD-3-Clause"
         comment: "BSD 3-Clause License: https://github.com/gitpython-developers/gitdb/blob/4.0.12/LICENSE"
+    - id: "PyPI::openinference-instrumentation-langchain:0.1.63"
+      curations:
+        concluded_license: "Apache-2.0"
+        comment: "Apache 2.0 License: https://github.com/Arize-ai/openinference/blob/main/python/instrumentation/openinference-instrumentation-langchain/LICENSE"
+    - id: "PyPI::openinference-instrumentation:0.1.47"
+      curations:
+        concluded_license: "Apache-2.0"
+        comment: "Apache 2.0 License: https://github.com/Arize-ai/openinference/blob/main/python/openinference-instrumentation/LICENSE"
+    - id: "PyPI::openinference-semantic-conventions:0.1.29"
+      curations:
+        concluded_license: "Apache-2.0"
+        comment: "Apache 2.0 License: https://github.com/Arize-ai/openinference/blob/main/python/openinference-semantic-conventions/LICENSE"
+    - id: "PyPI::opentelemetry-instrumentation:0.60b1"
+      curations:
+        concluded_license: "Apache-2.0"
+        comment: "Apache 2.0 License: https://github.com/open-telemetry/opentelemetry-python-contrib/blob/v0.60b1/LICENSE"
+    - id: "PyPI::wrapt:1.17.3"
+      curations:
+        concluded_license: "BSD-2-Clause"
+        comment: "BSD 2-Clause License: https://github.com/GrahamDumpleton/wrapt/blob/1.17.3/LICENSE"

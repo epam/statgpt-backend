@@ -1239,9 +1239,10 @@ beautifulsoup4 = "*"
 name = "cachetools"
 version = "6.2.4"
 description = "Extensible memoizing collections and decorators"
-optional = false
+optional = true
 python-versions = ">=3.9"
 groups = ["main"]
+markers = "extra == \"mcp\""
 files = [
     {file = "cachetools-6.2.4-py3-none-any.whl", hash = "sha256:69a7a52634fed8b8bf6e24a050fb60bff1c9bd8f6d24572b99c32d4e71e62a51"},
     {file = "cachetools-6.2.4.tar.gz", hash = "sha256:82c5c05585e70b6ba2d3ae09ea60b79548872185d2f24ae1f2709d37299fd607"},
@@ -1544,18 +1545,6 @@ files = [
 colorama = {version = "*", markers = "platform_system == \"Windows\""}
 
 [[package]]
-name = "cloudpickle"
-version = "3.1.2"
-description = "Pickler class to extend the standard pickle.Pickler functionality"
-optional = false
-python-versions = ">=3.8"
-groups = ["main"]
-files = [
-    {file = "cloudpickle-3.1.2-py3-none-any.whl", hash = "sha256:9acb47f6afd73f60dc1df93bb801b472f05ff42fa6c84167d25cb206be1fbf4a"},
-    {file = "cloudpickle-3.1.2.tar.gz", hash = "sha256:7fda9eb655c9c230dab534f1983763de5835249750e85fbcef43aaa30a9a2414"},
-]
-
-[[package]]
 name = "colorama"
 version = "0.4.6"
 description = "Cross-platform colored terminal text."
@@ -1787,28 +1776,6 @@ mkdocs = ["markdown (>=3.3)", "mkdocs (>=1.4.0)", "pymdown-extensions (>=10.0)"]
 toml = ["tomli (>=2.0.0) ; python_version < \"3.11\""]
 trio = ["trio (>=0.10.0)"]
 yaml = ["pyyaml (>=6.0.1)"]
-
-[[package]]
-name = "databricks-sdk"
-version = "0.105.0"
-description = "Databricks SDK for Python (Beta)"
-optional = false
-python-versions = ">=3.10"
-groups = ["main"]
-files = [
-    {file = "databricks_sdk-0.105.0-py3-none-any.whl", hash = "sha256:f1624e434588e2174052bc3646670f17581f3bb269b9438f9121e9df4a59eebd"},
-    {file = "databricks_sdk-0.105.0.tar.gz", hash = "sha256:c52bf21c5e5814bc3d741a98fc772f4b6f1f9cfa08e90bf7580aa1592bc92e92"},
-]
-
-[package.dependencies]
-google-auth = ">=2.0,<3.0"
-protobuf = ">=4.25.8,<5.26.dev0 || >5.29.0,<5.29.1 || >5.29.1,<5.29.2 || >5.29.2,<5.29.3 || >5.29.3,<5.29.4 || >5.29.4,<6.30.0 || >6.30.0,<6.30.1 || >6.30.1,<6.31.0 || >6.31.0,<7.0"
-requests = ">=2.28.1,<3"
-
-[package.extras]
-dev = ["autoflake (==2.3.1)", "black (==24.8.0)", "build", "check-manifest", "databricks-connect", "httpx", "ipython", "ipywidgets", "isort (==5.13.2)", "langchain-openai", "openai", "pycodestyle", "pyfakefs", "pytest", "pytest-cov", "pytest-mock", "pytest-rerunfailures", "pytest-xdist (>=3.6.1,<4.0)", "requests-mock", "wheel"]
-notebook = ["ipython (>=8,<10)", "ipywidgets (>=8,<9)"]
-openai = ["httpx", "langchain-openai", "openai"]
 
 [[package]]
 name = "debugpy"
@@ -2504,7 +2471,7 @@ version = "4.0.12"
 description = "Git Object Database"
 optional = false
 python-versions = ">=3.7"
-groups = ["main", "dev"]
+groups = ["dev"]
 files = [
     {file = "gitdb-4.0.12-py3-none-any.whl", hash = "sha256:67073e15955400952c6565cc3e707c554a4eea2e428946f7a4c162fab9bd9bcf"},
     {file = "gitdb-4.0.12.tar.gz", hash = "sha256:5ef71f855d191a3326fcfbc0d5da835f26b13fbcba60c32c21091c349ffdb571"},
@@ -2519,7 +2486,7 @@ version = "3.1.46"
 description = "GitPython is a Python library used to interact with Git repositories"
 optional = false
 python-versions = ">=3.7"
-groups = ["main", "dev"]
+groups = ["dev"]
 files = [
     {file = "gitpython-3.1.46-py3-none-any.whl", hash = "sha256:79812ed143d9d25b6d176a10bb511de0f9c67b1fa641d82097b0ab90398a2058"},
     {file = "gitpython-3.1.46.tar.gz", hash = "sha256:400124c7d0ef4ea03f7310ac2fbf7151e09ff97f2a3288d64a440c584a29c37f"},
@@ -2531,34 +2498,6 @@ gitdb = ">=4.0.1,<5"
 [package.extras]
 doc = ["sphinx (>=7.1.2,<7.2)", "sphinx-autodoc-typehints", "sphinx_rtd_theme"]
 test = ["coverage[toml]", "ddt (>=1.1.1,!=1.4.3)", "mock ; python_version < \"3.8\"", "mypy (==1.18.2) ; python_version >= \"3.9\"", "pre-commit", "pytest (>=7.3.1)", "pytest-cov", "pytest-instafail", "pytest-mock", "pytest-sugar", "typing-extensions ; python_version < \"3.11\""]
-
-[[package]]
-name = "google-auth"
-version = "2.49.2"
-description = "Google Authentication Library"
-optional = false
-python-versions = ">=3.8"
-groups = ["main"]
-files = [
-    {file = "google_auth-2.49.2-py3-none-any.whl", hash = "sha256:c2720924dfc82dedb962c9f52cabb2ab16714fd0a6a707e40561d217574ed6d5"},
-    {file = "google_auth-2.49.2.tar.gz", hash = "sha256:c1ae38500e73065dcae57355adb6278cf8b5c8e391994ae9cbadbcb9631ab409"},
-]
-
-[package.dependencies]
-cryptography = ">=38.0.3"
-pyasn1-modules = ">=0.2.1"
-
-[package.extras]
-aiohttp = ["aiohttp (>=3.6.2,<4.0.0)", "requests (>=2.20.0,<3.0.0)"]
-cryptography = ["cryptography (>=38.0.3)"]
-enterprise-cert = ["pyopenssl"]
-pyjwt = ["pyjwt (>=2.0)"]
-pyopenssl = ["pyopenssl (>=20.0.0)"]
-reauth = ["pyu2f (>=0.1.5)"]
-requests = ["requests (>=2.20.0,<3.0.0)"]
-rsa = ["rsa (>=3.1.4,<5)"]
-testing = ["aiohttp (<3.10.0)", "aiohttp (>=3.6.2,<4.0.0)", "aioresponses", "flask", "freezegun", "grpcio", "packaging", "pyjwt (>=2.0)", "pyopenssl (<24.3.0)", "pyopenssl (>=20.0.0)", "pytest", "pytest-asyncio", "pytest-cov", "pytest-localserver", "pyu2f (>=0.1.5)", "requests (>=2.20.0,<3.0.0)", "responses", "urllib3"]
-urllib3 = ["packaging", "urllib3"]
 
 [[package]]
 name = "googleapis-common-protos"
@@ -4443,55 +4382,6 @@ files = [
 ]
 
 [[package]]
-name = "mlflow-skinny"
-version = "3.11.1"
-description = "MLflow is an open source platform for the complete machine learning lifecycle"
-optional = false
-python-versions = ">=3.10"
-groups = ["main"]
-files = [
-    {file = "mlflow_skinny-3.11.1-py3-none-any.whl", hash = "sha256:82ffd5f6980320b4ac19f741e7a754faa1d01707e632b002ea68e04fd25a0535"},
-    {file = "mlflow_skinny-3.11.1.tar.gz", hash = "sha256:86ce63491349f6713afc8a4ef0bf77a8314d0e79e03753cb150d6c860a0b0475"},
-]
-
-[package.dependencies]
-cachetools = ">=5.0.0,<8"
-click = ">=7.0,<9"
-cloudpickle = "<4"
-databricks-sdk = ">=0.20.0,<1"
-fastapi = "<1"
-gitpython = ">=3.1.9,<4"
-importlib_metadata = ">=3.7.0,<4.7.0 || >4.7.0,<9"
-opentelemetry-api = ">=1.9.0,<3"
-opentelemetry-proto = ">=1.9.0,<3"
-opentelemetry-sdk = ">=1.9.0,<3"
-packaging = "<27"
-protobuf = ">=3.12.0,<8"
-pydantic = ">=2.0.0,<3"
-python-dotenv = ">=0.19.0,<2"
-pyyaml = ">=5.1,<7"
-requests = ">=2.17.3,<3"
-sqlparse = ">=0.4.0,<1"
-typing-extensions = ">=4.0.0,<5"
-uvicorn = "<1"
-
-[package.extras]
-aliyun-oss = ["aliyunstoreplugin"]
-auth = ["Flask-WTF (<2)"]
-azure = ["azure-identity (>=1.6.1)", "azure-storage-blob (>=12)"]
-databricks = ["azure-storage-file-datalake (>12)", "boto3 (>1)", "botocore", "databricks-agents (>=1.2.0,<2.0)", "google-cloud-storage (>=1.30.0)"]
-db = ["PyMySQL", "psycopg2-binary", "pymssql"]
-extras = ["azureml-core (>=1.2.0)", "boto3", "botocore", "google-cloud-storage (>=1.30.0)", "kubernetes", "prometheus-flask-exporter", "pyarrow", "pysftp", "requests-auth-aws-sigv4"]
-gateway = ["boto3 (>=1.28.56,<2)", "fastapi (<1)", "slowapi (>=0.1.9,<1)", "tiktoken (<1)", "uvicorn[standard] (<1)", "watchfiles (<2)"]
-genai = ["boto3 (>=1.28.56,<2)", "fastapi (<1)", "slowapi (>=0.1.9,<1)", "tiktoken (<1)", "uvicorn[standard] (<1)", "watchfiles (<2)"]
-jfrog = ["mlflow-jfrog-plugin"]
-kubernetes = ["kubernetes"]
-langchain = ["langchain (>=0.3.21,<=1.2.12)"]
-mcp = ["click (!=8.3.0)", "fastmcp (>=2.0.0,<3)"]
-mlserver = ["mlserver (>=1.2.0,!=1.3.1,<2.0.0)", "mlserver-mlflow (>=1.2.0,!=1.3.1,<2.0.0)"]
-sqlserver = ["mlflow-dbstore"]
-
-[[package]]
 name = "more-itertools"
 version = "10.8.0"
 description = "More routines for operating on iterables, beyond itertools"
@@ -5039,6 +4929,63 @@ files = [
 
 [package.dependencies]
 pydantic = ">=1.8"
+
+[[package]]
+name = "openinference-instrumentation"
+version = "0.1.47"
+description = "OpenInference instrumentation utilities"
+optional = false
+python-versions = "<3.15,>=3.9"
+groups = ["main"]
+files = [
+    {file = "openinference_instrumentation-0.1.47-py3-none-any.whl", hash = "sha256:8496b29de79d0ceb7a7e5a523920da73351f192800fddd43aebc23c58d5586b9"},
+    {file = "openinference_instrumentation-0.1.47.tar.gz", hash = "sha256:4f68930d974c04bdf765b31262fd8ec35c3b6b1b24dbbadbbdec2c685024b06b"},
+]
+
+[package.dependencies]
+openinference-semantic-conventions = ">=0.1.26"
+opentelemetry-api = "*"
+opentelemetry-sdk = "*"
+wrapt = ">=1.14.0,<2"
+
+[package.extras]
+test = ["jsonschema", "openai", "pydantic (>=2.0.0)", "pytest-asyncio", "pytest-recording", "types-jsonschema"]
+
+[[package]]
+name = "openinference-instrumentation-langchain"
+version = "0.1.63"
+description = "OpenInference LangChain Instrumentation"
+optional = false
+python-versions = "<3.15,>=3.10"
+groups = ["main"]
+files = [
+    {file = "openinference_instrumentation_langchain-0.1.63-py3-none-any.whl", hash = "sha256:c67f4c3e3a3848dfbb7f1c79fbe83f9501ebb7c6e297f624d719061cfc487162"},
+    {file = "openinference_instrumentation_langchain-0.1.63.tar.gz", hash = "sha256:fcfd010f9c2577cc78c2dbace7000c0855ee24ec0d2891c99f4df51072596def"},
+]
+
+[package.dependencies]
+openinference-instrumentation = ">=0.1.27"
+openinference-semantic-conventions = ">=0.1.17"
+opentelemetry-api = "*"
+opentelemetry-instrumentation = "*"
+opentelemetry-semantic-conventions = "*"
+wrapt = "*"
+
+[package.extras]
+instruments = ["langchain-core (>=0.3.9)"]
+type-check = ["langchain-core (==0.3.9)"]
+
+[[package]]
+name = "openinference-semantic-conventions"
+version = "0.1.29"
+description = "OpenInference Semantic Conventions"
+optional = false
+python-versions = "<3.15,>=3.9"
+groups = ["main"]
+files = [
+    {file = "openinference_semantic_conventions-0.1.29-py3-none-any.whl", hash = "sha256:f45e0b1cf79fe407af4722bcf391a01565f0878c95be3ebcc9382245d0367cc5"},
+    {file = "openinference_semantic_conventions-0.1.29.tar.gz", hash = "sha256:bbeb6472777a45a574169894bb9c4d80c6832a8befd32ab238cb875438ce1044"},
+]
 
 [[package]]
 name = "openpyxl"
@@ -6483,33 +6430,6 @@ files = [
 
 [package.dependencies]
 pyarrow = ">=20"
-
-[[package]]
-name = "pyasn1"
-version = "0.6.3"
-description = "Pure-Python implementation of ASN.1 types and DER/BER/CER codecs (X.208)"
-optional = false
-python-versions = ">=3.8"
-groups = ["main"]
-files = [
-    {file = "pyasn1-0.6.3-py3-none-any.whl", hash = "sha256:a80184d120f0864a52a073acc6fc642847d0be408e7c7252f31390c0f4eadcde"},
-    {file = "pyasn1-0.6.3.tar.gz", hash = "sha256:697a8ecd6d98891189184ca1fa05d1bb00e2f84b5977c481452050549c8a72cf"},
-]
-
-[[package]]
-name = "pyasn1-modules"
-version = "0.4.2"
-description = "A collection of ASN.1-based protocols modules"
-optional = false
-python-versions = ">=3.8"
-groups = ["main"]
-files = [
-    {file = "pyasn1_modules-0.4.2-py3-none-any.whl", hash = "sha256:29253a9207ce32b64c3ac6600edc75368f98473906e8fd1043bd6b5b1de2c14a"},
-    {file = "pyasn1_modules-0.4.2.tar.gz", hash = "sha256:677091de870a80aae844b1ca6134f54652fa2c8c5a52aa396440ac3106e941e6"},
-]
-
-[package.dependencies]
-pyasn1 = ">=0.6.1,<0.7.0"
 
 [[package]]
 name = "pycodestyle"
@@ -8165,7 +8085,7 @@ version = "5.0.2"
 description = "A pure Python implementation of a sliding window memory map manager"
 optional = false
 python-versions = ">=3.7"
-groups = ["main", "dev"]
+groups = ["dev"]
 files = [
     {file = "smmap-5.0.2-py3-none-any.whl", hash = "sha256:b30115f0def7d7531d22a0fb6502488d879e75b260a9db4d0819cfb25403af5e"},
     {file = "smmap-5.0.2.tar.gz", hash = "sha256:26ea65a03958fa0c8a1c7e8c7a58fdc77221b8910f6be2131affade476898ad5"},
@@ -8285,22 +8205,6 @@ postgresql-psycopg2cffi = ["psycopg2cffi"]
 postgresql-psycopgbinary = ["psycopg[binary] (>=3.0.7)"]
 pymysql = ["pymysql"]
 sqlcipher = ["sqlcipher3_binary"]
-
-[[package]]
-name = "sqlparse"
-version = "0.5.5"
-description = "A non-validating SQL parser."
-optional = false
-python-versions = ">=3.8"
-groups = ["main"]
-files = [
-    {file = "sqlparse-0.5.5-py3-none-any.whl", hash = "sha256:12a08b3bf3eec877c519589833aed092e2444e68240a3577e8e26148acc7b1ba"},
-    {file = "sqlparse-0.5.5.tar.gz", hash = "sha256:e20d4a9b0b8585fdf63b10d30066c7c94c5d7a7ec47c889a2d83a3caa93ff28e"},
-]
-
-[package.extras]
-dev = ["build"]
-doc = ["sphinx"]
 
 [[package]]
 name = "sse-starlette"
@@ -9759,4 +9663,4 @@ mcp = ["fastmcp"]
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.11,<3.12"
-content-hash = "c33c97152de4b7925041ebf31a8314d569fb3de388eba2c0357846736040532f"
+content-hash = "7f1f0436c07bc9edbf380e1ce664555e307278a7acc5b1994356b7c37b72d4cf"

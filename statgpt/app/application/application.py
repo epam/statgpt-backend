@@ -1,5 +1,4 @@
 import asyncio
-import os
 from collections.abc import Sequence
 from contextlib import asynccontextmanager
 
@@ -18,10 +17,9 @@ from statgpt.common.services.data_preloader import preload_data
 @asynccontextmanager
 async def lifespan(app: "StatGPTApp"):
 
-    if os.getenv("MLFLOW_TRACING_ENABLED", "").lower() == "true":
-        import mlflow.langchain
+    from openinference.instrumentation.langchain import LangChainInstrumentor
 
-        mlflow.langchain.autolog()
+    LangChainInstrumentor().instrument()
 
     async with optional_msi_token_manager_context():
         # Check resources' availability:
