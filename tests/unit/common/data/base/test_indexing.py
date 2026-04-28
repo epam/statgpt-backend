@@ -358,20 +358,17 @@ class TestRealWorldScenarios:
             annotations: Annotated[AnnotationConfig | None, IndexingField()] = None
 
         class IndexerConfig(BaseModel, IndexingHashMixin):
-            description: Annotated[str, IndexingField()] = ""
             indicator: Annotated[IndicatorConfig, IndexingField()] = Field(
                 default_factory=IndicatorConfig
             )
 
         config1 = IndexerConfig(
-            description="Test",
             indicator=IndicatorConfig(
                 unpack=True, annotations=AnnotationConfig(description="annotation")
             ),
         )
 
         config2 = IndexerConfig(
-            description="Test",
             indicator=IndicatorConfig(
                 unpack=True, annotations=AnnotationConfig(description="different")
             ),

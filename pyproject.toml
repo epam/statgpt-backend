@@ -164,7 +164,6 @@ optional = true
 [tool.poetry.group.dev.dependencies]
 black = { version = "26.3.1", extras = ["jupyter"] }
 isort = "5.13.2"
-langchain-cli = "^0.0.37"
 pytest = "^9.0.3"
 pytest-asyncio = "^1.0.0"
 pytest-cov = "^5.0.0"
