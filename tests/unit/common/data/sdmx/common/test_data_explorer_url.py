@@ -267,6 +267,25 @@ def test_aggregated_filter_supports_custom_values_separator() -> None:
     assert url == "https://example.net/data-viewer?filter=EER_TYPE%3DN%7CR"
 
 
+def test_aggregated_filter_uses_dim_id_when_not_in_param_names_map() -> None:
+    q = SdmxDataSetQuery(
+        status=SdmxQueryReadinessStatus.READY,
+        categorical_dimensions={"COUNTRY": ["DE"], "FREQ": ["A"]},
+        time_dimension_query=None,
+        missing_dimensions=[],
+    )
+    cfg = DataExplorerUrlConfig(
+        include_dataflow_urn_param=False,
+        filter_format=FilterFormatSdmx.key_value_aggregated,
+        include_series_key_filter=True,
+        time_encoding=TimeEncodingSdmx.none,
+        aggregated_dimension_param_names={"COUNTRY": "COUNTRY_TXT"},
+    )
+    url = build_data_explorer_url_query(EXPLORER_BASE, SHORT_URN, q.get_key(), q, config=cfg)
+    # FREQ falls back to its raw dim_id since it's not in aggregated_dimension_param_names.
+    assert url == "https://example.net/data-viewer?filter=COUNTRY_TXT%3DDE%5EFREQ%3DA"
+
+
 def test_aggregated_filter_can_use_dimension_names() -> None:
     q = SdmxDataSetQuery(
         status=SdmxQueryReadinessStatus.READY,
