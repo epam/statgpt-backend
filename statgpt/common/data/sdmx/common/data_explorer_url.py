@@ -133,18 +133,15 @@ class DataExplorerUrlConfig(BaseModel):
 
     @model_validator(mode='after')
     def _aggregated_time_consistent(self) -> "DataExplorerUrlConfig":
-        if (
-            self.time_encoding == TimeEncodingSdmx.in_aggregated_filter
-            and not self.aggregated_time_param
-        ):
-            raise ValueError(
-                "aggregatedTimeParam is required when timeEncoding is in_aggregated_filter"
-            )
-        if (
-            self.time_encoding == TimeEncodingSdmx.in_aggregated_filter
-            and self.filter_format != FilterFormatSdmx.key_value_aggregated
-        ):
-            raise ValueError("in_aggregated_filter requires filterFormat key_value_aggregated")
+        if self.time_encoding == TimeEncodingSdmx.in_aggregated_filter:
+            if not self.aggregated_time_param:
+                raise ValueError(
+                    "`aggregatedTimeParam` is required when `timeEncoding` is `in_aggregated_filter`"
+                )
+            if self.filter_format != FilterFormatSdmx.key_value_aggregated:
+                raise ValueError(
+                    "To use `in_aggregated_filter`, `filterFormat` must be set to `key_value_aggregated`."
+                )
         return self
 
 
@@ -164,7 +161,7 @@ def _ordered_dimension_keys(dsd: Any, key_dict: dict[str, list[str]]) -> list[st
     pos: dict[str, int] = {d: i for i, d in enumerate(order)}
 
     def _sort_key(dim_id: str) -> tuple[int, str]:
-        return (pos.get(dim_id, 10_000), dim_id)
+        return pos.get(dim_id, 10_000), dim_id
 
     return sorted(key_dict.keys(), key=_sort_key)
 
