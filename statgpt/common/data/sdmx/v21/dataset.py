@@ -9,8 +9,7 @@ import typing as t
 import uuid
 from collections.abc import Iterable, Sequence
 from datetime import datetime
-from functools import cached_property
-from urllib.parse import quote, urlencode
+from functools import cached_property, partial
 
 import pandas as pd
 import plotly.graph_objects as go
@@ -44,10 +43,17 @@ from statgpt.common.data.sdmx.common import (
     CodeCategory,
     CodeIndicator,
     ComplexIndicator,
+    DataExplorerUrlConfig,
     SdmxCodeListDimension,
+    SdmxDataSetAvailabilityQuery,
     SdmxDataSetConfig,
+    SdmxDataSetQuery,
     SdmxDimension,
+    SdmxQueryReadinessStatus,
+    TimeDimensionQuery,
     UrnReference,
+    build_data_explorer_dataset_url,
+    build_data_explorer_url_query,
 )
 from statgpt.common.data.sdmx.python_code import generate_python_query_body
 from statgpt.common.schemas.dataset import Status
@@ -64,12 +70,6 @@ from statgpt.common.utils.plotly import PlotlyGraphBuilder, df_2_plotly_grid
 from statgpt.common.utils.time_utils import get_time_period_bounds
 
 from .attribute import Sdmx21Attribute, Sdmx21CodeListAttribute
-from .query import (
-    SdmxDataSetAvailabilityQuery,
-    SdmxDataSetQuery,
-    SdmxQueryReadinessStatus,
-    TimeDimensionQuery,
-)
 from .schemas import Urn
 from .utils import convert_keys_to_str
 
@@ -496,7 +496,9 @@ class Sdmx21DataSet(
     def dataset_url(self) -> str | None:
         if self._datasource.config.use_data_explorer_for_dataset_url:
             if base := self._resolved_data_explorer_base_url():
-                return f"{base}?urn={self._short_urn}"
+                return build_data_explorer_dataset_url(
+                    base, self._short_urn, self._resolved_data_explorer_url_config()
+                )
             _log.warning(
                 "Data explorer URL is not configured on the dataset or data source: %s",
                 self._datasource.source_id,
@@ -510,6 +512,11 @@ class Sdmx21DataSet(
             return url
         return self._datasource.config.get_data_explorer_url()
 
+    def _resolved_data_explorer_url_config(self) -> DataExplorerUrlConfig | None:
+        if self.config.data_explorer_url_config is not None:
+            return self.config.data_explorer_url_config
+        return self._datasource.config.data_explorer_url_config
+
     def _format_data_explorer_url(
         self,
         base_url: str,
@@ -517,28 +524,21 @@ class Sdmx21DataSet(
         key_dict: dict[str, list[str]],
         sdmx_query: SdmxDataSetQuery,
     ) -> str:
-        params: dict[str, str] = {
-            'urn': self._short_urn,
-            'filter': convert_keys_to_str(dsd, key_dict),
-        }
+        return build_data_explorer_url_query(
+            base_url=base_url,
+            short_urn=self._short_urn,
+            key_dict=key_dict,
+            sdmx_query=sdmx_query,
+            config=self._resolved_data_explorer_url_config(),
+            sdmx_key_builder=partial(convert_keys_to_str, dsd),
+            dimension_values_resolver=self._resolve_explorer_dimension_values,
+        )
 
-        try:
-            if td_query := sdmx_query.time_dimension_query:
-                start_period = td_query.start_period
-                end_period = td_query.end_period
-            else:
-                start_period = None
-                end_period = None
-
-            if start_period:
-                params['startPeriod'] = start_period if '-' in start_period else f"{start_period}-A"
-            if end_period:
-                params['endPeriod'] = end_period if '-' in end_period else f"{end_period}-A"
-        except Exception as e:
-            _log.exception(e)
-
-        query_string = urlencode(params, quote_via=quote, safe='+,.:*')
-        return f"{base_url}?{query_string}"
+    def _resolve_explorer_dimension_values(self, dimension_id: str, codes: list[str]) -> list[str]:
+        id2name_mapping = self.map_component_values_id_2_name(codes, dimension_id)
+        if id2name_mapping is None:
+            return codes
+        return [id2name_mapping.get(code) or code for code in codes]
 
     async def _get_available_series(
         self,
@@ -1238,7 +1238,8 @@ class Sdmx21DataSet(
                 ),
             )
 
-        if not self.config.view_in_data_explorer:
+        explorer_cfg = self._resolved_data_explorer_url_config() or DataExplorerUrlConfig()
+        if not explorer_cfg.view_in_data_explorer:
             url = None
         elif explorer_base := self._resolved_data_explorer_base_url():
             url = self._format_data_explorer_url(

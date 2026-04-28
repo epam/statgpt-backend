@@ -15,6 +15,20 @@ from .config import (
     UrnReference,
 )
 from .constants import SdmxConstants
+from .data_explorer_url import (
+    AggregatedValueModeSdmx,
+    DataExplorerUrlConfig,
+    FilterFormatSdmx,
+    TimeEncodingSdmx,
+    build_data_explorer_dataset_url,
+    build_data_explorer_url_query,
+)
 from .dimension import SdmxCodeListDimension, SdmxDimension, SdmxTimeDimension
 from .indicator import CodeIndicator, ComplexIndicator
+from .query import (
+    SdmxDataSetAvailabilityQuery,
+    SdmxDataSetQuery,
+    SdmxQueryReadinessStatus,
+    TimeDimensionQuery,
+)
 from .urn import NoResourceTypeError, Urn, UrnParseError, UrnParser
