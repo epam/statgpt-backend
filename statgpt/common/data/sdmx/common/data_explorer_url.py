@@ -180,45 +180,34 @@ def _build_aggregated_filter_value(
     )
     name_map = cfg.aggregated_dimension_param_names
     parts: list[str] = []
-    warned_dims: set[str] = set()
     for dim_id in _ordered_dimension_keys(dsd, key_dict):
-        codes = key_dict[dim_id]
-        if not codes:
+        values = key_dict[dim_id]
+        if not values:
             continue
         label = name_map.get(dim_id, dim_id)
-        values = list(codes)
-        wants_names = (
-            cfg.aggregated_dimension_value_mode.get(dim_id) == AggregatedValueModeSdmx.name
-        )
-        if wants_names:
+        if cfg.aggregated_dimension_value_mode.get(dim_id) == AggregatedValueModeSdmx.name:
             if dimension_values_resolver is not None:
-                values = dimension_values_resolver(dim_id, codes)
-            elif dim_id not in warned_dims:
+                values = dimension_values_resolver(dim_id, values)
+            else:
                 _log.warning(
                     "value_mode='name' requested for dim %s but no resolver provided; "
                     "codes will be used as-is",
                     dim_id,
                 )
-                warned_dims.add(dim_id)
-        value = vsep.join(values)
-        parts.append(f"{label}{kvsep}{value}")
+        parts.append(f"{label}{kvsep}{vsep.join(values)}")
 
     tq = sdmx_query.time_dimension_query
     if (
         cfg.time_encoding == TimeEncodingSdmx.in_aggregated_filter
         and cfg.aggregated_time_param
         and tq is not None
+        and (tq.start_period or tq.end_period)
     ):
-        sp, ep = tq.start_period, tq.end_period
         tsep = cfg.aggregated_time_range_separator
-        if sp and ep:
-            parts.append(f"{cfg.aggregated_time_param}{kvsep}{sp}{tsep}{ep}")
-        elif sp:
-            parts.append(f"{cfg.aggregated_time_param}{kvsep}{sp}{tsep}")
-        elif ep:
-            parts.append(f"{cfg.aggregated_time_param}{kvsep}{tsep}{ep}")
-    if not parts:
-        return ""
+        parts.append(
+            f"{cfg.aggregated_time_param}{kvsep}"
+            f"{tq.start_period or ''}{tsep}{tq.end_period or ''}"
+        )
     return dsep.join(parts)
 
 
