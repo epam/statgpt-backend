@@ -28,6 +28,7 @@ def run_dial_app(app: DIALApp):
 
     uvicorn.run(app, port=5000, log_config=None)
 
+os.environ["OTEL_SPAN_ATTRIBUTE_VALUE_LENGTH_LIMIT"] = "16384"
 
 from statgpt.app.application.app_factory import DialAppFactory
 
