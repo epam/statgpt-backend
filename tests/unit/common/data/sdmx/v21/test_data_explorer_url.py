@@ -1,10 +1,9 @@
-from unittest.mock import MagicMock, patch
-from urllib.parse import unquote
+from unittest.mock import MagicMock
 
 import pytest
 
-from statgpt.common.data.sdmx.common.data_explorer_url import DataExplorerUrlConfig
-from statgpt.common.data.sdmx.v21.data_explorer_url import (
+from statgpt.common.data.sdmx.common.data_explorer_url import (
+    DataExplorerUrlConfig,
     build_data_explorer_dataset_url,
     build_data_explorer_url_query,
 )
@@ -31,19 +30,25 @@ def _sample_sdmx_query() -> SdmxDataSetQuery:
     )
 
 
-@patch(
-    "statgpt.common.data.sdmx.v21.data_explorer_url.convert_keys_to_str",
-    return_value=".A.x.*.B.+",
-)
-def test_build_data_explorer_url_query_sdmx_key_default(_) -> None:
+def test_build_data_explorer_url_query_sdmx_key_default() -> None:
     dsd = MagicMock()
     q = _sample_sdmx_query()
-    url = build_data_explorer_url_query(EXPLORER_BASE, SHORT_URN, dsd, q.get_key(), q, config=None)
-    assert url.startswith(f"{EXPLORER_BASE}?")
-    assert "urn=" in url
-    assert "filter=" in url
-    assert "startPeriod" in url
-    assert "endPeriod" in url
+    url = build_data_explorer_url_query(
+        EXPLORER_BASE,
+        SHORT_URN,
+        dsd,
+        q.get_key(),
+        q,
+        config=None,
+        sdmx_key_builder=lambda _d, _k: ".A.x.*.B.+",
+    )
+    assert (
+        url == "https://example.net/data-viewer?"
+        "urn=AGENCY.REG:DS%281.0.0%29&"
+        "filter=.A.x.*.B.+&"
+        "startPeriod=2021-01-01&"
+        "endPeriod=2026-12-31"
+    )
 
 
 def test_build_data_explorer_url_query_dataset_urn_param_no_series_no_time() -> None:
@@ -57,16 +62,12 @@ def test_build_data_explorer_url_query_dataset_urn_param_no_series_no_time() -> 
     url = build_data_explorer_url_query(
         EXPLORER_BASE, "AGENCY.REG:FLOW(1.0.0)", dsd, q.get_key(), q, config=cfg
     )
-    assert url.startswith(f"{EXPLORER_BASE}?")
-    assert "datasetUrn=" in url
-    assert "filter=" not in url
-    assert "startPeriod" not in url
+    assert url == "https://example.net/data-viewer?datasetUrn=AGENCY.REG:FLOW%281.0.0%29"
 
 
 def test_build_data_explorer_dataset_url_defaults() -> None:
     url = build_data_explorer_dataset_url(EXPLORER_BASE, SHORT_URN, config=None)
-    assert url.startswith(f"{EXPLORER_BASE}?urn=")
-    assert "AGENCY" in url
+    assert url == "https://example.net/data-viewer?urn=AGENCY.REG:DS(1.0.0)"
 
 
 def test_aggregated_filter_includes_time_segment() -> None:
@@ -103,13 +104,10 @@ def test_aggregated_filter_includes_time_segment() -> None:
     url = build_data_explorer_url_query(
         "https://example.org/topics/ABC/data", SHORT_URN, dsd, q.get_key(), q, config=cfg
     )
-    assert "?" in url
-    assert "filter=" in url
-    decoded = unquote(url)
-    assert "COUNTERPART_AREA=1E" in decoded
-    assert "AREA_TXT=DE" in decoded
-    assert "TIMESPAN=2020-01-01_2021-12-31" in decoded
-    assert "urn=" not in url
+    assert (
+        url == "https://example.org/topics/ABC/data?"
+        "filter=AREA_TXT%3DDE%5ECOUNTERPART_AREA%3D1E%5ETIMESPAN%3D2020-01-01_2021-12-31"
+    )
 
 
 def test_aggregated_filter_requires_time_param() -> None:
@@ -144,9 +142,7 @@ def test_aggregated_filter_encodes_plus_as_data_not_space() -> None:
         time_encoding="none",
     )
     url = build_data_explorer_url_query(EXPLORER_BASE, SHORT_URN, dsd, q.get_key(), q, config=cfg)
-    assert "%2B" in url
-    assert "%20" not in url
-    assert "EER_TYPE=R+N" in unquote(url)
+    assert url == "https://example.net/data-viewer?filter=EER_TYPE%3DR%2BN"
 
 
 def test_aggregated_filter_supports_custom_values_separator() -> None:
@@ -168,9 +164,7 @@ def test_aggregated_filter_supports_custom_values_separator() -> None:
         aggregated_values_separator="|",
     )
     url = build_data_explorer_url_query(EXPLORER_BASE, SHORT_URN, dsd, q.get_key(), q, config=cfg)
-    decoded = unquote(url)
-    assert "EER_TYPE=N|R" in decoded
-    assert "EER_TYPE=N+R" not in decoded
+    assert url == "https://example.net/data-viewer?filter=EER_TYPE%3DN%7CR"
 
 
 def test_aggregated_filter_can_use_dimension_names() -> None:
@@ -203,4 +197,4 @@ def test_aggregated_filter_can_use_dimension_names() -> None:
             ["Canada"] if dim_id == "REF_AREA" else values
         ),
     )
-    assert "REF_AREA_TXT=Canada" in unquote(url)
+    assert url == "https://example.net/data-viewer?filter=REF_AREA_TXT%3DCanada"

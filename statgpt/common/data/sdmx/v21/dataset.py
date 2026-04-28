@@ -47,6 +47,8 @@ from statgpt.common.data.sdmx.common import (
     SdmxDataSetConfig,
     SdmxDimension,
     UrnReference,
+    build_data_explorer_dataset_url,
+    build_data_explorer_url_query,
 )
 from statgpt.common.data.sdmx.python_code import generate_python_query_body
 from statgpt.common.schemas.dataset import Status
@@ -63,7 +65,6 @@ from statgpt.common.utils.plotly import PlotlyGraphBuilder, df_2_plotly_grid
 from statgpt.common.utils.time_utils import get_time_period_bounds
 
 from .attribute import Sdmx21Attribute, Sdmx21CodeListAttribute
-from .data_explorer_url import build_data_explorer_dataset_url, build_data_explorer_url_query
 from .query import (
     SdmxDataSetAvailabilityQuery,
     SdmxDataSetQuery,
@@ -71,6 +72,7 @@ from .query import (
     TimeDimensionQuery,
 )
 from .schemas import Urn
+from .utils import convert_keys_to_str
 
 if t.TYPE_CHECKING:
     from statgpt.common.data.sdmx.common.data_explorer_url import DataExplorerUrlConfig
@@ -533,6 +535,7 @@ class Sdmx21DataSet(
             key_dict=key_dict,
             sdmx_query=sdmx_query,
             config=self._resolved_data_explorer_url_config(),
+            sdmx_key_builder=convert_keys_to_str,
             dimension_values_resolver=self._resolve_explorer_dimension_values,
         )
 

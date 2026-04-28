@@ -20,6 +20,8 @@ from .data_explorer_url import (
     DataExplorerUrlConfig,
     FilterFormatSdmx,
     TimeEncodingSdmx,
+    build_data_explorer_dataset_url,
+    build_data_explorer_url_query,
 )
 from .dimension import SdmxCodeListDimension, SdmxDimension, SdmxTimeDimension
 from .indicator import CodeIndicator, ComplexIndicator
