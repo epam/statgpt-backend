@@ -3,10 +3,13 @@ from unittest.mock import MagicMock
 import pytest
 
 from statgpt.common.data.sdmx.common import (
+    AggregatedValueModeSdmx,
     DataExplorerUrlConfig,
+    FilterFormatSdmx,
     SdmxDataSetQuery,
     SdmxQueryReadinessStatus,
     TimeDimensionQuery,
+    TimeEncodingSdmx,
 )
 from statgpt.common.data.sdmx.common.data_explorer_url import (
     build_data_explorer_dataset_url,
@@ -116,7 +119,7 @@ def test_build_data_explorer_url_query_dataset_urn_param_no_series_no_time() -> 
     cfg = DataExplorerUrlConfig(
         dataset_urn_param="datasetUrn",
         include_series_key_filter=False,
-        time_encoding="none",
+        time_encoding=TimeEncodingSdmx.none,
     )
     url = build_data_explorer_url_query(
         EXPLORER_BASE, "AGENCY.REG:FLOW(1.0.0)", dsd, q.get_key(), q, config=cfg
@@ -151,8 +154,8 @@ def test_aggregated_filter_includes_time_segment() -> None:
 
     cfg = DataExplorerUrlConfig(
         include_dataflow_urn_param=False,
-        filter_format="key_value_aggregated",
-        time_encoding="in_aggregated_filter",
+        filter_format=FilterFormatSdmx.key_value_aggregated,
+        time_encoding=TimeEncodingSdmx.in_aggregated_filter,
         aggregated_time_param="TIMESPAN",
         series_key_filter_param="filter",
         aggregated_dimension_param_names={
@@ -184,8 +187,8 @@ def test_aggregated_filter_time_start_only() -> None:
     )
     cfg = DataExplorerUrlConfig(
         include_dataflow_urn_param=False,
-        filter_format="key_value_aggregated",
-        time_encoding="in_aggregated_filter",
+        filter_format=FilterFormatSdmx.key_value_aggregated,
+        time_encoding=TimeEncodingSdmx.in_aggregated_filter,
         aggregated_time_param="TIMESPAN",
     )
     url = build_data_explorer_url_query(
@@ -210,8 +213,8 @@ def test_aggregated_filter_time_end_only() -> None:
     )
     cfg = DataExplorerUrlConfig(
         include_dataflow_urn_param=False,
-        filter_format="key_value_aggregated",
-        time_encoding="in_aggregated_filter",
+        filter_format=FilterFormatSdmx.key_value_aggregated,
+        time_encoding=TimeEncodingSdmx.in_aggregated_filter,
         aggregated_time_param="TIMESPAN",
     )
     url = build_data_explorer_url_query(
@@ -224,16 +227,19 @@ def test_aggregated_filter_time_end_only() -> None:
 def test_aggregated_filter_requires_time_param() -> None:
     with pytest.raises(ValueError, match="aggregated"):
         DataExplorerUrlConfig(
-            filter_format="key_value_aggregated",
-            time_encoding="in_aggregated_filter",
+            filter_format=FilterFormatSdmx.key_value_aggregated,
+            time_encoding=TimeEncodingSdmx.in_aggregated_filter,
         )
 
 
 def test_aggregated_filter_requires_key_value_aggregated_format() -> None:
-    with pytest.raises(ValueError, match="in_aggregated_filter requires filterFormat"):
+    with pytest.raises(
+        ValueError,
+        match="`filterFormat` must be set to `key_value_aggregated`",
+    ):
         DataExplorerUrlConfig(
-            filter_format="sdmx_key_string",
-            time_encoding="in_aggregated_filter",
+            filter_format=FilterFormatSdmx.sdmx_key_string,
+            time_encoding=TimeEncodingSdmx.in_aggregated_filter,
             aggregated_time_param="TIMESPAN",
         )
 
@@ -257,9 +263,9 @@ def test_aggregated_filter_encodes_plus_as_data_not_space() -> None:
     )
     cfg = DataExplorerUrlConfig(
         include_dataflow_urn_param=False,
-        filter_format="key_value_aggregated",
+        filter_format=FilterFormatSdmx.key_value_aggregated,
         include_series_key_filter=True,
-        time_encoding="none",
+        time_encoding=TimeEncodingSdmx.none,
     )
     url = build_data_explorer_url_query(EXPLORER_BASE, SHORT_URN, dsd, q.get_key(), q, config=cfg)
     assert url == "https://example.net/data-viewer?filter=EER_TYPE%3DR%2BN"
@@ -278,9 +284,9 @@ def test_aggregated_filter_supports_custom_values_separator() -> None:
     )
     cfg = DataExplorerUrlConfig(
         include_dataflow_urn_param=False,
-        filter_format="key_value_aggregated",
+        filter_format=FilterFormatSdmx.key_value_aggregated,
         include_series_key_filter=True,
-        time_encoding="none",
+        time_encoding=TimeEncodingSdmx.none,
         aggregated_values_separator="|",
     )
     url = build_data_explorer_url_query(EXPLORER_BASE, SHORT_URN, dsd, q.get_key(), q, config=cfg)
@@ -300,11 +306,11 @@ def test_aggregated_filter_can_use_dimension_names() -> None:
     )
     cfg = DataExplorerUrlConfig(
         include_dataflow_urn_param=False,
-        filter_format="key_value_aggregated",
+        filter_format=FilterFormatSdmx.key_value_aggregated,
         include_series_key_filter=True,
-        time_encoding="none",
+        time_encoding=TimeEncodingSdmx.none,
         aggregated_dimension_param_names={"REF_AREA": "REF_AREA_TXT"},
-        aggregated_dimension_value_mode={"REF_AREA": "name"},
+        aggregated_dimension_value_mode={"REF_AREA": AggregatedValueModeSdmx["name"]},
     )
     url = build_data_explorer_url_query(
         EXPLORER_BASE,
