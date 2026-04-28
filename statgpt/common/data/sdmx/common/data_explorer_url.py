@@ -3,7 +3,6 @@
 import logging
 from collections.abc import Callable
 from enum import StrEnum
-from typing import Any
 from urllib.parse import quote, urlencode
 
 from pydantic import Field, model_validator
@@ -47,7 +46,7 @@ class AggregatedValueModeSdmx(StrEnum):
 
 
 DimensionValuesResolver = Callable[[str, list[str]], list[str]]
-SdmxKeyBuilder = Callable[[Any, dict[str, list[str]]], str]
+SdmxKeyBuilder = Callable[[dict[str, list[str]]], str]
 
 _log = logging.getLogger(__name__)
 
@@ -145,29 +144,7 @@ class DataExplorerUrlConfig(BaseModel):
         return self
 
 
-def _dataflow_component_ids_in_order(dsd: Any) -> list[str]:
-    try:
-        return [c.id for c in dsd.dimensions.components]
-    except (AttributeError, TypeError):
-        _log.debug(
-            "Could not read dimension order from DSD; falling back to alphabetical.",
-            exc_info=True,
-        )
-        return []
-
-
-def _ordered_dimension_keys(dsd: Any, key_dict: dict[str, list[str]]) -> list[str]:
-    order = _dataflow_component_ids_in_order(dsd)
-    pos: dict[str, int] = {d: i for i, d in enumerate(order)}
-
-    def _sort_key(dim_id: str) -> tuple[int, str]:
-        return pos.get(dim_id, 10_000), dim_id
-
-    return sorted(key_dict.keys(), key=_sort_key)
-
-
 def _build_aggregated_filter_value(
-    dsd: Any,
     key_dict: dict[str, list[str]],
     sdmx_query: SdmxDataSetQuery,
     cfg: DataExplorerUrlConfig,
@@ -180,8 +157,7 @@ def _build_aggregated_filter_value(
     )
     name_map = cfg.aggregated_dimension_param_names
     parts: list[str] = []
-    for dim_id in _ordered_dimension_keys(dsd, key_dict):
-        values = key_dict[dim_id]
+    for dim_id, values in key_dict.items():
         if not values:
             continue
         label = name_map.get(dim_id, dim_id)
@@ -214,7 +190,6 @@ def _build_aggregated_filter_value(
 def build_data_explorer_url_query(
     base_url: str,
     short_urn: str,
-    dsd: Any,
     key_dict: dict[str, list[str]],
     sdmx_query: SdmxDataSetQuery,
     config: DataExplorerUrlConfig | None,
@@ -232,10 +207,9 @@ def build_data_explorer_url_query(
         if cfg.filter_format == FilterFormatSdmx.sdmx_key_string:
             if sdmx_key_builder is None:
                 raise ValueError("sdmx_key_builder is required for filterFormat='sdmx_key_string'")
-            params[cfg.series_key_filter_param] = sdmx_key_builder(dsd, key_dict)
+            params[cfg.series_key_filter_param] = sdmx_key_builder(key_dict)
         else:
             filter_body = _build_aggregated_filter_value(
-                dsd=dsd,
                 key_dict=key_dict,
                 sdmx_query=sdmx_query,
                 cfg=cfg,

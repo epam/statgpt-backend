@@ -1,5 +1,3 @@
-from unittest.mock import MagicMock
-
 import pytest
 
 from statgpt.common.data.sdmx.common import (
@@ -34,16 +32,14 @@ def _sample_sdmx_query() -> SdmxDataSetQuery:
 
 
 def test_build_data_explorer_url_query_sdmx_key_default() -> None:
-    dsd = MagicMock()
     q = _sample_sdmx_query()
     url = build_data_explorer_url_query(
         EXPLORER_BASE,
         SHORT_URN,
-        dsd,
         q.get_key(),
         q,
         config=None,
-        sdmx_key_builder=lambda _d, _k: ".A.x.*.B.+",
+        sdmx_key_builder=lambda _k: ".A.x.*.B.+",
     )
     assert (
         url == "https://example.net/data-viewer?"
@@ -55,7 +51,6 @@ def test_build_data_explorer_url_query_sdmx_key_default() -> None:
 
 
 def test_build_data_explorer_url_query_sdmx_key_start_only() -> None:
-    dsd = MagicMock()
     q = SdmxDataSetQuery(
         status=SdmxQueryReadinessStatus.READY,
         categorical_dimensions={"A": ["x"]},
@@ -69,11 +64,10 @@ def test_build_data_explorer_url_query_sdmx_key_start_only() -> None:
     url = build_data_explorer_url_query(
         EXPLORER_BASE,
         SHORT_URN,
-        dsd,
         q.get_key(),
         q,
         config=None,
-        sdmx_key_builder=lambda _d, _k: ".x",
+        sdmx_key_builder=lambda _k: ".x",
     )
     # No '-' in start_period, so '-A' annual fallback applies.
     assert url == (
@@ -85,7 +79,6 @@ def test_build_data_explorer_url_query_sdmx_key_start_only() -> None:
 
 
 def test_build_data_explorer_url_query_sdmx_key_end_only() -> None:
-    dsd = MagicMock()
     q = SdmxDataSetQuery(
         status=SdmxQueryReadinessStatus.READY,
         categorical_dimensions={"A": ["x"]},
@@ -99,11 +92,10 @@ def test_build_data_explorer_url_query_sdmx_key_end_only() -> None:
     url = build_data_explorer_url_query(
         EXPLORER_BASE,
         SHORT_URN,
-        dsd,
         q.get_key(),
         q,
         config=None,
-        sdmx_key_builder=lambda _d, _k: ".x",
+        sdmx_key_builder=lambda _k: ".x",
     )
     assert url == (
         "https://example.net/data-viewer?"
@@ -114,7 +106,6 @@ def test_build_data_explorer_url_query_sdmx_key_end_only() -> None:
 
 
 def test_build_data_explorer_url_query_dataset_urn_param_no_series_no_time() -> None:
-    dsd = MagicMock()
     q = _sample_sdmx_query()
     cfg = DataExplorerUrlConfig(
         dataset_urn_param="datasetUrn",
@@ -122,7 +113,7 @@ def test_build_data_explorer_url_query_dataset_urn_param_no_series_no_time() -> 
         time_encoding=TimeEncodingSdmx.none,
     )
     url = build_data_explorer_url_query(
-        EXPLORER_BASE, "AGENCY.REG:FLOW(1.0.0)", dsd, q.get_key(), q, config=cfg
+        EXPLORER_BASE, "AGENCY.REG:FLOW(1.0.0)", q.get_key(), q, config=cfg
     )
     assert url == "https://example.net/data-viewer?datasetUrn=AGENCY.REG:FLOW(1.0.0)"
 
@@ -133,16 +124,11 @@ def test_build_data_explorer_dataset_url_defaults() -> None:
 
 
 def test_aggregated_filter_includes_time_segment() -> None:
-    c1, c2 = MagicMock(), MagicMock()
-    c1.id, c2.id = "COUNTRY", "COUNTERPART_COUNTRY"
-    dsd = MagicMock()
-    dsd.dimensions.components = [c1, c2]
-
     q = SdmxDataSetQuery(
         status=SdmxQueryReadinessStatus.READY,
         categorical_dimensions={
-            "COUNTERPART_COUNTRY": ["1E"],
             "COUNTRY": ["DE"],
+            "COUNTERPART_COUNTRY": ["1E"],
         },
         time_dimension_query=TimeDimensionQuery(
             time_dimension_id="TIME_PERIOD",
@@ -164,7 +150,7 @@ def test_aggregated_filter_includes_time_segment() -> None:
         },
     )
     url = build_data_explorer_url_query(
-        "https://example.org/topics/ABC/data", SHORT_URN, dsd, q.get_key(), q, config=cfg
+        "https://example.org/topics/ABC/data", SHORT_URN, q.get_key(), q, config=cfg
     )
     assert (
         url == "https://example.org/topics/ABC/data?"
@@ -173,8 +159,6 @@ def test_aggregated_filter_includes_time_segment() -> None:
 
 
 def test_aggregated_filter_time_start_only() -> None:
-    dsd = MagicMock()
-    dsd.dimensions.components = []
     q = SdmxDataSetQuery(
         status=SdmxQueryReadinessStatus.READY,
         categorical_dimensions={},
@@ -192,15 +176,13 @@ def test_aggregated_filter_time_start_only() -> None:
         aggregated_time_param="TIMESPAN",
     )
     url = build_data_explorer_url_query(
-        "https://example.org/data", SHORT_URN, dsd, q.get_key(), q, config=cfg
+        "https://example.org/data", SHORT_URN, q.get_key(), q, config=cfg
     )
     # Half-open form: "<start>_"
     assert url == "https://example.org/data?filter=TIMESPAN%3D2020-01-01_"
 
 
 def test_aggregated_filter_time_end_only() -> None:
-    dsd = MagicMock()
-    dsd.dimensions.components = []
     q = SdmxDataSetQuery(
         status=SdmxQueryReadinessStatus.READY,
         categorical_dimensions={},
@@ -218,7 +200,7 @@ def test_aggregated_filter_time_end_only() -> None:
         aggregated_time_param="TIMESPAN",
     )
     url = build_data_explorer_url_query(
-        "https://example.org/data", SHORT_URN, dsd, q.get_key(), q, config=cfg
+        "https://example.org/data", SHORT_URN, q.get_key(), q, config=cfg
     )
     # Half-open form: "_<end>"
     assert url == "https://example.org/data?filter=TIMESPAN%3D_2021-12-31"
@@ -251,10 +233,6 @@ def test_dataset_url_without_urn_uses_base_only() -> None:
 
 
 def test_aggregated_filter_encodes_plus_as_data_not_space() -> None:
-    dsd = MagicMock()
-    d1 = MagicMock()
-    d1.id = "EER_TYPE"
-    dsd.dimensions.components = [d1]
     q = SdmxDataSetQuery(
         status=SdmxQueryReadinessStatus.READY,
         categorical_dimensions={"EER_TYPE": ["R", "N"]},
@@ -267,15 +245,11 @@ def test_aggregated_filter_encodes_plus_as_data_not_space() -> None:
         include_series_key_filter=True,
         time_encoding=TimeEncodingSdmx.none,
     )
-    url = build_data_explorer_url_query(EXPLORER_BASE, SHORT_URN, dsd, q.get_key(), q, config=cfg)
+    url = build_data_explorer_url_query(EXPLORER_BASE, SHORT_URN, q.get_key(), q, config=cfg)
     assert url == "https://example.net/data-viewer?filter=EER_TYPE%3DR%2BN"
 
 
 def test_aggregated_filter_supports_custom_values_separator() -> None:
-    dsd = MagicMock()
-    d1 = MagicMock()
-    d1.id = "EER_TYPE"
-    dsd.dimensions.components = [d1]
     q = SdmxDataSetQuery(
         status=SdmxQueryReadinessStatus.READY,
         categorical_dimensions={"EER_TYPE": ["N", "R"]},
@@ -289,15 +263,11 @@ def test_aggregated_filter_supports_custom_values_separator() -> None:
         time_encoding=TimeEncodingSdmx.none,
         aggregated_values_separator="|",
     )
-    url = build_data_explorer_url_query(EXPLORER_BASE, SHORT_URN, dsd, q.get_key(), q, config=cfg)
+    url = build_data_explorer_url_query(EXPLORER_BASE, SHORT_URN, q.get_key(), q, config=cfg)
     assert url == "https://example.net/data-viewer?filter=EER_TYPE%3DN%7CR"
 
 
 def test_aggregated_filter_can_use_dimension_names() -> None:
-    dsd = MagicMock()
-    d1 = MagicMock()
-    d1.id = "REF_AREA"
-    dsd.dimensions.components = [d1]
     q = SdmxDataSetQuery(
         status=SdmxQueryReadinessStatus.READY,
         categorical_dimensions={"REF_AREA": ["CA"]},
@@ -315,7 +285,6 @@ def test_aggregated_filter_can_use_dimension_names() -> None:
     url = build_data_explorer_url_query(
         EXPLORER_BASE,
         SHORT_URN,
-        dsd,
         q.get_key(),
         q,
         config=cfg,

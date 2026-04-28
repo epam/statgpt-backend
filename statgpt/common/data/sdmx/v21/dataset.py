@@ -9,7 +9,7 @@ import typing as t
 import uuid
 from collections.abc import Iterable, Sequence
 from datetime import datetime
-from functools import cached_property
+from functools import cached_property, partial
 
 import pandas as pd
 import plotly.graph_objects as go
@@ -527,11 +527,10 @@ class Sdmx21DataSet(
         return build_data_explorer_url_query(
             base_url=base_url,
             short_urn=self._short_urn,
-            dsd=dsd,
             key_dict=key_dict,
             sdmx_query=sdmx_query,
             config=self._resolved_data_explorer_url_config(),
-            sdmx_key_builder=convert_keys_to_str,
+            sdmx_key_builder=partial(convert_keys_to_str, dsd),
             dimension_values_resolver=self._resolve_explorer_dimension_values,
         )
 
