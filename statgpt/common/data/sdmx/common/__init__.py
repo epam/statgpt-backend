@@ -25,4 +25,10 @@ from .data_explorer_url import (
 )
 from .dimension import SdmxCodeListDimension, SdmxDimension, SdmxTimeDimension
 from .indicator import CodeIndicator, ComplexIndicator
+from .query import (
+    SdmxDataSetAvailabilityQuery,
+    SdmxDataSetQuery,
+    SdmxQueryReadinessStatus,
+    TimeDimensionQuery,
+)
 from .urn import NoResourceTypeError, Urn, UrnParseError, UrnParser

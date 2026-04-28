@@ -43,9 +43,14 @@ from statgpt.common.data.sdmx.common import (
     CodeCategory,
     CodeIndicator,
     ComplexIndicator,
+    DataExplorerUrlConfig,
     SdmxCodeListDimension,
+    SdmxDataSetAvailabilityQuery,
     SdmxDataSetConfig,
+    SdmxDataSetQuery,
     SdmxDimension,
+    SdmxQueryReadinessStatus,
+    TimeDimensionQuery,
     UrnReference,
     build_data_explorer_dataset_url,
     build_data_explorer_url_query,
@@ -65,17 +70,10 @@ from statgpt.common.utils.plotly import PlotlyGraphBuilder, df_2_plotly_grid
 from statgpt.common.utils.time_utils import get_time_period_bounds
 
 from .attribute import Sdmx21Attribute, Sdmx21CodeListAttribute
-from .query import (
-    SdmxDataSetAvailabilityQuery,
-    SdmxDataSetQuery,
-    SdmxQueryReadinessStatus,
-    TimeDimensionQuery,
-)
 from .schemas import Urn
 from .utils import convert_keys_to_str
 
 if t.TYPE_CHECKING:
-    from statgpt.common.data.sdmx.common.data_explorer_url import DataExplorerUrlConfig
     from statgpt.common.data.sdmx.v21.datasource import Sdmx21DataSourceHandler
 
 
@@ -514,11 +512,9 @@ class Sdmx21DataSet(
             return url
         return self._datasource.config.get_data_explorer_url()
 
-    def _resolved_data_explorer_url_config(
-        self,
-    ) -> 'DataExplorerUrlConfig | None':
-        if self._config.data_explorer_url_config is not None:
-            return self._config.data_explorer_url_config
+    def _resolved_data_explorer_url_config(self) -> DataExplorerUrlConfig | None:
+        if self.config.data_explorer_url_config is not None:
+            return self.config.data_explorer_url_config
         return self._datasource.config.data_explorer_url_config
 
     def _format_data_explorer_url(
@@ -1243,7 +1239,8 @@ class Sdmx21DataSet(
                 ),
             )
 
-        if not self.config.view_in_data_explorer:
+        explorer_cfg = self._resolved_data_explorer_url_config() or DataExplorerUrlConfig()
+        if not explorer_cfg.view_in_data_explorer:
             url = None
         elif explorer_base := self._resolved_data_explorer_base_url():
             url = self._format_data_explorer_url(

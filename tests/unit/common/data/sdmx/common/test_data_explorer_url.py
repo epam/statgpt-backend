@@ -2,15 +2,15 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from statgpt.common.data.sdmx.common.data_explorer_url import (
+from statgpt.common.data.sdmx.common import (
     DataExplorerUrlConfig,
-    build_data_explorer_dataset_url,
-    build_data_explorer_url_query,
-)
-from statgpt.common.data.sdmx.v21.query import (
     SdmxDataSetQuery,
     SdmxQueryReadinessStatus,
     TimeDimensionQuery,
+)
+from statgpt.common.data.sdmx.common.data_explorer_url import (
+    build_data_explorer_dataset_url,
+    build_data_explorer_url_query,
 )
 
 EXPLORER_BASE = "https://example.net/data-viewer"
@@ -44,9 +44,68 @@ def test_build_data_explorer_url_query_sdmx_key_default() -> None:
     )
     assert (
         url == "https://example.net/data-viewer?"
-        "urn=AGENCY.REG:DS%281.0.0%29&"
+        "urn=AGENCY.REG:DS(1.0.0)&"
         "filter=.A.x.*.B.+&"
         "startPeriod=2021-01-01&"
+        "endPeriod=2026-12-31"
+    )
+
+
+def test_build_data_explorer_url_query_sdmx_key_start_only() -> None:
+    dsd = MagicMock()
+    q = SdmxDataSetQuery(
+        status=SdmxQueryReadinessStatus.READY,
+        categorical_dimensions={"A": ["x"]},
+        time_dimension_query=TimeDimensionQuery(
+            time_dimension_id="TIME_PERIOD",
+            start_period="2021",
+            end_period=None,
+        ),
+        missing_dimensions=[],
+    )
+    url = build_data_explorer_url_query(
+        EXPLORER_BASE,
+        SHORT_URN,
+        dsd,
+        q.get_key(),
+        q,
+        config=None,
+        sdmx_key_builder=lambda _d, _k: ".x",
+    )
+    # No '-' in start_period, so '-A' annual fallback applies.
+    assert url == (
+        "https://example.net/data-viewer?"
+        "urn=AGENCY.REG:DS(1.0.0)&"
+        "filter=.x&"
+        "startPeriod=2021-A"
+    )
+
+
+def test_build_data_explorer_url_query_sdmx_key_end_only() -> None:
+    dsd = MagicMock()
+    q = SdmxDataSetQuery(
+        status=SdmxQueryReadinessStatus.READY,
+        categorical_dimensions={"A": ["x"]},
+        time_dimension_query=TimeDimensionQuery(
+            time_dimension_id="TIME_PERIOD",
+            start_period=None,
+            end_period="2026-12-31",
+        ),
+        missing_dimensions=[],
+    )
+    url = build_data_explorer_url_query(
+        EXPLORER_BASE,
+        SHORT_URN,
+        dsd,
+        q.get_key(),
+        q,
+        config=None,
+        sdmx_key_builder=lambda _d, _k: ".x",
+    )
+    assert url == (
+        "https://example.net/data-viewer?"
+        "urn=AGENCY.REG:DS(1.0.0)&"
+        "filter=.x&"
         "endPeriod=2026-12-31"
     )
 
@@ -62,7 +121,7 @@ def test_build_data_explorer_url_query_dataset_urn_param_no_series_no_time() -> 
     url = build_data_explorer_url_query(
         EXPLORER_BASE, "AGENCY.REG:FLOW(1.0.0)", dsd, q.get_key(), q, config=cfg
     )
-    assert url == "https://example.net/data-viewer?datasetUrn=AGENCY.REG:FLOW%281.0.0%29"
+    assert url == "https://example.net/data-viewer?datasetUrn=AGENCY.REG:FLOW(1.0.0)"
 
 
 def test_build_data_explorer_dataset_url_defaults() -> None:
@@ -110,11 +169,72 @@ def test_aggregated_filter_includes_time_segment() -> None:
     )
 
 
+def test_aggregated_filter_time_start_only() -> None:
+    dsd = MagicMock()
+    dsd.dimensions.components = []
+    q = SdmxDataSetQuery(
+        status=SdmxQueryReadinessStatus.READY,
+        categorical_dimensions={},
+        time_dimension_query=TimeDimensionQuery(
+            time_dimension_id="TIME_PERIOD",
+            start_period="2020-01-01",
+            end_period=None,
+        ),
+        missing_dimensions=[],
+    )
+    cfg = DataExplorerUrlConfig(
+        include_dataflow_urn_param=False,
+        filter_format="key_value_aggregated",
+        time_encoding="in_aggregated_filter",
+        aggregated_time_param="TIMESPAN",
+    )
+    url = build_data_explorer_url_query(
+        "https://example.org/data", SHORT_URN, dsd, q.get_key(), q, config=cfg
+    )
+    # Half-open form: "<start>_"
+    assert url == "https://example.org/data?filter=TIMESPAN%3D2020-01-01_"
+
+
+def test_aggregated_filter_time_end_only() -> None:
+    dsd = MagicMock()
+    dsd.dimensions.components = []
+    q = SdmxDataSetQuery(
+        status=SdmxQueryReadinessStatus.READY,
+        categorical_dimensions={},
+        time_dimension_query=TimeDimensionQuery(
+            time_dimension_id="TIME_PERIOD",
+            start_period=None,
+            end_period="2021-12-31",
+        ),
+        missing_dimensions=[],
+    )
+    cfg = DataExplorerUrlConfig(
+        include_dataflow_urn_param=False,
+        filter_format="key_value_aggregated",
+        time_encoding="in_aggregated_filter",
+        aggregated_time_param="TIMESPAN",
+    )
+    url = build_data_explorer_url_query(
+        "https://example.org/data", SHORT_URN, dsd, q.get_key(), q, config=cfg
+    )
+    # Half-open form: "_<end>"
+    assert url == "https://example.org/data?filter=TIMESPAN%3D_2021-12-31"
+
+
 def test_aggregated_filter_requires_time_param() -> None:
     with pytest.raises(ValueError, match="aggregated"):
         DataExplorerUrlConfig(
             filter_format="key_value_aggregated",
             time_encoding="in_aggregated_filter",
+        )
+
+
+def test_aggregated_filter_requires_key_value_aggregated_format() -> None:
+    with pytest.raises(ValueError, match="in_aggregated_filter requires filterFormat"):
+        DataExplorerUrlConfig(
+            filter_format="sdmx_key_string",
+            time_encoding="in_aggregated_filter",
+            aggregated_time_param="TIMESPAN",
         )
 
 

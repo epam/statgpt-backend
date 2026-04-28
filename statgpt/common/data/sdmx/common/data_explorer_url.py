@@ -10,6 +10,8 @@ from pydantic import Field, model_validator
 
 from statgpt.common.data.base import BaseModel
 
+from .query import SdmxDataSetQuery
+
 
 class TimeEncodingSdmx(StrEnum):
     """Where the time range is encoded in the data explorer URL."""
@@ -51,25 +53,15 @@ _log = logging.getLogger(__name__)
 
 
 class DataExplorerUrlConfig(BaseModel):
-    """Parameters for the **View in data explorer** link (SDMX 2.1 queries).
+    """Parameters for building data-explorer deep links from SDMX queries."""
 
-    ``filterFormat``:
-
-    * ``sdmx_key_string`` (default): the filter is built with ``convert_keys_to_str`` (DSD + key).
-    * ``key_value_aggregated``: a single **filter** query value built from
-      ``NAME=value`` segments joined by ``aggregatedEntryDelimiter``, for portals that expect
-      a delimited list instead of a dotted SDMX key.
-
-    ``includeDataflowUrnParam``:
-
-    * ``true`` (default): add the dataflow short URN under ``datasetUrnParam``.
-    * ``false``: omit it (e.g. when the dataflow is implied by the path in ``dataExplorerUrl`` and
-      only a filter query parameter is used).
-
-    If unset on both dataset and data source, the legacy default is: SDMX key filter + SDMX time
-    query parameters + URN in the query.
-    """
-
+    view_in_data_explorer: bool = Field(
+        default=True,
+        description=(
+            "Whether to include a 'View data in explorer' link with query results. "
+            "When False, query results have no URL attached."
+        ),
+    )
     include_dataflow_urn_param: bool = Field(
         default=True,
         description=(
@@ -141,15 +133,18 @@ class DataExplorerUrlConfig(BaseModel):
 
     @model_validator(mode='after')
     def _aggregated_time_consistent(self) -> "DataExplorerUrlConfig":
-        if self.time_encoding == TimeEncodingSdmx.in_aggregated_filter:
-            if not self.aggregated_time_param:
-                raise ValueError(
-                    "`aggregatedTimeParam` is required when `timeEncoding` is `in_aggregated_filter`"
-                )
-            if self.filter_format != FilterFormatSdmx.key_value_aggregated:
-                raise ValueError(
-                    "To use `in_aggregated_filter`, `filterFormat` must be set to `key_value_aggregated`."
-                )
+        if (
+            self.time_encoding == TimeEncodingSdmx.in_aggregated_filter
+            and not self.aggregated_time_param
+        ):
+            raise ValueError(
+                "aggregatedTimeParam is required when timeEncoding is in_aggregated_filter"
+            )
+        if (
+            self.time_encoding == TimeEncodingSdmx.in_aggregated_filter
+            and self.filter_format != FilterFormatSdmx.key_value_aggregated
+        ):
+            raise ValueError("in_aggregated_filter requires filterFormat key_value_aggregated")
         return self
 
 
@@ -157,6 +152,10 @@ def _dataflow_component_ids_in_order(dsd: Any) -> list[str]:
     try:
         return [c.id for c in dsd.dimensions.components]
     except (AttributeError, TypeError):
+        _log.debug(
+            "Could not read dimension order from DSD; falling back to alphabetical.",
+            exc_info=True,
+        )
         return []
 
 
@@ -165,7 +164,7 @@ def _ordered_dimension_keys(dsd: Any, key_dict: dict[str, list[str]]) -> list[st
     pos: dict[str, int] = {d: i for i, d in enumerate(order)}
 
     def _sort_key(dim_id: str) -> tuple[int, str]:
-        return pos.get(dim_id, 10_000), dim_id
+        return (pos.get(dim_id, 10_000), dim_id)
 
     return sorted(key_dict.keys(), key=_sort_key)
 
@@ -173,7 +172,7 @@ def _ordered_dimension_keys(dsd: Any, key_dict: dict[str, list[str]]) -> list[st
 def _build_aggregated_filter_value(
     dsd: Any,
     key_dict: dict[str, list[str]],
-    sdmx_query: Any,
+    sdmx_query: SdmxDataSetQuery,
     cfg: DataExplorerUrlConfig,
     dimension_values_resolver: DimensionValuesResolver | None = None,
 ) -> str:
@@ -184,34 +183,45 @@ def _build_aggregated_filter_value(
     )
     name_map = cfg.aggregated_dimension_param_names
     parts: list[str] = []
+    warned_dims: set[str] = set()
     for dim_id in _ordered_dimension_keys(dsd, key_dict):
         codes = key_dict[dim_id]
         if not codes:
             continue
         label = name_map.get(dim_id, dim_id)
         values = list(codes)
-        if (
+        wants_names = (
             cfg.aggregated_dimension_value_mode.get(dim_id) == AggregatedValueModeSdmx.name
-            and dimension_values_resolver is not None
-        ):
-            values = dimension_values_resolver(dim_id, codes)
+        )
+        if wants_names:
+            if dimension_values_resolver is not None:
+                values = dimension_values_resolver(dim_id, codes)
+            elif dim_id not in warned_dims:
+                _log.warning(
+                    "value_mode='name' requested for dim %s but no resolver provided; "
+                    "codes will be used as-is",
+                    dim_id,
+                )
+                warned_dims.add(dim_id)
         value = vsep.join(values)
         parts.append(f"{label}{kvsep}{value}")
 
+    tq = sdmx_query.time_dimension_query
     if (
         cfg.time_encoding == TimeEncodingSdmx.in_aggregated_filter
         and cfg.aggregated_time_param
-        and getattr(sdmx_query, "time_dimension_query", None)
+        and tq is not None
     ):
-        tq = sdmx_query.time_dimension_query
         sp, ep = tq.start_period, tq.end_period
         tsep = cfg.aggregated_time_range_separator
         if sp and ep:
             parts.append(f"{cfg.aggregated_time_param}{kvsep}{sp}{tsep}{ep}")
-        elif sp or ep:
-            one = (sp or ep) or ""
-            parts.append(f"{cfg.aggregated_time_param}{kvsep}{one}")
-
+        elif sp:
+            parts.append(f"{cfg.aggregated_time_param}{kvsep}{sp}{tsep}")
+        elif ep:
+            parts.append(f"{cfg.aggregated_time_param}{kvsep}{tsep}{ep}")
+    if not parts:
+        return ""
     return dsep.join(parts)
 
 
@@ -220,7 +230,7 @@ def build_data_explorer_url_query(
     short_urn: str,
     dsd: Any,
     key_dict: dict[str, list[str]],
-    sdmx_query: Any,
+    sdmx_query: SdmxDataSetQuery,
     config: DataExplorerUrlConfig | None,
     sdmx_key_builder: SdmxKeyBuilder | None = None,
     dimension_values_resolver: DimensionValuesResolver | None = None,
@@ -252,28 +262,25 @@ def build_data_explorer_url_query(
         _add_sdmx21_time_params(params, sdmx_query)
     # in_aggregated_filter: time is inside the filter; none: no time
 
-    safe_chars = "+,.:*" if cfg.filter_format == FilterFormatSdmx.sdmx_key_string else ",.:*"
+    safe_chars = "+,.:*()" if cfg.filter_format == FilterFormatSdmx.sdmx_key_string else ",.:*()"
     query_string = urlencode(params, quote_via=quote, safe=safe_chars)
     if not query_string:
         return base_url
     return f"{base_url}?{query_string}"
 
 
-def _add_sdmx21_time_params(params: dict[str, str], sdmx_query: Any) -> None:
-    try:
-        if td_query := getattr(sdmx_query, "time_dimension_query", None):
-            start_period = td_query.start_period
-            end_period = td_query.end_period
-        else:
-            start_period = None
-            end_period = None
+def _add_sdmx21_time_params(params: dict[str, str], sdmx_query: SdmxDataSetQuery) -> None:
+    td_query = sdmx_query.time_dimension_query
+    if td_query is None:
+        return
 
-        if start_period:
-            params['startPeriod'] = start_period if '-' in start_period else f"{start_period}-A"
-        if end_period:
-            params['endPeriod'] = end_period if '-' in end_period else f"{end_period}-A"
-    except Exception as e:  # noqa: BLE001
-        _log.exception(e)
+    start_period = td_query.start_period
+    end_period = td_query.end_period
+
+    if start_period:
+        params['startPeriod'] = start_period if '-' in start_period else f"{start_period}-A"
+    if end_period:
+        params['endPeriod'] = end_period if '-' in end_period else f"{end_period}-A"
 
 
 def build_data_explorer_dataset_url(
