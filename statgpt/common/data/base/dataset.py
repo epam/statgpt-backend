@@ -158,6 +158,10 @@ class DataResponse(ABC):
     def time_period(self) -> tuple[str, str] | None:
         """Return the time period covered by the data in this response as a tuple of (start, end)."""
 
+    @abstractmethod
+    def get_display_series_count(self) -> int:
+        """Number of data series in this response, for user-facing text (e.g. chat formatters)."""
+
 
 DataSetConfigType = TypeVar("DataSetConfigType", bound=DataSetConfig)
 DataSourceHandlerType = TypeVar("DataSourceHandlerType", bound='DataSourceHandler')
