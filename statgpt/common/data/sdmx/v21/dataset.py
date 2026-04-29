@@ -111,6 +111,13 @@ class InvalidConfigurationError(Exception):
         }
 
 
+def _series_count_from_data_message(data_msg: DataMessage) -> int:
+    """Number of series in the SDMX data message (per dataset, ``DataSet.series``)."""
+    if not data_msg.data:
+        return 0
+    return sum(len(ds.series) for ds in data_msg.data)
+
+
 class Sdmx21DataResponse(DataResponse):
 
     def __init__(
@@ -120,6 +127,7 @@ class Sdmx21DataResponse(DataResponse):
         df: pd.DataFrame,
         url: str | None,
         status: DataResponseStatus,
+        display_series_count: int = 0,
     ):
         super().__init__()
         self.dataset = dataset
@@ -127,6 +135,7 @@ class Sdmx21DataResponse(DataResponse):
         self.df = df
         self._url = url
         self._status = status
+        self._display_series_count = display_series_count
 
     @property
     def status(self) -> DataResponseStatus:
@@ -155,6 +164,10 @@ class Sdmx21DataResponse(DataResponse):
         visual_df = self._enrich_df_with_names(visual_df)
         return visual_df
 
+    def get_display_series_count(self) -> int:
+        """Number of series in the data message (set when the query is executed)."""
+        return self._display_series_count
+
     def enrich_attachment_name(self, value: str) -> str:
         """Replace placeholders in the attachment name with actual values."""
         return value.format(
@@ -181,6 +194,7 @@ class Sdmx21DataResponse(DataResponse):
             sdmx_query=self.sdmx_query.merge(other.sdmx_query),
             url=None,
             status=self.status.merge(other.status),
+            display_series_count=self._display_series_count + other._display_series_count,
         )
 
     @property
@@ -1224,6 +1238,7 @@ class Sdmx21DataSet(
                     request_status=DataRequestStatus.FAILED,
                     parsing_status=DataParsingStatus.NA,
                 ),
+                display_series_count=0,
             )
 
         if not data_msg:
@@ -1236,6 +1251,7 @@ class Sdmx21DataSet(
                     request_status=DataRequestStatus.SUCCESS,
                     parsing_status=DataParsingStatus.FAILED,
                 ),
+                display_series_count=0,
             )
 
         explorer_cfg = self._resolved_data_explorer_url_config() or DataExplorerUrlConfig()
@@ -1252,6 +1268,7 @@ class Sdmx21DataSet(
             http_response = data_msg.response
             url = http_response.url if http_response is not None else None
 
+        message_series_count = _series_count_from_data_message(data_msg)
         try:
             sdmx_pandas = await self._data_msg_to_dataframe(data_msg)
             sdmx_pandas = await self._include_attributes(sdmx_pandas)
@@ -1266,6 +1283,7 @@ class Sdmx21DataSet(
                     request_status=DataRequestStatus.SUCCESS,
                     parsing_status=DataParsingStatus.FAILED,
                 ),
+                display_series_count=message_series_count,
             )
 
         return Sdmx21DataResponse(
@@ -1277,6 +1295,7 @@ class Sdmx21DataSet(
                 request_status=DataRequestStatus.SUCCESS,
                 parsing_status=DataParsingStatus.SUCCESS,
             ),
+            display_series_count=message_series_count,
         )
 
     def get_resolved_sdmx1_source(self) -> str | None:
