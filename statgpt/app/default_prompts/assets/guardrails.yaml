@@ -140,7 +140,7 @@ generalTopicsBlacklist:
       (legal, medical, etc) - they are ALLOWED if they don't violate other rules.
       This rule DOES NOT REGULATE requests for advice or suggestions on which data
       available through the chatbot to use within the chatbot's domain.
-      (e.g., "I am analyzing Y what should I explore?", "I'm researching X — what should I check?", when X, Y - domain topics) 
+      (e.g., "I am analyzing X what would you suggest me to explore?", when X - domain topic) 
 - |-
    Harmful or Inappropriate Content:
       * Inappropriate, offensive, or emotionally charged content
