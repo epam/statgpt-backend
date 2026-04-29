@@ -248,8 +248,22 @@ class LLMCallDurationCallback(AsyncCallbackHandler):
         run_id: UUID,
         **kwargs: t.Any,
     ) -> None:
-        self._start_times.pop(run_id, None)
-        self._run_2_deployment.pop(run_id, None)
+        start_time = self._start_times.pop(run_id, None)
+        deployment_id = self._run_2_deployment.pop(run_id, "unknown")
+        if start_time is None:
+            return
+
+        duration_s = time.monotonic() - start_time
+
+        logger.info(
+            f"LLM call failed for model {deployment_id!r}: {duration_s:.2f}s, error: {error}"
+        )
+
+        duration_manager = get_llm_call_duration_manager()
+        if duration_manager is not None:
+            duration_manager.add_duration(
+                LLMCallDurationItem(deployment=deployment_id, duration_s=duration_s)
+            )
 
 
 class BrokenResponseInterceptor(AsyncCallbackHandler):
