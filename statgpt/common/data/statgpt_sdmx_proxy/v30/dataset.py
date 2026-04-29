@@ -6,11 +6,10 @@ from sdmx.model.v21 import DataflowDefinition as DataFlow
 
 from statgpt.common.data.base.sdmx_schemas import Sdmx30AnnotationModel
 from statgpt.common.data.base.updated_at_mixin import UpdatedAtMixin
-from statgpt.common.data.sdmx.common import SdmxDimension
+from statgpt.common.data.sdmx.common import SdmxDataSetQuery, SdmxDimension
 from statgpt.common.data.sdmx.common.config import SdmxDataSetConfig
 from statgpt.common.data.sdmx.v21.attribute import Sdmx21Attribute
 from statgpt.common.data.sdmx.v21.dataset import Sdmx21DataSet
-from statgpt.common.data.sdmx.v21.query import SdmxDataSetQuery
 
 if typing.TYPE_CHECKING:
     from .datasource import StatGptSdmxProxyDataSourceHandler as DataSourceHandler

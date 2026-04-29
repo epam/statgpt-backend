@@ -193,13 +193,6 @@ DIMENSION_CONFIG_TYPES = Annotated[
 class BaseDataSetConfig(BaseModel):
     is_official: bool = Field(default=False)
     citation: DatasetCitation | None = Field(default=None)
-    view_in_data_explorer: bool = Field(
-        default=True,
-        description=(
-            "Whether to include 'View data in explorer' links for this dataset in formatted query "
-            "results when a query URL is available."
-        ),
-    )
     data_explorer_url: str | None = Field(
         default=None,
         description=(
