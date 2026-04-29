@@ -1,8 +1,9 @@
 """Tests for ``Sdmx21DataResponse.get_display_series_count``."""
 
+from unittest.mock import MagicMock
+
 import pandas as pd
 import pytest
-from unittest.mock import MagicMock
 
 from statgpt.common.data.base.dataset import DataResponseStatus
 from statgpt.common.data.sdmx.v21.dataset import Sdmx21DataResponse
@@ -22,9 +23,7 @@ def test_get_display_series_count_returns_stored_value(stored: int) -> None:
     dataset.dimensions.return_value = [time]
     dataset.get_time_dimension.return_value = time
     dataset.map_component_values_id_2_name = MagicMock(return_value=None)
-    index = pd.MultiIndex.from_tuples(
-        [("2022-07-01",), ("2022-07-02",)], names=["TIME_PERIOD"]
-    )
+    index = pd.MultiIndex.from_tuples([("2022-07-01",), ("2022-07-02",)], names=["TIME_PERIOD"])
     df = pd.DataFrame({"value": [1.0, 2.0]}, index=index)
     resp = Sdmx21DataResponse(
         dataset=dataset,

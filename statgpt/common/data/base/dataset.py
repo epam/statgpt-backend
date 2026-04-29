@@ -161,7 +161,6 @@ class DataResponse(ABC):
     @abstractmethod
     def get_display_series_count(self) -> int:
         """Number of data series in this response, for user-facing text (e.g. chat formatters)."""
-        pass
 
 
 DataSetConfigType = TypeVar("DataSetConfigType", bound=DataSetConfig)
