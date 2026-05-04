@@ -6,6 +6,7 @@ from statgpt.app.chains.parameters import ChainParameters
 from statgpt.app.schemas.query_builder import (
     ChainState,
     DatasetAvailabilityQueriesType,
+    HybridSearchTimings,
     IndicatorsSearchResult,
     RetrievalStageDescription,
     RetrievalStagesResults,
@@ -158,9 +159,18 @@ class IndicatorsSelectionHybrid(IndicatorSelectionBase):
         )
 
     def _get_primary_queries_with_retrieval_results(self, inputs: dict) -> IndicatorsSearchResult:
+        chain_state = ChainState.model_validate(inputs)
         final_queries = self._get_final_queries(inputs)
         retrieval_results = self._get_retrieval_results(inputs)
-        return IndicatorsSearchResult(queries=final_queries, retrieval_results=retrieval_results)
+        search_result: HybridSearchResult = inputs['search_result']
+        # Don't overload the result with timings if show_debug_stages is disabled
+        # NOTE: disabling time.perf_counter() calls inside the search will save negligible amount of time (under a ms)
+        timings = search_result.timings if chain_state.show_debug_stages else HybridSearchTimings()
+        return IndicatorsSearchResult(
+            queries=final_queries,
+            retrieval_results=retrieval_results,
+            hybrid_search_timings=timings,
+        )
 
     def create_chain(self) -> Runnable:
         return (
