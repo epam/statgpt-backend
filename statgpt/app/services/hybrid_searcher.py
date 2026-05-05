@@ -7,7 +7,7 @@ from collections.abc import Generator
 from typing import Any, NamedTuple
 
 from aidial_sdk.chat_completion import Stage
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 from statgpt.app.default_prompts import hybrid_search_default_prompts
 from statgpt.app.schemas.query_builder import (
@@ -80,7 +80,7 @@ class HybridSearchResultInner(BaseModel):
     semantic: PlainItemsScoredDict
     llm_scored: list[HybridCandidateScored]
     final: DatasetDimTermsSetType
-    timings: HybridMatchTimings = Field(default_factory=HybridMatchTimings)
+    timings: HybridMatchTimings
 
 
 class HybridSearchResult(BaseModel):
@@ -88,7 +88,7 @@ class HybridSearchResult(BaseModel):
     semantic: list[dict]
     llm_scored: list[HybridCandidateScored]
     final_queries: dict[str, list[DimensionQuery]]
-    timings: HybridSearchTimings = Field(default_factory=HybridSearchTimings)
+    timings: HybridSearchTimings
 
 
 class HybridSearcher:
