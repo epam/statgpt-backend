@@ -163,7 +163,6 @@ class IndicatorsSelectionHybrid(IndicatorSelectionBase):
         retrieval_results = self._get_retrieval_results(inputs)
         search_result: HybridSearchResult = inputs['search_result']
         # Don't overload the result with timings if show_debug_stages is disabled
-        # NOTE: disabling time.perf_counter() calls inside the search would save negligible amount of time (under a ms)
         timings = search_result.timings if chain_state.show_debug_stages else None
         return IndicatorsSearchResult(
             queries=final_queries,
