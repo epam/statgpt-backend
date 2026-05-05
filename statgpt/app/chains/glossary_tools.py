@@ -1,3 +1,4 @@
+from mcp.types import ToolAnnotations
 from pydantic import Field
 
 from statgpt.app.chains.parameters import ChainParameters
@@ -12,6 +13,10 @@ from statgpt.common.schemas.tools import TermDefinitionsTool as TermDefinitionsT
 class AvailableTermsTool(
     StatGptTool[AvailableTermsToolConfig], tool_type=ToolTypes.AVAILABLE_TERMS
 ):
+    @classmethod
+    def get_mcp_annotations(cls) -> ToolAnnotations:
+        return ToolAnnotations(readOnlyHint=True, destructiveHint=False, openWorldHint=False)
+
     async def _arun(self, inputs: dict) -> tuple[str, ToolArtifact]:
         data_service = ChainParameters.get_data_service(inputs)
 
@@ -63,6 +68,10 @@ class BaseTermDefinitionsArgs(ToolArgs):
 class TermDefinitionsTool(
     StatGptTool[TermDefinitionsToolConfig], tool_type=ToolTypes.TERM_DEFINITIONS
 ):
+    @classmethod
+    def get_mcp_annotations(cls) -> ToolAnnotations:
+        return ToolAnnotations(readOnlyHint=True, destructiveHint=False, openWorldHint=False)
+
     @classmethod
     def get_args_schema(cls, tool_config: TermDefinitionsToolConfig) -> type[ToolArgs]:
         """Return the schema for the arguments that this tool accepts."""
