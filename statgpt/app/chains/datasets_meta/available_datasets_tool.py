@@ -1,3 +1,5 @@
+from mcp.types import ToolAnnotations
+
 from statgpt.app.chains.parameters import ChainParameters
 from statgpt.app.chains.tools import StatGptTool
 from statgpt.app.schemas import ToolArtifact, ToolMessageState
@@ -11,6 +13,10 @@ from ._utils import _create_formatter_config
 class AvailableDatasetsTool(
     StatGptTool[AvailableDatasetsToolConfig], tool_type=ToolTypes.AVAILABLE_DATASETS
 ):
+
+    @classmethod
+    def get_mcp_annotations(cls) -> ToolAnnotations:
+        return ToolAnnotations(readOnlyHint=True, destructiveHint=False, openWorldHint=False)
 
     def __init__(
         self, tool_config: AvailableDatasetsToolConfig, channel_config: ChannelConfig, **kwargs
