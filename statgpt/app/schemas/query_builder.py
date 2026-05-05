@@ -177,7 +177,7 @@ class HybridSearchTimings(BaseModel):
 class IndicatorsSearchResult(BaseModel):
     queries: DatasetAvailabilityQueriesType
     retrieval_results: RetrievalStagesResults
-    hybrid_search_timings: HybridSearchTimings = Field(default_factory=HybridSearchTimings)
+    hybrid_search_timings: HybridSearchTimings | None = None
 
 
 class SpecialDimensionChainOutput(BaseModel):
@@ -246,9 +246,12 @@ class QueryBuilderAgentState(ToolMessageState):
         description="mapping from SpecialDimensionsProcessor.id to its chain output",
         default_factory=dict,
     )
-    hybrid_search_timings: HybridSearchTimings = Field(
-        description="Per-phase timing breakdown of the hybrid indicator search.",
-        default_factory=HybridSearchTimings,
+    hybrid_search_timings: HybridSearchTimings | None = Field(
+        default=None,
+        description=(
+            "Per-phase timing breakdown of the hybrid indicator search. "
+            "None when debug stages are disabled."
+        ),
     )
 
 
@@ -399,7 +402,7 @@ class ChainState(BaseModel):
     strong_availability: DatasetAvailabilityQueriesType = {}
 
     retrieval_results: RetrievalStagesResults = RetrievalStagesResults()
-    hybrid_search_timings: HybridSearchTimings = Field(default_factory=HybridSearchTimings)
+    hybrid_search_timings: HybridSearchTimings | None = None
     special_dims_outputs: dict[str, SpecialDimensionChainOutput] = {}
     dataset_queries: dict[str, DataSetQuery] = {}  # final data queries
 

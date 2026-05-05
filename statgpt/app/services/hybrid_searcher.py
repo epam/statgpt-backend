@@ -1,3 +1,4 @@
+import asyncio
 import collections
 import json
 import re
@@ -867,6 +868,21 @@ class HybridSearcher:
         tokens = await self._matching_index.analyze(text=value)
         return " ".join(t.token for t in tokens)
 
+    async def _tokenize_cached(self, value: str, cache: dict[str, str]) -> str:
+        cached = cache.get(value)
+        if cached is not None:
+            return cached
+        tokenized = await self._tokenize(value)
+        cache[value] = tokenized
+        return tokenized
+
+    async def _prewarm_tokenize_cache(self, values: t.Iterable[str], cache: dict[str, str]) -> None:
+        missing = list({v for v in values if v not in cache})
+        if not missing:
+            return
+        results = await asyncio.gather(*(self._tokenize(v) for v in missing))
+        cache.update(zip(missing, results))
+
     async def _search_by_query(
         self, stage: Stage, query: str, version_ids: set[int], availability: DatasetDimTermsSetType
     ) -> HybridSearchResultInner:
@@ -1072,19 +1088,33 @@ class HybridSearcher:
             query, highlight_field, version_ids, max_candidates
         )
 
+        cache: dict[str, str] = {}
+        valid_hits: list[tuple[t.Any, str]] = [
+            (h, h.highlight[highlight_field][0])
+            for h in search_result.hits.hits
+            if h.highlight is not None
+        ]
+        primary_strings = [h.source[highlight_field] for h, _ in valid_hits]
+        highlight_tokens = (
+            token
+            for _, hl in valid_hits
+            for token in hl.split()
+            if not self.RE_HIGHLIGHT_MATCH_1.match(token)
+        )
+        await self._prewarm_tokenize_cache([*primary_strings, *highlight_tokens], cache)
+
         candidates: set[str] = set()
         good_candidates: set[str] = set()
-        skipped = 0
-        for hit in search_result.hits.hits:
-            if hit.highlight is None:
-                # TODO: review this and fix if possible
-                logger.warning("No highlight found for hit, skipping.")
-                skipped += 1
-                continue
-
-            highlight = hit.highlight[highlight_field][0]
+        skipped = len(search_result.hits.hits) - len(valid_hits)
+        if skipped > 0:
+            # TODO: review this and fix if possible
+            logger.warning(
+                f"Skipped {skipped} of {len(search_result.hits.hits)} "
+                "hits due to missing highlights"
+            )
+        for hit, highlight in valid_hits:
             primary = hit.source[highlight_field]
-            primary_tokenized = await self._tokenize(primary)
+            primary_tokenized = await self._tokenize_cached(primary, cache)
 
             running = []
             for token in highlight.split():
@@ -1095,26 +1125,22 @@ class HybridSearcher:
                     matched = matched.replace("</em>", "")
                     running.append(matched)
                 else:
-                    tokenized = await self._tokenize(token)
+                    tokenized = await self._tokenize_cached(token, cache)
                     if len(running) > 0 and (not tokenized or len(tokenized.strip()) == 0):
                         running.append(token)
                         continue
                     if len(running) == 0:
                         continue
                     await self._assess_candidate(
-                        candidates, good_candidates, primary_tokenized, running
+                        candidates, good_candidates, primary_tokenized, running, cache
                     )
                     running = []
-            await self._assess_candidate(candidates, good_candidates, primary_tokenized, running)
-
-        if skipped > 0:
-            logger.warning(
-                f"Skipped {skipped} of {len(search_result.hits.hits)} "
-                "hits due to missing highlights"
+            await self._assess_candidate(
+                candidates, good_candidates, primary_tokenized, running, cache
             )
 
-        good_candidates = await self._remove_duplicates(good_candidates)
-        candidates = await self._cleanup_candidates(good_candidates, candidates)
+        good_candidates = await self._remove_duplicates(good_candidates, cache)
+        candidates = await self._cleanup_candidates(good_candidates, candidates, cache)
 
         total = search_result.hits.total.value
         primaries = (
@@ -1124,10 +1150,12 @@ class HybridSearcher:
         )
         return primaries, total, candidates, good_candidates
 
-    async def _assess_candidate(self, candidates, good_candidates, primary_tokenized, running):
+    async def _assess_candidate(
+        self, candidates, good_candidates, primary_tokenized, running, cache: dict[str, str]
+    ):
         if len(running) > 0:
             candidate = " ".join(running)
-            exact_tokenized = await self._tokenize(candidate)
+            exact_tokenized = await self._tokenize_cached(candidate, cache)
             if primary_tokenized == exact_tokenized or len(exact_tokenized.split()) > 1:
                 if candidate in good_candidates:
                     return
@@ -1135,12 +1163,13 @@ class HybridSearcher:
             else:
                 candidates |= {candidate}
 
-    async def _remove_duplicates(self, good_candidates):
+    async def _remove_duplicates(self, good_candidates, cache: dict[str, str]):
+        await self._prewarm_tokenize_cache(good_candidates, cache)
         good_candidates = sorted(good_candidates, key=lambda x: len(x), reverse=True)
-        good_list = set()
-        result = set()
+        good_list: set[str] = set()
+        result: set[str] = set()
         for good_candidate in good_candidates:
-            tokenized = await self._tokenize(good_candidate)
+            tokenized = await self._tokenize_cached(good_candidate, cache)
             if tokenized in good_list:
                 continue
             found = False
@@ -1154,16 +1183,17 @@ class HybridSearcher:
             result |= {good_candidate}
         return result
 
-    async def _cleanup_candidates(self, good_candidates, candidates):
-        good_list = set()
+    async def _cleanup_candidates(self, good_candidates, candidates, cache: dict[str, str]):
+        await self._prewarm_tokenize_cache([*good_candidates, *candidates], cache)
+        good_list: set[str] = set()
         for good_candidate in good_candidates:
-            tokenized = await self._tokenize(good_candidate)
+            tokenized = await self._tokenize_cached(good_candidate, cache)
             good_list |= {tokenized}
 
-        result = set()
+        result: set[str] = set()
         candidates = sorted(candidates, key=lambda x: len(x), reverse=True)
         for candidate in candidates:
-            tokenized = await self._tokenize(candidate)
+            tokenized = await self._tokenize_cached(candidate, cache)
             if tokenized in good_list:
                 continue
             found = False
@@ -1214,6 +1244,5 @@ class HybridSearcher:
             query=query,
             aggs=aggs,
             highlight=highlight,
-            explain=True,
             size=max_candidates,
         )
