@@ -2,6 +2,7 @@ import typing as t
 
 from langchain_core.runnables import Runnable
 from langchain_core.tools import InjectedToolArg
+from mcp.types import ToolAnnotations
 from pydantic import Field
 
 from statgpt.app.chains.parameters import ChainParameters
@@ -41,6 +42,10 @@ The query to search an answer for.
 
 
 class FileRagTool(StatGptTool[FileRagToolConfig], tool_type=ToolTypes.FILE_RAG):
+    @classmethod
+    def get_mcp_annotations(cls) -> ToolAnnotations:
+        return ToolAnnotations(readOnlyHint=True, destructiveHint=False, openWorldHint=False)
+
     @classmethod
     def get_args_schema(cls, tool_config: FileRagToolConfig) -> type[FileRagArgs]:
         """Return the schema for the arguments that this tool accepts."""
