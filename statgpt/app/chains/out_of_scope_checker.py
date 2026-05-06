@@ -65,15 +65,21 @@ class OutOfScopeChecker:
 
     async def _stream_response(self, inputs: dict) -> dict:
         state = ChainParameters.get_state(inputs)
-        oos_only = state.get(StateVarsConfig.CMD_OUT_OF_SCOPE_ONLY, False)
-        tool_calls = state.get(StateVarsConfig.DIRECT_TOOL_CALLS, [])
 
         skip = state.get(StateVarsConfig.CMD_SKIP_GUARDRAILS, False)
-        if skip or self._channel_config.out_of_scope is None:
+        tool_calls = state.get(StateVarsConfig.DIRECT_TOOL_CALLS, [])
+        oos_only = state.get(StateVarsConfig.CMD_OUT_OF_SCOPE_ONLY, False)
+
+        if self._channel_config.out_of_scope is None:
             inputs[ChainParametersConfig.OUT_OF_SCOPE] = None
             inputs[ChainParametersConfig.OUT_OF_SCOPE_REASONING] = 'guardrails disabled in config'
             return inputs
-
+        if skip:
+            inputs[ChainParametersConfig.OUT_OF_SCOPE] = None
+            inputs[ChainParametersConfig.OUT_OF_SCOPE_REASONING] = (
+                'guardrails disabled with interceptable command'
+            )
+            return inputs
         if tool_calls:
             inputs[ChainParametersConfig.OUT_OF_SCOPE] = None
             inputs[ChainParametersConfig.OUT_OF_SCOPE_REASONING] = (
