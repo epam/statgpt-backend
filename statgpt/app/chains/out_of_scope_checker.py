@@ -68,7 +68,7 @@ class OutOfScopeChecker:
         oos_only = state.get(StateVarsConfig.CMD_OUT_OF_SCOPE_ONLY, False)
         tool_calls = state.get(StateVarsConfig.DIRECT_TOOL_CALLS, [])
 
-        skip = ChainParameters.skip_out_of_scope_check(inputs)
+        skip = state.get(StateVarsConfig.CMD_SKIP_GUARDRAILS, False)
         if skip or self._channel_config.out_of_scope is None:
             inputs[ChainParametersConfig.OUT_OF_SCOPE] = None
             inputs[ChainParametersConfig.OUT_OF_SCOPE_REASONING] = 'guardrails disabled in config'

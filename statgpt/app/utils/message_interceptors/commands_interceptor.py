@@ -71,6 +71,10 @@ class CommandsInterceptor(BaseMessageInterceptor):
                     command='skip_tools_execution',
                     state_var=StateVarsConfig.CMD_SKIP_TOOLS_EXECUTION,
                 ),
+                InterceptableCommand(
+                    command='skip_guardrails',
+                    state_var=StateVarsConfig.CMD_SKIP_GUARDRAILS,
+                ),
             ]
         else:
             logger.info("CommandsInterceptor: dev commands disabled")

@@ -43,10 +43,10 @@ class DialAppSettings(BaseSettings):
         default="⭐", alias="OFFICIAL_DATASET_LABEL", description="Label for official datasets"
     )
 
-    skip_out_of_scope_check: bool = Field(
+    cmd_skip_guardrails: bool = Field(
         default=False,
-        alias="SKIP_OUT_OF_SCOPE_CHECK",
-        description="Skip out-of-scope check for queries",
+        alias="CMD_SKIP_GUARDRAILS",
+        description="Skip out-of-scope guardrail check.",
     )
 
     cmd_out_of_scope_only: bool = Field(

@@ -11,6 +11,7 @@ class StateVarsConfig:
     CMD_RAG_PREFILTER_ONLY = "cmd_rag_prefilter_only"
     CMD_SKIP_DATA_QUERY_SUMMARIZATION = "cmd_skip_data_query_summarization"
     CMD_SKIP_TOOLS_EXECUTION = "cmd_skip_tools_execution"
+    CMD_SKIP_GUARDRAILS = "cmd_skip_guardrails"
     ERROR = 'error'
 
     # values used in Agentic approach
