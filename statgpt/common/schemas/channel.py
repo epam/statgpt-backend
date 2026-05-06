@@ -235,7 +235,7 @@ class Channel(DbDefaultBase, ChannelBase, Auditable):
         return f"Indicators_{self.id}"
 
     @property
-    def available_dimensions_table_name(self) -> str:
+    def non_indicator_dimensions_table_name(self) -> str:
         return f"AvailableDimensions_{self.id}"
 
     @property
@@ -260,28 +260,52 @@ class DeduplicationStatus(BaseModel):
     total_duplicate_count: int = Field(
         description="Total number of duplicate documents across all dimension stores"
     )
-    available_dimensions_duplicate_count: int = Field(
-        description="Number of duplicate documents in available dimensions store"
+    non_indicator_dimensions_duplicate_count: int = Field(
+        description=(
+            "Number of duplicate documents in the non-indicator dimensions store "
+            "(regular dimensions such as country, frequency, region — excludes "
+            "indicator and special dimensions)."
+        )
     )
     special_dimensions_duplicate_count: int = Field(
-        description="Number of duplicate documents in special dimensions store"
+        description=(
+            "Number of duplicate documents in the special dimensions store. Special "
+            "dimensions require dedicated processor-based handling (configured per "
+            "channel) and are counted separately — they are NOT part of indicator or "
+            "non-indicator dimensions."
+        )
     )
     indicator_dimensions_duplicate_count: int = Field(
-        description="Number of duplicate documents in indicator dimensions store"
+        description=(
+            "Number of duplicate documents in the indicator dimensions store "
+            "(dimensions used as measures, e.g. GDP, Inflation)."
+        )
     )
 
 
 class VectorStoreSizes(BaseModel):
     """Size information about channel vector store index"""
 
-    available_dimensions_size: int = Field(
-        description="Number of documents in available dimensions store"
+    non_indicator_dimensions_size: int = Field(
+        description=(
+            "Number of documents in the non-indicator dimensions store "
+            "(regular dimensions such as country, frequency, region — excludes "
+            "indicator and special dimensions)."
+        )
     )
     special_dimensions_size: int = Field(
-        description="Number of documents in special dimensions store"
+        description=(
+            "Number of documents in the special dimensions store. Special dimensions "
+            "require dedicated processor-based handling (configured per channel) and "
+            "are counted separately — they are NOT part of indicator or non-indicator "
+            "dimensions."
+        )
     )
     indicator_dimensions_size: int = Field(
-        description="Number of documents in indicator dimensions store"
+        description=(
+            "Number of documents in the indicator dimensions store "
+            "(dimensions used as measures, e.g. GDP, Inflation)."
+        )
     )
 
 

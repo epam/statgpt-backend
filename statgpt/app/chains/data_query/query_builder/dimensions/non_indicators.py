@@ -57,7 +57,7 @@ class NonIndicatorsSearchChainFactory(DimensionSearchChainFactoryBase):
             tasks = []
             for entity in filtered_named_entities:
                 tasks.append(
-                    search_input.data_service.search_dimensions_scored(
+                    search_input.data_service.search_non_indicator_dimensions_scored(
                         entity.to_query(),
                         auth_context=search_input.auth_context,
                         k=self._config.candidates_per_entity,
