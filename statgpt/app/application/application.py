@@ -16,6 +16,11 @@ from statgpt.common.services.data_preloader import preload_data
 
 @asynccontextmanager
 async def lifespan(app: "StatGPTApp"):
+
+    from openinference.instrumentation.langchain import LangChainInstrumentor
+
+    LangChainInstrumentor().instrument()
+
     async with optional_msi_token_manager_context():
         # Check resources' availability:
         await DatabaseHealthChecker().check()
