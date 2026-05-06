@@ -45,7 +45,7 @@ and if they are relevant and could be reused for this dataset.
     - dataset structure tool output
     - dataset config schema
     - all previous reasonings (dimension types, citation description,
-    indexer config, anchors, pinned columns)
+    indexer config, pinned columns, anchors)
     - use uuid tool to generate uuid
 11. Update channel config file with new Named Entity types, if needed.
 12. Validate generated config using validation tool
@@ -115,19 +115,11 @@ Citation `description` field could be filled either with text or `null`:
     - if description is not meaningful / not present,
     write it yourself based on dataset title and structure
 - you MUST EXPLICLTY REASON ABOUT DATASET DESCRIPTION from structure tool output!
-- NOTE: indexer dataset description choice MUST NOT AFFECT on the content of citation description!
 
 ## Indexer config
 
 Dataset indexer has couple of special instructions:
 
-- indexer dataset description must always be non-empty string.
-    - If you determined to write `null` to citation dataset description field -
-    put dataset description from structure tool output to indexer description without edits!
-    - If you filled citation description field with generated description -
-    refer to it here with yaml anchor!
-    - NOTE: choice of indexer dataset description MUST NOT AFFECT content of citation description!
-    - EXPLICITLY REASON about your choice of indexer dataset description!
 - `unpack` field determines how indicator dimensions will be indexed.
 You must use indicator dimensions sample values to determine correct field value:
     - determine a set of IMPORTANT indicator dimensions,

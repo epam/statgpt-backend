@@ -57,7 +57,7 @@ class Channel(DefaultBase):
         return f"Indicators_{self.id}"
 
     @property
-    def available_dimensions_table_name(self) -> str:
+    def non_indicator_dimensions_table_name(self) -> str:
         return f"AvailableDimensions_{self.id}"
 
     @property
