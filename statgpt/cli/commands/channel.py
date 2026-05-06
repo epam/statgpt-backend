@@ -315,7 +315,8 @@ async def status_handler(
             console.print(f"  [dim]Scope:[/dim] {index_status.scope}")
             console.print("  [dim]Vector Store index:[/dim]")
             console.print(
-                f"    [dim]Available dimensions index:[/dim] {sizes.available_dimensions_size}"
+                f"    [dim]Non-indicator dimensions index:[/dim] "
+                f"{sizes.non_indicator_dimensions_size}"
             )
             console.print(
                 f"    [dim]Special dimensions index:[/dim] {sizes.special_dimensions_size}"
