@@ -15,7 +15,7 @@ def data_query_artifact_to_resources(
     """
     resources: list[EmbeddedResource] = []
     for response in artifact.data_responses.values():
-        df = getattr(response, "csv_dataframe", response.visual_dataframe)
+        df = response.csv_dataframe
         if df is None or df.empty:
             continue
         csv_text = df.to_csv(

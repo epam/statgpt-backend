@@ -24,6 +24,7 @@ def _response(
     return SimpleNamespace(
         resource_path=resource_path,
         visual_dataframe=df,
+        csv_dataframe=df,
         created_at=created_at,
     )
 
