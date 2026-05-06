@@ -224,11 +224,13 @@ class ChannelServiceFacade:
             )
         return vector_store
 
-    async def _get_dimensions_vector_store(self, auth_context: AuthContext) -> VectorStore:
-        with debug_timer("chat_facade._get_dimensions_vector_store"):
+    async def _get_non_indicator_dimensions_vector_store(
+        self, auth_context: AuthContext
+    ) -> VectorStore:
+        with debug_timer("chat_facade._get_non_indicator_dimensions_vector_store"):
             vector_store_factory = VectorStoreFactory()
             vector_store = await vector_store_factory.get_vector_store(
-                collection_name=self._channel.available_dimensions_table_name,
+                collection_name=self._channel.non_indicator_dimensions_table_name,
                 embedding_model_name=self._channel.llm_model,
                 auth_context=auth_context,
             )
@@ -472,7 +474,7 @@ class ChannelServiceFacade:
         handler_config = cls.parse_config(config)
         return cls(handler_config)
 
-    async def search_dimensions_scored(
+    async def search_non_indicator_dimensions_scored(
         self,
         query: str,
         *,
@@ -480,14 +482,14 @@ class ChannelServiceFacade:
         k: int = 10,
         dataset_versions: Iterable[int],
     ) -> list[ScoredDimensionCandidate]:
-        vector_store = await self._get_dimensions_vector_store(auth_context)
+        vector_store = await self._get_non_indicator_dimensions_vector_store(auth_context)
         version_ids = set(dataset_versions)
-        with debug_timer("chat_facade.search_dimensions_scored.similarity_search"):
+        with debug_timer("chat_facade.search_non_indicator_dimensions_scored.similarity_search"):
             documents = await vector_store.search_with_similarity_score(
                 query, k=k, version_ids=version_ids
             )
 
-        with debug_timer("search_dimensions_scored.post_process_documents"):
+        with debug_timer("search_non_indicator_dimensions_scored.post_process_documents"):
             dimension_categories = await self._get_dimension_categories_from_documents(documents)
             result = []
             for doc, category in zip(documents, dimension_categories):
