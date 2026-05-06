@@ -107,7 +107,7 @@ class AdminPortalDataSetService(DataSetService):
         _log.info(f"Exporting {len(version_ids)} version(s): {sorted(version_ids)}")
 
         collections = [
-            channel.available_dimensions_table_name,
+            channel.non_indicator_dimensions_table_name,
             channel.indicator_table_name,
             channel.special_dimensions_table_name,
         ]
@@ -411,7 +411,7 @@ class AdminPortalDataSetService(DataSetService):
         }
 
         collections = [
-            channel.available_dimensions_table_name,
+            channel.non_indicator_dimensions_table_name,
             channel.indicator_table_name,
             channel.special_dimensions_table_name,
         ]
@@ -938,7 +938,7 @@ class AdminPortalDataSetService(DataSetService):
         collections = [
             channel.indicator_table_name,
             channel.special_dimensions_table_name,
-            channel.available_dimensions_table_name,
+            channel.non_indicator_dimensions_table_name,
         ]
         for collection_name in collections:
             vector_store = await vector_store_factory.get_vector_store(
@@ -1594,7 +1594,7 @@ class AdminPortalDataSetService(DataSetService):
         )
 
     @staticmethod
-    async def _index_available_dimensions(
+    async def _index_non_indicator_dimensions(
         version_id: int,
         channel: schemas.Channel,
         dataset: base.DataSet,
@@ -1604,7 +1604,7 @@ class AdminPortalDataSetService(DataSetService):
         auth_context: AuthContext,
     ) -> None:
         vector_store = await vector_store_factory.get_vector_store(
-            collection_name=channel.available_dimensions_table_name,
+            collection_name=channel.non_indicator_dimensions_table_name,
             embedding_model_name=channel.llm_model,
             auth_context=auth_context,
         )
@@ -1806,7 +1806,7 @@ class AdminPortalDataSetService(DataSetService):
             indexing_stats: dict | None = None
 
             if reindex_dimensions:
-                await self._index_available_dimensions(
+                await self._index_non_indicator_dimensions(
                     version_id=channel_dataset_version_id,
                     channel=channel,
                     dataset=dataset,
@@ -1912,13 +1912,13 @@ class AdminPortalDataSetService(DataSetService):
 
     async def _get_deduplication_status_by_versions(
         self,
-        available_dims_store: VectorStore,
+        non_indicator_dims_store: VectorStore,
         special_dims_store: VectorStore,
         indicator_dims_store: VectorStore,
         versions: set[int],
     ) -> schemas.DeduplicationStatus:
-        available_has_duplicates, available_count = (
-            await available_dims_store.has_duplicates_in_versions(version_ids=versions)
+        non_indicator_has_duplicates, non_indicator_count = (
+            await non_indicator_dims_store.has_duplicates_in_versions(version_ids=versions)
         )
         special_has_duplicates, special_count = await special_dims_store.has_duplicates_in_versions(
             version_ids=versions
@@ -1927,36 +1927,38 @@ class AdminPortalDataSetService(DataSetService):
             version_ids=versions
         )
 
-        # we only consider available and special dimensions for deduplication requirement
-        deduplication_required = available_has_duplicates or special_has_duplicates
-        total_duplicates = available_count + special_count + indicator_count
+        # we only consider non-indicator and special dimensions for deduplication requirement
+        deduplication_required = non_indicator_has_duplicates or special_has_duplicates
+        total_duplicates = non_indicator_count + special_count + indicator_count
 
         return schemas.DeduplicationStatus(
             deduplication_required=deduplication_required,
             total_duplicate_count=total_duplicates,
-            available_dimensions_duplicate_count=available_count,
+            non_indicator_dimensions_duplicate_count=non_indicator_count,
             special_dimensions_duplicate_count=special_count,
             indicator_dimensions_duplicate_count=indicator_count,
         )
 
     async def _get_full_deduplication_status(
         self,
-        available_dims_store: VectorStore,
+        non_indicator_dims_store: VectorStore,
         special_dims_store: VectorStore,
         indicator_dims_store: VectorStore,
     ) -> schemas.DeduplicationStatus:
-        available_has_duplicates, available_count = await available_dims_store.has_duplicates()
+        non_indicator_has_duplicates, non_indicator_count = (
+            await non_indicator_dims_store.has_duplicates()
+        )
         special_has_duplicates, special_count = await special_dims_store.has_duplicates()
         _, indicator_count = await indicator_dims_store.has_duplicates()
 
-        # we only consider available and special dimensions for deduplication requirement
-        deduplication_required = available_has_duplicates or special_has_duplicates
-        total_duplicates = available_count + special_count + indicator_count
+        # we only consider non-indicator and special dimensions for deduplication requirement
+        deduplication_required = non_indicator_has_duplicates or special_has_duplicates
+        total_duplicates = non_indicator_count + special_count + indicator_count
 
         return schemas.DeduplicationStatus(
             deduplication_required=deduplication_required,
             total_duplicate_count=total_duplicates,
-            available_dimensions_duplicate_count=available_count,
+            non_indicator_dimensions_duplicate_count=non_indicator_count,
             special_dimensions_duplicate_count=special_count,
             indicator_dimensions_duplicate_count=indicator_count,
         )
@@ -1964,7 +1966,7 @@ class AdminPortalDataSetService(DataSetService):
     async def _check_latest_versions_status(
         self,
         channel: models.Channel,
-        available_dims_store: VectorStore,
+        non_indicator_dims_store: VectorStore,
         special_dims_store: VectorStore,
         indicator_dims_store: VectorStore,
     ) -> schemas.ChannelIndexStatus:
@@ -1978,13 +1980,15 @@ class AdminPortalDataSetService(DataSetService):
         }
 
         deduplication_status = await self._get_deduplication_status_by_versions(
-            available_dims_store,
+            non_indicator_dims_store,
             special_dims_store,
             indicator_dims_store,
             versions,
         )
         sizes = schemas.VectorStoreSizes(
-            available_dimensions_size=await available_dims_store.get_size(version_ids=versions),
+            non_indicator_dimensions_size=await non_indicator_dims_store.get_size(
+                version_ids=versions
+            ),
             special_dimensions_size=await special_dims_store.get_size(version_ids=versions),
             indicator_dimensions_size=await indicator_dims_store.get_size(version_ids=versions),
         )
@@ -2001,17 +2005,17 @@ class AdminPortalDataSetService(DataSetService):
     async def _check_full_index_status(
         self,
         channel: models.Channel,
-        available_dims_store: VectorStore,
+        non_indicator_dims_store: VectorStore,
         special_dims_store: VectorStore,
         indicator_dims_store: VectorStore,
     ) -> schemas.ChannelIndexStatus:
         deduplication_status = await self._get_full_deduplication_status(
-            available_dims_store,
+            non_indicator_dims_store,
             special_dims_store,
             indicator_dims_store,
         )
         sizes = schemas.VectorStoreSizes(
-            available_dimensions_size=await available_dims_store.get_total_size(),
+            non_indicator_dimensions_size=await non_indicator_dims_store.get_total_size(),
             special_dimensions_size=await special_dims_store.get_total_size(),
             indicator_dimensions_size=await indicator_dims_store.get_total_size(),
         )
@@ -2034,8 +2038,8 @@ class AdminPortalDataSetService(DataSetService):
         channel = await ChannelService(self._session).get_model_by_id(channel_id)
         vector_store_factory = VectorStoreFactory()
 
-        available_dims_store = await vector_store_factory.get_vector_store(
-            collection_name=channel.available_dimensions_table_name,
+        non_indicator_dims_store = await vector_store_factory.get_vector_store(
+            collection_name=channel.non_indicator_dimensions_table_name,
             auth_context=auth_context,
             embedding_model_name=channel.llm_model,
         )
@@ -2053,14 +2057,14 @@ class AdminPortalDataSetService(DataSetService):
         if scope == schemas.ChannelIndexStatusScope.FULL:
             return await self._check_full_index_status(
                 channel=channel,
-                available_dims_store=available_dims_store,
+                non_indicator_dims_store=non_indicator_dims_store,
                 special_dims_store=special_dims_store,
                 indicator_dims_store=indicator_dims_store,
             )
         elif scope == schemas.ChannelIndexStatusScope.LATEST_COMPLETED_VERSIONS:
             return await self._check_latest_versions_status(
                 channel=channel,
-                available_dims_store=available_dims_store,
+                non_indicator_dims_store=non_indicator_dims_store,
                 special_dims_store=special_dims_store,
                 indicator_dims_store=indicator_dims_store,
             )

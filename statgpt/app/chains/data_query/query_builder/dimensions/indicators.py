@@ -102,6 +102,9 @@ class IndicatorsSearchChainFactory(DimensionSearchChainFactoryBase):
             | RunnablePassthrough.assign(
                 strong_queries=lambda d: d["indicators_selection_result"].queries,
                 retrieval_results=lambda d: d["indicators_selection_result"].retrieval_results,
+                hybrid_search_timings=(
+                    lambda d: d["indicators_selection_result"].hybrid_search_timings
+                ),
             ).with_config(
                 config=RunnableConfig(
                     callbacks=[

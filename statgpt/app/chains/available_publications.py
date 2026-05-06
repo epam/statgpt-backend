@@ -1,3 +1,5 @@
+from mcp.types import ToolAnnotations
+
 from statgpt.app.chains.parameters import ChainParameters
 from statgpt.app.chains.tools import StatGptTool
 from statgpt.app.schemas import ToolArtifact, ToolMessageState
@@ -8,6 +10,10 @@ from statgpt.common.schemas import ToolTypes
 class AvailablePublicationsTool(
     StatGptTool[AvailablePublicationsToolConfig], tool_type=ToolTypes.AVAILABLE_PUBLICATIONS
 ):
+    @classmethod
+    def get_mcp_annotations(cls) -> ToolAnnotations:
+        return ToolAnnotations(readOnlyHint=True, destructiveHint=False, openWorldHint=False)
+
     async def _arun(self, inputs: dict) -> tuple[str, ToolArtifact]:
         response = (
             f"The following publication types are available:\n\n"

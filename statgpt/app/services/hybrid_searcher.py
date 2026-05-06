@@ -13,6 +13,8 @@ from statgpt.app.default_prompts import hybrid_search_default_prompts
 from statgpt.app.schemas.query_builder import (
     DatasetAvailabilityQueriesType,
     DateTimeQueryResponse,
+    HybridMatchTimings,
+    HybridSearchTimings,
     NamedEntity,
 )
 from statgpt.app.services.chat_facade import VersionedDataSet
@@ -78,6 +80,7 @@ class HybridSearchResultInner(BaseModel):
     semantic: PlainItemsScoredDict
     llm_scored: list[HybridCandidateScored]
     final: DatasetDimTermsSetType
+    timings: HybridMatchTimings
 
 
 class HybridSearchResult(BaseModel):
@@ -85,6 +88,7 @@ class HybridSearchResult(BaseModel):
     semantic: list[dict]
     llm_scored: list[HybridCandidateScored]
     final_queries: dict[str, list[DimensionQuery]]
+    timings: HybridSearchTimings
 
 
 class HybridSearcher:
@@ -120,14 +124,22 @@ class HybridSearcher:
             list[HybridCandidateScored],
             list[dict],
             str,
+            HybridMatchTimings,
         ]:
+            timings = HybridMatchTimings(query=query)
+            t_total = time.perf_counter()
+
+            t_query_planner = time.perf_counter()
             search_params = await self._query_planner(stage, query, version_ids)
+            timings.query_planner = time.perf_counter() - t_query_planner
 
             reasoning = "\n        relevance score: 1 - 3 (1 - lowest, 3 - highest)\n"
             lexical, semantic, candidates = await self._hybrid_candidates(
-                query, version_ids, availability, search_params
+                query, version_ids, availability, search_params, timings
             )
+
             batches, indexed = self._prepare_for_relevance(candidates)
+
             dataset_max_score: dict[str, float] = {}
             if stage:
                 stage.append_content(reasoning)
@@ -135,10 +147,14 @@ class HybridSearcher:
             is_only_one_dataset_available = len(availability) == 1
             llm_scored = []
             selected: list[dict] = []
+            t_relevance_total = time.perf_counter()
             for items in batches:
                 items = self._pre_append_confirmed(items, selected)
 
+                t_relevance_batch = time.perf_counter()
                 relevance = await self._relevance_candidates(query, items)
+                timings.relevance_per_batch.append(time.perf_counter() - t_relevance_batch)
+
                 llm_scored += self._add_llm_scores_to_indexed(indexed=indexed, scores=relevance)
 
                 batch_selected, batch_reasoning = self._filter_candidates(
@@ -146,7 +162,9 @@ class HybridSearcher:
                 )
                 selected += batch_selected
                 reasoning += batch_reasoning
-            return lexical, semantic, llm_scored, selected, reasoning
+            timings.relevance_total = time.perf_counter() - t_relevance_total
+            timings.total = time.perf_counter() - t_total
+            return lexical, semantic, llm_scored, selected, reasoning, timings
 
         async def _query_planner(
             self, stage: Stage, query: str, version_ids: set[int]
@@ -351,29 +369,39 @@ class HybridSearcher:
             version_ids: set[int],
             availability: DatasetDimTermsSetType,
             search_params: SearchParams,
+            timings: HybridMatchTimings,
         ) -> tuple[HarmonizedItemsScoredDict, PlainItemsScoredDict, list[dict]]:
 
+            t_total = time.perf_counter()
+
+            t_lexical = time.perf_counter()
             lex = await self._lexical(
                 query, version_ids, max_query=search_params.max_lexical_candidates
             )
+            timings.lexical = time.perf_counter() - t_lexical
             lex_filtered: HarmonizedItemsScoredDict = self._filer_candidates_by_availability(
                 lex, availability
             )
 
+            t_semantic_raw = time.perf_counter()
             sem_raw: list[ScoredVectorStoreDocument] = await self._semantic_raw(
                 query, version_ids, max_query=search_params.max_semantic_candidates
             )
+            timings.semantic_raw = time.perf_counter() - t_semantic_raw
             sem_indexed = self._semantic_result(sem_raw)
             sem_filtered: PlainItemsScoredDict = self._filer_candidates_by_availability(
                 sem_indexed, availability
             )
 
+            t_hybrid_combination = time.perf_counter()
             hybrid = await self._hybrid_combination(
                 sem_raw=sem_raw,
                 lexical=lex_filtered,
                 semantic=sem_filtered,
                 alpha=search_params.alpha,
             )
+            timings.hybrid_combination = time.perf_counter() - t_hybrid_combination
+
             hybrid_sorted: list[tuple[str, HarmonizedItemScored]] = sorted(
                 hybrid.items(), key=lambda x: x[1].score, reverse=True
             )
@@ -387,6 +415,7 @@ class HybridSearcher:
                 candidates, hybrid_sorted, max_output=search_params.max_candidates
             )
 
+            timings.hybrid_candidates_total = time.perf_counter() - t_total
             return lex_filtered, sem_filtered, candidates
 
         def make_sure_top_n_is_included(
@@ -845,7 +874,7 @@ class HybridSearcher:
             stage.append_content(f"\n1. {query}\n")
 
         hybrid_match = self.HybridMatch(self)
-        lexical, semantic, llm_scored, selected, reasoning = await hybrid_match.search(
+        lexical, semantic, llm_scored, selected, reasoning, timings = await hybrid_match.search(
             stage, query, version_ids, availability
         )
         final = self._best_of(selected)
@@ -854,6 +883,7 @@ class HybridSearcher:
             semantic=semantic,
             llm_scored=llm_scored,
             final=final,
+            timings=timings,
         )
         return res
 
@@ -870,22 +900,26 @@ class HybridSearcher:
         availability_dict = self._dimension_queries_to_dict(availability_queries)
         version_ids: set[int] = {ds.version.version_data_id for ds in datasets.values()}
 
-        pc0 = time.perf_counter()
+        timings = HybridSearchTimings()
+        t_total = time.perf_counter()
 
+        t_lexical_pre_match = time.perf_counter()
         primaries, total, candidates, good_candidates = await self.lexical_pre_match(
             query, "name_normalized", version_ids, self.config.max_lexical_pre_match_candidates
         )
+        timings.lexical_pre_match = time.perf_counter() - t_lexical_pre_match
         forbidden = good_candidates | candidates
-        elapsed = time.perf_counter() - pc0
         logger.info(
             f"[search], {len(good_candidates)} good candidates, {len(candidates)} candidates "
-            f"(elapsed: {elapsed:0.3f} sec)"
+            f"(elapsed: {time.perf_counter() - t_total:0.3f} sec)"
         )
         logger.info(f"[search], {good_candidates=}")
         logger.info(f"[search], {candidates=}")
+
+        t_normalize_input = time.perf_counter()
         normalized = await self._normalize_input(query, named_entities, period, forbidden)
         normalized = normalized.lower()
-        elapsed = time.perf_counter() - pc0
+        timings.normalize_input = time.perf_counter() - t_normalize_input
 
         if stage:
             stage.append_content("> [raw input query]:\n")
@@ -898,11 +932,12 @@ class HybridSearcher:
             forbidden_str = "[" + "]  [".join(forbidden) + "]"
             stage.append_content(f"```\n{forbidden_str}\n```\n")
 
-        logger.info(f"[search], {normalized=}, (elapsed {elapsed:0.3f} sec)")
+        logger.info(f"[search], {normalized=}, (elapsed {time.perf_counter() - t_total:0.3f} sec)")
 
+        t_separate_subjects = time.perf_counter()
         queries = await self._separate_subjects(normalized, good_candidates)
-        elapsed = time.perf_counter() - pc0
-        logger.info(f"[search], {queries=}, (elapsed {elapsed:0.3f} sec)")
+        timings.separate_subjects = time.perf_counter() - t_separate_subjects
+        logger.info(f"[search], {queries=}, (elapsed {time.perf_counter() - t_total:0.3f} sec)")
 
         tasks = [
             self._search_by_query(
@@ -913,9 +948,12 @@ class HybridSearcher:
             )
             for query in queries
         ]
+        t_parallel_subqueries = time.perf_counter()
         partial: list[HybridSearchResultInner] = await async_utils.gather_with_concurrency(
             20, *tasks
         )
+        timings.parallel_subqueries_wall = time.perf_counter() - t_parallel_subqueries
+        timings.per_subquery = [item.timings for item in partial]
 
         lexical_merged = self._merge_scored_dicts([item.lexical for item in partial])
         semantic_merged = self._merge_scored_dicts([item.semantic for item in partial])
@@ -928,11 +966,14 @@ class HybridSearcher:
         final_queries = self._merge_dimensions_into_queries(final_merged)
         logger.info(f"Final hybrid queries: {final_queries}")
 
+        timings.total = time.perf_counter() - t_total
+
         return HybridSearchResult(
             lexical=lexical_merged,
             semantic=semantic_merged,
             llm_scored=llm_scored_merged,
             final_queries=final_queries,
+            timings=timings,
         )
 
     @staticmethod
