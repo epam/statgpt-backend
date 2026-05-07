@@ -19,6 +19,9 @@ class JsonQueryOperator(StrEnum):
     """Greater than"""
     LT = "lt"
     """Less than"""
+    EXCLUDED = "excluded"
+    """User selected a value valid in another dataset, but, given the other
+    selected filters, no such value exists for this dimension here."""
 
 
 class JsonComponentQuery(BaseYamlModel):
