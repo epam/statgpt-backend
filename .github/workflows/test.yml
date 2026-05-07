@@ -34,7 +34,7 @@ on:
       ort-version:
         type: string
         description: ORT version to use
-        default: "latest"
+        default: "85.0.0" # HACK: pin ORT version due to java.util.NoSuchElementException in 85.1.0
       python-version:
         type: string
         description: Python version to use
