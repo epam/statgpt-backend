@@ -46,7 +46,7 @@ dependencies = [
     # Configuration & File handling
     'python-dotenv (>=1.2.2,<2.0.0)',            # Environment variable management
     'pyyaml (>=6.0.1,<7.0.0)',                   # YAML file support
-    'python-multipart (>=0.0.26,<0.1.0)',        # Multipart form data (for FastAPI file uploads)
+    'python-multipart (>=0.0.27,<0.1.0)',        # Multipart form data (for FastAPI file uploads)
 
     # Utilities
     'python-dateutil (>=2.9.0.post0,<3.0.0)',    # Date/time utilities
