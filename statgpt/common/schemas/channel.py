@@ -53,6 +53,20 @@ class SupremeAgentConfig(BaseYamlModel):
         default="",
         description="Additional context for the supreme agent",
     )
+    general_section: str = Field(
+        default="",
+        description=(
+            "Custom content for the 'General' section of the system prompt."
+            " If empty, the default content is used."
+        ),
+    )
+    no_calculations_section: str = Field(
+        default="",
+        description=(
+            "Custom content for the 'No Calculations and Analytics' section of the system prompt."
+            " If empty, the default content is used."
+        ),
+    )
 
 
 class OutOfScopeConfig(BaseYamlModel):
@@ -137,7 +151,8 @@ class ChannelConfig(BaseYamlModel):
         default=None, description="The onboarding configuration"
     )
     named_entity_types: list[str] = Field(
-        default_factory=list, description="The named entity types used for named entity extraction"
+        default_factory=list,
+        description="The named entity types used for named entity extraction",
     )
     country_named_entity_type: str = Field(
         default="Country/Reference Area",
