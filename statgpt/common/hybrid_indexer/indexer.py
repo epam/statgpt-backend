@@ -421,9 +421,7 @@ class Indexer:
         )
 
     def _create_series(self, dataset: Sdmx21DataSet, indicator: ComplexIndicator) -> _Series:
-        indexer_config: base.IndexerConfig | None = dataset.config.indexer
-        if indexer_config is None:
-            raise RuntimeError(f"dataset {dataset.entity_id} with no indexer configuration")
+        indexer_config: base.IndexerConfig = dataset.config.indexer
 
         name_parts = []
         where = []

@@ -1,7 +1,7 @@
 import logging
 from abc import ABC
 from collections.abc import Generator
-from typing import Annotated, Literal, Self
+from typing import Annotated, Any, Literal, Self
 
 from pydantic import Field, SerializeAsAny, StrictStr, model_validator
 
@@ -201,10 +201,32 @@ class BaseDataSetConfig(BaseModel):
             "no citation URL is configured."
         ),
     )
-    indexer: Annotated[IndexerConfig | None, IndexingField()] = Field(default=None)
+    indexer: Annotated[IndexerConfig, IndexingField()] = Field(
+        default_factory=IndexerConfig,
+        description=(
+            "Indicator indexing settings. Stored configs may use ``indexer: null`` or omit the "
+            "key; both are normalized to the same default object before validation so the "
+            "indexing hash stays stable."
+        ),
+    )
     pinned_columns: list[str] = Field(
         description="Column names and order to pin in the data in grid", default_factory=list
     )
+
+    @model_validator(mode="before")
+    @classmethod
+    def _normalize_indexer_null_to_empty_dict(cls, data: Any) -> Any:
+        """Normalize ``indexer`` so a missing key or ``null`` parses like ``{}``.
+
+        Substituting ``{}`` before nested validation yields the same default
+        ``IndexerConfig`` as an explicit empty object, so ``indexing_hash`` stays
+        stable across equivalent serialized forms.
+        """
+        if not isinstance(data, dict):
+            return data
+        if data.get("indexer") is None:
+            return {**data, "indexer": {}}
+        return data
 
     def get_data_explorer_url(self) -> str | None:
         if self.data_explorer_url:

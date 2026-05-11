@@ -1,9 +1,9 @@
 """Unit tests for the IndexingField marker and hash computation utilities."""
 
-from typing import Annotated
+from typing import Annotated, Any
 
 import pytest
-from pydantic import BaseModel, ConfigDict, Field, alias_generators
+from pydantic import BaseModel, ConfigDict, Field, alias_generators, model_validator
 
 from statgpt.common.data.base.indexing import (
     IndexingField,
@@ -678,3 +678,268 @@ class TestIndexingHashMixinWithNonIndexingFieldsFromTypeError:
         obj = NotAModel()
         with pytest.raises(TypeError, match="must be used with Pydantic BaseModel"):
             obj.with_non_indexing_fields_from(obj)  # type: ignore[arg-type]
+
+
+class TestUnmarkedFieldsAddedToModel:
+    """Sanity checks: adding NEW unmarked fields to a model does not affect the hash.
+
+    This documents the EXPECTED behavior referenced in the bug report
+    (e.g. adding ``view_in_data_explorer``). These tests should always pass —
+    they are sanity guards to rule out the unmarked-field path as the source
+    of unexpected reindexing.
+    """
+
+    def test_unmarked_field_with_default_does_not_affect_hash(self) -> None:
+        """A new unmarked field with a default does not change the hash."""
+
+        class Old(BaseModel, IndexingHashMixin):
+            marked: Annotated[str, IndexingField()] = "v"
+
+        class New(BaseModel, IndexingHashMixin):
+            marked: Annotated[str, IndexingField()] = "v"
+            new_unmarked: bool = True  # ← added later, default-True, NOT marked
+
+        old_hash = compute_indexing_hash(Old(marked="x"))
+        new_hash_default = compute_indexing_hash(New(marked="x"))
+        new_hash_explicit_true = compute_indexing_hash(New(marked="x", new_unmarked=True))
+        new_hash_explicit_false = compute_indexing_hash(New(marked="x", new_unmarked=False))
+
+        assert old_hash == new_hash_default == new_hash_explicit_true == new_hash_explicit_false
+
+    def test_unmarked_field_value_change_does_not_affect_hash(self) -> None:
+        class Model(BaseModel, IndexingHashMixin):
+            marked: Annotated[str, IndexingField()] = ""
+            unmarked: bool = True
+
+        m1 = Model(marked="x", unmarked=True)
+        m2 = Model(marked="x", unmarked=False)
+
+        assert compute_indexing_hash(m1) == compute_indexing_hash(m2)
+
+
+class TestKnownIssuesFlakyReindex:
+    """Regression tests documenting known bugs that can cause spurious reindexing.
+
+    These tests assert the *current* (buggy) behavior so that they pass on
+    the existing code base. They serve as living documentation and will
+    start to fail when the underlying issues are addressed — at which
+    point the assertions should be updated to reflect the new, correct
+    behavior.
+
+    The issues documented here are the most likely root cause of the
+    "flaky" reindex bug observed in production: depending on whether the
+    admin UI / API submits an ``Optional[BaseModel]`` field as ``null`` /
+    omits it entirely / fills it in with default values, the same
+    semantically equivalent configuration produces *different* indexing
+    hashes.
+    """
+
+    def test_optional_basemodel_none_vs_default_instance_differ(self) -> None:
+        """Optional[BaseModel] field with ``default=None``: ``None`` and a
+        default-constructed instance should be semantically equivalent but
+        produce *different* hashes today.
+
+        This mirrors optional nested configs such as ``BaseDimensionConfig.virtual``
+        (still ``Optional[...]`` + ``IndexingField``). ``BaseDataSetConfig.indexer``
+        used to exhibit the same pattern; it is now required + normalized
+        (see production model and ``TestIndexerLikeFieldHashStability``).
+        """
+
+        class Inner(BaseModel):
+            flag: Annotated[bool, IndexingField()] = False
+            label: Annotated[str | None, IndexingField()] = None
+
+        class Outer(BaseModel, IndexingHashMixin):
+            inner: Annotated[Inner | None, IndexingField()] = None
+
+        none_form = Outer(inner=None)
+        default_form = Outer(inner=Inner())
+
+        none_fields = dict(_collect_indexing_fields(none_form))
+        default_fields = dict(_collect_indexing_fields(default_form))
+
+        # Different shapes: scalar None vs. nested flat keys.
+        assert none_fields == {"inner": None}
+        assert default_fields == {"inner.flag": False, "inner.label": None}
+
+        # Therefore hashes differ — this is the BUG that triggers
+        # spurious reindexing in production.
+        assert compute_indexing_hash(none_form) != compute_indexing_hash(default_form)
+
+    def test_dimensions_dict_value_explicit_default_changes_hash(self) -> None:
+        """``Optional[BaseModel]`` inside an items-dict shows the same bug.
+
+        Mirrors ``BaseDimensionConfig.virtual``: a dimension stored
+        without ``virtual`` parses to ``virtual=None``; one stored with
+        ``virtual: {...all-default...}`` parses to a default
+        ``VirtualDimensionConfig`` and produces a different hash.
+        """
+
+        class Virtual(BaseModel):
+            label: Annotated[str, IndexingField()] = "default-label"
+
+        class DimConfig(BaseModel):
+            dimension_type: Annotated[str, IndexingField()] = "INDICATOR"
+            virtual: Annotated[Virtual | None, IndexingField()] = None
+
+        class DataSet(BaseModel, IndexingHashMixin):
+            dimensions: Annotated[dict[str, DimConfig], IndexingField()] = Field(
+                default_factory=dict
+            )
+
+        none_form = DataSet(dimensions={"DIM1": DimConfig()})
+        default_form = DataSet(dimensions={"DIM1": DimConfig(virtual=Virtual())})
+
+        assert compute_indexing_hash(none_form) != compute_indexing_hash(default_form)
+
+    def test_merge_models_when_current_nested_basemodel_is_none_uses_resolved(
+        self,
+    ) -> None:
+        """If ``current`` has ``None`` for a marked nested ``BaseModel`` while
+        ``resolved`` has a value, merge must not recurse into ``None`` (which
+        used to raise ``AttributeError``). The nested object is taken entirely
+        from ``resolved``.
+        """
+
+        class Inner(BaseModel):
+            unmarked_only: str = "x"
+
+        class Outer(BaseModel, IndexingHashMixin):
+            inner: Annotated[Inner | None, IndexingField()] = None
+
+        resolved = Outer(inner=Inner(unmarked_only="from_resolved"))
+        current = Outer(inner=None)
+
+        merged = resolved.with_non_indexing_fields_from(current)
+
+        assert merged.inner == Inner(unmarked_only="from_resolved")
+
+    def test_adding_new_marked_field_with_default_changes_hash(self) -> None:
+        """Adding any IndexingField-marked field with a default to an
+        existing model unconditionally changes the hash of all
+        previously-stored configs.
+
+        There is currently no opt-out for this — every newly added marked
+        field is included verbatim, so any rollout of a new marked field
+        forces a one-time reindex of every dataset. This is a meaningful
+        operational hazard for any optional marked field that lacks a
+        normalization strategy.
+        """
+
+        class OldModel(BaseModel, IndexingHashMixin):
+            existing: Annotated[str, IndexingField()] = "v"
+
+        class NewModel(BaseModel, IndexingHashMixin):
+            existing: Annotated[str, IndexingField()] = "v"
+            new_field: Annotated[int, IndexingField()] = 0  # newly added
+
+        old_hash = compute_indexing_hash(OldModel(existing="x"))
+        new_hash = compute_indexing_hash(NewModel(existing="x"))
+
+        assert old_hash != new_hash
+
+    def test_removing_marked_field_changes_hash_for_old_stored_configs(
+        self,
+    ) -> None:
+        """Removing an IndexingField also changes hashes for old configs.
+
+        The removed field becomes an *extra* (because the project's
+        ``BaseModel`` uses ``extra='allow'``) and is no longer included
+        in the hash — different from the hash that was computed before
+        removal.
+
+        This describes the situation after recent commits like
+        ``rm stale dataset indexing.description field`` and
+        ``rm stale useCodeListDescription dataset indexer config field``,
+        and is another one-time spurious-reindex source.
+        """
+
+        class OldModel(BaseModel, IndexingHashMixin):
+            keep: Annotated[str, IndexingField()] = "v"
+            removed: Annotated[str, IndexingField()] = ""
+
+        class NewModel(BaseModel, IndexingHashMixin):
+            model_config = ConfigDict(extra="allow")
+            keep: Annotated[str, IndexingField()] = "v"
+
+        old_hash = compute_indexing_hash(OldModel(keep="x", removed="something"))
+
+        # Re-parsing the *same* stored dict in the new model preserves
+        # the extra field but excludes it from the hash.
+        new_instance = NewModel.model_validate({"keep": "x", "removed": "something"})
+        new_hash = compute_indexing_hash(new_instance)
+
+        assert old_hash != new_hash
+
+
+class TestIndexerLikeFieldHashStability:
+    """Toy model mirroring ``BaseDataSetConfig.indexer`` normalization.
+
+    Required ``IndexerCfg`` + ``model_validator(mode='before')`` that maps
+    ``indexer: null`` to ``{}`` matches production so wire-form differences
+    do not change ``indexing_hash``.
+    """
+
+    @staticmethod
+    def _make_models():
+        class IndicatorCfg(BaseModel):
+            unpack: Annotated[bool, IndexingField()] = False
+            super_primary: Annotated[bool, IndexingField()] = False
+
+        class IndexerCfg(BaseModel, IndexingHashMixin):
+            indicator: Annotated[IndicatorCfg, IndexingField()] = Field(
+                default_factory=IndicatorCfg
+            )
+
+        class DataSetCfg(BaseModel, IndexingHashMixin):
+            @model_validator(mode="before")
+            @classmethod
+            def _normalize_indexer_null(cls, data: Any) -> Any:
+                if not isinstance(data, dict):
+                    return data
+                if data.get("indexer") is None:
+                    return {**data, "indexer": {}}
+                return data
+
+            urn: Annotated[str, IndexingField()] = ""
+            indexer: Annotated[IndexerCfg, IndexingField()] = Field(default_factory=IndexerCfg)
+
+        return DataSetCfg, IndexerCfg, IndicatorCfg
+
+    def test_missing_key_and_explicit_null_match(self) -> None:
+        """Missing ``indexer`` and ``indexer: null`` normalize like ``{}``."""
+        DataSetCfg, _, _ = self._make_models()
+
+        no_key = DataSetCfg.model_validate({"urn": "u"})
+        explicit_null = DataSetCfg.model_validate({"urn": "u", "indexer": None})
+
+        assert compute_indexing_hash(no_key) == compute_indexing_hash(explicit_null)
+
+    def test_null_and_default_filled_dict_match(self) -> None:
+        """``indexer: null``, ``{}``, and explicit defaults hash identically."""
+        DataSetCfg, _, _ = self._make_models()
+
+        as_null = DataSetCfg.model_validate({"urn": "u", "indexer": None})
+        as_empty_dict = DataSetCfg.model_validate({"urn": "u", "indexer": {}})
+        as_default_filled = DataSetCfg.model_validate(
+            {
+                "urn": "u",
+                "indexer": {"indicator": {"unpack": False, "super_primary": False}},
+            }
+        )
+
+        h_null = compute_indexing_hash(as_null)
+        h_empty = compute_indexing_hash(as_empty_dict)
+        h_filled = compute_indexing_hash(as_default_filled)
+
+        assert h_null == h_empty == h_filled
+
+    def test_round_trip_through_json_dump_is_stable(self) -> None:
+        """Parse → ``model_dump(mode='json')`` → parse preserves indexing hash."""
+        DataSetCfg, _, _ = self._make_models()
+
+        m1 = DataSetCfg.model_validate({"urn": "u"})
+        dumped = m1.model_dump(mode="json")
+        m2 = DataSetCfg.model_validate(dumped)
+
+        assert compute_indexing_hash(m1) == compute_indexing_hash(m2)

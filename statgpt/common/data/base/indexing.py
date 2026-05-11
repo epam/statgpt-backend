@@ -175,7 +175,10 @@ def _merge_models(*, resolved: _T, current: _T) -> _T:
             if resolved_val is None:
                 updates[field_name] = None
             elif isinstance(resolved_val, BaseModel):
-                updates[field_name] = _merge_models(resolved=resolved_val, current=current_val)
+                if current_val is None:
+                    updates[field_name] = resolved_val
+                else:
+                    updates[field_name] = _merge_models(resolved=resolved_val, current=current_val)
             elif isinstance(resolved_val, dict):
                 # dict[str, BaseModel] like dimensions - merge per key
                 merged_dict: dict[str, Any] = {}

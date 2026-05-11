@@ -109,7 +109,7 @@ async def test_create_dataset(session, clear_all, sdmx_clint_mock):
     assert dataset.data_source_id == data_source.id
     assert dataset.details['urn'] == URN_CPI_4_0_0
     assert dataset.details['citation'] is None
-    assert dataset.details['indexer'] is None
+    assert dataset.details['indexer'] == IndexerConfig().model_dump(mode='json', by_alias=True)
 
     assert len(dataset.details['dimensions']) == len(DIMENSIONS)
     for dim_id, dim_config in DIMENSIONS.items():
@@ -190,7 +190,7 @@ async def test_update_dataset(session, clear_all, sdmx_clint_mock):
     assert dataset.title == 'CPI Updated'
     assert dataset.details['urn'] == URN_CPI_3_0_1
     assert dataset.details['citation'] == citation.model_dump(by_alias=True)
-    assert dataset.details['indexer'] == indexer_config.model_dump(by_alias=True)
+    assert dataset.details['indexer'] == indexer_config.model_dump(mode='json', by_alias=True)
 
     res = await dataset_service.get_schema_by_id(dataset.id, auth_context=SystemUserAuthContext())
     assert res.id_ == random_uuid
