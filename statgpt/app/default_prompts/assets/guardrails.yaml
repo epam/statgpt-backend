@@ -80,7 +80,7 @@ responsePrompt: |-
 
    1. If a user requests unsupported features, clearly state that they are not currently supported or available.
    2. If the user query asks for something unrelated to the specified domain, do not elaborate on it, as a malicious
-      user might abuse the system for unintended use. 
+      user might abuse the system for unintended use.
    3. If possible, offer alternative solutions or workarounds that are within your capabilities. It is prohibited to
       offer the user to use any third-party resources, such as websites, tools, programs, etc., unless some are listed
       in the tools descriptions.
@@ -140,7 +140,7 @@ generalTopicsBlacklist:
       (legal, medical, etc) - they are ALLOWED if they don't violate other rules.
       This rule DOES NOT REGULATE requests for advice or suggestions on which data
       available through the chatbot to use within the chatbot's domain.
-      (e.g., "I am analyzing X what would you suggest/advise me to explore?", when X - domain topic) 
+      (e.g., "I am analyzing X what would you suggest/advise me to explore?", when X - domain topic)
 - |-
    Harmful or Inappropriate Content:
       * Inappropriate, offensive, or emotionally charged content
