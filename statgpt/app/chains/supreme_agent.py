@@ -209,13 +209,12 @@ class SupremeAgent:
 
     @classmethod
     def _create_system_prompt(cls, channel_config: ChannelConfig) -> str:
+        template = supreme_agent_default_prompts.system_prompt
+
         if channel_config.supreme_agent.additional_context:
-            return (
-                supreme_agent_default_prompts.system_prompt
-                + "\n\n"
-                + supreme_agent_default_prompts.additional_context_wrapper_section
-            )
-        return supreme_agent_default_prompts.system_prompt
+            template += "\n\n" + supreme_agent_default_prompts.additional_context_wrapper_section
+
+        return template
 
     @classmethod
     def _create_chain(
@@ -237,6 +236,14 @@ class SupremeAgent:
             ),
             additional_instructions=channel_config.supreme_agent.additional_instructions,
             additional_context=channel_config.supreme_agent.additional_context,
+            general_section=(
+                channel_config.supreme_agent.general_section
+                or supreme_agent_default_prompts.default_general_section
+            ),
+            no_calculations_section=(
+                channel_config.supreme_agent.no_calculations_section
+                or supreme_agent_default_prompts.default_no_calculations_section
+            ),
         )
         model = get_chat_model(
             api_key=auth_context.api_key,

@@ -145,6 +145,11 @@ def generate_python_code_from_query(
 
 
 def generate_merged_python_code(queries: list[JsonQueryWithMetadata]) -> str:
+    queries = [
+        q for q in queries if not any(f.operator == JsonQueryOperator.EXCLUDED for f in q.filters)
+    ]
+    if not queries:
+        return PYTHON_SDMX1_HEADER
     if len(queries) == 1:
         body = generate_python_code_from_query(queries[0])
     else:
