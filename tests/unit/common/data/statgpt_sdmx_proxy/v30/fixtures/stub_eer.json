@@ -1,0 +1,375 @@
+{
+  "meta": {
+    "id": "stub-fixture-eer",
+    "prepared": "2026-01-01T00:00:00",
+    "test": false,
+    "sender": {
+      "id": "unknown"
+    }
+  },
+  "data": {
+    "dataSets": [
+      {
+        "links": [
+          {
+            "rel": "dataflow",
+            "urn": "urn:sdmx:org.sdmx.infomodel.datastructure.Dataflow=STUB_ORG:TEST_EER(1.0)"
+          }
+        ],
+        "reportingBegin": "2024-01-01T00:00:00",
+        "reportingEnd": "2024-05-31T23:59:59",
+        "structure": 0,
+        "action": "Information",
+        "series": {
+          "0:0:0:0": {
+            "attributes": [
+              null,
+              0,
+              0,
+              0
+            ],
+            "observations": {
+              "0": [
+                "102.23",
+                0,
+                0,
+                null
+              ],
+              "1": [
+                "102.23",
+                0,
+                0,
+                null
+              ],
+              "2": [
+                "102.69",
+                0,
+                0,
+                null
+              ],
+              "3": [
+                "102.58",
+                0,
+                0,
+                null
+              ],
+              "4": [
+                "102.64",
+                0,
+                0,
+                null
+              ]
+            }
+          },
+          "1:0:0:0": {
+            "attributes": [
+              null,
+              0,
+              0,
+              0
+            ],
+            "observations": {
+              "5": [
+                "102.23",
+                0,
+                0,
+                null
+              ],
+              "6": [
+                "102.14",
+                0,
+                0,
+                null
+              ],
+              "7": [
+                "102.07",
+                0,
+                0,
+                null
+              ],
+              "8": [
+                "102.12",
+                0,
+                0,
+                null
+              ],
+              "9": [
+                "102.08",
+                0,
+                0,
+                null
+              ]
+            }
+          }
+        }
+      }
+    ],
+    "structures": [
+      {
+        "links": [
+          {
+            "rel": "dataflow",
+            "urn": "urn:sdmx:org.sdmx.infomodel.datastructure.Dataflow=STUB_ORG:TEST_EER(1.0)"
+          }
+        ],
+        "name": "Test Effective Exchange Rates",
+        "names": {
+          "en": "Test Effective Exchange Rates"
+        },
+        "dimensions": {
+          "dataset": [],
+          "series": [
+            {
+              "id": "FREQ",
+              "name": "Frequency",
+              "keyPosition": 0,
+              "role": null,
+              "values": [
+                {
+                  "id": "M",
+                  "name": "Monthly"
+                },
+                {
+                  "id": "D",
+                  "name": "Daily"
+                }
+              ]
+            },
+            {
+              "id": "EER_TYPE",
+              "name": "Type",
+              "keyPosition": 1,
+              "role": null,
+              "values": [
+                {
+                  "id": "N",
+                  "name": "Nominal",
+                  "description": "Weighted average of bilateral exchange rates. BIS-calculated NEERs are geometric\u00c2\u00a0trade-weighted averages of bilateral exchange rates. An increase in the index indicates\u00c2\u00a0an appreciation. See also \"effective exchange rate\" and \"real effective exchange rate\"."
+                }
+              ]
+            },
+            {
+              "id": "EER_BASKET",
+              "name": "Basket",
+              "keyPosition": 2,
+              "role": null,
+              "values": [
+                {
+                  "id": "B",
+                  "name": "Broad (64 economies)"
+                }
+              ]
+            },
+            {
+              "id": "REF_AREA",
+              "name": "Reference area",
+              "keyPosition": 3,
+              "role": null,
+              "values": [
+                {
+                  "id": "DE",
+                  "name": "Germany"
+                }
+              ]
+            }
+          ],
+          "observation": [
+            {
+              "id": "TIME_PERIOD",
+              "name": "Time period or range",
+              "keyPosition": 4,
+              "role": "time",
+              "values": [
+                {
+                  "start": "2024-01-01T00:00:00",
+                  "end": "2024-01-31T23:59:59",
+                  "id": "2024-M01",
+                  "name": "2024-M01"
+                },
+                {
+                  "start": "2024-02-01T00:00:00",
+                  "end": "2024-02-29T23:59:59",
+                  "id": "2024-M02",
+                  "name": "2024-M02"
+                },
+                {
+                  "start": "2024-03-01T00:00:00",
+                  "end": "2024-03-31T23:59:59",
+                  "id": "2024-M03",
+                  "name": "2024-M03"
+                },
+                {
+                  "start": "2024-04-01T00:00:00",
+                  "end": "2024-04-30T23:59:59",
+                  "id": "2024-M04",
+                  "name": "2024-M04"
+                },
+                {
+                  "start": "2024-05-01T00:00:00",
+                  "end": "2024-05-31T23:59:59",
+                  "id": "2024-M05",
+                  "name": "2024-M05"
+                },
+                {
+                  "start": "2024-01-01T00:00:00",
+                  "end": "2024-01-01T23:59:59",
+                  "id": "2024-01-01",
+                  "name": "2024-01-01"
+                },
+                {
+                  "start": "2024-01-02T00:00:00",
+                  "end": "2024-01-02T23:59:59",
+                  "id": "2024-01-02",
+                  "name": "2024-01-02"
+                },
+                {
+                  "start": "2024-01-03T00:00:00",
+                  "end": "2024-01-03T23:59:59",
+                  "id": "2024-01-03",
+                  "name": "2024-01-03"
+                },
+                {
+                  "start": "2024-01-04T00:00:00",
+                  "end": "2024-01-04T23:59:59",
+                  "id": "2024-01-04",
+                  "name": "2024-01-04"
+                },
+                {
+                  "start": "2024-01-05T00:00:00",
+                  "end": "2024-01-05T23:59:59",
+                  "id": "2024-01-05",
+                  "name": "2024-01-05"
+                }
+              ]
+            }
+          ]
+        },
+        "attributes": {
+          "dataset": [],
+          "series": [
+            {
+              "id": "TIME_FORMAT",
+              "name": "Time Format",
+              "relationship": {
+                "dimensions": [
+                  "FREQ",
+                  "EER_TYPE",
+                  "EER_BASKET",
+                  "REF_AREA"
+                ]
+              },
+              "role": null,
+              "values": []
+            },
+            {
+              "id": "COLLECTION",
+              "name": "Collection Indicator",
+              "relationship": {
+                "dimensions": [
+                  "FREQ",
+                  "EER_TYPE",
+                  "EER_BASKET",
+                  "REF_AREA"
+                ]
+              },
+              "role": null,
+              "values": [
+                {
+                  "id": "A",
+                  "name": "Average of observations through period"
+                }
+              ]
+            },
+            {
+              "id": "TITLE_TS",
+              "name": "Title (tseries level)",
+              "relationship": {
+                "dimensions": [
+                  "FREQ",
+                  "EER_TYPE",
+                  "EER_BASKET",
+                  "REF_AREA"
+                ]
+              },
+              "role": null,
+              "values": [
+                {
+                  "id": "Germany - Nominal - Broad (64 economies)",
+                  "name": "Germany - Nominal - Broad (64 economies)"
+                }
+              ]
+            },
+            {
+              "id": "UNIT_MEASURE",
+              "name": "Unit of measure",
+              "relationship": {},
+              "role": null,
+              "values": [
+                {
+                  "id": "882",
+                  "name": "Index, 2020 = 100"
+                }
+              ]
+            }
+          ],
+          "observation": [
+            {
+              "id": "OBS_STATUS",
+              "name": "Observation Status",
+              "relationship": {
+                "primaryMeasure": "OBS_VALUE"
+              },
+              "role": null,
+              "values": [
+                {
+                  "id": "A",
+                  "name": "Normal value"
+                },
+                {
+                  "id": "H",
+                  "name": "Missing value; holiday or weekend"
+                }
+              ]
+            },
+            {
+              "id": "OBS_CONF",
+              "name": "Observation confidentiality",
+              "relationship": {
+                "primaryMeasure": "OBS_VALUE"
+              },
+              "role": null,
+              "values": [
+                {
+                  "id": "F",
+                  "name": "Free"
+                }
+              ]
+            },
+            {
+              "id": "OBS_PRE_BREAK",
+              "name": "Pre-Break Observation",
+              "relationship": {
+                "primaryMeasure": "OBS_VALUE"
+              },
+              "role": null,
+              "values": []
+            }
+          ]
+        },
+        "measures": {
+          "observation": [
+            {
+              "id": "OBS_VALUE",
+              "name": "Observation Value",
+              "role": null,
+              "values": []
+            }
+          ]
+        },
+        "dataSets": [
+          0
+        ]
+      }
+    ]
+  }
+}
