@@ -60,10 +60,10 @@ curations:
       curations:
         concluded_license: "BSD-3-Clause"
         comment: "BSD 3-Clause License: https://github.com/Python-Markdown/markdown/blob/3.10.0/LICENSE.md"
-    - id: "PyPI::click:8.3.1"
+    - id: "PyPI::click:8.3.3"
       curations:
         concluded_license: "BSD-3-Clause"
-        comment: "BSD 3-Clause License: https://github.com/pallets/click/blob/8.3.1/LICENSE.txt"
+        comment: "BSD 3-Clause License: https://github.com/pallets/click/blob/8.3.3/LICENSE.txt"
     - id: "PyPI::zipp:3.23.0"
       curations:
         concluded_license: "MIT"
