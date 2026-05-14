@@ -3,6 +3,7 @@ from collections.abc import MutableMapping
 from typing import Annotated, Any, Generic, Literal, TypeVar
 
 from langchain_core.tools import BaseTool, InjectedToolArg
+from mcp.types import ToolAnnotations
 from pydantic import BaseModel, Field
 
 from statgpt.app.schemas import ToolArtifact
@@ -54,6 +55,21 @@ class ToolArgs(BaseModel):
     # LLM can't set this field because it's not added to the tool schema shown to LLM.
     # `inputs` is used to pass execution context from Supreme Agent to the tool.
     inputs: Annotated[dict, InjectedToolArg] = Field()
+
+    @classmethod
+    def get_public_schema(cls) -> dict[str, Any]:
+        """Return JSON Schema with injected (non-user-facing) fields removed."""
+        injected_fields = {
+            name for name, field in cls.model_fields.items() if InjectedToolArg in field.metadata
+        }
+        schema = cls.model_json_schema()
+        props = schema.get("properties", {})
+        required = schema.get("required", [])
+        for name in injected_fields:
+            props.pop(name, None)
+            if name in required:
+                required.remove(name)
+        return schema
 
 
 ToolConfigType = TypeVar('ToolConfigType', bound=BaseToolConfig)
@@ -120,6 +136,13 @@ class StatGptTool(BaseTool, ABC, Generic[ToolConfigType]):
         """Return the schema for the arguments that this tool accepts."""
         return ToolArgs
 
+    @classmethod
+    @abstractmethod
+    def get_mcp_annotations(cls) -> ToolAnnotations:
+        """MCP tool hints may be used by clients for UX decisions (e.g. skipping
+        confirmation prompts for read-only tools, flagging open-world tools).
+        Advisory only — clients must not rely on them for security."""
+
     @staticmethod
     def from_config(tool_config: ToolConfigType, channel_config: ChannelConfig) -> 'StatGptTool':
         cls = _TOOL_IMPLEMENTATIONS[tool_config.type]
@@ -131,3 +154,7 @@ class StatGptTool(BaseTool, ABC, Generic[ToolConfigType]):
             description=tool_config.description,
             args_schema=cls.get_args_schema(tool_config),
         )
+
+    def get_public_args_schema(self) -> dict[str, Any]:
+        """Get JSON Schema for tool parameters, excluding injected args."""
+        return self.get_args_schema(self._tool_config).get_public_schema()

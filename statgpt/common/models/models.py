@@ -57,7 +57,7 @@ class Channel(DefaultBase):
         return f"Indicators_{self.id}"
 
     @property
-    def available_dimensions_table_name(self) -> str:
+    def non_indicator_dimensions_table_name(self) -> str:
         return f"AvailableDimensions_{self.id}"
 
     @property
@@ -282,7 +282,9 @@ class AutoUpdateJob(DefaultBase):
 
     __tablename__ = "auto_update_jobs"
 
-    channel_dataset_id: Mapped[int] = mapped_column(ForeignKey("channel_datasets.id"))
+    channel_dataset_id: Mapped[int] = mapped_column(
+        ForeignKey("channel_datasets.id", ondelete="CASCADE")
+    )
     base_version_id: Mapped[int | None] = mapped_column(
         ForeignKey("channel_dataset_versions.id", ondelete="CASCADE"), default=None
     )

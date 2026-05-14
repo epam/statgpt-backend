@@ -1,7 +1,6 @@
 import typing as t
 
 import pandas as pd
-from aidial_sdk.chat_completion import Choice
 from pydantic import BaseModel, ConfigDict, Field
 
 from statgpt.app.config import StateVarsConfig
@@ -11,6 +10,7 @@ from statgpt.app.services.chat_facade import (
     ScoredIndicatorCandidate,
     VersionedDataSet,
 )
+from statgpt.app.utils.dial_stages import ChoiceI
 from statgpt.common.auth.auth_context import AuthContext
 from statgpt.common.config import multiline_logger as logger
 from statgpt.common.data.base import (
@@ -149,9 +149,35 @@ class RetrievalStagesResults(BaseModel):
     )
 
 
+class HybridMatchTimings(BaseModel):
+    """Per-subquery timing breakdown for HybridMatch.search. All values in seconds."""
+
+    query: str = ''
+    query_planner: float = 0.0
+    lexical: float = 0.0
+    semantic_raw: float = 0.0
+    hybrid_combination: float = 0.0
+    hybrid_candidates_total: float = 0.0
+    relevance_per_batch: list[float] = Field(default_factory=list)
+    relevance_total: float = 0.0
+    total: float = 0.0
+
+
+class HybridSearchTimings(BaseModel):
+    """Top-level timing breakdown for HybridSearcher.search. All values in seconds."""
+
+    lexical_pre_match: float = 0.0
+    normalize_input: float = 0.0
+    separate_subjects: float = 0.0
+    parallel_subqueries_wall: float = 0.0
+    total: float = 0.0
+    per_subquery: list[HybridMatchTimings] = Field(default_factory=list)
+
+
 class IndicatorsSearchResult(BaseModel):
     queries: DatasetAvailabilityQueriesType
     retrieval_results: RetrievalStagesResults
+    hybrid_search_timings: HybridSearchTimings | None = None
 
 
 class SpecialDimensionChainOutput(BaseModel):
@@ -219,6 +245,13 @@ class QueryBuilderAgentState(ToolMessageState):
     special_dims_outputs: dict[str, SpecialDimensionChainOutput] = Field(
         description="mapping from SpecialDimensionsProcessor.id to its chain output",
         default_factory=dict,
+    )
+    hybrid_search_timings: HybridSearchTimings | None = Field(
+        default=None,
+        description=(
+            "Per-phase timing breakdown of the hybrid indicator search. "
+            "None when debug stages are disabled."
+        ),
     )
 
 
@@ -339,7 +372,7 @@ class ChainState(BaseModel):
     """
 
     auth_context: AuthContext
-    choice: Choice
+    choice: ChoiceI
     target: t.Any
     state: dict[str, t.Any] = Field(default_factory=dict)
     data_service: ChannelServiceFacade
@@ -369,6 +402,7 @@ class ChainState(BaseModel):
     strong_availability: DatasetAvailabilityQueriesType = {}
 
     retrieval_results: RetrievalStagesResults = RetrievalStagesResults()
+    hybrid_search_timings: HybridSearchTimings | None = None
     special_dims_outputs: dict[str, SpecialDimensionChainOutput] = {}
     dataset_queries: dict[str, DataSetQuery] = {}  # final data queries
 

@@ -8,7 +8,7 @@ MCP server for coding agents such as Cursor or Claude Code. Used for dataset onb
 
 1. Install dependencies:
    ```bash
-   poetry install -E beta-mcp
+   poetry install -E mcp
    ```
    or with make:
    ```bash

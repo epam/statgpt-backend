@@ -32,10 +32,10 @@ curations:
       curations:
         concluded_license: "MIT"
         comment: "MIT License: https://github.com/openai/tiktoken/blob/0.12.0/LICENSE"
-    - id: "PyPI::urllib3:2.6.3"
+    - id: "PyPI::urllib3:2.7.0"
       curations:
         concluded_license: "MIT"
-        comment: "MIT License: https://github.com/urllib3/urllib3/blob/2.6.3/LICENSE.txt"
+        comment: "MIT License: https://github.com/urllib3/urllib3/blob/2.7.0/LICENSE.txt"
     - id: "PyPI::typing-extensions:4.15.0"
       curations:
         concluded_license: "PSF-2.0"
@@ -152,10 +152,10 @@ curations:
       curations:
         concluded_license: "Apache-2.0"
         comment: "Apache 2.0 License: https://github.com/open-telemetry/opentelemetry-python/blob/v1.39.1/opentelemetry-api/LICENSE"
-    - id: "PyPI::cryptography:46.0.6"
+    - id: "PyPI::cryptography:46.0.7"
       curations:
         concluded_license: "Apache-2.0 OR BSD-3-Clause"
-        comment: "Dual License (Apache 2.0 or BSD 3-Clause): https://github.com/pyca/cryptography/blob/46.0.6/LICENSE"
+        comment: "Dual License (Apache 2.0 or BSD 3-Clause): https://github.com/pyca/cryptography/blob/46.0.7/LICENSE"
     - id: "PyPI::psycopg:3.3.2"
       curations:
         concluded_license: "LGPL-3.0-or-later"

@@ -2,7 +2,6 @@ import asyncio
 import json
 
 import pandas as pd
-from aidial_sdk.chat_completion import Choice
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import (
     ChatPromptTemplate,
@@ -14,6 +13,7 @@ from langchain_core.runnables import Runnable, RunnablePassthrough
 from statgpt.app.chains.data_query.parameters import DataQueryParameters
 from statgpt.app.chains.parameters import ChainParameters
 from statgpt.app.services.chat_facade import VersionedDataSet
+from statgpt.app.utils.dial_stages import ChoiceI
 from statgpt.common.config import multiline_logger as logger
 from statgpt.common.data.base import CategoricalDimension, DataSetAvailabilityQuery, DataSetQuery
 from statgpt.common.schemas import LLMModelConfig
@@ -34,7 +34,7 @@ class IncompleteQueriesChain:
         cls,
         attachments_storage: AttachmentsStorage,
         df: pd.DataFrame,
-        choice: Choice,
+        choice: ChoiceI,
         filename: str,
         title: str,
     ):
@@ -56,7 +56,7 @@ class IncompleteQueriesChain:
     async def _add_missing_dimensions_in_attachments(
         self,
         attachments_storage: AttachmentsStorage,
-        choice: Choice,
+        choice: ChoiceI,
         query: DataSetQuery,
         dataset: VersionedDataSet,
         availability: DataSetAvailabilityQuery,

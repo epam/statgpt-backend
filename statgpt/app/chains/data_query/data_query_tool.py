@@ -1,4 +1,5 @@
 from langchain_core.runnables import Runnable
+from mcp.types import ToolAnnotations
 from pydantic import Field
 
 from statgpt.app.chains.tools import StatGptTool, ToolArgs
@@ -25,6 +26,10 @@ class DataQueryArgs(ToolArgs):
 
 
 class DataQueryTool(StatGptTool[DataQueryToolConfig], tool_type=ToolTypes.DATA_QUERY):
+
+    @classmethod
+    def get_mcp_annotations(cls) -> ToolAnnotations:
+        return ToolAnnotations(readOnlyHint=True, destructiveHint=False, openWorldHint=False)
 
     @classmethod
     def get_args_schema(cls, tool_config: DataQueryToolConfig) -> type[DataQueryArgs]:

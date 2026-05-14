@@ -9,17 +9,16 @@ import typing as t
 import uuid
 from collections.abc import Iterable, Sequence
 from datetime import datetime
-from functools import cached_property
+from functools import cached_property, partial
 
 import pandas as pd
 import plotly.graph_objects as go
-import requests
 import sdmx.model.common
 from dateutil.parser import parse
 from sdmx.message import DataMessage, StructureMessage
 from sdmx.model.common import Code
 from sdmx.model.v21 import DataflowDefinition as DataFlow
-from sdmx.model.v21 import TimeDimension
+from sdmx.model.v21 import DataStructureDefinition, TimeDimension
 
 from statgpt.common.auth.auth_context import AuthContext
 from statgpt.common.data.base import (
@@ -44,11 +43,19 @@ from statgpt.common.data.sdmx.common import (
     CodeCategory,
     CodeIndicator,
     ComplexIndicator,
+    DataExplorerUrlConfig,
     SdmxCodeListDimension,
+    SdmxDataSetAvailabilityQuery,
     SdmxDataSetConfig,
+    SdmxDataSetQuery,
     SdmxDimension,
+    SdmxQueryReadinessStatus,
+    TimeDimensionQuery,
     UrnReference,
+    build_data_explorer_dataset_url,
+    build_data_explorer_url_query,
 )
+from statgpt.common.data.sdmx.python_code import generate_python_query_body
 from statgpt.common.schemas.dataset import Status
 from statgpt.common.schemas.enums import DataParsingStatus, DataRequestStatus
 from statgpt.common.schemas.query import (
@@ -63,13 +70,8 @@ from statgpt.common.utils.plotly import PlotlyGraphBuilder, df_2_plotly_grid
 from statgpt.common.utils.time_utils import get_time_period_bounds
 
 from .attribute import Sdmx21Attribute, Sdmx21CodeListAttribute
-from .query import (
-    SdmxDataSetAvailabilityQuery,
-    SdmxDataSetQuery,
-    SdmxQueryReadinessStatus,
-    TimeDimensionQuery,
-)
 from .schemas import Urn
+from .utils import convert_keys_to_str
 
 if t.TYPE_CHECKING:
     from statgpt.common.data.sdmx.v21.datasource import Sdmx21DataSourceHandler
@@ -87,6 +89,13 @@ class SdmxOfflineDataSet(OfflineDataSet[SdmxDataSetConfig, 'Sdmx21DataSourceHand
     def description(self) -> str:
         return ''
 
+    def get_resolved_sdmx1_source(self) -> str | None:
+        return (
+            self.config.sdmx1_source
+            or self._datasource.config.sdmx1_source
+            or self.config.urn.agency_id
+        )
+
 
 class InvalidConfigurationError(Exception):
     def __init__(self, message: str, entity_id: uuid.UUID, dataset_urn: str):
@@ -102,6 +111,13 @@ class InvalidConfigurationError(Exception):
         }
 
 
+def _series_count_from_data_message(data_msg: DataMessage) -> int:
+    """Number of series in the SDMX data message (per dataset, ``DataSet.series``)."""
+    if not data_msg.data:
+        return 0
+    return sum(len(ds.series) for ds in data_msg.data)
+
+
 class Sdmx21DataResponse(DataResponse):
 
     def __init__(
@@ -111,12 +127,15 @@ class Sdmx21DataResponse(DataResponse):
         df: pd.DataFrame,
         url: str | None,
         status: DataResponseStatus,
+        display_series_count: int = 0,
     ):
+        super().__init__()
         self.dataset = dataset
         self.sdmx_query = sdmx_query
         self.df = df
         self._url = url
         self._status = status
+        self._display_series_count = display_series_count
 
     @property
     def status(self) -> DataResponseStatus:
@@ -145,12 +164,20 @@ class Sdmx21DataResponse(DataResponse):
         visual_df = self._enrich_df_with_names(visual_df)
         return visual_df
 
+    def get_display_series_count(self) -> int:
+        """Number of series in the data message (set when the query is executed)."""
+        return self._display_series_count
+
     def enrich_attachment_name(self, value: str) -> str:
         """Replace placeholders in the attachment name with actual values."""
         return value.format(
             dataset_source_id=self.dataset.source_id,
             dataset_name=self.dataset.name,
         )
+
+    @property
+    def resource_path(self) -> str:
+        return self.dataset.source_id
 
     def merge(self, other: "DataResponse") -> "Sdmx21DataResponse":
         if not isinstance(other, Sdmx21DataResponse):
@@ -167,6 +194,7 @@ class Sdmx21DataResponse(DataResponse):
             sdmx_query=self.sdmx_query.merge(other.sdmx_query),
             url=None,
             status=self.status.merge(other.status),
+            display_series_count=self._display_series_count + other._display_series_count,
         )
 
     @property
@@ -212,14 +240,6 @@ class Sdmx21DataResponse(DataResponse):
         return self._url
 
     @property
-    def json_query_old(self) -> dict:
-        return {
-            'urn': self.dataset.short_urn,
-            'metadata': self._get_dataset_metadata_as_dict(),
-            'filters': self._to_sdmx_filters(self.sdmx_query),
-        }
-
-    @property
     def json_query(self) -> dict:
         return JsonQueryWithMetadata(
             urn=self.dataset.short_urn,
@@ -227,8 +247,11 @@ class Sdmx21DataResponse(DataResponse):
             metadata=JsonQueryMetadata(
                 country_dimension=self.dataset.config.country_dimension,
                 indicator_dimensions=self.dataset.config.indicator_dimensions,
+                time_period_dimension=self.dataset.config.time_period_dimension_id,
                 dataset_url=self.dataset.dataset_url,
+                key_dimension_ids_in_dsd_order=self.dataset.sdmx_key_dimension_ids_in_dsd_order,
             ),
+            sdmx1_source=self.dataset.get_resolved_sdmx1_source(),
         ).model_dump(by_alias=True)
 
     def get_python_code_body(self, suffix: str = "") -> str | None:
@@ -277,41 +300,12 @@ class Sdmx21DataResponse(DataResponse):
         df = df[sorted_columns].copy()
         return df
 
-    def _get_dataset_metadata_as_dict(self) -> dict[str, t.Any]:
-        dataset_config = self.dataset.config
-        return {
-            'countryDimension': dataset_config.country_dimension,
-            'indicatorDimensions': dataset_config.indicator_dimensions,
-        }
-
     def _graph_name(self, figure: go.Figure, template: str) -> str:
         return template.format(
             dataset_source_id=self.dataset.source_id,
             dataset_name=self.dataset.name,
             figure_title=(figure.layout.title.text or '').replace('<br>', ' '),
         )
-
-    @staticmethod
-    def _to_sdmx_filters(sdmx_query: SdmxDataSetQuery) -> list[dict[str, str]]:
-        res = [
-            {
-                "componentCode": k,
-                "operator": "in",
-                "values": ','.join(v),
-            }
-            for k, v in sdmx_query.categorical_dimensions.items()
-        ]
-
-        if sdmx_query.time_dimension_query:
-            res.append(
-                {
-                    "componentCode": sdmx_query.time_dimension_query.time_dimension_id,
-                    "operator": "between",
-                    "values": f"{sdmx_query.time_dimension_query.start_period},{sdmx_query.time_dimension_query.end_period}",
-                }
-            )
-
-        return res
 
     @staticmethod
     def _create_time_dimension_query(
@@ -514,9 +508,51 @@ class Sdmx21DataSet(
 
     @property
     def dataset_url(self) -> str | None:
+        if self._datasource.config.use_data_explorer_for_dataset_url:
+            if base := self._resolved_data_explorer_base_url():
+                return build_data_explorer_dataset_url(
+                    base, self._short_urn, self._resolved_data_explorer_url_config()
+                )
+            _log.warning(
+                "Data explorer URL is not configured on the dataset or data source: %s",
+                self._datasource.source_id,
+            )
         if self.config.citation and self.config.citation.url:
             return self.config.citation.get_url()
         return None
+
+    def _resolved_data_explorer_base_url(self) -> str | None:
+        if url := self.config.get_data_explorer_url():
+            return url
+        return self._datasource.config.get_data_explorer_url()
+
+    def _resolved_data_explorer_url_config(self) -> DataExplorerUrlConfig | None:
+        if self.config.data_explorer_url_config is not None:
+            return self.config.data_explorer_url_config
+        return self._datasource.config.data_explorer_url_config
+
+    def _format_data_explorer_url(
+        self,
+        base_url: str,
+        dsd: DataStructureDefinition,
+        key_dict: dict[str, list[str]],
+        sdmx_query: SdmxDataSetQuery,
+    ) -> str:
+        return build_data_explorer_url_query(
+            base_url=base_url,
+            short_urn=self._short_urn,
+            key_dict=key_dict,
+            sdmx_query=sdmx_query,
+            config=self._resolved_data_explorer_url_config(),
+            sdmx_key_builder=partial(convert_keys_to_str, dsd),
+            dimension_values_resolver=self._resolve_explorer_dimension_values,
+        )
+
+    def _resolve_explorer_dimension_values(self, dimension_id: str, codes: list[str]) -> list[str]:
+        id2name_mapping = self.map_component_values_id_2_name(codes, dimension_id)
+        if id2name_mapping is None:
+            return codes
+        return [id2name_mapping.get(code) or code for code in codes]
 
     async def _get_available_series(
         self,
@@ -1096,13 +1132,6 @@ class Sdmx21DataSet(
 
         return results
 
-    def _get_query_url(self, response: requests.Response) -> str:
-        url = response.url
-        request_headers = response.request.headers
-        if "Ocp-Apim-Subscription-Key" in request_headers:
-            url += f"&subscription-key={request_headers['Ocp-Apim-Subscription-Key']}"
-        return url
-
     async def availability_query(
         self, query: DataSetAvailabilityQuery, auth_context: AuthContext
     ) -> DataSetAvailabilityQuery:
@@ -1209,6 +1238,7 @@ class Sdmx21DataSet(
                     request_status=DataRequestStatus.FAILED,
                     parsing_status=DataParsingStatus.NA,
                 ),
+                display_series_count=0,
             )
 
         if not data_msg:
@@ -1221,10 +1251,24 @@ class Sdmx21DataSet(
                     request_status=DataRequestStatus.SUCCESS,
                     parsing_status=DataParsingStatus.FAILED,
                 ),
+                display_series_count=0,
             )
 
-        url = self._get_query_url(data_msg.response)  # type: ignore
+        explorer_cfg = self._resolved_data_explorer_url_config() or DataExplorerUrlConfig()
+        if not explorer_cfg.view_in_data_explorer:
+            url = None
+        elif explorer_base := self._resolved_data_explorer_base_url():
+            url = self._format_data_explorer_url(
+                base_url=explorer_base,
+                dsd=self._artefact.structure,
+                key_dict=sdmx_query.get_key(),
+                sdmx_query=sdmx_query,
+            )
+        else:
+            http_response = data_msg.response
+            url = http_response.url if http_response is not None else None
 
+        message_series_count = _series_count_from_data_message(data_msg)
         try:
             sdmx_pandas = await self._data_msg_to_dataframe(data_msg)
             sdmx_pandas = await self._include_attributes(sdmx_pandas)
@@ -1239,6 +1283,7 @@ class Sdmx21DataSet(
                     request_status=DataRequestStatus.SUCCESS,
                     parsing_status=DataParsingStatus.FAILED,
                 ),
+                display_series_count=message_series_count,
             )
 
         return Sdmx21DataResponse(
@@ -1250,14 +1295,20 @@ class Sdmx21DataSet(
                 request_status=DataRequestStatus.SUCCESS,
                 parsing_status=DataParsingStatus.SUCCESS,
             ),
+            display_series_count=message_series_count,
         )
 
-    def get_python_code_body(self, sdmx_query: SdmxDataSetQuery, suffix: str = "") -> str:
-        provider = (
+    def get_resolved_sdmx1_source(self) -> str | None:
+        return (
             self._config.sdmx1_source
             or self._datasource.config.sdmx1_source
             or self._artefact.maintainer.id  # type: ignore[union-attr]
         )
+
+    def get_python_code_body(self, sdmx_query: SdmxDataSetQuery, suffix: str = "") -> str:
+        provider = self.get_resolved_sdmx1_source()
+        if provider is None:
+            raise RuntimeError("Cannot generate Python code without a resolved SDMX 1 source")
 
         flow_ref = (
             f"{self._artefact.maintainer.id}"  # type: ignore[union-attr]
@@ -1266,13 +1317,22 @@ class Sdmx21DataSet(
         )
         key_string = self._dict_key_to_sdmx_string(sdmx_query.get_key())
 
-        return self._get_python_query_body(
+        return generate_python_query_body(
             provider=provider,
             flow_ref=flow_ref,
             key=key_string,
             params=sdmx_query.get_params(),
             suffix=suffix,
         )
+
+    @cached_property
+    def sdmx_key_dimension_ids_in_dsd_order(self) -> list[str]:
+        """Non-time DSD dimension ids in REST key order."""
+        return [
+            dim.id
+            for dim in self._artefact.structure.dimensions  # type: ignore[union-attr]
+            if not isinstance(dim, TimeDimension)
+        ]
 
     def _dict_key_to_sdmx_string(self, keys: dict[str, list[str]]) -> str:
         """Convert a dict key to an SDMX REST key string in DSD dimension order.
@@ -1282,21 +1342,7 @@ class Sdmx21DataSet(
         Time dimensions are excluded (handled via query params).
         """
         parts = []
-        for dim in self._artefact.structure.dimensions:
-            if isinstance(dim, TimeDimension):
-                continue
-            values = keys.get(dim.id, [])
+        for dim_id in self.sdmx_key_dimension_ids_in_dsd_order:
+            values = keys.get(dim_id, [])
             parts.append("+".join(values))
         return ".".join(parts)
-
-    @staticmethod
-    def _get_python_query_body(
-        provider: str, flow_ref: str, key: str, params: dict, suffix: str = ""
-    ) -> str:
-        return f'''\
-provider{suffix} = sdmx.Client("{provider}")
-data_msg{suffix} = provider{suffix}.data(
-    "{flow_ref}",
-    key="{key}",
-    params={params}
-)'''

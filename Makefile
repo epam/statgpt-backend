@@ -13,13 +13,13 @@ init_venv:
 	$(POETRY) env use $(PYTHON)
 
 install: init_venv
-	$(POETRY) install -E cli -E beta-mcp
+	$(POETRY) install -E cli -E mcp
 
 install_dev: init_venv
-	$(POETRY) install -E cli -E beta-mcp --with dev
+	$(POETRY) install -E cli -E mcp --with dev
 
 install_all: init_venv
-	$(POETRY) install -E cli -E beta-mcp --with dev,experiments
+	$(POETRY) install -E cli -E mcp --with dev,experiments
 
 clean:
 	-$(POETRY) env remove --all

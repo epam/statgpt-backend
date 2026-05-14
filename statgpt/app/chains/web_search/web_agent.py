@@ -1,3 +1,4 @@
+from mcp.types import ToolAnnotations
 from pydantic import Field
 
 from statgpt.app.chains.parameters import ChainParameters
@@ -14,6 +15,10 @@ class WebSearchArgs(ToolArgs):
 
 
 class WebSearchAgentTool(StatGptTool[WebSearchToolConfig], tool_type=ToolTypes.WEB_SEARCH_AGENT):
+    @classmethod
+    def get_mcp_annotations(cls) -> ToolAnnotations:
+        return ToolAnnotations(readOnlyHint=True, destructiveHint=False, openWorldHint=True)
+
     def __init__(self, tool_config: WebSearchToolConfig, channel_config: ChannelConfig, **kwargs):
         super().__init__(tool_config, channel_config, **kwargs)
 

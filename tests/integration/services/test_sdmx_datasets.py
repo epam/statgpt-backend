@@ -167,7 +167,6 @@ async def test_update_dataset(session, clear_all, sdmx_clint_mock):
     )
 
     indexer_config = IndexerConfig(
-        description='Test description',
         indicator=IndexerIndicatorConfig(unpack=True),
     )
 
