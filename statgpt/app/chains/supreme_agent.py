@@ -234,7 +234,6 @@ class SupremeAgent:
             chat_bot_language_instructions=format_as_markdown_list(
                 channel_config.supreme_agent.language_instructions, list_type="ordered"
             ),
-            additional_instructions=channel_config.supreme_agent.additional_instructions,
             additional_context=channel_config.supreme_agent.additional_context,
             general_section=(
                 channel_config.supreme_agent.general_section
