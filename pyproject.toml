@@ -194,7 +194,7 @@ jinja2 = "^3.1.6"
 optional = true
 
 [tool.poetry.group.experiments.dependencies]
-jupyterlab = "4.4.8"
+jupyterlab = "4.5.7"
 pandas = { extras = ["excel"], version = "^2.2.2" }
 opik = "^1.7.23"
 pdfplumber = "^0.11.6"
