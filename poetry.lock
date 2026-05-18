@@ -311,22 +311,6 @@ files = [
 tests = ["mypy (>=1.14.0)", "pytest", "pytest-asyncio"]
 
 [[package]]
-name = "asttokens"
-version = "3.0.1"
-description = "Annotate AST trees with source code positions"
-optional = false
-python-versions = ">=3.8"
-groups = ["dev"]
-files = [
-    {file = "asttokens-3.0.1-py3-none-any.whl", hash = "sha256:15a3ebc0f43c2d0a50eeafea25e19046c68398e487b9f1f5b517f7c0f40f976a"},
-    {file = "asttokens-3.0.1.tar.gz", hash = "sha256:71a4ee5de0bde6a31d64f6b13f2293ac190344478f081c3d1bccfcf5eacb0cb7"},
-]
-
-[package.extras]
-astroid = ["astroid (>=2,<5)"]
-test = ["astroid (>=2,<5)", "pytest (<9.0)", "pytest-cov", "pytest-xdist"]
-
-[[package]]
 name = "async-lru"
 version = "2.0.5"
 description = "Simple LRU cache for asyncio"
@@ -558,29 +542,6 @@ test-tox = ["celery", "click", "docutils (>=0.22.0)", "equinox ; sys_platform ==
 test-tox-coverage = ["coverage (>=5.5)"]
 
 [[package]]
-name = "beautifulsoup4"
-version = "4.14.3"
-description = "Screen-scraping library"
-optional = false
-python-versions = ">=3.7.0"
-groups = ["dev"]
-files = [
-    {file = "beautifulsoup4-4.14.3-py3-none-any.whl", hash = "sha256:0918bfe44902e6ad8d57732ba310582e98da931428d231a5ecb9e7c703a735bb"},
-    {file = "beautifulsoup4-4.14.3.tar.gz", hash = "sha256:6292b1c5186d356bba669ef9f7f051757099565ad9ada5dd630bd9de5fa7fb86"},
-]
-
-[package.dependencies]
-soupsieve = ">=1.6.1"
-typing-extensions = ">=4.0.0"
-
-[package.extras]
-cchardet = ["cchardet"]
-chardet = ["chardet"]
-charset-normalizer = ["charset-normalizer"]
-html5lib = ["html5lib"]
-lxml = ["lxml"]
-
-[[package]]
 name = "black"
 version = "26.3.1"
 description = "The uncompromising code formatter."
@@ -619,34 +580,17 @@ files = [
 
 [package.dependencies]
 click = ">=8.0.0"
-ipython = {version = ">=7.8.0", optional = true, markers = "extra == \"jupyter\""}
 mypy-extensions = ">=0.4.3"
 packaging = ">=22.0"
 pathspec = ">=1.0.0"
 platformdirs = ">=2"
 pytokens = ">=0.4.0,<0.5.0"
-tokenize-rt = {version = ">=3.2.0", optional = true, markers = "extra == \"jupyter\""}
 
 [package.extras]
 colorama = ["colorama (>=0.4.3)"]
 d = ["aiohttp (>=3.10)"]
 jupyter = ["ipython (>=7.8.0)", "tokenize-rt (>=3.2.0)"]
 uvloop = ["uvloop (>=0.15.2) ; sys_platform != \"win32\"", "winloop (>=0.5.0) ; sys_platform == \"win32\""]
-
-[[package]]
-name = "bs4"
-version = "0.0.2"
-description = "Dummy package for Beautiful Soup (beautifulsoup4)"
-optional = false
-python-versions = "*"
-groups = ["dev"]
-files = [
-    {file = "bs4-0.0.2-py2.py3-none-any.whl", hash = "sha256:abf8742c0805ef7f662dce4b51cca104cffe52b835238afc169142ab9b3fbccc"},
-    {file = "bs4-0.0.2.tar.gz", hash = "sha256:a48685c58f50fe127722417bae83fe6badf500d54b55f7e39ffe43b798653925"},
-]
-
-[package.dependencies]
-beautifulsoup4 = "*"
 
 [[package]]
 name = "cachetools"
@@ -1176,18 +1120,6 @@ trio = ["trio (>=0.10.0)"]
 yaml = ["pyyaml (>=6.0.1)"]
 
 [[package]]
-name = "decorator"
-version = "5.2.1"
-description = "Decorators for Humans"
-optional = false
-python-versions = ">=3.8"
-groups = ["dev"]
-files = [
-    {file = "decorator-5.2.1-py3-none-any.whl", hash = "sha256:d316bb415a2d9e2d2b3abcc4084c6502fc09240e292cd76a76afc106a1c8e04a"},
-    {file = "decorator-5.2.1.tar.gz", hash = "sha256:65f266143752f734b0a7cc83c46f4618af75b8c5911b00ccb61d0ac9b6da0360"},
-]
-
-[[package]]
 name = "deprecation"
 version = "2.1.0"
 description = "A library to handle automated deprecations"
@@ -1376,21 +1308,6 @@ files = [
 
 [package.extras]
 testing = ["hatch", "pre-commit", "pytest", "tox"]
-
-[[package]]
-name = "executing"
-version = "2.2.1"
-description = "Get the currently executing AST node of a frame, and other information"
-optional = false
-python-versions = ">=3.8"
-groups = ["dev"]
-files = [
-    {file = "executing-2.2.1-py2.py3-none-any.whl", hash = "sha256:760643d3452b4d777d295bb167ccc74c64a81df23fb5e08eff250c425a4b2017"},
-    {file = "executing-2.2.1.tar.gz", hash = "sha256:3632cc370565f6648cc328b32435bd120a1e4ebb20c77e3fdde9a13cd1e533c4"},
-]
-
-[package.extras]
-tests = ["asttokens (>=2.1.0)", "coverage", "coverage-enable-subprocess", "ipython", "littleutils", "pytest", "rich ; python_version >= \"3.11\""]
 
 [[package]]
 name = "fastapi"
@@ -1940,54 +1857,6 @@ files = [
 ]
 
 [[package]]
-name = "ipython"
-version = "9.9.0"
-description = "IPython: Productive Interactive Computing"
-optional = false
-python-versions = ">=3.11"
-groups = ["dev"]
-files = [
-    {file = "ipython-9.9.0-py3-none-any.whl", hash = "sha256:b457fe9165df2b84e8ec909a97abcf2ed88f565970efba16b1f7229c283d252b"},
-    {file = "ipython-9.9.0.tar.gz", hash = "sha256:48fbed1b2de5e2c7177eefa144aba7fcb82dac514f09b57e2ac9da34ddb54220"},
-]
-
-[package.dependencies]
-colorama = {version = ">=0.4.4", markers = "sys_platform == \"win32\""}
-decorator = ">=4.3.2"
-ipython-pygments-lexers = ">=1.0.0"
-jedi = ">=0.18.1"
-matplotlib-inline = ">=0.1.5"
-pexpect = {version = ">4.3", markers = "sys_platform != \"win32\" and sys_platform != \"emscripten\""}
-prompt_toolkit = ">=3.0.41,<3.1.0"
-pygments = ">=2.11.0"
-stack_data = ">=0.6.0"
-traitlets = ">=5.13.0"
-typing_extensions = {version = ">=4.6", markers = "python_version < \"3.12\""}
-
-[package.extras]
-all = ["argcomplete (>=3.0)", "ipython[doc,matplotlib,terminal,test,test-extra]"]
-black = ["black"]
-doc = ["docrepr", "exceptiongroup", "intersphinx_registry", "ipykernel", "ipython[matplotlib,test]", "setuptools (>=70.0)", "sphinx (>=8.0)", "sphinx-rtd-theme (>=0.1.8)", "sphinx_toml (==0.0.4)", "typing_extensions"]
-matplotlib = ["matplotlib (>3.9)"]
-test = ["packaging (>=20.1.0)", "pytest (>=7.0.0)", "pytest-asyncio (>=1.0.0)", "setuptools (>=61.2)", "testpath (>=0.2)"]
-test-extra = ["curio", "ipykernel (>6.30)", "ipython[matplotlib]", "ipython[test]", "jupyter_ai", "nbclient", "nbformat", "numpy (>=1.27)", "pandas (>2.1)", "trio (>=0.1.0)"]
-
-[[package]]
-name = "ipython-pygments-lexers"
-version = "1.1.1"
-description = "Defines a variety of Pygments lexers for highlighting IPython code."
-optional = false
-python-versions = ">=3.8"
-groups = ["dev"]
-files = [
-    {file = "ipython_pygments_lexers-1.1.1-py3-none-any.whl", hash = "sha256:a9462224a505ade19a605f71f8fa63c2048833ce50abc86768a0d81d876dc81c"},
-    {file = "ipython_pygments_lexers-1.1.1.tar.gz", hash = "sha256:09c0138009e56b6854f9535736f4171d855c8c08a563a0dcd8022f78355c7e81"},
-]
-
-[package.dependencies]
-pygments = "*"
-
-[[package]]
 name = "isort"
 version = "5.13.2"
 description = "A Python utility / library to sort Python imports."
@@ -2069,26 +1938,6 @@ doc = ["furo", "jaraco.packaging (>=9.3)", "jaraco.tidelift (>=1.4)", "rst.linke
 enabler = ["pytest-enabler (>=3.4)"]
 test = ["jaraco.classes", "pytest (>=6,!=8.1.*)"]
 type = ["mypy (<1.19) ; platform_python_implementation == \"PyPy\"", "pytest-mypy (>=1.0.1)"]
-
-[[package]]
-name = "jedi"
-version = "0.19.2"
-description = "An autocompletion tool for Python that can be used for text editors."
-optional = false
-python-versions = ">=3.6"
-groups = ["dev"]
-files = [
-    {file = "jedi-0.19.2-py2.py3-none-any.whl", hash = "sha256:a8ef22bde8490f57fe5c7681a3c83cb58874daf72b4784de3cce5b6ef6edb5b9"},
-    {file = "jedi-0.19.2.tar.gz", hash = "sha256:4770dc3de41bde3966b02eb84fbcf557fb33cce26ad23da12c742fb50ecb11f0"},
-]
-
-[package.dependencies]
-parso = ">=0.8.4,<0.9.0"
-
-[package.extras]
-docs = ["Jinja2 (==2.11.3)", "MarkupSafe (==1.1.1)", "Pygments (==2.8.1)", "alabaster (==0.7.12)", "babel (==2.9.1)", "chardet (==4.0.0)", "commonmark (==0.8.1)", "docutils (==0.17.1)", "future (==0.18.2)", "idna (==2.10)", "imagesize (==1.2.0)", "mock (==1.0.1)", "packaging (==20.9)", "pyparsing (==2.4.7)", "pytz (==2021.1)", "readthedocs-sphinx-ext (==2.1.4)", "recommonmark (==0.5.0)", "requests (==2.25.1)", "six (==1.15.0)", "snowballstemmer (==2.1.0)", "sphinx (==1.8.5)", "sphinx-rtd-theme (==0.4.3)", "sphinxcontrib-serializinghtml (==1.1.4)", "sphinxcontrib-websupport (==1.2.4)", "urllib3 (==1.26.4)"]
-qa = ["flake8 (==5.0.4)", "mypy (==0.971)", "types-setuptools (==67.2.0.1)"]
-testing = ["Django", "attrs", "colorama", "docopt", "pytest (<9.0.0)"]
 
 [[package]]
 name = "jeepney"
@@ -2840,7 +2689,7 @@ version = "3.10"
 description = "Python implementation of John Gruber's Markdown."
 optional = false
 python-versions = ">=3.10"
-groups = ["main", "dev"]
+groups = ["main"]
 files = [
     {file = "markdown-3.10-py3-none-any.whl", hash = "sha256:b5b99d6951e2e4948d939255596523444c0e677c669700b1d17aa4a8a464cb7c"},
     {file = "markdown-3.10.tar.gz", hash = "sha256:37062d4f2aa4b2b6b32aefb80faa300f82cc790cb949a35b8caede34f2b68c0e"},
@@ -2973,24 +2822,6 @@ files = [
     {file = "markupsafe-3.0.3-cp39-cp39-win_arm64.whl", hash = "sha256:38664109c14ffc9e7437e86b4dceb442b0096dfe3541d7864d9cbe1da4cf36c8"},
     {file = "markupsafe-3.0.3.tar.gz", hash = "sha256:722695808f4b6457b320fdc131280796bdceb04ab50fe1795cd540799ebe1698"},
 ]
-
-[[package]]
-name = "matplotlib-inline"
-version = "0.2.1"
-description = "Inline Matplotlib backend for Jupyter"
-optional = false
-python-versions = ">=3.9"
-groups = ["dev"]
-files = [
-    {file = "matplotlib_inline-0.2.1-py3-none-any.whl", hash = "sha256:d56ce5156ba6085e00a9d54fead6ed29a9c47e215cd1bba2e976ef39f5710a76"},
-    {file = "matplotlib_inline-0.2.1.tar.gz", hash = "sha256:e1ee949c340d771fc39e241ea75683deb94762c8fa5f2927ec57c83c4dffa9fe"},
-]
-
-[package.dependencies]
-traitlets = "*"
-
-[package.extras]
-test = ["flake8", "nbdime", "nbval", "notebook", "pytest"]
 
 [[package]]
 name = "mccabe"
@@ -4013,22 +3844,6 @@ numpy = ">=1.23.5"
 types-pytz = ">=2022.1.1"
 
 [[package]]
-name = "parso"
-version = "0.8.5"
-description = "A Python Parser"
-optional = false
-python-versions = ">=3.6"
-groups = ["dev"]
-files = [
-    {file = "parso-0.8.5-py2.py3-none-any.whl", hash = "sha256:646204b5ee239c396d040b90f9e272e9a8017c630092bf59980beb62fd033887"},
-    {file = "parso-0.8.5.tar.gz", hash = "sha256:034d7354a9a018bdce352f48b2a8a450f05e9d6ee85db84764e9b6bd96dafe5a"},
-]
-
-[package.extras]
-qa = ["flake8 (==5.0.4)", "mypy (==0.971)", "types-setuptools (==67.2.0.1)"]
-testing = ["docopt", "pytest"]
-
-[[package]]
 name = "pathable"
 version = "0.4.4"
 description = "Object-oriented paths"
@@ -4058,22 +3873,6 @@ hyperscan = ["hyperscan (>=0.7)"]
 optional = ["typing-extensions (>=4)"]
 re2 = ["google-re2 (>=1.1)"]
 tests = ["pytest (>=9)", "typing-extensions (>=4.15)"]
-
-[[package]]
-name = "pexpect"
-version = "4.9.0"
-description = "Pexpect allows easy control of interactive console applications."
-optional = false
-python-versions = "*"
-groups = ["dev"]
-markers = "sys_platform != \"win32\" and sys_platform != \"emscripten\""
-files = [
-    {file = "pexpect-4.9.0-py2.py3-none-any.whl", hash = "sha256:7236d1e080e4936be2dc3e326cec0af72acf9212a7e1d060210e70a47e253523"},
-    {file = "pexpect-4.9.0.tar.gz", hash = "sha256:ee7d41123f3c9911050ea2c2dac107568dc43b2d3b0c7557a33212c398ead30f"},
-]
-
-[package.dependencies]
-ptyprocess = ">=0.5"
 
 [[package]]
 name = "pgvector"
@@ -4190,14 +3989,14 @@ twisted = ["twisted"]
 name = "prompt-toolkit"
 version = "3.0.52"
 description = "Library for building powerful interactive command lines in Python"
-optional = false
+optional = true
 python-versions = ">=3.8"
-groups = ["main", "dev"]
+groups = ["main"]
+markers = "extra == \"cli\""
 files = [
     {file = "prompt_toolkit-3.0.52-py3-none-any.whl", hash = "sha256:9aac639a3bbd33284347de5ad8d68ecc044b91a762dc39b7c21095fcd6a19955"},
     {file = "prompt_toolkit-3.0.52.tar.gz", hash = "sha256:28cde192929c8e7321de85de1ddbe736f1375148b02f2e17edd840042b1be855"},
 ]
-markers = {main = "extra == \"cli\""}
 
 [package.dependencies]
 wcwidth = "*"
@@ -4498,34 +4297,6 @@ typing-extensions = ">=4.6"
 
 [package.extras]
 test = ["anyio (>=4.0)", "mypy (>=1.14)", "pproxy (>=2.7)", "pytest (>=6.2.5)", "pytest-cov (>=3.0)", "pytest-randomly (>=3.5)"]
-
-[[package]]
-name = "ptyprocess"
-version = "0.7.0"
-description = "Run a subprocess in a pseudo terminal"
-optional = false
-python-versions = "*"
-groups = ["dev"]
-markers = "sys_platform != \"win32\" and sys_platform != \"emscripten\""
-files = [
-    {file = "ptyprocess-0.7.0-py2.py3-none-any.whl", hash = "sha256:4b41f3967fce3af57cc7e94b888626c18bf37a083e3651ca8feeb66d492fef35"},
-    {file = "ptyprocess-0.7.0.tar.gz", hash = "sha256:5c5d0a3b48ceee0b48485e0c26037c0acd7d29765ca3fbb5cb3831d347423220"},
-]
-
-[[package]]
-name = "pure-eval"
-version = "0.2.3"
-description = "Safely evaluate AST nodes without side effects"
-optional = false
-python-versions = "*"
-groups = ["dev"]
-files = [
-    {file = "pure_eval-0.2.3-py3-none-any.whl", hash = "sha256:1db8e35b67b3d218d818ae653e27f06c3aa420901fa7b081ca98cbedc874e0d0"},
-    {file = "pure_eval-0.2.3.tar.gz", hash = "sha256:5f4e983f40564c576c7c8635ae88db5956bb2229d7e9237d03b3c0b0190eaf42"},
-]
-
-[package.extras]
-tests = ["pytest"]
 
 [[package]]
 name = "py-key-value-aio"
@@ -5785,18 +5556,6 @@ files = [
 ]
 
 [[package]]
-name = "soupsieve"
-version = "2.8.1"
-description = "A modern CSS selector implementation for Beautiful Soup."
-optional = false
-python-versions = ">=3.9"
-groups = ["dev"]
-files = [
-    {file = "soupsieve-2.8.1-py3-none-any.whl", hash = "sha256:a11fe2a6f3d76ab3cf2de04eb339c1be5b506a8a47f2ceb6d139803177f85434"},
-    {file = "soupsieve-2.8.1.tar.gz", hash = "sha256:4cf733bc50fa805f5df4b8ef4740fc0e0fa6218cf3006269afd3f9d6d80fd350"},
-]
-
-[[package]]
 name = "sqlalchemy"
 version = "2.0.45"
 description = "Database Abstraction Library"
@@ -5905,26 +5664,6 @@ anyio = "*"
 fastapi = "*"
 starlette = "*"
 uvicorn = "*"
-
-[[package]]
-name = "stack-data"
-version = "0.6.3"
-description = "Extract data from python stack frames and tracebacks for informative displays"
-optional = false
-python-versions = "*"
-groups = ["dev"]
-files = [
-    {file = "stack_data-0.6.3-py3-none-any.whl", hash = "sha256:d5558e0c25a4cb0853cddad3d77da9891a08cb85dd9f9f91b9f8cd66e511e695"},
-    {file = "stack_data-0.6.3.tar.gz", hash = "sha256:836a778de4fec4dcd1dcd89ed8abff8a221f58308462e1c4aa2a3cf30148f0b9"},
-]
-
-[package.dependencies]
-asttokens = ">=2.1.0"
-executing = ">=1.2.0"
-pure-eval = "*"
-
-[package.extras]
-tests = ["cython", "littleutils", "pygments", "pytest", "typeguard"]
 
 [[package]]
 name = "starlette"
@@ -6066,18 +5805,6 @@ requests = ">=2.26.0"
 blobfile = ["blobfile (>=2)"]
 
 [[package]]
-name = "tokenize-rt"
-version = "6.2.0"
-description = "A wrapper around the stdlib `tokenize` which roundtrips."
-optional = false
-python-versions = ">=3.9"
-groups = ["dev"]
-files = [
-    {file = "tokenize_rt-6.2.0-py2.py3-none-any.whl", hash = "sha256:a152bf4f249c847a66497a4a95f63376ed68ac6abf092a2f7cfb29d044ecff44"},
-    {file = "tokenize_rt-6.2.0.tar.gz", hash = "sha256:8439c042b330c553fdbe1758e4a05c0ed460dbbbb24a606f11f0dee75da4cad6"},
-]
-
-[[package]]
 name = "tqdm"
 version = "4.67.1"
 description = "Fast, Extensible Progress Meter"
@@ -6098,22 +5825,6 @@ discord = ["requests"]
 notebook = ["ipywidgets (>=6)"]
 slack = ["slack-sdk"]
 telegram = ["requests"]
-
-[[package]]
-name = "traitlets"
-version = "5.14.3"
-description = "Traitlets Python configuration system"
-optional = false
-python-versions = ">=3.8"
-groups = ["dev"]
-files = [
-    {file = "traitlets-5.14.3-py3-none-any.whl", hash = "sha256:b74e89e397b1ed28cc831db7aea759ba6640cb3de13090ca145426688ff1ac4f"},
-    {file = "traitlets-5.14.3.tar.gz", hash = "sha256:9ed0579d3502c94b4b3732ac120375cda96f923114522847de4b3bb98b96b6b7"},
-]
-
-[package.extras]
-docs = ["myst-parser", "pydata-sphinx-theme", "sphinx"]
-test = ["argcomplete (>=3.0.3)", "mypy (>=1.7.0)", "pre-commit", "pytest (>=7.0,<8.2)", "pytest-mock", "pytest-mypy-testing"]
 
 [[package]]
 name = "types-aiofiles"
@@ -6465,14 +6176,14 @@ anyio = ">=3.0.0"
 name = "wcwidth"
 version = "0.2.14"
 description = "Measures the displayed width of unicode strings in a terminal"
-optional = false
+optional = true
 python-versions = ">=3.6"
-groups = ["main", "dev"]
+groups = ["main"]
+markers = "extra == \"cli\""
 files = [
     {file = "wcwidth-0.2.14-py2.py3-none-any.whl", hash = "sha256:a7bb560c8aee30f9957e5f9895805edd20602f2d7f720186dfd906e82b4982e1"},
     {file = "wcwidth-0.2.14.tar.gz", hash = "sha256:4d478375d31bc5395a3c55c40ccdf3354688364cd61c4f6adacaa9215d0b3605"},
 ]
-markers = {main = "extra == \"cli\""}
 
 [[package]]
 name = "websockets"
@@ -6635,18 +6346,6 @@ files = [
     {file = "wrapt-1.17.3-cp39-cp39-win_arm64.whl", hash = "sha256:24c2ed34dc222ed754247a2702b1e1e89fdbaa4016f324b4b8f1a802d4ffe87f"},
     {file = "wrapt-1.17.3-py3-none-any.whl", hash = "sha256:7171ae35d2c33d326ac19dd8facb1e82e5fd04ef8c6c0e394d7af55a55051c22"},
     {file = "wrapt-1.17.3.tar.gz", hash = "sha256:f66eb08feaa410fe4eebd17f2a2c8e2e46d3476e9f8c783daa8e09e0faa666d0"},
-]
-
-[[package]]
-name = "xlsxwriter"
-version = "3.2.9"
-description = "A Python module for creating Excel XLSX files."
-optional = false
-python-versions = ">=3.8"
-groups = ["dev"]
-files = [
-    {file = "xlsxwriter-3.2.9-py3-none-any.whl", hash = "sha256:9a5db42bc5dff014806c58a20b9eae7322a134abb6fce3c92c181bfb275ec5b3"},
-    {file = "xlsxwriter-3.2.9.tar.gz", hash = "sha256:254b1c37a368c444eac6e2f867405cc9e461b0ed97a3233b2ac1e574efb4140c"},
 ]
 
 [[package]]
@@ -7083,4 +6782,4 @@ mcp = ["fastmcp"]
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.11,<3.12"
-content-hash = "f66f17db89695fc5ecfde57726ce73d3d219547ca13937eb12306c31503d12fe"
+content-hash = "6972330782073bb1479ff4cd8b987f163799363a49bce181790688cb6d18439b"
