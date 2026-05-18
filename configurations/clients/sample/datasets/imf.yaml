@@ -52,7 +52,7 @@ dataSets:
       citation:
         provider: "IMF.STA"
         url: "https://data.imf.org/en/datasets/IMF.STA:BOP"
-        description: &bop-description >
+        description: >
           The Balance of Payments (BOP) is a statistical statement that summarizes transactions between residents and
           nonresidents during a period. It consists of the goods and services account, the primary income account, the
           secondary income account, the capital account, and the financial account.
@@ -62,10 +62,8 @@ dataSets:
         - "BOP_ACCOUNTING_ENTRY_Name"
         - "INDICATOR_Name"
       indexer:
-        description: *bop-description
         indicator:
           unpack: true
-          useCodeListDescription: true
 
   - id_: "8f771002-6ae1-41d9-accc-77dae7c88afe"
     <<: *shared_settings
@@ -94,7 +92,7 @@ dataSets:
       citation:
         provider: "IMF.RES"
         url: "https://data.imf.org/en/datasets/IMF.RES:WEO"
-        description: &weo-description >
+        description: >
           The World Economic Outlook (WEO) database contains selected macroeconomic data series from the statistical
           appendix of the World Economic Outlook report, which presents the IMF staff's analysis and projections of
           economic developments at the global level, in major country groups and in many individual countries. The WEO
@@ -109,7 +107,5 @@ dataSets:
         - "COUNTRY_Name"
         - "INDICATOR_Name"
       indexer:
-        description: *weo-description
         indicator:
           unpack: true
-          useCodeListDescription: true

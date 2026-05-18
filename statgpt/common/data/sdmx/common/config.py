@@ -12,6 +12,7 @@ from statgpt.common.data.base import (
     DataSourceConfig,
     IndexingField,
 )
+from statgpt.common.data.sdmx.common.data_explorer_url import DataExplorerUrlConfig
 
 _log = logging.getLogger(__name__)
 
@@ -164,6 +165,29 @@ class SdmxDataSourceConfig(DataSourceConfig):
         default_factory=SdmxRateLimitsConfig,
         description="The rate limits configuration for the SDMX data source",
     )
+    data_explorer_url: str | None = Field(
+        default=None,
+        description=(
+            "Default base URL of the data explorer UI. Used when a dataset does not set "
+            "data_explorer_url, for example to build preset explorer links instead of raw API URLs. "
+            "When set, query-result URLs always use this explorer link. Whether dataset-level "
+            "`dataset_url` also uses it is controlled by `use_data_explorer_for_dataset_url`."
+        ),
+    )
+    use_data_explorer_for_dataset_url: bool = Field(
+        default=False,
+        description=(
+            "If true and a data explorer URL is resolved (dataset or data source), dataset URLs "
+            "will point to the data explorer instead of citation URLs."
+        ),
+    )
+    data_explorer_url_config: DataExplorerUrlConfig | None = Field(
+        default=None,
+        description=(
+            "Default rules for building data-explorer query links and dataset-only explorer URLs. "
+            "Overridden by the same field on a dataset when set."
+        ),
+    )
     dataset_hierarchy: (
         DefaultDataSetHierarchyConfig | CategorySchemaDataSetHierarchyConfig | None
     ) = Field(
@@ -171,6 +195,11 @@ class SdmxDataSourceConfig(DataSourceConfig):
         discriminator='type',
         description="The configuration of the dataset hierarchy for this data source",
     )
+
+    def get_data_explorer_url(self) -> str | None:
+        if self.data_explorer_url:
+            return config_utils.replace_env(self.data_explorer_url)
+        return None
 
     def get_id(self) -> str:
         return self.sdmx_config.id
@@ -194,6 +223,20 @@ class SdmxDataSetConfigMixin:
             "E.g. in SDMX standard codes are `_Z` - Not Applicable/Not Available, `_T` - Total, etc. "
             "If not set, the default value codes from the data source configuration will be used. "
             "If set to an empty list, no default value codes will be used."
+        ),
+    )
+    sdmx1_source: str | None = Field(
+        default=None,
+        description=(
+            "Optional sdmx1 library source id for generated Python attachment code for this dataset. "
+            "When unset, the data source `sdmx1_source` is used; if that is also unset, the dataflow maintainer id is used."
+        ),
+    )
+    data_explorer_url_config: DataExplorerUrlConfig | None = Field(
+        default=None,
+        description=(
+            "How to build data-explorer links for this dataset. When unset, the data source default "
+            "is used; if that is also unset, the legacy format applies (urn + filter + time parameters)."
         ),
     )
 

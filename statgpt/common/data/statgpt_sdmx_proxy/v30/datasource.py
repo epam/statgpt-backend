@@ -1,23 +1,20 @@
 import uuid
-from collections.abc import Mapping
-from typing import Any
 
 from sdmx.model.common import BaseAnnotation
-from sdmx.model.v21 import DataflowDefinition as DataFlow
 
 from statgpt.common.auth.auth_context import AuthContext
 from statgpt.common.config import multiline_logger as logger
 from statgpt.common.data.base import DataSourceType
+from statgpt.common.data.base.property_source import PropertySourceEnum
 from statgpt.common.data.base.sdmx_schemas import Sdmx30AnnotationModel
 from statgpt.common.data.quanthub.config import QuanthubDataSetConfig
-from statgpt.common.data.sdmx.v21.attribute import Sdmx21Attribute
 from statgpt.common.data.sdmx.v21.attributes_creator import Sdmx21AttributesCreator
 from statgpt.common.data.sdmx.v21.dataflow_loader import DataflowLoader
 from statgpt.common.data.sdmx.v21.dataset import InvalidConfigurationError, SdmxOfflineDataSet
 from statgpt.common.data.sdmx.v21.datasource import Sdmx21DataSourceHandler, SdmxDataSetDescriptor
 from statgpt.common.data.sdmx.v21.dimensions_creator import DimensionsCreator
 from statgpt.common.data.sdmx.v21.ratelimiter import SdmxRateLimiterFactory
-from statgpt.common.data.sdmx.v21.schemas import StructureMessage21, Urn
+from statgpt.common.data.sdmx.v21.schemas import Urn
 from statgpt.common.data.sdmx.v21.urn_utils import is_wildcarded_version, lookup_urn
 from statgpt.common.data.statgpt_sdmx_proxy.config import StatGptSdmxProxyDataSourceConfig
 from statgpt.common.data.statgpt_sdmx_proxy.v30.dataset import StatGptSdmxProxyDataSet
@@ -27,15 +24,15 @@ from statgpt.common.data.statgpt_sdmx_proxy.v30.sdmx_client import (
 from statgpt.common.data.statgpt_sdmx_proxy.v30.sdmx_client import proxy_structure_extra_headers
 from statgpt.common.schemas.dataset import Status
 from statgpt.common.settings.sdmx import statgpt_sdmx_proxy_settings
-from statgpt.common.utils import TtlCache
+from statgpt.common.utils import AsyncLoadingCache
 from statgpt.common.utils.timer import debug_timer
 
 
 class StatGptSdmxProxyDataSourceHandler(Sdmx21DataSourceHandler):
     """StatGPT SDMX proxy data source (SDMX 3.0 API, parsed as SDMX 2.1 models)."""
 
-    _dataset_cache: TtlCache[StatGptSdmxProxyDataSet] = TtlCache(
-        ttl=statgpt_sdmx_proxy_settings.dataset_cache_ttl
+    _dataset_cache: AsyncLoadingCache[StatGptSdmxProxyDataSet | SdmxOfflineDataSet] = (
+        AsyncLoadingCache(ttl=statgpt_sdmx_proxy_settings.dataset_cache_ttl)
     )
 
     def __init__(self, config: StatGptSdmxProxyDataSourceConfig):
@@ -64,19 +61,6 @@ class StatGptSdmxProxyDataSourceHandler(Sdmx21DataSourceHandler):
         )
         return SdmxClient.from_config(self._config, auth_context, rate_limiter)
 
-    async def _load_extra_dataset_data(
-        self, sdmx_client: Any, urn: Urn, structure_message: StructureMessage21 | None = None
-    ) -> Mapping[str, Any]:
-        if structure_message is None:
-            return {}
-
-        dataflow = structure_message.dataflow.get(urn)
-        if dataflow is None:
-            return {}
-
-        annotations = [self._to_proxy_annotation(a) for a in dataflow.annotations]
-        return {"annotations": annotations}
-
     @staticmethod
     def _to_proxy_annotation(annotation: BaseAnnotation) -> Sdmx30AnnotationModel:
         text = str(annotation.text) if annotation.text else None
@@ -88,28 +72,9 @@ class StatGptSdmxProxyDataSourceHandler(Sdmx21DataSourceHandler):
             text=text,
         )
 
-    def _build_dataset(
-        self,
-        *,
-        entity_id: uuid.UUID,
-        title: str,
-        dataset_config: Any,
-        dataflow: DataFlow,
-        dimensions: list[Any],
-        attributes: list[Sdmx21Attribute],
-        extra_data: Mapping[str, Any],
-    ) -> StatGptSdmxProxyDataSet:
-        return StatGptSdmxProxyDataSet(
-            entity_id=entity_id,
-            title=title,
-            config=dataset_config,
-            handler=self,
-            dataflow=dataflow,
-            locale=self._config.locale,
-            dimensions=dimensions,
-            attributes=attributes,
-            annotations=extra_data.get("annotations", []),
-        )
+    @staticmethod
+    def _requires_dataset_level_attributes(config: QuanthubDataSetConfig) -> bool:
+        return any(source.source == PropertySourceEnum.ATTRIBUTE for source in config.updated_at)
 
     async def _get_dataset(  # type: ignore[override]
         self,
@@ -118,16 +83,8 @@ class StatGptSdmxProxyDataSourceHandler(Sdmx21DataSourceHandler):
         config: dict,
         auth_context: AuthContext,
         allow_offline: bool = False,
-        allow_cached: bool = False,
     ) -> StatGptSdmxProxyDataSet | SdmxOfflineDataSet:
         dataset_config = self.parse_data_set_config(config)
-
-        if allow_cached:
-            if ds := self._dataset_cache.get(str(entity_id)):
-                logger.debug(
-                    f"Returning cached dataset(id={entity_id}, urn={dataset_config.urn!r})"
-                )
-                return ds
 
         logger.info(f"Loading dataset urn={dataset_config.urn!r}.")
         sdmx_client = await self.create_sdmx_client(auth_context)
@@ -142,6 +99,7 @@ class StatGptSdmxProxyDataSourceHandler(Sdmx21DataSourceHandler):
                 sdmx_client, structure_extra_headers=proxy_structure_extra_headers
             )
             urn, structure_message = await dataflow_loader.load_structure_message(urn, mode="full")
+            dataflow = structure_message.dataflow[urn]
         except Exception:
             if allow_offline:
                 msg = f"Failed to load the dataflow or its associated structures. urn={dataset_config.urn!r}"
@@ -176,32 +134,43 @@ class StatGptSdmxProxyDataSourceHandler(Sdmx21DataSourceHandler):
                 return SdmxOfflineDataSet(entity_id, title, dataset_config, self, status)
             raise
 
-        try:
-            extra_data = await self._load_extra_dataset_data(
-                sdmx_client=sdmx_client, urn=urn, structure_message=structure_message
-            )
-        except Exception:
-            if allow_offline:
-                msg = "Failed to load additional dataset metadata."
-                logger.exception(f"{msg}. See exception details below.")
-                status = Status(status='offline', details=msg)
-                return SdmxOfflineDataSet(entity_id, title, dataset_config, self, status)
-            raise
+        if self._requires_dataset_level_attributes(dataset_config):
+            try:
+                attribute_values = await sdmx_client.dataset_level_attributes(
+                    agency_id=urn.agency_id,
+                    resource_id=urn.resource_id,
+                    version=urn.version,
+                )
+            except Exception:
+                logger.exception(
+                    f"Failed to load dataset-level attributes for the dataflow({urn})."
+                )
+                attribute_values = {}
+        else:
+            attribute_values = {}
 
         try:
-            dataflow = structure_message.dataflow[urn]
+            annotations = [self._to_proxy_annotation(a) for a in dataflow.annotations]
+        except Exception:
+            logger.exception(f"Failed to parse annotations for the dataflow({urn}).")
+            annotations = []
+
+        try:
             if is_wildcarded_version(dataflow.structure.version):
                 dataflow.structure = lookup_urn(
                     structure_message.structure, Urn.for_artifact(dataflow.structure)
                 )
-            result = self._build_dataset(
+            result = StatGptSdmxProxyDataSet(
                 entity_id=entity_id,
                 title=title,
-                dataset_config=dataset_config,
+                config=dataset_config,
+                handler=self,
                 dataflow=dataflow,
+                locale=self._config.locale,
                 dimensions=dimensions,
                 attributes=attributes,
-                extra_data=extra_data,
+                attribute_values=attribute_values,
+                annotations=annotations,
             )
         except InvalidConfigurationError as e:
             if allow_offline:
@@ -218,10 +187,6 @@ class StatGptSdmxProxyDataSourceHandler(Sdmx21DataSourceHandler):
                 return SdmxOfflineDataSet(entity_id, title, dataset_config, self, status)
             raise
 
-        if allow_cached:
-            self._dataset_cache.set(str(entity_id), result)
-            logger.info(f"Cached dataset(id={entity_id}, urn={dataset_config.urn!r}).")
-
         return result
 
     async def get_dataset(
@@ -234,13 +199,22 @@ class StatGptSdmxProxyDataSourceHandler(Sdmx21DataSourceHandler):
         allow_cached: bool = False,
     ) -> StatGptSdmxProxyDataSet | SdmxOfflineDataSet:
         with debug_timer(f"StatGptSdmxProxyDataSourceHandler.get_dataset: {title}"):
+            if allow_cached:
+                dataset_config = self.parse_data_set_config(config)
+                return await self._dataset_cache.get(
+                    key=str(entity_id),
+                    loader=lambda: self._get_dataset(
+                        entity_id, title, config, auth_context, allow_offline=allow_offline
+                    ),
+                    # NOTE: OfflineDataset may end up in the cache when allow_offline=True
+                    # and loading fails. The validator rejects it on the next access,
+                    # triggering a fresh load attempt (in case the upstream recovered).
+                    validator=lambda ds: (
+                        not isinstance(ds, SdmxOfflineDataSet) and ds.config == dataset_config
+                    ),
+                )
             return await self._get_dataset(
-                entity_id,
-                title,
-                config,
-                auth_context,
-                allow_offline=allow_offline,
-                allow_cached=allow_cached,
+                entity_id, title, config, auth_context, allow_offline=allow_offline
             )
 
     async def list_datasets(self, auth_context: AuthContext) -> list[SdmxDataSetDescriptor]:

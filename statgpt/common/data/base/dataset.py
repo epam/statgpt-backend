@@ -3,7 +3,7 @@ from __future__ import annotations
 import uuid
 from abc import ABC, abstractmethod
 from collections.abc import Sequence
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Generic, TypeVar
 
 import pandas as pd
@@ -68,6 +68,14 @@ class DataResponseStatus(BaseModel):
 class DataResponse(ABC):
     """Base class for data responses from datasets."""
 
+    def __init__(self) -> None:
+        self._created_at = datetime.now(timezone.utc)
+
+    @property
+    def created_at(self) -> datetime:
+        """UTC timestamp of when the response object was created (data received)."""
+        return self._created_at
+
     @property
     @abstractmethod
     def status(self) -> DataResponseStatus:
@@ -97,6 +105,15 @@ class DataResponse(ABC):
     def enrich_attachment_name(self, value: str) -> str:
         """Replace placeholders in the attachment name with actual values."""
 
+    @property
+    @abstractmethod
+    def resource_path(self) -> str:
+        """Human-readable path component identifying the dataset for resource URIs.
+
+        Used to build URIs for attachments (e.g. MCP inline resources). The returned
+        value is not URL-encoded — callers should encode it as needed.
+        """
+
     @abstractmethod
     def merge(self, other: "DataResponse") -> "DataResponse":
         """Merge another DataResponse into a new DataResponse instance.
@@ -125,11 +142,6 @@ class DataResponse(ABC):
 
     @property
     @abstractmethod
-    def json_query_old(self) -> dict | None:
-        """Return the query in JSON format. [Deprecated, use `json_query` instead]"""
-
-    @property
-    @abstractmethod
     def json_query(self) -> dict | None:
         """Return the query in JSON format."""
 
@@ -145,6 +157,10 @@ class DataResponse(ABC):
     @abstractmethod
     def time_period(self) -> tuple[str, str] | None:
         """Return the time period covered by the data in this response as a tuple of (start, end)."""
+
+    @abstractmethod
+    def get_display_series_count(self) -> int:
+        """Number of data series in this response, for user-facing text (e.g. chat formatters)."""
 
 
 DataSetConfigType = TypeVar("DataSetConfigType", bound=DataSetConfig)
@@ -220,6 +236,19 @@ class DataSet(BaseEntity, Generic[DataSetConfigType, DataSourceHandlerType], ABC
     @abstractmethod
     def status(self) -> Status:
         pass
+
+    @abstractmethod
+    def get_resolved_sdmx1_source(self) -> str | None:
+        """Return resolved sdmx1 library source identifier if available."""
+
+    @property
+    def sdmx_key_dimension_ids_in_dsd_order(self) -> list[str] | None:
+        """Non-time dimension ids in DSD order for SDMX 2.1 REST data keys.
+
+        ``None`` when this dataset type does not expose an SDMX DSD key order
+        (callers fall back to filter order for Python code generation).
+        """
+        return None
 
     @property
     @abstractmethod
@@ -305,6 +334,9 @@ class OfflineDataSet(DataSet, Generic[DataSetConfigType, DataSourceHandlerType],
     @property
     def default_value_codes(self) -> list[str]:
         return []
+
+    def get_resolved_sdmx1_source(self) -> str | None:
+        return None
 
     @property
     def dataset_url(self) -> str | None:

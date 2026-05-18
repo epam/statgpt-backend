@@ -4,7 +4,7 @@ from enum import StrEnum
 
 from pydantic import BaseModel, Field
 
-from statgpt.common.data.sdmx.common import UrnParseError, UrnParser
+from .urn import UrnParseError, UrnParser
 
 
 class SdmxQueryReadinessStatus(StrEnum):

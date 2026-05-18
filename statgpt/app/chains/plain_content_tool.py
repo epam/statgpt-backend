@@ -1,3 +1,5 @@
+from mcp.types import ToolAnnotations
+
 from statgpt.app.chains.tools import StatGptTool
 from statgpt.app.schemas import ToolArtifact, ToolMessageState
 from statgpt.common.auth.auth_context import AuthContext
@@ -28,6 +30,10 @@ class PlainContentTool(StatGptTool[PlainContentToolConfig], tool_type=ToolTypes.
     """
     Tool for displaying plain content (text, json, yaml) in Markdown format.
     """
+
+    @classmethod
+    def get_mcp_annotations(cls) -> ToolAnnotations:
+        return ToolAnnotations(readOnlyHint=True, destructiveHint=False, openWorldHint=False)
 
     async def _arun(self, inputs: dict) -> tuple[str, ToolArtifact]:
         # it's assumed that file is stored under app's API key

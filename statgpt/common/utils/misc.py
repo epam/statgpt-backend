@@ -1,6 +1,5 @@
 import asyncio
 import base64
-import hashlib
 import itertools
 import subprocess
 import uuid
@@ -104,21 +103,6 @@ def create_base64_uuid():
     # remove padding symbols
     res = uuid_b64_str.rstrip('=')
     return res
-
-
-def get_file_hash(fp: str, hashfunc_factory=hashlib.md5, chunk_size=1024 * 1024):
-    """'
-    Compute hash of a file. File is read in chunks of size 'chunk_size'
-    """
-    hashfunc = hashfunc_factory()
-    with open(fp, "rb") as fin:
-        while True:
-            chunks = fin.read(chunk_size)
-            if chunks:
-                hashfunc.update(chunks)
-            else:
-                break
-    return hashfunc.hexdigest()
 
 
 def argparse_parse_int_or_none(val: str) -> int | None:

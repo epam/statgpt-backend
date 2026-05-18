@@ -1,24 +1,20 @@
 import uuid
-from collections.abc import Mapping
-from typing import Any
 
 import httpx
 from httpx import HTTPStatusError
-from sdmx.model.v21 import DataflowDefinition as DataFlow
 
 from statgpt.common.auth.auth_context import AuthContext
 from statgpt.common.config import multiline_logger as logger
 from statgpt.common.data.base import DataSourceType
 from statgpt.common.data.quanthub.config import QuanthubDataSetConfig, QuanthubSdmxDataSourceConfig
 from statgpt.common.data.quanthub.v21.dataset import QuanthubSdmx21DataSet
-from statgpt.common.data.sdmx.v21.attribute import Sdmx21Attribute
 from statgpt.common.data.sdmx.v21.attributes_creator import Sdmx21AttributesCreator
 from statgpt.common.data.sdmx.v21.dataflow_loader import DataflowLoader
 from statgpt.common.data.sdmx.v21.dataset import InvalidConfigurationError, SdmxOfflineDataSet
 from statgpt.common.data.sdmx.v21.datasource import Sdmx21DataSourceHandler
 from statgpt.common.data.sdmx.v21.dimensions_creator import DimensionsCreator
 from statgpt.common.data.sdmx.v21.ratelimiter import SdmxRateLimiterFactory
-from statgpt.common.data.sdmx.v21.schemas import StructureMessage21, Urn
+from statgpt.common.data.sdmx.v21.schemas import Urn
 from statgpt.common.data.sdmx.v21.urn_utils import is_wildcarded_version, lookup_urn
 from statgpt.common.schemas.dataset import Status
 from statgpt.common.settings.sdmx import quanthub_settings
@@ -69,70 +65,6 @@ class QuanthubSdmx21DataSourceHandler(Sdmx21DataSourceHandler):
                     return False
                 else:
                     raise
-
-    def _should_use_cache(self, allow_cached: bool) -> bool:
-        auth_enabled = getattr(self._config, "auth_enabled", False)
-        return allow_cached and not auth_enabled
-
-    async def _load_extra_dataset_data(
-        self, sdmx_client: Any, urn: Urn, structure_message: StructureMessage21 | None = None
-    ) -> Mapping[str, Any]:
-        client = sdmx_client
-        try:
-            attribute_values = await client.dataset_level_attributes(
-                agency_id=urn.agency_id,
-                resource_id=urn.resource_id,
-                version=urn.version,
-            )
-        except Exception:
-            logger.exception(f"Failed to load dataset-level attributes for the dataflow({urn}).")
-            attribute_values = {}
-
-        try:
-            annotations = await client.dynamic_dataflow_annotations(
-                agency_id=urn.agency_id,
-                resource_id=urn.resource_id,
-                version=urn.version,
-            )
-        except httpx.RequestError as e:
-            logger.exception(
-                f"Failed to load annotations for the dataflow({urn})."
-                f"\nRequest: {e.request.method} {e.request.url}"
-                + (f"\nContent: {e.request.content!r}" if e.request.content else "")
-            )
-            annotations = []
-        except Exception:
-            logger.exception(f"Failed to load annotations for the dataflow({urn}).")
-            annotations = []
-
-        return {
-            "attribute_values": attribute_values,
-            "annotations": annotations,
-        }
-
-    def _build_dataset(
-        self,
-        *,
-        entity_id: uuid.UUID,
-        title: str,
-        dataset_config: Any,
-        dataflow: DataFlow,
-        dimensions: list[Any],
-        attributes: list[Sdmx21Attribute],
-        extra_data: Mapping[str, Any],
-    ) -> QuanthubSdmx21DataSet:
-        return QuanthubSdmx21DataSet(
-            entity_id=entity_id,
-            title=title,
-            config=dataset_config,
-            handler=self,
-            dataflow=dataflow,
-            locale=self._config.locale,
-            dimensions=dimensions,
-            attributes=attributes,
-            attribute_values=extra_data.get("attribute_values", {}),
-            annotations=extra_data.get("annotations", []),
-        )
 
     async def _get_dataset(  # type: ignore[override]
         self,
@@ -190,16 +122,31 @@ class QuanthubSdmx21DataSourceHandler(Sdmx21DataSourceHandler):
             raise
 
         try:
-            extra_data = await self._load_extra_dataset_data(
-                sdmx_client=sdmx_client, urn=urn, structure_message=structure_message
+            attribute_values = await sdmx_client.dataset_level_attributes(
+                agency_id=urn.agency_id,
+                resource_id=urn.resource_id,
+                version=urn.version,
             )
         except Exception:
-            if allow_offline:
-                msg = "Failed to load additional dataset metadata."
-                logger.exception(f"{msg}. See exception details below.")
-                status = Status(status='offline', details=msg)
-                return SdmxOfflineDataSet(entity_id, title, dataset_config, self, status)
-            raise
+            logger.exception(f"Failed to load dataset-level attributes for the dataflow({urn}).")
+            attribute_values = {}
+
+        try:
+            annotations = await sdmx_client.dynamic_dataflow_annotations(
+                agency_id=urn.agency_id,
+                resource_id=urn.resource_id,
+                version=urn.version,
+            )
+        except httpx.RequestError as e:
+            logger.exception(
+                f"Failed to load annotations for the dataflow({urn})."
+                f"\nRequest: {e.request.method} {e.request.url}"
+                + (f"\nContent: {e.request.content!r}" if e.request.content else "")
+            )
+            annotations = []
+        except Exception:
+            logger.exception(f"Failed to load annotations for the dataflow({urn}).")
+            annotations = []
 
         try:
             dataflow = structure_message.dataflow[urn]
@@ -207,14 +154,17 @@ class QuanthubSdmx21DataSourceHandler(Sdmx21DataSourceHandler):
                 dataflow.structure = lookup_urn(
                     structure_message.structure, Urn.for_artifact(dataflow.structure)
                 )
-            result = self._build_dataset(
+            result = QuanthubSdmx21DataSet(
                 entity_id=entity_id,
                 title=title,
-                dataset_config=dataset_config,
+                config=dataset_config,
+                handler=self,
                 dataflow=dataflow,
+                locale=self._config.locale,
                 dimensions=dimensions,
                 attributes=attributes,
-                extra_data=extra_data,
+                attribute_values=attribute_values,
+                annotations=annotations,
             )
         except InvalidConfigurationError as e:
             if allow_offline:

@@ -1,5 +1,4 @@
 from functools import cached_property
-from typing import Protocol
 
 from statgpt.app.security.exceptions import InsufficientRoleError, MissingApiKeyError
 from statgpt.app.settings.dial_app import dial_app_settings
@@ -7,15 +6,10 @@ from statgpt.common.auth.auth_context import AuthContext
 from statgpt.common.settings.dial import dial_settings
 from statgpt.common.utils import dial_core_factory
 
-
-class RequestProtocol(Protocol):
-    @property
-    def api_key(self) -> str | None: ...
-    @property
-    def bearer_token(self) -> str | None: ...
+from .credentials import DialAuthCredentialsI
 
 
-def _resolve_api_key(request: RequestProtocol) -> str:
+def _resolve_api_key(request: DialAuthCredentialsI) -> str:
     """Resolve API key from the request."""
     if request.api_key is None:
         raise MissingApiKeyError()
@@ -23,9 +17,9 @@ def _resolve_api_key(request: RequestProtocol) -> str:
 
 
 class UserAuthContext(AuthContext):
-    _request: RequestProtocol
+    _request: DialAuthCredentialsI
 
-    def __init__(self, request: RequestProtocol):
+    def __init__(self, request: DialAuthCredentialsI):
         self._request = request
 
     @cached_property
@@ -49,7 +43,7 @@ class SystemUserAuthContext(AuthContext):
     to access channels requiring JWT forwarding.
     """
 
-    def __init__(self, request: RequestProtocol):
+    def __init__(self, request: DialAuthCredentialsI):
         self._request = request
 
     @cached_property
@@ -66,7 +60,7 @@ class SystemUserAuthContext(AuthContext):
 
 
 async def create_auth_context(
-    request: RequestProtocol, bearer_token_required: bool = False
+    request: DialAuthCredentialsI, bearer_token_required: bool = False
 ) -> AuthContext:
     """Create an authentication context based on the request."""
 
@@ -82,7 +76,7 @@ async def create_auth_context(
     return UserAuthContext(request)
 
 
-async def _check_roles(request: RequestProtocol, allowed_roles: set[str]) -> bool:
+async def _check_roles(request: DialAuthCredentialsI, allowed_roles: set[str]) -> bool:
     """Check if the request has the specified role."""
 
     if request.api_key is None:

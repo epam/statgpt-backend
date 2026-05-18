@@ -6,11 +6,10 @@ from sdmx.model.v21 import DataflowDefinition as DataFlow
 
 from statgpt.common.data.base.sdmx_schemas import Sdmx30AnnotationModel
 from statgpt.common.data.base.updated_at_mixin import UpdatedAtMixin
-from statgpt.common.data.sdmx.common import SdmxDimension
+from statgpt.common.data.sdmx.common import SdmxDataSetQuery, SdmxDimension
 from statgpt.common.data.sdmx.common.config import SdmxDataSetConfig
 from statgpt.common.data.sdmx.v21.attribute import Sdmx21Attribute
 from statgpt.common.data.sdmx.v21.dataset import Sdmx21DataSet
-from statgpt.common.data.sdmx.v21.query import SdmxDataSetQuery
 
 if typing.TYPE_CHECKING:
     from .datasource import StatGptSdmxProxyDataSourceHandler as DataSourceHandler
@@ -29,6 +28,7 @@ class StatGptSdmxProxyDataSet(UpdatedAtMixin, Sdmx21DataSet):
         locale: str,
         dimensions: Iterable[SdmxDimension],
         attributes: Iterable[Sdmx21Attribute],
+        attribute_values: dict[str, str | None],
         annotations: Iterable[Sdmx30AnnotationModel],
     ):
         super().__init__(
@@ -41,6 +41,7 @@ class StatGptSdmxProxyDataSet(UpdatedAtMixin, Sdmx21DataSet):
             dimensions=dimensions,
             attributes=attributes,
         )
+        self._attribute_values = attribute_values
         self._annotations = list(annotations)
 
     def _get_query_params(self, sdmx_query: SdmxDataSetQuery) -> dict:
@@ -56,4 +57,12 @@ class StatGptSdmxProxyDataSet(UpdatedAtMixin, Sdmx21DataSet):
     def _get_annotation_value_by_id(self, annotation_id: str) -> str | None:
         if annotation := self._get_annotation_by_id(annotation_id):
             return annotation.value
+        return None
+
+    def _get_attribute_value_by_id(self, attribute_id: str) -> str | None:
+        return self._attribute_values.get(attribute_id)
+
+    def _get_citation_value(self, field: str) -> str | None:
+        if self.config.citation:
+            return getattr(self.config.citation, field, None)
         return None

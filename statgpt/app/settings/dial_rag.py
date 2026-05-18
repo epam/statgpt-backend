@@ -1,5 +1,3 @@
-from typing import Optional
-
 from pydantic import Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -11,11 +9,11 @@ class DialRagSettings(BaseSettings):
 
     model_config = SettingsConfigDict(env_prefix="DIAL_RAG_")
 
-    pgvector_url: Optional[str] = Field(
+    pgvector_url: str | None = Field(
         default=None, description="URL for remote DIAL RAG PGVector service"
     )
 
-    pgvector_api_key: Optional[SecretStr] = Field(
+    pgvector_api_key: SecretStr | None = Field(
         default=None, description="API key for remote DIAL RAG PGVector service"
     )
 

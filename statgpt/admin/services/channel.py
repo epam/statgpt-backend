@@ -132,7 +132,7 @@ class AdminPortalChannelService(ChannelService):
 
         collections = [
             channel.indicator_table_name,
-            channel.available_dimensions_table_name,
+            channel.non_indicator_dimensions_table_name,
             channel.special_dimensions_table_name,
         ]
         for collection in collections:
@@ -274,7 +274,7 @@ class AdminPortalChannelService(ChannelService):
     async def deduplicate_channel_dimensions(
         self, channel_id: int, auth_context: AuthContext
     ) -> None:
-        """Deduplicates Available_Dimensions and Special_Dimensions vector stores for channel.
+        """Deduplicates the non-indicator and special dimensions vector stores for the channel.
 
         Deduplication is performed based on document content.
         Documents with identical content will be merged.
@@ -282,19 +282,19 @@ class AdminPortalChannelService(ChannelService):
         async with self._scoped_session():
             channel = await self.get_model_by_id(channel_id)
             # Extract scalar values while still inside the session scope:
-            available_dims_table = channel.available_dimensions_table_name
+            non_indicator_dims_table = channel.non_indicator_dimensions_table_name
             special_dims_table = channel.special_dimensions_table_name
             llm_model = channel.llm_model
 
         vector_store_factory = VectorStoreFactory()
 
-        _log.info(f"Deduplicating available_dimensions for channel {channel_id}")
-        available_dims_store = await vector_store_factory.get_vector_store(
-            collection_name=available_dims_table,
+        _log.info(f"Deduplicating non_indicator_dimensions for channel {channel_id}")
+        non_indicator_dims_store = await vector_store_factory.get_vector_store(
+            collection_name=non_indicator_dims_table,
             auth_context=auth_context,
             embedding_model_name=llm_model,
         )
-        await available_dims_store.deduplicate_by_document_content()
+        await non_indicator_dims_store.deduplicate_by_document_content()
 
         _log.info(f"Deduplicating special_dimensions for channel {channel_id}")
         special_dims_store = await vector_store_factory.get_vector_store(

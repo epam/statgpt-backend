@@ -1,11 +1,12 @@
 import io
+from typing import cast
 from urllib.parse import urlencode
 
 import httpx
 import requests
 from sdmx import Resource
 from sdmx.message import DataMessage, StructureMessage
-from sdmx.model.v21 import DataStructureDefinition
+from sdmx.model.v21 import AttributeValue, Code, DataStructureDefinition
 from sdmx.session import ResponseIO
 
 from statgpt.common.auth.auth_context import AuthContext
@@ -18,6 +19,24 @@ from statgpt.common.data.statgpt_sdmx_proxy.sdmx_schemas.structure_message impor
     ProxyAvailabilityResponseBody,
 )
 from statgpt.common.data.statgpt_sdmx_proxy.v30.reader import StatGptSdmxProxyDataReader
+from statgpt.common.utils import TtlCache
+
+
+def _sdmx_attribute_value_display(av: AttributeValue) -> str | None:
+    val = av.value
+    if val is None:
+        return None
+    if isinstance(val, Code):
+        return val.id
+    return str(val)
+
+
+def _dataset_level_attribute_map_from_data_message(msg: DataMessage) -> dict[str, str | None]:
+    """Extract dataset-level attributes from a DataMessage as a flat {id: display_value} dict."""
+    if len(msg.data) != 1:
+        return {}
+    ds = msg.data[0]
+    return {attr_id: _sdmx_attribute_value_display(av) for attr_id, av in ds.attrib.items()}
 
 
 def proxy_structure_extra_headers(dsd_urn: str | None) -> dict[str, str] | None:
@@ -30,6 +49,7 @@ class AsyncStatGptSdmxProxyClient(AsyncSdmxClient):
 
     _DATA_PARAM_ALLOWLIST = {"startPeriod", "endPeriod", "firstNObservations", "lastNObservations"}
     _DATA_ACCEPT_DEFAULT = "application/vnd.sdmx.data+json;version=2.0.0"
+    _attributes_cache: TtlCache[dict[str, str | None]] = TtlCache()
 
     @classmethod
     def from_config(  # type: ignore[override]
@@ -59,7 +79,6 @@ class AsyncStatGptSdmxProxyClient(AsyncSdmxClient):
                 use_cache=use_cache,
                 key=key,
                 params=params,
-                dsd=dsd,
             )
 
     async def data(
@@ -82,32 +101,59 @@ class AsyncStatGptSdmxProxyClient(AsyncSdmxClient):
                 dsd=dsd,
             )
 
-    async def _proxy_available_constraint(
+    async def dataset_level_attributes(
+        self, *, agency_id: str, resource_id: str, version: str
+    ) -> dict[str, str | None]:
+        """Fetch dataset-level attributes and their resolved values for a dataflow."""
+        url = self._build_url(
+            path=f"/data/dataflow/{agency_id}/{resource_id}/{version}/*",
+            params={"attributes": "dataset", "measures": "none", "limit": "1"},
+        )
+        if (item := self._attributes_cache.get(url)) is not None:
+            return item
+
+        async with self._rate_limiter.data_limiter():
+            response, req = await self._perform_get(url, Resource.data)
+            if response is None:
+                return {}
+
+            requests_response = self._convert_response(response, req)
+            response_content: io.IOBase = ResponseIO(response)
+            try:
+                msg = StatGptSdmxProxyDataReader().convert(response_content, structure=None)
+                msg.response = requests_response
+            except Exception:
+                logger.error(
+                    "Failed to parse dataset-level attributes response: url=%r content-type=%r body=%r",
+                    requests_response.url,
+                    requests_response.headers.get("content-type"),
+                    requests_response.text[:1000],
+                )
+                result = {}
+            else:
+                if isinstance(msg, DataMessage):
+                    result = _dataset_level_attribute_map_from_data_message(msg)
+                else:
+                    logger.error(
+                        "Unexpected response message type: %s for URL %r",
+                        type(msg).__name__,
+                        req.url,
+                    )
+                    result = {}
+
+        self._attributes_cache.set(url, result)
+        return result
+
+    async def _fetch_proxy_available_constraint(
         self,
         *,
-        agency_id: str,
-        resource_id: str,
-        version: str,
-        use_cache: bool,
+        url: str,
         key: dict[str, list[str]] | None,
         params: dict[str, str] | None,
-        dsd: DataStructureDefinition | None,
     ) -> StructureMessage:
         """Fetch available constraints from the StatGPT SDMX proxy API."""
-        url = self._build_url(
-            path=f"/availability/dataflow/{agency_id}/{resource_id}/{version}", params=None
-        )
-
-        if use_cache:
-            if key or params:
-                raise ValueError("`use_cache` is not supported with `key` or `params`")
-
-            cached_response = await self._get_item_from_cache(url)
-            if cached_response is not None:
-                return cached_response  # type: ignore[return-value]
-
-        key = {} if key is None else key
-        req_body_obj = SdmxPlusAvailabilityRequestBody.get_from(key=key, params=params)
+        resolved_key = {} if key is None else key
+        req_body_obj = SdmxPlusAvailabilityRequestBody.get_from(key=resolved_key, params=params)
         body = req_body_obj.model_dump(mode='json', exclude_none=True, by_alias=True)
         headers = {'accept': 'application/vnd.sdmx.structure+json;version=2.0.0'}
         req = requests.Request(
@@ -128,11 +174,36 @@ class AsyncStatGptSdmxProxyClient(AsyncSdmxClient):
 
         resp_body_obj = ProxyAvailabilityResponseBody.model_validate(response.json())
         structure_msg = resp_body_obj.to_sdmx1()
+        return structure_msg
+
+    async def _proxy_available_constraint(
+        self,
+        *,
+        agency_id: str,
+        resource_id: str,
+        version: str,
+        use_cache: bool,
+        key: dict[str, list[str]] | None,
+        params: dict[str, str] | None,
+    ) -> StructureMessage:
+        url = self._build_url(
+            path=f"/availability/dataflow/{agency_id}/{resource_id}/{version}", params=None
+        )
 
         if use_cache:
-            self._sync_client.cache[url] = structure_msg
+            if key or params:
+                raise ValueError("`use_cache` is not supported with `key` or `params`")
+            return cast(
+                StructureMessage,
+                await self._cache.get(
+                    key=url,
+                    loader=lambda: self._fetch_proxy_available_constraint(
+                        url=url, key=None, params=None
+                    ),
+                ),
+            )
 
-        return structure_msg
+        return await self._fetch_proxy_available_constraint(url=url, key=key, params=params)
 
     async def _proxy_data(
         self,
@@ -156,8 +227,7 @@ class AsyncStatGptSdmxProxyClient(AsyncSdmxClient):
         if response is None:
             return DataMessage()
 
-        httpx_response = response
-        requests_response = self._convert_response(httpx_response, req)
+        requests_response = self._convert_response(response, req)
         try:
             response_content: io.IOBase = ResponseIO(response)
             msg = StatGptSdmxProxyDataReader().convert(response_content, structure=dsd)
@@ -205,10 +275,10 @@ class AsyncStatGptSdmxProxyClient(AsyncSdmxClient):
                 parts.append("+".join(values))
         return ".".join(parts).rstrip(".") or "*"
 
-    def _build_url(self, *, path: str, params: dict[str, str | list[str]] | None) -> str:
+    def _build_url(self, *, path: str, params: dict[str, str] | None) -> str:
         url = f"{self._sync_client.source.url}{path}"
         if params:
-            return f"{url}?{urlencode(params, doseq=True)}"
+            return f"{url}?{urlencode(params)}"
         return url
 
     @staticmethod
@@ -220,11 +290,11 @@ class AsyncStatGptSdmxProxyClient(AsyncSdmxClient):
     @staticmethod
     def _convert_time_params(
         params: dict[str, str] | None,
-    ) -> dict[str, str | list[str]] | None:
+    ) -> dict[str, str] | None:
         """Convert startPeriod/endPeriod to SDMX 3.0 c[TIME_PERIOD] filter syntax."""
         if not params:
             return None
-        result: dict[str, str | list[str]] = {}
+        result: dict[str, str] = {}
         time_filters: list[str] = []
         for k, v in params.items():
             if k == "startPeriod":
@@ -234,7 +304,7 @@ class AsyncStatGptSdmxProxyClient(AsyncSdmxClient):
             else:
                 result[k] = v
         if time_filters:
-            result["c[TIME_PERIOD]"] = time_filters
+            result["c[TIME_PERIOD]"] = "+".join(time_filters)
         return result or None
 
     async def _perform_get(
