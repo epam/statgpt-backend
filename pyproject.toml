@@ -186,18 +186,6 @@ flake8 = "7.2.0"
 autoflake = "2.3.1"
 pyright = "^1.1.394"
 freezegun = "^1.5.1"
-aidial-rag-eval = ">=0.5.0,<0.6.0"
-# jinja2 is required for the aidial-rag-eval package, since it uses langchain with Jinja2 templates, which are optional for langchain
-jinja2 = "^3.1.6"
-
-[tool.poetry.group.experiments]
-optional = true
-
-[tool.poetry.group.experiments.dependencies]
-jupyterlab = "4.5.7"
-pandas = { extras = ["excel"], version = "^2.2.2" }
-opik = "^1.7.23"
-pdfplumber = "^0.11.6"
 
 [[tool.poetry.source]]
 name = "pytorch_cpu"
