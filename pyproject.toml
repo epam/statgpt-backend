@@ -30,7 +30,7 @@ dependencies = [
 
     # LLM & AI
     'langchain (>=1.2.0,<2.0.0)',                # LLM orchestration framework
-    'langchain-core (>=1.2.0,<2.0.0)',           # Core LangChain functionality
+    'langchain-core (>=1.3.3,<2.0.0)',           # Core LangChain functionality
     'langchain-openai (>=1.1.0,<2.0.0)',         # OpenAI LangChain integration
     'openai (>=2.26.0,<3.0.0)',                  # OpenAI API client
 
@@ -46,7 +46,7 @@ dependencies = [
     # Configuration & File handling
     'python-dotenv (>=1.2.2,<2.0.0)',            # Environment variable management
     'pyyaml (>=6.0.1,<7.0.0)',                   # YAML file support
-    'python-multipart (>=0.0.26,<0.1.0)',        # Multipart form data (for FastAPI file uploads)
+    'python-multipart (>=0.0.27,<0.1.0)',        # Multipart form data (for FastAPI file uploads)
 
     # Utilities
     'python-dateutil (>=2.9.0.post0,<3.0.0)',    # Date/time utilities
@@ -194,7 +194,7 @@ jinja2 = "^3.1.6"
 optional = true
 
 [tool.poetry.group.experiments.dependencies]
-jupyterlab = "4.4.8"
+jupyterlab = "4.5.7"
 pandas = { extras = ["excel"], version = "^2.2.2" }
 opik = "^1.7.23"
 pdfplumber = "^0.11.6"

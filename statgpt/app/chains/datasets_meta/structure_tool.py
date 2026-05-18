@@ -1,3 +1,4 @@
+from mcp.types import ToolAnnotations
 from pydantic import Field
 
 from statgpt.app.chains.parameters import ChainParameters
@@ -23,6 +24,10 @@ class DatasetStructureArgs(ToolArgs):
 class DatasetStructureTool(
     StatGptTool[DatasetStructureToolConfig], tool_type=ToolTypes.DATASET_STRUCTURE
 ):
+    @classmethod
+    def get_mcp_annotations(cls) -> ToolAnnotations:
+        return ToolAnnotations(readOnlyHint=True, destructiveHint=False, openWorldHint=False)
+
     def __init__(
         self, tool_config: DatasetStructureToolConfig, channel_config: ChannelConfig, **kwargs
     ):

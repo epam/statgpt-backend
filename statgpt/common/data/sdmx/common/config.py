@@ -12,6 +12,7 @@ from statgpt.common.data.base import (
     DataSourceConfig,
     IndexingField,
 )
+from statgpt.common.data.sdmx.common.data_explorer_url import DataExplorerUrlConfig
 
 _log = logging.getLogger(__name__)
 
@@ -180,6 +181,13 @@ class SdmxDataSourceConfig(DataSourceConfig):
             "will point to the data explorer instead of citation URLs."
         ),
     )
+    data_explorer_url_config: DataExplorerUrlConfig | None = Field(
+        default=None,
+        description=(
+            "Default rules for building data-explorer query links and dataset-only explorer URLs. "
+            "Overridden by the same field on a dataset when set."
+        ),
+    )
     dataset_hierarchy: (
         DefaultDataSetHierarchyConfig | CategorySchemaDataSetHierarchyConfig | None
     ) = Field(
@@ -222,6 +230,13 @@ class SdmxDataSetConfigMixin:
         description=(
             "Optional sdmx1 library source id for generated Python attachment code for this dataset. "
             "When unset, the data source `sdmx1_source` is used; if that is also unset, the dataflow maintainer id is used."
+        ),
+    )
+    data_explorer_url_config: DataExplorerUrlConfig | None = Field(
+        default=None,
+        description=(
+            "How to build data-explorer links for this dataset. When unset, the data source default "
+            "is used; if that is also unset, the legacy format applies (urn + filter + time parameters)."
         ),
     )
 

@@ -3,6 +3,7 @@ from collections.abc import MutableMapping
 from typing import Annotated, Any, Generic, Literal, TypeVar
 
 from langchain_core.tools import BaseTool, InjectedToolArg
+from mcp.types import ToolAnnotations
 from pydantic import BaseModel, Field
 
 from statgpt.app.schemas import ToolArtifact
@@ -134,6 +135,13 @@ class StatGptTool(BaseTool, ABC, Generic[ToolConfigType]):
     def get_args_schema(cls, tool_config: ToolConfigType) -> type[ToolArgs]:
         """Return the schema for the arguments that this tool accepts."""
         return ToolArgs
+
+    @classmethod
+    @abstractmethod
+    def get_mcp_annotations(cls) -> ToolAnnotations:
+        """MCP tool hints may be used by clients for UX decisions (e.g. skipping
+        confirmation prompts for read-only tools, flagging open-world tools).
+        Advisory only — clients must not rely on them for security."""
 
     @staticmethod
     def from_config(tool_config: ToolConfigType, channel_config: ChannelConfig) -> 'StatGptTool':

@@ -325,7 +325,7 @@ async def deduplicate_channel(
     background_tasks: BackgroundTasks,
     channel_id: int,
 ) -> schemas.Channel:
-    """Deduplicates Available_Dimensions and Special_Dimensions vector stores for channel.
+    """Deduplicates the non-indicator and special dimensions vector stores for the channel.
 
     This operation removes duplicate dimension values based on document content.
 
