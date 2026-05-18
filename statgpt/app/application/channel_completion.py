@@ -111,7 +111,6 @@ class ChannelCompletion(ChatCompletion):
                 ParamsConfig.CHOICE: choice,
                 ParamsConfig.DATA_SERVICE: service,
                 ParamsConfig.STATE: cls.init_state(request),
-                ParamsConfig.SKIP_OUT_OF_SCOPE_CHECK: dial_app_settings.skip_out_of_scope_check,
                 ParamsConfig.START_OF_REQUEST: start_time,
                 ParamsConfig.CONFIGURATION: configuration,
             }
@@ -177,10 +176,11 @@ class ChannelCompletion(ChatCompletion):
         defaults = {
             # set default commands values from env vars
             StateVarsConfig.SHOW_DEBUG_STAGES: dial_app_settings.dial_show_debug_stages,
-            StateVarsConfig.CMD_OUT_OF_SCOPE_ONLY: dial_app_settings.cmd_out_of_scope_only,
-            StateVarsConfig.CMD_RAG_PREFILTER_ONLY: dial_app_settings.cmd_rag_prefilter_only,
-            StateVarsConfig.CMD_SKIP_DATA_QUERY_SUMMARIZATION: dial_app_settings.cmd_skip_data_query_summarization,
-            StateVarsConfig.CMD_SKIP_TOOLS_EXECUTION: dial_app_settings.cmd_skip_tools_execution,
+            StateVarsConfig.CMD_SKIP_GUARDRAILS: False,
+            StateVarsConfig.CMD_OUT_OF_SCOPE_ONLY: False,
+            StateVarsConfig.CMD_RAG_PREFILTER_ONLY: False,
+            StateVarsConfig.CMD_SKIP_DATA_QUERY_SUMMARIZATION: False,
+            StateVarsConfig.CMD_SKIP_TOOLS_EXECUTION: False,
         }
 
         if len(request.messages) < 2:

@@ -43,34 +43,6 @@ class DialAppSettings(BaseSettings):
         default="⭐", alias="OFFICIAL_DATASET_LABEL", description="Label for official datasets"
     )
 
-    skip_out_of_scope_check: bool = Field(
-        default=False,
-        alias="SKIP_OUT_OF_SCOPE_CHECK",
-        description="Skip out-of-scope check for queries",
-    )
-
-    cmd_out_of_scope_only: bool = Field(
-        default=False,
-        alias="CMD_OUT_OF_SCOPE_ONLY",
-        description="Only check if query is out of scope",
-    )
-
-    cmd_rag_prefilter_only: bool = Field(
-        default=False, alias="CMD_RAG_PREFILTER_ONLY", description="Only apply RAG prefilter"
-    )
-
-    cmd_skip_data_query_summarization: bool = Field(
-        default=False,
-        alias="CMD_SKIP_DATA_QUERY_SUMMARIZATION",
-        description="Skip data query summarization step",
-    )
-
-    cmd_skip_tools_execution: bool = Field(
-        default=False,
-        alias="CMD_SKIP_TOOLS_EXECUTION",
-        description="Skip tools execution step",
-    )
-
     dial_system_user_context_roles: str | None = Field(
         default=None,
         alias="DIAL_SYSTEM_USER_CONTEXT_ROLES",

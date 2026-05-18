@@ -6,11 +6,14 @@ class StateVarsConfig:
     V2_QUERY_BUILDER_AGENT_STATE = "v2_query_builder_agent_state"  # todo: delete along with history
 
     SHOW_DEBUG_STAGES = "show_debug_stages"
+
     # "cmd_" prefix indicates the command
+    CMD_SKIP_GUARDRAILS = "cmd_skip_guardrails"
     CMD_OUT_OF_SCOPE_ONLY = "cmd_out_of_scope_only"
     CMD_RAG_PREFILTER_ONLY = "cmd_rag_prefilter_only"
     CMD_SKIP_DATA_QUERY_SUMMARIZATION = "cmd_skip_data_query_summarization"
     CMD_SKIP_TOOLS_EXECUTION = "cmd_skip_tools_execution"
+
     ERROR = 'error'
 
     # values used in Agentic approach

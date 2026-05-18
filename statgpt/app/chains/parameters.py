@@ -15,10 +15,6 @@ from statgpt.common.data.base import DataResponse, DataSetQuery, DimensionQuery
 
 class ChainParameters:
     @staticmethod
-    def skip_out_of_scope_check(inputs: dict) -> bool:
-        return inputs[ChainParametersConfig.SKIP_OUT_OF_SCOPE_CHECK]
-
-    @staticmethod
     def is_out_of_scope(inputs: dict) -> bool | None:
         return inputs[ChainParametersConfig.OUT_OF_SCOPE]
 

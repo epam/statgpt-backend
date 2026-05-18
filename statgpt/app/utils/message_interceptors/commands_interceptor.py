@@ -56,6 +56,10 @@ class CommandsInterceptor(BaseMessageInterceptor):
             logger.info("CommandsInterceptor: dev commands enabled")
             commands += [
                 InterceptableCommand(
+                    command='skip_guardrails',
+                    state_var=StateVarsConfig.CMD_SKIP_GUARDRAILS,
+                ),
+                InterceptableCommand(
                     command='out_of_scope_only',
                     state_var=StateVarsConfig.CMD_OUT_OF_SCOPE_ONLY,
                 ),

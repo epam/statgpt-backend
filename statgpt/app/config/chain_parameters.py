@@ -16,7 +16,6 @@ class ChainParametersConfig:
     AUTH_CONTEXT = "auth_context"
     DATA_SERVICE = "data_service"
     QUERY = "query"
-    SKIP_OUT_OF_SCOPE_CHECK = "skip_out_of_scope_check"
     START_OF_REQUEST = "start_of_request"
     CONFIGURATION = "configuration"
 
@@ -46,5 +45,4 @@ class ChainParameters(BaseModel):
     auth_context: AuthContext
     data_service: ChannelServiceFacade
     query: str = Field(description="User query")
-    skip_out_of_scope_check: bool = Field(description="Whether to skip out-of-scope check")
     start_of_request: datetime = Field(description="Timestamp of the start of the request")
