@@ -1,3 +1,4 @@
+import time
 from typing import Any
 
 from aidial_sdk.chat_completion import Stage
@@ -16,7 +17,9 @@ from statgpt.app.settings.dial_rag import dial_rag_settings
 from statgpt.app.utils import OpenAiToDialStreamer, openai, replace_dial_url
 from statgpt.common.auth.auth_context import AuthContext
 from statgpt.common.config import multiline_logger as logger
+from statgpt.common.schemas.llm_call_duration import LLMCallDurationItem
 from statgpt.common.utils import MediaTypes
+from statgpt.common.utils.llm_call_duration_context import get_llm_call_duration_manager
 from statgpt.common.utils.models import get_chat_model
 
 
@@ -208,8 +211,11 @@ class DialRagAgentFactory(BaseRAGFactory):
         )
 
         dial_rag_client = self._init_dial_rag_client(auth_context)
+        deployment_name = self._tool_config.details.get_deployment_id()
+
+        time_start = time.monotonic()
         rag_stream = await dial_rag_client.chat.completions.create(
-            model=self._tool_config.details.get_deployment_id(),
+            model=deployment_name,
             stream=True,
             messages=[ChatCompletionUserMessageParam(role='user', content=query)],
             extra_body=configuration_params,
@@ -223,6 +229,7 @@ class DialRagAgentFactory(BaseRAGFactory):
             show_debug_stages=state.get(StateVarsConfig.SHOW_DEBUG_STAGES, False),
             stages_config=self._tool_config.details.stages_config,
         )
+
         with dial_streamer:
             try:
                 async for chunk in rag_stream:
@@ -254,6 +261,14 @@ class DialRagAgentFactory(BaseRAGFactory):
                 target.append_content(msg)
                 inputs[self.FIELD_RESPONSE] = msg
                 inputs[self.FIELD_ANSWERED_BY] = 'LLM'
+
+        duration_s = time.monotonic() - time_start
+
+        duration_manager = get_llm_call_duration_manager()
+        if duration_manager is not None:
+            duration_manager.add_duration(
+                LLMCallDurationItem(deployment=deployment_name, duration_s=duration_s)
+            )
 
         return inputs
 
