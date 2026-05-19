@@ -4,9 +4,6 @@ excludes:
     - pattern: "dev"
       reason: "DEV_DEPENDENCY_OF"
       comment: "Packages for development only."
-    - pattern: "experiments"
-      reason: "DEV_DEPENDENCY_OF"
-      comment: "Packages for experimentation only."
 
 resolutions:
   rule_violations:
