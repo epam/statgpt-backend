@@ -263,6 +263,16 @@ class DataQueryDetails(BaseToolDetails):
             "found to match the query."
         ),
     )
+    use_internal_dataset_selection: bool = Field(
+        default=True,
+        description=(
+            "When True (default), the data_query tool runs its internal LLM "
+            "DataSetsSelectionChain. When False, dataset selection is delegated "
+            "to the supreme agent via a `datasets` tool argument; the internal "
+            "chain is never invoked, and an unknown source_id supplied by the "
+            "agent returns a descriptive error response so the agent can retry."
+        ),
+    )
     time_period_strategy: TimePeriodStrategy = Field(
         default=TimePeriodStrategy.BEFORE,
         description="A strategy that determines when to apply time periods for filtering in availability queries.",
