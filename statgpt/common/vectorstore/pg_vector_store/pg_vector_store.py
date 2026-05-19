@@ -25,9 +25,11 @@ from sqlalchemy.sql.elements import TextClause
 from sqlalchemy.sql.expression import func
 
 from statgpt.common.models import get_readonly_session_context_manager, get_session_context_manager
+from statgpt.common.schemas.llm_call_duration import LLMCallDurationItem
 from statgpt.common.settings.database import PostgresSettings
 from statgpt.common.settings.document import DimensionValueDocumentMetadataFields
 from statgpt.common.utils import batched
+from statgpt.common.utils.llm_call_duration_context import get_llm_call_duration_manager
 from statgpt.common.utils.timer import debug_timer
 from statgpt.common.vectorstore.base import VectorStore
 from statgpt.common.vectorstore.document import ScoredVectorStoreDocument
@@ -399,7 +401,18 @@ class PgVectorStore(VectorStore):
 
         # Embedding computation outside any session
         with debug_timer("vector_store.prepare_embeddings"):
+            embed_start = time.monotonic()
             embedding = (await self._embedding_model.model.aembed_documents([query]))[0]
+            embed_duration = time.monotonic() - embed_start
+
+        duration_manager = get_llm_call_duration_manager()
+        if duration_manager is not None:
+            duration_manager.add_duration(
+                LLMCallDurationItem(
+                    deployment=self._embedding_model.name,
+                    duration_s=embed_duration,
+                )
+            )
 
         with debug_timer("vector_store.prepare_sql_query"):
 
