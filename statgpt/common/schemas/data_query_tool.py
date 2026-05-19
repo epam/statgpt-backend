@@ -1,5 +1,4 @@
-from pydantic import Field, PositiveInt, TypeAdapter, field_validator
-from pydantic_core.core_schema import FieldValidationInfo
+from pydantic import Field, PositiveInt, TypeAdapter, ValidationInfo, field_validator
 
 from statgpt.common.config import LLMModelsEnum
 from statgpt.common.config.utils import replace_env
@@ -84,7 +83,7 @@ class ToolAttachment(BaseYamlModel):
         return enabled
 
     @field_validator("name", mode="after")
-    def validate_name(cls, name: str | None, info: FieldValidationInfo) -> str | None:
+    def validate_name(cls, name: str | None, info: ValidationInfo) -> str | None:
         """Validate the `name` field to ensure it is not empty if `enabled` is True."""
         enabled_str = info.data.get("enabled_str")
         if enabled_str and bool_from_str(enabled_str) and not name:
