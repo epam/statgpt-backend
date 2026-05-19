@@ -3,13 +3,16 @@ import os
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from io import BytesIO
-from typing import Any, Literal
+from typing import Any, BinaryIO
 
 import aiofiles
 import httpx
+from aidial_client import AsyncDial, ResourceNotFoundError
 from pydantic import SecretStr
 
 _log = logging.getLogger(__name__)
+
+_DIAL_REQUEST_TIMEOUT = 600
 
 
 async def read_file_with_progress(file_path: str, chunk_size: int = 64 * 1024) -> BytesIO:
@@ -17,7 +20,7 @@ async def read_file_with_progress(file_path: str, chunk_size: int = 64 * 1024) -
     file_size = os.path.getsize(file_path)
     uploaded = 0
     chunk_count = 0
-    log_interval = 100  # Log every 100 chunks
+    log_interval = 100
     buffer = BytesIO()
 
     _log.info(f"Starting upload of {file_path}")
@@ -45,213 +48,187 @@ async def read_file_with_progress(file_path: str, chunk_size: int = 64 * 1024) -
     return buffer
 
 
-HTTP_METHOD_TYPE = Literal['GET', 'POST', 'PUT', 'DELETE', 'PATCH']
-
-
-def encode_url_characters(url: str) -> str:
-    mapping = {
-        '[': '%5B',
-        ']': '%5D',
-    }
-    for char, replacement in mapping.items():
-        url = url.replace(char, replacement)
-    return url
-
-
 class DialCore:
-    def __init__(self, client: httpx.AsyncClient):
-        self._client = client
+    """Unified DIAL API client backed by aidial-client's AsyncDial.
 
-        # Each instance of `DialCore` has its own api_key inside the client,
-        # so we can cache the bucket
-        self._bucket_id: str | None = None
+    Thin httpx wrappers remain only for operations not yet available in
+    aidial-client (user-info endpoint, folder-metadata with pagination,
+    and streaming file downloads).
+    """
 
-    async def call_custom_endpoint(
-        self, endpoint: str, method: HTTP_METHOD_TYPE = 'GET', **kwargs
-    ) -> dict:
-        response = await self._client.request(method, endpoint, **kwargs)
-        response.raise_for_status()
-        return response.json()
+    def __init__(self, dial: AsyncDial, base_url: str, api_key: str) -> None:
+        self._dial = dial
+        self._base_url = base_url
+        self._api_key = api_key
 
     async def get_user_info(self) -> dict[str, Any]:
         """Retrieve information about a user."""
-        response = await self._client.get('/v1/user/info')
-        response.raise_for_status()
-        return response.json()
-
-    async def get_models(self) -> dict[str, Any]:
-        response = await self._client.get('/openai/models')
-        response.raise_for_status()
-        return response.json()
+        async with httpx.AsyncClient(
+            base_url=self._base_url,
+            headers={'Api-Key': self._api_key},
+            timeout=60,
+        ) as client:
+            response = await client.get('/v1/user/info')
+            response.raise_for_status()
+            return response.json()
 
     async def get_model_by(self, name: str) -> dict[str, Any]:
-        response = await self._client.get(f'/openai/models/{name}')
-        response.raise_for_status()
-        return response.json()
-
-    async def get_bucket_json(self) -> dict[str, str]:
-        response = await self._client.get('/v1/bucket')
-        response.raise_for_status()
-        return response.json()
-
-    async def load_bucket(self) -> str:
-        bucket_json = await self.get_bucket_json()
-        if "appdata" in bucket_json:
-            return bucket_json["appdata"]
-        elif "bucket" in bucket_json:
-            return bucket_json["bucket"]
-        else:
-            raise ValueError("No appdata or bucket found")
+        model_info = await self._dial.model.get(name)
+        return model_info.model_dump(by_alias=True, exclude_none=True)
 
     async def get_bucket(self, refresh: bool = False) -> str:
-        """Get the bucket ID from cache or load it from the API.
-        Use `refresh=True` to force loading from the API.
-        """
-
-        if self._bucket_id is None or refresh:
-            self._bucket_id = await self.load_bucket()
-
-        return self._bucket_id
+        """Return the cached bucket ID, optionally forcing a refresh."""
+        if refresh:
+            self._dial._my_bucket = None
+        return await self._dial.my_bucket()
 
     async def get_file(self, url: str) -> bytes:
-        """Get the file content from the specified URL.
+        """Download a file by its DIAL relative URL (e.g. ``files/{bucket}/path``)."""
+        download = await self._dial.files.download(url)
+        return await download.aget_content()
 
-        Args:
-            url: The value of the `url` filed returned by the DIAL API.
-
-        Returns:
-            The file content as bytes.
-        """
-
-        response = await self._client.get(f"/v1/{url}")
-        response.raise_for_status()
-        return response.content
+    async def get_file_with_type(self, url: str) -> tuple[bytes, str]:
+        """Download a file and return ``(content, content_type)``."""
+        download = await self._dial.files.download(url)
+        content = await download.aget_content()
+        content_type = download._response.headers.get("content-type", "application/octet-stream")
+        return content, content_type
 
     async def get_file_by_path(self, path: str, *, bucket: str | None = None) -> tuple[bytes, str]:
-        """
-        Get the file content from the specified path.
-        :param path: path to the file
-        :param bucket: bucket to use
-        :return: tuple of file content and content type
-        """
         if not bucket:
-            bucket = await self.get_bucket()
-
-        response = await self._client.get(f"/v1/files/{bucket}/{path}")
-        response.raise_for_status()
-        return response.content, response.headers['Content-Type']
+            bucket = await self._dial.my_bucket()
+        return await self.get_file_with_type(f"files/{bucket}/{path}")
 
     async def delete_file(self, url: str) -> None:
-        """Delete the file at the specified URL.
-
-        Args:
-            url: The value of the `url` filed returned by the DIAL API.
-        """
-        response = await self._client.delete(f"/v1/{url}")
-        response.raise_for_status()
+        await self._dial.files.delete(url)
 
     async def put_file(
-        self, name: str, mime_type: str, content: BytesIO | bytes, *, bucket: str | None = None
+        self,
+        name: str,
+        mime_type: str,
+        content: BytesIO | bytes,
+        *,
+        bucket: str | None = None,
     ) -> dict[str, Any]:
         if not bucket:
-            bucket = await self.get_bucket()
-
-        response = await self._client.put(
-            f"/v1/files/{bucket}/{name}",
-            files={name: (name, content, mime_type)},
+            bucket = await self._dial.my_bucket()
+        metadata = await self._dial.files.upload(
+            f"files/{bucket}/{name}", file=(name, content, mime_type)
         )
-        response.raise_for_status()
-        return response.json()
+        result = metadata.model_dump(by_alias=True)
+        result['contentLength'] = metadata.content_length or 0
+        result['contentType'] = metadata.content_type or ''
+        return result
 
     async def put_local_file(
-        self, name: str, path: str, *, bucket: str | None = None, show_progress: bool = False
+        self,
+        name: str,
+        path: str,
+        *,
+        bucket: str | None = None,
+        show_progress: bool = False,
     ) -> dict[str, Any]:
-        """Put file from local drive."""
-
+        """Upload a local file to DIAL storage."""
         if not bucket:
-            bucket = await self.get_bucket()
-
+            bucket = await self._dial.my_bucket()
         if show_progress:
-            # Read file asynchronously with progress logging
             file_buffer = await read_file_with_progress(path)
-            response = await self._client.put(
-                f"/v1/files/{bucket}/{name}",
-                files={name: (name, file_buffer)},
-            )
+            content: BytesIO | bytes = file_buffer
         else:
-            # Read file asynchronously without progress
             async with aiofiles.open(path, 'rb') as f:
-                content = await f.read()
-            response = await self._client.put(
-                f"/v1/files/{bucket}/{name}",
-                files={name: (name, BytesIO(content))},
-            )
-        response.raise_for_status()
-        return response.json()
+                content = BytesIO(await f.read())
+
+        metadata = await self._dial.files.upload(
+            f"files/{bucket}/{name}", file=(name, content, "application/octet-stream")
+        )
+        result = metadata.model_dump(by_alias=True)
+        result['contentLength'] = metadata.content_length or 0
+        result['contentType'] = metadata.content_type or ''
+        return result
 
     async def get_file_metadata(
-        self, path: str, *, token: str | None = None, limit: int = 100, bucket: str | None = None
+        self,
+        path: str,
+        *,
+        token: str | None = None,
+        limit: int = 100,
+        bucket: str | None = None,
     ) -> dict[str, Any]:
-        """Call this endpoint to retrieve metadata for a file or folder at the specified path.
-        If the path is a folder, it must end with a "/".
+        """Return raw metadata dict for a file or folder.
 
-        If it is called for a folder, there can be optional `nextToken` field in the response to
-        be used to request next items if present.
-
-        Args:
-            path: The path of the file or folder.
-            token: The token from the previous request to request next items.
-            limit: Limit on the number of items in the response.
-            bucket: The bucket to use. If not provided, it will be fetched from the API.
-
+        Uses a thin httpx call so that the full server response (including
+        ``updatedAt`` and any ``nextToken``) is preserved for callers that
+        depend on those fields.
         """
-
         if not bucket:
-            bucket = await self.get_bucket()
+            bucket = await self._dial.my_bucket()
 
         params: dict[str, Any] = {"limit": limit}
         if token:
             params["token"] = token
 
-        url = f"/v1/metadata/files/{bucket}/{path}"
-        response = await self._client.get(url, params=params)
-        response.raise_for_status()
-        return response.json()
+        async with httpx.AsyncClient(
+            base_url=self._base_url,
+            headers={'Api-Key': self._api_key},
+            timeout=60,
+        ) as client:
+            response = await client.get(f"/v1/metadata/files/{bucket}/{path}", params=params)
+            try:
+                response.raise_for_status()
+            except httpx.HTTPStatusError as e:
+                if e.response.status_code == 404:
+                    raise ResourceNotFoundError(message=e.response.text) from e
+                raise
+            return response.json()
 
-    async def put_conversation(
-        self, path: str, json_data: dict, *, bucket: str | None = None
-    ) -> dict[str, Any]:
-        """Method to add a conversation to the specified bucket and path."""
+    async def write_file_to(self, url: str, sink: BinaryIO) -> None:
+        """Stream-download a DIAL relative file URL and write chunks to *sink*.
 
-        if not bucket:
-            bucket = await self.get_bucket()
+        Uses a dedicated httpx streaming connection so large files are never
+        fully buffered in memory.
+        """
+        total_size = 0
+        downloaded = 0
+        chunk_count = 0
+        log_interval = 100
 
-        path = encode_url_characters(path)
-        response = await self._client.put(
-            url=f"/v1/conversations/{bucket}/{path}",
-            json=json_data,
-        )
-        response.raise_for_status()
-        return response.json()
+        async with httpx.AsyncClient(
+            base_url=self._base_url,
+            headers={'Api-Key': self._api_key},
+            timeout=None,
+        ) as client:
+            async with client.stream('GET', f'/v1/{url}') as response:
+                response.raise_for_status()
+                total_size = int(response.headers.get('content-length', 0))
 
-    async def create_publication_request(self, json_data: dict) -> dict[str, Any]:
-        """Method to create a publish or unpublish request."""
+                _log.info(f"Starting download from {url}")
+                if total_size > 0:
+                    _log.info(f"Total file size: {total_size / (1024 * 1024):.2f} MB")
 
-        response = await self._client.post(
-            url="/v1/ops/publication/create",
-            json=json_data,
-        )
-        response.raise_for_status()
-        return response.json()
+                async for chunk in response.aiter_bytes(chunk_size=65536):
+                    sink.write(chunk)
+                    downloaded += len(chunk)
+                    chunk_count += 1
+
+                    if chunk_count % log_interval == 0:
+                        if total_size > 0:
+                            percent = (downloaded / total_size) * 100
+                            _log.info(
+                                f"Downloaded {downloaded / (1024 * 1024):.2f} MB / "
+                                f"{total_size / (1024 * 1024):.2f} MB ({percent:.1f}%)"
+                            )
+                        else:
+                            _log.info(f"Downloaded {downloaded / (1024 * 1024):.2f} MB")
+
+                _log.info(f"Download completed: {downloaded / (1024 * 1024):.2f} MB total")
 
 
 @asynccontextmanager
 async def dial_core_factory(base_url: str, api_key: str | SecretStr) -> AsyncIterator[DialCore]:
     if isinstance(api_key, SecretStr):
         api_key = api_key.get_secret_value()
-    async with httpx.AsyncClient(
-        base_url=base_url,
-        headers={'Api-Key': api_key},
-        timeout=600,
-    ) as client:
-        yield DialCore(client)
+    dial = AsyncDial(base_url=base_url, api_key=api_key, timeout=_DIAL_REQUEST_TIMEOUT)
+    try:
+        yield DialCore(dial, base_url=base_url, api_key=api_key)
+    finally:
+        await dial._http_client.internal_http_client.aclose()

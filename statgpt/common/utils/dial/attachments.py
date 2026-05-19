@@ -4,8 +4,8 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from io import BytesIO
 
-import httpx
 import pandas as pd
+from aidial_client import ResourceNotFoundError
 from pydantic import BaseModel, ConfigDict, Field, alias_generators
 
 from statgpt.common.settings.dial import dial_settings
@@ -41,10 +41,8 @@ class AttachmentsStorage:
 
         try:
             response_json = await self._dial_core.get_file_metadata(folder, bucket=bucket)
-        except httpx.HTTPStatusError as e:
-            if e.response.status_code == 404:
-                return []
-            raise
+        except ResourceNotFoundError:
+            return []
         files = [AttachmentResponse.model_validate(item) for item in response_json['items']]
 
         while token := response_json.get('nextToken'):

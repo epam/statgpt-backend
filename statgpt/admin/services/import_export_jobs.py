@@ -7,7 +7,6 @@ import zipfile
 from datetime import datetime
 from typing import BinaryIO
 
-import httpx
 from fastapi import BackgroundTasks, HTTPException, UploadFile, status
 from pydantic import BaseModel, ValidationError
 from sqlalchemy import select
@@ -22,7 +21,12 @@ from statgpt.admin.settings.exim import JobsConfig
 from statgpt.common.auth.auth_context import AuthContext
 from statgpt.common.schemas import AuditActionType, AuditEntityType
 from statgpt.common.settings.dial import dial_settings
-from statgpt.common.utils import AttachmentResponse, AttachmentsStorage, attachments_storage_factory
+from statgpt.common.utils import (
+    AttachmentResponse,
+    AttachmentsStorage,
+    attachments_storage_factory,
+    dial_core_factory,
+)
 
 from .channel import AdminPortalChannelService as ChannelService
 from .dataset import AdminPortalDataSetService as DataSetService
@@ -310,38 +314,10 @@ class JobsService:
     async def download_zip_file(
         file_url: str, zip_file: BinaryIO, auth_context: AuthContext
     ) -> None:
-        """TODO: Perhaps this method should be moved in Dial core or attachments module."""
-        client = httpx.AsyncClient(
-            base_url=dial_settings.url,
-            headers={'Api-Key': auth_context.api_key},
-        )
-        async with client.stream('GET', f"/v1/{file_url}") as response:
-            response.raise_for_status()
-            total_size = int(response.headers.get('content-length', 0))
-            downloaded = 0
-            chunk_count = 0
-            log_interval = 100  # Log every 100 chunks
-
-            _log.info(f"Starting download from {file_url}")
-            if total_size > 0:
-                _log.info(f"Total file size: {total_size / (1024 * 1024):.2f} MB")
-
-            async for chunk in response.aiter_bytes():
-                zip_file.write(chunk)
-                downloaded += len(chunk)
-                chunk_count += 1
-
-                if chunk_count % log_interval == 0:
-                    if total_size > 0:
-                        percent = (downloaded / total_size) * 100
-                        _log.info(
-                            f"Downloaded {downloaded / (1024 * 1024):.2f} MB / "
-                            f"{total_size / (1024 * 1024):.2f} MB ({percent:.1f}%)"
-                        )
-                    else:
-                        _log.info(f"Downloaded {downloaded / (1024 * 1024):.2f} MB")
-
-            _log.info(f"Download completed: {downloaded / (1024 * 1024):.2f} MB total")
+        async with dial_core_factory(
+            base_url=dial_settings.url, api_key=auth_context.api_key
+        ) as dial_core:
+            await dial_core.write_file_to(file_url, zip_file)
 
     @staticmethod
     def _validate_export_version(metadata: ExportMetadata) -> None:

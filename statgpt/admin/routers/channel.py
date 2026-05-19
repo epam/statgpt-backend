@@ -2,11 +2,9 @@ import logging
 from datetime import datetime, timedelta
 from typing import Annotated
 
-import httpx
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, UploadFile, status
-from fastapi.responses import StreamingResponse
+from fastapi.responses import Response
 from sqlalchemy.ext.asyncio import AsyncSession
-from starlette.background import BackgroundTask
 
 import statgpt.common.models as models
 import statgpt.common.schemas as schemas
@@ -20,6 +18,7 @@ from statgpt.common.data.sdmx.v21.dataset import InvalidConfigurationError
 from statgpt.common.models.database import get_session_context_manager
 from statgpt.common.settings.dial import dial_settings
 from statgpt.common.utils.cancel_dependency import cancel_on_disconnect
+from statgpt.common.utils.dial import dial_core_factory
 
 logger = logging.getLogger(__name__)
 
@@ -160,7 +159,7 @@ async def download_job_result_by_id(
     job_id: int,
     session: AsyncSession = Depends(models.get_session),
     _=Depends(cancel_on_disconnect),
-) -> StreamingResponse:
+) -> Response:
     """Download the zip file with the exported channel data by job id.
 
     The job must be of type `EXPORT` and have status `COMPLETED`.
@@ -180,18 +179,17 @@ async def download_job_result_by_id(
             detail=f"Job with id={job_id} is not completed",
         )
 
-    # Code below was copied from the httpx documentation
-    # https://www.python-httpx.org/async/#streaming-responses
-    client = httpx.AsyncClient(
-        base_url=dial_settings.url,
-        headers={'Api-Key': SystemUserAuthContext().api_key},
-    )
-    req = client.build_request("GET", f"/v1/{job.file}")
-    r = await client.send(req, stream=True)
-    media_type = r.headers.get('content-type')
-    return StreamingResponse(
-        r.aiter_bytes(), background=BackgroundTask(r.aclose), media_type=media_type
-    )
+    if not job.file:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Job with id={job_id} has no associated file",
+        )
+
+    async with dial_core_factory(
+        base_url=dial_settings.url, api_key=SystemUserAuthContext().api_key
+    ) as dial_core:
+        content, media_type = await dial_core.get_file_with_type(job.file)
+    return Response(content=content, media_type=media_type)
 
 
 DRY_RUN_DESCRIPTION = (
