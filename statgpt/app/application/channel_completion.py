@@ -24,8 +24,13 @@ from statgpt.common.settings.application import application_settings
 from statgpt.common.settings.dial import dial_settings
 from statgpt.common.settings.langchain import langchain_settings
 from statgpt.common.utils import dial_core_factory
-from statgpt.common.utils.callbacks import LCMessageLoggerAsync, TokenUsageByModelsCallback
+from statgpt.common.utils.callbacks import (
+    LCMessageLoggerAsync,
+    LLMCallDurationCallback,
+    TokenUsageByModelsCallback,
+)
 from statgpt.common.utils.dial.model_pricing import ModelPricingAuthContext, ModelPricingGetter
+from statgpt.common.utils.llm_call_duration_context import llm_call_duration_context
 from statgpt.common.utils.token_usage_context import TokenUsageManager, token_usage_context
 from statgpt.common.utils.token_usage_utils import TokenUsageCostCalculator, TokenUsageDisplayer
 
@@ -119,8 +124,15 @@ class ChannelCompletion(ChatCompletion):
             callbacks: list = []
             if langchain_settings.use_custom_logger_callback:
                 callbacks.append(LCMessageLoggerAsync())
+            if dial_app_settings.track_llm_call_durations:
+                callbacks.append(LLMCallDurationCallback())
 
-            with token_usage_context() as token_usage_manager:
+            with (
+                llm_call_duration_context(
+                    enabled=dial_app_settings.track_llm_call_durations
+                ) as duration_manager,
+                token_usage_context() as token_usage_manager,
+            ):
                 callbacks.append(TokenUsageByModelsCallback())
                 state = ChainParameters.get_state(inputs)  # default in case of error
                 try:
@@ -155,6 +167,11 @@ class ChannelCompletion(ChatCompletion):
                     state[StateVarsConfig.ERROR] = str(e)
 
                 priced_usage = await cls._calc_token_usage_costs(token_usage_manager)
+
+                if duration_manager is not None:
+                    state[StateVarsConfig.LLM_CALL_DURATIONS] = [
+                        item.to_rounded_dict() for item in duration_manager.get_durations()
+                    ]
 
             token_usage_config = service.channel_config.token_usage
             show_cost_stage = (

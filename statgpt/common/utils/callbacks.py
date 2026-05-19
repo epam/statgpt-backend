@@ -1,4 +1,5 @@
 import re
+import time
 import typing as t
 from uuid import UUID
 
@@ -8,10 +9,34 @@ from langchain_core.outputs import ChatGeneration, ChatGenerationChunk, Generati
 from langchain_core.outputs.llm_result import LLMResult
 
 from statgpt.common.config import multiline_logger as logger
+from statgpt.common.schemas.llm_call_duration import LLMCallDurationItem
 from statgpt.common.schemas.token_usage import TokenUsageItem
+from statgpt.common.utils.llm_call_duration_context import get_llm_call_duration_manager
 from statgpt.common.utils.token_usage_context import get_token_usage_manager
 
 from .exceptions import InvalidLLMStreamResponse
+
+
+def _extract_deployment_id(response: LLMResult, value: str | None = None) -> str:
+    """
+    Extract deployment_id from an LLMResult, falling back through known sources.
+    value: primary value to use, if provided.
+    """
+    if value:
+        return value
+
+    deployment_id = None
+
+    try:
+        if gen_info := response.generations[0][0].generation_info:
+            deployment_id = gen_info.get('model_name')
+    except (IndexError, AttributeError):
+        pass
+
+    if not deployment_id and response.llm_output:
+        deployment_id = response.llm_output.get('model_name')
+
+    return deployment_id or 'unknown'
 
 
 class LCMessageLoggerAsync(AsyncCallbackHandler):
@@ -134,9 +159,6 @@ class TokenUsageByModelsCallback(AsyncCallbackHandler):
                     usage_metadata = message.usage_metadata
                 else:
                     usage_metadata = None
-
-                if not deployment_id and generation.generation_info:
-                    deployment_id = generation.generation_info.get('model_name')
             except AttributeError:
                 usage_metadata = None
         else:
@@ -155,11 +177,7 @@ class TokenUsageByModelsCallback(AsyncCallbackHandler):
             completion_tokens = token_usage.get("completion_tokens", 0)
             prompt_tokens = token_usage.get("prompt_tokens", 0)
 
-        if not deployment_id and response.llm_output:
-            deployment_id = response.llm_output.get('model_name')
-
-        if not deployment_id:
-            deployment_id = 'unknown'
+        deployment_id = _extract_deployment_id(response, value=deployment_id)
 
         logger.info(
             f"Token usage for model {deployment_id!r}:"
@@ -175,6 +193,77 @@ class TokenUsageByModelsCallback(AsyncCallbackHandler):
                 completion_tokens=completion_tokens,
             )
         )
+
+
+class LLMCallDurationCallback(AsyncCallbackHandler):
+    """Callback to track and log LLM call duration."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._start_times: dict[UUID, float] = {}
+        self._run_2_deployment: dict[UUID, str] = {}
+
+    async def on_chat_model_start(
+        self,
+        serialized: dict[str, t.Any],
+        messages: list[list[t.Any]],
+        *,
+        run_id: UUID,
+        **kwargs: t.Any,
+    ) -> None:
+        self._start_times[run_id] = time.monotonic()
+        try:
+            self._run_2_deployment[run_id] = serialized['kwargs']['deployment_name']
+        except (KeyError, TypeError):
+            pass
+
+    async def on_llm_end(
+        self,
+        response: LLMResult,
+        *,
+        run_id: UUID,
+        **kwargs: t.Any,
+    ) -> None:
+        start_time = self._start_times.pop(run_id, None)
+        deployment_id = self._run_2_deployment.pop(run_id, None)
+        if start_time is None:
+            return
+
+        duration_s = time.monotonic() - start_time
+
+        deployment_id = _extract_deployment_id(response, value=deployment_id)
+
+        logger.info(f"LLM call duration for model {deployment_id!r}: {duration_s:.2f}s")
+
+        duration_manager = get_llm_call_duration_manager()
+        if duration_manager is not None:
+            duration_manager.add_duration(
+                LLMCallDurationItem(deployment=deployment_id, duration_s=duration_s)
+            )
+
+    async def on_llm_error(
+        self,
+        error: BaseException,
+        *,
+        run_id: UUID,
+        **kwargs: t.Any,
+    ) -> None:
+        start_time = self._start_times.pop(run_id, None)
+        deployment_id = self._run_2_deployment.pop(run_id, "unknown")
+        if start_time is None:
+            return
+
+        duration_s = time.monotonic() - start_time
+
+        logger.info(
+            f"LLM call failed for model {deployment_id!r}: {duration_s:.2f}s, error: {error}"
+        )
+
+        duration_manager = get_llm_call_duration_manager()
+        if duration_manager is not None:
+            duration_manager.add_duration(
+                LLMCallDurationItem(deployment=deployment_id, duration_s=duration_s)
+            )
 
 
 class BrokenResponseInterceptor(AsyncCallbackHandler):
