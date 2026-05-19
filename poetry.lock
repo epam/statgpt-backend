@@ -6782,4 +6782,4 @@ mcp = ["fastmcp"]
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.11,<3.12"
-content-hash = "6972330782073bb1479ff4cd8b987f163799363a49bce181790688cb6d18439b"
+content-hash = "e4e3243b3466de642b0d37311eb3e459d77b159bd614b7f6bf1fc5a0dddb1c5a"
