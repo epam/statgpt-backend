@@ -224,11 +224,17 @@ class DataSetService(DbServiceBase):
         return item
 
     async def get_dataset_by_uuid(
-        self, dataset_uuid: str | uuid.UUID, expand: bool = False
+        self, dataset_uuid: str | uuid.UUID, channel_name: str, expand: bool = False
     ) -> models.DataSet:
-        """Retrieve a models.DataSet by external UUID (`id_`) from dataset configs."""
+        """Retrieve a models.DataSet by external UUID (`id_`) within a channel from dataset configs."""
         dataset_uuid = uuid.UUID(str(dataset_uuid))
-        query = select(models.DataSet).where(models.DataSet.id_ == dataset_uuid)
+        query = (
+            select(models.DataSet)
+            .where(models.DataSet.id_ == dataset_uuid)
+            .join(models.DataSet.mapped_channels)
+            .join(models.ChannelDataset.channel)
+            .where(models.Channel.deployment_id == channel_name)
+        )
         if expand:
             query = query.options(
                 selectinload(models.DataSet.source).selectinload(models.DataSource.type)
@@ -240,13 +246,14 @@ class DataSetService(DbServiceBase):
         if item is None:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"DataSet with id_={dataset_uuid} not found",
+                detail=f"DataSet with id_={dataset_uuid} not found for channel={channel_name}",
             )
         return item
 
     async def get_last_completed_dataset_version_by_uuid(
-        self, dataset_uuid: str | uuid.UUID
+        self, dataset_uuid: str | uuid.UUID, channel_name: str
     ) -> models.ChannelDatasetVersion | None:
+        dataset_uuid = uuid.UUID(str(dataset_uuid))
 
         query = (
             select(models.ChannelDatasetVersion)
@@ -255,7 +262,9 @@ class DataSetService(DbServiceBase):
                 models.ChannelDataset.id == models.ChannelDatasetVersion.channel_dataset_id,
             )
             .join(models.DataSet, models.DataSet.id == models.ChannelDataset.dataset_id)
+            .join(models.Channel, models.Channel.id == models.ChannelDataset.channel_id)
             .where(models.DataSet.id_ == dataset_uuid)
+            .where(models.Channel.deployment_id == channel_name)
             .where(models.ChannelDatasetVersion.preprocessing_status == StatusEnum.COMPLETED)
             .order_by(models.ChannelDatasetVersion.created_at.desc())
             .limit(1)
