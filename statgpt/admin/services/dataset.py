@@ -624,12 +624,16 @@ class AdminPortalDataSetService(DataSetService):
         return DataSetSerializer.db_to_schema(item, dataset)
 
     async def load_available_datasets(
-        self, source_id: int, auth_context: AuthContext
+        self,
+        source_id: int,
+        auth_context: AuthContext,
+        *,
+        provider: str | None = None,
     ) -> list[schemas.DataSetDescriptor]:
         handler = await self._get_handler(source_id)
 
         datasets = []
-        for ds in await handler.list_datasets(auth_context):
+        for ds in await handler.list_datasets(auth_context, provider=provider):
             datasets.append(
                 schemas.DataSetDescriptor(
                     data_source_id=source_id,
@@ -641,6 +645,12 @@ class AdminPortalDataSetService(DataSetService):
             )
 
         return datasets
+
+    async def load_available_providers(
+        self, source_id: int, auth_context: AuthContext
+    ) -> list[schemas.Provider]:
+        handler = await self._get_handler(source_id)
+        return await handler.list_providers(auth_context)
 
     async def get_dataset_config_schema(self, source_id: int) -> dict:
         """Returns JSON schema for dataset configuration."""

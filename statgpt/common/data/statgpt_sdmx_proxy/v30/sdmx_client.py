@@ -16,6 +16,7 @@ from statgpt.common.data.sdmx.v21.ratelimiter import SdmxRateLimiter
 from statgpt.common.data.sdmx.v21.sdmx_client import AsyncSdmxClient
 from statgpt.common.data.statgpt_sdmx_proxy.config import StatGptSdmxProxyDataSourceConfig
 from statgpt.common.data.statgpt_sdmx_proxy.sdmx_schemas.structure_message import (
+    ProxyAgencySchemeResponseBody,
     ProxyAvailabilityResponseBody,
 )
 from statgpt.common.data.statgpt_sdmx_proxy.v30.reader import StatGptSdmxProxyDataReader
@@ -44,6 +45,10 @@ def proxy_structure_extra_headers(dsd_urn: str | None) -> dict[str, str] | None:
     return {"X-Source-Artefact-Urn": dsd_urn} if dsd_urn else None
 
 
+# TODO: move this to the data source config
+_SDMX_v30_STRUCTURE_ACCEPT_HEADER = "application/vnd.sdmx.structure+json;version=2.0.0"
+
+
 class AsyncStatGptSdmxProxyClient(AsyncSdmxClient):
     """Async client for StatGPT SDMX proxy (SDMX 3.0 API, SDMX-JSON parsed as SDMX 2.1 models)."""
 
@@ -59,6 +64,34 @@ class AsyncStatGptSdmxProxyClient(AsyncSdmxClient):
         rate_limiter: SdmxRateLimiter,
     ) -> "AsyncStatGptSdmxProxyClient":
         return super().from_config(config, auth_context, rate_limiter)  # type: ignore[return-value]
+
+    async def agencyscheme(  # type: ignore[override]
+        self,
+        *,
+        agency_id: str,
+        resource_id: str,
+        version: str,
+        use_cache: bool = False,
+        extra_headers: dict[str, str] | None = None,
+    ) -> StructureMessage:
+        """Fetch agencyschemes from the proxy.
+
+        sdmx1 does not register a reader for SDMX-JSON 2.0.0 structure responses,
+        so this method bypasses ``_parse_response`` and validates the body with
+        :class:`ProxyAgencySchemeResponseBody` before converting to sdmx1 models.
+        """
+        url = self._build_url(
+            path=f"/structure/agencyscheme/{agency_id}/{resource_id}/{version}",
+            params=None,
+        )
+        headers = {"accept": _SDMX_v30_STRUCTURE_ACCEPT_HEADER, **(extra_headers or {})}
+        req = requests.Request(method="GET", url=url, headers=headers).prepare()
+
+        async with self._rate_limiter.structure_limiter():
+            response = await self._perform_request(req)
+
+        body = ProxyAgencySchemeResponseBody.model_validate(response.json())
+        return body.to_sdmx1()
 
     async def availableconstraint(
         self,
@@ -155,7 +188,7 @@ class AsyncStatGptSdmxProxyClient(AsyncSdmxClient):
         resolved_key = {} if key is None else key
         req_body_obj = SdmxPlusAvailabilityRequestBody.get_from(key=resolved_key, params=params)
         body = req_body_obj.model_dump(mode='json', exclude_none=True, by_alias=True)
-        headers = {'accept': 'application/vnd.sdmx.structure+json;version=2.0.0'}
+        headers = {'accept': _SDMX_v30_STRUCTURE_ACCEPT_HEADER}
         req = requests.Request(
             method="POST",
             url=url,

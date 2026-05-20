@@ -5,6 +5,7 @@ from sdmx.model.common import BaseAnnotation
 from statgpt.common.auth.auth_context import AuthContext
 from statgpt.common.config import multiline_logger as logger
 from statgpt.common.data.base import DataSourceType
+from statgpt.common.data.base.datasource import ProviderRequiredError
 from statgpt.common.data.base.property_source import PropertySourceEnum
 from statgpt.common.data.base.sdmx_schemas import Sdmx30AnnotationModel
 from statgpt.common.data.quanthub.config import QuanthubDataSetConfig
@@ -217,12 +218,17 @@ class StatGptSdmxProxyDataSourceHandler(Sdmx21DataSourceHandler):
                 entity_id, title, config, auth_context, allow_offline=allow_offline
             )
 
-    async def list_datasets(self, auth_context: AuthContext) -> list[SdmxDataSetDescriptor]:
+    async def list_datasets(
+        self, auth_context: AuthContext, *, provider: str | None = None
+    ) -> list[SdmxDataSetDescriptor]:
+        """List datasets exposed by the proxy for a given provider (agency).
+
+        The proxy SDMX 3.0 data source does not support querying across "all" agencies,
+        so `provider` is required. Raises `ProviderRequiredError` when omitted.
         """
-        NOTE: The proxy SDMX 3.0 data source does not support querying across "all" agencies,
-        and the use of "latest" version is not supported by all registries.
-        Listing all datasets is unavailable in this handler.
-        """
-        raise NotImplementedError(
-            "Listing all datasets is unavailable for StatGPT SDMX proxy handler"
-        )
+        if provider is None:
+            raise ProviderRequiredError(
+                "A provider (agency) must be specified when listing datasets for a "
+                "StatGPT SDMX proxy data source."
+            )
+        return await super().list_datasets(auth_context, provider=provider)

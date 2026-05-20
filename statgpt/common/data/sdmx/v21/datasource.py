@@ -38,6 +38,7 @@ from statgpt.common.data.sdmx.common import (
     SdmxDataSourceConfig,
     UrnReference,
 )
+from statgpt.common.data.sdmx.common.config import ProviderDiscoveryMode
 from statgpt.common.data.sdmx.common.dimension import SdmxDimension
 from statgpt.common.data.sdmx.v21.attribute import Sdmx21Attribute
 from statgpt.common.data.sdmx.v21.attributes_creator import Sdmx21AttributesCreator
@@ -49,6 +50,7 @@ from statgpt.common.data.sdmx.v21.dataset import (
 )
 from statgpt.common.data.sdmx.v21.dimensions_creator import DimensionsCreator
 from statgpt.common.data.sdmx.v21.sdmx_client import AsyncSdmxClient
+from statgpt.common.schemas.data_source import Provider
 from statgpt.common.schemas.dataset import Status
 from statgpt.common.utils import crc32_hash
 from statgpt.common.utils.timer import debug_timer
@@ -225,11 +227,13 @@ class Sdmx21DataSourceHandler(
         # There is no authorization for SDMX datasets, so they are always available
         return True
 
-    async def list_datasets(self, auth_context: AuthContext) -> list[SdmxDataSetDescriptor]:
+    async def list_datasets(
+        self, auth_context: AuthContext, *, provider: str | None = None
+    ) -> list[SdmxDataSetDescriptor]:
         client = await self.create_sdmx_client(auth_context)
 
         message: StructureMessage = await client.dataflow(
-            agency_id="all",
+            agency_id=provider or "all",
             resource_id="all",
             version="latest",
             params={"references": "datastructure"},
@@ -238,6 +242,39 @@ class Sdmx21DataSourceHandler(
 
         res = [self._get_dataset_descriptor(dataflow) for dataflow in dataflows]
         return res
+
+    async def list_providers(self, auth_context: AuthContext) -> list[Provider]:
+        mode = self._config.provider_discovery
+        if mode is ProviderDiscoveryMode.AGENCYSCHEME:
+            return await self._list_providers_via_agencyscheme(auth_context)
+        if mode is ProviderDiscoveryMode.DATAFLOWS:
+            return await self._list_providers_via_dataflows(auth_context)
+        raise ValueError(f"Unsupported provider_discovery mode: {mode}")
+
+    async def _list_providers_via_agencyscheme(self, auth_context: AuthContext) -> list[Provider]:
+        client = await self.create_sdmx_client(auth_context)
+        message: StructureMessage = await client.agencyscheme(
+            agency_id="all", resource_id="all", version="latest"
+        )
+
+        seen: dict[str, Provider] = {}
+        for scheme in message.organisation_scheme.values():
+            for agency in scheme.items.values():
+                if agency.id in seen:
+                    continue
+                name = agency.name.localizations.get(self._config.locale) if agency.name else None
+                seen[agency.id] = Provider(id=agency.id, name=name or agency.id)
+        return sorted(seen.values(), key=lambda p: p.id)
+
+    async def _list_providers_via_dataflows(self, auth_context: AuthContext) -> list[Provider]:
+        client = await self.create_sdmx_client(auth_context)
+        message: StructureMessage = await client.dataflow(
+            agency_id="all", resource_id="all", version="latest", params={}
+        )
+        agency_ids = {
+            Urn.for_artifact(dataflow).agency_id for dataflow in message.dataflow.values()
+        }
+        return [Provider(id=agency_id, name=agency_id) for agency_id in sorted(agency_ids)]
 
     def _get_dataset_descriptor(self, dataflow: Dataflow) -> SdmxDataSetDescriptor:
         urn = Urn.for_artifact(dataflow)

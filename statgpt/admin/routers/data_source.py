@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 import statgpt.common.models as models
@@ -7,6 +7,7 @@ from statgpt.admin.auth.auth_context import SystemUserAuthContext
 from statgpt.admin.auth.user import require_jwt_auth
 from statgpt.admin.services import AdminPortalDataSetService as DataSetService
 from statgpt.admin.services import AdminPortalDataSourceService as DataSourceService
+from statgpt.common.data.base.datasource import ProviderRequiredError
 from statgpt.common.services import DataSourceTypeService
 from statgpt.common.utils.cancel_dependency import cancel_on_disconnect
 
@@ -88,13 +89,45 @@ async def get_data_source_by_id(
     return await DataSourceService(session).get_schema_by_id(item_id)
 
 
+@router.get("/{item_id}/providers")
+async def get_providers(
+    item_id: int,
+    session: AsyncSession = Depends(models.get_session),
+    _=Depends(cancel_on_disconnect),
+) -> schemas.ListResponse[schemas.Provider]:
+    """Returns a list of providers (maintainer agencies) exposed by the data source.
+
+    Populates the provider picker in the Admin UI so admins can scope dataset selection
+    to a specific provider before listing datasets.
+    """
+
+    providers = await DataSetService(session).load_available_providers(
+        source_id=item_id, auth_context=SystemUserAuthContext()
+    )
+    providers_count = len(providers)
+
+    return schemas.ListResponse[schemas.Provider](
+        data=providers,
+        limit=providers_count,
+        offset=0,
+        count=providers_count,
+        total=providers_count,
+    )
+
+
 @router.get("/{item_id}/available-datasets")
 async def get_available_datasets(
     item_id: int,
+    provider: str | None = None,
     session: AsyncSession = Depends(models.get_session),
     _=Depends(cancel_on_disconnect),
 ) -> schemas.ListResponse[schemas.DataSetDescriptor]:
     """Returns a list of datasets that exists in the data source and can be added to the system.
+
+    The optional `provider` query parameter restricts the listing to datasets whose
+    maintainer agency matches the given id (e.g. `provider=IMF.RES`). Some data sources
+    (such as the StatGPT SDMX proxy) require this parameter and return HTTP 400 when it
+    is omitted.
 
     NOTES:
         * These list does NOT exclude datasets that are already added to the system.
@@ -102,9 +135,14 @@ async def get_available_datasets(
           and updating before being added to the system.
     """
 
-    datasets = await DataSetService(session).load_available_datasets(
-        source_id=item_id, auth_context=SystemUserAuthContext()
-    )
+    try:
+        datasets = await DataSetService(session).load_available_datasets(
+            source_id=item_id,
+            auth_context=SystemUserAuthContext(),
+            provider=provider,
+        )
+    except ProviderRequiredError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     datasets_count = len(datasets)
 
     return schemas.ListResponse[schemas.DataSetDescriptor](
