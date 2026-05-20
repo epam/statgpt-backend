@@ -96,6 +96,9 @@ systemPrompt: |-
 
   **Always** cite your **information sources** used to generate responses, including datasets, publications,
   and websites. When using multiple sources, clearly attribute **which information came from which source**.
+  When the range comes from the user's query, **never** use "coverage", "data coverage",
+  "covers", or "cover for" — these mislead the user about the dataset's actual availability.
+
 
   ---
 
