@@ -21,14 +21,18 @@ from statgpt.cli.shared import (
     select_datasets_interactive,
 )
 from statgpt.common import utils
+from statgpt.common.data import DataManager
 from statgpt.common.data.sdmx.common import UrnReference
 from statgpt.common.schemas import (
     Channel,
+    ChannelBase,
     ChannelDatasetExpanded,
     ChannelDatasetUpdateResult,
     ChannelDatasetUpdateStatus,
     DataSet,
+    DataSetBase,
     DataSource,
+    DataSourceBase,
     GlossaryTerm,
 )
 from statgpt.common.utils import dial_core_factory
@@ -334,6 +338,73 @@ def _get_mime_type(filename: str) -> str:
     return "application/octet-stream"
 
 
+def _channel_changed(incoming_cfg: dict[str, Any], existing: Channel) -> bool:
+    """Return True if channel config differs from what is stored."""
+    try:
+        normalized = ChannelBase.model_validate(incoming_cfg)
+        incoming_dump = normalized.model_dump(mode='json', by_alias=True)
+        existing_dump = existing.model_dump(
+            mode='json',
+            by_alias=True,
+            include={'title', 'description', 'deployment_id', 'llm_model', 'details'},
+        )
+        return incoming_dump != existing_dump
+    except Exception:
+        return True
+
+
+def _data_source_changed(incoming_cfg: dict[str, Any], existing: DataSource) -> bool:
+    """Return True if data source config differs from what is stored."""
+    try:
+        config_class = DataManager.get_config_class(existing.type.name)
+        incoming_details = incoming_cfg.get('details', existing.details)
+        normalized_details = config_class(**incoming_details).model_dump(mode='json', by_alias=True)
+        normalized = DataSourceBase.model_validate({**incoming_cfg, 'details': normalized_details})
+        incoming_dump = normalized.model_dump(
+            mode='json', by_alias=True, include={'title', 'description', 'type_id', 'details'}
+        )
+        existing_dump = existing.model_dump(
+            mode='json', by_alias=True, include={'title', 'description', 'type_id', 'details'}
+        )
+        return incoming_dump != existing_dump
+    except Exception:
+        return True
+
+
+def _dataset_changed(
+    incoming_cfg: dict[str, Any],
+    existing: DataSet,
+    data_source: DataSource | None,
+) -> bool:
+    """Return True if dataset config differs from what is stored."""
+    try:
+        incoming_details = incoming_cfg.get('details', existing.details)
+        if data_source is not None:
+            handler_class = DataManager.get_data_source_handler_class(data_source.type.name)
+            parsed_config = handler_class.parse_data_set_config(incoming_details)
+            normalized_details = parsed_config.model_dump(mode='json', by_alias=True)
+            # When the data source manages the title automatically, skip title comparison
+            # to avoid an update loop (CLI sets YAML title → source restores its own title).
+            use_title_from_src = getattr(parsed_config, 'use_title_from_src', False)
+        else:
+            normalized_details = incoming_details
+            use_title_from_src = False
+        title_fields: set[str] = set() if use_title_from_src else {'title'}
+        normalized = DataSetBase.model_validate({**incoming_cfg, 'details': normalized_details})
+        incoming_dump = normalized.model_dump(
+            mode='json', by_alias=True, include=title_fields | {'data_source_id', 'details'}
+        )
+        incoming_dump['description'] = incoming_cfg.get('description', existing.description)
+        existing_dump = existing.model_dump(
+            mode='json',
+            by_alias=True,
+            include=title_fields | {'data_source_id', 'description', 'details'},
+        )
+        return incoming_dump != existing_dump
+    except Exception:
+        return True
+
+
 async def _process_channels(
     client: AdminClient,
     channel_cfg: dict[str, Any],
@@ -356,9 +427,13 @@ async def _process_channels(
         _add_onboarding_to_channel(ch_cfg, onboarding_cfg)
 
         if deployment_id in existing:
-            # Update existing channel
-            channel = await client.update_channel(existing[deployment_id].id, ch_cfg)
-            print_info(f"  Updated channel: {deployment_id}")
+            existing_ch = existing[deployment_id]
+            if _channel_changed(ch_cfg, existing_ch):
+                channel = await client.update_channel(existing_ch.id, ch_cfg)
+                print_info(f"  Updated channel: {deployment_id}")
+            else:
+                channel = existing_ch
+                print_info(f"  Channel unchanged: {deployment_id}")
         else:
             # Create new channel
             channel = await client.create_channel(ch_cfg)
@@ -466,8 +541,13 @@ async def _process_data_sources(
             ds_cfg["type_id"] = ds_types.get(type_name)
 
         if title in existing:
-            ds = await client.update_data_source(existing[title].id, ds_cfg)
-            print_info(f"  Updated data source: {title}")
+            existing_ds = existing[title]
+            if _data_source_changed(ds_cfg, existing_ds):
+                ds = await client.update_data_source(existing_ds.id, ds_cfg)
+                print_info(f"  Updated data source: {title}")
+            else:
+                ds = existing_ds
+                print_info(f"  Data source unchanged: {title}")
         else:
             ds = await client.create_data_source(ds_cfg)
             print_info(f"  Created data source: {title}")
@@ -550,17 +630,23 @@ async def _process_datasets(
         dataset_id_str = ds_cfg.get("id_")
 
         if dataset_id_str and dataset_id_str in existing_datasets:
-            response = await client.update_dataset(existing_datasets[dataset_id_str].id, ds_cfg)
-            dataset = response.dataset
-            print_info(f"  Updated dataset: {urn}")
+            existing_dataset = existing_datasets[dataset_id_str]
+            linked_ds = data_sources.get(ds_name) if ds_name else None
+            if _dataset_changed(ds_cfg, existing_dataset, linked_ds):
+                response = await client.update_dataset(existing_dataset.id, ds_cfg)
+                dataset = response.dataset
+                print_info(f"  Updated dataset: {urn}")
 
-            # Display channel datasets update results
-            _display_channel_results(response.channel_results)
+                # Display channel datasets update results
+                _display_channel_results(response.channel_results)
 
-            # Collect datasets needing reindex for summary
-            for r in response.channel_results:
-                if r.status == ChannelDatasetUpdateStatus.NEEDS_REINDEX:
-                    datasets_needing_reindex[r.channel.deployment_id].append(urn or "None")
+                # Collect datasets needing reindex for summary
+                for r in response.channel_results:
+                    if r.status == ChannelDatasetUpdateStatus.NEEDS_REINDEX:
+                        datasets_needing_reindex[r.channel.deployment_id].append(urn or "None")
+            else:
+                dataset = existing_dataset
+                print_info(f"  Dataset unchanged: {urn}")
         else:
             dataset = await client.create_dataset(ds_cfg)
             print_info(f"  Created dataset: {urn}")
