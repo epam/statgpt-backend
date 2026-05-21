@@ -5,14 +5,13 @@ from sdmx.model.common import BaseAnnotation
 from statgpt.common.auth.auth_context import AuthContext
 from statgpt.common.config import multiline_logger as logger
 from statgpt.common.data.base import DataSourceType
-from statgpt.common.data.base.datasource import ProviderRequiredError
 from statgpt.common.data.base.property_source import PropertySourceEnum
 from statgpt.common.data.base.sdmx_schemas import Sdmx30AnnotationModel
 from statgpt.common.data.quanthub.config import QuanthubDataSetConfig
 from statgpt.common.data.sdmx.v21.attributes_creator import Sdmx21AttributesCreator
 from statgpt.common.data.sdmx.v21.dataflow_loader import DataflowLoader
 from statgpt.common.data.sdmx.v21.dataset import InvalidConfigurationError, SdmxOfflineDataSet
-from statgpt.common.data.sdmx.v21.datasource import Sdmx21DataSourceHandler, SdmxDataSetDescriptor
+from statgpt.common.data.sdmx.v21.datasource import Sdmx21DataSourceHandler
 from statgpt.common.data.sdmx.v21.dimensions_creator import DimensionsCreator
 from statgpt.common.data.sdmx.v21.ratelimiter import SdmxRateLimiterFactory
 from statgpt.common.data.sdmx.v21.schemas import Urn
@@ -217,18 +216,3 @@ class StatGptSdmxProxyDataSourceHandler(Sdmx21DataSourceHandler):
             return await self._get_dataset(
                 entity_id, title, config, auth_context, allow_offline=allow_offline
             )
-
-    async def list_datasets(
-        self, auth_context: AuthContext, *, provider: str | None = None
-    ) -> list[SdmxDataSetDescriptor]:
-        """List datasets exposed by the proxy for a given provider (agency).
-
-        The proxy SDMX 3.0 data source does not support querying across "all" agencies,
-        so `provider` is required. Raises `ProviderRequiredError` when omitted.
-        """
-        if provider is None:
-            raise ProviderRequiredError(
-                "A provider (agency) must be specified when listing datasets for a "
-                "StatGPT SDMX proxy data source."
-            )
-        return await super().list_datasets(auth_context, provider=provider)

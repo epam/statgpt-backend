@@ -16,10 +16,6 @@ from .dataset_hierarchy import DatasetHierarchy
 from .indicator import BaseIndicator
 
 
-class ProviderRequiredError(Exception):
-    """Raised when listing datasets on a source that requires a provider filter."""
-
-
 class DataSetDescriptor(BaseModel, ABC):
     name: str = Field(description="The name of the dataset")
     description: str | None = Field(description="The description of the dataset")
@@ -113,8 +109,7 @@ class DataSourceHandler(
 
         Args:
             auth_context: caller credentials.
-            provider: optional provider (agency) id to restrict the listing to. When the source
-                cannot list datasets without one, implementations raise `ProviderRequiredError`.
+            provider: optional provider (agency) id to restrict the listing to.
         """
 
     @abstractmethod

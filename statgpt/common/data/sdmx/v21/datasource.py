@@ -58,6 +58,7 @@ from statgpt.common.utils.timer import debug_timer
 from .dataset_hierarchy import CategorySchemaDataSetHierarchyCreator
 from .ratelimiter import SdmxRateLimiterFactory
 from .schemas import StructureMessage21, Urn
+from .urn_utils import lookup_urn
 
 
 class SdmxDataSetDescriptor(DataSetDescriptor):
@@ -232,15 +233,16 @@ class Sdmx21DataSourceHandler(
     ) -> list[SdmxDataSetDescriptor]:
         client = await self.create_sdmx_client(auth_context)
 
-        message: StructureMessage = await client.dataflow(
+        sdmx_message: StructureMessage = await client.dataflow(
             agency_id=provider or "all",
             resource_id="all",
             version="latest",
             params={"references": "datastructure"},
         )
+        message = StructureMessage21.from_sdmx1(sdmx_message)
         dataflows: list[Dataflow] = list(message.dataflow.values())
 
-        res = [self._get_dataset_descriptor(dataflow) for dataflow in dataflows]
+        res = [self._get_dataset_descriptor(dataflow, message) for dataflow in dataflows]
         return res
 
     async def list_providers(self, auth_context: AuthContext) -> list[Provider]:
@@ -276,11 +278,13 @@ class Sdmx21DataSourceHandler(
         }
         return [Provider(id=agency_id, name=agency_id) for agency_id in sorted(agency_ids)]
 
-    def _get_dataset_descriptor(self, dataflow: Dataflow) -> SdmxDataSetDescriptor:
+    def _get_dataset_descriptor(
+        self, dataflow: Dataflow, message: StructureMessage21
+    ) -> SdmxDataSetDescriptor:
         urn = Urn.for_artifact(dataflow)
         urn_ref = UrnReference.model_validate(urn, from_attributes=True)
         try:
-            config = self._create_config_for(dataflow, urn_ref)
+            config = self._create_config_for(dataflow, urn_ref, message)
         except Exception:
             logger.warning(
                 f"Failed to create dataset config for dataflow urn={dataflow.urn!r}", exc_info=True
@@ -294,11 +298,15 @@ class Sdmx21DataSourceHandler(
         )
 
     @staticmethod
-    def _create_config_for(dataflow: Dataflow, urn_ref: UrnReference) -> SdmxDataSetConfigTemplate:
+    def _create_config_for(
+        dataflow: Dataflow, urn_ref: UrnReference, message: StructureMessage21
+    ) -> SdmxDataSetConfigTemplate:
         """We do our best to create a valid dataset configuration from the dataflow structure."""
 
+        dsd = lookup_urn(message.structure, Urn.for_artifact(dataflow.structure))
+
         dimensions: dict[str, BaseDimensionConfig] = {}
-        for dim in dataflow.structure.dimensions:
+        for dim in dsd.dimensions:
             entity_id = dim.id
             if isinstance(dim, TimeDimension):
                 dimensions[entity_id] = TimePeriodDimensionConfig()

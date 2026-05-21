@@ -7,7 +7,6 @@ import pytest
 from sdmx.message import StructureMessage
 from sdmx.model.common import Agency, AgencyScheme, InternationalString
 
-from statgpt.common.data.base.datasource import ProviderRequiredError
 from statgpt.common.data.sdmx.common.config import SdmxConfig
 from statgpt.common.data.statgpt_sdmx_proxy.config import StatGptSdmxProxyDataSourceConfig
 from statgpt.common.data.statgpt_sdmx_proxy.v30.datasource import StatGptSdmxProxyDataSourceHandler
@@ -60,12 +59,6 @@ class _StubProxyHandler(StatGptSdmxProxyDataSourceHandler):
 
     async def create_sdmx_client(self, auth_context):  # type: ignore[override]
         return self._stub_client  # type: ignore[return-value]
-
-
-async def test_proxy_list_datasets_requires_provider() -> None:
-    handler = StatGptSdmxProxyDataSourceHandler(_proxy_config())
-    with pytest.raises(ProviderRequiredError):
-        await handler.list_datasets(auth_context=None)  # type: ignore[arg-type]
 
 
 async def test_proxy_list_providers_parses_real_agency_scheme_response(
