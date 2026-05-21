@@ -11,7 +11,7 @@ from statgpt.common.data.quanthub.config import QuanthubDataSetConfig
 from statgpt.common.data.sdmx.v21.attributes_creator import Sdmx21AttributesCreator
 from statgpt.common.data.sdmx.v21.dataflow_loader import DataflowLoader
 from statgpt.common.data.sdmx.v21.dataset import InvalidConfigurationError, SdmxOfflineDataSet
-from statgpt.common.data.sdmx.v21.datasource import Sdmx21DataSourceHandler, SdmxDataSetDescriptor
+from statgpt.common.data.sdmx.v21.datasource import Sdmx21DataSourceHandler
 from statgpt.common.data.sdmx.v21.dimensions_creator import DimensionsCreator
 from statgpt.common.data.sdmx.v21.ratelimiter import SdmxRateLimiterFactory
 from statgpt.common.data.sdmx.v21.schemas import Urn
@@ -216,13 +216,3 @@ class StatGptSdmxProxyDataSourceHandler(Sdmx21DataSourceHandler):
             return await self._get_dataset(
                 entity_id, title, config, auth_context, allow_offline=allow_offline
             )
-
-    async def list_datasets(self, auth_context: AuthContext) -> list[SdmxDataSetDescriptor]:
-        """
-        NOTE: The proxy SDMX 3.0 data source does not support querying across "all" agencies,
-        and the use of "latest" version is not supported by all registries.
-        Listing all datasets is unavailable in this handler.
-        """
-        raise NotImplementedError(
-            "Listing all datasets is unavailable for StatGPT SDMX proxy handler"
-        )
