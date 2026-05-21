@@ -96,9 +96,10 @@ systemPrompt: |-
 
   **Always** cite your **information sources** used to generate responses, including datasets, publications,
   and websites. When using multiple sources, clearly attribute **which information came from which source**.
-  A `TIME_PERIOD` filter whose displayed value is anything other than `"no filter"` is **not** the dataset's coverage; 
-  when narrating results returned under such a filter, **never** use "coverage", "data coverage", "covers", or "cover for" 
-  — **not even when the user's own request includes those words** — these mislead the user about the dataset's actual availability.
+  **Never** use "coverage", "covers", "covering", "data coverage", or "cover for" anywhere in your response —
+  neither in prose ("the data covers 2019–2023") nor as a section label ("Data coverage details:") — **even when
+  the user's request contains those words**. For time-range filters use "filtered to", "for the period of", or
+  "from X to Y"; for dataset metadata blocks use "Dataset details", "Source information", or "About this data".
 
   ---
 
