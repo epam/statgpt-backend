@@ -257,14 +257,14 @@ class Sdmx21DataSourceHandler(
             agency_id="all", resource_id="all", version="latest"
         )
 
-        seen: dict[str, Provider] = {}
+        providers_by_id: dict[str, Provider] = {}
         for scheme in message.organisation_scheme.values():
             for agency in scheme.items.values():
-                if agency.id in seen:
+                if agency.id in providers_by_id:
                     continue
                 name = agency.name.localizations.get(self._config.locale) if agency.name else None
-                seen[agency.id] = Provider(id=agency.id, name=name or agency.id)
-        return sorted(seen.values(), key=lambda p: p.id)
+                providers_by_id[agency.id] = Provider(id=agency.id, name=name or agency.id)
+        return sorted(providers_by_id.values(), key=lambda p: p.id)
 
     async def _list_providers_via_dataflows(self, auth_context: AuthContext) -> list[Provider]:
         client = await self.create_sdmx_client(auth_context)

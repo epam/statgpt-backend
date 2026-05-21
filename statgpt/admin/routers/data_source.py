@@ -95,11 +95,7 @@ async def get_providers(
     session: AsyncSession = Depends(models.get_session),
     _=Depends(cancel_on_disconnect),
 ) -> schemas.ListResponse[schemas.Provider]:
-    """Returns a list of providers (maintainer agencies) exposed by the data source.
-
-    Populates the provider picker in the Admin UI so admins can scope dataset selection
-    to a specific provider before listing datasets.
-    """
+    """Returns a list of providers (maintainer agencies) exposed by the data source."""
 
     providers = await DataSetService(session).load_available_providers(
         source_id=item_id, auth_context=SystemUserAuthContext()
