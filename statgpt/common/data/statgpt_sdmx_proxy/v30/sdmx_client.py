@@ -85,11 +85,23 @@ class AsyncStatGptSdmxProxyClient(AsyncSdmxClient):
             params=None,
         )
         headers = {"accept": _SDMX_v30_STRUCTURE_ACCEPT_HEADER, **(extra_headers or {})}
-        req = requests.Request(method="GET", url=url, headers=headers).prepare()
 
+        if use_cache:
+            return cast(
+                StructureMessage,
+                await self._cache.get(
+                    key=url,
+                    loader=lambda: self._fetch_proxy_agencyscheme(url=url, headers=headers),
+                ),
+            )
+        return await self._fetch_proxy_agencyscheme(url=url, headers=headers)
+
+    async def _fetch_proxy_agencyscheme(
+        self, *, url: str, headers: dict[str, str]
+    ) -> StructureMessage:
+        req = requests.Request(method="GET", url=url, headers=headers).prepare()
         async with self._rate_limiter.structure_limiter():
             response = await self._perform_request(req)
-
         body = ProxyAgencySchemeResponseBody.model_validate(response.json())
         return body.to_sdmx1()
 

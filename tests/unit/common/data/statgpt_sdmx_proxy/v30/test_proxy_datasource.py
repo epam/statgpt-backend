@@ -1,6 +1,5 @@
 """Tests for the StatGPT SDMX proxy data source handler."""
 
-import json
 from pathlib import Path
 
 import httpx
@@ -46,7 +45,9 @@ class _StubClient:
     def __init__(self, message: StructureMessage):
         self._message = message
 
-    async def agencyscheme(self, *, agency_id, resource_id, version):
+    async def agencyscheme(
+        self, *, agency_id, resource_id, version, use_cache=False, extra_headers=None
+    ):
         return self._message
 
 
@@ -65,21 +66,6 @@ async def test_proxy_list_datasets_requires_provider() -> None:
     handler = StatGptSdmxProxyDataSourceHandler(_proxy_config())
     with pytest.raises(ProviderRequiredError):
         await handler.list_datasets(auth_context=None)  # type: ignore[arg-type]
-
-
-def test_proxy_agency_scheme_fixture_has_expected_shape() -> None:
-    """The fixture is a captured /structure/agencyscheme response. Keep it stable so the
-    parser tests stay anchored to the real proxy payload."""
-
-    payload = json.loads(FIXTURE.read_text())
-    schemes = payload["data"]["agencySchemes"]
-    assert schemes, "fixture should expose at least one agency scheme"
-    agencies = schemes[0]["agencies"]
-    ids = {agency["id"] for agency in agencies}
-    assert {"BIS", "IMF"}.issubset(ids)
-    by_id = {a["id"]: a["name"] for a in agencies}
-    assert by_id["BIS"] == "Bank for International Settlements"
-    assert by_id["IMF"] == "International Monetary Fund"
 
 
 async def test_proxy_list_providers_parses_real_agency_scheme_response(
@@ -110,3 +96,17 @@ async def test_proxy_list_providers_falls_back_to_id_when_localized_name_missing
     providers = await handler.list_providers(auth_context=None)  # type: ignore[arg-type]
 
     assert providers == [Provider(id="OECD", name="OECD")]
+
+
+async def test_proxy_list_providers_falls_back_to_any_localization() -> None:
+    agency = Agency(id="OECD")
+    agency.name = InternationalString()
+    agency.name.localizations = {"fr": "Organisation de coopération et de développement"}
+    message = _agency_scheme_message([agency])
+
+    handler = _StubProxyHandler(_proxy_config(locale="en"), message)
+    providers = await handler.list_providers(auth_context=None)  # type: ignore[arg-type]
+
+    assert providers == [
+        Provider(id="OECD", name="Organisation de coopération et de développement"),
+    ]

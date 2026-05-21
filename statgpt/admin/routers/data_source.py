@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 import statgpt.common.models as models
@@ -114,7 +114,7 @@ async def get_providers(
 @router.get("/{item_id}/available-datasets")
 async def get_available_datasets(
     item_id: int,
-    provider: str | None = None,
+    provider: str | None = Query(default=None, pattern=r"^[A-Za-z0-9_.\-]+$"),
     session: AsyncSession = Depends(models.get_session),
     _=Depends(cancel_on_disconnect),
 ) -> schemas.ListResponse[schemas.DataSetDescriptor]:

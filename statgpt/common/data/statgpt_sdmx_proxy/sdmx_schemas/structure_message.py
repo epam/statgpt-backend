@@ -126,7 +126,7 @@ class ProxyAgencyScheme(BaseModel):
     agencies: list[ProxyAgency] = Field(default_factory=list)
 
     def to_sdmx1(self) -> AgencyScheme:
-        scheme = AgencyScheme(id=self.id)
+        scheme = AgencyScheme(id=self.id, maintainer=Agency(id=self.agency_id))
         for proxy_agency in self.agencies:
             agency = proxy_agency.to_sdmx1()
             scheme.items[agency.id] = agency
