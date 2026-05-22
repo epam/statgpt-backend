@@ -879,12 +879,13 @@ class HybridSearcher:
     async def _search_by_query(
         self,
         stage: ContentStageI,
+        index: int,
         query: str,
         version_ids: set[int],
         availability: DatasetDimTermsSetType,
     ) -> HybridSearchResultInner:
         if stage:
-            stage.append_content(f"\n1. {query}\n")
+            stage.append_content(f"\n{index}. {query}\n")
 
         hybrid_match = self.HybridMatch(self)
         lexical, semantic, llm_scored, selected, reasoning, timings = await hybrid_match.search(
@@ -960,19 +961,18 @@ class HybridSearcher:
             tasks = [
                 self._search_by_query(
                     stage=stage_manager.create(),
+                    index=index,
                     query=query,
                     version_ids=version_ids,
                     availability=availability_dict,
                 )
-                for query in queries
+                for index, query in enumerate(queries, start=1)
             ]
             t_parallel_subqueries = time.perf_counter()
-            try:
-                partial: list[HybridSearchResultInner] = await async_utils.gather_with_concurrency(
-                    20, *tasks
-                )
-            finally:
-                timings.parallel_subqueries_wall = time.perf_counter() - t_parallel_subqueries
+            partial: list[HybridSearchResultInner] = await async_utils.gather_with_concurrency(
+                20, *tasks
+            )
+            timings.parallel_subqueries_wall = time.perf_counter() - t_parallel_subqueries
 
         timings.per_subquery = [item.timings for item in partial]
 

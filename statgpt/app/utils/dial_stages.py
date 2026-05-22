@@ -265,6 +265,7 @@ class BufferedStagesManager:
     def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
         for buf in self._buffers:
             buf.flush_to(self._to_stage)
+        self._buffers.clear()
 
 
 class NullChoice:
