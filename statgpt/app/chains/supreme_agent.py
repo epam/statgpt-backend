@@ -40,6 +40,7 @@ from statgpt.common.auth.auth_context import AuthContext
 from statgpt.common.config import multiline_logger as logger
 from statgpt.common.schemas import ChannelConfig, FakeCall
 from statgpt.common.utils import InvalidLLMStreamResponse
+from statgpt.common.utils.llm_call_duration_context import get_llm_call_duration_manager
 from statgpt.common.utils.markdown import format_as_markdown_list
 from statgpt.common.utils.models import get_chat_model
 
@@ -234,7 +235,6 @@ class SupremeAgent:
             chat_bot_language_instructions=format_as_markdown_list(
                 channel_config.supreme_agent.language_instructions, list_type="ordered"
             ),
-            additional_instructions=channel_config.supreme_agent.additional_instructions,
             additional_context=channel_config.supreme_agent.additional_context,
             general_section=(
                 channel_config.supreme_agent.general_section
@@ -419,3 +419,18 @@ class SupremeAgentExecutor:
             f"| {(first_token_time - start_time_of_last_request).total_seconds():.2f} "
             "| Time since the agent's last request and the first token received in response to it |\n"
         )
+        duration_manager = get_llm_call_duration_manager()
+        if duration_manager is not None:
+            for item in duration_manager.get_durations():
+                performance_stage.append_content(
+                    f"| LLM call duration: {item.deployment} "
+                    "| | "
+                    f"| {item.duration_s:.3f} "
+                    f"| Cumulative duration for {item.deployment} |\n"
+                )
+            performance_stage.append_content(
+                "| Total LLM calls duration "
+                "| | "
+                f"| {duration_manager.total_duration_s:.3f} "
+                "| Sum of all LLM call durations |\n"
+            )

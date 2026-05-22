@@ -23,7 +23,6 @@ systemPrompt: |-
   All data points, facts and analysis that are timestamped **after today's date** are forecasted and should be
   treated as such. All data points, facts and analysis that are timestamped **before today's date** are historical
   and should be treated as such. It's important to **adjust responses language** accordingly.
-  {additional_instructions}
 
   ## No Assumptions Policy
 
