@@ -34,12 +34,25 @@ class ChoiceI(Protocol):
 
 
 @runtime_checkable
+class ContentStageI(Protocol):
+    """Structural protocol for stage-like objects that accept content appends.
+
+    Narrower than ``StageI`` — only ``append_content`` is required. Every
+    ``StageI`` implementation satisfies this protocol structurally; so does
+    ``BufferedStage``, which deliberately does *not* implement the rest of the
+    stage surface.
+    """
+
+    def append_content(self, content: str) -> Any: ...
+
+
+@runtime_checkable
 class StageI(Protocol):
     """Structural protocol for Stage-like objects.
 
     Satisfied by the DIAL SDK's ``aidial_sdk.chat_completion.Stage`` as well as
-    the internal wrappers in this module (``DelayedStage``, ``DummyStage``,
-    ``BufferedStage``). Use this for type hints when any of those may be passed.
+    the internal wrappers in this module (``DelayedStage``, ``DummyStage``).
+    Use this for type hints when any of those may be passed.
     """
 
     def append_content(self, content: str) -> Any: ...
@@ -198,55 +211,60 @@ class WarningDummyStage(DummyStage):
         _log.warning("The attachment is being added to a dummy stage and will be ignored.")
 
 
-class BufferedStage(StageI):
-    """A stage that records appends in memory and flushes them later in order.
+class BufferedStage(ContentStageI):
+    """Records ``append_content`` calls in memory; flushes them to a real stage later.
 
     Used to keep content from concurrent tasks from interleaving on a shared
-    real stage: each task writes to its own BufferedStage; after the tasks
+    real stage: each task writes to its own ``BufferedStage``; after the tasks
     complete (or fail), the buffers are flushed to the real stage sequentially.
+
+    Intentionally narrower than ``StageI`` — only ``append_content`` is
+    supported. Other stage operations (``append_name``, ``add_attachment``,
+    lifecycle) must be performed on the real stage *before* the parallel
+    section, never on the buffered substitute.
     """
 
     def __init__(self) -> None:
         self._pending_content: list[str] = []
-        self._pending_names: list[str] = []
-        self._pending_attachments: list[tuple[tuple[Any, ...], dict[str, Any]]] = []
 
     def append_content(self, content: str) -> None:
         self._pending_content.append(content)
 
-    def append_name(self, name: str) -> None:
-        self._pending_names.append(name)
-
-    def add_attachment(self, *args: Any, **kwargs: Any) -> None:
-        self._pending_attachments.append((args, kwargs))
-
-    def open(self) -> None:
-        pass
-
-    def close(self, status: Status = Status.COMPLETED) -> None:
-        pass
-
-    @property
-    def content_stream(self) -> ContentStream:
-        raise NotImplementedError("BufferedStage does not support content_stream")
-
-    def __enter__(self) -> "BufferedStage":
-        return self
-
-    def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
-        pass
-
-    def flush_to(self, stage: StageI) -> None:
-        """Drain buffered calls into the target stage, then clear the buffers."""
-        for name in self._pending_names:
-            stage.append_name(name)
-        self._pending_names.clear()
+    def flush_to(self, stage: ContentStageI) -> None:
+        """Drain buffered content into the target stage, then clear the buffer."""
         for content in self._pending_content:
             stage.append_content(content)
         self._pending_content.clear()
-        for args, kwargs in self._pending_attachments:
-            stage.add_attachment(*args, **kwargs)
-        self._pending_attachments.clear()
+
+
+class BufferedStagesManager:
+    """Hands out per-task stages and flushes them in order on exit.
+
+    Each task receives its own ``ContentStageI`` from :meth:`create`. On
+    ``__exit__``, all buffered content is appended to ``to_stage`` sequentially,
+    preventing the interleaving that happens when concurrent tasks share a real
+    stage. If ``to_stage`` is falsy (disabled), :meth:`create` returns a shared
+    ``DummyStage`` and exit flushes nothing.
+    """
+
+    def __init__(self, to_stage: StageI) -> None:
+        self._to_stage = to_stage
+        self._buffers: list[BufferedStage] = []
+        self._dummy = DummyStage()
+
+    def create(self) -> ContentStageI:
+        if not self._to_stage:
+            return self._dummy
+        buf = BufferedStage()
+        self._buffers.append(buf)
+        return buf
+
+    def __enter__(self) -> "BufferedStagesManager":
+        return self
+
+    def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
+        for buf in self._buffers:
+            buf.flush_to(self._to_stage)
 
 
 class NullChoice:

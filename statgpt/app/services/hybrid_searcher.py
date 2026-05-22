@@ -17,7 +17,7 @@ from statgpt.app.schemas.query_builder import (
     NamedEntity,
 )
 from statgpt.app.services.chat_facade import VersionedDataSet
-from statgpt.app.utils.dial_stages import BufferedStage, StageI
+from statgpt.app.utils.dial_stages import BufferedStagesManager, ContentStageI, StageI
 from statgpt.common.config.logging import logger
 from statgpt.common.data.base import DimensionQuery, QueryOperator
 from statgpt.common.hybrid_indexer.schemas import IndicatorIndex, MatchingIndex
@@ -118,7 +118,7 @@ class HybridSearcher:
 
         async def search(
             self,
-            stage: StageI,
+            stage: ContentStageI,
             query: str,
             version_ids: set[int],
             availability: DatasetDimTermsSetType,
@@ -171,7 +171,7 @@ class HybridSearcher:
             return lexical, semantic, llm_scored, selected, reasoning, timings
 
         async def _query_planner(
-            self, stage: StageI, query: str, version_ids: set[int]
+            self, stage: ContentStageI, query: str, version_ids: set[int]
         ) -> SearchParams:
             primaries, total, candidates, good_candidates = await self._outer.lexical_pre_match(
                 query=query,
@@ -670,7 +670,7 @@ class HybridSearcher:
 
         def _filter_candidates(
             self,
-            stage: StageI,
+            stage: ContentStageI,
             indexed,
             relevance,
             dataset_max_score,
@@ -878,7 +878,7 @@ class HybridSearcher:
 
     async def _search_by_query(
         self,
-        stage: StageI,
+        stage: ContentStageI,
         query: str,
         version_ids: set[int],
         availability: DatasetDimTermsSetType,
@@ -952,29 +952,28 @@ class HybridSearcher:
         timings.separate_subjects = time.perf_counter() - t_separate_subjects
         logger.info(f"[search], {queries=}, (elapsed {time.perf_counter() - t_total:0.3f} sec)")
 
-        # Each subquery runs in parallel; writing to a shared `stage` would
-        # interleave their output. Buffer per subquery and flush sequentially
-        # in the `finally` block so partial output survives errors.
-        buffered_stages = [BufferedStage() for _ in queries]
-        tasks = [
-            self._search_by_query(
-                stage=buffered_stages[i],
-                query=query,
-                version_ids=version_ids,
-                availability=availability_dict,
-            )
-            for i, query in enumerate(queries)
-        ]
-        t_parallel_subqueries = time.perf_counter()
-        try:
-            partial: list[HybridSearchResultInner] = await async_utils.gather_with_concurrency(
-                20, *tasks
-            )
-        finally:
-            timings.parallel_subqueries_wall = time.perf_counter() - t_parallel_subqueries
-            if stage:
-                for buffered in buffered_stages:
-                    buffered.flush_to(stage)
+        # Each subquery runs in parallel; writing to a shared real `stage`
+        # would interleave output. The manager hands every task its own
+        # buffered substitute and flushes them sequentially on exit (or a
+        # shared DummyStage when the outer stage is disabled).
+        with BufferedStagesManager(stage) as stage_manager:
+            tasks = [
+                self._search_by_query(
+                    stage=stage_manager.create(),
+                    query=query,
+                    version_ids=version_ids,
+                    availability=availability_dict,
+                )
+                for query in queries
+            ]
+            t_parallel_subqueries = time.perf_counter()
+            try:
+                partial: list[HybridSearchResultInner] = await async_utils.gather_with_concurrency(
+                    20, *tasks
+                )
+            finally:
+                timings.parallel_subqueries_wall = time.perf_counter() - t_parallel_subqueries
+
         timings.per_subquery = [item.timings for item in partial]
 
         lexical_merged = self._merge_scored_dicts([item.lexical for item in partial])
