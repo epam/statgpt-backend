@@ -12,7 +12,7 @@ _anchors:
       alias: "Country/Reference area"
       allValues:
         id: "ALL_COUNTRIES"
-        name: "All countries - must be selected when query explicitly asks for all countries"
+        name: "All countries individually (wildcard) - select for per-country breakdown, NOT for an aggregate total"
         description: "Special value to query all countries"
     FREQUENCY:
       dimensionType: "NON_INDICATOR"
