@@ -341,14 +341,9 @@ def _get_mime_type(filename: str) -> str:
 def _channel_changed(incoming_cfg: dict[str, Any], existing: Channel) -> bool:
     """Return True if channel config differs from what is stored."""
     try:
-        normalized = ChannelBase.model_validate(incoming_cfg)
-        incoming_dump = normalized.model_dump(mode='json', by_alias=True)
-        existing_dump = existing.model_dump(
-            mode='json',
-            by_alias=True,
-            include={'title', 'description', 'deployment_id', 'llm_model', 'details'},
-        )
-        return incoming_dump != existing_dump
+        incoming = ChannelBase.model_validate(incoming_cfg)
+        stored = ChannelBase.model_validate(existing.model_dump(mode='json', by_alias=True))
+        return incoming != stored
     except Exception:
         return True
 
@@ -359,14 +354,9 @@ def _data_source_changed(incoming_cfg: dict[str, Any], existing: DataSource) -> 
         config_class = DataManager.get_config_class(existing.type.name)
         incoming_details = incoming_cfg.get('details', existing.details)
         normalized_details = config_class(**incoming_details).model_dump(mode='json', by_alias=True)
-        normalized = DataSourceBase.model_validate({**incoming_cfg, 'details': normalized_details})
-        incoming_dump = normalized.model_dump(
-            mode='json', by_alias=True, include={'title', 'description', 'type_id', 'details'}
-        )
-        existing_dump = existing.model_dump(
-            mode='json', by_alias=True, include={'title', 'description', 'type_id', 'details'}
-        )
-        return incoming_dump != existing_dump
+        incoming = DataSourceBase.model_validate({**incoming_cfg, 'details': normalized_details})
+        stored = DataSourceBase.model_validate(existing.model_dump(mode='json', by_alias=True))
+        return incoming != stored
     except Exception:
         return True
 
@@ -389,17 +379,16 @@ def _dataset_changed(
         else:
             normalized_details = incoming_details
             use_title_from_src = False
-        title_fields: set[str] = set() if use_title_from_src else {'title'}
+        exclude_fields = {'title'} if use_title_from_src else set()
         normalized = DataSetBase.model_validate({**incoming_cfg, 'details': normalized_details})
         incoming_dump = normalized.model_dump(
-            mode='json', by_alias=True, include=title_fields | {'data_source_id', 'details'}
-        )
-        incoming_dump['description'] = incoming_cfg.get('description', existing.description)
-        existing_dump = existing.model_dump(
             mode='json',
             by_alias=True,
-            include=title_fields | {'data_source_id', 'description', 'details'},
+            exclude=exclude_fields,
         )
+        existing_dump = DataSetBase.model_validate(
+            existing.model_dump(mode='json', by_alias=True)
+        ).model_dump(mode='json', by_alias=True, exclude=exclude_fields)
         return incoming_dump != existing_dump
     except Exception:
         return True
