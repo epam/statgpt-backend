@@ -1,6 +1,5 @@
 import asyncio
 import logging
-from abc import ABC, abstractmethod
 from collections.abc import Callable
 from contextlib import AbstractContextManager, contextmanager
 from datetime import datetime
@@ -34,44 +33,34 @@ class ChoiceI(Protocol):
     def set_state(self, state: dict) -> Any: ...
 
 
-class StageInterface(ABC):
-    """Abstract interface for Stage-like classes."""
+@runtime_checkable
+class StageI(Protocol):
+    """Structural protocol for Stage-like objects.
 
-    @abstractmethod
-    def append_content(self, content: str):
-        pass
+    Satisfied by the DIAL SDK's ``aidial_sdk.chat_completion.Stage`` as well as
+    the internal wrappers in this module (``DelayedStage``, ``DummyStage``,
+    ``BufferedStage``). Use this for type hints when any of those may be passed.
+    """
 
-    @abstractmethod
-    def append_name(self, name: str):
-        pass
+    def append_content(self, content: str) -> Any: ...
 
-    @abstractmethod
-    def add_attachment(self, *args, **kwargs):
-        pass
+    def append_name(self, name: str) -> Any: ...
 
-    @abstractmethod
-    def open(self):
-        pass
+    def add_attachment(self, *args: Any, **kwargs: Any) -> Any: ...
 
-    @abstractmethod
-    def close(self, status: Status = Status.COMPLETED):
-        pass
+    def open(self) -> Any: ...
+
+    def close(self, status: Status = Status.COMPLETED) -> Any: ...
 
     @property
-    @abstractmethod
-    def content_stream(self) -> ContentStream:
-        pass
+    def content_stream(self) -> ContentStream: ...
 
-    @abstractmethod
-    def __enter__(self):
-        pass
+    def __enter__(self) -> Any: ...
 
-    @abstractmethod
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        pass
+    def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any, /) -> Any: ...
 
 
-class DelayedStage(StageInterface):
+class DelayedStage(StageI):
     """
     A Stage that delays the opening of the stage (and appending the name) until the first content is added.
     """
@@ -161,7 +150,7 @@ class DelayedStage(StageInterface):
         return False
 
 
-class DummyStage(StageInterface):
+class DummyStage(StageI):
     """A silent dummy stage that does nothing."""
 
     def append_content(self, content: str):
@@ -207,6 +196,57 @@ class WarningDummyStage(DummyStage):
 
     def add_attachment(self, *args, **kwargs):
         _log.warning("The attachment is being added to a dummy stage and will be ignored.")
+
+
+class BufferedStage(StageI):
+    """A stage that records appends in memory and flushes them later in order.
+
+    Used to keep content from concurrent tasks from interleaving on a shared
+    real stage: each task writes to its own BufferedStage; after the tasks
+    complete (or fail), the buffers are flushed to the real stage sequentially.
+    """
+
+    def __init__(self) -> None:
+        self._pending_content: list[str] = []
+        self._pending_names: list[str] = []
+        self._pending_attachments: list[tuple[tuple[Any, ...], dict[str, Any]]] = []
+
+    def append_content(self, content: str) -> None:
+        self._pending_content.append(content)
+
+    def append_name(self, name: str) -> None:
+        self._pending_names.append(name)
+
+    def add_attachment(self, *args: Any, **kwargs: Any) -> None:
+        self._pending_attachments.append((args, kwargs))
+
+    def open(self) -> None:
+        pass
+
+    def close(self, status: Status = Status.COMPLETED) -> None:
+        pass
+
+    @property
+    def content_stream(self) -> ContentStream:
+        raise NotImplementedError("BufferedStage does not support content_stream")
+
+    def __enter__(self) -> "BufferedStage":
+        return self
+
+    def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
+        pass
+
+    def flush_to(self, stage: StageI) -> None:
+        """Drain buffered calls into the target stage, then clear the buffers."""
+        for name in self._pending_names:
+            stage.append_name(name)
+        self._pending_names.clear()
+        for content in self._pending_content:
+            stage.append_content(content)
+        self._pending_content.clear()
+        for args, kwargs in self._pending_attachments:
+            stage.add_attachment(*args, **kwargs)
+        self._pending_attachments.clear()
 
 
 class NullChoice:
@@ -260,7 +300,7 @@ def delayed_timed_stage(choice: ChoiceI, *args, **kwargs):
 
 
 @contextmanager
-def optional_stage(stage_generator: AbstractContextManager[StageInterface], enabled: bool):
+def optional_stage(stage_generator: AbstractContextManager[StageI], enabled: bool):
     if not enabled:
         # Create a dummy stage that logs warnings
         stage_generator = WarningDummyStage()
