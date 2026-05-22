@@ -18,7 +18,7 @@ def _make_artifact(data_responses: dict) -> DataQueryArtifact:
 
 def _response(
     resource_path: str,
-    df: pd.DataFrame | None,
+    df: pd.DataFrame,
     created_at: datetime = _FIXED_TS,
 ) -> SimpleNamespace:
     return SimpleNamespace(
@@ -80,10 +80,9 @@ def test_each_response_uses_its_own_created_at():
     ]
 
 
-def test_empty_or_missing_dataframes_are_skipped():
+def test_empty_dataframes_are_skipped():
     artifact = _make_artifact(
         {
-            "none": _response("IMF:NONE(1.0.0)", None),
             "empty": _response("IMF:EMPTY(1.0.0)", pd.DataFrame()),
             "ok": _response("IMF:OK(1.0.0)", pd.DataFrame({"x": [1]})),
         }

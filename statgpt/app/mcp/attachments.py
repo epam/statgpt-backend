@@ -11,12 +11,12 @@ def data_query_artifact_to_resources(
 ) -> list[EmbeddedResource]:
     """Serialize each DataResponse's csv_dataframe as an inline text/csv resource.
 
-    Skips responses with no csv_dataframe so MCP clients don't receive empty payloads.
+    Skips responses with empty csv_dataframe so MCP clients don't receive empty payloads.
     """
     resources: list[EmbeddedResource] = []
     for response in artifact.data_responses.values():
         df = response.csv_dataframe
-        if df is None or df.empty:
+        if df.empty:
             continue
         csv_text = df.to_csv(
             index=False,
