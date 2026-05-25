@@ -233,7 +233,7 @@ class DataQueryArtifactDisplayer:
 
         assert self._config.csv_file.name is not None, "csv_file.name must be set when enabled"
         response = await attachments_storage.put_csv_from_dataframe(
-            data_response.file_name, data_response.visual_dataframe
+            data_response.file_name, data_response.csv_dataframe
         )
         title = data_response.enrich_attachment_name(self._config.csv_file.name)
         return dict(type=response.content_type, title=title, url=response.url)

@@ -1,4 +1,5 @@
 import logging
+from enum import StrEnum
 from typing import Annotated, Any, Literal
 
 from pydantic import Field
@@ -15,6 +16,13 @@ from statgpt.common.data.base import (
 from statgpt.common.data.sdmx.common.data_explorer_url import DataExplorerUrlConfig
 
 _log = logging.getLogger(__name__)
+
+
+class ProviderDiscoveryMode(StrEnum):
+    """Strategy for enumerating providers (maintainer agencies) exposed by a data source."""
+
+    AGENCYSCHEME = "agencyscheme"
+    DATAFLOWS = "dataflows"
 
 
 class SdmxHeaders(BaseModel):
@@ -194,6 +202,15 @@ class SdmxDataSourceConfig(DataSourceConfig):
         default=None,
         discriminator='type',
         description="The configuration of the dataset hierarchy for this data source",
+    )
+    provider_discovery: ProviderDiscoveryMode = Field(
+        default=ProviderDiscoveryMode.AGENCYSCHEME,
+        description=(
+            "How to enumerate providers (maintainer agencies) exposed by this data source. "
+            "`agencyscheme` queries the SDMX agencyscheme endpoint and returns localized names. "
+            "`dataflows` lists all dataflows and groups them by agency_id (ids only, no display "
+            "names). Use `dataflows` for SDMX 2.1 registries that don't expose agency schemes."
+        ),
     )
 
     def get_data_explorer_url(self) -> str | None:

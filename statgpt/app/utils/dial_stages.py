@@ -1,6 +1,5 @@
 import asyncio
 import logging
-from abc import ABC, abstractmethod
 from collections.abc import Callable
 from contextlib import AbstractContextManager, contextmanager
 from datetime import datetime
@@ -34,44 +33,47 @@ class ChoiceI(Protocol):
     def set_state(self, state: dict) -> Any: ...
 
 
-class StageInterface(ABC):
-    """Abstract interface for Stage-like classes."""
+@runtime_checkable
+class ContentStageI(Protocol):
+    """Structural protocol for stage-like objects that accept content appends.
 
-    @abstractmethod
-    def append_content(self, content: str):
-        pass
+    Narrower than ``StageI`` — only ``append_content`` is required. Every
+    ``StageI`` implementation satisfies this protocol structurally; so does
+    ``BufferedStage``, which deliberately does *not* implement the rest of the
+    stage surface.
+    """
 
-    @abstractmethod
-    def append_name(self, name: str):
-        pass
+    def append_content(self, content: str) -> Any: ...
 
-    @abstractmethod
-    def add_attachment(self, *args, **kwargs):
-        pass
 
-    @abstractmethod
-    def open(self):
-        pass
+@runtime_checkable
+class StageI(Protocol):
+    """Structural protocol for Stage-like objects.
 
-    @abstractmethod
-    def close(self, status: Status = Status.COMPLETED):
-        pass
+    Satisfied by the DIAL SDK's ``aidial_sdk.chat_completion.Stage`` as well as
+    the internal wrappers in this module (``DelayedStage``, ``DummyStage``).
+    Use this for type hints when any of those may be passed.
+    """
+
+    def append_content(self, content: str) -> Any: ...
+
+    def append_name(self, name: str) -> Any: ...
+
+    def add_attachment(self, *args: Any, **kwargs: Any) -> Any: ...
+
+    def open(self) -> Any: ...
+
+    def close(self, status: Status = Status.COMPLETED) -> Any: ...
 
     @property
-    @abstractmethod
-    def content_stream(self) -> ContentStream:
-        pass
+    def content_stream(self) -> ContentStream: ...
 
-    @abstractmethod
-    def __enter__(self):
-        pass
+    def __enter__(self) -> Any: ...
 
-    @abstractmethod
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        pass
+    def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any, /) -> Any: ...
 
 
-class DelayedStage(StageInterface):
+class DelayedStage(StageI):
     """
     A Stage that delays the opening of the stage (and appending the name) until the first content is added.
     """
@@ -161,7 +163,7 @@ class DelayedStage(StageInterface):
         return False
 
 
-class DummyStage(StageInterface):
+class DummyStage(StageI):
     """A silent dummy stage that does nothing."""
 
     def append_content(self, content: str):
@@ -207,6 +209,63 @@ class WarningDummyStage(DummyStage):
 
     def add_attachment(self, *args, **kwargs):
         _log.warning("The attachment is being added to a dummy stage and will be ignored.")
+
+
+class BufferedStage(ContentStageI):
+    """Records ``append_content`` calls in memory; flushes them to a real stage later.
+
+    Used to keep content from concurrent tasks from interleaving on a shared
+    real stage: each task writes to its own ``BufferedStage``; after the tasks
+    complete (or fail), the buffers are flushed to the real stage sequentially.
+
+    Intentionally narrower than ``StageI`` — only ``append_content`` is
+    supported. Other stage operations (``append_name``, ``add_attachment``,
+    lifecycle) must be performed on the real stage *before* the parallel
+    section, never on the buffered substitute.
+    """
+
+    def __init__(self) -> None:
+        self._pending_content: list[str] = []
+
+    def append_content(self, content: str) -> None:
+        self._pending_content.append(content)
+
+    def flush_to(self, stage: ContentStageI) -> None:
+        """Drain buffered content into the target stage, then clear the buffer."""
+        for content in self._pending_content:
+            stage.append_content(content)
+        self._pending_content.clear()
+
+
+class BufferedStagesManager:
+    """Hands out per-task stages and flushes them in order on exit.
+
+    Each task receives its own ``ContentStageI`` from :meth:`create`. On
+    ``__exit__``, all buffered content is appended to ``to_stage`` sequentially,
+    preventing the interleaving that happens when concurrent tasks share a real
+    stage. If ``to_stage`` is falsy (disabled), :meth:`create` returns a shared
+    ``DummyStage`` and exit flushes nothing.
+    """
+
+    def __init__(self, to_stage: StageI) -> None:
+        self._to_stage = to_stage
+        self._buffers: list[BufferedStage] = []
+        self._dummy = DummyStage()
+
+    def create(self) -> ContentStageI:
+        if not self._to_stage:
+            return self._dummy
+        buf = BufferedStage()
+        self._buffers.append(buf)
+        return buf
+
+    def __enter__(self) -> "BufferedStagesManager":
+        return self
+
+    def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
+        for buf in self._buffers:
+            buf.flush_to(self._to_stage)
+        self._buffers.clear()
 
 
 class NullChoice:
@@ -260,7 +319,7 @@ def delayed_timed_stage(choice: ChoiceI, *args, **kwargs):
 
 
 @contextmanager
-def optional_stage(stage_generator: AbstractContextManager[StageInterface], enabled: bool):
+def optional_stage(stage_generator: AbstractContextManager[StageI], enabled: bool):
     if not enabled:
         # Create a dummy stage that logs warnings
         stage_generator = WarningDummyStage()
