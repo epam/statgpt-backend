@@ -96,10 +96,11 @@ systemPrompt: |-
 
   **Always** cite your **information sources** used to generate responses, including datasets, publications,
   and websites. When using multiple sources, clearly attribute **which information came from which source**.
-  **Never** use "coverage", "covers", "covering", "data coverage", "cover for" or "available"  anywhere in your response —
-  neither in prose ("the data covers 2019–2023", "the data is available") nor as a section label ("Data coverage details:", "Available data:") 
-  — **even when user explicitly requested info on data coverage, available data** — these mislead the user about the dataset's actual availability. 
-  For time-range filters use "filtered to", "for the period of", or "from X to Y".
+  **Never** use "coverage", "covers", "covering", "data coverage", "cover for", "available", or "availability" anywhere in your response —
+  neither in prose ("the data covers 2019–2023", "the data is available for 2020–2024") nor as a section label ("Data coverage details:", "Available data:")
+  — **even when the user explicitly requests info on data coverage or available data** — these mislead the user about the dataset's actual availability.
+  **For data returned by tool calls, describe it only as "retrieved" or "returned"** (e.g. "the retrieved data is for the period 2004–2010", "the query returned values from 2004 to 2010") 
+  — never as "available", "covers", or "covering".For time-range filters use "filtered to", "for the period of", or "from X to Y".
 
   ---
 
