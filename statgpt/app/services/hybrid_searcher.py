@@ -6,7 +6,6 @@ import typing as t
 from collections.abc import Generator
 from typing import Any, NamedTuple
 
-from aidial_sdk.chat_completion import Stage
 from pydantic import BaseModel
 
 from statgpt.app.default_prompts import hybrid_search_default_prompts
@@ -18,6 +17,7 @@ from statgpt.app.schemas.query_builder import (
     NamedEntity,
 )
 from statgpt.app.services.chat_facade import VersionedDataSet
+from statgpt.app.utils.dial_stages import BufferedStagesManager, ContentStageI, StageI
 from statgpt.common.config.logging import logger
 from statgpt.common.data.base import DimensionQuery, QueryOperator
 from statgpt.common.hybrid_indexer.schemas import IndicatorIndex, MatchingIndex
@@ -117,7 +117,11 @@ class HybridSearcher:
             return result
 
         async def search(
-            self, stage, query: str, version_ids: set[int], availability: DatasetDimTermsSetType
+            self,
+            stage: ContentStageI,
+            query: str,
+            version_ids: set[int],
+            availability: DatasetDimTermsSetType,
         ) -> tuple[
             HarmonizedItemsScoredDict,
             PlainItemsScoredDict,
@@ -167,7 +171,7 @@ class HybridSearcher:
             return lexical, semantic, llm_scored, selected, reasoning, timings
 
         async def _query_planner(
-            self, stage: Stage, query: str, version_ids: set[int]
+            self, stage: ContentStageI, query: str, version_ids: set[int]
         ) -> SearchParams:
             primaries, total, candidates, good_candidates = await self._outer.lexical_pre_match(
                 query=query,
@@ -665,7 +669,12 @@ class HybridSearcher:
             return batches, indexed
 
         def _filter_candidates(
-            self, stage, indexed, relevance, dataset_max_score, is_only_one_dataset_available: bool
+            self,
+            stage: ContentStageI,
+            indexed,
+            relevance,
+            dataset_max_score,
+            is_only_one_dataset_available: bool,
         ) -> tuple[list[dict[str, Any]], str]:
             result = []
             reasoning = ""
@@ -868,10 +877,15 @@ class HybridSearcher:
         return " ".join(t.token for t in tokens)
 
     async def _search_by_query(
-        self, stage: Stage, query: str, version_ids: set[int], availability: DatasetDimTermsSetType
+        self,
+        stage: ContentStageI,
+        index: int,
+        query: str,
+        version_ids: set[int],
+        availability: DatasetDimTermsSetType,
     ) -> HybridSearchResultInner:
         if stage:
-            stage.append_content(f"\n1. {query}\n")
+            stage.append_content(f"\n{index}. {query}\n")
 
         hybrid_match = self.HybridMatch(self)
         lexical, semantic, llm_scored, selected, reasoning, timings = await hybrid_match.search(
@@ -890,7 +904,7 @@ class HybridSearcher:
     async def search(
         self,
         *,
-        stage: Stage,
+        stage: StageI,
         query: str,
         datasets: dict[str, VersionedDataSet],
         named_entities: list[NamedEntity],
@@ -939,20 +953,27 @@ class HybridSearcher:
         timings.separate_subjects = time.perf_counter() - t_separate_subjects
         logger.info(f"[search], {queries=}, (elapsed {time.perf_counter() - t_total:0.3f} sec)")
 
-        tasks = [
-            self._search_by_query(
-                stage=stage,
-                query=query,
-                version_ids=version_ids,
-                availability=availability_dict,
+        # Each subquery runs in parallel; writing to a shared real `stage`
+        # would interleave output. The manager hands every task its own
+        # buffered substitute and flushes them sequentially on exit (or a
+        # shared DummyStage when the outer stage is disabled).
+        with BufferedStagesManager(stage) as stage_manager:
+            tasks = [
+                self._search_by_query(
+                    stage=stage_manager.create(),
+                    index=index,
+                    query=query,
+                    version_ids=version_ids,
+                    availability=availability_dict,
+                )
+                for index, query in enumerate(queries, start=1)
+            ]
+            t_parallel_subqueries = time.perf_counter()
+            partial: list[HybridSearchResultInner] = await async_utils.gather_with_concurrency(
+                20, *tasks
             )
-            for query in queries
-        ]
-        t_parallel_subqueries = time.perf_counter()
-        partial: list[HybridSearchResultInner] = await async_utils.gather_with_concurrency(
-            20, *tasks
-        )
-        timings.parallel_subqueries_wall = time.perf_counter() - t_parallel_subqueries
+            timings.parallel_subqueries_wall = time.perf_counter() - t_parallel_subqueries
+
         timings.per_subquery = [item.timings for item in partial]
 
         lexical_merged = self._merge_scored_dicts([item.lexical for item in partial])
