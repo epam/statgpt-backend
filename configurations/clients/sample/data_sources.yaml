@@ -10,6 +10,7 @@ dataSources:
       availabilityViaPostUrl: null
       dataExplorerUrl: "https://data.imf.org/en/Data-Explorer"
       sdmx1Source: "IMF_DATA"
+      providerDiscovery: dataflows
       sdmxConfig:
         id: "IMF_SDMX21"
         name: "Public IMF SDMX 21 Registry"
