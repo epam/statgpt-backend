@@ -1,6 +1,12 @@
 from pydantic import BaseModel, Field
 from sdmx.message import StructureMessage
-from sdmx.model.common import CubeRegion, DimensionComponent
+from sdmx.model.common import (
+    Agency,
+    AgencyScheme,
+    CubeRegion,
+    DimensionComponent,
+    InternationalString,
+)
 from sdmx.model.v21 import ContentConstraint, MemberSelection, MemberValue
 
 from statgpt.common.data.base.sdmx_schemas import (
@@ -98,3 +104,46 @@ class ProxyDataflowMessage(BaseModel):
     """A response body in the JSON format for the StatGPT SDMX proxy API."""
 
     data: ProxyStructureData = Field()
+
+
+class ProxyAgency(BaseModel):
+    id: str = Field()
+    name: str | None = Field(default=None)
+
+    def to_sdmx1(self) -> Agency:
+        agency = Agency(id=self.id)
+        if self.name:
+            agency.name = InternationalString()
+            agency.name.localizations = {"en": self.name}
+        return agency
+
+
+class ProxyAgencyScheme(BaseModel):
+    id: str = Field()
+    agency_id: str = Field(alias="agencyID")
+    name: str | None = Field(default=None)
+    version: str = Field()
+    agencies: list[ProxyAgency] = Field(default_factory=list)
+
+    def to_sdmx1(self) -> AgencyScheme:
+        scheme = AgencyScheme(id=self.id, maintainer=Agency(id=self.agency_id))
+        for proxy_agency in self.agencies:
+            agency = proxy_agency.to_sdmx1()
+            scheme.items[agency.id] = agency
+        return scheme
+
+
+class ProxyAgencySchemeData(BaseModel):
+    agency_schemes: list[ProxyAgencyScheme] = Field(alias="agencySchemes", default_factory=list)
+
+
+class ProxyAgencySchemeResponseBody(BaseModel):
+    """SDMX-JSON 2.0.0 agencyscheme response from the StatGPT SDMX proxy."""
+
+    data: ProxyAgencySchemeData = Field()
+
+    def to_sdmx1(self) -> StructureMessage:
+        msg = StructureMessage()
+        for proxy_scheme in self.data.agency_schemes:
+            msg.add(proxy_scheme.to_sdmx1())
+        return msg
