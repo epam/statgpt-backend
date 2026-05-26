@@ -1,0 +1,142 @@
+query: "What is the exchange rate of Mexico?"
+candidate_datasets:
+  - dataset_id: "IMF.STA:ER(4.0.1)"
+    indicator_rank_in_search: 1
+    indicator_name: "Domestic currency per US Dollar, Period average (bilateral, MXN per USD)"
+    dimensions:
+      - dimension_name: COUNTRY
+        values:
+          - { id: "MEX", name: "Mexico" }
+      - dimension_name: INDICATOR
+        values:
+          - { id: "XDC_USD", name: "Domestic currency per US Dollar" }
+          - { id: "USD_XDC", name: "US Dollar per domestic currency" }
+          - { id: "XDC_EUR", name: "Domestic currency per Euro" }
+          - { id: "EUR_XDC", name: "Euros per domestic currency" }
+          - { id: "XDC_XDR", name: "Domestic currency per SDR" }
+          - { id: "XDR_XDC", name: "SDR per domestic currency" }
+          - { id: "XDC_ECU", name: "Domestic currency per ECU" }
+          - { id: "ECU_XDC", name: "ECU per domestic currency" }
+      - dimension_name: TYPE_OF_TRANSFORMATION
+        values:
+          - { id: "PA_RT", name: "Period average" }
+          - { id: "EOP_RT", name: "End-of-period (EoP)" }
+      - dimension_name: FREQUENCY
+        values:
+          - { id: "A", name: "Annual" }
+          - { id: "Q", name: "Quarterly" }
+          - { id: "M", name: "Monthly" }
+    sample_data:
+      - period: "2022"
+        value: 20.12735
+        unit: "MXN per USD (XDC_USD, PA_RT, Annual)"
+      - period: "2023"
+        value: 17.7587166667
+        unit: "MXN per USD (XDC_USD, PA_RT, Annual)"
+      - period: "2024"
+        value: 18.3048583333
+        unit: "MXN per USD (XDC_USD, PA_RT, Annual)"
+  - dataset_id: "IMF.STA:EER(6.0.0)"
+    indicator_rank_in_search: 1
+    indicator_name: "Nominal effective exchange rate (NEER), Index (2010=100) Weighted index"
+    dimensions:
+      - dimension_name: COUNTRY
+        values:
+          - { id: "MEX", name: "Mexico" }
+      - dimension_name: INDICATOR
+        values:
+          - { id: "NEER_IX_RY2010_ACW", name: "Nominal effective exchange rate (NEER), Index (2010=100) Weighted index" }
+          - { id: "REER_IX_RY2010_ACW_RCPI", name: "Real effective exchange rate (REER), Index (2010=100) Adjusted by relative consumer prices" }
+      - dimension_name: FREQUENCY
+        values:
+          - { id: "A", name: "Annual" }
+          - { id: "Q", name: "Quarterly" }
+          - { id: "M", name: "Monthly" }
+    sample_data:
+      - period: "2022"
+        value: 68.6228431125
+        unit: "Index 2010=100 (NEER, all-country weighted)"
+      - period: "2023"
+        value: 78.484415179
+        unit: "Index 2010=100 (NEER, all-country weighted)"
+      - period: "2024"
+        value: 76.9942062525
+        unit: "Index 2010=100 (NEER, all-country weighted)"
+  - dataset_id: "BIS:WS_EER(1.0)"
+    indicator_rank_in_search: 3
+    indicator_name: "Nominal, Broad (64 economies) (BIS effective exchange rate)"
+    dimensions:
+      - dimension_name: REF_AREA
+        values:
+          - { id: "MX", name: "Mexico" }
+      - dimension_name: EER_TYPE
+        values:
+          - { id: "N", name: "Nominal" }
+          - { id: "R", name: "Real" }
+      - dimension_name: EER_BASKET
+        values:
+          - { id: "B", name: "Broad (64 economies)" }
+          - { id: "N", name: "Narrow (27 economies)" }
+      - dimension_name: FREQ
+        values:
+          - { id: "M", name: "Monthly" }
+          - { id: "D", name: "Daily" }
+    sample_data:
+      - period: "2024-M01"
+        value: 130.91
+        unit: "Index (BIS Nominal EER, Broad basket; UNIT_MEASURE=882)"
+      - period: "2024-M02"
+        value: 131.45
+        unit: "Index (BIS Nominal EER, Broad basket; UNIT_MEASURE=882)"
+      - period: "2024-M03"
+        value: 133.71
+        unit: "Index (BIS Nominal EER, Broad basket; UNIT_MEASURE=882)"
+  - dataset_id: "IMF.RES:WEO(9.0.0)"
+    indicator_rank_in_search: 6
+    indicator_name: "Rate, Domestic currency per international dollar in PPP terms, ICP benchmarks 2017-2021"
+    dimensions:
+      - dimension_name: COUNTRY
+        values:
+          - { id: "MEX", name: "Mexico" }
+      - dimension_name: INDICATOR
+        values:
+          - { id: "PPPEX", name: "Rate, Domestic currency per international dollar in PPP terms, ICP benchmarks 2017-2021" }
+      - dimension_name: FREQUENCY
+        values:
+          - { id: "A", name: "Annual" }
+    sample_data:
+      - period: "2022"
+        value: 9.900312
+        unit: "MXN per international dollar (PPP-implied rate, not market rate)"
+      - period: "2023"
+        value: 9.993524
+        unit: "MXN per international dollar (PPP-implied rate, not market rate)"
+      - period: "2024"
+        value: 10.11679
+        unit: "MXN per international dollar (PPP-implied rate, not market rate)"
+notes:
+  - "Four datasets in the channel carry an exchange-rate concept for Mexico, covering distinct measure types:"
+  - "  - IMF.STA:ER (Exchange Rates) - the direct/bilateral market rates: MXN per USD/EUR/SDR/ECU and inverses, both period-average (PA_RT) and end-of-period (EoP_RT), Annual/Quarterly/Monthly. This is the most natural answer to 'exchange rate of Mexico' (e.g. 2024 average MXN/USD = 18.305)."
+  - "  - IMF.STA:EER (Effective Exchange Rate) - IMF-computed NEER and REER (relative CPI) indices, base 2010=100. Only ACW (all-country weighted) variants are available for Mexico; the AEW (advanced-economy weighted) and REER_RULC variants are NOT - they did not appear in the Mexico-filtered availability query."
+  - "  - BIS:WS_EER (BIS Effective exchange rates) - independent BIS NEER/REER series with both Broad (64 economies) and Narrow (27 economies) baskets, Daily and Monthly frequency. Note BIS indices have a different base period than the IMF EER (UNIT_MEASURE=882 in the rows; values ~130 in 2024 vs the IMF ACW index ~77)."
+  - "  - IMF.RES:WEO (WEO) PPPEX - 'Rate, Domestic currency per international dollar in PPP terms' - a PPP-derived rate, not a market exchange rate, included as a candidate because it ranked high on multiple probes and uses the phrase 'Rate'. For Mexico 2024 the value (~10.1 MXN per int. dollar) diverges sharply from the market rate (~18.3 MXN per USD), confirming it is a different concept (PPP)."
+  - "Datasets considered and rejected:"
+  - "  - IMF.STA:GFS_SOO - returned items like 'Exchange profits' / 'Exchange taxes' (government revenue line items) ranked by lexical overlap on 'exchange'; these are fiscal revenue categories, not currency exchange rates."
+  - "  - IMF.STA:ANEA / IMF.STA:QNEA - returned 'Gross value added... Domestic currency' on the 'currency value' probe (lexical noise on 'currency'); no exchange-rate concept."
+  - "  - IMF.STA:NSDP - returned 'Earnings, Domestic currency' on FX-related probes; not an exchange rate."
+  - "  - IMF.STA:IMTS / IMF.STA:FSIC / BIS:WS_LBS_D_PUB - matches on 'US dollar' / 'foreign currency' as the unit dimension of trade/debt indicators, not exchange-rate measures."
+  - "Caveats:"
+  - "  - IMF.STA:ER quote convention matters: XDC_USD (MXN per USD, 2024A ~18.3) and USD_XDC (USD per MXN, 2024A ~0.0546) are reciprocals - answering 'the exchange rate' should pick a default convention (XDC_USD is the more common 'price of USD in MXN' framing); also disambiguate PA_RT vs EOP_RT."
+  - "  - IMF.STA:EER for Mexico only exposes the ACW (all-country weighted) basket. The AEW variant exists in the codelist but availability_query under COUNTRY=MEX returns only NEER_IX_RY2010_ACW and REER_IX_RY2010_ACW_RCPI."
+  - "  - BIS:WS_EER and IMF.STA:EER are both effective-rate indices but use different base periods/methodologies/weights - the two are NOT directly comparable as numbers, but both answer 'effective exchange rate of Mexico'."
+  - "  - WEO PPPEX is a PPP-implied conversion factor, not a market rate; include only if the user wants 'PPP exchange rate' explicitly. Annual only, includes IMF projections for future years."
+  - "  - All four datasets cover Mexico for the latest few years. ER and BIS:WS_EER offer the highest-frequency series (Monthly; BIS also Daily) for the most timely 'current exchange rate' answer."
+search_queries_used:
+  - "exchange rate"
+  - "nominal exchange rate"
+  - "real effective exchange rate"
+  - "currency value"
+  - "FX rate vs USD"
+  - "Mexican peso exchange rate"
+  - "bilateral exchange rate domestic currency per dollar"
+tool_call_count: 22

@@ -481,15 +481,57 @@ class ChannelServiceFacade:
         auth_context: AuthContext,
         k: int = 10,
         dataset_versions: Iterable[int],
+        dimension_id: str | None = None,
     ) -> list[ScoredDimensionCandidate]:
         vector_store = await self._get_non_indicator_dimensions_vector_store(auth_context)
         version_ids = set(dataset_versions)
+        metadata_filters: dict[str, set] | None = None
+        if dimension_id is not None:
+            metadata_filters = {DimensionValueDocumentMetadataFields.DIMENSION_ID: {dimension_id}}
         with debug_timer("chat_facade.search_non_indicator_dimensions_scored.similarity_search"):
             documents = await vector_store.search_with_similarity_score(
-                query, k=k, version_ids=version_ids
+                query, k=k, version_ids=version_ids, metadata_filters=metadata_filters
             )
 
         with debug_timer("search_non_indicator_dimensions_scored.post_process_documents"):
+            dimension_categories = await self._get_dimension_categories_from_documents(documents)
+            result = []
+            for doc, category in zip(documents, dimension_categories):
+                result.append(
+                    ScoredDimensionCandidate(
+                        dimension_category=category, score=doc.score, dataset_id=str(doc.dataset_id)
+                    )
+                )
+        return result
+
+    async def search_special_dim_values_by_id(
+        self,
+        query: str,
+        *,
+        dim_id: str,
+        auth_context: AuthContext,
+        k: int = 10,
+        dataset_versions: Iterable[int],
+    ) -> list[ScoredDimensionCandidate]:
+        """Search special-dim values by dim_id (not by processor).
+
+        Mirrors `search_non_indicator_dimensions_scored` shape for the
+        special-dimensions vector store. The existing
+        `search_special_dimension_scored` is keyed on `processor.id` — that's
+        the right shape for callers iterating processors (statgpt chain). This
+        method is the shape for callers that have a dim_id (mcp_lite tools).
+        Both methods coexist; they hit the same vector store with different
+        metadata filters.
+        """
+        vector_store = await self._get_special_dimensions_vector_store(auth_context)
+        with debug_timer("chat_facade.search_special_dim_values_by_id.similarity_search"):
+            documents = await vector_store.search_with_similarity_score(
+                query,
+                k=k,
+                version_ids=set(dataset_versions),
+                metadata_filters={DimensionValueDocumentMetadataFields.DIMENSION_ID: {dim_id}},
+            )
+        with debug_timer("search_special_dim_values_by_id.post_process_documents"):
             dimension_categories = await self._get_dimension_categories_from_documents(documents)
             result = []
             for doc, category in zip(documents, dimension_categories):

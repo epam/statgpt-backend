@@ -59,7 +59,7 @@ class BaseTermDefinitionsArgs(ToolArgs):
     terms: list[str] = Field(
         description=(
             "List of terms to get definitions for."
-            " Each value must be exactly the same as returned by the `Available_Terms` tool."
+            "Each value must be exactly the same as returned by the `Available_Terms` tool."
         ),
         # max_length=tool_config.details.limit,  # This keyword is not yet supported by the OpenAI API
     )

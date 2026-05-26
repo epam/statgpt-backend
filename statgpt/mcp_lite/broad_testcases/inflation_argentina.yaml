@@ -1,0 +1,234 @@
+query: "What is the inflation rate in Argentina?"
+candidate_datasets:
+  # ─────────────────────────────────────────────────────────────────────────
+  # IMF CPI dataset — the primary CPI-based inflation source. Year-over-year
+  # percent change of all-items CPI is the canonical "headline inflation rate".
+  - dataset_id: "IMF.STA:CPI(5.0.0)"
+    indicator_rank_in_search: 4  # rank of CPI._T.SRP_YOY_PCH_PA_PT for "inflation rate"
+    indicator_name: "Consumer price index (CPI), All Items, Period average, Year-over-year (YOY) percent change"
+    dimensions:
+      - dimension_name: COUNTRY
+        values:
+          - { id: "ARG", name: "Argentina" }
+      - dimension_name: INDEX_TYPE
+        values:
+          - { id: "CPI", name: "Consumer Price Index" }  # ARG: only CPI (no HICP)
+      - dimension_name: COICOP_1999
+        values:
+          - { id: "_T", name: "All Items" }  # headline; subcomponents CP01–CP12 also exist
+      - dimension_name: TYPE_OF_TRANSFORMATION
+        values:
+          - { id: "YOY_PCH_PA_PT", name: "Year-over-year (YOY) percent change" }
+          - { id: "POP_PCH_PA_PT", name: "Period-over-period percent change" }
+          - { id: "IX", name: "Index (level, 2010=100 standard ref period)" }
+      - dimension_name: FREQUENCY
+        values:
+          - { id: "A", name: "Annual" }
+          - { id: "Q", name: "Quarterly" }
+          - { id: "M", name: "Monthly" }
+    sample_data:
+      # YoY headline inflation, annual (the most common "inflation rate" answer)
+      - period: "2022"
+        transformation: "YOY_PCH_PA_PT (annual)"
+        value: 72.4307575318
+        unit: "percent"
+      - period: "2023"
+        transformation: "YOY_PCH_PA_PT (annual)"
+        value: 133.4889355942
+        unit: "percent"
+      - period: "2024"
+        transformation: "YOY_PCH_PA_PT (annual)"
+        value: 219.8839290146
+        unit: "percent"
+      # Monthly period-over-period for a sense of recent disinflation
+      - period: "2024-M10"
+        transformation: "POP_PCH_PA_PT (monthly)"
+        value: 2.6929881216
+        unit: "percent"
+      - period: "2024-M12"
+        transformation: "POP_PCH_PA_PT (monthly)"
+        value: 2.7044344181
+        unit: "percent"
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # IMF WEO — period-average CPI inflation rate (most common WEO inflation
+  # series; covers history + IMF projections).
+  - dataset_id: "IMF.RES:WEO(9.0.0)"
+    indicator_rank_in_search: 4  # rank of PCPIPCH for "CPI percent change"
+    indicator_name: "All Items, Consumer price index (CPI), Period average, percent change"
+    dimensions:
+      - dimension_name: COUNTRY
+        values:
+          - { id: "ARG", name: "Argentina" }
+      - dimension_name: INDICATOR
+        values:
+          - { id: "PCPIPCH", name: "CPI, Period average, percent change (a.k.a. headline inflation rate, PA)" }
+      - dimension_name: FREQUENCY
+        values:
+          - { id: "A", name: "Annual" }
+    sample_data:
+      - period: "2021"
+        value: 48.409379
+        unit: "percent"
+      - period: "2022"
+        value: 72.430758
+        unit: "percent"
+      - period: "2023"
+        value: 133.488936
+        unit: "percent"
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # IMF WEO — end-of-period CPI inflation (Dec/Dec). Complementary view to
+  # PCPIPCH; commonly cited for Argentina because EoP captures December
+  # cliff effects period-averages mute.
+  - dataset_id: "IMF.RES:WEO(9.0.0)"
+    indicator_rank_in_search: 2  # rank of PCPIEPCH for "end of period inflation"
+    indicator_name: "All Items, Consumer price index (CPI), End-of-period (EoP), percent change"
+    dimensions:
+      - dimension_name: COUNTRY
+        values:
+          - { id: "ARG", name: "Argentina" }
+      - dimension_name: INDICATOR
+        values:
+          - { id: "PCPIEPCH", name: "CPI, End-of-period, percent change (EoP headline inflation)" }
+      - dimension_name: FREQUENCY
+        values:
+          - { id: "A", name: "Annual" }
+    sample_data:
+      - period: "2021"
+        value: 50.941634
+        unit: "percent"
+      - period: "2022"
+        value: 94.793182
+        unit: "percent"
+      - period: "2023"
+        value: 211.407644
+        unit: "percent"
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # IMF WEO — GDP deflator (index level). Alternative inflation measure
+  # covering the whole economy (not just consumer goods). Reported as index
+  # only in WEO; growth rate must be derived from year-on-year change.
+  - dataset_id: "IMF.RES:WEO(9.0.0)"
+    indicator_rank_in_search: 1  # rank of NGDP_D for "GDP deflator"
+    indicator_name: "Gross domestic product (GDP), Price deflator, Index"
+    dimensions:
+      - dimension_name: COUNTRY
+        values:
+          - { id: "ARG", name: "Argentina" }
+      - dimension_name: INDICATOR
+        values:
+          - { id: "NGDP_D", name: "GDP price deflator, Index" }
+      - dimension_name: FREQUENCY
+        values:
+          - { id: "A", name: "Annual" }
+    sample_data:
+      - period: "2021"
+        value: 6700.263539
+        unit: "index (base year varies by IMF vintage; level, not a rate)"
+      - period: "2022"
+        value: 11323.031731
+        unit: "index"
+      - period: "2023"
+        value: 26806.412435
+        unit: "index"
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # IMF ANEA — annual GDP deflator as an index. Same concept as WEO NGDP_D
+  # but sourced from National Economic Accounts rather than WEO compilation.
+  - dataset_id: "IMF.STA:ANEA(6.0.1)"
+    indicator_rank_in_search: 2  # rank of B1GQ.PD.IX for "GDP deflator"
+    indicator_name: "Gross domestic product (GDP), Price deflator, Index"
+    dimensions:
+      - dimension_name: COUNTRY
+        values:
+          - { id: "ARG", name: "Argentina" }
+      - dimension_name: INDICATOR
+        values:
+          - { id: "B1GQ", name: "Gross domestic product (GDP)" }
+      - dimension_name: PRICE_TYPE
+        values:
+          - { id: "PD", name: "Price deflator" }
+      - dimension_name: TYPE_OF_TRANSFORMATION
+        values:
+          - { id: "IX", name: "Index" }
+      - dimension_name: FREQUENCY
+        values:
+          - { id: "A", name: "Annual" }
+    sample_data:
+      - period: "2021"
+        value: 2703.6343593887
+        unit: "index"
+      - period: "2022"
+        value: 4568.9751537947
+        unit: "index"
+      - period: "2023"
+        value: 10816.6987783666
+        unit: "index"
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # IMF QNEA — quarterly GDP deflator (seasonally adjusted). Higher frequency
+  # view of economy-wide price growth. Note required S_ADJUSTMENT dim.
+  - dataset_id: "IMF.STA:QNEA(7.0.0)"
+    indicator_rank_in_search: 3  # rank of B1GQ.PD.SA.IX for "GDP deflator"
+    indicator_name: "Gross domestic product (GDP), Price deflator, Seasonally adjusted (SA), Index"
+    dimensions:
+      - dimension_name: COUNTRY
+        values:
+          - { id: "ARG", name: "Argentina" }
+      - dimension_name: INDICATOR
+        values:
+          - { id: "B1GQ", name: "Gross domestic product (GDP)" }
+      - dimension_name: PRICE_TYPE
+        values:
+          - { id: "PD", name: "Price deflator" }
+      - dimension_name: S_ADJUSTMENT
+        values:
+          - { id: "SA", name: "Seasonally adjusted" }
+      - dimension_name: TYPE_OF_TRANSFORMATION
+        values:
+          - { id: "IX", name: "Index" }
+      - dimension_name: FREQUENCY
+        values:
+          - { id: "Q", name: "Quarterly" }
+    sample_data:
+      - period: "2022-Q1"
+        value: 3514.1493483318
+        unit: "index"
+      - period: "2022-Q2"
+        value: 4116.0389345912
+        unit: "index"
+      - period: "2022-Q3"
+        value: 4827.0027751245
+        unit: "index"
+
+notes:
+  - "Five datasets in the gtdc channel expose an inflation-related indicator for Argentina: IMF.STA:CPI (CPI YoY/PoP/Index for all items and 12 COICOP subcategories), IMF.RES:WEO (PCPIPCH period-average and PCPIEPCH end-of-period CPI inflation rates, plus NGDP_D GDP deflator), IMF.STA:ANEA (annual B1GQ.PD GDP deflator index), and IMF.STA:QNEA (quarterly B1GQ.PD GDP deflator index, SA)."
+  - "The two conceptually distinct inflation measures present in the channel are: (1) CPI-based — IMF.STA:CPI and WEO PCPIPCH/PCPIEPCH; (2) GDP-deflator-based — WEO NGDP_D, ANEA B1GQ.PD.IX, QNEA B1GQ.PD.SA.IX."
+  - "Datasets considered and rejected:"
+  - "  - IMF.STA:NSDP(7.0.0) — has CPI00 category and PCPI indicator in the codelist, but availability_query for COUNTRY=ARG shows only NSDP_CAT=LS (labor statistics) and INDICATOR=LE_PE. No Argentina CPI data is published through NSDP."
+  - "  - IMF.STA:CPI HICP variant — Harmonised index of consumer prices is EU-only; ARG availability_query returns INDEX_TYPE=['CPI'] (HICP absent for Argentina)."
+  - "  - IMF.FAD:FM (Fiscal Monitor) — dataset-scoped probe for 'inflation' returned only fiscal balance/debt indicators expressed as % of GDP; no price-level series."
+  - "  - IMF.STA:FSIC (Financial Soundness) — closest hits are real-estate price percentage-change indicators (REM.FSI522/FSI526). Property prices ≠ headline inflation; not a candidate for the user's question."
+  - "  - Other datasets (BOP, DIP, EER, ER, FAS, GFS_SOO, IIP, IMTS, LBS, MFS_CBS, PIP, BIS DSS/EER) returned no inflation indicator in any probe. DSS surfaced 'inflation-linked bonds' (financial instruments), which is unrelated to the inflation rate itself."
+  - "Caveats — distinguishing levels from growth rates:"
+  - "  - The user asked for 'the inflation rate' — i.e. a growth rate, not a price level. Level series (CPI._T.IX, NGDP_D, B1GQ.PD.IX) are included as candidates because they encode the same underlying concept and an answer can be computed from them, but the direct answer is one of the percent-change series (CPI YOY_PCH_PA_PT / POP_PCH_PA_PT, WEO PCPIPCH / PCPIEPCH)."
+  - "  - WEO and IMF.STA:CPI YoY numbers are not identical but consistent: 2022 = 72.43% (both), 2023 = 133.49% (both). PCPIEPCH (Dec-over-Dec) is materially higher than PCPIPCH/YoY-period-average for Argentina (e.g. 2023: 211.4% vs 133.5%) — a common gap during periods of accelerating inflation."
+  - "  - GDP deflator levels in WEO/ANEA/QNEA differ in base year and chain methodology, so absolute index values are not directly comparable across the three deflator datasets; growth rates derived from them are the meaningful quantity."
+  - "  - WEO contains IMF projections beyond the latest data round; CPI/ANEA/QNEA are observed/published statistics."
+  - "  - CPI monthly frequency for ARG goes through 2024-M12 at minimum; annual through 2024 (sample). WEO is annual only."
+
+search_queries_used:
+  - "inflation rate"
+  - "CPI percent change"
+  - "consumer price growth"
+  - "GDP deflator"
+  - "price level change"
+  - "inflation"
+  - "HICP harmonised inflation"
+  - "producer price index"
+  - "end of period inflation"
+  - "inflation (dataset-scoped IMF.FAD:FM)"
+  - "consumer price index (dataset-scoped IMF.STA:FSIC)"
+
+tool_call_count: 24
