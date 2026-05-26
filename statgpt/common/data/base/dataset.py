@@ -106,6 +106,16 @@ class DataResponse(ABC):
     def csv_dataframe(self) -> pd.DataFrame:
         """Return a DataFrame suitable for CSV export attachments."""
 
+    @property
+    @abstractmethod
+    def dimension_ids(self) -> set[str]:
+        """Entity ids of the dataset's dimensions (including the time dimension)."""
+
+    @property
+    @abstractmethod
+    def attribute_ids(self) -> set[str]:
+        """Entity ids of the dataset's attributes."""
+
     @abstractmethod
     def enrich_attachment_name(self, value: str) -> str:
         """Replace placeholders in the attachment name with actual values."""
