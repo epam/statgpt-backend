@@ -133,6 +133,20 @@ class ConversationStartersConfig(BaseYamlModel):
     intro_text: str = Field(
         description="The text displayed to the user when the conversation starts."
     )
+    title: str | None = Field(
+        default=None,
+        description=(
+            "Optional override for the conversation-starter widget title. "
+            "If unset, the default JSON-schema title is used."
+        ),
+    )
+    input_placeholder: str | None = Field(
+        default=None,
+        description=(
+            "Optional placeholder text for the chat input field. "
+            "Rendered as the 'statgpt:inputPlaceholder' JSON-schema extension."
+        ),
+    )
     buttons: list[ConversationStarterConfig] = Field(
         description="The buttons displayed to the user when the conversation starts."
     )
