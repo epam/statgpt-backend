@@ -169,6 +169,14 @@ class Sdmx21DataResponse(DataResponse):
         """Return full SDMX observation-level dataframe for CSV export."""
         return self.dataframe
 
+    @cached_property
+    def dimension_ids(self) -> set[str]:
+        return {d.entity_id for d in self.dataset.dimensions()}
+
+    @cached_property
+    def attribute_ids(self) -> set[str]:
+        return {a.entity_id for a in self.dataset.attributes()}
+
     def get_display_series_count(self) -> int:
         """Number of series in the data message (set when the query is executed)."""
         return self._display_series_count
