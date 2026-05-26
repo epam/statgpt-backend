@@ -1,5 +1,6 @@
 from pydantic import BaseModel, Field, computed_field
 
+from .auto_update import AutoUpdateJob
 from .base import DbDefaultBase
 from .dataset import DataSet
 from .enums import PreprocessingStatusEnum
@@ -65,6 +66,12 @@ class ChannelDatasetExpanded(ChannelDatasetBase):
         )
     )
     latest_version: ChannelDatasetVersion | None
+    last_auto_update_job: AutoUpdateJob | None = Field(
+        description=(
+            "The most recent auto-update job for this channel dataset,"
+            " or null if no auto-update job has ever been created."
+        )
+    )
 
 
 class BaseChange(BaseModel):
