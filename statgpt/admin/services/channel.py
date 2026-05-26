@@ -324,7 +324,6 @@ class AdminPortalChannelService(ChannelService):
         background_tasks.add_task(
             deduplicate_dimensions_in_background_task,
             deduplication_job_id=job.id,
-            channel_id=channel.id,
             auth_context=auth_context,
         )
 
@@ -337,7 +336,22 @@ class AdminPortalChannelService(ChannelService):
 
         Used by the batch auto-update script to persist a job per channel before
         running deduplication in parallel.
+
+        Raises ValueError if any of the supplied channel IDs does not exist.
         """
+        if not channel_ids:
+            return []
+
+        existing_result = await self._session.scalars(
+            select(models.Channel.id).where(models.Channel.id.in_(channel_ids))
+        )
+        existing_ids = set(existing_result.all())
+        missing_ids = sorted(set(channel_ids) - existing_ids)
+        if missing_ids:
+            raise ValueError(
+                f"Cannot create deduplication jobs: channel(s) not found: {missing_ids}"
+            )
+
         jobs: list[models.DeduplicationJob] = []
         for channel_id in channel_ids:
             job = models.DeduplicationJob(channel_id=channel_id, status=StatusEnum.QUEUED)
@@ -382,30 +396,76 @@ class AdminPortalChannelService(ChannelService):
         )
         return await self._session.scalar(query) or 0
 
+    async def _get_deduplication_job_or_raise(self, job_id: int) -> models.DeduplicationJob:
+        job: models.DeduplicationJob | None = await self._session.get(
+            models.DeduplicationJob, job_id
+        )
+        if job is None:
+            raise RuntimeError(f"Deduplication job {job_id} not found")
+        return job
+
     async def _set_deduplication_job_status(
         self,
-        job_id: int,
+        job: models.DeduplicationJob,
         status_value: StatusEnum,
         *,
         reason_for_failure: str | None = None,
         non_indicator_counts: DedupCounts | None = None,
         special_counts: DedupCounts | None = None,
     ) -> None:
-        async with self._scoped_session() as session:
-            job = await session.get(models.DeduplicationJob, job_id)
-            if job is None:
-                raise RuntimeError(f"DeduplicationJob {job_id} not found")
-            job.status = status_value
-            if reason_for_failure is not None:
-                job.reason_for_failure = reason_for_failure
-            if non_indicator_counts is not None:
-                job.non_indicator_remapped = non_indicator_counts.remapped
-                job.non_indicator_deleted = non_indicator_counts.deleted
-            if special_counts is not None:
-                job.special_remapped = special_counts.remapped
-                job.special_deleted = special_counts.deleted
-            job.updated_at = func.now()
-            await session.commit()
+        job.status = status_value
+        if reason_for_failure is not None:
+            job.reason_for_failure = reason_for_failure
+        if non_indicator_counts is not None:
+            job.non_indicator_remapped = non_indicator_counts.remapped
+            job.non_indicator_deleted = non_indicator_counts.deleted
+        if special_counts is not None:
+            job.special_remapped = special_counts.remapped
+            job.special_deleted = special_counts.deleted
+        job.updated_at = func.now()
+        await self._session.commit()
+        await self._session.refresh(job)
+
+    async def process_deduplication_job(
+        self, deduplication_job_id: int, auth_context: AuthContext
+    ) -> None:
+        """Process a deduplication job: mark IN_PROGRESS, run dedup, write counts/status."""
+        _log.info(f"Processing deduplication job {deduplication_job_id}")
+        try:
+            async with self._scoped_session():
+                job = await self._get_deduplication_job_or_raise(deduplication_job_id)
+                await self._set_deduplication_job_status(job, StatusEnum.IN_PROGRESS)
+                channel_id = job.channel_id
+
+            non_indicator_counts, special_counts = await self.deduplicate_channel_dimensions(
+                channel_id=channel_id,
+                auth_context=auth_context,
+            )
+
+            async with self._scoped_session():
+                job = await self._get_deduplication_job_or_raise(deduplication_job_id)
+                await self._set_deduplication_job_status(
+                    job,
+                    StatusEnum.COMPLETED,
+                    non_indicator_counts=non_indicator_counts,
+                    special_counts=special_counts,
+                )
+        except Exception as exc:
+            _log.exception(
+                f"Failed to deduplicate dimensions for deduplication job {deduplication_job_id}"
+            )
+            try:
+                async with self._scoped_session():
+                    job = await self._get_deduplication_job_or_raise(deduplication_job_id)
+                    await self._set_deduplication_job_status(
+                        job,
+                        StatusEnum.FAILED,
+                        reason_for_failure=str(exc),
+                    )
+            except Exception:
+                _log.exception(
+                    f"Failed to record FAILED status for deduplication job {deduplication_job_id}"
+                )
 
     async def set_failed_status_for_stuck_deduplication_jobs(self) -> None:
         """Sets the status of all stuck DeduplicationJob records to FAILED.
@@ -426,33 +486,13 @@ class AdminPortalChannelService(ChannelService):
 @background_task
 async def deduplicate_dimensions_in_background_task(
     deduplication_job_id: int,
-    channel_id: int,
     auth_context: AuthContext,
 ) -> None:
-    service = AdminPortalChannelService()
     try:
-        await service._set_deduplication_job_status(deduplication_job_id, StatusEnum.IN_PROGRESS)
-        non_indicator_counts, special_counts = await service.deduplicate_channel_dimensions(
-            channel_id=channel_id,
+        service = AdminPortalChannelService()
+        await service.process_deduplication_job(
+            deduplication_job_id=deduplication_job_id,
             auth_context=auth_context,
         )
-        await service._set_deduplication_job_status(
-            deduplication_job_id,
-            StatusEnum.COMPLETED,
-            non_indicator_counts=non_indicator_counts,
-            special_counts=special_counts,
-        )
-    except Exception as exc:
-        _log.exception(
-            f"Failed to deduplicate dimensions for channel {channel_id} (job {deduplication_job_id})"
-        )
-        try:
-            await service._set_deduplication_job_status(
-                deduplication_job_id,
-                StatusEnum.FAILED,
-                reason_for_failure=str(exc),
-            )
-        except Exception:
-            _log.exception(
-                f"Failed to record FAILED status for deduplication job {deduplication_job_id}"
-            )
+    except Exception as e:
+        _log.exception(e)

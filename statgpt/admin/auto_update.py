@@ -104,9 +104,7 @@ async def _deduplicate_channels(channel_ids: set[int], auth_context: AuthContext
     results = await asyncio.gather(
         *(
             deduplicate_dimensions_in_background_task(
-                deduplication_job_id=job.id,
-                channel_id=job.channel_id,
-                auth_context=auth_context,
+                deduplication_job_id=job.id, auth_context=auth_context
             )
             for job in jobs
         ),

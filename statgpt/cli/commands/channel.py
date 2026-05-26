@@ -21,7 +21,13 @@ from statgpt.cli.shared import (
     spinner_status,
 )
 from statgpt.common.data.sdmx.common import UrnReference
-from statgpt.common.schemas import Channel, ChannelDatasetExpanded, ChannelDatasetVersion, DataSet
+from statgpt.common.schemas import (
+    Channel,
+    ChannelDatasetExpanded,
+    ChannelDatasetVersion,
+    DataSet,
+    PreprocessingStatusEnum,
+)
 
 POLL_INTERVAL = 1  # seconds
 
@@ -427,9 +433,9 @@ async def deduplicate_handler(channel: str | None = None) -> None:
                 job = await client.get_deduplication_job(job.id)
                 status.update(f"Deduplication status: {job.status}")
 
-                if job.status == "COMPLETED":
+                if job.status == PreprocessingStatusEnum.COMPLETED:
                     break
-                if job.status == "FAILED":
+                if job.status == PreprocessingStatusEnum.FAILED:
                     reason = job.reason_for_failure or "Unknown error"
                     print_error(f"Deduplication failed: {reason}")
                     return
@@ -442,13 +448,13 @@ async def deduplicate_handler(channel: str | None = None) -> None:
         results_table.add_column("Deleted orphans", justify="right")
         results_table.add_row(
             "non_indicator_dimensions",
-            str(job.non_indicator_remapped if job.non_indicator_remapped is not None else "-"),
-            str(job.non_indicator_deleted if job.non_indicator_deleted is not None else "-"),
+            str(job.non_indicator_remapped) if job.non_indicator_remapped is not None else "-",
+            str(job.non_indicator_deleted) if job.non_indicator_deleted is not None else "-",
         )
         results_table.add_row(
             "special_dimensions",
-            str(job.special_remapped if job.special_remapped is not None else "-"),
-            str(job.special_deleted if job.special_deleted is not None else "-"),
+            str(job.special_remapped) if job.special_remapped is not None else "-",
+            str(job.special_deleted) if job.special_deleted is not None else "-",
         )
         console.print(results_table)
         print_success("Deduplication completed")
