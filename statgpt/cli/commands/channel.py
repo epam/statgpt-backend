@@ -419,9 +419,38 @@ async def deduplicate_handler(channel: str | None = None) -> None:
 
         print_info(f"Deduplicating channel: {selected_channel.title}")
 
-        with spinner_status("Deduplicating embeddings..."):
-            await client.deduplicate_channel(selected_channel.id)
+        with spinner_status("Starting deduplication...") as status:
+            job = await client.deduplicate_channel(selected_channel.id)
+            print_info(f"Deduplication job started: {job.id}")
 
+            while True:
+                job = await client.get_deduplication_job(job.id)
+                status.update(f"Deduplication status: {job.status}")
+
+                if job.status == "COMPLETED":
+                    break
+                if job.status == "FAILED":
+                    reason = job.reason_for_failure or "Unknown error"
+                    print_error(f"Deduplication failed: {reason}")
+                    return
+
+                await asyncio.sleep(POLL_INTERVAL)
+
+        results_table = Table(title="Deduplication results", show_header=True, header_style="bold")
+        results_table.add_column("Dimension store")
+        results_table.add_column("Remapped rows", justify="right")
+        results_table.add_column("Deleted orphans", justify="right")
+        results_table.add_row(
+            "non_indicator_dimensions",
+            str(job.non_indicator_remapped if job.non_indicator_remapped is not None else "-"),
+            str(job.non_indicator_deleted if job.non_indicator_deleted is not None else "-"),
+        )
+        results_table.add_row(
+            "special_dimensions",
+            str(job.special_remapped if job.special_remapped is not None else "-"),
+            str(job.special_deleted if job.special_deleted is not None else "-"),
+        )
+        console.print(results_table)
         print_success("Deduplication completed")
 
 

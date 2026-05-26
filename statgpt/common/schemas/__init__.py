@@ -7,6 +7,7 @@ from .channel import (
     ChannelConfig,
     ChannelIndexStatus,
     ChannelUpdate,
+    DeduplicationJob,
     DeduplicationStatus,
     SupremeAgentConfig,
     VectorStoreSizes,

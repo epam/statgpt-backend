@@ -1,10 +1,10 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from statgpt.common.settings.elastic import ElasticSearchSettings
 
 from .auditable import Auditable
 from .base import BaseYamlModel, DbDefaultBase
-from .enums import ChannelIndexStatusScope, LocaleEnum
+from .enums import ChannelIndexStatusScope, LocaleEnum, PreprocessingStatusEnum
 from .model_config import LLMModelConfig
 from .onboarding import OnboardingConfig
 from .tools import (
@@ -350,3 +350,28 @@ class ChannelIndexStatus(BaseModel):
     vector_store: VectorStoreStatus = Field(
         description="Vector store status information for the channel"
     )
+
+
+class DeduplicationJob(DbDefaultBase):
+    """Schema for a deduplication job record."""
+
+    model_config = ConfigDict(use_attribute_docstrings=True)
+
+    channel_id: int
+
+    status: PreprocessingStatusEnum
+    """Job execution status (QUEUED, IN_PROGRESS, COMPLETED, FAILED)."""
+
+    reason_for_failure: str | None = None
+
+    non_indicator_remapped: int | None = None
+    """Metadata rows remapped to keeper documents in the non-indicator dimensions store."""
+
+    non_indicator_deleted: int | None = None
+    """Orphaned documents deleted from the non-indicator dimensions store."""
+
+    special_remapped: int | None = None
+    """Metadata rows remapped to keeper documents in the special dimensions store."""
+
+    special_deleted: int | None = None
+    """Orphaned documents deleted from the special dimensions store."""

@@ -12,7 +12,7 @@ from fastapi import BackgroundTasks, HTTPException, status
 from pydantic import ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
-from sqlalchemy.sql.expression import func, select, text, update
+from sqlalchemy.sql.expression import func, select
 
 import statgpt.common.models as models
 import statgpt.common.schemas as schemas
@@ -51,6 +51,7 @@ from statgpt.common.vectorstore import VectorStore, VectorStoreFactory
 from .background_tasks import background_task
 from .channel import AdminPortalChannelService as ChannelService
 from .data_source import AdminPortalDataSourceService as DataSourceService
+from .status_recovery import set_failed_status
 
 _log = logging.getLogger(__name__)
 
@@ -1261,47 +1262,10 @@ class AdminPortalDataSetService(DataSetService):
         else:
             _log.info("No versions to clear data for.")
 
-    async def _set_failed_status(
-        self,
-        model: Any,
-        status_column: Any,
-        status_field_name: str,
-    ) -> int:
-        """Sets the status of all stuck records to FAILED for the given model.
-
-        Returns:
-             the number of updated rows.
-        """
-        table_name = model.__tablename__
-
-        _log.info(f"Setting FAILED status for all non-completed {table_name}...")
-
-        query = (
-            update(model)
-            .where(
-                status_column.notin_(StatusEnum.final_statuses()),
-                model.updated_at < text("NOW() - INTERVAL '12 hours'"),
-            )
-            .values(
-                **{status_field_name: StatusEnum.FAILED},
-                reason_for_failure=func.coalesce(
-                    model.reason_for_failure,  # type: ignore[attr-defined]
-                    "Stuck in a non-final status with no recorded failure reason."
-                    " Marked as FAILED by fix_statuses script.",
-                ),
-                updated_at=func.now(),
-            )
-        )
-
-        result = await self._session.execute(query)
-        row_count: int = result.rowcount  # type: ignore[attr-defined]
-
-        _log.info(f"Updated {row_count} {table_name} record(s) to FAILED status")
-        return row_count
-
     async def set_failed_status_for_channel_dataset_version(self) -> None:
         """Sets the status of all not-completed channel dataset versions to FAILED."""
-        await self._set_failed_status(
+        await set_failed_status(
+            self._session,
             models.ChannelDatasetVersion,
             models.ChannelDatasetVersion.preprocessing_status,
             "preprocessing_status",
@@ -1310,7 +1274,8 @@ class AdminPortalDataSetService(DataSetService):
 
     async def set_failed_status_for_stuck_jobs(self) -> None:
         """Sets the status of all stuck Job records to FAILED."""
-        await self._set_failed_status(
+        await set_failed_status(
+            self._session,
             models.Job,
             models.Job.status,
             "status",
@@ -1319,7 +1284,8 @@ class AdminPortalDataSetService(DataSetService):
 
     async def set_failed_status_for_stuck_auto_update_jobs(self) -> None:
         """Sets the status of all stuck AutoUpdateJob records to FAILED."""
-        await self._set_failed_status(
+        await set_failed_status(
+            self._session,
             models.AutoUpdateJob,
             models.AutoUpdateJob.status,
             "status",
