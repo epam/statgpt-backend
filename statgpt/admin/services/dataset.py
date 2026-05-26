@@ -1404,6 +1404,9 @@ class AdminPortalDataSetService(DataSetService):
         last_completed_versions = await self._get_latest_successful_dataset_version(
             channel_dataset_ids=[ch_ds.id for ch_ds in channel_datasets]
         )
+        latest_auto_update_jobs = await self._get_latest_auto_update_jobs(
+            channel_dataset_ids=[ch_ds.id for ch_ds in channel_datasets]
+        )
         return [
             ChannelDataSetSerializer.db_to_schema(
                 item_db=ch_ds,
@@ -1412,6 +1415,7 @@ class AdminPortalDataSetService(DataSetService):
                     new_versions[ch_ds.id], from_attributes=True
                 ),
                 last_completed_versions=last_completed_versions[ch_ds.dataset_id],
+                last_auto_update_job=latest_auto_update_jobs.get(ch_ds.id),
             )
             for ch_ds in channel_datasets
         ]
@@ -1479,8 +1483,15 @@ class AdminPortalDataSetService(DataSetService):
             )
         )
         last_completed_versions = last_completed_versions_mapping[channel_dataset.id]
+        latest_auto_update_jobs = await self._get_latest_auto_update_jobs(
+            channel_dataset_ids=[channel_dataset.id]
+        )
         return ChannelDataSetSerializer.db_to_schema(
-            channel_dataset, dataset, latest_version, last_completed_versions
+            channel_dataset,
+            dataset,
+            latest_version,
+            last_completed_versions,
+            latest_auto_update_jobs.get(channel_dataset.id),
         )
 
     @classmethod
