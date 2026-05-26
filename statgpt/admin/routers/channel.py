@@ -341,7 +341,7 @@ async def deduplicate_channel(
         )
 
 
-@router.get(path="/{channel_id}/datasets/deduplication-jobs")
+@router.get("/{channel_id}/datasets/deduplication-jobs")
 async def get_deduplication_jobs(
     channel_id: int,
     limit: int = 100,
@@ -362,7 +362,7 @@ async def get_deduplication_jobs(
     )
 
 
-@router.get(path="/deduplication-jobs/{job_id}")
+@router.get("/deduplication-jobs/{job_id}")
 async def get_deduplication_job_by_id(
     job_id: int,
     session: AsyncSession = Depends(models.get_session),
