@@ -406,6 +406,6 @@ summarizeQueriesPrompt: |-
 
   Explicitly mention value of the "Factual time period" of the retrieved data.
   However, NEVER use "data covers" or "data is available for" or similar phrasings - THEY MISLEAD THE USER!
-  Instead, phrase it as "data was retrieved from X to Y", "data includes data from X to Y".
+  Instead, phrase it as "data was retrieved from X to Y".
   Focus on what was retrieved, not what was queried.
   NOTE: if default time period was used in query, you MUST EXPLICITLY state that the retrieved data corresponds to default time period.
