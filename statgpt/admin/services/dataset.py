@@ -46,7 +46,7 @@ from statgpt.common.settings.document import (
 )
 from statgpt.common.utils import async_utils, crc32_hash_incremental_async
 from statgpt.common.utils.elastic import ElasticIndex, ElasticSearchFactory, SearchResult
-from statgpt.common.vectorstore import VectorStore, VectorStoreFactory
+from statgpt.common.vectorstore import VectorStore, VectorStoreEmbeddingFree, VectorStoreFactory
 
 from .background_tasks import background_task
 from .channel import AdminPortalChannelService as ChannelService
@@ -891,9 +891,7 @@ class AdminPortalDataSetService(DataSetService):
 
         return schemas.ChannelDatasetBase.model_validate(item, from_attributes=True)
 
-    async def remove_channel_dataset(
-        self, channel_id: int, dataset_id: int, auth_context: AuthContext
-    ) -> None:
+    async def remove_channel_dataset(self, channel_id: int, dataset_id: int) -> None:
         # Phase A: DB reads
         async with self._scoped_session():
             channel: schemas.Channel = await ChannelService(self._session).get_schema_by_id(
@@ -909,9 +907,7 @@ class AdminPortalDataSetService(DataSetService):
             channel_dataset_id = channel_dataset.id
 
         # Phase B: Clear data — no DB session held
-        await self._clear_channel_dataset_data(
-            channel, auth_context=auth_context, dataset_id=dataset_uuid, version_ids=None
-        )
+        await self._clear_channel_dataset_data(channel, dataset_id=dataset_uuid, version_ids=None)
 
         # Phase C: DB write — delete channel_dataset
         async with self._scoped_session():
@@ -922,15 +918,12 @@ class AdminPortalDataSetService(DataSetService):
     async def _clear_channel_dataset_data(
         self,
         channel: schemas.Channel,
-        auth_context: AuthContext,
         *,
         dataset_id: uuid.UUID | None,
         version_ids: list[int] | None,
     ) -> None:
         """Clears all data related to a dataset or specific versions of a dataset"""
-        await self._clear_vector_stores(
-            channel, auth_context=auth_context, dataset_id=dataset_id, version_ids=version_ids
-        )
+        await self._clear_vector_stores(channel, dataset_id=dataset_id, version_ids=version_ids)
         if ChannelService.is_channel_hybrid(channel):
             await self._clear_elastic_indices(
                 channel, dataset_id=dataset_id, version_ids=version_ids
@@ -939,7 +932,6 @@ class AdminPortalDataSetService(DataSetService):
     async def _clear_vector_stores(
         self,
         channel: schemas.Channel,
-        auth_context: AuthContext,
         dataset_id: uuid.UUID | None,
         version_ids: list[int] | None,
     ) -> None:
@@ -951,10 +943,8 @@ class AdminPortalDataSetService(DataSetService):
             channel.non_indicator_dimensions_table_name,
         ]
         for collection_name in collections:
-            vector_store = await vector_store_factory.get_vector_store(
+            vector_store = await vector_store_factory.get_embedding_free_vector_store(
                 collection_name=collection_name,
-                auth_context=auth_context,
-                embedding_model_name=channel.llm_model,
             )
             await vector_store.remove_documents_by(dataset_id=dataset_id, version_ids=version_ids)
 
@@ -1238,9 +1228,7 @@ class AdminPortalDataSetService(DataSetService):
                 versions_to_clear.append(version.id)
         return versions_to_clear
 
-    async def clear_channel_dataset_versions_data(
-        self, channel_id: int, dataset_id: int, auth_context: AuthContext
-    ):
+    async def clear_channel_dataset_versions_data(self, channel_id: int, dataset_id: int):
         channel: schemas.Channel = await ChannelService(self._session).get_schema_by_id(channel_id)
         dataset: models.DataSet = await self.get_model_by_id(dataset_id)
         channel_dataset = await self.get_channel_dataset_model_or_raise(
@@ -1256,7 +1244,7 @@ class AdminPortalDataSetService(DataSetService):
 
         if versions_to_clear:
             await self._clear_channel_dataset_data(
-                channel, auth_context=auth_context, dataset_id=None, version_ids=versions_to_clear
+                channel, dataset_id=None, version_ids=versions_to_clear
             )
         else:
             _log.info("No versions to clear data for.")
@@ -1389,7 +1377,6 @@ class AdminPortalDataSetService(DataSetService):
             background_tasks.add_task(
                 clear_channel_dataset_data_in_background_task,
                 channel_dataset_id=ch_ds.id,
-                auth_context=auth_context,
             )
             await self._update_channel_dataset_status(
                 ch_ds, StatusEnum.NOT_STARTED, do_commit=False
@@ -1472,7 +1459,6 @@ class AdminPortalDataSetService(DataSetService):
         background_tasks.add_task(
             clear_channel_dataset_data_in_background_task,
             channel_dataset_id=channel_dataset.id,
-            auth_context=auth_context,
         )
         await self._update_channel_dataset_status(channel_dataset, StatusEnum.NOT_STARTED)
 
@@ -1883,9 +1869,7 @@ class AdminPortalDataSetService(DataSetService):
                     version, new_status=StatusEnum.FAILED, reason_for_failure=str(e)
                 )
 
-    async def clear_channel_dataset_data_in_background(
-        self, channel_dataset_id: int, auth_context: AuthContext
-    ) -> None:
+    async def clear_channel_dataset_data_in_background(self, channel_dataset_id: int) -> None:
         _log.info(f"Clear data after reindexing channel_dataset_id={channel_dataset_id}")
         try:
             # Phase A: DB reads — load entities, set status, determine versions to clear
@@ -1908,7 +1892,6 @@ class AdminPortalDataSetService(DataSetService):
             if versions_to_clear:
                 await self._clear_channel_dataset_data(
                     channel,
-                    auth_context=auth_context,
                     dataset_id=None,
                     version_ids=versions_to_clear,
                 )
@@ -1933,9 +1916,9 @@ class AdminPortalDataSetService(DataSetService):
 
     async def _get_deduplication_status_by_versions(
         self,
-        non_indicator_dims_store: VectorStore,
-        special_dims_store: VectorStore,
-        indicator_dims_store: VectorStore,
+        non_indicator_dims_store: VectorStoreEmbeddingFree,
+        special_dims_store: VectorStoreEmbeddingFree,
+        indicator_dims_store: VectorStoreEmbeddingFree,
         versions: set[int],
     ) -> schemas.DeduplicationStatus:
         non_indicator_has_duplicates, non_indicator_count = (
@@ -1962,9 +1945,9 @@ class AdminPortalDataSetService(DataSetService):
 
     async def _get_full_deduplication_status(
         self,
-        non_indicator_dims_store: VectorStore,
-        special_dims_store: VectorStore,
-        indicator_dims_store: VectorStore,
+        non_indicator_dims_store: VectorStoreEmbeddingFree,
+        special_dims_store: VectorStoreEmbeddingFree,
+        indicator_dims_store: VectorStoreEmbeddingFree,
     ) -> schemas.DeduplicationStatus:
         non_indicator_has_duplicates, non_indicator_count = (
             await non_indicator_dims_store.has_duplicates()
@@ -1987,9 +1970,9 @@ class AdminPortalDataSetService(DataSetService):
     async def _check_latest_versions_status(
         self,
         channel: models.Channel,
-        non_indicator_dims_store: VectorStore,
-        special_dims_store: VectorStore,
-        indicator_dims_store: VectorStore,
+        non_indicator_dims_store: VectorStoreEmbeddingFree,
+        special_dims_store: VectorStoreEmbeddingFree,
+        indicator_dims_store: VectorStoreEmbeddingFree,
     ) -> schemas.ChannelIndexStatus:
         latest_successful_versions = await self.get_latest_successful_dataset_versions_for_channel(
             channel_id=channel.id
@@ -2026,9 +2009,9 @@ class AdminPortalDataSetService(DataSetService):
     async def _check_full_index_status(
         self,
         channel: models.Channel,
-        non_indicator_dims_store: VectorStore,
-        special_dims_store: VectorStore,
-        indicator_dims_store: VectorStore,
+        non_indicator_dims_store: VectorStoreEmbeddingFree,
+        special_dims_store: VectorStoreEmbeddingFree,
+        indicator_dims_store: VectorStoreEmbeddingFree,
     ) -> schemas.ChannelIndexStatus:
         deduplication_status = await self._get_full_deduplication_status(
             non_indicator_dims_store,
@@ -2052,27 +2035,20 @@ class AdminPortalDataSetService(DataSetService):
     async def check_index_status(
         self,
         channel_id: int,
-        auth_context: AuthContext,
         scope: schemas.ChannelIndexStatusScope,
     ) -> schemas.ChannelIndexStatus:
         """Checks index status for channel"""
         channel = await ChannelService(self._session).get_model_by_id(channel_id)
         vector_store_factory = VectorStoreFactory()
 
-        non_indicator_dims_store = await vector_store_factory.get_vector_store(
+        non_indicator_dims_store = await vector_store_factory.get_embedding_free_vector_store(
             collection_name=channel.non_indicator_dimensions_table_name,
-            auth_context=auth_context,
-            embedding_model_name=channel.llm_model,
         )
-        special_dims_store = await vector_store_factory.get_vector_store(
+        special_dims_store = await vector_store_factory.get_embedding_free_vector_store(
             collection_name=channel.special_dimensions_table_name,
-            auth_context=auth_context,
-            embedding_model_name=channel.llm_model,
         )
-        indicator_dims_store = await vector_store_factory.get_vector_store(
+        indicator_dims_store = await vector_store_factory.get_embedding_free_vector_store(
             collection_name=channel.indicator_table_name,
-            auth_context=auth_context,
-            embedding_model_name=channel.llm_model,
         )
 
         if scope == schemas.ChannelIndexStatusScope.FULL:
@@ -2430,7 +2406,6 @@ class AdminPortalDataSetService(DataSetService):
 
         await self.clear_channel_dataset_data_in_background(
             channel_dataset_id=params.channel_dataset_id,
-            auth_context=auth_context,
         )
 
         async with self._scoped_session():
@@ -2631,14 +2606,11 @@ async def reload_indicators_in_background_task(
 
 
 @background_task
-async def clear_channel_dataset_data_in_background_task(
-    channel_dataset_id: int, auth_context: AuthContext
-) -> None:
+async def clear_channel_dataset_data_in_background_task(channel_dataset_id: int) -> None:
     try:
         service = AdminPortalDataSetService()
         await service.clear_channel_dataset_data_in_background(
             channel_dataset_id=channel_dataset_id,
-            auth_context=auth_context,
         )
     except Exception as e:
         _log.exception(e)
