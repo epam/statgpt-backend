@@ -404,9 +404,8 @@ summarizeQueriesPrompt: |-
   The summary should be concise and easy to understand for a general audience.
   The summary **must be in {language}**.
 
-  Explicitly mention value of "Time Period" field (not "Factual time period"!).
-  - "No filter" value means no filter was applied"
-  - "Default" means default filter was applied - explicitly mention so
-  Mention time filter in the format "data was queried from <start> to <end>" or similar.
-  NEVER use "data covers" or "data is available for" or similar phrasings - they mislead user
-  about the data availability! Instead, use "data was queried", "data includes" or similar soft phrasings.
+  Explicitly mention value of the "Factual time period" of the retrieved data.
+  However, NEVER use "data covers" or "data is available for" or similar phrasings - THEY MISLEAD THE USER!
+  Instead, phrase it as "data was retrieved from X to Y", "data includes data from X to Y".
+  Focus on what was retrieved, not what was queried.
+  NOTE: if default time period was used in query, you MUST EXPLICITLY state that the retrieved data corresponds to default time period.
