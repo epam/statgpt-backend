@@ -6,7 +6,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: statgpt 1.0\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-04-29 19:12+0500\n"
+"POT-Creation-Date: 2026-05-27 20:48+0200\n"
 "PO-Revision-Date: 2024-01-01 00:00+0000\n"
 "Last-Translator: \n"
 "Language-Team: Ukrainian\n"
@@ -20,7 +20,7 @@ msgid "[Official]"
 msgstr "[Офіційний]"
 
 # Basic labels
-#: dataset_simple.py:30 dataset_query.py:125 dataset_query.py:254
+#: dataset_simple.py:30 dataset_query.py:125 dataset_query.py:253
 #: dataset_availablity_query.py:105
 msgid "ID"
 msgstr "Ідентифікатор"
@@ -242,8 +242,8 @@ msgid "Query summary"
 msgstr "Короткий опис запиту"
 
 #: dataset_query.py:136
-msgid "Requested time period"
-msgstr "Запитуваний період часу"
+msgid "Factual time period"
+msgstr "Фактичний період часу"
 
 #: dataset_query.py:136
 msgid "to"
@@ -278,21 +278,19 @@ msgid "Indicator"
 msgstr "Індикатор"
 
 #: dataset_query.py:223
-msgid ""
-"default filter is used, as user did not specify any time filter. The dataset "
-"might provide data for a wider time period"
+msgid "default time filter is used, as user did not specify any time filter"
 msgstr ""
-"використано фільтр за замовчуванням, оскільки користувач не вказав жодного "
-"часового фільтра. Набір даних може містити дані за ширший період часу"
+"використано часовий фільтр за замовчуванням, оскільки користувач не вказав "
+"жодного часового фільтра"
 
-#: dataset_query.py:228
+#: dataset_query.py:227
 msgid "default"
 msgstr "за замовчуванням"
 
-#: dataset_query.py:251
+#: dataset_query.py:250
 msgid "Missing dimensions"
 msgstr "Відсутні виміри"
 
-#: dataset_query.py:273
+#: dataset_query.py:272
 msgid "example values"
 msgstr "приклади значень"
