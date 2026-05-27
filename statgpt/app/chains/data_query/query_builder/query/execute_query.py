@@ -17,6 +17,7 @@ from statgpt.app.utils.formatters import DatasetQueryFormatter, DatasetQueryForm
 from statgpt.common.auth.auth_context import AuthContext
 from statgpt.common.data.base import DataSetQuery
 from statgpt.common.schemas import StagesConfig
+from statgpt.common.schemas.tool_details import StageDescriptor
 
 from .summarize_query import SummarizeQueriesChain
 
@@ -25,10 +26,12 @@ class ExecuteQueryChain:
     def __init__(
         self,
         stages_config: StagesConfig,
+        stage: StageDescriptor,
         executed_message_agent_only: str | None,
         summarize_queries_chain: SummarizeQueriesChain,
     ):
         self._stages_config = stages_config
+        self._stage = stage
         self._executed_message_agent_only = executed_message_agent_only
         self._summarize_queries_chain = summarize_queries_chain
 
@@ -110,11 +113,10 @@ class ExecuteQueryChain:
             | self.summarize_dataset_queries
         )
 
-        stage_name = "Executing Data Query"
         callback = StageCallback(
-            stage_name=stage_name,
+            stage_name=self._stage.name,
             content_appender=self.append_data_responses_stage,
-            debug_only=self._stages_config.is_stage_debug(stage_name),
+            debug_only=self._stage.is_debug(self._stages_config),
         )
 
         chain = chain.with_config(RunnableConfig(callbacks=[callback]))  # type: ignore[assignment]
