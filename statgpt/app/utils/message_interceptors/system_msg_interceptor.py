@@ -8,6 +8,7 @@ from pydantic import ValidationError
 
 from statgpt.app.services.chat_facade import ChannelServiceFacade
 from statgpt.common.schemas.query import JsonQuery
+from statgpt.common.utils.media_types import MediaTypes
 
 from .base import BaseMessageInterceptor
 
@@ -38,18 +39,22 @@ class SystemMessageInterceptor(BaseMessageInterceptor):
                 )
             attachments = msg.custom_content.attachments
             for attachment in attachments:
-                if attachment.type != "application/json":
+                if attachment.type == MediaTypes.JSON:
+                    if not attachment.data:
+                        raise InvalidRequestError("System message attachment must have data field")
+                    try:
+                        JsonQuery.model_validate_json(attachment.data)
+                    except ValidationError as e:
+                        raise InvalidRequestError(
+                            "Failed to parse system message attachment data as JsonQuery"
+                        ) from e
+                elif attachment.type == MediaTypes.MARKDOWN:
+                    continue
+                else:
                     raise InvalidRequestError(
-                        f"Unsupported system message attachment type: {attachment.type}. Only application/json is supported."
+                        f"Unsupported system message attachment type: {attachment.type}."
+                        f" Supported types: {MediaTypes.JSON}, {MediaTypes.MARKDOWN}."
                     )
-                if not attachment.data:
-                    raise InvalidRequestError("System message attachment must have data field")
-                try:
-                    JsonQuery.model_validate_json(attachment.data)
-                except ValidationError as e:
-                    raise InvalidRequestError(
-                        "Failed to parse system message attachment data as JsonQuery"
-                    ) from e
 
             # result.append(msg)  # ToDo: finish implementation
 

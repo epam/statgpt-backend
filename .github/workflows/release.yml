@@ -28,7 +28,7 @@ jobs:
       code-checks-bypassed: false
       ort-enabled: true
       ort-bypassed: false
-      ort-version: "latest"
+      ort-version: "85.0.0" # HACK: pin ORT version due to java.util.NoSuchElementException in 85.1.0
       python-version: "3.11"
       poetry-version: "2.1.1"
       runs-on: '["ubuntu-24.04"]'

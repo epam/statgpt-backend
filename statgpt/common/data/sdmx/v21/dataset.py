@@ -9,8 +9,7 @@ import typing as t
 import uuid
 from collections.abc import Iterable, Sequence
 from datetime import datetime
-from functools import cached_property
-from urllib.parse import quote, urlencode
+from functools import cached_property, partial
 
 import pandas as pd
 import plotly.graph_objects as go
@@ -44,10 +43,17 @@ from statgpt.common.data.sdmx.common import (
     CodeCategory,
     CodeIndicator,
     ComplexIndicator,
+    DataExplorerUrlConfig,
     SdmxCodeListDimension,
+    SdmxDataSetAvailabilityQuery,
     SdmxDataSetConfig,
+    SdmxDataSetQuery,
     SdmxDimension,
+    SdmxQueryReadinessStatus,
+    TimeDimensionQuery,
     UrnReference,
+    build_data_explorer_dataset_url,
+    build_data_explorer_url_query,
 )
 from statgpt.common.data.sdmx.python_code import generate_python_query_body
 from statgpt.common.schemas.dataset import Status
@@ -64,12 +70,6 @@ from statgpt.common.utils.plotly import PlotlyGraphBuilder, df_2_plotly_grid
 from statgpt.common.utils.time_utils import get_time_period_bounds
 
 from .attribute import Sdmx21Attribute, Sdmx21CodeListAttribute
-from .query import (
-    SdmxDataSetAvailabilityQuery,
-    SdmxDataSetQuery,
-    SdmxQueryReadinessStatus,
-    TimeDimensionQuery,
-)
 from .schemas import Urn
 from .utils import convert_keys_to_str
 
@@ -111,6 +111,13 @@ class InvalidConfigurationError(Exception):
         }
 
 
+def _series_count_from_data_message(data_msg: DataMessage) -> int:
+    """Number of series in the SDMX data message (per dataset, ``DataSet.series``)."""
+    if not data_msg.data:
+        return 0
+    return sum(len(ds.series) for ds in data_msg.data)
+
+
 class Sdmx21DataResponse(DataResponse):
 
     def __init__(
@@ -120,6 +127,7 @@ class Sdmx21DataResponse(DataResponse):
         df: pd.DataFrame,
         url: str | None,
         status: DataResponseStatus,
+        display_series_count: int = 0,
     ):
         super().__init__()
         self.dataset = dataset
@@ -127,6 +135,7 @@ class Sdmx21DataResponse(DataResponse):
         self.df = df
         self._url = url
         self._status = status
+        self._display_series_count = display_series_count
 
     @property
     def status(self) -> DataResponseStatus:
@@ -155,6 +164,23 @@ class Sdmx21DataResponse(DataResponse):
         visual_df = self._enrich_df_with_names(visual_df)
         return visual_df
 
+    @cached_property
+    def csv_dataframe(self) -> pd.DataFrame:
+        """Return full SDMX observation-level dataframe for CSV export."""
+        return self.dataframe
+
+    @cached_property
+    def dimension_ids(self) -> set[str]:
+        return {d.entity_id for d in self.dataset.dimensions()}
+
+    @cached_property
+    def attribute_ids(self) -> set[str]:
+        return {a.entity_id for a in self.dataset.attributes()}
+
+    def get_display_series_count(self) -> int:
+        """Number of series in the data message (set when the query is executed)."""
+        return self._display_series_count
+
     def enrich_attachment_name(self, value: str) -> str:
         """Replace placeholders in the attachment name with actual values."""
         return value.format(
@@ -181,6 +207,7 @@ class Sdmx21DataResponse(DataResponse):
             sdmx_query=self.sdmx_query.merge(other.sdmx_query),
             url=None,
             status=self.status.merge(other.status),
+            display_series_count=self._display_series_count + other._display_series_count,
         )
 
     @property
@@ -496,7 +523,9 @@ class Sdmx21DataSet(
     def dataset_url(self) -> str | None:
         if self._datasource.config.use_data_explorer_for_dataset_url:
             if base := self._resolved_data_explorer_base_url():
-                return f"{base}?urn={self._short_urn}"
+                return build_data_explorer_dataset_url(
+                    base, self._short_urn, self._resolved_data_explorer_url_config()
+                )
             _log.warning(
                 "Data explorer URL is not configured on the dataset or data source: %s",
                 self._datasource.source_id,
@@ -510,6 +539,11 @@ class Sdmx21DataSet(
             return url
         return self._datasource.config.get_data_explorer_url()
 
+    def _resolved_data_explorer_url_config(self) -> DataExplorerUrlConfig | None:
+        if self.config.data_explorer_url_config is not None:
+            return self.config.data_explorer_url_config
+        return self._datasource.config.data_explorer_url_config
+
     def _format_data_explorer_url(
         self,
         base_url: str,
@@ -517,28 +551,21 @@ class Sdmx21DataSet(
         key_dict: dict[str, list[str]],
         sdmx_query: SdmxDataSetQuery,
     ) -> str:
-        params: dict[str, str] = {
-            'urn': self._short_urn,
-            'filter': convert_keys_to_str(dsd, key_dict),
-        }
+        return build_data_explorer_url_query(
+            base_url=base_url,
+            short_urn=self._short_urn,
+            key_dict=key_dict,
+            sdmx_query=sdmx_query,
+            config=self._resolved_data_explorer_url_config(),
+            sdmx_key_builder=partial(convert_keys_to_str, dsd),
+            dimension_values_resolver=self._resolve_explorer_dimension_values,
+        )
 
-        try:
-            if td_query := sdmx_query.time_dimension_query:
-                start_period = td_query.start_period
-                end_period = td_query.end_period
-            else:
-                start_period = None
-                end_period = None
-
-            if start_period:
-                params['startPeriod'] = start_period if '-' in start_period else f"{start_period}-A"
-            if end_period:
-                params['endPeriod'] = end_period if '-' in end_period else f"{end_period}-A"
-        except Exception as e:
-            _log.exception(e)
-
-        query_string = urlencode(params, quote_via=quote, safe='+,.:*')
-        return f"{base_url}?{query_string}"
+    def _resolve_explorer_dimension_values(self, dimension_id: str, codes: list[str]) -> list[str]:
+        id2name_mapping = self.map_component_values_id_2_name(codes, dimension_id)
+        if id2name_mapping is None:
+            return codes
+        return [id2name_mapping.get(code) or code for code in codes]
 
     async def _get_available_series(
         self,
@@ -1224,6 +1251,7 @@ class Sdmx21DataSet(
                     request_status=DataRequestStatus.FAILED,
                     parsing_status=DataParsingStatus.NA,
                 ),
+                display_series_count=0,
             )
 
         if not data_msg:
@@ -1236,9 +1264,11 @@ class Sdmx21DataSet(
                     request_status=DataRequestStatus.SUCCESS,
                     parsing_status=DataParsingStatus.FAILED,
                 ),
+                display_series_count=0,
             )
 
-        if not self.config.view_in_data_explorer:
+        explorer_cfg = self._resolved_data_explorer_url_config() or DataExplorerUrlConfig()
+        if not explorer_cfg.view_in_data_explorer:
             url = None
         elif explorer_base := self._resolved_data_explorer_base_url():
             url = self._format_data_explorer_url(
@@ -1251,6 +1281,7 @@ class Sdmx21DataSet(
             http_response = data_msg.response
             url = http_response.url if http_response is not None else None
 
+        message_series_count = _series_count_from_data_message(data_msg)
         try:
             sdmx_pandas = await self._data_msg_to_dataframe(data_msg)
             sdmx_pandas = await self._include_attributes(sdmx_pandas)
@@ -1265,6 +1296,7 @@ class Sdmx21DataSet(
                     request_status=DataRequestStatus.SUCCESS,
                     parsing_status=DataParsingStatus.FAILED,
                 ),
+                display_series_count=message_series_count,
             )
 
         return Sdmx21DataResponse(
@@ -1276,6 +1308,7 @@ class Sdmx21DataSet(
                 request_status=DataRequestStatus.SUCCESS,
                 parsing_status=DataParsingStatus.SUCCESS,
             ),
+            display_series_count=message_series_count,
         )
 
     def get_resolved_sdmx1_source(self) -> str | None:

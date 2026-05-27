@@ -200,3 +200,53 @@ def test_generate_merged_python_code_multi_query_separates_sections() -> None:
     assert f"# Dataset: {urn_a}" in code
     assert f"# Dataset: {urn_b}" in code
     assert "provider_1" in code and "provider_2" in code
+
+
+def test_generate_merged_python_code_drops_dataset_with_any_excluded_filter() -> None:
+    excluded_query = JsonQueryWithMetadata(
+        urn="IMF:DF_X(1.0)",
+        filters=[
+            JsonComponentQuery(component_code="A", operator=JsonQueryOperator.IN, values=["a1"]),
+            JsonComponentQuery(
+                component_code="B",
+                operator=JsonQueryOperator.EXCLUDED,
+                values=["b_unavailable"],
+            ),
+        ],
+        metadata=JsonQueryMetadata(
+            country_dimension="A",
+            indicator_dimensions=["B"],
+            time_period_dimension="TIME_PERIOD",
+        ),
+    )
+    code = generate_merged_python_code([_make_query(_VALID_URN), excluded_query])
+    assert "DF_X" not in code
+    assert "b_unavailable" not in code
+    # Only one query survives, so the single-query branch is taken (no `# Dataset:` headers).
+    assert "# Dataset:" not in code
+    assert "provider_1" not in code
+    # The surviving query renders as a complete sdmx1 snippet.
+    assert 'provider = sdmx.Client("IMF")' in code
+    assert '"IMF,WEO,1.0"' in code
+    assert 'key="a1"' in code
+    assert "'detail': 'full'" in code
+
+
+def test_generate_merged_python_code_returns_header_only_when_all_excluded() -> None:
+    excluded_query = JsonQueryWithMetadata(
+        urn="IMF:DF_X(1.0)",
+        filters=[
+            JsonComponentQuery(
+                component_code="B",
+                operator=JsonQueryOperator.EXCLUDED,
+                values=["b1"],
+            ),
+        ],
+        metadata=JsonQueryMetadata(
+            country_dimension="A",
+            indicator_dimensions=["B"],
+            time_period_dimension="TIME_PERIOD",
+        ),
+    )
+    code = generate_merged_python_code([excluded_query])
+    assert code == PYTHON_SDMX1_HEADER

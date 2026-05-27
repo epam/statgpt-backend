@@ -19,7 +19,10 @@ from statgpt.common.utils import AttachmentsStorage, MediaTypes, attachments_sto
 from statgpt.common.utils.async_utils import catch_and_log_async
 
 _DATA_DISCLAIMER = """
-DISCLAIMER: Some of the values are coded, in that case for each column you will find two columns: {column}_ID and \
+DISCLAIMER:
+- Column names are prefixed with `DIMENSION:` for dataset dimensions and `ATTRIBUTE:` for dataset attributes, \
+so they can be told apart. Columns without such a prefix are time period values.
+- Some of the values are coded, in that case for each column you will find two columns: {column}_ID and \
 {column}_Name. Mind that numerical codes are **just identifiers** and do not have any numerical meaning.
 """
 _PARSING_PARTIALLY_FAILED_DISCLAIMER = """
@@ -123,6 +126,8 @@ class DataQueryArtifactDisplayer:
             if isinstance(col, str) and col.endswith("_Name") and col[:-5] in df.columns:
                 to_rename[col[:-5]] = col[:-5] + "_ID"
         df.rename(columns=to_rename, inplace=True)
+        # prefix dimension / attribute columns so the agent can tell them apart
+        df.rename(columns=cls._build_kind_prefix_renames(df.columns, response), inplace=True)
         # convert df to tsv with full precision
         tsv = df.to_csv(
             sep="\t",
@@ -143,6 +148,27 @@ class DataQueryArtifactDisplayer:
         if response.status.parsing_status == DataParsingStatus.PARTIALLY_FAILED:
             result = _PARSING_PARTIALLY_FAILED_DISCLAIMER + "\n" + result
         return result
+
+    @staticmethod
+    def _build_kind_prefix_renames(columns: pd.Index, response: DataResponse) -> dict[str, str]:
+        # Columns not matching a known dimension/attribute id are left untouched —
+        # these are typically the unstacked time-period value columns.
+        dim_ids = response.dimension_ids
+        attr_ids = response.attribute_ids
+        renames: dict[str, str] = {}
+        for col in columns:
+            if not isinstance(col, str):
+                continue
+            base = col
+            for suffix in ("_ID", "_Name"):
+                if col.endswith(suffix):
+                    base = col[: -len(suffix)]
+                    break
+            if base in dim_ids:
+                renames[col] = f"DIMENSION:{col}"
+            elif base in attr_ids:
+                renames[col] = f"ATTRIBUTE:{col}"
+        return renames
 
     @classmethod
     def _get_data_display_error_message(cls, response: DataResponse) -> str:
@@ -233,7 +259,7 @@ class DataQueryArtifactDisplayer:
 
         assert self._config.csv_file.name is not None, "csv_file.name must be set when enabled"
         response = await attachments_storage.put_csv_from_dataframe(
-            data_response.file_name, data_response.visual_dataframe
+            data_response.file_name, data_response.csv_dataframe
         )
         title = data_response.enrich_attachment_name(self._config.csv_file.name)
         return dict(type=response.content_type, title=title, url=response.url)

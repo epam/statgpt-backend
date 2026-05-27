@@ -7,7 +7,7 @@ class OidcAuthSettings(BaseSettings):
     Settings for OIDC authentication
     """
 
-    model_config = SettingsConfigDict(env_prefix="")
+    model_config = SettingsConfigDict(env_prefix="", env_ignore_empty=True)
 
     # Main OIDC settings
     oidc_auth_enabled: bool = Field(

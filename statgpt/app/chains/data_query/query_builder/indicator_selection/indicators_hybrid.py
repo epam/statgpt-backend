@@ -49,8 +49,6 @@ class IndicatorsSelectionHybrid(IndicatorSelectionBase):
             description='Final search results, filtered by availability',
         ),
     ]
-    _HYBRID_SELECTION_STAGE_NAME = "Hybrid Indicators Selection"
-
     _search: HybridSearcher
 
     def __init__(self, config: DataQueryDetails, search: HybridSearcher):
@@ -60,11 +58,12 @@ class IndicatorsSelectionHybrid(IndicatorSelectionBase):
     async def _get_search_result(self, inputs: dict) -> HybridSearchResult:
         chain_state = ChainState.model_validate(inputs)
 
-        is_debug = self._config.stages_config.is_stage_debug(self._HYBRID_SELECTION_STAGE_NAME)
+        stage_descriptor = self._config.pipeline_stage_names.hybrid_indicators_selection
+        is_debug = stage_descriptor.is_debug(self._config.stages_config)
         enabled = (is_debug and chain_state.show_debug_stages) or not is_debug
 
         with optional_timed_stage(
-            choice=chain_state.choice, name=self._HYBRID_SELECTION_STAGE_NAME, enabled=enabled
+            choice=chain_state.choice, name=stage_descriptor.name, enabled=enabled
         ) as stage:
             return await self._search.search(
                 stage=stage,
@@ -158,9 +157,17 @@ class IndicatorsSelectionHybrid(IndicatorSelectionBase):
         )
 
     def _get_primary_queries_with_retrieval_results(self, inputs: dict) -> IndicatorsSearchResult:
+        chain_state = ChainState.model_validate(inputs)
         final_queries = self._get_final_queries(inputs)
         retrieval_results = self._get_retrieval_results(inputs)
-        return IndicatorsSearchResult(queries=final_queries, retrieval_results=retrieval_results)
+        search_result: HybridSearchResult = inputs['search_result']
+        # Don't overload the result with timings if show_debug_stages is disabled
+        timings = search_result.timings if chain_state.show_debug_stages else None
+        return IndicatorsSearchResult(
+            queries=final_queries,
+            retrieval_results=retrieval_results,
+            hybrid_search_timings=timings,
+        )
 
     def create_chain(self) -> Runnable:
         return (

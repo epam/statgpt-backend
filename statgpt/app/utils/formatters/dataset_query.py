@@ -90,7 +90,7 @@ class DatasetQueryFormatter(BaseFormatter):
 
         if not data_response.visual_dataframe.empty:
             lines.append(
-                f'✅ **{self._("Execution result")}**: {self._("Data received, contains {count} series.").format(count=data_response.visual_dataframe.shape[0])}'
+                f'✅ **{self._("Execution result")}**: {self._("Data received, contains {count} series.").format(count=data_response.get_display_series_count())}'
             )
         elif data_response.status.parsing_status in (
             DataParsingStatus.FAILED,

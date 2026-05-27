@@ -1,0 +1,22 @@
+{
+	"data": {
+		"agencySchemes": [
+			{
+				"id": "AGENCIES",
+				"agencyID": "SDMX_PROXY",
+				"name": "SDMX Proxy Configured Agencies",
+				"version": "1.0",
+				"agencies": [
+					{
+						"id": "BIS",
+						"name": "Bank for International Settlements"
+					},
+					{
+						"id": "IMF",
+						"name": "International Monetary Fund"
+					}
+				]
+			}
+		]
+	}
+}

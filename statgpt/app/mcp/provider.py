@@ -110,6 +110,7 @@ class ChannelToolProvider(Provider):
             name=tool_config.name,
             description=tool_config.description,
             parameters=langchain_tool.get_public_args_schema(),
+            annotations=langchain_tool.get_mcp_annotations(),
         )
 
     async def _list_tools(self) -> Sequence[Tool]:

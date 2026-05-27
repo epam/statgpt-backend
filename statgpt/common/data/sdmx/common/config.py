@@ -1,4 +1,5 @@
 import logging
+from enum import StrEnum
 from typing import Annotated, Any, Literal
 
 from pydantic import Field
@@ -12,8 +13,16 @@ from statgpt.common.data.base import (
     DataSourceConfig,
     IndexingField,
 )
+from statgpt.common.data.sdmx.common.data_explorer_url import DataExplorerUrlConfig
 
 _log = logging.getLogger(__name__)
+
+
+class ProviderDiscoveryMode(StrEnum):
+    """Strategy for enumerating providers (maintainer agencies) exposed by a data source."""
+
+    AGENCYSCHEME = "agencyscheme"
+    DATAFLOWS = "dataflows"
 
 
 class SdmxHeaders(BaseModel):
@@ -180,12 +189,28 @@ class SdmxDataSourceConfig(DataSourceConfig):
             "will point to the data explorer instead of citation URLs."
         ),
     )
+    data_explorer_url_config: DataExplorerUrlConfig | None = Field(
+        default=None,
+        description=(
+            "Default rules for building data-explorer query links and dataset-only explorer URLs. "
+            "Overridden by the same field on a dataset when set."
+        ),
+    )
     dataset_hierarchy: (
         DefaultDataSetHierarchyConfig | CategorySchemaDataSetHierarchyConfig | None
     ) = Field(
         default=None,
         discriminator='type',
         description="The configuration of the dataset hierarchy for this data source",
+    )
+    provider_discovery: ProviderDiscoveryMode = Field(
+        default=ProviderDiscoveryMode.AGENCYSCHEME,
+        description=(
+            "How to enumerate providers (maintainer agencies) exposed by this data source. "
+            "`agencyscheme` queries the SDMX agencyscheme endpoint and returns localized names. "
+            "`dataflows` lists all dataflows and groups them by agency_id (ids only, no display "
+            "names). Use `dataflows` for SDMX 2.1 registries that don't expose agency schemes."
+        ),
     )
 
     def get_data_explorer_url(self) -> str | None:
@@ -222,6 +247,13 @@ class SdmxDataSetConfigMixin:
         description=(
             "Optional sdmx1 library source id for generated Python attachment code for this dataset. "
             "When unset, the data source `sdmx1_source` is used; if that is also unset, the dataflow maintainer id is used."
+        ),
+    )
+    data_explorer_url_config: DataExplorerUrlConfig | None = Field(
+        default=None,
+        description=(
+            "How to build data-explorer links for this dataset. When unset, the data source default "
+            "is used; if that is also unset, the legacy format applies (urn + filter + time parameters)."
         ),
     )
 
