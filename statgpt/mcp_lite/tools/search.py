@@ -158,6 +158,14 @@ async def search_indicators(
     this. For finding the code for an atomic value within one dim (countries,
     sectors, instruments), use `search_codes` instead.
 
+    **A single concept often lives in several distinct datasets here**, each with
+    a different framing (definition, periodicity, unit, valuation, sectoral
+    aggregation). Read past the top-1 hit and inspect what *distinct datasets*
+    the top-K covers — two hits from the same dataset don't broaden the answer,
+    but two hits from different datasets usually do. When the user's question
+    doesn't single out a specific framing, treat each on-topic distinct-dataset
+    hit as a separate candidate worth fetching, not just the best-scoring one.
+
     `score` is per-query max-relative in [0, 1].
     """
     if top_k <= 0:

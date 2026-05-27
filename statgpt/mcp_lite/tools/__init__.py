@@ -1,6 +1,7 @@
 from . import (  # noqa: F401  — registers tools on shared provider
     data_query,
     dataset,
+    eval_artifact,
     glossary,
     search,
 )

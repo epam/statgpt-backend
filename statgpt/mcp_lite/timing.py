@@ -26,7 +26,12 @@ def _build_logger() -> logging.Logger:
     if log.handlers:
         return log
     handler = logging.FileHandler(_LOG_PATH)
-    handler.setFormatter(logging.Formatter("%(asctime)s  %(message)s"))
+    # Emit timestamps in UTC so downstream tooling (e.g. patch_artifact.py) can
+    # correlate log entries with artifact mtimes (also UTC) without timezone
+    # juggling.
+    formatter = logging.Formatter("%(asctime)s  %(message)s")
+    formatter.converter = time.gmtime
+    handler.setFormatter(formatter)
     log.addHandler(handler)
     log.setLevel(logging.INFO)
     log.propagate = False
