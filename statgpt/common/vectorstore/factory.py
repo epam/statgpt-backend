@@ -2,9 +2,9 @@ from statgpt.common.auth.auth_context import AuthContext
 from statgpt.common.config import multiline_logger as logger
 from statgpt.common.settings.langchain import langchain_settings
 
-from .base import VectorStore, VectorStoreEmbeddingFree
+from .base import EmbeddinglessVectorStore, VectorStore
 from .embeddings import EmbeddingModels
-from .pg_vector_store import PgVectorStore, PgVectorStoreEmbeddingFree
+from .pg_vector_store import PgEmbeddinglessVectorStore, PgVectorStore
 
 
 class VectorStoreFactory:
@@ -14,8 +14,8 @@ class VectorStoreFactory:
     _vector_stores: dict[str, type[VectorStore]] = {
         PG_VECTOR_STORE: PgVectorStore,
     }
-    _embedding_free_vector_stores: dict[str, type[VectorStoreEmbeddingFree]] = {
-        PG_VECTOR_STORE: PgVectorStoreEmbeddingFree,
+    _embeddingless_vector_stores: dict[str, type[EmbeddinglessVectorStore]] = {
+        PG_VECTOR_STORE: PgEmbeddinglessVectorStore,
     }
 
     def __init__(self, **kwargs):
@@ -39,13 +39,13 @@ class VectorStoreFactory:
         )
         return self._vector_stores[storage_name](collection_name, embedding_model, **kwargs)
 
-    async def get_embedding_free_vector_store(
+    async def get_embeddingless_vector_store(
         self,
         collection_name: str,
         storage_name: str = PG_VECTOR_STORE,
         **kwargs,
-    ) -> VectorStoreEmbeddingFree:
-        """Return a vector store that supports only embedding-free operations.
+    ) -> EmbeddinglessVectorStore:
+        """Return a vector store that supports only embeddingless operations.
 
         Use this for delete, status, and dedup paths. It does not resolve an
         embedding model, so it works even when the channel's embedding deployment
@@ -56,9 +56,9 @@ class VectorStoreFactory:
                 kwargs[key] = value
 
         logger.info(
-            f'Initializing embedding-free pgvector storage with following options: {storage_name=}'
+            f'Initializing embeddingless pgvector storage with following options: {storage_name=}'
         )
-        return self._embedding_free_vector_stores[storage_name](collection_name, **kwargs)
+        return self._embeddingless_vector_stores[storage_name](collection_name, **kwargs)
 
     def deepcopy(self):
         cls = self.__class__

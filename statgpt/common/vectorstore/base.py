@@ -9,7 +9,7 @@ from .document import ScoredVectorStoreDocument
 from .embeddings import EmbeddingModel
 
 
-class VectorStoreEmbeddingFree(ABC):
+class EmbeddinglessVectorStore(ABC):
     """Narrower vector store interface for operations that do not need an embedding model.
 
     Use this for delete, status, and dedup paths that should remain available
@@ -54,7 +54,14 @@ class VectorStoreEmbeddingFree(ABC):
         """Returns the number of documents per version_id."""
 
 
-class VectorStore(VectorStoreEmbeddingFree):
+class VectorStore(EmbeddinglessVectorStore):
+    """Full vector store interface.
+
+    Extends `EmbeddinglessVectorStore` with operations that require an embedding model:
+    ingest (`add_documents`), similarity search (`search_with_similarity_score`),
+    and export/import that round-trip embeddings.
+    """
+
     def __init__(
         self,
         collection_name: str,

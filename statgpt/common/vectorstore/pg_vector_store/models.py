@@ -71,10 +71,10 @@ class ModelsStore:
 
     @classmethod
     def get_document_no_embeddings_model(cls, name: str) -> type[BaseDocumentNoEmbeddings]:
-        cache_key = f"{name}:no_embeddings"
+        cache_key = f"{name}__no_embeddings"
         if cache_key not in cls._models:
             cls._models[cache_key] = type(
-                name, (BaseDocumentNoEmbeddings,), {"__tablename__": name}
+                cache_key, (BaseDocumentNoEmbeddings,), {"__tablename__": name}
             )
         return cls._models[cache_key]
 

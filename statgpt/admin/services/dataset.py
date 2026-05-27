@@ -46,7 +46,7 @@ from statgpt.common.settings.document import (
 )
 from statgpt.common.utils import async_utils, crc32_hash_incremental_async
 from statgpt.common.utils.elastic import ElasticIndex, ElasticSearchFactory, SearchResult
-from statgpt.common.vectorstore import VectorStore, VectorStoreEmbeddingFree, VectorStoreFactory
+from statgpt.common.vectorstore import EmbeddinglessVectorStore, VectorStore, VectorStoreFactory
 
 from .background_tasks import background_task
 from .channel import AdminPortalChannelService as ChannelService
@@ -943,7 +943,7 @@ class AdminPortalDataSetService(DataSetService):
             channel.non_indicator_dimensions_table_name,
         ]
         for collection_name in collections:
-            vector_store = await vector_store_factory.get_embedding_free_vector_store(
+            vector_store = await vector_store_factory.get_embeddingless_vector_store(
                 collection_name=collection_name,
             )
             await vector_store.remove_documents_by(dataset_id=dataset_id, version_ids=version_ids)
@@ -1916,9 +1916,9 @@ class AdminPortalDataSetService(DataSetService):
 
     async def _get_deduplication_status_by_versions(
         self,
-        non_indicator_dims_store: VectorStoreEmbeddingFree,
-        special_dims_store: VectorStoreEmbeddingFree,
-        indicator_dims_store: VectorStoreEmbeddingFree,
+        non_indicator_dims_store: EmbeddinglessVectorStore,
+        special_dims_store: EmbeddinglessVectorStore,
+        indicator_dims_store: EmbeddinglessVectorStore,
         versions: set[int],
     ) -> schemas.DeduplicationStatus:
         non_indicator_has_duplicates, non_indicator_count = (
@@ -1945,9 +1945,9 @@ class AdminPortalDataSetService(DataSetService):
 
     async def _get_full_deduplication_status(
         self,
-        non_indicator_dims_store: VectorStoreEmbeddingFree,
-        special_dims_store: VectorStoreEmbeddingFree,
-        indicator_dims_store: VectorStoreEmbeddingFree,
+        non_indicator_dims_store: EmbeddinglessVectorStore,
+        special_dims_store: EmbeddinglessVectorStore,
+        indicator_dims_store: EmbeddinglessVectorStore,
     ) -> schemas.DeduplicationStatus:
         non_indicator_has_duplicates, non_indicator_count = (
             await non_indicator_dims_store.has_duplicates()
@@ -1970,9 +1970,9 @@ class AdminPortalDataSetService(DataSetService):
     async def _check_latest_versions_status(
         self,
         channel: models.Channel,
-        non_indicator_dims_store: VectorStoreEmbeddingFree,
-        special_dims_store: VectorStoreEmbeddingFree,
-        indicator_dims_store: VectorStoreEmbeddingFree,
+        non_indicator_dims_store: EmbeddinglessVectorStore,
+        special_dims_store: EmbeddinglessVectorStore,
+        indicator_dims_store: EmbeddinglessVectorStore,
     ) -> schemas.ChannelIndexStatus:
         latest_successful_versions = await self.get_latest_successful_dataset_versions_for_channel(
             channel_id=channel.id
@@ -2009,9 +2009,9 @@ class AdminPortalDataSetService(DataSetService):
     async def _check_full_index_status(
         self,
         channel: models.Channel,
-        non_indicator_dims_store: VectorStoreEmbeddingFree,
-        special_dims_store: VectorStoreEmbeddingFree,
-        indicator_dims_store: VectorStoreEmbeddingFree,
+        non_indicator_dims_store: EmbeddinglessVectorStore,
+        special_dims_store: EmbeddinglessVectorStore,
+        indicator_dims_store: EmbeddinglessVectorStore,
     ) -> schemas.ChannelIndexStatus:
         deduplication_status = await self._get_full_deduplication_status(
             non_indicator_dims_store,
@@ -2041,13 +2041,13 @@ class AdminPortalDataSetService(DataSetService):
         channel = await ChannelService(self._session).get_model_by_id(channel_id)
         vector_store_factory = VectorStoreFactory()
 
-        non_indicator_dims_store = await vector_store_factory.get_embedding_free_vector_store(
+        non_indicator_dims_store = await vector_store_factory.get_embeddingless_vector_store(
             collection_name=channel.non_indicator_dimensions_table_name,
         )
-        special_dims_store = await vector_store_factory.get_embedding_free_vector_store(
+        special_dims_store = await vector_store_factory.get_embeddingless_vector_store(
             collection_name=channel.special_dimensions_table_name,
         )
-        indicator_dims_store = await vector_store_factory.get_embedding_free_vector_store(
+        indicator_dims_store = await vector_store_factory.get_embeddingless_vector_store(
             collection_name=channel.indicator_table_name,
         )
 

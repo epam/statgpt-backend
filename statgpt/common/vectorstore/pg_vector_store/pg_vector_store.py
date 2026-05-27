@@ -31,7 +31,7 @@ from statgpt.common.settings.document import DimensionValueDocumentMetadataField
 from statgpt.common.utils import batched
 from statgpt.common.utils.llm_call_duration_context import get_llm_call_duration_manager
 from statgpt.common.utils.timer import debug_timer
-from statgpt.common.vectorstore.base import VectorStore, VectorStoreEmbeddingFree
+from statgpt.common.vectorstore.base import EmbeddinglessVectorStore, VectorStore
 from statgpt.common.vectorstore.document import ScoredVectorStoreDocument
 from statgpt.common.vectorstore.embeddings import EmbeddingModel
 
@@ -47,8 +47,8 @@ from .models import (
 _log = logging.getLogger(__name__)
 
 
-class PgVectorStoreEmbeddingFree(VectorStoreEmbeddingFree):
-    """Postgres implementation of `VectorStoreEmbeddingFree`.
+class PgEmbeddinglessVectorStore(EmbeddinglessVectorStore):
+    """Postgres implementation of `EmbeddinglessVectorStore`.
 
     Implements only the operations that can run without an embedding model
     (clear, delete, dedup, status). The full `PgVectorStore` subclass adds
@@ -583,9 +583,9 @@ class PgVectorStoreEmbeddingFree(VectorStoreEmbeddingFree):
                 raise
 
 
-class PgVectorStore(PgVectorStoreEmbeddingFree, VectorStore):
+class PgVectorStore(PgEmbeddinglessVectorStore, VectorStore):
     """Full Postgres vector store with ingest, search, export, and import on top of the
-    embedding-free operations from `PgVectorStoreEmbeddingFree`.
+    embeddingless operations from `PgEmbeddinglessVectorStore`.
     """
 
     def __init__(

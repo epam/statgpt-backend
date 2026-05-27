@@ -1,1 +1,1 @@
-from .pg_vector_store import PgVectorStore, PgVectorStoreEmbeddingFree
+from .pg_vector_store import PgEmbeddinglessVectorStore, PgVectorStore

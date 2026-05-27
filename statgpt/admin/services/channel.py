@@ -136,7 +136,7 @@ class AdminPortalChannelService(ChannelService):
             channel.special_dimensions_table_name,
         ]
         for collection in collections:
-            vector_store = await vector_store_factory.get_embedding_free_vector_store(
+            vector_store = await vector_store_factory.get_embeddingless_vector_store(
                 collection_name=collection
             )
             await vector_store.clear()
@@ -282,13 +282,13 @@ class AdminPortalChannelService(ChannelService):
         vector_store_factory = VectorStoreFactory()
 
         _log.info(f"Deduplicating non_indicator_dimensions for channel {channel_id}")
-        non_indicator_dims_store = await vector_store_factory.get_embedding_free_vector_store(
+        non_indicator_dims_store = await vector_store_factory.get_embeddingless_vector_store(
             collection_name=non_indicator_dims_table,
         )
         await non_indicator_dims_store.deduplicate_by_document_content()
 
         _log.info(f"Deduplicating special_dimensions for channel {channel_id}")
-        special_dims_store = await vector_store_factory.get_embedding_free_vector_store(
+        special_dims_store = await vector_store_factory.get_embeddingless_vector_store(
             collection_name=special_dims_table,
         )
         await special_dims_store.deduplicate_by_document_content()
