@@ -220,8 +220,7 @@ class DatasetQueryFormatter(BaseFormatter):
             if dim_query.is_default:
                 if isinstance(dimension, DateTimeDimension):
                     default_note = self._(
-                        'default filter is used, as user did not specify any time filter. '
-                        'The dataset might provide data for a wider time period'
+                        'default filter is used, as user did not specify any time filter'
                     )
                     line += f" ({default_note})"
                 else:
