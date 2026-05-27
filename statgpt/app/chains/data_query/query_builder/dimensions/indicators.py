@@ -64,11 +64,11 @@ class IndicatorsSearchChainFactory(DimensionSearchChainFactoryBase):
         return chain
 
     def create(self) -> Runnable:
-        selecting_indicators_stage_name = "Selecting Indicators"
+        stage = self._config.pipeline_stage_names.selecting_indicators
         selecting_indicators_stage_callback = StageCallback(
-            stage_name=selecting_indicators_stage_name,
+            stage_name=stage.name,
             content_appender=None,
-            debug_only=self._config.stages_config.is_stage_debug(selecting_indicators_stage_name),
+            debug_only=stage.is_debug(self._config.stages_config),
         )
 
         return (
