@@ -34,8 +34,10 @@ class TestDataQueryStageNamesDefaults:
         assert details.pipeline_stage_names.normalizing_query.name == "Normalizing Query"
         assert details.pipeline_stage_names.normalizing_query.key == "normalizing_query"
 
-    def test_yaml_string_override_roundtrip(self):
-        """YAML can override a stage by writing a plain string for its display name."""
+    def test_yaml_string_override_roundtrip_snake_case(self):
+        """YAML can override a stage by writing a plain string for its display name,
+        using the snake_case field names directly (allowed by `populate_by_name=True`).
+        """
         details = DataQueryDetails.model_validate(
             {"pipeline_stage_names": {"normalizing_query": "Preparing your query"}}
         )
@@ -43,6 +45,22 @@ class TestDataQueryStageNamesDefaults:
         assert descriptor.key == "normalizing_query"
         assert descriptor.name == "Preparing your query"
         # Non-overridden fields keep their defaults
+        assert (
+            details.pipeline_stage_names.extracting_named_entities.name
+            == "Extracting Named Entities"
+        )
+
+    def test_yaml_string_override_roundtrip_camel_case(self):
+        """The string shorthand must also work when YAML uses the camelCase aliases,
+        since `BaseYamlModel` configures `alias_generator=to_camel` and channel YAMLs
+        are written in camelCase (this is the form shown in the docstring example).
+        """
+        details = DataQueryDetails.model_validate(
+            {"pipelineStageNames": {"normalizingQuery": "Preparing your query"}}
+        )
+        descriptor = details.pipeline_stage_names.normalizing_query
+        assert descriptor.key == "normalizing_query"
+        assert descriptor.name == "Preparing your query"
         assert (
             details.pipeline_stage_names.extracting_named_entities.name
             == "Extracting Named Entities"

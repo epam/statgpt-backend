@@ -147,15 +147,15 @@ tools:
         toolCallName: "Searching for data: {query}"
         toolResultName: "Data search result: {query}"
         rules:
-          - pattern: "Constructing Data Queries"
+          - key: constructing_data_query
             debugOnly: false
-          - pattern: "Extracting Named Entities"
+          - key: extracting_named_entities
             debugOnly: false
-          - pattern: "Executing Data Queries"
+          - key: executing_data_query
             debugOnly: false
-          - pattern: "Normalizing Query"
+          - key: normalizing_query
             debugOnly: false
-          - pattern: "Selecting Indicators"
+          - key: selecting_indicators
             debugOnly: false
       messages:
         noDataForCountry: >-

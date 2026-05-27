@@ -278,14 +278,22 @@ class DataQueryStageNames(BaseYamlModel):
     @model_validator(mode="before")
     @classmethod
     def _coerce_strings(cls, data: Any) -> Any:
-        """Accept a plain string per field as shorthand for {"name": <string>}."""
+        """Accept a plain string per field as shorthand for {"name": <string>}.
+
+        Handles both the snake_case field name and its camelCase alias, since
+        `BaseYamlModel` enables `populate_by_name=True` and channel YAMLs are
+        written in camelCase.
+        """
         if not isinstance(data, dict):
             return data
         out = dict(data)
-        for field_name in cls.model_fields:
-            value = out.get(field_name)
-            if isinstance(value, str):
-                out[field_name] = {"name": value}
+        for field_name, field_info in cls.model_fields.items():
+            for key in (field_name, field_info.alias):
+                if key is None:
+                    continue
+                value = out.get(key)
+                if isinstance(value, str):
+                    out[key] = {"name": value}
         return out
 
     def model_post_init(self, __context: Any) -> None:
