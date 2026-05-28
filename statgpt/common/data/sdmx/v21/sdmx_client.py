@@ -74,6 +74,25 @@ class AsyncSdmxClient:
             use_cache=use_cache,
         )
 
+    async def agencyscheme(
+        self,
+        *,
+        agency_id: str,
+        resource_id: str,
+        version: str,
+        use_cache: bool = False,
+        extra_headers: dict[str, str] | None = None,
+    ) -> StructureMessage:
+        """Fetch an agency scheme from the SDMX API."""
+        return await self._get_structure(  # type: ignore[return-value]
+            resource_type=Resource.agencyscheme,
+            agency_id=agency_id,
+            resource_id=resource_id,
+            version=version,
+            use_cache=use_cache,
+            extra_headers=extra_headers,
+        )
+
     async def categoryscheme(
         self, *, agency_id: str, resource_id: str, version: str, use_cache: bool = False
     ) -> StructureMessage:

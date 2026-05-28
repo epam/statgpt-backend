@@ -164,6 +164,11 @@ class Sdmx21DataResponse(DataResponse):
         visual_df = self._enrich_df_with_names(visual_df)
         return visual_df
 
+    @cached_property
+    def csv_dataframe(self) -> pd.DataFrame:
+        """Return full SDMX observation-level dataframe for CSV export."""
+        return self.dataframe
+
     def get_display_series_count(self) -> int:
         """Number of series in the data message (set when the query is executed)."""
         return self._display_series_count
