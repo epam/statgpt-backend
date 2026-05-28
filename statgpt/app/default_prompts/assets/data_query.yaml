@@ -409,3 +409,9 @@ summarizeQueriesPrompt: |-
   Instead, phrase it as "data was retrieved from X to Y".
   Focus on what was retrieved, not what was queried.
   NOTE: if default time period was used in query, you MUST EXPLICITLY state that the retrieved data corresponds to default time period.
+
+  The query's **Time Period** line tells you which filter was applied - never infer it. Three cases:
+  - **Explicit period** (e.g. "from 2010 to 2020"): report FACTUAL, e.g. "retrieved from 2010 to 2018".
+  - **"no filter"**: all available data retrieved. NEVER call this a default filter.
+  - **"default time filter is used ..."**: STATE EXPLICITLY DEFAULT FILTER WAS APPLIED, e.g.
+    "retrieved from 2020 to 2025 (default time filter applied)".
