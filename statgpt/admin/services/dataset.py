@@ -746,8 +746,9 @@ class AdminPortalDataSetService(DataSetService):
         For each channel dataset:
         - If indexing is in progress -> INDEXING_IN_PROGRESS
         - If no completed version exists -> NO_VERSION
-        - If indexing hash matches -> AUTO_UPDATED (creates new version)
-        - If indexing hash differs -> NEEDS_REINDEX
+        - If the resolved URN differs from last_completed, or structure hash differs,
+          or indexing config hash differs -> NEEDS_REINDEX
+        - Otherwise -> AUTO_UPDATED (creates a new pointer version)
         """
         await self._session.refresh(dataset, attribute_names=["mapped_channels"])
 
@@ -791,27 +792,29 @@ class AdminPortalDataSetService(DataSetService):
                     f" no completed version, skipping"
                 )
             else:
-                _, resolved_config = await handler.resolve_config(
-                    config=dataset.details, auth_context=auth_context
+                status, new_resolved_config, reasons = await self._classify_config_update(
+                    handler=handler,
+                    current_config=dataset.details,
+                    last_completed=last_completed,
+                    auth_context=auth_context,
                 )
-                resolved_parsed = handler.parse_data_set_config(resolved_config)
-                new_config_hash = resolved_parsed.indexing_hash
-
-                if new_config_hash == last_completed.indexing_config_hash:
+                if status is schemas.ChannelDatasetUpdateStatus.AUTO_UPDATED:
                     new_version = await self._apply_config_internal(
-                        channel_dataset, last_completed, handler, dataset.details
+                        channel_dataset,
+                        last_completed,
+                        handler,
+                        current_config=dataset.details,
+                        resolved_config=new_resolved_config,
                     )
                     other_fields['new_version'] = new_version
-                    status = schemas.ChannelDatasetUpdateStatus.AUTO_UPDATED
                     _log.info(
                         f"ChannelDataset(dataset={dataset.id_}, channel={channel.deployment_id!r}):"
                         f" auto-updated with new version"
                     )
                 else:
-                    status = schemas.ChannelDatasetUpdateStatus.NEEDS_REINDEX
                     _log.info(
                         f"ChannelDataset(dataset={dataset.id_}, channel={channel.deployment_id!r}):"
-                        f" indexing hash changed, needs reindex"
+                        f" needs reindex ({', '.join(reasons)})"
                     )
 
             results.append(
@@ -825,12 +828,61 @@ class AdminPortalDataSetService(DataSetService):
 
         return results
 
+    @staticmethod
+    async def _classify_config_update(
+        handler: base.DataSourceHandler,
+        current_config: dict[str, Any],
+        last_completed: schemas.ChannelDatasetVersion,
+        auth_context: AuthContext,
+    ) -> tuple[schemas.ChannelDatasetUpdateStatus, dict[str, Any], list[str]]:
+        """Determine whether a dataset config update requires re-indexing.
+
+        Returns:
+            A tuple of (status, new_resolved_config, reasons).
+            - status: AUTO_UPDATED when no reindex is needed; NEEDS_REINDEX otherwise.
+            - new_resolved_config: the (re)resolved config (always populated).
+            - reasons: human-readable triggers when reindex is required; empty otherwise.
+        """
+        if last_completed.resolved_config is None:
+            _, new_resolved_config = await handler.resolve_config(
+                config=current_config, auth_context=auth_context
+            )
+            urn_changed = False
+        else:
+            _, new_resolved_config = await handler.reresolve_config(
+                config=current_config,
+                previous_resolved_config=last_completed.resolved_config,
+                auth_context=auth_context,
+            )
+            urn_changed = new_resolved_config != last_completed.resolved_config
+
+        new_config_hash = handler.parse_data_set_config(new_resolved_config).indexing_hash
+        new_structure_hash, _ = await handler.get_structure_hash_and_metadata(
+            dataset_config=new_resolved_config, auth_context=auth_context
+        )
+
+        reasons: list[str] = []
+        if urn_changed:
+            reasons.append("URN changed")
+        if new_structure_hash != last_completed.structure_hash:
+            reasons.append("structure hash changed")
+        if new_config_hash != last_completed.indexing_config_hash:
+            reasons.append("indexing config hash changed")
+
+        status = (
+            schemas.ChannelDatasetUpdateStatus.NEEDS_REINDEX
+            if reasons
+            else schemas.ChannelDatasetUpdateStatus.AUTO_UPDATED
+        )
+        return status, new_resolved_config, reasons
+
     async def _apply_config_internal(
         self,
         channel_dataset: models.ChannelDataset,
         last_completed: schemas.ChannelDatasetVersion,
         handler: base.DataSourceHandler,
         current_config: dict[str, Any],
+        resolved_config: dict[str, Any],
     ) -> schemas.ChannelDatasetVersion:
         """Apply config changes to a channel dataset without re-indexing.
 
@@ -838,12 +890,16 @@ class AdminPortalDataSetService(DataSetService):
         last completed version.
         """
         if last_completed.resolved_config is None:
-            new_resolved_config = current_config
+            new_resolved_config = dict(current_config)
         else:
             new_resolved_config = handler.merge_config_with_resolved(
                 current_config=current_config,
                 resolved_config=last_completed.resolved_config,
             )
+        # URN is no longer an IndexingField, so the merge above takes URN from
+        # current_config (potentially "latest"). Restore the resolved URN to keep
+        # the resolved_config invariant.
+        new_resolved_config['urn'] = resolved_config['urn']
 
         parsed_config = handler.parse_data_set_config(new_resolved_config)
 
