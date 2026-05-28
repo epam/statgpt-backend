@@ -164,18 +164,19 @@ class SearchPreparationChainFactory:
         stage.append_content(content)
 
     def create(self) -> Runnable:
-        normalizing_stage_name = "Normalizing Query"
+        stage_names = self._config.pipeline_stage_names
+        stages_config = self._config.stages_config
+
         normalizing_query_stage_callback = StageCallback(
-            stage_name=normalizing_stage_name,
+            stage_name=stage_names.normalizing_query.name,
             content_appender=self._populate_normalization,
-            debug_only=self._config.stages_config.is_stage_debug(normalizing_stage_name),
+            debug_only=stage_names.normalizing_query.is_debug(stages_config),
         )
 
-        named_entities_stage_name = "Extracting Named Entities"
         named_entities_stage_callback = StageCallback(
-            stage_name=named_entities_stage_name,
+            stage_name=stage_names.extracting_named_entities.name,
             content_appender=self._populate_named_entities,
-            debug_only=self._config.stages_config.is_stage_debug(named_entities_stage_name),
+            debug_only=stage_names.extracting_named_entities.is_debug(stages_config),
         )
 
         if self._use_internal_dataset_selection:

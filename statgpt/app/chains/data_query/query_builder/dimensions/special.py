@@ -46,13 +46,14 @@ class SpecialDimensionsSearchChainFactory(DimensionSearchChainFactoryBase):
             f'{list(chains_dict.keys())}'
         )
 
+        stage = self._config.pipeline_stage_names.selecting_special_dimensions
         return chain.with_config(
             config=RunnableConfig(
                 callbacks=[
                     StageCallback(
-                        stage_name="Selecting Special Dimensions",
+                        stage_name=stage.name,
                         content_appender=None,
-                        debug_only=True,
+                        debug_only=stage.is_debug(self._config.stages_config),
                     )
                 ]
             )
