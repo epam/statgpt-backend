@@ -115,12 +115,12 @@ class AdminPortalChannelService(ChannelService):
         return ChannelSerializer.db_to_schema(item)
 
     @audit_action(entity_type=AuditEntityType.CHANNEL, action_type=AuditActionType.DELETE)
-    async def delete(self, item_id: int, auth_context: AuthContext) -> schemas.Channel:
+    async def delete(self, item_id: int) -> schemas.Channel:
         item = await self._get_item_or_raise(item_id)
         deleted_item = ChannelSerializer.db_to_schema(item)
         _log.info(f"Deleting {item}")
 
-        await self._clear_vector_store(item, auth_context)
+        await self._clear_vector_store(item)
 
         if self.is_channel_hybrid(deleted_item):
             await self._clear_elastic_indexes(item)
@@ -129,7 +129,7 @@ class AdminPortalChannelService(ChannelService):
         await self._session.flush()
         return deleted_item
 
-    async def _clear_vector_store(self, channel: models.Channel, auth_context: AuthContext) -> None:
+    async def _clear_vector_store(self, channel: models.Channel) -> None:
         vector_store_factory = VectorStoreFactory()
 
         collections = [
@@ -137,12 +137,8 @@ class AdminPortalChannelService(ChannelService):
             channel.non_indicator_dimensions_table_name,
             channel.special_dimensions_table_name,
         ]
-        for collection in collections:
-            vector_store = await vector_store_factory.get_vector_store(
-                collection_name=collection,
-                auth_context=auth_context,
-                embedding_model_name=channel.llm_model,
-            )
+        for col in collections:
+            vector_store = await vector_store_factory.get_embeddingless_vector_store(col)
             await vector_store.clear()
 
     async def _clear_elastic_indexes(self, channel: models.Channel) -> None:
@@ -217,7 +213,7 @@ class AdminPortalChannelService(ChannelService):
         if scope.includes_configs():
             channel_data = await self._load_channel_data_from_zip(zip_file)
             if clean_up:
-                await self._cleanup_existing_channel(channel_data.deployment_id, auth_context)
+                await self._cleanup_existing_channel(channel_data.deployment_id)
             created_channel = await self.create_channel(channel_data)
             await self._session.commit()
             return await self.get_model_by_id(created_channel.id)
@@ -253,15 +249,13 @@ class AdminPortalChannelService(ChannelService):
         _log.info(f"Importing channel: {channel_data!r}")
         return channel_data
 
-    async def _cleanup_existing_channel(
-        self, deployment_id: str, auth_context: AuthContext
-    ) -> None:
+    async def _cleanup_existing_channel(self, deployment_id: str) -> None:
         try:
             existing_channel = await self.get_channel_by_deployment_id(deployment_id)
         except NoResultFound:
             pass  # No channel found, nothing to delete
         else:
-            await self.delete(existing_channel.id, auth_context=auth_context)
+            await self.delete(existing_channel.id)
 
     async def _get_existing_channel_by_deployment_id(
         self, deployment_id: str | None
@@ -274,7 +268,7 @@ class AdminPortalChannelService(ChannelService):
             raise ValueError(f"Channel with deployment_id {deployment_id} not found during import.")
 
     async def deduplicate_channel_dimensions(
-        self, channel_id: int, auth_context: AuthContext
+        self, channel_id: int
     ) -> tuple[DedupCounts, DedupCounts]:
         """Deduplicates the non-indicator and special dimensions vector stores for the channel.
 
@@ -287,23 +281,18 @@ class AdminPortalChannelService(ChannelService):
             # Extract scalar values while still inside the session scope:
             non_indicator_dims_table = channel.non_indicator_dimensions_table_name
             special_dims_table = channel.special_dimensions_table_name
-            llm_model = channel.llm_model
 
         vector_store_factory = VectorStoreFactory()
 
         _log.info(f"Deduplicating non_indicator_dimensions for channel {channel_id}")
-        non_indicator_dims_store = await vector_store_factory.get_vector_store(
+        non_indicator_dims_store = await vector_store_factory.get_embeddingless_vector_store(
             collection_name=non_indicator_dims_table,
-            auth_context=auth_context,
-            embedding_model_name=llm_model,
         )
         non_indicator_counts = await non_indicator_dims_store.deduplicate_by_document_content()
 
         _log.info(f"Deduplicating special_dimensions for channel {channel_id}")
-        special_dims_store = await vector_store_factory.get_vector_store(
+        special_dims_store = await vector_store_factory.get_embeddingless_vector_store(
             collection_name=special_dims_table,
-            auth_context=auth_context,
-            embedding_model_name=llm_model,
         )
         special_counts = await special_dims_store.deduplicate_by_document_content()
 
@@ -311,7 +300,7 @@ class AdminPortalChannelService(ChannelService):
         return non_indicator_counts, special_counts
 
     async def trigger_deduplication(
-        self, background_tasks: BackgroundTasks, channel_id: int, auth_context: AuthContext
+        self, background_tasks: BackgroundTasks, channel_id: int
     ) -> schemas.DeduplicationJob:
         """Creates a DeduplicationJob, schedules the background dedup task, and returns the job."""
         channel = await self.get_model_by_id(channel_id)
@@ -324,7 +313,6 @@ class AdminPortalChannelService(ChannelService):
         background_tasks.add_task(
             deduplicate_dimensions_in_background_task,
             deduplication_job_id=job.id,
-            auth_context=auth_context,
         )
 
         return schemas.DeduplicationJob.model_validate(job, from_attributes=True)
@@ -426,9 +414,7 @@ class AdminPortalChannelService(ChannelService):
         await self._session.commit()
         await self._session.refresh(job)
 
-    async def process_deduplication_job(
-        self, deduplication_job_id: int, auth_context: AuthContext
-    ) -> None:
+    async def process_deduplication_job(self, deduplication_job_id: int) -> None:
         """Process a deduplication job: mark IN_PROGRESS, run dedup, write counts/status."""
         _log.info(f"Processing deduplication job {deduplication_job_id}")
         try:
@@ -438,8 +424,7 @@ class AdminPortalChannelService(ChannelService):
                 channel_id = job.channel_id
 
             non_indicator_counts, special_counts = await self.deduplicate_channel_dimensions(
-                channel_id=channel_id,
-                auth_context=auth_context,
+                channel_id
             )
 
             async with self._scoped_session():
@@ -484,15 +469,9 @@ class AdminPortalChannelService(ChannelService):
 
 
 @background_task
-async def deduplicate_dimensions_in_background_task(
-    deduplication_job_id: int,
-    auth_context: AuthContext,
-) -> None:
+async def deduplicate_dimensions_in_background_task(deduplication_job_id: int) -> None:
     try:
         service = AdminPortalChannelService()
-        await service.process_deduplication_job(
-            deduplication_job_id=deduplication_job_id,
-            auth_context=auth_context,
-        )
-    except Exception as e:
-        _log.exception(e)
+        await service.process_deduplication_job(deduplication_job_id=deduplication_job_id)
+    except Exception:
+        _log.exception(f"Failed to deduplicate dimensions (job_id={deduplication_job_id})")

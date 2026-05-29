@@ -238,7 +238,7 @@ async def delete_channel(
 ) -> None:
     """Delete channel by id"""
 
-    await ChannelService(session).delete(item_id, auth_context=SystemUserAuthContext())
+    await ChannelService(session).delete(item_id)
 
 
 @router.get("/{channel_id}/datasets")
@@ -335,9 +335,7 @@ async def deduplicate_channel(
     async with get_session_context_manager() as session:
         service = ChannelService(session)
         return await service.trigger_deduplication(
-            background_tasks=background_tasks,
-            channel_id=channel_id,
-            auth_context=SystemUserAuthContext(),
+            background_tasks=background_tasks, channel_id=channel_id
         )
 
 
@@ -382,11 +380,7 @@ async def get_index_status(
     """Get the index status for the specified channel."""
 
     service = DataSetService(session)
-    return await service.check_index_status(
-        channel_id=channel_id,
-        auth_context=SystemUserAuthContext(),
-        scope=scope,
-    )
+    return await service.check_index_status(channel_id=channel_id, scope=scope)
 
 
 @router.get("/{channel_id}/datasets/{dataset_id}")
@@ -447,9 +441,7 @@ async def reload_indicators_for_channel_dataset(
 
 @router.delete("/{channel_id}/datasets/{dataset_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def remove_channel_dataset(channel_id: int, dataset_id: int):
-    await DataSetService().remove_channel_dataset(
-        channel_id=channel_id, dataset_id=dataset_id, auth_context=SystemUserAuthContext()
-    )
+    await DataSetService().remove_channel_dataset(channel_id=channel_id, dataset_id=dataset_id)
 
 
 @router.get("/{channel_id}/datasets/{dataset_id}/versions")
@@ -519,7 +511,7 @@ async def clear_channel_dataset_versions_data(
 ):
     """Clears the data for all versions except the latest completed one for the specified dataset in the channel."""
     await DataSetService(session).clear_channel_dataset_versions_data(
-        channel_id=channel_id, dataset_id=dataset_id, auth_context=SystemUserAuthContext()
+        channel_id=channel_id, dataset_id=dataset_id
     )
 
 

@@ -53,6 +53,7 @@ class FinalizeQueryChainFactory:
         )
         self._execute_query_chain = ExecuteQueryChain(
             stages_config=self._config.stages_config,
+            stage=self._config.pipeline_stage_names.executing_data_query,
             executed_message_agent_only=messages.data_query_executed_agent_only,
             summarize_queries_chain=self._summarize_queries_chain,
         )
@@ -436,7 +437,7 @@ class FinalizeQueryChainFactory:
 
     def _create_finalization_chain(self) -> Runnable:
         """Create the actual finalization chain."""
-        construct_data_query_stage_name = "Constructing Data Query"
+        stage = self._config.pipeline_stage_names.constructing_data_query
 
         return (
             (
@@ -451,11 +452,9 @@ class FinalizeQueryChainFactory:
                 config=RunnableConfig(
                     callbacks=[
                         StageCallback(
-                            stage_name=construct_data_query_stage_name,
+                            stage_name=stage.name,
                             content_appender=self._populate_dataset_queries,
-                            debug_only=self._config.stages_config.is_stage_debug(
-                                construct_data_query_stage_name
-                            ),
+                            debug_only=stage.is_debug(self._config.stages_config),
                         )
                     ]
                 )

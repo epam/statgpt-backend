@@ -81,7 +81,7 @@ async def _log_results(job_ids: list[int]) -> bool:
     return failed == 0
 
 
-async def _deduplicate_channels(channel_ids: set[int], auth_context: AuthContext) -> None:
+async def _deduplicate_channels(channel_ids: set[int]) -> None:
     """Run deduplication for channels that had a reindex.
 
     Each channel gets a tracked DeduplicationJob record so the batch run shows up
@@ -104,12 +104,7 @@ async def _deduplicate_channels(channel_ids: set[int], auth_context: AuthContext
         return
 
     await asyncio.gather(
-        *(
-            deduplicate_dimensions_in_background_task(
-                deduplication_job_id=job.id, auth_context=auth_context
-            )
-            for job in jobs
-        ),
+        *(deduplicate_dimensions_in_background_task(deduplication_job_id=job.id) for job in jobs),
     )
     _log.info("Deduplication complete")
 
@@ -131,7 +126,7 @@ async def run_auto_update() -> bool:
 
     reindex_channel_ids = await _get_reindex_channel_ids(job_ids)
     if reindex_channel_ids:
-        await _deduplicate_channels(reindex_channel_ids, auth_context)
+        await _deduplicate_channels(reindex_channel_ids)
 
     return await _log_results(job_ids)
 

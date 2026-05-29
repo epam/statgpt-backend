@@ -2,7 +2,6 @@ import pytest
 from fastapi import HTTPException
 from sqlalchemy.exc import NoResultFound
 
-from statgpt.admin.auth.auth_context import SystemUserAuthContext
 from statgpt.admin.services import AdminPortalChannelService as ChannelService
 from statgpt.common import schemas
 from statgpt.common.schemas.data_query_tool import DataQueryPrompts
@@ -273,7 +272,7 @@ async def test_delete_channel(session, clear_channels):
     channels = await channel_service.get_channels_schemas(100, 0)
     assert channels == [res]
 
-    await channel_service.delete(res.id, auth_context=SystemUserAuthContext())
+    await channel_service.delete(res.id)
 
     with pytest.raises(HTTPException) as e:
         await channel_service.get_schema_by_id(res.id)
