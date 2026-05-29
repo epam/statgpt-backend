@@ -169,6 +169,138 @@ def _auto_fill_dim_query(
     return None
 
 
+def _smart_sample(reachable: set[str], pinned: set[str], max_n: int = 20) -> list[str]:
+    """Return reachable values most likely to be useful to the agent.
+
+    Prioritises values that share the longest common prefix with any pinned value
+    (e.g. pin=`B1GQ_V_USD` → surface `B1GQ_V_XDC` before alphabetical neighbours
+    like `AQ12_CFSI_PT`). Pads up to `max_n` from the alphabetical remainder.
+    """
+    if not reachable:
+        return []
+    result: list[str] = []
+    seen: set[str] = set()
+    # Match by progressively-shorter prefixes of each pinned value.
+    for pin in sorted(pinned, key=len, reverse=True):
+        for prefix_len in range(len(pin), 0, -1):
+            prefix = pin[:prefix_len]
+            matches = sorted(v for v in reachable if v.startswith(prefix) and v not in seen)
+            if matches:
+                for m in matches:
+                    if len(result) >= max_n:
+                        break
+                    result.append(m)
+                    seen.add(m)
+                break
+        if len(result) >= max_n:
+            break
+    # Fill the rest alphabetically.
+    if len(result) < max_n:
+        for v in sorted(reachable):
+            if v not in seen:
+                result.append(v)
+                seen.add(v)
+                if len(result) >= max_n:
+                    break
+    return result
+
+
+async def _diagnose_empty_result(
+    dataset,
+    queries: list[DimensionQuery],
+    auth_context,
+) -> str | None:
+    """Given a successful-but-empty execute, identify which pinned value is the culprit.
+
+    Strategy: keep anchor dims (non-indicator, non-special — typically COUNTRY +
+    REF_AREA) and time pins; relax the rest. Re-run availability under the relaxed
+    filter and compare each relaxed pin's values to the reachable set. Any pinned
+    value not in the reachable set is a mismatch worth surfacing to the agent.
+
+    Returns a warning string or None if no actionable diagnosis can be produced.
+    """
+    try:
+        ind_dim_ids = {d.entity_id for d in dataset.indicator_dimensions()}
+        special_dim_ids = {d.entity_id for d in dataset.special_dimensions().values()}
+        relaxable_ids = ind_dim_ids | special_dim_ids
+        anchors = [q for q in queries if q.dimension_id not in relaxable_ids]
+        relaxed_pins = [q for q in queries if q.dimension_id in relaxable_ids]
+        if not anchors or not relaxed_pins:
+            return None
+
+        avail = await dataset.availability_query(
+            DataSetAvailabilityQuery.from_dimension_queries_list(anchors),
+            auth_context=auth_context,
+        )
+        if avail is None:
+            return None
+
+        mismatches: list[str] = []
+        for q in relaxed_pins:
+            avail_for_dim = avail.dimensions_queries_dict.get(q.dimension_id)
+            if avail_for_dim is None or not avail_for_dim.values:
+                continue
+            reachable = set(avail_for_dim.values)
+            pinned = set(q.values) if q.values else set()
+            if pinned and not (pinned & reachable):
+                suggestions = _smart_sample(reachable, pinned, max_n=20)
+                mismatches.append(
+                    f"{q.dimension_id}={sorted(pinned)} → not reachable; "
+                    f"try one of {suggestions}"
+                )
+
+        if mismatches:
+            return (
+                "0 rows returned. Pin mismatch detected — these values have no "
+                "data under your anchor filter: "
+                + "; ".join(mismatches)
+                + ". Retry with a reachable value."
+            )
+
+        # No single-dim mismatch under anchor-only filter. Try the per-pin probe:
+        # relax exactly one relaxable pin at a time and see if the user's pinned
+        # value for it is reachable when the rest stay fixed. Identifies which
+        # dim is incompatible with the joint of the others.
+        joint_mismatches: list[str] = []
+        for q in relaxed_pins:
+            partial = [other for other in queries if other.dimension_id != q.dimension_id]
+            if not partial:
+                continue
+            try:
+                sub_avail = await dataset.availability_query(
+                    DataSetAvailabilityQuery.from_dimension_queries_list(partial),
+                    auth_context=auth_context,
+                )
+            except Exception:
+                continue
+            if sub_avail is None:
+                continue
+            sub_for_dim = sub_avail.dimensions_queries_dict.get(q.dimension_id)
+            if sub_for_dim is None or not sub_for_dim.values:
+                continue
+            sub_reachable = set(sub_for_dim.values)
+            pinned = set(q.values) if q.values else set()
+            if pinned and not (pinned & sub_reachable):
+                suggestions = _smart_sample(sub_reachable, pinned, max_n=20)
+                joint_mismatches.append(
+                    f"{q.dimension_id}={sorted(pinned)} incompatible with your "
+                    f"other pins; reachable values for {q.dimension_id} given "
+                    f"the rest: try one of {suggestions}"
+                )
+
+        if joint_mismatches:
+            return "0 rows returned. Joint-pin mismatch: " + "; ".join(joint_mismatches) + "."
+
+        return (
+            "0 rows returned. Each pin is individually reachable and pairwise-"
+            "compatible under per-pin probes, but the full joint combination "
+            "has no observations. Try widening time_period or dropping a "
+            "less-essential pin."
+        )
+    except Exception:
+        return None
+
+
 @mcp_tools.tool
 async def execute_sdmx_query(
     dataset_id: Annotated[str, "Dataset id from `list_datasets` (e.g. 'IMF.STA:CPI(5.0.0)')."],
@@ -297,13 +429,19 @@ async def execute_sdmx_query(
             f"(request_status={response.status.request_status.value}, "
             f"parsing_status={response.status.parsing_status.value}). "
             "Most often this means the chosen dim combination has no data; less often "
-            "the proxy is unreachable or the query is malformed. Use `availability_query` "
-            "to confirm the filter is reachable, or widen `time_period`. "
+            "the proxy is unreachable or the query is malformed. "
             f"Upstream URL: {upstream_url}"
         )
 
     df = getattr(response, "df", None)
     row_count = int(len(df)) if df is not None else 0
+
+    # Either path can land here with zero rows. Try to diagnose which pinned value
+    # caused the miss by re-running availability with relaxable dims dropped.
+    if row_count == 0:
+        diag = await _diagnose_empty_result(dataset, queries, auth_context)
+        if diag:
+            upstream_warning = f"{upstream_warning}\n\n{diag}" if upstream_warning else diag
 
     time_range: TimePeriod | None = None
     tp = getattr(response, "time_period", None)

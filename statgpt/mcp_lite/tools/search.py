@@ -12,6 +12,7 @@ from statgpt.common.utils.elastic import ElasticSearchFactory
 from statgpt.mcp_lite.deps import get_channel_facade
 from statgpt.mcp_lite.schemas import (
     CodeMatch,
+    DatasetIndicatorGroup,
     IndicatorMatch,
     IndicatorSearchResult,
     SearchCodesResult,
@@ -56,7 +57,7 @@ async def _hybrid_indicator_search(
     version_ids: list[int],
     entity_to_source: dict[str, str],
     auth_context: AuthContext,
-) -> list[IndicatorMatch]:
+) -> list[tuple[str, IndicatorMatch]]:
     """Hybrid lex + sem indicator search.
 
     Mirrors `HybridSearcher`'s pipeline at a smaller scope: ES BM25 on the
@@ -111,7 +112,7 @@ async def _hybrid_indicator_search(
     ]
     scored.sort(key=lambda pair: pair[1], reverse=True)
 
-    matches: list[IndicatorMatch] = []
+    results: list[tuple[str, IndicatorMatch]] = []
     for _id, score in scored[:k]:
         meta = sem_meta.get(_id) or lex_meta.get(_id) or {}
         ds_uuid = sem_ds.get(_id) or str(meta.get("dataset_id", ""))
@@ -121,51 +122,56 @@ async def _hybrid_indicator_search(
         # composite "<dataset_uuid> <version> <dim-key>" — useless to the agent and
         # eats ~70 bytes per row. The dim breakdown remains in `dimensions`.
         code = ".".join(dims.values()) if dims else str(meta.get("id", _id))
-        matches.append(
-            IndicatorMatch(
-                dataset_id=entity_to_source.get(ds_uuid, ds_uuid),
-                code=code,
-                name=str(meta.get("name", "")),
-                score=score,
-                dimensions=dims,
+        ds_source = entity_to_source.get(ds_uuid, ds_uuid)
+        results.append(
+            (
+                ds_source,
+                IndicatorMatch(
+                    code=code,
+                    name=str(meta.get("name", "")),
+                    score=score,
+                    dimensions=dims,
+                ),
             )
         )
-    return matches
+    return results
 
 
 @mcp_tools.tool
 async def search_indicators(
-    query: Annotated[str, "Free-text indicator concept (e.g. 'GDP growth', 'consumer prices')."],
+    query: Annotated[str, "Free-text concept (e.g. 'GDP growth', 'consumer prices')."],
     dataset_id: Annotated[
         str | None,
-        "Optional dataset scope. Null = search every dataset in the channel and tag each "
-        "match with `dataset_id`. Use this to find which dataset has a given concept.",
+        "Optional: scope to one dataset. Null = search every dataset in the channel.",
     ] = None,
     top_k: Annotated[
         int,
-        "How many indicator matches to return. Default 20, cap 100.",
-    ] = 20,
+        "Total indicators to return. Default 50, cap 100. Values below 50 are NOT "
+        "advised — recall on broad/vague concepts depends on having multiple datasets "
+        "represented in the result, and shrinking the budget consistently drops "
+        "borderline-but-relevant datasets. Use 50 for the verbatim user-question "
+        "search; bump to 100 for broadening paraphrases that target hard-to-reach "
+        "datasets.",
+    ] = 50,
     facade: ChannelServiceFacade = Depends(get_channel_facade),  # type: ignore[arg-type]
 ) -> IndicatorSearchResult:
-    """Find indicators (compound measures) by free-text concept.
+    """Find indicators (compound series) by free-text concept, grouped by dataset.
 
-    Returns top-K compound indicators (each identifies a data series) ranked by
-    a hybrid of lexical (ES BM25) + semantic (pgvector) similarity. Each match
-    carries the indicator's full dim breakdown in `dimensions` — pass that
-    straight to `execute_sdmx_query.selection` to fetch the series.
+    Top-K indicators are bucketed into `datasets[]` (sorted by best_score desc);
+    each `matches[i].dimensions` is a ready selection for `execute_sdmx_query`.
 
-    This is the cross-dataset discovery primitive: "which dataset has X" → use
-    this. For finding the code for an atomic value within one dim (countries,
-    sectors, instruments), use `search_codes` instead.
+    **Multi-dataset answers are the norm, not the exception, in this channel.**
+    A single concept is typically exposed by several datasets, each with a
+    different framing: definition, periodicity, unit, valuation, or sectoral
+    aggregation. When the user's question does not pin a specific framing,
+    treat **every** group in `datasets[]` as a distinct candidate worth
+    fetching, not just the top-scoring one. A high score on a group ranked
+    2nd, 3rd, ... means that dataset genuinely answers the question through
+    a different lens — it is not a duplicate of group 1. Selecting one
+    dataset when the channel offers several is the most common failure mode
+    here.
 
-    **A single concept often lives in several distinct datasets here**, each with
-    a different framing (definition, periodicity, unit, valuation, sectoral
-    aggregation). Read past the top-1 hit and inspect what *distinct datasets*
-    the top-K covers — two hits from the same dataset don't broaden the answer,
-    but two hits from different datasets usually do. When the user's question
-    doesn't single out a specific framing, treat each on-topic distinct-dataset
-    hit as a separate candidate worth fetching, not just the best-scoring one.
-
+    For atomic dim values (countries, sectors, instruments), use `search_codes`.
     `score` is per-query max-relative in [0, 1].
     """
     if top_k <= 0:
@@ -181,13 +187,13 @@ async def search_indicators(
             raise ToolError(f"Dataset not found in this channel: {dataset_id!r}")
 
     if not versioned:
-        return IndicatorSearchResult(query=query, matches=[])
+        return IndicatorSearchResult(query=query, n_total_matches=0, datasets=[])
 
     version_ids = [v.version.version_data_id for v in versioned]
     entity_to_source = {str(v.data.entity_id): v.data.source_id for v in versioned}
 
     try:
-        matches = await _hybrid_indicator_search(
+        scored_matches = await _hybrid_indicator_search(
             facade=facade,
             query=query,
             k=top_k,
@@ -198,7 +204,27 @@ async def search_indicators(
     except Exception as e:
         raise ToolError(f"indicator search failed: {e!r}")
 
-    return IndicatorSearchResult(query=query, matches=matches)
+    # Group by dataset_id while preserving the within-dataset ranking
+    # (input `scored_matches` is already sorted globally by score desc).
+    grouped: dict[str, list[IndicatorMatch]] = {}
+    for ds_source, match in scored_matches:
+        grouped.setdefault(ds_source, []).append(match)
+
+    groups = [
+        DatasetIndicatorGroup(
+            dataset_id=ds_id,
+            best_score=ms[0].score,
+            matches=ms,
+        )
+        for ds_id, ms in grouped.items()
+    ]
+    groups.sort(key=lambda g: g.best_score, reverse=True)
+
+    return IndicatorSearchResult(
+        query=query,
+        n_total_matches=len(scored_matches),
+        datasets=groups,
+    )
 
 
 def _classify_dim(dataset, dim) -> str:

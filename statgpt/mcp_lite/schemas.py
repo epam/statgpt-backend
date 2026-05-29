@@ -108,7 +108,6 @@ class AvailabilityResult(BaseModel):
 class IndicatorMatch(BaseModel):
     """One match from `search_indicators` — a compound indicator that identifies a series."""
 
-    dataset_id: str = Field(description="Source-system id of the dataset.")
     code: str = Field(
         description=(
             "Composite indicator id — dot-joined values of the indicator dimensions "
@@ -130,15 +129,36 @@ class IndicatorMatch(BaseModel):
         description=(
             "Other dataset_ids that contain this exact indicator. Populated only on "
             "cross-dataset search (when `dataset_id` arg was null) and when ≥2 datasets "
-            "share the indicator. `dataset_id` carries the top-scoring occurrence; "
-            "`available_in` lists the rest."
+            "share the indicator. The enclosing group's `dataset_id` carries the "
+            "top-scoring occurrence; `available_in` lists the rest."
         ),
     )
 
 
+class DatasetIndicatorGroup(BaseModel):
+    """All matching indicators from one dataset, ranked within the dataset."""
+
+    dataset_id: str = Field(description="Source-system id of the dataset.")
+    best_score: float = Field(
+        description="Score of the best-ranked indicator in this dataset (== matches[0].score)."
+    )
+    matches: list[IndicatorMatch] = Field(default_factory=list)
+
+
 class IndicatorSearchResult(BaseModel):
     query: str
-    matches: list[IndicatorMatch] = Field(default_factory=list)
+    n_total_matches: int = Field(
+        default=0,
+        description="Total indicator matches across all datasets (sum of len(g.matches)).",
+    )
+    datasets: list[DatasetIndicatorGroup] = Field(
+        default_factory=list,
+        description=(
+            "Matching indicators grouped by dataset, sorted by `best_score` desc. "
+            "Inspect this list end-to-end: each entry is a distinct dataset that "
+            "contains at least one indicator matching the query."
+        ),
+    )
 
 
 CodeMatchSource = Literal["non_indicator", "special"]
