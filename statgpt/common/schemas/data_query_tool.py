@@ -226,7 +226,7 @@ class HybridSearchConfig(BaseYamlModel):
         description="Whether to use only indicators with best score, instead of allowing indicators with lower scores.",
     )
     single_dataset_score_threshold: int = Field(
-        default=1,
+        default=2,
         description="Relevance score threshold for when indicators are available only from a single dataset.",
         ge=0,
         le=3,
