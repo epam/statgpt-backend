@@ -90,11 +90,14 @@ class ChannelToolProvider(Provider):
     """MCP Provider that dynamically serves tools from a StatGPT channel config."""
 
     async def _resolve_context(self, request: Request) -> tuple[AuthContext, ChannelServiceFacade]:
-        auth_context = await create_auth_context(DialAuthCredentials.from_headers(request.headers))
         deployment_id = request.path_params.get("deployment_id")
         if not deployment_id:
             raise ValueError("Missing deployment_id in path")
         channel_service = await ChannelServiceFacade.get_channel(deployment_id)
+        auth_context = await create_auth_context(
+            DialAuthCredentials.from_headers(request.headers),
+            bearer_token_required=channel_service.channel_config.bearer_token_required,
+        )
         return auth_context, channel_service
 
     def _create_mcp_tool(
