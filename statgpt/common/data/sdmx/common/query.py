@@ -60,7 +60,7 @@ class SdmxDataSetQuery(BaseModel):
             key[dimension_id] = values
         return key
 
-    def get_params_v21(self) -> dict:
+    def get_params_v21(self) -> dict[str, str]:
         """SDMX 2.1 REST data query params."""
         result = {"detail": "full"}
         if self.time_dimension_query:
@@ -70,9 +70,9 @@ class SdmxDataSetQuery(BaseModel):
                 result['endPeriod'] = self.time_dimension_query.end_period
         return result
 
-    def get_params_v30(self) -> dict:
+    def get_params_v30(self) -> dict[str, str]:
         """SDMX 3.0 REST data query params (proxy)."""
-        params: dict = {"attributes": "all"}
+        params: dict[str, str] = {"attributes": "all"}
         time_filters: list[str] = []
         if self.time_dimension_query:
             if self.time_dimension_query.start_period:
@@ -80,7 +80,8 @@ class SdmxDataSetQuery(BaseModel):
             if self.time_dimension_query.end_period:
                 time_filters.append(f"le:{self.time_dimension_query.end_period}")
         if time_filters:
-            params["c[TIME_PERIOD]"] = "+".join(time_filters)
+            time_dimension_id = self.time_dimension_query.time_dimension_id  # type: ignore[union-attr]
+            params[f"c[{time_dimension_id}]"] = "+".join(time_filters)
         return params
 
     def merge(self, other: 'SdmxDataSetQuery') -> 'SdmxDataSetQuery':

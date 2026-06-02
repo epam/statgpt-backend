@@ -262,7 +262,7 @@ class AsyncStatGptSdmxProxyClient(AsyncSdmxClient):
         key_segment = self._build_key_segment(key=key, dsd=dsd, require_dsd=True)
         url = self._build_url(
             path=f"/data/dataflow/{agency_id}/{resource_id}/{version}/{key_segment}",
-            params=params or None,
+            params=params,
         )
 
         response, req = await self._perform_get(url, Resource.data)
