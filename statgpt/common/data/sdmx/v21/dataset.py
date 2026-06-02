@@ -1211,7 +1211,7 @@ class Sdmx21DataSet(
         return await asyncio.to_thread(self._include_attributes_sync, df)
 
     def _get_query_params(self, sdmx_query: SdmxDataSetQuery) -> dict:
-        return sdmx_query.get_params()
+        return sdmx_query.get_params_v21()
 
     async def _query_sdmx_data(
         self, sdmx_query: SdmxDataSetQuery, auth_context: AuthContext
@@ -1334,7 +1334,7 @@ class Sdmx21DataSet(
             provider=provider,
             flow_ref=flow_ref,
             key=key_string,
-            params=sdmx_query.get_params(),
+            params=sdmx_query.get_params_v21(),
             suffix=suffix,
         )
 

@@ -60,16 +60,28 @@ class SdmxDataSetQuery(BaseModel):
             key[dimension_id] = values
         return key
 
-    def get_params(self) -> dict:
-        result = {
-            "detail": "full",
-        }
+    def get_params_v21(self) -> dict:
+        """SDMX 2.1 REST data query params."""
+        result = {"detail": "full"}
         if self.time_dimension_query:
             if self.time_dimension_query.start_period:
                 result['startPeriod'] = self.time_dimension_query.start_period
             if self.time_dimension_query.end_period:
                 result['endPeriod'] = self.time_dimension_query.end_period
         return result
+
+    def get_params_v30(self) -> dict:
+        """SDMX 3.0 REST data query params (proxy)."""
+        params: dict = {"attributes": "all"}
+        time_filters: list[str] = []
+        if self.time_dimension_query:
+            if self.time_dimension_query.start_period:
+                time_filters.append(f"ge:{self.time_dimension_query.start_period}")
+            if self.time_dimension_query.end_period:
+                time_filters.append(f"le:{self.time_dimension_query.end_period}")
+        if time_filters:
+            params["c[TIME_PERIOD]"] = "+".join(time_filters)
+        return params
 
     def merge(self, other: 'SdmxDataSetQuery') -> 'SdmxDataSetQuery':
         """Create a new query by merging two queries.
