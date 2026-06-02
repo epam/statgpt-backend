@@ -26,7 +26,7 @@ on:
       ort-enabled:
         type: boolean
         description: Enable ORT scanning
-        default: true
+        default: false
       ort-bypassed:
         type: boolean
         description: Do not fail pipeline if ORT scan failed

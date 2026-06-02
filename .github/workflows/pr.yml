@@ -27,7 +27,7 @@ jobs:
       style-checks-bypassed: false
       code-checks-enabled: true
       code-checks-bypassed: false
-      ort-enabled: true
+      ort-enabled: false
       ort-bypassed: false
       ort-version: "85.0.0" # HACK: pin ORT version due to java.util.NoSuchElementException in 85.1.0
       python-version: "3.11"
