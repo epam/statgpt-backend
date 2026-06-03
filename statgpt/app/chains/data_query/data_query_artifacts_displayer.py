@@ -98,7 +98,7 @@ class DataQueryArtifactDisplayer:
             return None
 
         df = response.visual_dataframe.copy()
-        cells_number = df.shape[0] * df.shape[1] if df is not None else 0
+        cells_number = df.shape[0] * df.shape[1]
 
         if cells_number == 0:
             return self._get_no_data_message(response)
