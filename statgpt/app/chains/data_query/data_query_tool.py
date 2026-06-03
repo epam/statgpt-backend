@@ -18,10 +18,9 @@ from .query_builder.factory import QueryBuilderFactory
 class DataQueryArgs(ToolArgs):
     query: str = Field(
         description="Concise data query that includes as detailed as possible information on indicators, time frame, "
-        "countries, regions and other dimensions. \n\n* Tool works best for single indicator query (e.g. "
-        "GDP, inflation), so try to send one query per indicator\n* At the same time tool works very well "
-        "with query that includes multiple values for countries, regions and other dimensions (e.g. France "
-        "and UK, Baltic countries and Poland)"
+        "countries, regions and other dimensions. Specify one indicator per query - send a separate "
+        "query for each distinct indicator (e.g. GDP, inflation). Never send a separate query per "
+        "dataset, data source, country, region, frequency or other dimensions."
     )
 
 
