@@ -218,7 +218,13 @@ class DatasetQueryFormatter(BaseFormatter):
             line += self._format_dimension_value(dimension, dim_query)
 
             if dim_query.is_default:
-                line += f" ({self._('default')})"
+                if isinstance(dimension, DateTimeDimension):
+                    default_note = self._(
+                        'default time filter is used, as user did not specify any time filter'
+                    )
+                    line += f" ({default_note})"
+                else:
+                    line += f" ({self._('default')})"
 
             lines.append(line)
 

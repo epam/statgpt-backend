@@ -9,6 +9,7 @@ from fastmcp.exceptions import ToolError
 from fastmcp.server.dependencies import get_http_request
 from fastmcp.server.providers import Provider
 from fastmcp.tools import Tool, ToolResult
+from fastmcp.utilities.components import FastMCPComponent
 from fastmcp.utilities.versions import VersionSpec
 from mcp.types import ContentBlock, TextContent
 from pydantic import PrivateAttr
@@ -89,11 +90,14 @@ class ChannelToolProvider(Provider):
     """MCP Provider that dynamically serves tools from a StatGPT channel config."""
 
     async def _resolve_context(self, request: Request) -> tuple[AuthContext, ChannelServiceFacade]:
-        auth_context = await create_auth_context(DialAuthCredentials.from_headers(request.headers))
         deployment_id = request.path_params.get("deployment_id")
         if not deployment_id:
             raise ValueError("Missing deployment_id in path")
         channel_service = await ChannelServiceFacade.get_channel(deployment_id)
+        auth_context = await create_auth_context(
+            DialAuthCredentials.from_headers(request.headers),
+            bearer_token_required=channel_service.channel_config.bearer_token_required,
+        )
         return auth_context, channel_service
 
     def _create_mcp_tool(
@@ -157,6 +161,14 @@ class ChannelToolProvider(Provider):
             if tool_config.name == name:
                 return self._create_mcp_tool(tool_config, channel_config, inputs)
         return None
+
+    async def get_tasks(self) -> Sequence[FastMCPComponent]:
+        # Tools are per-request (depend on deployment_id + auth headers from the
+        # HTTP request), so there is nothing to register as a Docket background
+        # task at startup. Returning [] also prevents _list_tools() from being
+        # called outside a request context during lifespan startup, which would
+        # otherwise log a spurious "No active HTTP request found" error.
+        return []
 
 
 channel_tool_provider = ChannelToolProvider()

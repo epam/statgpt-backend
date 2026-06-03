@@ -71,6 +71,21 @@ class DialAppSettings(BaseSettings):
         description="Skip tools execution step",
     )
 
+    track_llm_call_durations: bool = Field(
+        default=False,
+        alias="TRACK_LLM_CALL_DURATIONS",
+        description="Track and report LLM call durations per model in debug performance stage and DIAL state",
+    )
+
+    indicators_total_cache_ttl: int = Field(
+        default=60,
+        alias="INDICATORS_TOTAL_CACHE_TTL",
+        description=(
+            "TTL in seconds for the in-process cache of the per-channel indicators total. "
+            "The figure is non-transactional; staleness within this window is acceptable."
+        ),
+    )
+
     dial_system_user_context_roles: str | None = Field(
         default=None,
         alias="DIAL_SYSTEM_USER_CONTEXT_ROLES",

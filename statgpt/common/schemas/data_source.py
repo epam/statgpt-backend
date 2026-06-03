@@ -38,3 +38,10 @@ class DataSource(DbDefaultBase, DataSourceBase, Auditable):
 
     def get_item_id(self) -> int:
         return self.id
+
+
+class Provider(BaseModel):
+    id: str = Field(description="Provider (agency) id, e.g. 'IMF.RES'")
+    name: str = Field(
+        description="Display name of the provider; falls back to the id when unknown."
+    )

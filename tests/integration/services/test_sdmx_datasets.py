@@ -11,7 +11,7 @@ from statgpt.admin.services.dataset import (
     clear_channel_dataset_data_in_background_task,
     reload_indicators_in_background_task,
 )
-from statgpt.common import schemas
+from statgpt.common import models, schemas
 from statgpt.common.data.base import DatasetCitation, IndexerConfig, IndexerIndicatorConfig
 from statgpt.common.settings.langchain import langchain_settings
 
@@ -530,6 +530,87 @@ async def test_reload_all_indicators(session, clear_all, sdmx_clint_mock):
             == "Manually initiated reindexing of all datasets in a channel."
         )
         assert channel_ds.latest_version.reason_for_failure is None
+
+
+@pytest.mark.asyncio
+async def test_last_auto_update_job_in_channel_datasets(session, clear_all, sdmx_clint_mock):
+    channel = await get_channel(session)
+    data_source = await get_data_source(session)
+
+    dataset_service = DataSetService(session)
+
+    ds1 = await dataset_service.create_dataset(
+        schemas.DataSetBase(
+            id_=uuid.uuid4(),
+            title='CPI v4.0.0',
+            data_source_id=data_source.id,
+            details={'urn': URN_CPI_4_0_0, 'dimensions': DIMENSIONS},
+        ),
+        auth_context=SystemUserAuthContext(),
+    )
+    ds2 = await dataset_service.create_dataset(
+        schemas.DataSetBase(
+            id_=uuid.uuid4(),
+            title='CPI v3.0.1',
+            data_source_id=data_source.id,
+            details={'urn': URN_CPI_3_0_1, 'dimensions': DIMENSIONS},
+        ),
+        auth_context=SystemUserAuthContext(),
+    )
+
+    cd1 = await dataset_service.add_dataset_to_channel(channel.id, ds1.id)
+    cd2 = await dataset_service.add_dataset_to_channel(channel.id, ds2.id)
+
+    listed = await dataset_service.get_channel_dataset_schemas(
+        limit=100, offset=0, channel_id=channel.id, auth_context=SystemUserAuthContext()
+    )
+    assert len(listed) == 2
+    assert all(item.last_auto_update_job is None for item in listed)
+
+    single = await dataset_service.get_channel_dataset_schema(
+        channel.id, ds1.id, auth_context=SystemUserAuthContext()
+    )
+    assert single.last_auto_update_job is None
+
+    job1 = models.AutoUpdateJob(
+        channel_dataset_id=cd1.id,
+        status=schemas.PreprocessingStatusEnum.QUEUED,
+    )
+    session.add(job1)
+    await session.commit()
+    await session.refresh(job1)
+
+    listed = await dataset_service.get_channel_dataset_schemas(
+        limit=100, offset=0, channel_id=channel.id, auth_context=SystemUserAuthContext()
+    )
+    by_id = {item.id: item for item in listed}
+    assert by_id[cd1.id].last_auto_update_job is not None
+    assert by_id[cd1.id].last_auto_update_job.id == job1.id
+    assert by_id[cd2.id].last_auto_update_job is None
+
+    single = await dataset_service.get_channel_dataset_schema(
+        channel.id, ds1.id, auth_context=SystemUserAuthContext()
+    )
+    assert single.last_auto_update_job is not None
+    assert single.last_auto_update_job.id == job1.id
+
+    job2 = models.AutoUpdateJob(
+        channel_dataset_id=cd1.id,
+        status=schemas.PreprocessingStatusEnum.COMPLETED,
+        result=schemas.AutoUpdateResult.NO_CHANGES,
+    )
+    session.add(job2)
+    await session.commit()
+    await session.refresh(job2)
+
+    listed = await dataset_service.get_channel_dataset_schemas(
+        limit=100, offset=0, channel_id=channel.id, auth_context=SystemUserAuthContext()
+    )
+    by_id = {item.id: item for item in listed}
+    assert by_id[cd1.id].last_auto_update_job is not None
+    assert by_id[cd1.id].last_auto_update_job.id == job2.id
+    assert by_id[cd1.id].last_auto_update_job.status == schemas.PreprocessingStatusEnum.COMPLETED
+    assert by_id[cd1.id].last_auto_update_job.result == schemas.AutoUpdateResult.NO_CHANGES
 
 
 # ~~~ Testing the background tasks ~~~

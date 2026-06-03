@@ -45,10 +45,6 @@ class SupremeAgentConfig(BaseYamlModel):
         default_factory=LLMModelConfig,
         description="LLM model configuration for the supreme agent",
     )
-    additional_instructions: str = Field(
-        default="",
-        description="Additional instructions to put to the agent's system prompt",
-    )
     additional_context: str = Field(
         default="",
         description="Additional context for the supreme agent",
@@ -136,6 +132,20 @@ class ConversationStarterConfig(BaseYamlModel):
 class ConversationStartersConfig(BaseYamlModel):
     intro_text: str = Field(
         description="The text displayed to the user when the conversation starts."
+    )
+    title: str | None = Field(
+        default=None,
+        description=(
+            "Optional override for the conversation-starter widget title. "
+            "If unset, the default JSON-schema title is used."
+        ),
+    )
+    input_placeholder: str | None = Field(
+        default=None,
+        description=(
+            "Optional placeholder text for the chat input field. "
+            "Rendered as the 'statgpt:inputPlaceholder' JSON-schema extension."
+        ),
     )
     buttons: list[ConversationStarterConfig] = Field(
         description="The buttons displayed to the user when the conversation starts."

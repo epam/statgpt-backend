@@ -25,28 +25,42 @@ from sqlalchemy.sql.elements import TextClause
 from sqlalchemy.sql.expression import func
 
 from statgpt.common.models import get_readonly_session_context_manager, get_session_context_manager
+from statgpt.common.schemas.llm_call_duration import LLMCallDurationItem
 from statgpt.common.settings.database import PostgresSettings
 from statgpt.common.settings.document import DimensionValueDocumentMetadataFields
 from statgpt.common.utils import batched
+from statgpt.common.utils.llm_call_duration_context import get_llm_call_duration_manager
 from statgpt.common.utils.timer import debug_timer
-from statgpt.common.vectorstore.base import VectorStore
+from statgpt.common.vectorstore.base import EmbeddinglessVectorStore, VectorStore
 from statgpt.common.vectorstore.document import ScoredVectorStoreDocument
 from statgpt.common.vectorstore.embeddings import EmbeddingModel
 
 from .document_converter import DocumentConverter
-from .models import BaseDocument, BaseDocumentMetadata, BaseModel, ModelsStore
+from .models import (
+    BaseDocument,
+    BaseDocumentMetadata,
+    BaseDocumentNoEmbeddings,
+    BaseModel,
+    ModelsStore,
+)
 
 _log = logging.getLogger(__name__)
 
 
-class PgVectorStore(VectorStore):
+class PgEmbeddinglessVectorStore(EmbeddinglessVectorStore):
+    """Postgres implementation of `EmbeddinglessVectorStore`.
+
+    Implements only the operations that can run without an embedding model
+    (clear, delete, dedup, status). The full `PgVectorStore` subclass adds
+    ingest/search/export/import on top.
+    """
+
     def __init__(
         self,
         collection_name: str,
-        embedding_model: EmbeddingModel,
         **kwargs,
     ):
-        super().__init__(collection_name, embedding_model, **kwargs)
+        super().__init__(collection_name, **kwargs)
         self._postgres_settings = PostgresSettings()
 
     @property
@@ -57,12 +71,9 @@ class PgVectorStore(VectorStore):
     def _metadata_table_name(self) -> str:
         return f"{self._table_name}_metadata"
 
-    async def _get_document_model(self) -> type[BaseDocument]:
-        with debug_timer("_get_document_model.model"):
-            model = ModelsStore.get_document_model(
-                self._table_name, self._embedding_model.embedding_length
-            )
-        return model
+    async def _get_document_no_embeddings_model(self) -> type[BaseDocumentNoEmbeddings]:
+        with debug_timer("_get_document_no_embeddings_model.model"):
+            return ModelsStore.get_document_no_embeddings_model(self._table_name)
 
     async def _get_metadata_model(self) -> type[BaseDocumentMetadata]:
         with debug_timer("_get_metadata_model.model"):
@@ -249,52 +260,6 @@ class PgVectorStore(VectorStore):
             for lock_key in lock_keys:
                 await self._release_dataset_lock(session, lock_key)
 
-    async def add_documents(
-        self, documents: Iterable[Document], dataset_id: uuid.UUID, version_id: int
-    ) -> None:
-        # Phase 1: Compute ALL embeddings outside any session
-        batches_with_embeddings: list[tuple[list[Document], list[list[float]]]] = []
-        for batch in batched(documents, self._postgres_settings.batch_size):
-            embeddings = await self._embedding_model.model.aembed_documents(
-                [doc.page_content for doc in batch]
-            )
-            batches_with_embeddings.append((batch, embeddings))
-
-        # Phase 2: DB writes in a single session (advisory lock + inserts)
-        async with get_session_context_manager() as session:
-            async with self._dataset_lock(session, dataset_id):
-                document_model: type[BaseDocument] = await self._get_document_model()
-                metadata_model: type[BaseDocumentMetadata] = await self._get_metadata_model()
-
-                await self._create_table_if_not_exist(session, document_model)
-                await self._create_table_if_not_exist(session, metadata_model)
-
-                for batch, embeddings in batches_with_embeddings:
-                    items = [
-                        document_model(
-                            document=self._sanitize_text(doc.page_content),
-                            embeddings=emb,
-                        )
-                        for doc, emb in zip(batch, embeddings)
-                    ]
-
-                    session.add_all(items)
-                    await session.commit()
-                    _log.info(f"Added {len(items)} documents")
-
-                    mappings = [
-                        metadata_model(
-                            document_id=item.id,
-                            dataset_id=dataset_id,
-                            version_id=version_id,
-                            details=self._sanitize_metadata(doc.metadata),
-                        )
-                        for item, doc in zip(items, batch)
-                    ]
-                    session.add_all(mappings)
-                    await session.commit()
-                    _log.info(f"Added {len(mappings)} document mappings")
-
     async def _get_dataset_ids_by_version_ids(
         self, session: AsyncSession, version_ids: list[int]
     ) -> list[uuid.UUID]:
@@ -367,7 +332,7 @@ class PgVectorStore(VectorStore):
         Should be called within the same transaction as metadata deletion
         to ensure atomicity and prevent race conditions.
         """
-        doc_model: type[BaseDocument] = await self._get_document_model()
+        doc_model: type[BaseDocumentNoEmbeddings] = await self._get_document_no_embeddings_model()
         metadata_model: type[BaseDocumentMetadata] = await self._get_metadata_model()
 
         query = (
@@ -381,76 +346,6 @@ class PgVectorStore(VectorStore):
         _log.info(
             f"Deleted {len(deleted_ids)} documents without mapping from {doc_model.__tablename__!r} table"
         )
-
-    async def search_with_similarity_score(
-        self,
-        query: str,
-        *,
-        k: int = 10,
-        version_ids: set[int],
-        metadata_filters: dict[str, set] | None = None,
-    ) -> list[ScoredVectorStoreDocument]:
-
-        with debug_timer("vector_store._get_document_model"):
-            model = await self._get_document_model()
-
-        with debug_timer("vector_store._get_mapping_model"):
-            mapping_model = await self._get_metadata_model()
-
-        # Embedding computation outside any session
-        with debug_timer("vector_store.prepare_embeddings"):
-            embedding = (await self._embedding_model.model.aembed_documents([query]))[0]
-
-        with debug_timer("vector_store.prepare_sql_query"):
-
-            if self._embedding_model.is_normalized_to_one:
-                distance = model.embeddings.max_inner_product(embedding)
-            else:
-                distance = model.embeddings.cosine_distance(embedding)
-
-            matching_docs_query = select(mapping_model.document_id.distinct()).where(
-                mapping_model.version_id.in_(version_ids)
-            )
-            if metadata_filters:
-                for field, values in metadata_filters.items():
-                    matching_docs_query = matching_docs_query.where(
-                        mapping_model.details[field].astext.in_(values)
-                    )
-
-            # Distance is calculated once per document, not per metadata record
-            top_k_docs_cte = (
-                select(model.id.label("doc_id"), distance.label("distance"))
-                .where(model.id.in_(matching_docs_query.scalar_subquery()))
-                .order_by(distance)
-                .limit(k)
-                .cte("top_k_docs")
-            )
-
-            sql_query = (
-                select(model, mapping_model, top_k_docs_cte.c.distance)
-                .select_from(top_k_docs_cte)
-                .join(model, model.id == top_k_docs_cte.c.doc_id)
-                .join(mapping_model, mapping_model.document_id == top_k_docs_cte.c.doc_id)
-                .where(mapping_model.version_id.in_(version_ids))
-                .order_by(top_k_docs_cte.c.distance, mapping_model.id)
-            )
-
-        # DB query in its own session
-        with debug_timer("vector_store.search.sql"):
-            async with get_readonly_session_context_manager() as session:
-                res = await session.execute(sql_query)
-
-        with debug_timer("vector_store.search.process"):
-            # `1 - cosine distance` gives cosine similarity score.
-            # NOTE: for other distances, formula to get similarity score is different.
-            # see notes for similar functions above.
-            result = [
-                DocumentConverter.to_scored_vector_store_document(
-                    pg_document=doc, pg_metadata=meta, score=(1 - dist)
-                )
-                for doc, meta, dist in res.all()
-            ]
-        return result
 
     async def get_dataset_ids_by_documents_ids(self, ids: Iterable[int]) -> list[uuid.UUID]:
         model = await self._get_metadata_model()
@@ -496,7 +391,7 @@ class PgVectorStore(VectorStore):
 
     async def has_duplicates(self) -> tuple[bool, int]:
         """Checks if there are duplicate documents based on document content."""
-        document_model = await self._get_document_model()
+        document_model = await self._get_document_no_embeddings_model()
         metadata_model = await self._get_metadata_model()
 
         async with get_readonly_session_context_manager() as session:
@@ -526,7 +421,7 @@ class PgVectorStore(VectorStore):
         Returns:
             tuple[bool, int]: (has_duplicates, duplicate_count)
         """
-        document_model = await self._get_document_model()
+        document_model = await self._get_document_no_embeddings_model()
         metadata_model = await self._get_metadata_model()
 
         async with get_readonly_session_context_manager() as session:
@@ -618,8 +513,8 @@ class PgVectorStore(VectorStore):
             3. Remaps all metadata references from duplicates to the keeper (lowest document_id)
             4. Deletes orphaned duplicate documents
         """
-        with debug_timer("deduplicate_content._get_document_model"):
-            document_model = await self._get_document_model()
+        with debug_timer("deduplicate_content._get_document_no_embeddings_model"):
+            document_model = await self._get_document_no_embeddings_model()
 
         with debug_timer("deduplicate_content._get_metadata_model"):
             metadata_model = await self._get_metadata_model()
@@ -686,6 +581,153 @@ class PgVectorStore(VectorStore):
             except Exception:
                 _log.exception("Content deduplication failed. Transaction will be rolled back.")
                 raise
+
+
+class PgVectorStore(PgEmbeddinglessVectorStore, VectorStore):
+    """Full Postgres vector store with ingest, search, export, and import on top of the
+    embeddingless operations from `PgEmbeddinglessVectorStore`.
+    """
+
+    def __init__(
+        self,
+        collection_name: str,
+        embedding_model: EmbeddingModel,
+        **kwargs,
+    ):
+        super().__init__(collection_name, embedding_model=embedding_model, **kwargs)
+
+    async def _get_document_model(self) -> type[BaseDocument]:
+        with debug_timer("_get_document_model.model"):
+            return ModelsStore.get_document_model(
+                self._table_name, self._embedding_model.embedding_length
+            )
+
+    async def add_documents(
+        self, documents: Iterable[Document], dataset_id: uuid.UUID, version_id: int
+    ) -> None:
+        # Phase 1: Compute ALL embeddings outside any session
+        batches_with_embeddings: list[tuple[list[Document], list[list[float]]]] = []
+        for batch in batched(documents, self._postgres_settings.batch_size):
+            embeddings = await self._embedding_model.model.aembed_documents(
+                [doc.page_content for doc in batch]
+            )
+            batches_with_embeddings.append((batch, embeddings))
+
+        # Phase 2: DB writes in a single session (advisory lock + inserts)
+        async with get_session_context_manager() as session:
+            async with self._dataset_lock(session, dataset_id):
+                document_model: type[BaseDocument] = await self._get_document_model()
+                metadata_model: type[BaseDocumentMetadata] = await self._get_metadata_model()
+
+                await self._create_table_if_not_exist(session, document_model)
+                await self._create_table_if_not_exist(session, metadata_model)
+
+                for batch, embeddings in batches_with_embeddings:
+                    items = [
+                        document_model(
+                            document=self._sanitize_text(doc.page_content),
+                            embeddings=emb,
+                        )
+                        for doc, emb in zip(batch, embeddings)
+                    ]
+
+                    session.add_all(items)
+                    await session.commit()
+                    _log.info(f"Added {len(items)} documents")
+
+                    mappings = [
+                        metadata_model(
+                            document_id=item.id,
+                            dataset_id=dataset_id,
+                            version_id=version_id,
+                            details=self._sanitize_metadata(doc.metadata),
+                        )
+                        for item, doc in zip(items, batch)
+                    ]
+                    session.add_all(mappings)
+                    await session.commit()
+                    _log.info(f"Added {len(mappings)} document mappings")
+
+    async def search_with_similarity_score(
+        self,
+        query: str,
+        *,
+        k: int = 10,
+        version_ids: set[int],
+        metadata_filters: dict[str, set] | None = None,
+    ) -> list[ScoredVectorStoreDocument]:
+
+        with debug_timer("vector_store._get_document_model"):
+            model = await self._get_document_model()
+
+        with debug_timer("vector_store._get_mapping_model"):
+            mapping_model = await self._get_metadata_model()
+
+        # Embedding computation outside any session
+        with debug_timer("vector_store.prepare_embeddings"):
+            embed_start = time.monotonic()
+            embedding = (await self._embedding_model.model.aembed_documents([query]))[0]
+            embed_duration = time.monotonic() - embed_start
+
+        duration_manager = get_llm_call_duration_manager()
+        if duration_manager is not None:
+            duration_manager.add_duration(
+                LLMCallDurationItem(
+                    deployment=self._embedding_model.name,
+                    duration_s=embed_duration,
+                )
+            )
+
+        with debug_timer("vector_store.prepare_sql_query"):
+
+            if self._embedding_model.is_normalized_to_one:
+                distance = model.embeddings.max_inner_product(embedding)
+            else:
+                distance = model.embeddings.cosine_distance(embedding)
+
+            matching_docs_query = select(mapping_model.document_id.distinct()).where(
+                mapping_model.version_id.in_(version_ids)
+            )
+            if metadata_filters:
+                for field, values in metadata_filters.items():
+                    matching_docs_query = matching_docs_query.where(
+                        mapping_model.details[field].astext.in_(values)
+                    )
+
+            # Distance is calculated once per document, not per metadata record
+            top_k_docs_cte = (
+                select(model.id.label("doc_id"), distance.label("distance"))
+                .where(model.id.in_(matching_docs_query.scalar_subquery()))
+                .order_by(distance)
+                .limit(k)
+                .cte("top_k_docs")
+            )
+
+            sql_query = (
+                select(model, mapping_model, top_k_docs_cte.c.distance)
+                .select_from(top_k_docs_cte)
+                .join(model, model.id == top_k_docs_cte.c.doc_id)
+                .join(mapping_model, mapping_model.document_id == top_k_docs_cte.c.doc_id)
+                .where(mapping_model.version_id.in_(version_ids))
+                .order_by(top_k_docs_cte.c.distance, mapping_model.id)
+            )
+
+        # DB query in its own session
+        with debug_timer("vector_store.search.sql"):
+            async with get_readonly_session_context_manager() as session:
+                res = await session.execute(sql_query)
+
+        with debug_timer("vector_store.search.process"):
+            # `1 - cosine distance` gives cosine similarity score.
+            # NOTE: for other distances, formula to get similarity score is different.
+            # see notes for similar functions above.
+            result = [
+                DocumentConverter.to_scored_vector_store_document(
+                    pg_document=doc, pg_metadata=meta, score=(1 - dist)
+                )
+                for doc, meta, dist in res.all()
+            ]
+        return result
 
     async def _export_documents_to_file(
         self,

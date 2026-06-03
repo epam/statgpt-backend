@@ -6,6 +6,7 @@ from langchain_core.documents import Document
 from pydantic import Field, SerializeAsAny
 
 from statgpt.common.auth.auth_context import AuthContext
+from statgpt.common.schemas.data_source import Provider
 
 from .base import BaseEntity, BaseModel, EntityType
 from .category import DimensionCategory
@@ -101,8 +102,19 @@ class DataSourceHandler(
         pass
 
     @abstractmethod
-    async def list_datasets(self, auth_context: AuthContext) -> t.Sequence[DataSetDescriptor]:
-        pass
+    async def list_datasets(
+        self, auth_context: AuthContext, *, provider: str | None = None
+    ) -> t.Sequence[DataSetDescriptor]:
+        """List datasets exposed by this data source.
+
+        Args:
+            auth_context: caller credentials.
+            provider: optional provider (agency) id to restrict the listing to.
+        """
+
+    @abstractmethod
+    async def list_providers(self, auth_context: AuthContext) -> list[Provider]:
+        """List providers (maintainer agencies) available within this data source."""
 
     @abstractmethod
     async def get_dataset(

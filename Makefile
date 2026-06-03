@@ -18,9 +18,6 @@ install: init_venv
 install_dev: init_venv
 	$(POETRY) install -E cli -E mcp --with dev
 
-install_all: init_venv
-	$(POETRY) install -E cli -E mcp --with dev,experiments
-
 clean:
 	-$(POETRY) env remove --all
 

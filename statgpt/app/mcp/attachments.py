@@ -9,14 +9,14 @@ from statgpt.app.schemas.tool_artifact import DataQueryArtifact
 def data_query_artifact_to_resources(
     artifact: DataQueryArtifact,
 ) -> list[EmbeddedResource]:
-    """Serialize each DataResponse's visual_dataframe as an inline text/csv resource.
+    """Serialize each DataResponse's csv_dataframe as an inline text/csv resource.
 
-    Skips responses with no visual_dataframe so MCP clients don't receive empty payloads.
+    Skips responses with empty csv_dataframe so MCP clients don't receive empty payloads.
     """
     resources: list[EmbeddedResource] = []
     for response in artifact.data_responses.values():
-        df = response.visual_dataframe
-        if df is None or df.empty:
+        df = response.csv_dataframe
+        if df.empty:
             continue
         csv_text = df.to_csv(
             index=False,
