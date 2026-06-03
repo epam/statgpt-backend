@@ -212,13 +212,13 @@ class Sdmx21DataResponse(DataResponse):
 
     @property
     def custom_table_dict(self) -> dict | None:
+        if self.df.empty:
+            return None
+
         data_json = json.loads(self.dataframe.to_json(orient='table'))
 
-        if self.visual_dataframe is not None:
-            series_count = self.visual_dataframe.shape[0]
-            height = min(400, 75 + 27 * series_count)
-        else:
-            height = 400
+        series_count = self.visual_dataframe.shape[0]
+        height = min(400, 75 + 27 * series_count)
 
         time_dimension = self.dataset.get_time_dimension()
 
@@ -234,7 +234,7 @@ class Sdmx21DataResponse(DataResponse):
 
     @property
     def plotly_grid(self) -> go.Figure | None:
-        if self.visual_dataframe is None:
+        if self.visual_dataframe.empty:
             return None
         figure = df_2_plotly_grid(self.visual_dataframe, round_digits=2)
         return figure
