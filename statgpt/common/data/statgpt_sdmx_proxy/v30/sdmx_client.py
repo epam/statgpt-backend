@@ -259,7 +259,7 @@ class AsyncStatGptSdmxProxyClient(AsyncSdmxClient):
         params: dict[str, str] | None,
         dsd: DataStructureDefinition | None,
     ) -> DataMessage:
-        key_segment = self._build_key_segment(key=key, dsd=dsd, require_dsd=True)
+        key_segment = self._build_key_segment(key=key, dsd=dsd)
         url = self._build_url(
             path=f"/data/dataflow/{agency_id}/{resource_id}/{version}/{key_segment}",
             params=params,
@@ -293,15 +293,11 @@ class AsyncStatGptSdmxProxyClient(AsyncSdmxClient):
         *,
         key: dict[str, list[str]] | None,
         dsd: DataStructureDefinition | None,
-        require_dsd: bool = False,
     ) -> str:
+        key = {k: v for k, v in (key or {}).items() if v}  # Filter out empty values
         if not key:
             return "*"
         if not dsd:
-            if require_dsd:
-                raise ValueError(
-                    "Please provide a DataStructureDefinition (dsd) for proxy data requests."
-                )
             raise ValueError("Please provide a DataStructureDefinition (dsd) when using `key`.")
         dim_ids = [
             dim.id
@@ -312,10 +308,10 @@ class AsyncStatGptSdmxProxyClient(AsyncSdmxClient):
         for dim_id in dim_ids:
             values = key.get(dim_id)
             if not values:
-                parts.append("")
+                parts.append("*")
             else:
                 parts.append("+".join(values))
-        return ".".join(parts).rstrip(".") or "*"
+        return ".".join(parts)
 
     def _build_url(self, *, path: str, params: dict[str, str] | None) -> str:
         url = f"{self._sync_client.source.url}{path}"
