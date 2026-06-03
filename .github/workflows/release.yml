@@ -26,9 +26,11 @@ jobs:
       style-checks-bypassed: false
       code-checks-enabled: true
       code-checks-bypassed: false
-      ort-enabled: false
+      ort-enabled: true
       ort-bypassed: false
       ort-version: "85.0.0" # HACK: pin ORT version due to java.util.NoSuchElementException in 85.1.0
+      ort-config-repository: "https://github.com/oss-review-toolkit/ort-config.git"
+      ort-config-revision: "5650fed55a20397b9abb9017a0c6bb674dc8481d"
       python-version: "3.11"
       poetry-version: "2.1.1"
       runs-on: '["ubuntu-24.04"]'
@@ -42,10 +44,13 @@ jobs:
       next-version: ${{ steps.semantic_versioning.outputs.next-version }}
       next-version-without-hyphens: ${{ steps.semantic_versioning.outputs.next-version-without-hyphens }}
       is-latest: ${{ steps.semantic_versioning.outputs.is-latest }}
-      latest-tag: ${{ steps.semantic_versioning.outputs.latest-tag }}
+      latest-stable-tag: ${{ steps.semantic_versioning.outputs.latest-stable-tag }}
+      changelog-mode: ${{ steps.semantic_versioning.outputs.changelog-mode }}
     steps:
-      - uses: epam/ai-dial-ci/actions/semantic_versioning@3.1.3
+      - uses: epam/ai-dial-ci/actions/semantic_versioning@4.4.0
         id: semantic_versioning
+        with:
+          promote: true
 
   release:
     runs-on: ubuntu-24.04
@@ -90,7 +95,7 @@ jobs:
           docker-cleanup: "true"
           set-tmpdir: "true"
 
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           lfs: true
           token: ${{ secrets.ACTIONS_BOT_TOKEN }}
@@ -106,9 +111,9 @@ jobs:
           ghcr-password: ${{ secrets.ACTIONS_BOT_TOKEN }}
           dockerhub-username: ${{ secrets.DOCKERHUB_LOGIN }}
           dockerhub-password: ${{ secrets.DOCKERHUB_TOKEN }}
-          image-name: ${{ matrix.image-name }}
+          image-name: ghcr.io/${{ matrix.image-name }}
           dockerfile-path: ${{ matrix.dockerfile }}
-          image-tag: ${{ needs.calculate_version.outputs.next-version }}
+          image-tag: ${{ startsWith(github.ref, 'refs/heads/release-') && needs.calculate_version.outputs.next-version || 'development' }}
           push-enabled: true
           trivy-enabled: true
           bypass-checks: false
@@ -117,11 +122,9 @@ jobs:
           trivy-limit-severities-for-sarif: true
           platforms: "linux/amd64"
           image-extra-aliases: |
-            ghcr.io/${{ matrix.image-name }}:${{ needs.calculate_version.outputs.next-version }}
-            ${{ github.ref == 'refs/heads/development' && format('{0}:development', matrix.image-name) || '' }}
-            ${{ github.ref == 'refs/heads/development' && format('ghcr.io/{0}:development', matrix.image-name) || '' }}
+            ${{ matrix.image-name }}:${{ startsWith(github.ref, 'refs/heads/release-') && needs.calculate_version.outputs.next-version || 'development' }}
             ${{ startsWith(github.ref, 'refs/heads/release-') && needs.calculate_version.outputs.is-latest == 'true' && format('{0}:latest', matrix.image-name) || '' }}
-            ${{ startsWith(github.ref, 'refs/heads/release-') && needs.calculate_version.outputs.is-latest == 'true' && format('ghcr.io/{0}:latest', matrix.image-name) || '' }}
+            ${{ startsWith(github.ref, 'refs/heads/release-') && needs.calculate_version.outputs.is-latest == 'true' && format('{0}/{1}:{2}', 'ghcr.io', matrix.image-name, 'latest') || '' }}
 
   create_release:
     runs-on: ubuntu-24.04
@@ -129,7 +132,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           token: ${{ secrets.ACTIONS_BOT_TOKEN }}
 
@@ -138,16 +141,19 @@ jobs:
         run: |
           sed -i "s/^version = .*/version = \"${{ needs.calculate_version.outputs.next-version-without-hyphens }}\"/g" pyproject.toml
 
-      - uses: epam/ai-dial-ci/actions/generate_release_notes@3.1.3
+      - uses: epam/ai-dial-ci/actions/generate_release_notes@4.4.0
         with:
-          latest-tag: ${{ needs.calculate_version.outputs.latest-tag }}
+          latest-tag: ${{ needs.calculate_version.outputs.latest-stable-tag }}
+          use-merge-base: ${{ needs.calculate_version.outputs.changelog-mode == 'merge-base' }}
 
-      - uses: epam/ai-dial-ci/actions/publish_tag_release@3.1.3
+      - uses: epam/ai-dial-ci/actions/publish_tag_release@4.4.0
+        if: ${{ startsWith(github.ref, 'refs/heads/release-') }}
         with:
+          git-user-name: ${{ vars.ACTIONS_BOT_NAME || 'statgpt-actions' }}
+          git-user-email: ${{ vars.ACTIONS_BOT_EMAIL || '231008922+statgpt-actions@users.noreply.github.com' }}
           tag-version: ${{ needs.calculate_version.outputs.next-version }}
           changelog-file: "/tmp/my_changelog" # Comes from generate_release_notes step
+          draft-stable-releases: true
           extra-commit-command: |
-            git config --global user.name "statgpt-actions"
-            git config --global user.email "231008922+statgpt-actions@users.noreply.github.com"
             git add pyproject.toml
-            git commit -m '[skip ci] Update version' || true
+            git commit -m '[skip ci] Update version' || true # Upstream branch may already be updated

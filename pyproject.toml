@@ -1,6 +1,6 @@
 [project]
 name = "statgpt"
-version = "0.2.0"
+version = "0.0.0"
 description = "StatGPT: Platform for talking to Official Statistics data & SDMX"
 readme = "README.md"
 requires-python = ">=3.11,<3.12"
