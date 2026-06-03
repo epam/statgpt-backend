@@ -164,6 +164,19 @@ class Sdmx21DataResponse(DataResponse):
         visual_df = self._enrich_df_with_names(visual_df)
         return visual_df
 
+    @cached_property
+    def csv_dataframe(self) -> pd.DataFrame:
+        """Return full SDMX observation-level dataframe for CSV export."""
+        return self.dataframe
+
+    @cached_property
+    def dimension_ids(self) -> set[str]:
+        return {d.entity_id for d in self.dataset.dimensions()}
+
+    @cached_property
+    def attribute_ids(self) -> set[str]:
+        return {a.entity_id for a in self.dataset.attributes()}
+
     def get_display_series_count(self) -> int:
         """Number of series in the data message (set when the query is executed)."""
         return self._display_series_count
@@ -1198,7 +1211,7 @@ class Sdmx21DataSet(
         return await asyncio.to_thread(self._include_attributes_sync, df)
 
     def _get_query_params(self, sdmx_query: SdmxDataSetQuery) -> dict:
-        return sdmx_query.get_params()
+        return sdmx_query.get_params_v21()
 
     async def _query_sdmx_data(
         self, sdmx_query: SdmxDataSetQuery, auth_context: AuthContext
@@ -1321,7 +1334,7 @@ class Sdmx21DataSet(
             provider=provider,
             flow_ref=flow_ref,
             key=key_string,
-            params=sdmx_query.get_params(),
+            params=sdmx_query.get_params_v21(),
             suffix=suffix,
         )
 

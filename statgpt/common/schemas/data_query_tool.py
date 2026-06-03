@@ -1,4 +1,6 @@
-from pydantic import Field, PositiveInt, TypeAdapter, field_validator
+from typing import Any
+
+from pydantic import Field, PositiveInt, TypeAdapter, field_validator, model_validator
 from pydantic_core.core_schema import FieldValidationInfo
 
 from statgpt.common.config import LLMModelsEnum
@@ -12,7 +14,7 @@ from .enums import (
     TimePeriodStrategy,
 )
 from .model_config import LLMModelConfig
-from .tool_details import BaseToolDetails
+from .tool_details import BaseToolDetails, StageDescriptor
 
 
 def bool_from_str(value: str) -> bool:
@@ -224,7 +226,7 @@ class HybridSearchConfig(BaseYamlModel):
         description="Whether to use only indicators with best score, instead of allowing indicators with lower scores.",
     )
     single_dataset_score_threshold: int = Field(
-        default=1,
+        default=2,
         description="Relevance score threshold for when indicators are available only from a single dataset.",
         ge=0,
         le=3,
@@ -236,6 +238,69 @@ class HybridSearchConfig(BaseYamlModel):
         le=3,
     )
     prompts: HybridSearchPrompts = Field(default_factory=HybridSearchPrompts)
+
+
+class DataQueryStageNames(BaseYamlModel):
+    """Descriptors for the primary non-debug pipeline stages of the data_query tool.
+
+    In YAML, each stage is written as a plain string giving its display name; the
+    field name is the stable logical key used by `StagesConfig.rules[].key` and is
+    bound here as a private attribute so it cannot be overridden from YAML and call
+    sites never have to type the key as a string literal.
+
+    Example YAML:
+        pipelineStageNames:
+          normalizingQuery: "Preparing your query"
+    """
+
+    normalizing_query: StageDescriptor = Field(
+        default_factory=lambda: StageDescriptor(name="Normalizing Query")
+    )
+    extracting_named_entities: StageDescriptor = Field(
+        default_factory=lambda: StageDescriptor(name="Extracting Named Entities")
+    )
+    hybrid_indicators_selection: StageDescriptor = Field(
+        default_factory=lambda: StageDescriptor(name="Hybrid Indicators Selection")
+    )
+    selecting_indicators: StageDescriptor = Field(
+        default_factory=lambda: StageDescriptor(name="Selecting Indicators")
+    )
+    selecting_special_dimensions: StageDescriptor = Field(
+        default_factory=lambda: StageDescriptor(name="Selecting Special Dimensions")
+    )
+    constructing_data_query: StageDescriptor = Field(
+        default_factory=lambda: StageDescriptor(name="Constructing Data Query")
+    )
+    executing_data_query: StageDescriptor = Field(
+        default_factory=lambda: StageDescriptor(name="Executing Data Query")
+    )
+
+    @model_validator(mode="before")
+    @classmethod
+    def _coerce_strings(cls, data: Any) -> Any:
+        """Accept a plain string per field as shorthand for {"name": <string>}.
+
+        Handles both the snake_case field name and its camelCase alias, since
+        `BaseYamlModel` enables `populate_by_name=True` and channel YAMLs are
+        written in camelCase.
+        """
+        if not isinstance(data, dict):
+            return data
+        out = dict(data)
+        for field_name, field_info in cls.model_fields.items():
+            for key in (field_name, field_info.alias):
+                if key is None:
+                    continue
+                value = out.get(key)
+                if isinstance(value, str):
+                    out[key] = {"name": value}
+        return out
+
+    def model_post_init(self, __context: Any) -> None:
+        """Bind each descriptor's `_key` private attribute to its field name."""
+        for field_name in self.__class__.model_fields:
+            descriptor: StageDescriptor = getattr(self, field_name)
+            descriptor._key = field_name
 
 
 class DataQueryDetails(BaseToolDetails):
@@ -271,6 +336,7 @@ class DataQueryDetails(BaseToolDetails):
     prompts: DataQueryPrompts = Field(default_factory=DataQueryPrompts)  # type: ignore
     messages: DataQueryMessages = Field(default_factory=DataQueryMessages)  # type: ignore
     attachments: DataQueryAttachments = Field(default_factory=DataQueryAttachments)  # type: ignore
+    pipeline_stage_names: DataQueryStageNames = Field(default_factory=DataQueryStageNames)
     allow_auto_update: bool = Field(
         default=False,
         description="Whether datasets in this channel should be auto-updated by the batch auto-update script.",
