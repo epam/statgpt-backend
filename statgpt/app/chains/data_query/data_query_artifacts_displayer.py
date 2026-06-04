@@ -98,7 +98,7 @@ class DataQueryArtifactDisplayer:
             return None
 
         df = response.visual_dataframe.copy()
-        cells_number = df.shape[0] * df.shape[1] if df is not None else 0
+        cells_number = df.shape[0] * df.shape[1]
 
         if cells_number == 0:
             return self._get_no_data_message(response)
@@ -199,14 +199,15 @@ class DataQueryArtifactDisplayer:
         return responses
 
     async def _display_data_responses(self, responses: dict[str, DataResponse]) -> None:
+        non_empty_responses = {k: v for k, v in responses.items() if not v.visual_dataframe.empty}
         tasks = []
         async with attachments_storage_factory(self._auth_context.api_key) as attachments_storage:
-            for dataset_id, response in responses.items():
+            for dataset_id, response in non_empty_responses.items():
                 tasks.append(self._attach_data_response(attachments_storage, response))
             await asyncio.gather(*tasks)
 
         if self._chat_config.merge_python_code:
-            merged_python = await self._create_merged_python_code_attachment(responses)
+            merged_python = await self._create_merged_python_code_attachment(non_empty_responses)
             if merged_python is not None:
                 self._choice.add_attachment(**merged_python)
 
@@ -254,7 +255,7 @@ class DataQueryArtifactDisplayer:
     async def _attach_csv(
         self, attachments_storage: AttachmentsStorage, data_response: DataResponse
     ) -> dict[str, str] | None:
-        if not self._config.csv_file.enabled or data_response.visual_dataframe is None:
+        if not self._config.csv_file.enabled or data_response.visual_dataframe.empty:
             return None
 
         assert self._config.csv_file.name is not None, "csv_file.name must be set when enabled"

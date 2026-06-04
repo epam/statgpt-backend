@@ -1,0 +1,73 @@
+{
+  "meta": {
+    "id": "TEST-ALL-ATTRIBUTE-LEVELS",
+    "prepared": "2026-06-02T00:00:00",
+    "sender": {"id": "TEST"}
+  },
+  "data": {
+    "dataSets": [
+      {
+        "action": "Replace",
+        "attributes": [0, ["data@imf.org"], [{"en": "World Economic Outlook"}], null],
+        "dimensionGroupAttributes": {
+          ":0:": [1, [{"en": "Gross Domestic Product"}], null],
+          "0:0:": [null, null, ["2015"]]
+        },
+        "series": {
+          "0:0": {
+            "attributes": [0, 0],
+            "observations": {
+              "0": ["100", 0, 0],
+              "1": ["110", 1, null]
+            }
+          },
+          "1:0": {
+            "attributes": [0, null],
+            "observations": {
+              "0": ["200"]
+            }
+          }
+        }
+      }
+    ],
+    "structures": [
+      {
+        "dimensions": {
+          "series": [
+            {"id": "COUNTRY", "keyPosition": 0, "values": [{"id": "USA"}, {"id": "FRA"}]},
+            {"id": "INDICATOR", "keyPosition": 1, "values": [{"id": "GDP"}]}
+          ],
+          "observation": [
+            {"id": "TIME_PERIOD", "keyPosition": 2, "values": [{"value": "2020"}, {"value": "2021"}]}
+          ]
+        },
+        "attributes": {
+          "dataSet": [
+            {"id": "SOURCE_DATASET", "values": [{"id": "IMF"}]},
+            {"id": "CONTACT", "values": []},
+            {"id": "TITLE", "values": []},
+            {"id": "NOTE", "values": []}
+          ],
+          "dimensionGroup": [
+            {"id": "NA_STO", "relationship": {"dimensions": ["INDICATOR"]}, "values": [{"id": "B1G"}, {"id": "B1GQ"}]},
+            {"id": "SERIES_NAME", "relationship": {"dimensions": ["INDICATOR"]}, "values": []},
+            {"id": "BASE_YEAR", "relationship": {"dimensions": ["COUNTRY", "INDICATOR"]}, "values": []}
+          ],
+          "series": [
+            {"id": "SCALE", "relationship": {"dimensions": ["COUNTRY", "INDICATOR"]}, "values": [{"id": "9"}]},
+            {"id": "DECIMALS", "relationship": {"dimensions": ["COUNTRY", "INDICATOR"]}, "values": [{"id": "3"}]}
+          ],
+          "observation": [
+            {"id": "OBS_STATUS", "relationship": {"observation": {}}, "values": [{"id": "A"}, {"id": "H"}]},
+            {"id": "OBS_CONF", "relationship": {"observation": {}}, "values": [{"id": "F"}]}
+          ]
+        },
+        "measures": {
+          "observation": [
+            {"id": "OBS_VALUE", "values": []}
+          ]
+        }
+      }
+    ]
+  }
+}
