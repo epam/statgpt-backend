@@ -221,6 +221,13 @@ class HybridSearchConfig(BaseYamlModel):
         default_factory=list, description="Named entities to remove from the search query."
     )
 
+    disable_separate_subjects: bool = Field(
+        default=False,
+        description=(
+            "Whether to split the normalized query into multiple subject sub-queries via LLM "
+            "before searching. When disabled, the normalized query is searched as a single query."
+        ),
+    )
     use_only_best_score: bool = Field(
         default=False,
         description="Whether to use only indicators with best score, instead of allowing indicators with lower scores.",
