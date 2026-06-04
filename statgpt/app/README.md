@@ -24,6 +24,7 @@ the [common README file](../common/README.md).
 | DIAL_RAG_PGVECTOR_URL          |    No    | URL for the RAG with pgvector, only for local development                                                                                                                                                                                            |                                              |                     |
 | DIAL_RAG_PGVECTOR_API_KEY      |    No    | API key for the RAG with pgvector, only for local development                                                                                                                                                                                        |                                              |                     |
 | TTYD_TOOL_PLAIN_CONTENT_*      |    No    | Environment variables for the Plain Content tool to replace in the files content. Replace `*` with the variable name.                                                                                                                                |                                              |                     |
+| INDICATORS_TOTAL_CACHE_TTL     |    No    | TTL in seconds for the in-process cache of the per-channel indicators total (used to substitute the `{indicators_total}` token in conversation-starter texts). The figure is non-transactional; staleness within this window is acceptable.          | integer (seconds)                            | `60`                |
 
 ## MCP Server
 

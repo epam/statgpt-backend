@@ -172,7 +172,7 @@ class SupremeAgent:
 
         inputs = {
             'chat_history': history.get_langchain_messages(include_tool_messages=True),
-            'datetime_now': configuration.get_current_timestamp(),
+            'today_date': configuration.get_current_date(),
         }
         first_token_time = None
         start_time = datetime.now()

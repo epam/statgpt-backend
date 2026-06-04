@@ -82,7 +82,11 @@ class ChannelCompletion(ChatCompletion):
                 code="deployment_not_found",
                 message="The API deployment for this resource does not exist.",
             )
-        return service.dial_channel_configuration
+        auth_context = await create_auth_context(
+            request,
+            bearer_token_required=service.channel_config.bearer_token_required,
+        )
+        return await service.get_dial_channel_configuration(auth_context)
 
     @classmethod
     async def _channel_completion(

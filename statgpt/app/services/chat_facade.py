@@ -40,10 +40,20 @@ from statgpt.common.settings.document import (
     IndicatorDocumentMetadataFields,
     SpecialDimensionValueDocumentMetadataFields,
 )
+from statgpt.common.utils import AsyncLoadingCache
 from statgpt.common.utils.timer import debug_timer
 from statgpt.common.vectorstore import ScoredVectorStoreDocument, VectorStore, VectorStoreFactory
 
 _log = logging.getLogger(__name__)
+
+_INDICATORS_TOTAL_TOKEN = "{indicators_total}"
+
+
+def _substitute_indicators_total(text: str | None, count: int) -> str | None:
+    """Replace the supported `{indicators_total}` token with the live count."""
+    if text is None:
+        return None
+    return text.replace(_INDICATORS_TOTAL_TOKEN, str(count))
 
 
 @dataclass
@@ -200,6 +210,10 @@ class BaseChannelConfiguration(BaseModel, metaclass=FormMetaclass):
 
 
 class ChannelServiceFacade:
+    _indicators_total_cache: AsyncLoadingCache[int] = AsyncLoadingCache(
+        ttl=dial_app_settings.indicators_total_cache_ttl
+    )
+
     def __init__(self, channel: schemas.Channel) -> None:
         self._channel = channel
         self._handler_classes: dict[int, type[DataSourceHandler]] = {}
@@ -261,8 +275,7 @@ class ChannelServiceFacade:
     def channel_config(self) -> ChannelConfig:
         return self._channel.details
 
-    @property
-    def dial_channel_configuration(self) -> dict[str, Any]:
+    async def get_dial_channel_configuration(self, auth_context: AuthContext) -> dict[str, Any]:
         conversation_starters_config = self.channel_config.conversation_starters
         if conversation_starters_config is None:
             _log.info(
@@ -270,10 +283,24 @@ class ChannelServiceFacade:
             )
 
             return BaseChannelConfiguration.model_json_schema()
-        intro_text: str = conversation_starters_config.intro_text
+
         _log.info(
             f"Conversation starters configuration found for channel {self._channel.title}, {conversation_starters_config=}"
         )
+        intro_text: str | None = conversation_starters_config.intro_text
+        title = conversation_starters_config.title
+        input_placeholder = conversation_starters_config.input_placeholder
+
+        needs_count = any(
+            s is not None and _INDICATORS_TOTAL_TOKEN in s
+            for s in (intro_text, title, input_placeholder)
+        )
+        if needs_count:
+            count = await self._get_indicators_total(auth_context)
+            intro_text = _substitute_indicators_total(intro_text, count)
+            title = _substitute_indicators_total(title, count)
+            input_placeholder = _substitute_indicators_total(input_placeholder, count)
+
         buttons = [
             Button(
                 const=i,
@@ -284,11 +311,15 @@ class ChannelServiceFacade:
             for i, button in enumerate(conversation_starters_config.buttons)
         ]
 
+        other_fields: dict[str, Any] = {}
+        if title is not None:
+            other_fields["title"] = title
+        if input_placeholder is not None:
+            other_fields["json_schema_extra"] = {"statgpt:inputPlaceholder": input_placeholder}
+
         class StatGPTConfiguration(BaseChannelConfiguration):
             starter: int | None = DialField(
-                default=None,
-                description=intro_text,
-                buttons=buttons,
+                default=None, description=intro_text, buttons=buttons, **other_fields
             )
 
         return StatGPTConfiguration.model_json_schema()
@@ -439,6 +470,36 @@ class ChannelServiceFacade:
             for vid, count in counts_by_version.items()
             if vid in version_to_entity
         }
+
+    async def _get_indicators_total(self, auth_context: AuthContext) -> int:
+        """Total indicator count across the channel's latest successful dataset versions.
+
+        Lightweight DB-only count: skips per-handler `is_dataset_available` checks
+        (no external SDMX/QuantHub calls). May include indicators from datasets
+        that are temporarily offline.
+
+        Result is cached in-process per channel for `indicators_total_cache_ttl`
+        seconds. The count is auth-context-independent — concurrent callers share
+        a single load via `AsyncLoadingCache`'s per-key lock.
+        """
+
+        async def _load() -> int:
+            async with get_readonly_session_context_manager() as session:
+                dataset_service = DataSetService(session, session_lock=None)
+                latest = await dataset_service.get_latest_successful_dataset_versions_for_channel(
+                    channel_id=self._channel.id
+                )
+            version_ids = {
+                item.last_completed_version.version_data_id
+                for item in latest.values()
+                if item.last_completed_version is not None
+            }
+            if not version_ids:
+                return 0
+            vector_store = await self._get_indicators_vector_store(auth_context)
+            return await vector_store.get_size(version_ids)
+
+        return await self._indicators_total_cache.get(str(self._channel.id), _load)
 
     async def get_dataset_hierarchy(self, auth_context: AuthContext) -> DatasetHierarchy | None:
         """Get first available dataset hierarchy from the channel data sources."""

@@ -57,6 +57,9 @@ class LLMModelsEnum(StrEnum):
     GPT_5_MINI_2025_08_07 = "gpt-5-mini-2025-08-07"
     GPT_5_1_2025_11_13 = "gpt-5.1-2025-11-13"
     GPT_5_2_2025_12_11 = "gpt-5.2-2025-12-11"
+    GPT_5_4_2026_03_05 = "gpt-5.4-2026-03-05"
+    GPT_5_4_MINI_2026_03_17 = "gpt-5.4-mini-2026-03-17"
+    GPT_5_5_2026_04_24 = "gpt-5.5-2026-04-24"
 
     @property
     def deployment_id(self) -> str:
@@ -79,4 +82,7 @@ class LLMModelsEnum(StrEnum):
             LLMModelsEnum.GPT_5_MINI_2025_08_07,
             LLMModelsEnum.GPT_5_1_2025_11_13,
             LLMModelsEnum.GPT_5_2_2025_12_11,
+            LLMModelsEnum.GPT_5_4_2026_03_05,
+            LLMModelsEnum.GPT_5_4_MINI_2026_03_17,
+            LLMModelsEnum.GPT_5_5_2026_04_24,
         }
