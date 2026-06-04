@@ -109,6 +109,17 @@ class OutOfScopeConfig(BaseYamlModel):
     )
 
 
+class McpConfig(BaseYamlModel):
+    tool_name_prefix: str = Field(
+        default="",
+        pattern=r'^[a-zA-Z0-9_\.-]*$',
+        description=(
+            "Prefix prepended to tool names exposed via MCP (e.g. 'statgpt__'). "
+            "Internal agent tool names are unaffected. Empty string disables prefixing."
+        ),
+    )
+
+
 class TokenUsageConfig(BaseYamlModel):
     debug_only: bool = Field(
         default=True,
@@ -173,6 +184,7 @@ class ChannelConfig(BaseYamlModel):
         None, description="The out of scope configuration"
     )
     token_usage: TokenUsageConfig = Field(default_factory=TokenUsageConfig)
+    mcp: McpConfig = Field(default_factory=McpConfig, description="MCP server configuration")
     bearer_token_required: bool = Field(
         default=False,
         description=(

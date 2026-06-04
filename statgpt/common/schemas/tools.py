@@ -29,6 +29,20 @@ class BaseToolConfig(BaseYamlModel):
     description: str = Field(description="The description of the tool.", max_length=4096)
     enabled: bool = Field(default=True, description="Whether the tool is enabled or not.")
 
+    mcp_name: str | None = Field(
+        default=None,
+        pattern=r'^[a-zA-Z0-9_\.-]+$',
+        description="Override for the tool name exposed via MCP. Defaults to `name` if not set.",
+    )
+    mcp_description: str | None = Field(
+        default=None,
+        max_length=4096,
+        description=(
+            "Override for the tool description exposed via MCP."
+            " Defaults to `description` if not set."
+        ),
+    )
+
     details: BaseToolDetails = Field(
         default_factory=BaseToolDetails, description="Details as a JSON object"
     )
@@ -36,6 +50,14 @@ class BaseToolConfig(BaseYamlModel):
     @property
     def out_of_scope_description(self) -> str:
         return self.description
+
+    @property
+    def effective_mcp_name(self) -> str:
+        return self.mcp_name if self.mcp_name is not None else self.name
+
+    @property
+    def effective_mcp_description(self) -> str:
+        return self.mcp_description if self.mcp_description is not None else self.description
 
 
 class AvailableDatasetsTool(BaseToolConfig):
