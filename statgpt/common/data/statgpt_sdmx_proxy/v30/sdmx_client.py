@@ -52,7 +52,6 @@ _SDMX_v30_STRUCTURE_ACCEPT_HEADER = "application/vnd.sdmx.structure+json;version
 class AsyncStatGptSdmxProxyClient(AsyncSdmxClient):
     """Async client for StatGPT SDMX proxy (SDMX 3.0 API, SDMX-JSON parsed as SDMX 2.1 models)."""
 
-    _DATA_PARAM_ALLOWLIST = {"startPeriod", "endPeriod", "firstNObservations", "lastNObservations"}
     _DATA_ACCEPT_DEFAULT = "application/vnd.sdmx.data+json;version=2.0.0"
     _attributes_cache: TtlCache[dict[str, str | None]] = TtlCache()
 
@@ -260,12 +259,10 @@ class AsyncStatGptSdmxProxyClient(AsyncSdmxClient):
         params: dict[str, str] | None,
         dsd: DataStructureDefinition | None,
     ) -> DataMessage:
-        key_segment = self._build_key_segment(key=key, dsd=dsd, require_dsd=True)
-        filtered = self._filter_params(params, self._DATA_PARAM_ALLOWLIST)
-        converted = self._convert_time_params(filtered)
+        key_segment = self._build_key_segment(key=key, dsd=dsd)
         url = self._build_url(
             path=f"/data/dataflow/{agency_id}/{resource_id}/{version}/{key_segment}",
-            params=converted,
+            params=params,
         )
 
         response, req = await self._perform_get(url, Resource.data)
@@ -296,15 +293,11 @@ class AsyncStatGptSdmxProxyClient(AsyncSdmxClient):
         *,
         key: dict[str, list[str]] | None,
         dsd: DataStructureDefinition | None,
-        require_dsd: bool = False,
     ) -> str:
+        key = {k: v for k, v in (key or {}).items() if v}  # Filter out empty values
         if not key:
             return "*"
         if not dsd:
-            if require_dsd:
-                raise ValueError(
-                    "Please provide a DataStructureDefinition (dsd) for proxy data requests."
-                )
             raise ValueError("Please provide a DataStructureDefinition (dsd) when using `key`.")
         dim_ids = [
             dim.id
@@ -315,42 +308,16 @@ class AsyncStatGptSdmxProxyClient(AsyncSdmxClient):
         for dim_id in dim_ids:
             values = key.get(dim_id)
             if not values:
-                parts.append("")
+                parts.append("*")
             else:
                 parts.append("+".join(values))
-        return ".".join(parts).rstrip(".") or "*"
+        return ".".join(parts)
 
     def _build_url(self, *, path: str, params: dict[str, str] | None) -> str:
         url = f"{self._sync_client.source.url}{path}"
         if params:
             return f"{url}?{urlencode(params)}"
         return url
-
-    @staticmethod
-    def _filter_params(params: dict[str, str] | None, allowlist: set[str]) -> dict[str, str] | None:
-        if not params:
-            return None
-        return {k: v for k, v in params.items() if k in allowlist}
-
-    @staticmethod
-    def _convert_time_params(
-        params: dict[str, str] | None,
-    ) -> dict[str, str] | None:
-        """Convert startPeriod/endPeriod to SDMX 3.0 c[TIME_PERIOD] filter syntax."""
-        if not params:
-            return None
-        result: dict[str, str] = {}
-        time_filters: list[str] = []
-        for k, v in params.items():
-            if k == "startPeriod":
-                time_filters.append(f"ge:{v}")
-            elif k == "endPeriod":
-                time_filters.append(f"le:{v}")
-            else:
-                result[k] = v
-        if time_filters:
-            result["c[TIME_PERIOD]"] = "+".join(time_filters)
-        return result or None
 
     async def _perform_get(
         self, url: str, resource: Resource
