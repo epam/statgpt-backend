@@ -4,6 +4,7 @@ import os
 from collections import defaultdict
 from typing import Any
 
+from pydantic import ValidationError
 from rich.panel import Panel
 
 from statgpt.cli.commands.base import Command, CommandArg, CommandGroup
@@ -338,26 +339,43 @@ def _get_mime_type(filename: str) -> str:
     return "application/octet-stream"
 
 
+def _warn_change_detection_skipped(entity_type: str, entity_id: str, exc: Exception) -> None:
+    print_warning(
+        f"  Change detection skipped for {entity_type} '{entity_id}' " f"(assuming changed): {exc}"
+    )
+
+
 def _channel_changed(incoming_cfg: dict[str, Any], existing: Channel) -> bool:
     """Return True if channel config differs from what is stored."""
+    deployment_id = incoming_cfg.get('deployment_id') or existing.deployment_id
     try:
         incoming = ChannelBase.model_validate(incoming_cfg)
         stored = ChannelBase.model_validate(existing.model_dump(mode='json', by_alias=True))
         return incoming != stored
-    except Exception:
+    except (ValidationError, KeyError, AttributeError) as exc:
+        _warn_change_detection_skipped('channel', deployment_id, exc)
         return True
 
 
 def _data_source_changed(incoming_cfg: dict[str, Any], existing: DataSource) -> bool:
     """Return True if data source config differs from what is stored."""
+    if 'details' not in incoming_cfg:
+        title = incoming_cfg.get('title', existing.title)
+        raise ValueError(f"Data source '{title}' is missing required 'details' configuration")
+
     try:
         config_class = DataManager.get_config_class(existing.type.name)
-        incoming_details = incoming_cfg.get('details', existing.details)
-        normalized_details = config_class(**incoming_details).model_dump(mode='json', by_alias=True)
+        incoming_details = incoming_cfg['details']
+        normalized_details = config_class.model_validate(incoming_details).model_dump(
+            mode='json',
+            by_alias=True,
+        )
         incoming = DataSourceBase.model_validate({**incoming_cfg, 'details': normalized_details})
         stored = DataSourceBase.model_validate(existing.model_dump(mode='json', by_alias=True))
         return incoming != stored
-    except Exception:
+    except (ValidationError, KeyError, AttributeError) as exc:
+        title = incoming_cfg.get('title') or existing.title
+        _warn_change_detection_skipped('data source', title, exc)
         return True
 
 
@@ -367,6 +385,7 @@ def _dataset_changed(
     data_source: DataSource | None,
 ) -> bool:
     """Return True if dataset config differs from what is stored."""
+    dataset_id = incoming_cfg.get('id_') or existing.id_
     try:
         incoming_details = incoming_cfg.get('details', existing.details)
         if data_source is not None:
@@ -375,7 +394,7 @@ def _dataset_changed(
             normalized_details = parsed_config.model_dump(mode='json', by_alias=True)
             # When the data source manages the title automatically, skip title comparison
             # to avoid an update loop (CLI sets YAML title → source restores its own title).
-            use_title_from_src = getattr(parsed_config, 'use_title_from_src', False)
+            use_title_from_src = parsed_config.model_dump().get('use_title_from_src', False)
         else:
             normalized_details = incoming_details
             use_title_from_src = False
@@ -390,7 +409,8 @@ def _dataset_changed(
             existing.model_dump(mode='json', by_alias=True)
         ).model_dump(mode='json', by_alias=True, exclude=exclude_fields)
         return incoming_dump != existing_dump
-    except Exception:
+    except (ValidationError, KeyError, AttributeError) as exc:
+        _warn_change_detection_skipped('dataset', str(dataset_id), exc)
         return True
 
 
