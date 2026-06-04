@@ -17,9 +17,8 @@ from .query_builder.factory import QueryBuilderFactory
 
 class DataQueryArgs(ToolArgs):
     query: str = Field(
-        description="One indicator (e.g. GDP, inflation) plus ALL of its filters in plain text - "
-        "every country, date, frequency, dataset and agency the user mentioned. Multiple countries, "
-        "datasets, agencies or frequencies stay in this one string; they never mean another call."
+        description="An indicator with all of its filters in plain text. "
+        "Specify all countries, dates, frequencies, datasets the user requested"
     )
 
 
