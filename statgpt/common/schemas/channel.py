@@ -56,6 +56,13 @@ class SupremeAgentConfig(BaseYamlModel):
             " If empty, the default content is used."
         ),
     )
+    tool_usage_section: str = Field(
+        default="",
+        description=(
+            "Custom content for the 'Tool Usage' section of the system prompt."
+            " If empty, the default content is used."
+        ),
+    )
     no_calculations_section: str = Field(
         default="",
         description=(
