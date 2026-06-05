@@ -1,41 +1,19 @@
-"""Tests for StatGptSdmxProxyDataReader with real SDMX-JSON 2.0.0 payloads.
-
-Three fixture files exercise different structural patterns of the standard
-SDMX-JSON 2.0.0 format:
-
-* ``stub_eer.json`` — series-level dimensions + series/observation attributes,
-  two series with different frequencies, monthly and daily time periods.
-
-* ``imf_weo.json`` — large sparse series attribute arrays (many ``null``
-  entries), observation time periods in annual format, ``Replace`` action.
-
-* ``imf_weo_dataset_attrs.json`` — dataset-level ``attributes`` array with
-  coded and empty-list values; exercises ``_make_dataset_level_attrs`` and the
-  ``_dataset_level_attribute_map_from_data_message`` helper, including implicit
-  single-value inference for attributes omitted from the array.
 """Tests for :class:`StatGptSdmxProxyDataReader`.
 
-``data_all_attribute_levels.json`` is a small hand-crafted proxy SDMX-JSON data
-message that exercises all four SDMX-JSON 2.0.0 attribute levels and every value
-encoding the reader supports:
-
-* ``dataSet`` — coded index, inline string, inline localized text, ``null``.
-* ``dimensionGroup`` — group attributes carried in ``dimensionGroupAttributes``
-  keyed by partial dimension keys; a wildcard (INDICATOR-only) group that matches
-  both series and a specific (COUNTRY+INDICATOR) group that matches one.
-* ``series`` — coded index and ``null`` skip.
-* ``observation`` — coded index and ``null`` skip.
-
-It has two series (``USA, GDP`` and ``FRA, GDP``) over two time periods, with
-just enough values to cover each case without redundancy.
+The standard fixtures exercise SDMX-JSON 2.0.0 payloads returned by non-proxy
+SDMX 3.0 APIs. ``data_all_attribute_levels.json`` is a small hand-crafted proxy
+message that covers the proxy-only branches documented in the reader: the
+``dimensionGroup`` attribute category, uncoded dimension values using
+``{"value": "..."}``, and uncoded raw-string attributes in data arrays.
 """
 
 import io
+import json
 from pathlib import Path
 
 import pytest
 from sdmx.message import DataMessage
-from sdmx.model.v21 import ActionType, AttributeValue, Code
+from sdmx.model.v21 import ActionType, AllDimensions, AttributeValue, Code
 
 from statgpt.common.data.statgpt_sdmx_proxy.v30.reader import StatGptSdmxProxyDataReader
 from statgpt.common.data.statgpt_sdmx_proxy.v30.sdmx_client import (
@@ -47,7 +25,6 @@ _FIXTURES = Path(__file__).parent / "fixtures"
 
 def _parse(filename: str) -> DataMessage:
     content = io.BytesIO((_FIXTURES / filename).read_bytes())
-    content.default_size = -1
     return StatGptSdmxProxyDataReader().convert(content)
 
 
@@ -84,9 +61,11 @@ class TestStubEerReader:
         assert msg.header.id == "stub-fixture-eer"
 
     def test_header_prepared_year(self, msg: DataMessage) -> None:
+        assert msg.header.prepared is not None
         assert msg.header.prepared.year == 2026
 
     def test_header_sender_id(self, msg: DataMessage) -> None:
+        assert msg.header.sender is not None
         assert msg.header.sender.id == "unknown"
 
     # --- Dataset ---
@@ -109,8 +88,10 @@ class TestStubEerReader:
         }
 
     def test_observation_dimension_is_time_period(self, msg: DataMessage) -> None:
-        assert len(msg.observation_dimension) == 1
-        assert msg.observation_dimension[0].id == "TIME_PERIOD"
+        obs_dims = msg.observation_dimension
+        assert obs_dims is not None
+        assert len(obs_dims) == 1
+        assert obs_dims[0].id == "TIME_PERIOD"
 
     # --- Series count and keys ---
 
@@ -209,6 +190,7 @@ class TestImfWeoReader:
         assert msg.header.id == "7eee9c36-87cb-47ae-b942-25ebf0569ace"
 
     def test_header_sender_id(self, msg: DataMessage) -> None:
+        assert msg.header.sender is not None
         assert msg.header.sender.id == "unknown"
 
     # --- Dataset ---
@@ -230,8 +212,10 @@ class TestImfWeoReader:
         }
 
     def test_observation_dimension_is_time_period(self, msg: DataMessage) -> None:
-        assert len(msg.observation_dimension) == 1
-        assert msg.observation_dimension[0].id == "TIME_PERIOD"
+        obs_dims = msg.observation_dimension
+        assert obs_dims is not None
+        assert len(obs_dims) == 1
+        assert obs_dims[0].id == "TIME_PERIOD"
 
     # --- Series count and keys ---
 
@@ -386,11 +370,13 @@ class TestImfWeoDatasetLevelAttributesReader:
 
     def test_attr_map_update_date_matches_attrib(self, dataset, attr_map: dict) -> None:
         assert attr_map["UPDATE_DATE"] == _attr_code_id(dataset.attrib["UPDATE_DATE"])
-from sdmx.message import DataMessage
 
-from statgpt.common.data.statgpt_sdmx_proxy.v30.reader import StatGptSdmxProxyDataReader
 
 FIXTURE = Path(__file__).parent / "data_all_attribute_levels.json"
+
+
+def _parse_payload(payload: dict) -> DataMessage:
+    return StatGptSdmxProxyDataReader().convert(io.BytesIO(json.dumps(payload).encode()))
 
 
 def _parse_fixture() -> DataMessage:
@@ -410,6 +396,94 @@ def _series_by_country(dataset) -> dict:
 
 def _obs_by_time(observations) -> dict:
     return {o.dimension.values["TIME_PERIOD"].value: o for o in observations}
+
+
+def test_proxy_fixture_uses_dimension_group_attribute_category() -> None:
+    """Proxy payloads keep group attributes separate from series attributes."""
+    reader = StatGptSdmxProxyDataReader()
+    reader.convert(io.BytesIO(FIXTURE.read_bytes()))
+    attr_levels = {attr.id: level for attr, level in reader._attr_level.items()}
+
+    assert attr_levels["NA_STO"] == "dimensionGroup"
+    assert attr_levels["SERIES_NAME"] == "dimensionGroup"
+    assert attr_levels["BASE_YEAR"] == "dimensionGroup"
+
+
+def test_proxy_fixture_parses_uncoded_dimension_value_objects() -> None:
+    """TIME_PERIOD values use the proxy ``{"value": "..."}`` syntax."""
+    series = _series_by_country(_parse_fixture().data[0])
+    usa_obs = _obs_by_time(series["USA"][1])
+
+    assert sorted(usa_obs) == ["2020", "2021"]
+
+
+def test_reader_parses_proxy_payload_with_only_observation_dimensions() -> None:
+    """Proxy responses can carry all dimensions directly on bare observations."""
+    msg = _parse_payload(
+        {
+            "meta": {
+                "id": "OBSERVATION-ONLY",
+                "prepared": "2026-06-02T00:00:00",
+                "sender": {"id": "TEST"},
+            },
+            "data": {
+                "dataSets": [
+                    {
+                        "action": "Replace",
+                        "observations": {
+                            "0:0": ["42", 0],
+                        },
+                    }
+                ],
+                "structures": [
+                    {
+                        "dimensions": {
+                            "observation": [
+                                {
+                                    "id": "TIME_PERIOD",
+                                    "keyPosition": 0,
+                                    "values": [{"value": "2026"}],
+                                },
+                                {
+                                    "id": "REF_AREA",
+                                    "keyPosition": 1,
+                                    "values": [{"id": "US"}],
+                                },
+                            ]
+                        },
+                        "attributes": {
+                            "observation": [
+                                {
+                                    "id": "OBS_STATUS",
+                                    "relationship": {"observation": {}},
+                                    "values": [{"id": "A"}],
+                                }
+                            ]
+                        },
+                        "measures": {
+                            "observation": [
+                                {
+                                    "id": "OBS_VALUE",
+                                    "values": [],
+                                }
+                            ]
+                        },
+                    }
+                ],
+            },
+        }
+    )
+
+    dataset = msg.data[0]
+    assert msg.observation_dimension is AllDimensions
+    assert len(dataset.series) == 0
+    assert len(dataset.obs) == 1
+
+    obs = dataset.obs[0]
+    assert obs.dimension.values["TIME_PERIOD"].value == "2026"
+    assert obs.dimension.values["REF_AREA"].value == "US"
+    assert obs.value == "42"
+    assert _attr_display(obs.attached_attribute) == {"OBS_STATUS": "A"}
 
 
 def test_reader_parses_dataset_level_attributes() -> None:
@@ -432,10 +506,12 @@ def test_reader_parses_series_level_attributes() -> None:
     usa_attrib = _attr_display(usa_key.attrib)
     assert usa_attrib["SCALE"] == "9"
     assert usa_attrib["DECIMALS"] == "3"
+    assert usa_attrib["COUNTRY_UPDATE_DATE"] == "2025-09-30"
 
     fra_key, _ = series["FRA"]
     fra_attrib = _attr_display(fra_key.attrib)
     assert fra_attrib["SCALE"] == "9"
+    assert fra_attrib["COUNTRY_UPDATE_DATE"] == "2025-10-01"
     assert "DECIMALS" not in fra_attrib  # null slot skipped
 
 
@@ -466,11 +542,18 @@ def test_reader_parses_observation_level_attributes() -> None:
 
     usa_obs = _obs_by_time(series["USA"][1])
     assert usa_obs["2020"].value == "100"
-    # both attributes resolve via coded index 0
-    assert _attr_display(usa_obs["2020"].attached_attribute) == {"OBS_STATUS": "A", "OBS_CONF": "F"}
+    # coded attributes resolve via index 0; OBS_NOTE is a raw string in the data array
+    assert _attr_display(usa_obs["2020"].attached_attribute) == {
+        "OBS_STATUS": "A",
+        "OBS_CONF": "F",
+        "OBS_NOTE": "flash",
+    }
     # OBS_STATUS resolves via coded index 1 (not 0); OBS_CONF omitted (null slot)
-    assert _attr_display(usa_obs["2021"].attached_attribute) == {"OBS_STATUS": "H"}
+    assert _attr_display(usa_obs["2021"].attached_attribute) == {
+        "OBS_STATUS": "H",
+        "OBS_NOTE": "revision",
+    }
 
-    # an observation with no attribute array carries no observation-level attributes
+    # raw strings are still resolved when coded attributes are null
     fra_obs = _obs_by_time(series["FRA"][1])
-    assert fra_obs["2020"].attached_attribute == {}
+    assert _attr_display(fra_obs["2020"].attached_attribute) == {"OBS_NOTE": "preliminary"}

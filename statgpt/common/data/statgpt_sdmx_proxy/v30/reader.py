@@ -281,11 +281,9 @@ class StatGptSdmxProxyDataReader(Reader):
             if index is None:
                 continue
             if not isinstance(index, int):
-                log.debug(
-                    "Attribute %s has non-integer index %r; skip",
-                    attr.id,
-                    index,
-                )
+                av = self._resolve_dataset_level_slot(attr, index)
+                if av is not None and av.value is not None:
+                    result[attr.id] = av
                 continue
             if attr not in self._attr_values:
                 log.debug(
