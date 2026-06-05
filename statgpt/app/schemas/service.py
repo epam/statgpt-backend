@@ -1,7 +1,7 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
+from statgpt.app.schemas.query import AppJsonQueryWithMetadata
 from statgpt.common.schemas.channel_dataset import ChannelDatasetExpanded
-from statgpt.common.schemas.query import JsonQueryWithMetadata
 from statgpt.common.schemas.tools import BaseToolConfig
 
 
@@ -28,11 +28,20 @@ class ChannelDatasetsMetadataResponse(BaseModel):
 
 
 class GeneratePythonCodeRequest(BaseModel):
-    queries: list[JsonQueryWithMetadata] = Field(
+    queries: list[AppJsonQueryWithMetadata] = Field(
         min_length=1,
         max_length=64,
         description="List of JSON queries with metadata to generate Python code for",
     )
+
+    @field_validator("queries")
+    @classmethod
+    def _validate_at_least_one_enabled_query(
+        cls, value: list[AppJsonQueryWithMetadata]
+    ) -> list[AppJsonQueryWithMetadata]:
+        if all(query.disabled for query in value):
+            raise ValueError("All queries are disabled; at least one enabled query is required")
+        return value
 
 
 class GeneratePythonCodeResponse(BaseModel):
