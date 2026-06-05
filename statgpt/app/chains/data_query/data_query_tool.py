@@ -18,7 +18,8 @@ from .query_builder.factory import QueryBuilderFactory
 class DataQueryArgs(ToolArgs):
     query: str = Field(
         description="An indicator with all of its filters in plain text. "
-        "Specify all countries, dates, frequencies, datasets the user requested"
+        "Specify all countries, dates, frequencies, datasets the user requested. "
+        "The query must reflect only what the user asked for — do not add, infer, or expand any filters."
     )
 
 
