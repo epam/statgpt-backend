@@ -85,7 +85,7 @@ async def _log_results(job_ids: list[int]) -> bool:
     return failed == 0
 
 
-async def _deduplicate_channels(channel_ids: set[int], auth_context: AuthContext) -> None:
+async def _deduplicate_channels(channel_ids: set[int]) -> None:
     """Run deduplication for channels that had a reindex.
 
     NOTE: The number of concurrent executions is limited by the semaphore
@@ -96,9 +96,7 @@ async def _deduplicate_channels(channel_ids: set[int], auth_context: AuthContext
     _log.info(f"Running deduplication for {len(sorted_ids)} channel(s) with reindex: {sorted_ids}")
     results = await asyncio.gather(
         *(
-            deduplicate_dimensions_in_background_task(
-                channel_id=channel_id, auth_context=auth_context
-            )
+            deduplicate_dimensions_in_background_task(channel_id=channel_id)
             for channel_id in sorted_ids
         ),
         return_exceptions=True,
@@ -128,7 +126,7 @@ async def run_auto_update() -> bool:
 
     reindex_channel_ids = await _get_reindex_channel_ids(job_ids)
     if reindex_channel_ids:
-        await _deduplicate_channels(reindex_channel_ids, auth_context)
+        await _deduplicate_channels(reindex_channel_ids)
 
     return await _log_results(job_ids)
 

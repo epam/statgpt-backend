@@ -1,4 +1,4 @@
-# https://github.com/epam/ai-dial-ci/blob/2.7.3/actions/build_docker/action.yml
+# https://github.com/epam/ai-dial-ci/blob/4.4.0/actions/build_docker/action.yml
 # This version has modified values for maintainer and org.opencontainers.image.licenses
 
 name: Build docker
@@ -70,25 +70,25 @@ runs:
   steps:
     - name: Setup Docker Qemu
       if: ${{ inputs.platforms != 'linux/amd64' }}
-      uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3.7.0
+      uses: docker/setup-qemu-action@ce360397dd3f832beb865e1373c09c0e9f86d70a # v4.0.0
     - name: Setup Docker Buildx
-      uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
+      uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4.0.0
     - name: Login to GitHub Container Registry
       if: ${{ fromJSON(inputs.push-enabled) }} # workaround for composite jobs not being able to pass boolean inputs
-      uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
+      uses: docker/login-action@b45d80f862d83dbcd57f89517bcf500b2ab88fb2 # v4.0.0
       with:
         registry: ghcr.io
         username: ${{ inputs.ghcr-username }}
         password: ${{ inputs.ghcr-password }}
     - name: Login to Docker Hub
       if: ${{ fromJSON(inputs.push-enabled) }} # workaround for composite jobs not being able to pass boolean inputs
-      uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
+      uses: docker/login-action@b45d80f862d83dbcd57f89517bcf500b2ab88fb2 # v4.0.0
       with:
         username: ${{ inputs.dockerhub-username }}
         password: ${{ inputs.dockerhub-password }}
     - name: Build and export to Docker
       if: ${{ fromJSON(inputs.trivy-enabled) }} # workaround for composite jobs not being able to pass boolean inputs
-      uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
+      uses: docker/build-push-action@d08e5c354a6adb9ed34480a06d141179aa583294 # v7.0.0
       with:
         context: .
         file: ${{ inputs.dockerfile-path }}
@@ -115,7 +115,7 @@ runs:
     - name: Run Trivy scanner (JSON output, no fail)
       id: trivy
       if: ${{ fromJSON(inputs.trivy-enabled) }} # workaround for composite jobs not being able to pass boolean inputs
-      uses: aquasecurity/trivy-action@97e0b3872f55f89b95b2f65b3dbab56962816478 # v0.35.0
+      uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # v0.35.0
       with:
         image-ref: "${{ inputs.image-name }}:${{ inputs.image-tag }}"
         format: "json"
@@ -144,7 +144,7 @@ runs:
       continue-on-error: ${{ fromJSON(env.CONTINUE_ON_ERROR) }}
     - name: Upload Trivy report (SARIF)
       if: ${{ steps.trivy-generate-sarif.outcome == 'success' }}
-      uses: github/codeql-action/upload-sarif@cdefb33c0f6224e58673d9004f47f7cb3e328b89 # v4.31.10
+      uses: github/codeql-action/upload-sarif@c10b8064de6f491fea524254123dbe5e09572f13 # v4.35.1
       with:
         sarif_file: "trivy-results.sarif"
         category: trivy
@@ -164,7 +164,7 @@ runs:
       continue-on-error: ${{ fromJSON(env.CONTINUE_ON_ERROR) }}
     - name: Build and push
       if: ${{ fromJSON(inputs.push-enabled) }} # workaround for composite jobs not being able to pass boolean inputs
-      uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
+      uses: docker/build-push-action@d08e5c354a6adb9ed34480a06d141179aa583294 # v7.0.0
       with:
         context: .
         file: ${{ inputs.dockerfile-path }}

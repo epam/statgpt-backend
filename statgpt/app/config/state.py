@@ -12,6 +12,7 @@ class StateVarsConfig:
     CMD_SKIP_DATA_QUERY_SUMMARIZATION = "cmd_skip_data_query_summarization"
     CMD_SKIP_TOOLS_EXECUTION = "cmd_skip_tools_execution"
     ERROR = 'error'
+    LLM_CALL_DURATIONS = "llm_call_durations"
 
     # values used in Agentic approach
     DIRECT_TOOL_CALLS = "direct_tool_calls"

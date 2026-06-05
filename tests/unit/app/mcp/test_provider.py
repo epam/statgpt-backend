@@ -26,6 +26,7 @@ async def test_data_query_artifact_adds_csv_resources():
     response = SimpleNamespace(
         resource_path="IMF:CPI(1.0.0)",
         visual_dataframe=df,
+        csv_dataframe=df,
         created_at=datetime(2026, 4, 20, 15, 30, 0, tzinfo=timezone.utc),
     )
     artifact = DataQueryArtifact.model_construct(data_responses={"ds1": response})

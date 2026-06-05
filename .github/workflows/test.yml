@@ -34,7 +34,15 @@ on:
       ort-version:
         type: string
         description: ORT version to use
-        default: "85.0.0" # HACK: pin ORT version due to java.util.NoSuchElementException in 85.1.0
+        default: "latest"
+      ort-config-repository:
+        type: string
+        description: ORT config repository to use
+        default: ${{ vars.ORT_CONFIG_VCS_URL || 'https://github.com/oss-review-toolkit/ort-config.git' }}
+      ort-config-revision:
+        type: string
+        description: ORT config revision to use
+        default: ${{ vars.ORT_CONFIG_VCS_REVISION || 'main' }}
       python-version:
         type: string
         description: Python version to use
@@ -104,11 +112,11 @@ jobs:
           docker-cleanup: "true"
           set-tmpdir: "true"
 
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           lfs: true
 
-      - uses: epam/ai-dial-ci/actions/python_prepare@3.1.3
+      - uses: epam/ai-dial-ci/actions/python_prepare@4.4.0
         with:
           python-version: ${{ inputs.python-version }}
           poetry-version: ${{ inputs.poetry-version }}
@@ -190,11 +198,11 @@ jobs:
           docker-cleanup: "true"
           set-tmpdir: "true"
 
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           lfs: true
 
-      - uses: epam/ai-dial-ci/actions/python_prepare@3.1.3
+      - uses: epam/ai-dial-ci/actions/python_prepare@4.4.0
         with:
           python-version: ${{ inputs.python-version }}
           poetry-version: ${{ inputs.poetry-version }}
@@ -232,7 +240,7 @@ jobs:
           make test
 
       - name: Upload test results
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()
         with:
           name: test-results
@@ -246,7 +254,7 @@ jobs:
       contents: read
       security-events: write
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           lfs: true
 
@@ -258,4 +266,6 @@ jobs:
           allow-dynamic-versions: "true"
           fail-on: "violations"
           ort-cli-args: "-P ort.forceOverwrite=true --stacktrace -P ort.analyzer.enabledPackageManagers=Poetry -P ort.enableRepositoryPackageCurations=true"
+          ort-config-repository: ${{ inputs.ort-config-repository }}
+          ort-config-revision: ${{ inputs.ort-config-revision }}
         continue-on-error: ${{ fromJSON(env.CONTINUE_ON_ERROR) }}

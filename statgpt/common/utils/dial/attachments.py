@@ -127,7 +127,7 @@ class AttachmentsStorage:
     ) -> AttachmentResponse:
         """Put a CSV file from a pandas DataFrame."""
         csv_buffer = BytesIO()
-        dataframe.to_csv(csv_buffer, index=False)
+        dataframe.to_csv(csv_buffer, index=False, date_format="%Y-%m-%d", lineterminator="\n")
         csv_buffer.seek(0)
         return await self.put_csv(name, csv_buffer)
 

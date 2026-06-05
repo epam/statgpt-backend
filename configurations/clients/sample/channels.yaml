@@ -33,7 +33,9 @@ channels:
         - "Currency/Unit of measure"
       country_named_entity_type: "Country/Reference area"
       conversation_starters:
-        intro_text: "What would you like to learn about?"
+        title: "What would you like to learn about?"
+        intro_text: "Search {indicators_total} official indicators from the IMF"
+        input_placeholder: "Ask about GDP, inflation or any other IMF indicator"
         buttons:
           - title: "Check available data"
             text: "What datasets are available?"
