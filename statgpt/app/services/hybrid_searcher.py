@@ -897,6 +897,11 @@ class HybridSearcher:
             query, "name_normalized", version_ids, self.config.max_lexical_pre_match_candidates
         )
         timings.lexical_pre_match = time.perf_counter() - t_lexical_pre_match
+        # Drop pre-match phrases that are not actually contiguous in the query so the
+        # normalization / separate-subjects prompts don't protect spurious terms
+        # (e.g. "country groups" surfaced for "... Group of Seven (G7) countries").
+        good_candidates = await self._filter_candidates_present_in_query(query, good_candidates)
+        candidates = await self._filter_candidates_present_in_query(query, candidates)
         forbidden = good_candidates | candidates
         logger.info(
             f"[search], {len(good_candidates)} good candidates, {len(candidates)} candidates "
@@ -1060,6 +1065,35 @@ class HybridSearcher:
                 values = dimension_query.values
                 availability_dict[dataset_id][dimension_id] = set(values)
         return availability_dict
+
+    @staticmethod
+    def _is_contiguous_sublist(needle: list[str], haystack: list[str]) -> bool:
+        n = len(needle)
+        if n == 0 or n > len(haystack):
+            return False
+        return any(haystack[i : i + n] == needle for i in range(len(haystack) - n + 1))
+
+    async def _filter_candidates_present_in_query(
+        self, query: str, candidates: set[str]
+    ) -> set[str]:
+        """Keep only candidates that occur as a contiguous (tokenized) phrase in the query.
+
+        Lexical pre-match highlights indicator-name tokens, so a candidate phrase can be
+        assembled from query words that are not actually adjacent - or are unrelated
+        concepts - in the user's query (e.g. an indicator named "... country groups"
+        matching the query "... Group of Seven (G7) countries"). Such phrases are not
+        really present in the query and must not be added to the protected
+        ("forbidden to remove") terms.
+        """
+        if not candidates:
+            return candidates
+        query_tokens = (await self._tokenize(query)).split()
+        result: set[str] = set()
+        for candidate in candidates:
+            candidate_tokens = (await self._tokenize(candidate)).split()
+            if self._is_contiguous_sublist(candidate_tokens, query_tokens):
+                result.add(candidate)
+        return result
 
     async def lexical_pre_match(
         self, query: str, highlight_field: str, version_ids: set[int], max_candidates: int
