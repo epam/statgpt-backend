@@ -30,6 +30,8 @@ normalizationPrompt:
        - Do NOT remove any of the listed terms from the query if they appear in it,
          even if step 1, 2, or 3 would otherwise remove them. These are known
          indicator terms that must be preserved.
+       - Do NOT add these terms if they are not present in the input. Only protect terms that are
+         already present in the input.
     5. Resolve all acronyms, keeping the original value in round brackets if it is not
        already resolved in the input.
     6. Append well-known terms with their well-known acronyms in round brackets if the
