@@ -6,8 +6,8 @@ from aidial_sdk.chat_completion import Role
 from aidial_sdk.exceptions import InvalidRequestError
 from pydantic import ValidationError
 
+from statgpt.app.schemas.query import AppJsonQuery
 from statgpt.app.services.chat_facade import ChannelServiceFacade
-from statgpt.common.schemas.query import JsonQuery
 from statgpt.common.utils.media_types import MediaTypes
 
 from .base import BaseMessageInterceptor
@@ -43,10 +43,10 @@ class SystemMessageInterceptor(BaseMessageInterceptor):
                     if not attachment.data:
                         raise InvalidRequestError("System message attachment must have data field")
                     try:
-                        JsonQuery.model_validate_json(attachment.data)
+                        AppJsonQuery.model_validate_json(attachment.data)
                     except ValidationError as e:
                         raise InvalidRequestError(
-                            "Failed to parse system message attachment data as JsonQuery"
+                            "Failed to parse system message attachment data as a JSON query"
                         ) from e
                 elif attachment.type == MediaTypes.MARKDOWN:
                     continue

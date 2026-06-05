@@ -6,6 +6,7 @@ import pandas as pd
 import plotly.graph_objects as go
 
 from statgpt.app.schemas.dial_app_configuration import StatGPTConfiguration
+from statgpt.app.schemas.query import AppJsonQueryWithMetadata
 from statgpt.app.schemas.tool_artifact import DataQueryArtifact
 from statgpt.app.services.python_code_generator import PYTHON_SDMX1_HEADER
 from statgpt.app.utils import get_python_code_markdown
@@ -270,12 +271,12 @@ class DataQueryArtifactDisplayer:
         if not self._config.json_query.enabled:
             return None
 
-        data = data_response.json_query
-        if data is None:
+        query = data_response.json_query
+        if query is None:
             return None
 
         assert self._config.json_query.name is not None, "json_query.name must be set when enabled"
-        content = json.dumps(data, ensure_ascii=False)
+        content = AppJsonQueryWithMetadata.from_common(query).model_dump_json(by_alias=True)
         title = data_response.enrich_attachment_name(self._config.json_query.name)
         return dict(type=MediaTypes.JSON, title=title, data=content)
 
