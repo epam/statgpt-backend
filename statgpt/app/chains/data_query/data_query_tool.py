@@ -17,9 +17,8 @@ from .query_builder.factory import QueryBuilderFactory
 
 class DataQueryArgs(ToolArgs):
     query: str = Field(
-        description="Concise, detailed query for a SINGLE indicator concept (e.g. GDP, inflation) and its filters. "
-        "Inflation 'from dataset D1 and D2' or 'for country C1 and C2' is the SAME concept - "
-        "NEVER split user query by country, frequency, time, dataset, data source, etc."
+        description="An indicator with all of its filters in plain text. "
+        "Specify all countries, dates, frequencies, datasets the user requested"
     )
 
 
