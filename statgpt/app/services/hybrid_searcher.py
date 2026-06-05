@@ -809,38 +809,13 @@ class HybridSearcher:
                 period_str = f"to {period.end}"
             period_str = "Time Period:\n" + period_str
 
-        removal_step = ""
-        if entities_str and period_str:
-            removal_step = (
-                "- from the input: "
-                "keep entities marked (DO NOT REMOVE), "
-                "remove entities marked (REMOVE) "
-                "and remove all parts related to Time Period. "
-                "If an entity or part of entity appears in multiple categories "
-                "and at least one instance is marked (DO NOT REMOVE), keep entity"
-            )
-        elif entities_str:
-            removal_step = (
-                "- from the input: "
-                "keep entities marked (DO NOT REMOVE), "
-                "remove entities marked (REMOVE). "
-                "If an entity or part of entity appears in multiple categories "
-                "and at least one instance is marked (DO NOT REMOVE), keep entity"
-            )
-        elif period_str:
-            removal_step = "- from the input remove all parts related to Time Period. Only period"
-
         forbidden_to_remove_str = ""
-        forbidden_step = ""
         if forbidden:
             forbidden_to_remove_str = ", ".join(forbidden)
             forbidden_to_remove_str = f"Forbidden to remove words:\n{forbidden_to_remove_str}\n"
-            forbidden_step = "- do not remove forbidden to remove words from the input if they are present in input"
 
         output = await self._normalization_chain.ainvoke(
             {
-                "removal_step": removal_step,
-                "forbidden_step": forbidden_step,
                 "input": query,
                 "entities": entities_str,
                 "period": period_str,

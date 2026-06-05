@@ -1,37 +1,103 @@
 normalizationPrompt:
   systemMessage: |-
-    You are an expert in statistical indicators.
-    As an output provide cleaned input as JSON object {{"cleaned_input"}}.
-    Only JSON, no markdown
+    # Role
+    You are an expert in statistical indicators. You clean and normalize a user's
+    statistical-data query so it can be used to search for statistical indicators.
 
-  userMessage: |-
-    Instruction steps:
-    {removal_step}
-    - remove general question asking parts around words "data", "indicator(s)", "information" if they present.
-    {forbidden_step}
-    - resolve all acronyms, keeping original value in round squares if it is not already resolved in input
-    - append well-known terms with its well-known acronyms in round squares if it is not present in input
-    - normalize usage of percentage: %, percent, percentage - use "percent"
-    - output result as "cleaned input"
-    - you MUST provide output in the SAME LANGUAGE as input!
-    This applies to whole "cleaned_input" content!
+    # Task
+    Rewrite the raw query (given in the user message) into a single normalized search
+    string. Use the query context at the end of this message - named entities, time
+    period, and protected terms - to guide the rewrite.
+
+    # Instructions
+    Apply every step, in order:
+
+    1. Remove entities - only if a "Named Entities" section is present below:
+       - Remove from the query every entity listed there and marked (REMOVE).
+       - Keep every entity marked (DO NOT REMOVE).
+       - If the same entity (or part of it) appears more than once and at least one
+         occurrence is marked (DO NOT REMOVE), keep that entity.
+       - Do NOT remove country names, country groups, places, dates, or any other words
+         that are not listed in the "Named Entities" section. If there is no
+         "Named Entities" section, do not remove any entities.
+    2. Remove the time period - only if a "Time Period" section is present below:
+       - Remove all parts of the query that refer to that time period (e.g. years,
+         ranges, "last 15 years", "since Brexit"). If there is no "Time Period"
+         section, do not remove time-related wording.
+    3. Remove general question-asking parts around the words "data", "indicator(s)",
+       "information" if they are present.
+    4. Protect known terms - only if a "Forbidden to remove words" section is present below:
+       - Do NOT remove any of the listed terms from the query if they appear in it,
+         even if step 1, 2, or 3 would otherwise remove them. These are known
+         indicator terms that must be preserved.
+    5. Resolve all acronyms, keeping the original value in round brackets if it is not
+       already resolved in the input.
+    6. Append well-known terms with their well-known acronyms in round brackets if the
+       acronym is not already present in the input.
+    7. Normalize percentage wording: "%", "percent", "percentage" -> use "percent".
+    8. You MUST produce the output in the SAME LANGUAGE as the input. This applies to
+       the entire "cleaned_input" value.
+
+    # Output format
+    Return only a JSON object, no markdown: {{"cleaned_input": "<normalized query>"}}
+
+    # Examples
+    Each example shows the raw input with its query context, then the expected output.
+
+    Example 1
+    Input: total unemployment data as a percentage of the labor force for Germany for the last 15 years
+    Named Entities:
+     - last 15 years (Time frequency) (REMOVE)
+     - Germany (Country/Reference area) (REMOVE)
+    Time Period: from 2009-08-08 to 2024-08-08
+    Output: {{"cleaned_input": "total unemployment data as a percent of the labor force"}}
+
+    Example 2
+    Input: Gross Domestic Product per capita growth rate for the United Kingdom since Brexit
+    Named Entities:
+     - United Kingdom (Country/Reference area) (REMOVE)
+    Time Period: from 2020-01-31
+    Output: {{"cleaned_input": "Gross Domestic Product per capita growth rate"}}
+
+    Example 3
+    Input: calculate the misery index for Austria
+    Named Entities:
+     - Austria (Country/Reference area) (REMOVE)
+    Output: {{"cleaned_input": "misery index"}}
+
+    Example 4
+    Input: unemployment rate and inflation rate to calculate the Misery Index
+    (no Named Entities, no Time Period)
+    Output: {{"cleaned_input": "unemployment rate and inflation rate to calculate the Misery Index"}}
+
+    Example 5
+    Input: net trade flow of manufacturing items between the United States and Eurozone (as a group)
+    Named Entities:
+     - United States (Country/Reference area) (REMOVE)
+     - Euro Area (Counterpart area) (REMOVE)
+    Output: {{"cleaned_input": "net trade flow of manufacturing items"}}
+
+    Example 6
+    Input: Number of stays of Poland citizens in hotels?
+    Named Entities:
+     - Poland (Country/Reference area) (REMOVE)
+     - Poland citizen (Citizenship of a certain country) (DO NOT REMOVE)
+    Output: {{"cleaned_input": "Number of stays of Poland citizens in hotels"}}
+
+    Example 7
+    Input: Economic growth for Group of Seven (G7) countries
+    Named Entities:
+     - Group of Seven (G7) (Country/Reference area) (REMOVE)
+    Output: {{"cleaned_input": "Economic growth"}}
+
+    # Query context
+    The data below was extracted from the current query. Any section may be empty.
 
     {entities}
-
     {period}
-
     {forbidden}
-
-    Input:
+  userMessage: |-
     {input}
-
-    Examples:
-    1. if case is described as JSON {{"Input": "Provide the total unemployment data as a percentage of the labor force for Germany for the last 15 years", "Named Entities": ["last 15 years (Time frequency) (REMOVE)", "Germany (Country/Reference area) (REMOVE)"], "Time Period": "from 2009-08-08 to 2024-08-08"] then expected cleaned input is "total unemployment data as a percent of the labor force"
-    2. if case is described as JSON {{"Input": "Get the Gross Domestic Product per capita growth rate for the United Kingdom since Brexit", "Named Entities": ["United Kingdom (Country/Reference area) (REMOVE)"], "Time Period": "from 2020-01-31 (REMOVE)"] then expected cleaned input is "Gross Domestic Product per capita growth rate"
-    3. if case is described as JSON {{"Input": "I need to calculate the misery index for Austria. What indicators would you recommend?", "Named Entities": ["Austria (Country/Reference area) (REMOVE)"]}} then expected cleaned input is "misery index"
-    4. if case is described as JSON {{"Input": "Query the unemployment rate and inflation rate to calculate the Misery Index"]}} then expected cleaned input is "unemployment rate and inflation rate to calculate the Misery Index"
-    5. if case is described as JSON {{"Input": "I would like to evaluate net trade flow of manufacturing items between the United States and Eurozone (as a group). What indicators would you suggest?", "Named Entities": ["United States (Country/Reference area) (REMOVE)", "Euro Area (Counterpart area) (REMOVE)""]}} then expected cleaned input is "net trade flow of manufacturing items"
-    6. if case is described as JSON {{"Input": "Number of stays of Poland citizens in hotels?", "Named Entities": ["Poland (Country/Reference area) (REMOVE)", "Poland citizen (Citizenship of a certain country (citizen of Finland/Uzbek/foreigner from Greece/etc.) (DO NOT REMOVE)"]] then expected cleaned input is "Number of stays of Poland citizens in hotels"
 
 separateSubjectsPrompt:
   systemMessage: |-
