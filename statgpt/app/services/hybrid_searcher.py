@@ -418,9 +418,48 @@ class HybridSearcher:
             candidates = self.make_sure_top_n_is_included(
                 candidates, hybrid_sorted, max_output=search_params.max_candidates
             )
+            candidates = self._include_lexical_only_candidates(
+                candidates,
+                lex_filtered,
+                max_lexical_only=self._outer.config.max_lexical_only_candidates,
+            )
 
             timings.hybrid_candidates_total = time.perf_counter() - t_total
             return lex_filtered, sem_filtered, candidates
+
+        def _include_lexical_only_candidates(
+            self,
+            candidates: list[dict],
+            lex_filtered: HarmonizedItemsScoredDict,
+            max_lexical_only: int,
+        ) -> list[dict]:
+            """Force the top lexical-only candidates into the LLM relevance set.
+
+            Fusion (`_hybrid_combination`) is anchored on the semantic results: it iterates the
+            semantic candidates and drops any id missing from them. A strong keyword match that
+            falls outside the semantic top-k therefore never enters the candidate set, never
+            reaches the LLM relevance judge, and can never be selected — a pure recall loss on
+            rare/coded indicators with weak embeddings. This rescues up to ``max_lexical_only`` such
+            candidates (already availability-filtered, ranked by lexical score) that are not already
+            present, appending them on top of the diversified hybrid candidates so the judge can
+            still score them.
+            """
+            if max_lexical_only <= 0:
+                return candidates
+
+            existing_ids = {c['id'] for c in candidates}
+            lexical_sorted = sorted(lex_filtered.items(), key=lambda x: x[1].score, reverse=True)
+
+            added = 0
+            for _id, data in lexical_sorted:
+                if added >= max_lexical_only:
+                    break
+                if _id in existing_ids:
+                    continue
+                candidates.append({"id": _id, "metadata": data.metadata.model_dump()})
+                existing_ids.add(_id)
+                added += 1
+            return candidates
 
         def make_sure_top_n_is_included(
             self,
