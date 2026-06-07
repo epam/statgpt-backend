@@ -58,7 +58,7 @@ dependencies = [
     'setuptools (>=80.4.0)',                     # Package management
     'babel (>=2.17.0,<3.0.0)',                   # Internationalization
     'aiofiles (>=25.1.0,<26.0.0)',               # Async file operations
-    'pyarrow (>=20.0.0,<21.0.0)',                # Parquet support for import/export
+    'pyarrow (>=23.0.1,<24.0.0)',                # Parquet support for import/export
 ]
 
 [project.optional-dependencies]

@@ -56,6 +56,9 @@ resolutions:
     - message: ".*PyPI::numpy:2\\..*"
       reason: "CANT_FIX_EXCEPTION"
       comment: "BSD 3-Clause License: https://github.com/numpy/numpy/blob/main/LICENSE.txt"
+    - message: ".*PyPI::pyarrow:23\\..*"
+      reason: "CANT_FIX_EXCEPTION"
+      comment: "Apache 2.0 License: https://github.com/apache/arrow/blob/apache-arrow-23.0.1/LICENSE.txt"
 
     # Database / ORM
     - message: ".*PyPI::alembic:1\\..*"
