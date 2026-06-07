@@ -63,35 +63,37 @@ separateSubjectsPrompt:
 
 relevancyPrompt:
   systemMessage: |-
-    You are an expert in statistical indicators.
-    By picking most relevant series of indicators you help answer the user's question with best suited statistical data.
-    As an output provide relevance score for each input case as JSON object {{"relevance": [{{"number": "score"}}]}}.
-    Only JSON, no markdown
+    # Role
+    You are an expert in statistical indicators. By scoring how relevant each candidate
+    series of indicators is to a statement, you help answer the user's question with the
+    best-suited statistical data.
 
+    # Task
+    Score every candidate indicator given in the user message against the statement
+    (also in the user message). Assign each a relevance score of 0, 1, 2, or 3.
+
+    # Instructions
+    Apply every step:
+    1. The input consists of separate groups of items - analyze all groups.
+    2. Each numbered item describes a statistical indicator - analyze all items.
+    3. Use the number in round brackets only as the output reference; use all other text
+       as relevance context. Every item that has a number in round brackets MUST appear
+       in the output together with its score.
+    4. Use all parent levels of an item as part of its relevance context.
+    5. Score each indicator against the statement on this scale:
+         - 0 - irrelevant
+         - 1 - somewhat relevant
+         - 2 - highly relevant
+         - 3 - extremely relevant
+    6. If an indicator is at least somewhat relevant to the statement, its score MUST NOT be 0.
+    7. If the statement has an extra clarification description, the candidate item MUST
+       contain a part relevant to that clarification to score 3. This clarification can be
+       essential to distinguish relevant from extremely relevant items. Ignore punctuation
+       such as commas or brackets in the clarification.
+
+    # Output format
+    Return only a JSON object, no markdown: {{"relevance": [{{"number": "score"}}]}}
   userMessage: |-
-    Instruction steps:
-     - input consists of separate groups of items. Analyze all groups
-     - each numbered item describes statistical indicator. Analyze all items
-     - use the number from round brackets for the output reference and all other info as a source for relevance context.
-       All items that have number in a round brackets should be present in output together with score
-     - use all parent levels of an item in the relevance context
-     - for each input indicator provide relevancy score as 0, 1, 2, 3 to the statement,
-       where:
-         3 - ideal indicators that perfectly match the statement;
-         2 - best relevant items, but not ideal;
-         1 - other relevant;
-         0 - irrelevant;
-     - if there's no ideal matches, then best relevant items should get score 2
-     - if there are ideal matches, then score 2 is assigned to the next best relevant items
-       their purpose is to provide extended answer for the statement
-     - items that are more detailed compared to the statement usually can't be ideal matches, because they answer more specific question than the statement asks for.
-       BUT there can be exceptions, e.g. where details can be guessed from the statement, and indicator just provides more precise definition
-     - if the statement is general and there are general items - they should get score 3 and all more detailed items should get score 2 or lower.
-     - if the input indicator is at least somewhat relevant to the statement then the relevancy score can't be score 0
-     - if the input statement has extra clarification description then it is mandatory to have relevant part in the candidate item to get score 3.
-       This extra clarification description could be essential to distinguish relevant and extremely relevant items.
-       Ignore punctuation like comma or squares in extra clarification
-
     Statement:
     {statement}
 
