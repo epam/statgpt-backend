@@ -929,7 +929,10 @@ class HybridSearcher:
         logger.info(f"[search], {normalized=}, (elapsed {time.perf_counter() - t_total:0.3f} sec)")
 
         t_separate_subjects = time.perf_counter()
-        queries = await self._separate_subjects(normalized, good_candidates)
+        if self.config.disable_separate_subjects:
+            queries = [normalized]
+        else:
+            queries = await self._separate_subjects(normalized, good_candidates)
         timings.separate_subjects = time.perf_counter() - t_separate_subjects
         logger.info(f"[search], {queries=}, (elapsed {time.perf_counter() - t_total:0.3f} sec)")
 
