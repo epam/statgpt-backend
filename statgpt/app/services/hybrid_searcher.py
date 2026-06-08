@@ -22,7 +22,7 @@ from statgpt.common.config.logging import logger
 from statgpt.common.data.base import DimensionQuery, QueryOperator
 from statgpt.common.hybrid_indexer.schemas import IndicatorIndex, MatchingIndex
 from statgpt.common.schemas import HybridSearchConfig
-from statgpt.common.utils import async_utils
+from statgpt.common.utils import AsyncLoadingCache, async_utils
 from statgpt.common.utils.elastic import ElasticIndex, SearchResult
 from statgpt.common.utils.models import get_chat_model
 from statgpt.common.vectorstore import ScoredVectorStoreDocument, VectorStore
@@ -762,6 +762,13 @@ class HybridSearcher:
         self._indicators_index = indicators_index
         self._vectorstore = vectorstore
 
+        # Memoize tokenization for this search: the same query/candidate strings are tokenized
+        # several times across the pipeline (assess -> dedup -> cleanup -> contiguity filter).
+        # Instance-level on purpose - each HybridSearcher binds a specific `_matching_index`
+        # (per-channel analyzer), so the cache must not be shared across instances. No TTL: it
+        # is discarded with this per-search instance.
+        self._tokenize_cache: AsyncLoadingCache[str] = AsyncLoadingCache()
+
         self._normalization_chain = (
             hybrid_search_default_prompts.normalization_prompt.get_template()
             | self._llm.with_structured_output(method="json_mode")
@@ -848,8 +855,12 @@ class HybridSearcher:
 
     async def _tokenize(self, value: str) -> str:
         value = value.lower()
-        tokens = await self._matching_index.analyze(text=value)
-        return " ".join(t.token for t in tokens)
+
+        async def _load() -> str:
+            tokens = await self._matching_index.analyze(text=value)
+            return " ".join(token.token for token in tokens)
+
+        return await self._tokenize_cache.get(value, _load)
 
     async def _search_by_query(
         self,
@@ -1069,13 +1080,6 @@ class HybridSearcher:
                 availability_dict[dataset_id][dimension_id] = set(values)
         return availability_dict
 
-    @staticmethod
-    def _is_contiguous_sublist(needle: list[str], haystack: list[str]) -> bool:
-        n = len(needle)
-        if n == 0 or n > len(haystack):
-            return False
-        return any(haystack[i : i + n] == needle for i in range(len(haystack) - n + 1))
-
     async def _filter_candidates_present_in_query(
         self, query: str, candidates: set[str]
     ) -> set[str]:
@@ -1090,11 +1094,12 @@ class HybridSearcher:
         """
         if not candidates:
             return candidates
-        query_tokens = (await self._tokenize(query)).split()
+        padded_query = f" {await self._tokenize(query)} "
         result: set[str] = set()
         for candidate in candidates:
-            candidate_tokens = (await self._tokenize(candidate)).split()
-            if self._is_contiguous_sublist(candidate_tokens, query_tokens):
+            candidate_tokens = await self._tokenize(candidate)
+            # Guard empty: all-stopword phrases tokenize to "" and would match any query.
+            if candidate_tokens and f" {candidate_tokens} " in padded_query:
                 result.add(candidate)
         return result
 
