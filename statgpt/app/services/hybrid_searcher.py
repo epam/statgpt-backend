@@ -447,6 +447,13 @@ class HybridSearcher:
             if max_lexical_only <= 0:
                 return candidates
 
+            # can be simplified to:
+            # 1. sort lexical candidates by reversed score
+            # 2. filter out ids present in existing candidates
+            # 3. take slice of lexical candidates
+            # 4. extending the candidates with this slice
+            # this avoids looping and state management inside the loop
+
             existing_ids = {c['id'] for c in candidates}
             lexical_sorted = sorted(lex_filtered.items(), key=lambda x: x[1].score, reverse=True)
 
