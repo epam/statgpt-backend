@@ -222,7 +222,7 @@ class HybridSearchConfig(BaseYamlModel):
     )
 
     disable_separate_subjects: bool = Field(
-        default=False,
+        default=True,
         description=(
             "Whether to split the normalized query into multiple subject sub-queries via LLM "
             "before searching. When disabled, the normalized query is searched as a single query."
