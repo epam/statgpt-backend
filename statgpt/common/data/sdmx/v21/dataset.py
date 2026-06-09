@@ -128,6 +128,7 @@ class Sdmx21DataResponse(DataResponse):
         url: str | None,
         status: DataResponseStatus,
         display_series_count: int = 0,
+        last_updated_at: datetime | None = None,
     ):
         super().__init__()
         self.dataset = dataset
@@ -136,6 +137,7 @@ class Sdmx21DataResponse(DataResponse):
         self._url = url
         self._status = status
         self._display_series_count = display_series_count
+        self._last_updated_at = last_updated_at
 
     @property
     def status(self) -> DataResponseStatus:
@@ -208,6 +210,7 @@ class Sdmx21DataResponse(DataResponse):
             url=None,
             status=self.status.merge(other.status),
             display_series_count=self._display_series_count + other._display_series_count,
+            last_updated_at=self._last_updated_at,
         )
 
     @property
@@ -265,6 +268,7 @@ class Sdmx21DataResponse(DataResponse):
                 key_dimension_ids_in_dsd_order=self.dataset.sdmx_key_dimension_ids_in_dsd_order,
             ),
             sdmx1_source=self.dataset.get_resolved_sdmx1_source(),
+            last_updated_at=self._last_updated_at,
         )
 
     def get_python_code_body(self, suffix: str = "") -> str | None:
@@ -1237,6 +1241,7 @@ class Sdmx21DataSet(
                 f"Query is not ready: {query}, missing dimensions: {missing_dimensions}"
             )
         sdmx_query = self._to_sdmx_query(query)
+        last_updated_at = await self.updated_at(auth_context)
 
         try:
             data_msg = await self._query_sdmx_data(sdmx_query, auth_context)
@@ -1252,6 +1257,7 @@ class Sdmx21DataSet(
                     parsing_status=DataParsingStatus.NA,
                 ),
                 display_series_count=0,
+                last_updated_at=last_updated_at,
             )
 
         if not data_msg:
@@ -1265,6 +1271,7 @@ class Sdmx21DataSet(
                     parsing_status=DataParsingStatus.FAILED,
                 ),
                 display_series_count=0,
+                last_updated_at=last_updated_at,
             )
 
         explorer_cfg = self._resolved_data_explorer_url_config() or DataExplorerUrlConfig()
@@ -1297,6 +1304,7 @@ class Sdmx21DataSet(
                     parsing_status=DataParsingStatus.FAILED,
                 ),
                 display_series_count=message_series_count,
+                last_updated_at=last_updated_at,
             )
 
         return Sdmx21DataResponse(
@@ -1309,6 +1317,7 @@ class Sdmx21DataSet(
                 parsing_status=DataParsingStatus.SUCCESS,
             ),
             display_series_count=message_series_count,
+            last_updated_at=last_updated_at,
         )
 
     def get_resolved_sdmx1_source(self) -> str | None:

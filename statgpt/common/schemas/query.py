@@ -1,4 +1,5 @@
 import re
+from datetime import datetime
 from enum import StrEnum
 from functools import cached_property
 from typing import ClassVar
@@ -84,6 +85,9 @@ class JsonQuery(BaseYamlModel):
 class JsonQueryWithMetadata(JsonQuery):
     metadata: JsonQueryMetadata = Field(description="The metadata of the query")
     sdmx1_source: str | None = Field(default=None, description="The sdmx1 library source id")
+    last_updated_at: datetime | None = Field(
+        default=None, description="When the dataset's data was last updated"
+    )
 
     @classmethod
     def from_query(
@@ -91,10 +95,12 @@ class JsonQueryWithMetadata(JsonQuery):
         query: JsonQuery,
         metadata: JsonQueryMetadata,
         sdmx1_source: str | None = None,
+        last_updated_at: datetime | None = None,
     ) -> "JsonQueryWithMetadata":
         return cls(
             urn=query.urn,
             filters=query.filters,
             metadata=metadata,
             sdmx1_source=sdmx1_source,
+            last_updated_at=last_updated_at,
         )
