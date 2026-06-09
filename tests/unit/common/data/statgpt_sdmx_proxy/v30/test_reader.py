@@ -21,7 +21,7 @@ from pathlib import Path
 
 import pytest
 from sdmx.message import DataMessage
-from sdmx.model.v21 import AllDimensions, AttributeValue, Code
+from sdmx.model.v21 import AllDimensions, AttributeValue, Code, DataSet, Observation, SeriesKey
 
 from statgpt.common.data.statgpt_sdmx_proxy.v30.reader import StatGptSdmxProxyDataReader
 from statgpt.common.data.statgpt_sdmx_proxy.v30.sdmx_client import (
@@ -53,40 +53,40 @@ class TestStandardFormatReader:
         return _parse_standard()
 
     @pytest.fixture(scope="class")
-    def dataset(self, msg: DataMessage):
+    def dataset(self, msg: DataMessage) -> DataSet:
         return msg.data[0]
 
     @pytest.fixture(scope="class")
-    def series_key(self, dataset):
+    def series_key(self, dataset: DataSet) -> SeriesKey:
         return next(iter(dataset.series))
 
     def test_returns_single_dataset(self, msg: DataMessage) -> None:
         assert isinstance(msg, DataMessage)
         assert len(msg.data) == 1
 
-    def test_lowercase_dataset_level_resolved(self, dataset) -> None:
+    def test_lowercase_dataset_level_resolved(self, dataset: DataSet) -> None:
         # lowercase ``dataset`` level key is normalised so dataSet attrs resolve
         assert _attr_code_id(dataset.attrib["UPDATE_DATE"]) == "2026-04-15T13:00:00Z"
 
-    def test_coded_dimension_value(self, series_key) -> None:
+    def test_coded_dimension_value(self, series_key: SeriesKey) -> None:
         assert series_key.values["COUNTRY"].value == "USA"
 
-    def test_value_object_extra_keys_filtered(self, series_key) -> None:
+    def test_value_object_extra_keys_filtered(self, series_key: SeriesKey) -> None:
         # SCALE's value carries start/end/order; _code_from_value must drop them
         # (else TypeError) while keeping the code id.
         assert _attr_code_id(series_key.attrib["SCALE"]) == "9"
 
-    def test_sparse_series_null_slot_skipped(self, series_key) -> None:
+    def test_sparse_series_null_slot_skipped(self, series_key: SeriesKey) -> None:
         assert "DECIMALS" not in series_key.attrib
 
-    def test_dataset_attr_empty_coded_list_is_none(self, dataset) -> None:
+    def test_dataset_attr_empty_coded_list_is_none(self, dataset: DataSet) -> None:
         assert dataset.attrib["DOI"].value is None
 
-    def test_dataset_attr_implicit_single_value(self, dataset) -> None:
+    def test_dataset_attr_implicit_single_value(self, dataset: DataSet) -> None:
         # PUBLISHER is beyond the data array; its single coded value is inferred.
         assert _attr_code_id(dataset.attrib["PUBLISHER"]) == "IMF"
 
-    def test_dataset_attr_empty_beyond_array_absent(self, dataset) -> None:
+    def test_dataset_attr_empty_beyond_array_absent(self, dataset: DataSet) -> None:
         # AUTHOR is beyond the array with no coded values -> not emitted.
         assert "AUTHOR" not in dataset.attrib
 
@@ -108,19 +108,25 @@ def _parse_fixture() -> DataMessage:
     return StatGptSdmxProxyDataReader().convert(io.BytesIO(FIXTURE.read_bytes()), structure=None)
 
 
-def _attr_display(attrib: dict) -> dict[str, str | None]:
+def _attr_display(attrib: dict[str, AttributeValue]) -> dict[str, str | None]:
     return {
         key: (value.value.id if hasattr(value.value, "id") else value.value)
         for key, value in attrib.items()
     }
 
 
-def _series_by_country(dataset) -> dict:
+def _series_by_country(dataset: DataSet) -> dict[str | None, tuple[SeriesKey, list[Observation]]]:
     return {sk.values["COUNTRY"].value: (sk, obs) for sk, obs in dataset.series.items()}
 
 
-def _obs_by_time(observations) -> dict:
-    return {o.dimension.values["TIME_PERIOD"].value: o for o in observations}
+def _obs_by_time(observations: list[Observation]) -> dict[str, Observation]:
+    result: dict[str, Observation] = {}
+    for o in observations:
+        assert o.dimension is not None
+        time_period = o.dimension.values["TIME_PERIOD"].value
+        assert time_period is not None
+        result[time_period] = o
+    return result
 
 
 def test_proxy_fixture_uses_dimension_group_attribute_category() -> None:

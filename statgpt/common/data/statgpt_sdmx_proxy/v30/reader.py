@@ -281,7 +281,7 @@ class StatGptSdmxProxyDataReader(Reader):
             if index is None:
                 continue
             if not isinstance(index, int):
-                av = self._resolve_dataset_level_slot(attr, index)
+                av = self._resolve_attr_slot(attr, index)
                 if av is not None and av.value is not None:
                     result[attr.id] = av
                 continue
@@ -323,12 +323,12 @@ class StatGptSdmxProxyDataReader(Reader):
                 if raw is None:
                     continue
 
-            av = self._resolve_dataset_level_slot(attr, raw)
+            av = self._resolve_attr_slot(attr, raw)
             if av is not None:
                 result[attr.id] = av
         return result
 
-    def _resolve_dataset_level_slot(self, attr: Any, raw: Any) -> AttributeValue | None:
+    def _resolve_attr_slot(self, attr: Any, raw: Any) -> AttributeValue | None:
         if raw is None:
             return AttributeValue(value=None, value_for=attr)  # type: ignore[arg-type]
 
@@ -359,7 +359,7 @@ class StatGptSdmxProxyDataReader(Reader):
         dimension key (e.g. ``"0:0::"`` for the COUNTRY+INDICATOR group, ``":0::"``
         for the INDICATOR-only group); empty segments are wildcards.  The value
         array aligns positionally to the ``dimensionGroup`` attributes declared in
-        the structure, using the same encoding as :meth:`_resolve_dataset_level_slot`
+        the structure, using the same encoding as :meth:`_resolve_attr_slot`
         (``null``, an integer index into the coded value list, or an inline list).
 
         Returns ``(dim_filter, attrs)`` pairs where ``dim_filter`` maps a dimension
@@ -381,7 +381,7 @@ class StatGptSdmxProxyDataReader(Reader):
             for slot, attr in zip(values, dg_attrs):
                 if slot is None:
                     continue
-                av = self._resolve_dataset_level_slot(attr, slot)
+                av = self._resolve_attr_slot(attr, slot)
                 if av is not None and av.value is not None:
                     attrs[attr.id] = av
             if attrs:
