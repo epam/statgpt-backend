@@ -12,6 +12,7 @@ class SupremeAgentDefaultPrompts(DefaltPromptsBase):
     system_prompt: str
     additional_context_wrapper_section: str
     default_general_section: str
+    default_tool_usage_section: str
     default_no_calculations_section: str
 
 

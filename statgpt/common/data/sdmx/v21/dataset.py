@@ -253,7 +253,7 @@ class Sdmx21DataResponse(DataResponse):
         return self._url
 
     @property
-    def json_query(self) -> dict:
+    def json_query(self) -> JsonQueryWithMetadata:
         return JsonQueryWithMetadata(
             urn=self.dataset.short_urn,
             filters=self._to_component_filters(self.sdmx_query),
@@ -265,7 +265,7 @@ class Sdmx21DataResponse(DataResponse):
                 key_dimension_ids_in_dsd_order=self.dataset.sdmx_key_dimension_ids_in_dsd_order,
             ),
             sdmx1_source=self.dataset.get_resolved_sdmx1_source(),
-        ).model_dump(by_alias=True)
+        )
 
     def get_python_code_body(self, suffix: str = "") -> str | None:
         return self.dataset.get_python_code_body(self.sdmx_query, suffix=suffix)
