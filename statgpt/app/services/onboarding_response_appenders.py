@@ -81,8 +81,7 @@ class PredefinedDataQueryResponseAppender(BaseResponseAppender[PredefinedDataQue
             ),
             metadata=json_query_metadata,
             sdmx1_source=dataset.get_resolved_sdmx1_source(),
-            last_updated_at=await dataset.updated_at(auth_context),
-        ).model_dump(mode="json", by_alias=True)
+        ).model_dump(by_alias=True)
         json_query_content = json.dumps(json_query)
         choice.add_attachment(
             type=MediaTypes.JSON,
