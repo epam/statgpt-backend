@@ -15,16 +15,16 @@
         },
         "series": {
           "0:0": {
-            "attributes": [0, 0],
+            "attributes": [0, 0, "2025-09-30"],
             "observations": {
-              "0": ["100", 0, 0],
-              "1": ["110", 1, null]
+              "0": ["100", 0, 0, "flash"],
+              "1": ["110", 1, null, "revision"]
             }
           },
           "1:0": {
-            "attributes": [0, null],
+            "attributes": [0, null, "2025-10-01"],
             "observations": {
-              "0": ["200"]
+              "0": ["200", null, null, "preliminary"]
             }
           }
         }
@@ -55,11 +55,13 @@
           ],
           "series": [
             {"id": "SCALE", "relationship": {"dimensions": ["COUNTRY", "INDICATOR"]}, "values": [{"id": "9"}]},
-            {"id": "DECIMALS", "relationship": {"dimensions": ["COUNTRY", "INDICATOR"]}, "values": [{"id": "3"}]}
+            {"id": "DECIMALS", "relationship": {"dimensions": ["COUNTRY", "INDICATOR"]}, "values": [{"id": "3"}]},
+            {"id": "COUNTRY_UPDATE_DATE", "relationship": {"dimensions": ["COUNTRY", "INDICATOR"]}, "values": []}
           ],
           "observation": [
             {"id": "OBS_STATUS", "relationship": {"observation": {}}, "values": [{"id": "A"}, {"id": "H"}]},
-            {"id": "OBS_CONF", "relationship": {"observation": {}}, "values": [{"id": "F"}]}
+            {"id": "OBS_CONF", "relationship": {"observation": {}}, "values": [{"id": "F"}]},
+            {"id": "OBS_NOTE", "relationship": {"observation": {}}, "values": []}
           ]
         },
         "measures": {
