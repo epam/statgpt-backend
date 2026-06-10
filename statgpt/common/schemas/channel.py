@@ -56,6 +56,13 @@ class SupremeAgentConfig(BaseYamlModel):
             " If empty, the default content is used."
         ),
     )
+    tool_usage_section: str = Field(
+        default="",
+        description=(
+            "Custom content for the 'Tool Usage' section of the system prompt."
+            " If empty, the default content is used."
+        ),
+    )
     no_calculations_section: str = Field(
         default="",
         description=(
@@ -105,6 +112,17 @@ class OutOfScopeConfig(BaseYamlModel):
             " start_new_conversation_message. If the number of out-of-scope messages exceeds this"
             " threshold, the start_new_conversation_message will be sent to the user. If set to -1, the"
             " feature is disabled."
+        ),
+    )
+
+
+class McpConfig(BaseYamlModel):
+    tool_name_prefix: str = Field(
+        default="",
+        pattern=r'^[a-zA-Z0-9_\.-]*$',
+        description=(
+            "Prefix prepended to tool names exposed via MCP (e.g. 'statgpt__'). "
+            "Internal agent tool names are unaffected. Empty string disables prefixing."
         ),
     )
 
@@ -173,6 +191,7 @@ class ChannelConfig(BaseYamlModel):
         None, description="The out of scope configuration"
     )
     token_usage: TokenUsageConfig = Field(default_factory=TokenUsageConfig)
+    mcp: McpConfig = Field(default_factory=McpConfig, description="MCP server configuration")
     bearer_token_required: bool = Field(
         default=False,
         description=(

@@ -32,6 +32,24 @@ StatGPT can expose its tools via the [Model Context Protocol (MCP)](https://mode
 
 The MCP server is mounted at `/api/v1/{deployment_id}/mcp`. The `{deployment_id}` placeholder is resolved per request from the URL path and is used to look up the channel configuration.
 
+### Tool Names and Descriptions
+
+By default, tools are exposed via MCP under the same names and descriptions the internal agent uses. The channel configuration can customize the MCP-facing values without affecting the chat flow:
+
+- `mcp.tool_name_prefix` — a prefix prepended to all tool names exposed via MCP (empty by default, i.e. no prefixing).
+- Per tool, `mcp_name` / `mcp_description` — overrides for the name/description exposed via MCP. If unset, the tool's regular `name` / `description` is used.
+
+```yaml
+details:
+  mcp:
+    tool_name_prefix: "statgpt__"
+  data_query:
+    name: "query_data"
+    mcp_name: "data_query"            # exposed via MCP as "statgpt__data_query"
+    mcp_description: "Query official statistics data using natural language."
+    # ...
+```
+
 ### DIAL Core Configuration
 
 To expose an existing StatGPT application's tools over MCP, add an `mcp` section to its entry in DIAL Core's `applications` config. The rest of the application fields (`endpoint`, `features`, etc.) are expected to already exist.
