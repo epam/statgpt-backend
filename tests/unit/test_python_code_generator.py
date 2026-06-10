@@ -1,5 +1,8 @@
 import pytest
+from pydantic import ValidationError
 
+from statgpt.app.schemas.query import AppJsonQuery, AppJsonQueryWithMetadata
+from statgpt.app.schemas.service import GeneratePythonCodeRequest
 from statgpt.app.services.python_code_generator import (
     PYTHON_SDMX1_HEADER,
     _build_key_from_filters,
@@ -93,7 +96,7 @@ def test_build_key_from_filters_legacy_filter_order_when_no_hint() -> None:
 
 
 def test_generate_python_code_uses_key_dimension_ids_in_dsd_order() -> None:
-    query = JsonQueryWithMetadata(
+    query = AppJsonQueryWithMetadata(
         urn=_VALID_URN,
         filters=[
             JsonComponentQuery(component_code="B", operator=JsonQueryOperator.IN, values=["b1"]),
@@ -168,8 +171,8 @@ def test_build_params_in_multiple_values_rejected() -> None:
         )
 
 
-def _make_query(urn: str) -> JsonQueryWithMetadata:
-    return JsonQueryWithMetadata(
+def _make_query(urn: str, disabled: bool = False) -> AppJsonQueryWithMetadata:
+    return AppJsonQueryWithMetadata(
         urn=urn,
         filters=[
             JsonComponentQuery(component_code="A", operator=JsonQueryOperator.IN, values=["a1"]),
@@ -179,6 +182,7 @@ def _make_query(urn: str) -> JsonQueryWithMetadata:
             indicator_dimensions=["B"],
             time_period_dimension="TIME_PERIOD",
         ),
+        disabled=disabled,
     )
 
 
@@ -203,7 +207,7 @@ def test_generate_merged_python_code_multi_query_separates_sections() -> None:
 
 
 def test_generate_merged_python_code_drops_dataset_with_any_excluded_filter() -> None:
-    excluded_query = JsonQueryWithMetadata(
+    excluded_query = AppJsonQueryWithMetadata(
         urn="IMF:DF_X(1.0)",
         filters=[
             JsonComponentQuery(component_code="A", operator=JsonQueryOperator.IN, values=["a1"]),
@@ -233,7 +237,7 @@ def test_generate_merged_python_code_drops_dataset_with_any_excluded_filter() ->
 
 
 def test_generate_merged_python_code_returns_header_only_when_all_excluded() -> None:
-    excluded_query = JsonQueryWithMetadata(
+    excluded_query = AppJsonQueryWithMetadata(
         urn="IMF:DF_X(1.0)",
         filters=[
             JsonComponentQuery(
@@ -250,3 +254,82 @@ def test_generate_merged_python_code_returns_header_only_when_all_excluded() -> 
     )
     code = generate_merged_python_code([excluded_query])
     assert code == PYTHON_SDMX1_HEADER
+
+
+def test_generate_merged_python_code_drops_disabled_query() -> None:
+    disabled_urn = "IMF:DF_DISABLED(1.0)"
+    code = generate_merged_python_code(
+        [_make_query(_VALID_URN), _make_query(disabled_urn, disabled=True)]
+    )
+    assert "DF_DISABLED" not in code
+    # Only one query survives, so the single-query branch is taken (no `# Dataset:` headers).
+    assert "# Dataset:" not in code
+    assert '"IMF,WEO,1.0"' in code
+
+
+def test_generate_merged_python_code_returns_header_only_when_all_disabled() -> None:
+    code = generate_merged_python_code([_make_query(_VALID_URN, disabled=True)])
+    assert code == PYTHON_SDMX1_HEADER
+
+
+def test_generate_python_code_request_rejects_all_disabled_queries() -> None:
+    with pytest.raises(ValidationError, match="All queries are disabled"):
+        GeneratePythonCodeRequest(queries=[_make_query(_VALID_URN, disabled=True)])
+
+
+def test_generate_python_code_request_accepts_partially_disabled_queries() -> None:
+    request = GeneratePythonCodeRequest(
+        queries=[_make_query(_VALID_URN), _make_query("IMF:DF_DISABLED(1.0)", disabled=True)]
+    )
+    assert len(request.queries) == 2
+
+
+def test_app_json_query_disabled_defaults_to_false_and_is_serialized() -> None:
+    query = _make_query(_VALID_URN)
+    assert query.disabled is False
+    assert query.model_dump(by_alias=True)["disabled"] is False
+
+
+def test_app_json_query_with_metadata_from_query_serializes_disabled() -> None:
+    common_query = JsonQueryWithMetadata(
+        urn=_VALID_URN,
+        filters=[],
+        metadata=JsonQueryMetadata(
+            country_dimension="A",
+            indicator_dimensions=["B"],
+            time_period_dimension="TIME_PERIOD",
+        ),
+    )
+    app_query = AppJsonQueryWithMetadata.from_query(
+        query=common_query, metadata=common_query.metadata
+    )
+    assert app_query.model_dump(by_alias=True)["disabled"] is False
+
+
+def test_app_json_query_with_metadata_from_common_round_trips() -> None:
+    common_query = JsonQueryWithMetadata(
+        urn=_VALID_URN,
+        filters=[
+            JsonComponentQuery(component_code="A", operator=JsonQueryOperator.IN, values=["a1"]),
+        ],
+        metadata=JsonQueryMetadata(
+            country_dimension="A",
+            indicator_dimensions=["B"],
+            time_period_dimension="TIME_PERIOD",
+            key_dimension_ids_in_dsd_order=["A", "B"],
+        ),
+        sdmx1_source="IMF_DATA",
+    )
+    app_query = AppJsonQueryWithMetadata.from_common(common_query)
+    assert app_query.disabled is False
+    assert app_query.model_dump() == {**common_query.model_dump(), "disabled": False}
+
+    dump = app_query.model_dump(by_alias=True)
+    assert dump["disabled"] is False
+    assert dump["sdmx1Source"] == "IMF_DATA"
+    assert dump["metadata"]["keyDimensionIdsInDsdOrder"] == ["A", "B"]
+
+
+def test_app_json_query_rejects_non_bool_disabled() -> None:
+    with pytest.raises(ValidationError):
+        AppJsonQuery.model_validate({"urn": _VALID_URN, "filters": [], "disabled": "banana"})
