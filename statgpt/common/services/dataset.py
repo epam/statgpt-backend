@@ -92,27 +92,12 @@ class ChannelDataSetSerializer:
         last_completed_versions: LastCompletedVersions,
         last_auto_update_job: schemas.AutoUpdateJob | None,
         last_updated_at: datetime | None,
-    ) -> schemas.ChannelDatasetExpandedWithLastUpdate:
-        preprocessing_status = (
-            StatusEnum.NOT_STARTED
-            if latest_version is None
-            else latest_version.preprocessing_status
+    ) -> schemas.ChannelDatasetExpandedWithLastUpdatedAt:
+        base = ChannelDataSetSerializer.db_to_schema(
+            item_db, dataset, latest_version, last_completed_versions, last_auto_update_job
         )
-
-        return schemas.ChannelDatasetExpandedWithLastUpdate(
-            id=item_db.id,
-            created_at=item_db.created_at,
-            updated_at=item_db.updated_at,
-            channel_id=item_db.channel_id,
-            dataset_id=item_db.dataset_id,
-            preprocessing_status=preprocessing_status,
-            clearing_status=item_db.clearing_status,
-            dataset=dataset,
-            latest_version=latest_version,
-            last_completed_version=last_completed_versions.last_completed_version,
-            previous_completed_version=last_completed_versions.previous_completed_version,
-            last_auto_update_job=last_auto_update_job,
-            last_updated_at=last_updated_at,
+        return schemas.ChannelDatasetExpandedWithLastUpdatedAt(
+            **dict(base), last_updated_at=last_updated_at
         )
 
 
@@ -357,9 +342,8 @@ class DataSetService(DbServiceBase):
 
     async def get_channel_dataset_schemas_with_last_updated(
         self, limit: int | None, offset: int, channel_id: int, auth_context: AuthContext
-    ) -> list[schemas.ChannelDatasetExpandedWithLastUpdate]:
+    ) -> list[schemas.ChannelDatasetExpandedWithLastUpdatedAt]:
         """Like `get_channel_dataset_schemas`, but also resolves each dataset's
-
         `last_updated_at` live via the provider-specific `DataSet.updated_at` logic.
         """
         items = await self.get_channel_dataset_models(

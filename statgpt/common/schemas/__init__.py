@@ -16,7 +16,7 @@ from .channel_dataset import (
     ChangesBetweenVersionAndActualData,
     ChannelDatasetBase,
     ChannelDatasetExpanded,
-    ChannelDatasetExpandedWithLastUpdate,
+    ChannelDatasetExpandedWithLastUpdatedAt,
     ChannelDatasetVersion,
     ConfigChange,
     DataChange,

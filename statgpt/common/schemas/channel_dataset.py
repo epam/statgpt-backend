@@ -76,7 +76,7 @@ class ChannelDatasetExpanded(ChannelDatasetBase):
     )
 
 
-class ChannelDatasetExpandedWithLastUpdate(ChannelDatasetExpanded):
+class ChannelDatasetExpandedWithLastUpdatedAt(ChannelDatasetExpanded):
     last_updated_at: datetime | None = Field(
         default=None,
         description=(

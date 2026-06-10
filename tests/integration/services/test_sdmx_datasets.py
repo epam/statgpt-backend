@@ -649,18 +649,35 @@ async def test_last_updated_at_in_channel_datasets(session, clear_all, sdmx_clin
         ),
         auth_context=SystemUserAuthContext(),
     )
+    malformed_citation = citation.model_copy(update={'last_updated': 'not-a-date'})
+    ds_malformed = await dataset_service.create_dataset(
+        schemas.DataSetBase(
+            id_=uuid.uuid4(),
+            title='CPI with malformed citation',
+            data_source_id=data_source.id,
+            details={
+                'urn': URN_CPI_4_0_0,
+                'dimensions': DIMENSIONS,
+                'citation': malformed_citation.model_dump(by_alias=True),
+            },
+        ),
+        auth_context=SystemUserAuthContext(),
+    )
 
     cd_with = await dataset_service.add_dataset_to_channel(channel.id, ds_with.id)
     cd_without = await dataset_service.add_dataset_to_channel(channel.id, ds_without.id)
+    cd_malformed = await dataset_service.add_dataset_to_channel(channel.id, ds_malformed.id)
 
     listed = await dataset_service.get_channel_dataset_schemas_with_last_updated(
         limit=100, offset=0, channel_id=channel.id, auth_context=SystemUserAuthContext()
     )
     by_id = {item.id: item for item in listed}
 
-    assert isinstance(by_id[cd_with.id], schemas.ChannelDatasetExpandedWithLastUpdate)
+    assert isinstance(by_id[cd_with.id], schemas.ChannelDatasetExpandedWithLastUpdatedAt)
     assert by_id[cd_with.id].last_updated_at == datetime(2025, 7, 15)
     assert by_id[cd_without.id].last_updated_at is None
+    # a malformed timestamp must not fail the whole listing
+    assert by_id[cd_malformed.id].last_updated_at is None
 
 
 # ~~~ Testing the background tasks ~~~
