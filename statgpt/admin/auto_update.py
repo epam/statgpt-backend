@@ -47,16 +47,12 @@ async def _process_jobs(jobs: list[schemas.AutoUpdateJob], auth_context: AuthCon
     _log.info(_SEPARATOR)
     _log.info(f"Created {len(jobs)} auto-update job(s), starting processing...")
 
-    results = await asyncio.gather(
+    await asyncio.gather(
         *(
             auto_update_in_background_task(auto_update_job_id=job.id, auth_context=auth_context)
             for job in jobs
         ),
-        return_exceptions=True,
     )
-    for job, result in zip(jobs, results):
-        if isinstance(result, Exception):
-            _log.error(f"Auto-update job {job.id} failed with exception:", exc_info=result)
 
 
 async def _get_reindex_channel_ids(job_ids: list[int]) -> set[int]:
@@ -88,24 +84,28 @@ async def _log_results(job_ids: list[int]) -> bool:
 async def _deduplicate_channels(channel_ids: set[int]) -> None:
     """Run deduplication for channels that had a reindex.
 
+    Each channel gets a tracked DeduplicationJob record so the batch run shows up
+    in the same admin/CLI surface as on-demand dedup runs.
+
     NOTE: The number of concurrent executions is limited by the semaphore
     in the ``@background_task`` decorator applied to ``deduplicate_dimensions_in_background_task``.
     """
     _log.info(_SEPARATOR)
     sorted_ids = sorted(channel_ids)
     _log.info(f"Running deduplication for {len(sorted_ids)} channel(s) with reindex: {sorted_ids}")
-    results = await asyncio.gather(
-        *(
-            deduplicate_dimensions_in_background_task(channel_id=channel_id)
-            for channel_id in sorted_ids
-        ),
-        return_exceptions=True,
+
+    try:
+        async with get_session_context_manager() as session:
+            jobs = await AdminPortalChannelService(session).create_deduplication_jobs(sorted_ids)
+    except ValueError:
+        # A channel may be deleted between the auto-update and dedup phases.
+        # Skip the dedup phase rather than aborting the whole run.
+        _log.exception("Failed to create deduplication jobs; skipping deduplication phase")
+        return
+
+    await asyncio.gather(
+        *(deduplicate_dimensions_in_background_task(deduplication_job_id=job.id) for job in jobs),
     )
-    for channel_id, result in zip(sorted_ids, results):
-        if isinstance(result, Exception):
-            _log.error(
-                f"Deduplication for channel {channel_id} failed with exception:", exc_info=result
-            )
     _log.info("Deduplication complete")
 
 

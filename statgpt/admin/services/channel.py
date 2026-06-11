@@ -6,7 +6,7 @@ from mimetypes import guess_type
 
 import yaml
 from fastapi import BackgroundTasks, HTTPException, status
-from sqlalchemy import update
+from sqlalchemy import select, update
 from sqlalchemy.exc import IntegrityError, NoResultFound
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql.expression import func
@@ -18,13 +18,15 @@ from statgpt.admin.settings.exim import JobsConfig
 from statgpt.common import utils
 from statgpt.common.auth.auth_context import AuthContext
 from statgpt.common.schemas import AuditActionType, AuditEntityType
+from statgpt.common.schemas import PreprocessingStatusEnum as StatusEnum
 from statgpt.common.services import ChannelSerializer, ChannelService
 from statgpt.common.settings.dial import dial_settings
 from statgpt.common.utils import dial_core_factory
 from statgpt.common.utils.elastic import ElasticSearchFactory
-from statgpt.common.vectorstore import VectorStoreFactory
+from statgpt.common.vectorstore import DedupCounts, VectorStoreFactory
 
 from .background_tasks import background_task
+from .status_recovery import set_failed_status
 
 _log = logging.getLogger(__name__)
 
@@ -135,10 +137,8 @@ class AdminPortalChannelService(ChannelService):
             channel.non_indicator_dimensions_table_name,
             channel.special_dimensions_table_name,
         ]
-        for collection in collections:
-            vector_store = await vector_store_factory.get_embeddingless_vector_store(
-                collection_name=collection
-            )
+        for col in collections:
+            vector_store = await vector_store_factory.get_embeddingless_vector_store(col)
             await vector_store.clear()
 
     async def _clear_elastic_indexes(self, channel: models.Channel) -> None:
@@ -267,11 +267,14 @@ class AdminPortalChannelService(ChannelService):
         except NoResultFound:
             raise ValueError(f"Channel with deployment_id {deployment_id} not found during import.")
 
-    async def deduplicate_channel_dimensions(self, channel_id: int) -> None:
+    async def deduplicate_channel_dimensions(
+        self, channel_id: int
+    ) -> tuple[DedupCounts, DedupCounts]:
         """Deduplicates the non-indicator and special dimensions vector stores for the channel.
 
-        Deduplication is performed based on document content.
-        Documents with identical content will be merged.
+        Returns ``(non_indicator_counts, special_counts)``.
+        Deduplication is performed based on document content. Documents with
+        identical content are merged.
         """
         async with self._scoped_session():
             channel = await self.get_model_by_id(channel_id)
@@ -285,37 +288,190 @@ class AdminPortalChannelService(ChannelService):
         non_indicator_dims_store = await vector_store_factory.get_embeddingless_vector_store(
             collection_name=non_indicator_dims_table,
         )
-        await non_indicator_dims_store.deduplicate_by_document_content()
+        non_indicator_counts = await non_indicator_dims_store.deduplicate_by_document_content()
 
         _log.info(f"Deduplicating special_dimensions for channel {channel_id}")
         special_dims_store = await vector_store_factory.get_embeddingless_vector_store(
             collection_name=special_dims_table,
         )
-        await special_dims_store.deduplicate_by_document_content()
+        special_counts = await special_dims_store.deduplicate_by_document_content()
 
         _log.info(f"Deduplication completed for channel {channel_id}")
+        return non_indicator_counts, special_counts
 
-    async def deduplicate_all_dimensions(
+    async def trigger_deduplication(
         self, background_tasks: BackgroundTasks, channel_id: int
-    ) -> schemas.Channel:
-        """Deduplicates dimension vector stores for all datasets in a channel.
-
-        Starts background deduplication task and returns the channel.
-        """
+    ) -> schemas.DeduplicationJob:
+        """Creates a DeduplicationJob, schedules the background dedup task, and returns the job."""
         channel = await self.get_model_by_id(channel_id)
+
+        job = models.DeduplicationJob(channel_id=channel.id, status=StatusEnum.QUEUED)
+        self._session.add(job)
+        await self._session.commit()
+        await self._session.refresh(job)
 
         background_tasks.add_task(
             deduplicate_dimensions_in_background_task,
-            channel_id=channel_id,
+            deduplication_job_id=job.id,
         )
 
-        return ChannelSerializer.db_to_schema(channel)
+        return schemas.DeduplicationJob.model_validate(job, from_attributes=True)
+
+    async def create_deduplication_jobs(
+        self, channel_ids: list[int]
+    ) -> list[schemas.DeduplicationJob]:
+        """Create DeduplicationJob records (status=QUEUED) for the given channels.
+
+        Used by the batch auto-update script to persist a job per channel before
+        running deduplication in parallel.
+
+        Raises ValueError if any of the supplied channel IDs does not exist.
+        """
+        if not channel_ids:
+            return []
+
+        existing_result = await self._session.scalars(
+            select(models.Channel.id).where(models.Channel.id.in_(channel_ids))
+        )
+        existing_ids = set(existing_result.all())
+        missing_ids = sorted(set(channel_ids) - existing_ids)
+        if missing_ids:
+            raise ValueError(
+                f"Cannot create deduplication jobs: channel(s) not found: {missing_ids}"
+            )
+
+        jobs: list[models.DeduplicationJob] = []
+        for channel_id in channel_ids:
+            job = models.DeduplicationJob(channel_id=channel_id, status=StatusEnum.QUEUED)
+            self._session.add(job)
+            jobs.append(job)
+        await self._session.commit()
+        for job in jobs:
+            await self._session.refresh(job)
+        return [schemas.DeduplicationJob.model_validate(job, from_attributes=True) for job in jobs]
+
+    async def get_deduplication_job_by_id(self, job_id: int) -> schemas.DeduplicationJob:
+        job: models.DeduplicationJob | None = await self._session.get(
+            models.DeduplicationJob, job_id
+        )
+        if job is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Deduplication job not found"
+            )
+        return schemas.DeduplicationJob.model_validate(job, from_attributes=True)
+
+    async def get_deduplication_jobs(
+        self, channel_id: int, limit: int, offset: int
+    ) -> list[schemas.DeduplicationJob]:
+        query = (
+            select(models.DeduplicationJob)
+            .where(models.DeduplicationJob.channel_id == channel_id)
+            .order_by(models.DeduplicationJob.id.desc())
+            .limit(limit)
+            .offset(offset)
+        )
+        result = await self._session.scalars(query)
+        return [
+            schemas.DeduplicationJob.model_validate(job, from_attributes=True)
+            for job in result.all()
+        ]
+
+    async def get_deduplication_jobs_count(self, channel_id: int) -> int:
+        query = (
+            select(func.count())
+            .select_from(models.DeduplicationJob)
+            .where(models.DeduplicationJob.channel_id == channel_id)
+        )
+        return await self._session.scalar(query) or 0
+
+    async def _get_deduplication_job_or_raise(self, job_id: int) -> models.DeduplicationJob:
+        job: models.DeduplicationJob | None = await self._session.get(
+            models.DeduplicationJob, job_id
+        )
+        if job is None:
+            raise RuntimeError(f"Deduplication job {job_id} not found")
+        return job
+
+    async def _set_deduplication_job_status(
+        self,
+        job: models.DeduplicationJob,
+        status_value: StatusEnum,
+        *,
+        reason_for_failure: str | None = None,
+        non_indicator_counts: DedupCounts | None = None,
+        special_counts: DedupCounts | None = None,
+    ) -> None:
+        job.status = status_value
+        if reason_for_failure is not None:
+            job.reason_for_failure = reason_for_failure
+        if non_indicator_counts is not None:
+            job.non_indicator_remapped = non_indicator_counts.remapped
+            job.non_indicator_deleted = non_indicator_counts.deleted
+        if special_counts is not None:
+            job.special_remapped = special_counts.remapped
+            job.special_deleted = special_counts.deleted
+        job.updated_at = func.now()
+        await self._session.commit()
+        await self._session.refresh(job)
+
+    async def process_deduplication_job(self, deduplication_job_id: int) -> None:
+        """Process a deduplication job: mark IN_PROGRESS, run dedup, write counts/status."""
+        _log.info(f"Processing deduplication job {deduplication_job_id}")
+        try:
+            async with self._scoped_session():
+                job = await self._get_deduplication_job_or_raise(deduplication_job_id)
+                await self._set_deduplication_job_status(job, StatusEnum.IN_PROGRESS)
+                channel_id = job.channel_id
+
+            non_indicator_counts, special_counts = await self.deduplicate_channel_dimensions(
+                channel_id
+            )
+
+            async with self._scoped_session():
+                job = await self._get_deduplication_job_or_raise(deduplication_job_id)
+                await self._set_deduplication_job_status(
+                    job,
+                    StatusEnum.COMPLETED,
+                    non_indicator_counts=non_indicator_counts,
+                    special_counts=special_counts,
+                )
+        except Exception as exc:
+            _log.exception(
+                f"Failed to deduplicate dimensions for deduplication job {deduplication_job_id}"
+            )
+            try:
+                async with self._scoped_session():
+                    job = await self._get_deduplication_job_or_raise(deduplication_job_id)
+                    await self._set_deduplication_job_status(
+                        job,
+                        StatusEnum.FAILED,
+                        reason_for_failure=str(exc),
+                    )
+            except Exception:
+                _log.exception(
+                    f"Failed to record FAILED status for deduplication job {deduplication_job_id}"
+                )
+
+    async def set_failed_status_for_stuck_deduplication_jobs(self) -> None:
+        """Sets the status of all stuck DeduplicationJob records to FAILED.
+
+        Reuses the same recovery helper used for Job and AutoUpdateJob, so all
+        background-job types follow identical fix_statuses semantics (including
+        the 12-hour staleness guard).
+        """
+        await set_failed_status(
+            self._session,
+            models.DeduplicationJob,
+            models.DeduplicationJob.status,
+            "status",
+        )
+        await self._session.commit()
 
 
 @background_task
-async def deduplicate_dimensions_in_background_task(channel_id: int) -> None:
+async def deduplicate_dimensions_in_background_task(deduplication_job_id: int) -> None:
     try:
         service = AdminPortalChannelService()
-        await service.deduplicate_channel_dimensions(channel_id=channel_id)
+        await service.process_deduplication_job(deduplication_job_id=deduplication_job_id)
     except Exception:
-        _log.exception(f"Failed to deduplicate dimensions for channel {channel_id}")
+        _log.exception(f"Failed to deduplicate dimensions (job_id={deduplication_job_id})")
