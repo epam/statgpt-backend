@@ -110,7 +110,7 @@ async def channel_datasets_metadata(
         )
 
     async with get_readonly_session_context_manager() as session:
-        datasets = await DataSetService(session).get_channel_dataset_schemas(
+        datasets = await DataSetService(session).get_channel_dataset_schemas_with_last_updated(
             limit=None,
             offset=0,
             channel_id=service.channel.id,
