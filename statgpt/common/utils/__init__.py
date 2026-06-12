@@ -7,7 +7,7 @@ from .dial import (
     attachments_storage_factory,
     dial_core_factory,
 )
-from .exceptions import InvalidLLMStreamResponse
+from .exceptions import InvalidLLMStreamResponse, format_exception_reason
 from .files import (
     change_file_extension,
     clean_filename,
