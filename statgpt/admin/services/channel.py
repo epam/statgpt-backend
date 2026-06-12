@@ -58,7 +58,8 @@ class AdminPortalChannelService(ChannelService):
         async with dial_core_factory(dial_settings.url, auth_context.api_key) as dial_core:
             content, _ = await dial_core.get_file_by_path(dial_file_path)
 
-        target_file = os.path.join(folder_path, JobsConfig.DIAL_FILES_FOLDER, dial_file_path)
+        dial_files_root = os.path.join(folder_path, JobsConfig.DIAL_FILES_FOLDER)
+        target_file = utils.safe_join(dial_files_root, dial_file_path)
         utils.write_bytes(content, target_file)
 
     @staticmethod
@@ -225,11 +226,18 @@ class AdminPortalChannelService(ChannelService):
     ) -> None:
         _log.info("Uploading DIAL files for channel import")
         with tempfile.TemporaryDirectory() as temp_dir:
-            members = [
-                name
-                for name in zip_file.namelist()
-                if name.startswith(JobsConfig.DIAL_FILES_FOLDER)
-            ]
+            members = []
+            for name in zip_file.namelist():
+                if not name.startswith(JobsConfig.DIAL_FILES_FOLDER):
+                    continue
+                # Guard against zip-slip: skip any entry that would resolve
+                # outside the extraction directory (CWE-22).
+                try:
+                    utils.safe_join(temp_dir, name)
+                except ValueError:
+                    _log.warning("Skipping zip entry escaping extraction dir: %r", name)
+                    continue
+                members.append(name)
             zip_file.extractall(temp_dir, members=members)
 
             dial_files_folder = os.path.join(temp_dir, JobsConfig.DIAL_FILES_FOLDER)
