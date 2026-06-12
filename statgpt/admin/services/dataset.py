@@ -44,7 +44,7 @@ from statgpt.common.settings.document import (
     IndicatorDocumentMetadataFields,
     SpecialDimensionValueDocumentMetadataFields,
 )
-from statgpt.common.utils import async_utils, crc32_hash_incremental_async
+from statgpt.common.utils import async_utils, crc32_hash_incremental_async, format_exception_reason
 from statgpt.common.utils.elastic import ElasticIndex, ElasticSearchFactory, SearchResult
 from statgpt.common.vectorstore import EmbeddinglessVectorStore, VectorStore, VectorStoreFactory
 
@@ -1886,7 +1886,9 @@ class AdminPortalDataSetService(DataSetService):
                     channel_dataset_version_id
                 )
                 await self._update_channel_dataset_version_status(
-                    version, new_status=StatusEnum.FAILED, reason_for_failure=str(e)
+                    version,
+                    new_status=StatusEnum.FAILED,
+                    reason_for_failure=format_exception_reason(e),
                 )
 
     async def clear_channel_dataset_data_in_background(self, channel_dataset_id: int) -> None:
@@ -2574,7 +2576,7 @@ class AdminPortalDataSetService(DataSetService):
                 job = await self._session.get(models.AutoUpdateJob, auto_update_job_id)
                 if job is not None:
                     job.status = StatusEnum.FAILED
-                    job.reason_for_failure = str(e)
+                    job.reason_for_failure = format_exception_reason(e)
                     await self._session.commit()
 
 
