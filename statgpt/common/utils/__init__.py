@@ -20,6 +20,7 @@ from .files import (
     read_json_lines,
     read_txt,
     read_yaml,
+    safe_join,
     write_bytes,
     write_csv_from_dict_list,
     write_json,
