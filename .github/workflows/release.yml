@@ -47,7 +47,7 @@ jobs:
       latest-stable-tag: ${{ steps.semantic_versioning.outputs.latest-stable-tag }}
       changelog-mode: ${{ steps.semantic_versioning.outputs.changelog-mode }}
     steps:
-      - uses: epam/ai-dial-ci/actions/semantic_versioning@4.4.0
+      - uses: epam/ai-dial-ci/actions/semantic_versioning@4.5.0
         id: semantic_versioning
         with:
           promote: true
@@ -141,12 +141,12 @@ jobs:
         run: |
           sed -i "s/^version = .*/version = \"${{ needs.calculate_version.outputs.next-version-without-hyphens }}\"/g" pyproject.toml
 
-      - uses: epam/ai-dial-ci/actions/generate_release_notes@4.4.0
+      - uses: epam/ai-dial-ci/actions/generate_release_notes@4.5.0
         with:
           latest-tag: ${{ needs.calculate_version.outputs.latest-stable-tag }}
           use-merge-base: ${{ needs.calculate_version.outputs.changelog-mode == 'merge-base' }}
 
-      - uses: epam/ai-dial-ci/actions/publish_tag_release@4.4.0
+      - uses: epam/ai-dial-ci/actions/publish_tag_release@4.5.0
         if: ${{ startsWith(github.ref, 'refs/heads/release-') }}
         with:
           git-user-name: ${{ vars.ACTIONS_BOT_NAME || 'statgpt-actions' }}
