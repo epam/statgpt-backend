@@ -1,7 +1,7 @@
 from pydantic import BaseModel, Field, field_validator
 
 from statgpt.app.schemas.query import AppJsonQueryWithMetadata
-from statgpt.common.schemas.channel_dataset import ChannelDatasetExpanded
+from statgpt.common.schemas.channel_dataset import ChannelDatasetExpandedWithLastUpdatedAt
 from statgpt.common.schemas.tools import BaseToolConfig
 
 
@@ -24,7 +24,7 @@ class ChannelDatasetsMetadataResponse(BaseModel):
     deployment_id: str
     title: str
     n_datasets: int
-    datasets: list[ChannelDatasetExpanded] = Field(default_factory=list)
+    datasets: list[ChannelDatasetExpandedWithLastUpdatedAt] = Field(default_factory=list)
 
 
 class GeneratePythonCodeRequest(BaseModel):

@@ -1,0 +1,62 @@
+{
+  "meta": {
+    "id": "TEST-STANDARD-ATTRIBUTE-LEVELS",
+    "prepared": "2026-06-02T00:00:00",
+    "sender": {"id": "TEST"}
+  },
+  "data": {
+    "dataSets": [
+      {
+        "action": "Information",
+        "attributes": [0, 0],
+        "series": {
+          "0:0": {
+            "attributes": [0, null],
+            "observations": {
+              "0": ["100", 0],
+              "1": ["110", 0]
+            }
+          }
+        }
+      }
+    ],
+    "structures": [
+      {
+        "dimensions": {
+          "dataset": [],
+          "series": [
+            {"id": "COUNTRY", "keyPosition": 0, "values": [{"id": "USA", "name": "United States"}]},
+            {"id": "INDICATOR", "keyPosition": 1, "values": [{"id": "GDP", "name": "Gross domestic product"}]}
+          ],
+          "observation": [
+            {"id": "TIME_PERIOD", "keyPosition": 2, "values": [
+              {"id": "2020", "name": "2020", "start": "2020-01-01T00:00:00", "end": "2020-12-31T23:59:59", "order": 1},
+              {"id": "2021", "name": "2021", "start": "2021-01-01T00:00:00", "end": "2021-12-31T23:59:59", "order": 2}
+            ]}
+          ]
+        },
+        "attributes": {
+          "dataset": [
+            {"id": "UPDATE_DATE", "values": [{"id": "2026-04-15T13:00:00Z", "name": "Update date"}]},
+            {"id": "DOI", "values": []},
+            {"id": "PUBLISHER", "values": [{"id": "IMF", "name": "International Monetary Fund"}]},
+            {"id": "AUTHOR", "values": []}
+          ],
+          "series": [
+            {"id": "SCALE", "relationship": {"dimensions": ["COUNTRY", "INDICATOR"]},
+             "values": [{"id": "9", "name": "Billions", "description": "10^9", "start": "x", "end": "y", "order": 1}]},
+            {"id": "DECIMALS", "relationship": {"dimensions": ["COUNTRY", "INDICATOR"]}, "values": [{"id": "3"}]}
+          ],
+          "observation": [
+            {"id": "OBS_STATUS", "relationship": {"observation": {}}, "values": [{"id": "A", "name": "Normal"}]}
+          ]
+        },
+        "measures": {
+          "observation": [
+            {"id": "OBS_VALUE", "values": []}
+          ]
+        }
+      }
+    ]
+  }
+}

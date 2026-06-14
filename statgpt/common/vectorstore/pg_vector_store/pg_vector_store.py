@@ -31,7 +31,7 @@ from statgpt.common.settings.document import DimensionValueDocumentMetadataField
 from statgpt.common.utils import batched
 from statgpt.common.utils.llm_call_duration_context import get_llm_call_duration_manager
 from statgpt.common.utils.timer import debug_timer
-from statgpt.common.vectorstore.base import EmbeddinglessVectorStore, VectorStore
+from statgpt.common.vectorstore.base import DedupCounts, EmbeddinglessVectorStore, VectorStore
 from statgpt.common.vectorstore.document import ScoredVectorStoreDocument
 from statgpt.common.vectorstore.embeddings import EmbeddingModel
 
@@ -504,7 +504,7 @@ class PgEmbeddinglessVectorStore(EmbeddinglessVectorStore):
             result = await session.execute(query)
             return {row[0]: row[1] for row in result.all()}
 
-    async def deduplicate_by_document_content(self) -> None:
+    async def deduplicate_by_document_content(self) -> DedupCounts:
         """Removes and remaps duplicate documents based on `document` field content.
 
         Process:
@@ -525,7 +525,7 @@ class PgEmbeddinglessVectorStore(EmbeddinglessVectorStore):
                     for name in [metadata_model.__tablename__, document_model.__tablename__]:
                         if not await self._check_if_table_exists(session, name):
                             _log.info(f"Table {name!r} does not exist. Skipping deduplication.")
-                            return
+                            return DedupCounts(remapped=0, deleted=0)
 
                 with debug_timer("deduplicate_content.acquire_locks"):
                     await session.execute(
@@ -578,6 +578,8 @@ class PgEmbeddinglessVectorStore(EmbeddinglessVectorStore):
                     _log.info(
                         f"Content deduplication completed: {remapped_count} metadata rows remapped, {deleted_count} documents deleted"
                     )
+
+                return DedupCounts(remapped=remapped_count, deleted=deleted_count)
             except Exception:
                 _log.exception("Content deduplication failed. Transaction will be rolled back.")
                 raise
