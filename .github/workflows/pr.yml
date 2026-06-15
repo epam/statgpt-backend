@@ -83,12 +83,11 @@ jobs:
         with:
           lfs: true
 
-      - uses: ./.github/actions/build_docker
+      - uses: epam/ai-dial-ci/actions/build_docker@4.5.0
         with:
-          image-name: ghcr.io/${{ matrix.image-name }}
+          image-names: ghcr.io/${{ matrix.image-name }}
+          image-tags: test
           dockerfile-path: ${{ matrix.dockerfile }}
-          image-tag: test
-          push-enabled: false
           trivy-enabled: true
           bypass-checks: false
           trivy-severity: "CRITICAL,HIGH"
