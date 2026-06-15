@@ -61,6 +61,9 @@ class StatGptSdmxProxyDataSourceHandler(Sdmx21DataSourceHandler):
         )
         return SdmxClient.from_config(self._config, auth_context, rate_limiter)
 
+    def _create_dataflow_loader(self, sdmx_client: SdmxClient) -> DataflowLoader:  # type: ignore[override]
+        return DataflowLoader(sdmx_client, structure_extra_headers=proxy_structure_extra_headers)
+
     @staticmethod
     def _to_proxy_annotation(annotation: BaseAnnotation) -> Sdmx30AnnotationModel:
         text = str(annotation.text) if annotation.text else None
@@ -95,9 +98,7 @@ class StatGptSdmxProxyDataSourceHandler(Sdmx21DataSourceHandler):
                 resource_id=dataset_config.urn.resource_id,
                 version=dataset_config.urn.version,
             )
-            dataflow_loader = DataflowLoader(
-                sdmx_client, structure_extra_headers=proxy_structure_extra_headers
-            )
+            dataflow_loader = self._create_dataflow_loader(sdmx_client)
             urn, structure_message = await dataflow_loader.load_structure_message(urn, mode="full")
             dataflow = structure_message.dataflow[urn]
         except Exception:
