@@ -14,6 +14,7 @@ from statgpt.admin.services.channel import (
 from statgpt.admin.services.dataset import AdminPortalDataSetService, auto_update_in_background_task
 from statgpt.common.auth.auth_context import AuthContext
 from statgpt.common.models import get_session_context_manager, optional_msi_token_manager_context
+from statgpt.common.utils.elastic import elasticsearch_client_context
 
 _log = logging.getLogger(__name__)
 _SEPARATOR = "-" * 50
@@ -134,7 +135,7 @@ async def run_auto_update() -> bool:
 async def main() -> None:
     try:
         _log.info("Starting batch auto-update script...")
-        async with optional_msi_token_manager_context():
+        async with optional_msi_token_manager_context(), elasticsearch_client_context():
             success = await run_auto_update()
 
         _log.info(_SEPARATOR)
