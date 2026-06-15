@@ -5,6 +5,18 @@ _anchors:
       - "statgpt-sample"
   _shared_details: &shared_details
     useTitleFromSrc: false
+    dataExplorerUrlConfig:
+      includeDataflowUrnParam: true
+      datasetUrnParam: datasetUrn
+      filterFormat: sdmx_key_string
+      includeSeriesKeyFilter: true
+      seriesKeyFilterParam: timeseriesName
+      timeEncoding: start_end_sdmx21
+    includeAttributes:
+      - "SCALE"
+      - "UNIT"
+      - "PUBLISHER"
+      - "SOURCE"
   _common_dimensions: &common_dimensions
     COUNTRY:
       dimensionType: "NON_INDICATOR"
@@ -44,11 +56,6 @@ dataSets:
               operator: "between"
         UNIT:
           dimensionType: "NON_INDICATOR"
-      includeAttributes:
-        - "SCALE"
-        - "UNIT"
-        - "PUBLISHER"
-        - "SOURCE"
       citation:
         provider: "IMF.STA"
         url: "https://data.imf.org/en/datasets/IMF.STA:BOP"
@@ -84,11 +91,6 @@ dataSets:
           defaultQueries:
             - values: [ "-5y", "+2y" ]
               operator: "between"
-      includeAttributes:
-        - "SCALE"
-        - "UNIT"
-        - "PUBLISHER"
-        - "SOURCE"
       citation:
         provider: "IMF.RES"
         url: "https://data.imf.org/en/datasets/IMF.RES:WEO"

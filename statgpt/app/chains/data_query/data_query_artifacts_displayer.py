@@ -6,6 +6,7 @@ import pandas as pd
 import plotly.graph_objects as go
 
 from statgpt.app.schemas.dial_app_configuration import StatGPTConfiguration
+from statgpt.app.schemas.query import AppJsonQueryWithMetadata
 from statgpt.app.schemas.tool_artifact import DataQueryArtifact
 from statgpt.app.services.python_code_generator import PYTHON_SDMX1_HEADER
 from statgpt.app.utils import get_python_code_markdown
@@ -98,7 +99,7 @@ class DataQueryArtifactDisplayer:
             return None
 
         df = response.visual_dataframe.copy()
-        cells_number = df.shape[0] * df.shape[1] if df is not None else 0
+        cells_number = df.shape[0] * df.shape[1]
 
         if cells_number == 0:
             return self._get_no_data_message(response)
@@ -199,14 +200,15 @@ class DataQueryArtifactDisplayer:
         return responses
 
     async def _display_data_responses(self, responses: dict[str, DataResponse]) -> None:
+        non_empty_responses = {k: v for k, v in responses.items() if not v.visual_dataframe.empty}
         tasks = []
         async with attachments_storage_factory(self._auth_context.api_key) as attachments_storage:
-            for dataset_id, response in responses.items():
+            for dataset_id, response in non_empty_responses.items():
                 tasks.append(self._attach_data_response(attachments_storage, response))
             await asyncio.gather(*tasks)
 
         if self._chat_config.merge_python_code:
-            merged_python = await self._create_merged_python_code_attachment(responses)
+            merged_python = await self._create_merged_python_code_attachment(non_empty_responses)
             if merged_python is not None:
                 self._choice.add_attachment(**merged_python)
 
@@ -254,7 +256,7 @@ class DataQueryArtifactDisplayer:
     async def _attach_csv(
         self, attachments_storage: AttachmentsStorage, data_response: DataResponse
     ) -> dict[str, str] | None:
-        if not self._config.csv_file.enabled or data_response.visual_dataframe is None:
+        if not self._config.csv_file.enabled or data_response.visual_dataframe.empty:
             return None
 
         assert self._config.csv_file.name is not None, "csv_file.name must be set when enabled"
@@ -269,12 +271,12 @@ class DataQueryArtifactDisplayer:
         if not self._config.json_query.enabled:
             return None
 
-        data = data_response.json_query
-        if data is None:
+        query = data_response.json_query
+        if query is None:
             return None
 
         assert self._config.json_query.name is not None, "json_query.name must be set when enabled"
-        content = json.dumps(data, ensure_ascii=False)
+        content = AppJsonQueryWithMetadata.from_common(query).model_dump_json(by_alias=True)
         title = data_response.enrich_attachment_name(self._config.json_query.name)
         return dict(type=MediaTypes.JSON, title=title, data=content)
 

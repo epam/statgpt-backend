@@ -1,4 +1,5 @@
 from .file_rags import DialRagState
+from .query import AppJsonQuery, AppJsonQueryWithMetadata
 from .selection_candidates import (
     BatchedSelectionOutputBase,
     CandidatesRelevancyMapping,

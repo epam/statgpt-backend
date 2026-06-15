@@ -255,6 +255,10 @@ class SupremeAgent:
                 channel_config.supreme_agent.general_section
                 or supreme_agent_default_prompts.default_general_section
             ),
+            tool_usage_section=(
+                channel_config.supreme_agent.tool_usage_section
+                or supreme_agent_default_prompts.default_tool_usage_section
+            ),
             no_calculations_section=(
                 channel_config.supreme_agent.no_calculations_section
                 or supreme_agent_default_prompts.default_no_calculations_section

@@ -318,3 +318,30 @@ class AutoUpdateJob(DefaultBase):
             f"AutoUpdateJob(id={self.id!r}, channel_dataset_id={self.channel_dataset_id!r}, "
             f"status={self.status!r}, result={self.result!r})"
         )
+
+
+class DeduplicationJob(DefaultBase):
+    """A job record for tracking deduplication runs on a channel's dimension vector stores."""
+
+    __tablename__ = "deduplication_jobs"
+
+    channel_id: Mapped[int] = mapped_column(ForeignKey("channels.id", ondelete="CASCADE"))
+
+    status: Mapped[PreprocessingStatusEnum]
+    """Execution status of the job."""
+
+    reason_for_failure: Mapped[str | None] = mapped_column(default=None)
+
+    # Per-dimension result counts (populated on COMPLETED).
+    non_indicator_remapped: Mapped[int | None] = mapped_column(default=None)
+    non_indicator_deleted: Mapped[int | None] = mapped_column(default=None)
+    special_remapped: Mapped[int | None] = mapped_column(default=None)
+    special_deleted: Mapped[int | None] = mapped_column(default=None)
+
+    channel: Mapped[Channel] = relationship()
+
+    def __repr__(self) -> str:
+        return (
+            f"DeduplicationJob(id={self.id!r}, channel_id={self.channel_id!r}, "
+            f"status={self.status!r})"
+        )

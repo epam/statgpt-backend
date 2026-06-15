@@ -90,11 +90,14 @@ class ChannelToolProvider(Provider):
     """MCP Provider that dynamically serves tools from a StatGPT channel config."""
 
     async def _resolve_context(self, request: Request) -> tuple[AuthContext, ChannelServiceFacade]:
-        auth_context = await create_auth_context(DialAuthCredentials.from_headers(request.headers))
         deployment_id = request.path_params.get("deployment_id")
         if not deployment_id:
             raise ValueError("Missing deployment_id in path")
         channel_service = await ChannelServiceFacade.get_channel(deployment_id)
+        auth_context = await create_auth_context(
+            DialAuthCredentials.from_headers(request.headers),
+            bearer_token_required=channel_service.channel_config.bearer_token_required,
+        )
         return auth_context, channel_service
 
     def _create_mcp_tool(
@@ -107,8 +110,8 @@ class ChannelToolProvider(Provider):
         return _McpToolAdapter(
             langchain_tool=langchain_tool,
             inputs=inputs,
-            name=tool_config.name,
-            description=tool_config.description,
+            name=channel_config.mcp.tool_name_prefix + tool_config.effective_mcp_name,
+            description=tool_config.effective_mcp_description,
             parameters=langchain_tool.get_public_args_schema(),
             annotations=langchain_tool.get_mcp_annotations(),
         )
@@ -153,9 +156,14 @@ class ChannelToolProvider(Provider):
             return None
 
         channel_config = channel_service.channel_config
+        prefix = channel_config.mcp.tool_name_prefix
+        if prefix:
+            if not name.startswith(prefix):
+                return None
+            name = name.removeprefix(prefix)
         inputs = _build_mcp_inputs(auth_context, channel_service)
         for tool_config in channel_config.tools:
-            if tool_config.name == name:
+            if tool_config.effective_mcp_name == name:
                 return self._create_mcp_tool(tool_config, channel_config, inputs)
         return None
 

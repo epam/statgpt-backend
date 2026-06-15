@@ -6,9 +6,10 @@ from typing import Generic, TypeVar, overload
 from aidial_sdk.chat_completion import Choice
 
 from statgpt.app.chains.utils import time_period_utils
+from statgpt.app.schemas.query import AppJsonQueryWithMetadata
 from statgpt.common.auth.auth_context import AuthContext
 from statgpt.common.schemas.onboarding import PredefinedDataQueryResponse, PredefinedTextResponse
-from statgpt.common.schemas.query import JsonQuery, JsonQueryMetadata, JsonQueryWithMetadata
+from statgpt.common.schemas.query import JsonQuery, JsonQueryMetadata
 from statgpt.common.utils import MediaTypes
 
 from .chat_facade import ChannelServiceFacade
@@ -74,7 +75,7 @@ class PredefinedDataQueryResponseAppender(BaseResponseAppender[PredefinedDataQue
             dataset_url=dataset.dataset_url,
             key_dimension_ids_in_dsd_order=dataset.sdmx_key_dimension_ids_in_dsd_order,
         )
-        json_query = JsonQueryWithMetadata.from_query(
+        json_query = AppJsonQueryWithMetadata.from_query(
             query=self._get_relative_time_period_aware_query(
                 self._response.query, dataset.config.time_period_dimension_id
             ),

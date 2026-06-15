@@ -1,6 +1,13 @@
 from typing import Any
 
-from pydantic import Field, PositiveInt, TypeAdapter, field_validator, model_validator
+from pydantic import (
+    Field,
+    NonNegativeInt,
+    PositiveInt,
+    TypeAdapter,
+    field_validator,
+    model_validator,
+)
 from pydantic_core.core_schema import FieldValidationInfo
 
 from statgpt.common.config import LLMModelsEnum
@@ -208,6 +215,18 @@ class HybridSearchConfig(BaseYamlModel):
         default=2 * DEFAULT_MAX_CANDIDATES,
         description="The number of candidates to be searched by semantic search.",
     )
+    max_lexical_only_candidates: NonNegativeInt = Field(
+        default=8,
+        description=(
+            "Number of top lexical-only candidates to force into the LLM relevance set. "
+            "Fusion is anchored on semantic results, so a strong keyword match that falls "
+            "outside the semantic top-k (`max_semantic_candidates`) is otherwise dropped before "
+            "the LLM judge and can never be selected — a pure recall loss on rare/coded indicators "
+            "with weak embeddings. These candidates are availability-filtered and ranked by lexical "
+            "score, and are added on top of the diversified hybrid candidates. "
+            "Set to 0 to restore the previous semantic-anchored behavior."
+        ),
+    )
 
     default_alpha: float = Field(default=0.9)
     hybrid_alpha: float = Field(default=0.8)
@@ -221,6 +240,13 @@ class HybridSearchConfig(BaseYamlModel):
         default_factory=list, description="Named entities to remove from the search query."
     )
 
+    disable_separate_subjects: bool = Field(
+        default=True,
+        description=(
+            "Whether to split the normalized query into multiple subject sub-queries via LLM "
+            "before searching. When disabled, the normalized query is searched as a single query."
+        ),
+    )
     use_only_best_score: bool = Field(
         default=False,
         description="Whether to use only indicators with best score, instead of allowing indicators with lower scores.",

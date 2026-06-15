@@ -77,6 +77,25 @@ def escape_invalid_filename_chars(filename: str) -> str:
     return escaped_filename
 
 
+def safe_join(base: str | Path, *parts: str) -> str:
+    """Join ``parts`` onto ``base`` and guarantee the result stays within ``base``.
+
+    Protects against path traversal (CWE-22): an untrusted segment containing
+    ``..`` or an absolute path would otherwise escape ``base``. Both the base and
+    the resolved target are canonicalized before comparison, so this defends
+    against ``../`` sequences and absolute-path overrides alike (do not rely on
+    string-filtering ``..``, which misses encodings and OS-specific variants).
+
+    Raises:
+        ValueError: if the resolved path is outside ``base``.
+    """
+    base_path = Path(base).resolve()
+    target = base_path.joinpath(*parts).resolve()
+    if target != base_path and base_path not in target.parents:
+        raise ValueError(f"Path {os.path.join(*parts)!r} escapes base directory {base_path}")
+    return str(target)
+
+
 def change_file_extension(fp: str, new_extension: str, apply: bool = False) -> str:
     """Change the extension of a file. If `apply` is True, the file on disk will be renamed.
 

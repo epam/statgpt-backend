@@ -1,11 +1,8 @@
 from typing import Never
 
+from statgpt.app.schemas.query import AppJsonQueryWithMetadata
 from statgpt.common.data.sdmx.python_code import generate_python_query_body
-from statgpt.common.schemas.query import (
-    JsonComponentQuery,
-    JsonQueryOperator,
-    JsonQueryWithMetadata,
-)
+from statgpt.common.schemas.query import JsonComponentQuery, JsonQueryOperator
 
 PYTHON_SDMX1_HEADER = """\
 # Uses the [sdmx1 library](https://pypi.org/project/sdmx1/)
@@ -117,10 +114,7 @@ def _build_params_from_filters(filters: list[JsonComponentQuery]) -> dict[str, s
     return params
 
 
-def generate_python_code_from_query(
-    query: JsonQueryWithMetadata,
-    suffix: str = "",
-) -> str:
+def generate_python_code_from_query(query: AppJsonQueryWithMetadata, suffix: str = "") -> str:
     flow_ref = _build_flow_ref(query.agency_id, query.resource_id, query.version)
 
     provider = query.sdmx1_source or query.agency_id
@@ -144,9 +138,11 @@ def generate_python_code_from_query(
     )
 
 
-def generate_merged_python_code(queries: list[JsonQueryWithMetadata]) -> str:
+def generate_merged_python_code(queries: list[AppJsonQueryWithMetadata]) -> str:
     queries = [
-        q for q in queries if not any(f.operator == JsonQueryOperator.EXCLUDED for f in q.filters)
+        q
+        for q in queries
+        if not q.disabled and not any(f.operator == JsonQueryOperator.EXCLUDED for f in q.filters)
     ]
     if not queries:
         return PYTHON_SDMX1_HEADER
