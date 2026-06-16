@@ -1,10 +1,15 @@
+import uuid
+
 import pytest
 import pytest_asyncio  # noqa: F401
 from fastapi import HTTPException
 from sqlalchemy import select
 
+from statgpt.admin.auth.auth_context import SystemUserAuthContext
+from statgpt.admin.services import AdminPortalDataSetService as DataSetService
+from statgpt.admin.services import AdminPortalDataSourceDeletionService as DataSourceDeletionService
 from statgpt.admin.services import AdminPortalDataSourceService as DataSourceService
-from statgpt.common import schemas
+from statgpt.common import models, schemas
 from statgpt.common.data.sdmx import Sdmx21DataSourceHandler, SdmxDataSourceConfig
 from statgpt.common.data.sdmx.common.config import SdmxHeaders, SdmxSupport
 from statgpt.common.models import DataSourceType
@@ -296,3 +301,75 @@ async def test_delete_data_source(session):
 
     data_sources = await service.get_data_sources_schemas(limit=100, offset=0)
     assert data_source.id not in (ds.id for ds in data_sources)
+
+
+@pytest.mark.asyncio
+async def test_data_source_deletion_audits_related_datasets(session, clear_all, sdmx_clint_mock):
+    data_source_service = DataSourceService(session)
+    data_source_deletion_service = DataSourceDeletionService(session)
+    dataset_service = DataSetService(session)
+
+    data_source = await data_source_service.create_data_source(
+        schemas.DataSourceBase(
+            title='test_data_source_with_datasets',
+            type_id=2,
+            details={
+                'apiKey': 'test_key',
+                'sdmxConfig': {
+                    'id': 'test_id',
+                    'name': 'test_name',
+                    'url': 'https://example.com/sdmx.url',
+                },
+            },
+        )
+    )
+
+    dataset_1 = await dataset_service.create_dataset(
+        schemas.DataSetBase(
+            id_=uuid.uuid4(),
+            title='CPI Dataset 1',
+            data_source_id=data_source.id,
+            details={
+                'urn': {'agencyId': 'IMF.STA', 'resourceId': 'CPI', 'version': '4.0.0'},
+                'dimensions': {
+                    'INDEX_TYPE': {'dimensionType': 'INDICATOR', 'isRequired': True},
+                    'FREQUENCY': {'dimensionType': 'NON_INDICATOR', 'subtype': 'FREQUENCY'},
+                    'TIME_PERIOD': {'dimensionType': 'TIME_PERIOD'},
+                },
+            },
+        ),
+        auth_context=SystemUserAuthContext(),
+    )
+    dataset_2 = await dataset_service.create_dataset(
+        schemas.DataSetBase(
+            id_=uuid.uuid4(),
+            title='CPI Dataset 2',
+            data_source_id=data_source.id,
+            details={
+                'urn': {'agencyId': 'IMF.STA', 'resourceId': 'CPI', 'version': '3.0.1'},
+                'dimensions': {
+                    'INDEX_TYPE': {'dimensionType': 'INDICATOR', 'isRequired': True},
+                    'FREQUENCY': {'dimensionType': 'NON_INDICATOR', 'subtype': 'FREQUENCY'},
+                    'TIME_PERIOD': {'dimensionType': 'TIME_PERIOD'},
+                },
+            },
+        ),
+        auth_context=SystemUserAuthContext(),
+    )
+
+    await data_source_deletion_service.delete(data_source.id)
+
+    audit_logs = (
+        (
+            await session.execute(
+                select(models.AuditLog).where(
+                    models.AuditLog.entity_type == schemas.AuditEntityType.DATASET,
+                    models.AuditLog.action_type == schemas.AuditActionType.DELETE,
+                    models.AuditLog.entity_id.in_([str(dataset_1.id_), str(dataset_2.id_)]),
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
+    assert len(audit_logs) == 2

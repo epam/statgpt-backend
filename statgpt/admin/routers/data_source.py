@@ -6,6 +6,7 @@ import statgpt.common.schemas as schemas
 from statgpt.admin.auth.auth_context import SystemUserAuthContext
 from statgpt.admin.auth.user import require_jwt_auth
 from statgpt.admin.services import AdminPortalDataSetService as DataSetService
+from statgpt.admin.services import AdminPortalDataSourceDeletionService as DataSourceDeletionService
 from statgpt.admin.services import AdminPortalDataSourceService as DataSourceService
 from statgpt.common.services import DataSourceTypeService
 from statgpt.common.utils.cancel_dependency import cancel_on_disconnect
@@ -160,4 +161,4 @@ async def delete_data_source(
 ) -> None:
     """Delete data source by id"""
 
-    await DataSourceService(session).delete(item_id)
+    await DataSourceDeletionService(session).delete(item_id)

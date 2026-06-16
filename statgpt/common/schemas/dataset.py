@@ -58,7 +58,10 @@ class DataSet(DataSetBase, DbDefaultBase, Auditable):
         return self.title
 
     def get_state_after(self) -> dict:
-        return self.model_dump(mode='json', exclude={"created_at", "updated_at", "description"})
+        return self.model_dump(
+            mode='json',
+            exclude={"created_at", "updated_at", "description", "data_source"},
+        )
 
     def get_item_id(self) -> int:
         return self.id

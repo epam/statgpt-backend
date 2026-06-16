@@ -3,6 +3,7 @@ from datetime import datetime
 
 import pytest
 import pytest_asyncio  # noqa: F401
+from sqlalchemy import select
 
 from statgpt.admin.auth.auth_context import SystemUserAuthContext
 from statgpt.admin.services import AdminPortalChannelService as ChannelService
@@ -197,6 +198,21 @@ async def test_update_dataset(session, clear_all, sdmx_clint_mock):
     assert res.id_ == random_uuid
     assert res.title == 'CPI Updated'
     assert res.details == dataset.details
+
+    audit_log = (
+        await session.execute(
+            select(models.AuditLog)
+            .where(
+                models.AuditLog.entity_type == schemas.AuditEntityType.DATASET,
+                models.AuditLog.action_type == schemas.AuditActionType.UPDATE,
+                models.AuditLog.entity_id == str(dataset.id_),
+            )
+            .order_by(models.AuditLog.id.desc())
+            .limit(1)
+        )
+    ).scalar_one()
+    assert audit_log.state_after is not None
+    assert "data_source" not in audit_log.state_after
 
 
 @pytest.mark.asyncio
