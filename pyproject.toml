@@ -9,7 +9,7 @@ license-files = ["LICENSE"]
 dependencies = [
     # Core framework & API
     'aidial-sdk[telemetry] (>=0.31.0,<0.32.0)',  # DIAL integration SDK
-    'fastapi (>=0.133.0,<1.0.0)',                # Web framework; >=0.133 required for starlette 1.x
+    'fastapi (>=0.121.0,<0.122.0)',              # Web framework
     'pydantic (>=2.11.7,<3.0.0)',                # Data validation
     'pydantic-core (>=2.33.2,<3.0.0)',           # Pydantic core functionality
     'pydantic-settings (>=2.10.1,<3.0.0)',       # Settings management
