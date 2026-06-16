@@ -9,11 +9,13 @@ from statgpt.admin.auth.auth_context import SystemUserAuthContext
 from statgpt.admin.services import AdminPortalDataSetService as DataSetService
 from statgpt.admin.services import AdminPortalDataSourceDeletionService as DataSourceDeletionService
 from statgpt.admin.services import AdminPortalDataSourceService as DataSourceService
-from statgpt.common import models, schemas
+from statgpt.common import schemas
 from statgpt.common.data.sdmx import Sdmx21DataSourceHandler, SdmxDataSourceConfig
 from statgpt.common.data.sdmx.common.config import SdmxHeaders, SdmxSupport
 from statgpt.common.models import DataSourceType
 from statgpt.common.services import DataSourceTypeService
+
+from .conftest import get_audit_logs
 
 # ~~~~~ Data Source Type Tests ~~~~~
 
@@ -302,6 +304,15 @@ async def test_delete_data_source(session):
     data_sources = await service.get_data_sources_schemas(limit=100, offset=0)
     assert data_source.id not in (ds.id for ds in data_sources)
 
+    audit_logs = await get_audit_logs(
+        session,
+        entity_type=schemas.AuditEntityType.DATA_SOURCE,
+        action_type=schemas.AuditActionType.DELETE,
+        item_ids=[data_source.id],
+    )
+    assert len(audit_logs) == 1
+    assert audit_logs[0].state_after is None
+
 
 @pytest.mark.asyncio
 async def test_data_source_deletion_audits_related_datasets(session, clear_all, sdmx_clint_mock):
@@ -359,17 +370,20 @@ async def test_data_source_deletion_audits_related_datasets(session, clear_all, 
 
     await data_source_deletion_service.delete(data_source.id)
 
-    audit_logs = (
-        (
-            await session.execute(
-                select(models.AuditLog).where(
-                    models.AuditLog.entity_type == schemas.AuditEntityType.DATASET,
-                    models.AuditLog.action_type == schemas.AuditActionType.DELETE,
-                    models.AuditLog.entity_id.in_([str(dataset_1.id_), str(dataset_2.id_)]),
-                )
-            )
-        )
-        .scalars()
-        .all()
+    dataset_audit_logs = await get_audit_logs(
+        session,
+        entity_type=schemas.AuditEntityType.DATASET,
+        action_type=schemas.AuditActionType.DELETE,
+        item_ids=[dataset_1.id, dataset_2.id],
     )
-    assert len(audit_logs) == 2
+    assert len(dataset_audit_logs) == 2
+    assert all(log.state_after is None for log in dataset_audit_logs)
+
+    data_source_audit_logs = await get_audit_logs(
+        session,
+        entity_type=schemas.AuditEntityType.DATA_SOURCE,
+        action_type=schemas.AuditActionType.DELETE,
+        item_ids=[data_source.id],
+    )
+    assert len(data_source_audit_logs) == 1
+    assert data_source_audit_logs[0].state_after is None

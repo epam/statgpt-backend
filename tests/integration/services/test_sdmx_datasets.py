@@ -3,7 +3,6 @@ from datetime import datetime
 
 import pytest
 import pytest_asyncio  # noqa: F401
-from sqlalchemy import select
 
 from statgpt.admin.auth.auth_context import SystemUserAuthContext
 from statgpt.admin.services import AdminPortalChannelService as ChannelService
@@ -18,6 +17,7 @@ from statgpt.common.data.base import DatasetCitation, IndexerConfig, IndexerIndi
 from statgpt.common.settings.langchain import langchain_settings
 
 from .mocks import BackgroundTasksMock
+from .conftest import get_audit_logs
 
 # ~~~~~ Tools ~~~~~
 
@@ -135,6 +135,16 @@ async def test_create_dataset(session, clear_all, sdmx_clint_mock):
     res.data_source = None
     assert res == dataset
 
+    audit_logs = await get_audit_logs(
+        session,
+        entity_type=schemas.AuditEntityType.DATASET,
+        action_type=schemas.AuditActionType.CREATE,
+        entity_ids=[str(random_uuid)],
+    )
+    assert len(audit_logs) == 1
+    assert audit_logs[0].state_after is not None
+    assert "data_source" not in audit_logs[0].state_after
+
 
 @pytest.mark.asyncio
 async def test_update_dataset(session, clear_all, sdmx_clint_mock):
@@ -200,17 +210,13 @@ async def test_update_dataset(session, clear_all, sdmx_clint_mock):
     assert res.details == dataset.details
 
     audit_log = (
-        await session.execute(
-            select(models.AuditLog)
-            .where(
-                models.AuditLog.entity_type == schemas.AuditEntityType.DATASET,
-                models.AuditLog.action_type == schemas.AuditActionType.UPDATE,
-                models.AuditLog.entity_id == str(dataset.id_),
-            )
-            .order_by(models.AuditLog.id.desc())
-            .limit(1)
+        await get_audit_logs(
+            session,
+            entity_type=schemas.AuditEntityType.DATASET,
+            action_type=schemas.AuditActionType.UPDATE,
+            entity_ids=[str(dataset.id_)],
         )
-    ).scalar_one()
+    )[-1]
     assert audit_log.state_after is not None
     assert "data_source" not in audit_log.state_after
 

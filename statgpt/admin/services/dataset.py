@@ -10,13 +10,14 @@ from typing import Any, NamedTuple
 import yaml
 from fastapi import BackgroundTasks, HTTPException, status
 from pydantic import ValidationError
+from sqlalchemy import delete
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from sqlalchemy.sql.expression import func, select
 
 import statgpt.common.models as models
 import statgpt.common.schemas as schemas
-from statgpt.admin.audit.decorators import audit_action
+from statgpt.admin.audit.decorators import _persist_audit_log, audit_action
 from statgpt.admin.auth.auth_context import SystemUserAuthContext
 from statgpt.admin.settings.exim import ExImSettings, JobsConfig
 from statgpt.common import utils
@@ -32,6 +33,8 @@ from statgpt.common.schemas import (
     HybridSearchConfig,
 )
 from statgpt.common.schemas import PreprocessingStatusEnum as StatusEnum
+from statgpt.common.schemas.auditable import Auditable
+from statgpt.common.schemas.dataset import Status as DataSetStatus
 from statgpt.common.services import (
     ChannelDataSetSerializer,
     ChannelSerializer,
@@ -76,6 +79,23 @@ class AutoUpdateChannelResult(NamedTuple):
     failed: int
     summary: str
     failed_reasons: list[str]
+
+
+class _DatasetDeletionAudit(Auditable):
+    def __init__(self, item: models.DataSet) -> None:
+        self._item = item
+
+    def get_entity_id(self) -> str:
+        return str(self._item.id_)
+
+    def get_entity_name(self) -> str:
+        return self._item.title
+
+    def get_state_after(self) -> dict:
+        return {}
+
+    def get_item_id(self) -> int:
+        return self._item.id
 
 
 class AdminPortalDataSetService(DataSetService):
@@ -709,6 +729,90 @@ class AdminPortalDataSetService(DataSetService):
             channel_results=channel_results,
         )
 
+    async def _validate_datasets_deletable(self, items: list[models.DataSet]) -> None:
+        if not items:
+            return
+
+        dataset_ids = [item.id for item in items]
+        query = (
+            select(models.ChannelDataset.dataset_id, func.count())
+            .where(models.ChannelDataset.dataset_id.in_(dataset_ids))
+            .group_by(models.ChannelDataset.dataset_id)
+        )
+        in_use = (await self._session.execute(query)).all()
+        if not in_use:
+            return
+
+        dataset_id, count = in_use[0]
+        _log.warning(
+            f"The dataset(id={dataset_id}) is used in {count} channels, therefore it cannot be deleted."
+        )
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                f"Cannot delete dataset that is used in at least one channel."
+                f" Currently {count} channels are using this dataset."
+            ),
+        )
+
+    @staticmethod
+    def _deleted_schema_from_model(item: models.DataSet) -> schemas.DataSet:
+        return schemas.DataSet(
+            id=item.id,
+            id_=item.id_,
+            created_at=item.created_at,
+            updated_at=item.updated_at,
+            data_source_id=item.source_id,
+            data_source=None,
+            title=item.title,
+            description="",
+            details=item.details,
+            status=DataSetStatus(status="offline", details=""),
+        )
+
+    async def _persist_dataset_delete_audits(self, items: list[models.DataSet]) -> None:
+        for item in items:
+            await _persist_audit_log(
+                session=self._session,
+                entity_type=AuditEntityType.DATASET,
+                action_type=AuditActionType.DELETE,
+                data=_DatasetDeletionAudit(item),
+            )
+
+    async def delete_datasets(self, datasets: Iterable[models.DataSet]) -> list[schemas.DataSet]:
+        items = list(datasets)
+        if not items:
+            return []
+
+        async def _do_delete() -> list[schemas.DataSet]:
+            await self._validate_datasets_deletable(items)
+            for item in items:
+                _log.info(f"Deleting dataset(id={item.id}): {item.title!r}")
+
+            deleted = [self._deleted_schema_from_model(item) for item in items]
+            await self._session.execute(
+                delete(models.DataSet).where(
+                    models.DataSet.id.in_([item.id for item in items])
+                )
+            )
+            await self._session.flush()
+            await self._persist_dataset_delete_audits(items)
+            return deleted
+
+        if self._session.in_transaction():
+            return await _do_delete()
+
+        async with self._session.begin():
+            return await _do_delete()
+
+    async def delete_datasets_by_source_id(self, source_id: int) -> list[schemas.DataSet]:
+        datasets = await self.get_datasets_models(
+            limit=None,
+            offset=0,
+            source_id=source_id,
+        )
+        return await self.delete_datasets(datasets)
+
     @audit_action(entity_type=AuditEntityType.DATASET, action_type=AuditActionType.DELETE)
     async def delete(self, item_id: int) -> schemas.DataSet:
         deleted_item = await self.get_schema_by_id(
@@ -718,18 +822,7 @@ class AdminPortalDataSetService(DataSetService):
         )
         item = await self.get_model_by_id(item_id)
 
-        count = await self.get_channel_datasets_count(dataset_id=item.id)
-        if count > 0:
-            _log.warning(
-                f"The dataset(id={item_id}) is used in {count} channels, therefore it cannot be deleted."
-            )
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail=(
-                    f"Cannot delete dataset that is used in at least one channel."
-                    f" Currently {count} channels are using this dataset."
-                ),
-            )
+        await self._validate_datasets_deletable([item])
 
         _log.info(f"Deleting dataset(id={item.id}): {item.title!r}")
         await self._session.delete(item)

@@ -16,12 +16,5 @@ class AdminPortalDataSourceDeletionService:
         # Keep dataset deletions and datasource deletion in one transaction,
         # while still using audited service-level delete flows.
         async with self._session.begin():
-            datasets = await self._dataset_service.get_datasets_models(
-                limit=None,
-                offset=0,
-                source_id=item_id,
-            )
-            for dataset in datasets:
-                await self._dataset_service.delete(dataset.id)
-
+            await self._dataset_service.delete_datasets_by_source_id(item_id)
             await self._data_source_service.delete(item_id)
