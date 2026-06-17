@@ -19,13 +19,10 @@ class AuditService:
         action_type: AuditActionType,
         data: Auditable,
     ) -> None:
-        self._session.add(
-            self._build_audit_log(
-                entity_type=entity_type,
-                action_type=action_type,
-                data=data,
-                context=audit_context.get_audit_context(),
-            )
+        self.persist_batch(
+            entity_type=entity_type,
+            action_type=action_type,
+            items=[data],
         )
 
     def persist_batch(

@@ -19,8 +19,6 @@ import statgpt.common.models as models
 import statgpt.common.schemas as schemas
 from statgpt.admin.audit.decorators import audit_action
 from statgpt.admin.audit.service import AuditService
-from statgpt.admin.auth.auth_context import SystemUserAuthContext
-from statgpt.admin.exceptions import DatasetInUseError
 from statgpt.admin.settings.exim import ExImSettings, JobsConfig
 from statgpt.common import utils
 from statgpt.common.auth.auth_context import AuthContext
@@ -35,7 +33,6 @@ from statgpt.common.schemas import (
     HybridSearchConfig,
 )
 from statgpt.common.schemas import PreprocessingStatusEnum as StatusEnum
-from statgpt.common.schemas.dataset import Status as DataSetStatus
 from statgpt.common.services import (
     ChannelDataSetSerializer,
     ChannelSerializer,
@@ -55,6 +52,7 @@ from statgpt.common.vectorstore import EmbeddinglessVectorStore, VectorStore, Ve
 from .background_tasks import background_task
 from .channel import AdminPortalChannelService as ChannelService
 from .data_source import AdminPortalDataSourceService as DataSourceService
+from .exceptions import BlockingDataset, DatasetInUseError
 from .status_recovery import set_failed_status
 
 _log = logging.getLogger(__name__)
@@ -727,30 +725,30 @@ class AdminPortalDataSetService(DataSetService):
         if not in_use:
             return
 
-        dataset_id, count = in_use[0]
-        blocking_dataset = next(item for item in items if item.id == dataset_id)
-        _log.warning(
-            f"The dataset(id={dataset_id}) is used in {count} channels, therefore it cannot be deleted."
+        datasets_by_id = {item.id: item for item in items}
+        blocking = sorted(
+            (
+                BlockingDataset(
+                    dataset_id=dataset_id,
+                    dataset_title=datasets_by_id[dataset_id].title,
+                    channel_count=count,
+                )
+                for dataset_id, count in in_use
+            ),
+            key=lambda ds: ds.dataset_title,
         )
-        raise DatasetInUseError(
-            dataset_id=dataset_id,
-            dataset_title=blocking_dataset.title,
-            channel_count=count,
-        )
+        details = ", ".join(f"id={ds.dataset_id} ({ds.channels_label})" for ds in blocking)
+        _log.warning(f"Cannot delete dataset(s) used in channels: {details}")
+        raise DatasetInUseError(blocking)
 
     @staticmethod
-    def _deleted_schema_from_model(item: models.DataSet) -> schemas.DataSet:
-        return schemas.DataSet(
+    def _deleted_schema_from_model(item: models.DataSet) -> schemas.DeletedDataSet:
+        return schemas.DeletedDataSet(
             id=item.id,
             id_=item.id_,
-            created_at=item.created_at,
-            updated_at=item.updated_at,
-            data_source_id=item.source_id,
-            data_source=None,
             title=item.title,
-            description="",
+            data_source_id=item.source_id,
             details=item.details,
-            status=DataSetStatus(status="offline", details=""),
         )
 
     async def _delete_datasets(self, datasets: Iterable[models.DataSet]) -> None:
@@ -790,17 +788,12 @@ class AdminPortalDataSetService(DataSetService):
         await self._delete_datasets(datasets)
 
     @audit_action(entity_type=AuditEntityType.DATASET, action_type=AuditActionType.DELETE)
-    async def delete(self, item_id: int) -> schemas.DataSet:
-        deleted_item = await self.get_schema_by_id(
-            item_id,
-            auth_context=SystemUserAuthContext(),
-            allow_offline=True,
-        )
+    async def delete(self, item_id: int) -> schemas.DeletedDataSet:
         item = await self.get_model_by_id(item_id)
-
         await self._validate_datasets_deletable([item])
 
         _log.info(f"Deleting dataset(id={item.id}): {item.title!r}")
+        deleted_item = self._deleted_schema_from_model(item)
         await self._session.delete(item)
         await self._session.flush()
         return deleted_item

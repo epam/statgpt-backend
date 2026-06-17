@@ -5,8 +5,8 @@ import statgpt.common.models as models
 import statgpt.common.schemas as schemas
 from statgpt.admin.auth.auth_context import SystemUserAuthContext
 from statgpt.admin.auth.user import require_jwt_auth
-from statgpt.admin.exceptions import DatasetInUseError
 from statgpt.admin.services import AdminPortalDataSetService as DataSetService
+from statgpt.admin.services.exceptions import DatasetInUseError
 from statgpt.common.utils.cancel_dependency import cancel_on_disconnect
 
 router = APIRouter(prefix="/datasets", tags=["datasets"], dependencies=[Depends(require_jwt_auth)])
@@ -91,8 +91,5 @@ async def delete_dataset(
     except DatasetInUseError as e:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail=(
-                f"Cannot delete dataset '{e.dataset_title}' "
-                f"because it is used in {e.channel_count} channel(s)."
-            ),
+            detail=f"Cannot delete dataset because it is still used in channels: {e.usage_summary}.",
         ) from e

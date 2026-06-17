@@ -67,6 +67,30 @@ class DataSet(DataSetBase, DbDefaultBase, Auditable):
         return self.id
 
 
+class DeletedDataSet(DataSetBase, Auditable):
+    """Auditable representation of a deleted dataset.
+
+    Derives from ``DataSetBase`` so it stays extensible/returnable, while dropping
+    the ``data_source``/``description``/``status`` fields that ``DataSet`` only needed
+    placeholders for. DELETE audit logs never persist a post-state, so the identity
+    methods below are all that ``AuditService`` actually calls.
+    """
+
+    id: int
+
+    def get_entity_id(self) -> str:
+        return str(self.id_)
+
+    def get_entity_name(self) -> str:
+        return self.title
+
+    def get_item_id(self) -> int:
+        return self.id
+
+    def get_state_after(self) -> dict:
+        return self.model_dump(mode='json')
+
+
 class DataSetUpdateRequest(BaseModel):
     title: str | None = Field(default=None)
     data_source_id: int | None = Field(default=None)
