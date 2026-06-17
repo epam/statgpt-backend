@@ -12,10 +12,12 @@ from statgpt.admin.services.dataset import (
     clear_channel_dataset_data_in_background_task,
     reload_indicators_in_background_task,
 )
+from statgpt.admin.services.exceptions import DatasetInUseError
 from statgpt.common import models, schemas
 from statgpt.common.data.base import DatasetCitation, IndexerConfig, IndexerIndicatorConfig
 from statgpt.common.settings.langchain import langchain_settings
 
+from .conftest import get_audit_logs
 from .mocks import BackgroundTasksMock
 
 # ~~~~~ Tools ~~~~~
@@ -134,6 +136,16 @@ async def test_create_dataset(session, clear_all, sdmx_clint_mock):
     res.data_source = None
     assert res == dataset
 
+    audit_logs = await get_audit_logs(
+        session,
+        entity_type=schemas.AuditEntityType.DATASET,
+        action_type=schemas.AuditActionType.CREATE,
+        entity_ids=[str(random_uuid)],
+    )
+    assert len(audit_logs) == 1
+    assert audit_logs[0].state_after is not None
+    assert "data_source" not in audit_logs[0].state_after
+
 
 @pytest.mark.asyncio
 async def test_update_dataset(session, clear_all, sdmx_clint_mock):
@@ -197,6 +209,87 @@ async def test_update_dataset(session, clear_all, sdmx_clint_mock):
     assert res.id_ == random_uuid
     assert res.title == 'CPI Updated'
     assert res.details == dataset.details
+
+    audit_log = (
+        await get_audit_logs(
+            session,
+            entity_type=schemas.AuditEntityType.DATASET,
+            action_type=schemas.AuditActionType.UPDATE,
+            entity_ids=[str(dataset.id_)],
+        )
+    )[-1]
+    assert audit_log.state_after is not None
+    assert "data_source" not in audit_log.state_after
+
+
+@pytest.mark.asyncio
+async def test_delete_dataset_creates_audit_log(session, clear_all, sdmx_clint_mock):
+    data_source = await get_data_source(session)
+
+    dataset_service = DataSetService(session)
+    dataset = await dataset_service.create_dataset(
+        schemas.DataSetBase(
+            id_=uuid.uuid4(),
+            title='CPI',
+            data_source_id=data_source.id,
+            details={'urn': URN_CPI_4_0_0, 'dimensions': DIMENSIONS},
+        ),
+        auth_context=SystemUserAuthContext(),
+    )
+
+    await dataset_service.delete(dataset.id)
+
+    remaining = await dataset_service.get_datasets_models(
+        limit=None, offset=0, source_id=data_source.id
+    )
+    assert dataset.id not in {ds.id for ds in remaining}
+
+    audit_logs = await get_audit_logs(
+        session,
+        entity_type=schemas.AuditEntityType.DATASET,
+        action_type=schemas.AuditActionType.DELETE,
+        item_ids=[dataset.id],
+    )
+    assert len(audit_logs) == 1
+    assert audit_logs[0].state_after is None
+
+
+@pytest.mark.asyncio
+async def test_delete_dataset_blocked_when_used_in_channel(session, clear_all, sdmx_clint_mock):
+    data_source = await get_data_source(session)
+
+    dataset_service = DataSetService(session)
+    dataset = await dataset_service.create_dataset(
+        schemas.DataSetBase(
+            id_=uuid.uuid4(),
+            title='CPI',
+            data_source_id=data_source.id,
+            details={'urn': URN_CPI_4_0_0, 'dimensions': DIMENSIONS},
+        ),
+        auth_context=SystemUserAuthContext(),
+    )
+
+    channel = await get_channel(session)
+    await dataset_service.add_dataset_to_channel(channel.id, dataset.id)
+
+    with pytest.raises(DatasetInUseError) as exc_info:
+        await dataset_service.delete(dataset.id)
+
+    assert {ds.dataset_id for ds in exc_info.value.blocking_datasets} == {dataset.id}
+
+    # The blocked delete is rolled back: the dataset still exists and no DELETE audit log is written.
+    remaining = await dataset_service.get_datasets_models(
+        limit=None, offset=0, source_id=data_source.id
+    )
+    assert dataset.id in {ds.id for ds in remaining}
+
+    audit_logs = await get_audit_logs(
+        session,
+        entity_type=schemas.AuditEntityType.DATASET,
+        action_type=schemas.AuditActionType.DELETE,
+        item_ids=[dataset.id],
+    )
+    assert audit_logs == []
 
 
 @pytest.mark.asyncio

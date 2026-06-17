@@ -1,14 +1,23 @@
+import uuid
+
 import pytest
 import pytest_asyncio  # noqa: F401
 from fastapi import HTTPException
 from sqlalchemy import select
 
+from statgpt.admin.auth.auth_context import SystemUserAuthContext
+from statgpt.admin.services import AdminPortalDataSetService as DataSetService
+from statgpt.admin.services import AdminPortalDataSourceDeletionService as DataSourceDeletionService
 from statgpt.admin.services import AdminPortalDataSourceService as DataSourceService
+from statgpt.admin.services.exceptions import DatasetInUseError
 from statgpt.common import schemas
 from statgpt.common.data.sdmx import Sdmx21DataSourceHandler, SdmxDataSourceConfig
 from statgpt.common.data.sdmx.common.config import SdmxHeaders, SdmxSupport
 from statgpt.common.models import DataSourceType
 from statgpt.common.services import DataSourceTypeService
+
+from .conftest import get_audit_logs
+from .test_sdmx_datasets import get_channel
 
 # ~~~~~ Data Source Type Tests ~~~~~
 
@@ -296,3 +305,158 @@ async def test_delete_data_source(session):
 
     data_sources = await service.get_data_sources_schemas(limit=100, offset=0)
     assert data_source.id not in (ds.id for ds in data_sources)
+
+    audit_logs = await get_audit_logs(
+        session,
+        entity_type=schemas.AuditEntityType.DATA_SOURCE,
+        action_type=schemas.AuditActionType.DELETE,
+        item_ids=[data_source.id],
+    )
+    assert len(audit_logs) == 1
+    assert audit_logs[0].state_after is None
+
+
+@pytest.mark.asyncio
+async def test_data_source_deletion_audits_related_datasets(session, clear_all, sdmx_clint_mock):
+    data_source_service = DataSourceService(session)
+    data_source_deletion_service = DataSourceDeletionService(session)
+    dataset_service = DataSetService(session)
+
+    data_source = await data_source_service.create_data_source(
+        schemas.DataSourceBase(
+            title='test_data_source_with_datasets',
+            type_id=2,
+            details={
+                'apiKey': 'test_key',
+                'sdmxConfig': {
+                    'id': 'test_id',
+                    'name': 'test_name',
+                    'url': 'https://example.com/sdmx.url',
+                },
+            },
+        )
+    )
+
+    dataset_1 = await dataset_service.create_dataset(
+        schemas.DataSetBase(
+            id_=uuid.uuid4(),
+            title='CPI Dataset 1',
+            data_source_id=data_source.id,
+            details={
+                'urn': {'agencyId': 'IMF.STA', 'resourceId': 'CPI', 'version': '4.0.0'},
+                'dimensions': {
+                    'INDEX_TYPE': {'dimensionType': 'INDICATOR', 'isRequired': True},
+                    'FREQUENCY': {'dimensionType': 'NON_INDICATOR', 'subtype': 'FREQUENCY'},
+                    'TIME_PERIOD': {'dimensionType': 'TIME_PERIOD'},
+                },
+            },
+        ),
+        auth_context=SystemUserAuthContext(),
+    )
+    dataset_2 = await dataset_service.create_dataset(
+        schemas.DataSetBase(
+            id_=uuid.uuid4(),
+            title='CPI Dataset 2',
+            data_source_id=data_source.id,
+            details={
+                'urn': {'agencyId': 'IMF.STA', 'resourceId': 'CPI', 'version': '3.0.1'},
+                'dimensions': {
+                    'INDEX_TYPE': {'dimensionType': 'INDICATOR', 'isRequired': True},
+                    'FREQUENCY': {'dimensionType': 'NON_INDICATOR', 'subtype': 'FREQUENCY'},
+                    'TIME_PERIOD': {'dimensionType': 'TIME_PERIOD'},
+                },
+            },
+        ),
+        auth_context=SystemUserAuthContext(),
+    )
+
+    await data_source_deletion_service.delete(data_source.id)
+
+    dataset_audit_logs = await get_audit_logs(
+        session,
+        entity_type=schemas.AuditEntityType.DATASET,
+        action_type=schemas.AuditActionType.DELETE,
+        item_ids=[dataset_1.id, dataset_2.id],
+    )
+    assert len(dataset_audit_logs) == 2
+    assert all(log.state_after is None for log in dataset_audit_logs)
+
+    data_source_audit_logs = await get_audit_logs(
+        session,
+        entity_type=schemas.AuditEntityType.DATA_SOURCE,
+        action_type=schemas.AuditActionType.DELETE,
+        item_ids=[data_source.id],
+    )
+    assert len(data_source_audit_logs) == 1
+    assert data_source_audit_logs[0].state_after is None
+
+
+@pytest.mark.asyncio
+async def test_data_source_deletion_blocked_lists_all_in_use_datasets(
+    session, clear_all, sdmx_clint_mock
+):
+    data_source_service = DataSourceService(session)
+    data_source_deletion_service = DataSourceDeletionService(session)
+    dataset_service = DataSetService(session)
+
+    data_source = await data_source_service.create_data_source(
+        schemas.DataSourceBase(
+            title='test_data_source_blocked_delete',
+            type_id=2,
+            details={
+                'apiKey': 'test_key',
+                'sdmxConfig': {
+                    'id': 'test_id',
+                    'name': 'test_name',
+                    'url': 'https://example.com/sdmx.url',
+                },
+            },
+        )
+    )
+
+    dataset_details = {
+        'dimensions': {
+            'INDEX_TYPE': {'dimensionType': 'INDICATOR', 'isRequired': True},
+            'FREQUENCY': {'dimensionType': 'NON_INDICATOR', 'subtype': 'FREQUENCY'},
+            'TIME_PERIOD': {'dimensionType': 'TIME_PERIOD'},
+        },
+    }
+    dataset_1 = await dataset_service.create_dataset(
+        schemas.DataSetBase(
+            id_=uuid.uuid4(),
+            title='CPI Dataset 1',
+            data_source_id=data_source.id,
+            details={'urn': {'agencyId': 'IMF.STA', 'resourceId': 'CPI', 'version': '4.0.0'}}
+            | dataset_details,
+        ),
+        auth_context=SystemUserAuthContext(),
+    )
+    dataset_2 = await dataset_service.create_dataset(
+        schemas.DataSetBase(
+            id_=uuid.uuid4(),
+            title='CPI Dataset 2',
+            data_source_id=data_source.id,
+            details={'urn': {'agencyId': 'IMF.STA', 'resourceId': 'CPI', 'version': '3.0.1'}}
+            | dataset_details,
+        ),
+        auth_context=SystemUserAuthContext(),
+    )
+
+    # Both datasets are used by a channel, so the whole data source deletion is blocked.
+    channel = await get_channel(session)
+    await dataset_service.add_dataset_to_channel(channel.id, dataset_1.id)
+    await dataset_service.add_dataset_to_channel(channel.id, dataset_2.id)
+
+    with pytest.raises(DatasetInUseError) as exc_info:
+        await data_source_deletion_service.delete(data_source.id)
+
+    # All blocking datasets are reported, not just the first one.
+    blocked_titles = {ds.dataset_title for ds in exc_info.value.blocking_datasets}
+    assert blocked_titles == {'CPI Dataset 1', 'CPI Dataset 2'}
+
+    # The failed deletion was rolled back: data source and both datasets still exist.
+    remaining = await dataset_service.get_datasets_models(
+        limit=None, offset=0, source_id=data_source.id
+    )
+    assert {ds.id for ds in remaining} == {dataset_1.id, dataset_2.id}
+    assert await data_source_service.get_schema_by_id(data_source.id) is not None
