@@ -12,11 +12,12 @@ from fastapi import params as fastapi_params
 
 from statgpt.common.models import DatabaseHealthChecker, optional_msi_token_manager_context
 from statgpt.common.services.data_preloader import preload_data
+from statgpt.common.utils.elastic import elasticsearch_client_context
 
 
 @asynccontextmanager
 async def lifespan(app: "StatGPTApp"):
-    async with optional_msi_token_manager_context():
+    async with optional_msi_token_manager_context(), elasticsearch_client_context():
         # Check resources' availability:
         await DatabaseHealthChecker().check()
 
