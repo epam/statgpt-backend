@@ -68,13 +68,7 @@ class DataSet(DataSetBase, DbDefaultBase, Auditable):
 
 
 class DeletedDataSet(DataSetBase, Auditable):
-    """Auditable representation of a deleted dataset.
-
-    Derives from ``DataSetBase`` so it stays extensible/returnable, while dropping
-    the ``data_source``/``description``/``status`` fields that ``DataSet`` only needed
-    placeholders for. DELETE audit logs never persist a post-state, so the identity
-    methods below are all that ``AuditService`` actually calls.
-    """
+    """Auditable representation of a deleted dataset."""
 
     id: int
 
