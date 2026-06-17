@@ -765,9 +765,7 @@ class AdminPortalDataSetService(DataSetService):
 
             deleted = [self._deleted_schema_from_model(item) for item in items]
             await self._session.execute(
-                delete(models.DataSet).where(
-                    models.DataSet.id.in_([item.id for item in items])
-                )
+                delete(models.DataSet).where(models.DataSet.id.in_([item.id for item in items]))
             )
             await self._session.flush()
             AuditService(self._session).persist_batch(

@@ -16,8 +16,8 @@ from statgpt.common import models, schemas
 from statgpt.common.data.base import DatasetCitation, IndexerConfig, IndexerIndicatorConfig
 from statgpt.common.settings.langchain import langchain_settings
 
-from .mocks import BackgroundTasksMock
 from .conftest import get_audit_logs
+from .mocks import BackgroundTasksMock
 
 # ~~~~~ Tools ~~~~~
 

@@ -1,8 +1,6 @@
 from collections.abc import Awaitable, Callable
 from functools import wraps
 
-from sqlalchemy.ext.asyncio import AsyncSession
-
 from statgpt.admin.audit.service import AuditService
 from statgpt.common.schemas.auditable import Auditable
 from statgpt.common.schemas.enums import AuditActionType, AuditEntityType
