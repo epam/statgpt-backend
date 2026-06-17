@@ -402,6 +402,13 @@ class Sdmx21DataSourceHandler(
 
         return problems
 
+    def _create_dataflow_loader(self, sdmx_client: AsyncSdmxClient) -> DataflowLoader:
+        """Create a DataflowLoader for this data source.
+
+        Override to wire in source-specific behavior such as structure request headers.
+        """
+        return DataflowLoader(sdmx_client)
+
     async def _load_dataset_structure_message(
         self, urn_ref: UrnReference, auth_context: AuthContext
     ) -> tuple[Urn, StructureMessage21]:
@@ -410,7 +417,7 @@ class Sdmx21DataSourceHandler(
             agency_id=urn_ref.agency_id, resource_id=urn_ref.resource_id, version=urn_ref.version
         )
         sdmx_client = await self.create_sdmx_client(auth_context)
-        dataflow_loader = DataflowLoader(sdmx_client)
+        dataflow_loader = self._create_dataflow_loader(sdmx_client)
         urn, structure_message = await dataflow_loader.load_structure_message(urn, mode="full")
         return urn, structure_message
 
@@ -524,7 +531,7 @@ class Sdmx21DataSourceHandler(
 
         sdmx_client = await self.create_sdmx_client(auth_context)
 
-        dataflow_loader = DataflowLoader(sdmx_client)
+        dataflow_loader = self._create_dataflow_loader(sdmx_client)
         urn, structure_message = await dataflow_loader.load_structure_message(urn, mode="shallow")
 
         meta_json = {

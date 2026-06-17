@@ -43,7 +43,7 @@ class PostgresSettings(BaseSettings):
     )
 
     advisory_lock_timeout: PositiveFloat = Field(
-        default=300.0, description="Timeout in seconds for acquiring pg_advisory_lock"
+        default=600.0, description="Timeout in seconds for acquiring pg_advisory_lock"
     )
 
     alembic_max_retries: PositiveInt = Field(
