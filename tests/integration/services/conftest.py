@@ -3,7 +3,7 @@ import pytest_asyncio
 from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from statgpt.admin.audit import decorators as audit_decorators
+from statgpt.admin.audit import context as audit_context
 from statgpt.admin.audit.context import AuditContext
 from statgpt.common import models, schemas
 from statgpt.common.data.quanthub.v21.qh_sdmx_client import AsyncQuanthubClient
@@ -46,7 +46,7 @@ async def get_audit_logs(
 @pytest.fixture(autouse=True)
 def integration_test_audit_context(monkeypatch):
     monkeypatch.setattr(
-        audit_decorators,
+        audit_context,
         "get_audit_context",
         lambda: get_integration_test_audit_context(),
     )
