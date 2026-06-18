@@ -2,11 +2,17 @@ from itertools import groupby
 from operator import attrgetter
 
 from aidial_sdk.chat_completion import Stage
-from langchain_core.runnables import Runnable, RunnableConfig, RunnablePassthrough
+from langchain_core.runnables import Runnable, RunnableConfig, RunnableLambda, RunnablePassthrough
 
 from statgpt.app.chains.utils import dataset_utils
+from statgpt.app.config import ChainParametersConfig
 from statgpt.app.default_prompts import data_query_default_prompts
-from statgpt.app.schemas.query_builder import ChainState, NamedEntitiesResponse, NamedEntity
+from statgpt.app.schemas.query_builder import (
+    ChainState,
+    DataSetsSelectionChainResponse,
+    NamedEntitiesResponse,
+    NamedEntity,
+)
 from statgpt.app.utils.callbacks import StageCallback
 from statgpt.app.utils.formatters import DatasetFormatterConfig, DatasetsListFormatter
 from statgpt.common.config import multiline_logger as logger
@@ -46,11 +52,15 @@ class SearchPreparationChainFactory:
             system_prompt=prompts.named_entities_prompt
             or data_query_default_prompts.named_entities_prompt,
         )
-        self._datasets_selection_chain = DataSetsSelectionChain(
-            llm_model_config=self._config.llm_models.datasets_selection_model_config,
-            system_user_prompt=prompts.dataset_selection_prompt
-            or data_query_default_prompts.dataset_selection_prompt,
-        )
+
+        self._use_internal_dataset_selection = config.use_internal_dataset_selection
+        self._datasets_selection_chain: DataSetsSelectionChain | None = None
+        if self._use_internal_dataset_selection:
+            self._datasets_selection_chain = DataSetsSelectionChain(
+                llm_model_config=self._config.llm_models.datasets_selection_model_config,
+                system_user_prompt=prompts.dataset_selection_prompt
+                or data_query_default_prompts.dataset_selection_prompt,
+            )
 
     @staticmethod
     def _get_country_named_entities(inputs: dict) -> list[NamedEntity]:
@@ -67,6 +77,28 @@ class SearchPreparationChainFactory:
             f'Found {len(country_entities)} {country_named_entity_type} named entities: {country_entities}'
         )
         return country_entities
+
+    @staticmethod
+    def _resolve_agent_supplied_datasets(inputs: dict) -> dict:
+        """Build a `datasets_selection_response` from the agent-supplied list.
+
+        The DataQueryTool has already validated agent-supplied source IDs against
+        the channel's available datasets (returning a descriptive error if any
+        were unknown) and stashed the resolved entity IDs in `inputs` under
+        AGENT_SUPPLIED_DATASET_ENTITY_IDS. This step just packages them into the
+        same `DataSetsSelectionChainResponse` shape the LLM chain would have
+        produced, so the downstream `_apply_datasets_selection_response` works
+        unchanged. `rewritten_query` is the raw query — the agent is instructed
+        via the `query` arg description to strip dataset references itself.
+        """
+        entity_ids: list[str] = inputs.get(
+            ChainParametersConfig.AGENT_SUPPLIED_DATASET_ENTITY_IDS, []
+        )
+        inputs["datasets_selection_response"] = DataSetsSelectionChainResponse(
+            dataset_ids=list(entity_ids),
+            rewritten_query=inputs.get("normalized_query", ""),
+        )
+        return inputs
 
     @staticmethod
     def _apply_datasets_selection_response(inputs: dict) -> dict:
@@ -147,23 +179,12 @@ class SearchPreparationChainFactory:
             debug_only=stage_names.extracting_named_entities.is_debug(stages_config),
         )
 
-        chain = (
-            RunnablePassthrough.assign(
-                versioned_datasets_dict=dataset_utils.get_available_datasets,
-            )
-            # # unpack country groups in the user prompt
-            # | RunnablePassthrough.assign(
-            #     query_with_expanded_groups=self._group_expander_chain.create_chain,
-            # )
-            # normalize (summarize) conversation
-            | RunnablePassthrough.assign(
-                normalized_query=self._normalization_chain.create_chain,
-            ).with_config(config=RunnableConfig(callbacks=[normalizing_query_stage_callback]))
-            # save 'normalized_query' to separate variable, since it will be overwritten later
-            | RunnablePassthrough.assign(normalized_query_raw=lambda d: d["normalized_query"])
-            | (
+        if self._use_internal_dataset_selection:
+            datasets_selection_chain = self._datasets_selection_chain
+            assert datasets_selection_chain is not None
+            datasets_step: Runnable = (
                 RunnablePassthrough.assign(
-                    datasets_selection_response=self._datasets_selection_chain.create_chain
+                    datasets_selection_response=datasets_selection_chain.create_chain
                 )
                 | self._apply_datasets_selection_response
             ).with_config(
@@ -180,6 +201,37 @@ class SearchPreparationChainFactory:
                     ]
                 )
             )
+        else:
+            datasets_step = (
+                RunnableLambda(self._resolve_agent_supplied_datasets)
+                | self._apply_datasets_selection_response
+            ).with_config(
+                config=RunnableConfig(
+                    callbacks=[
+                        StageCallback(
+                            "Selecting Datasets (agent-supplied)",
+                            self._populate_datasets_dict,
+                            debug_only=True,
+                        ),
+                    ]
+                )
+            )
+
+        chain = (
+            RunnablePassthrough.assign(
+                versioned_datasets_dict=dataset_utils.get_available_datasets,
+            )
+            # # unpack country groups in the user prompt
+            # | RunnablePassthrough.assign(
+            #     query_with_expanded_groups=self._group_expander_chain.create_chain,
+            # )
+            # normalize (summarize) conversation
+            | RunnablePassthrough.assign(
+                normalized_query=self._normalization_chain.create_chain,
+            ).with_config(config=RunnableConfig(callbacks=[normalizing_query_stage_callback]))
+            # save 'normalized_query' to separate variable, since it will be overwritten later
+            | RunnablePassthrough.assign(normalized_query_raw=lambda d: d["normalized_query"])
+            | datasets_step
             # extract named entities and time range
             | RunnablePassthrough.assign(
                 named_entities_response=self._named_entities_chain.create_chain,

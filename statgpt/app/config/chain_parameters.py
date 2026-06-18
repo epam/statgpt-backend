@@ -22,6 +22,7 @@ class ChainParametersConfig:
 
     TARGET_PREFILTER = "target_prefilter"
     DATASETS_DICT = "datasets_dict"
+    AGENT_SUPPLIED_DATASET_ENTITY_IDS = "agent_supplied_dataset_entity_ids"
     DATASET_DIMENSION_QUERIES = "dataset_dimension_queries"
     DATASET_QUERIES_FORMATTED_STR = "dataset_queries_formatted_str"
     DATASET_QUERIES = "dataset_queries"

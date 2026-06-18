@@ -83,6 +83,17 @@ class ToolCaller:
             logger.warning(f"Error formatting stage name: {e}")
             return name
 
+    @staticmethod
+    def _format_args_as_markdown(args: dict) -> str:
+        lines = []
+        for k, v in args.items():
+            if v is None or v == "" or v == []:
+                continue
+            values = v if isinstance(v, list) else [v]
+            values_str = ", ".join(f"**{item}**" for item in values)
+            lines.append(f"* _{k}_: {values_str}")
+        return "\n".join(lines)
+
     async def call_tool(
         self, tool_call: ToolCall, inputs: dict, show_stage: bool = True, prefix: str = ''
     ) -> ToolMessage:
@@ -99,7 +110,11 @@ class ToolCaller:
         tool_call_name = f"{prefix}{formatted_stage_name}"
         tool_result_name = f"{prefix}{formatted_result_stage_name}"
 
-        with optional_timed_stage(choice=choice, name=tool_call_name, enabled=show_stage):
+        with optional_timed_stage(
+            choice=choice, name=tool_call_name, enabled=show_stage
+        ) as call_stage:
+            if show_stage and (args_md := self._format_args_as_markdown(tool_call['args'])):
+                call_stage.append_content(args_md)
             logger.debug(f"Calling tool: {tool.name}")
             # NOTE: deepcopy raises errors - something with pydantic.
             # shallow copy seems to be enough here.
