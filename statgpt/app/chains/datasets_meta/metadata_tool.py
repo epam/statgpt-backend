@@ -1,3 +1,5 @@
+from typing import Any
+
 from langchain_core.prompts import ChatPromptTemplate, SystemMessagePromptTemplate
 from mcp.types import ToolAnnotations
 from pydantic import Field
@@ -43,6 +45,9 @@ class DatasetsMetadataTool(
     def get_args_schema(cls, tool_config: DatasetsMetadataToolConfig) -> type[DatasetsMetadataArgs]:
         """Return the schema for the arguments that this tool accepts."""
         return DatasetsMetadataArgs
+
+    def get_guardrail_input(self, arguments: dict[str, Any]) -> str | None:
+        return arguments.get("query")
 
     async def _arun(self, inputs: dict, query: str, **kwargs) -> tuple[str, ToolArtifact]:
         data_service = ChainParameters.get_data_service(inputs)

@@ -1,12 +1,15 @@
 import json
+from collections.abc import Sequence
+from typing import Any
 
+from langchain_core.messages import BaseMessage
 from langchain_core.prompts import (
     ChatPromptTemplate,
     MessagesPlaceholder,
     SystemMessagePromptTemplate,
 )
 from langchain_core.runnables import Runnable, RunnableLambda
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, SecretStr
 
 from statgpt.app.chains.parameters import ChainParameters
 from statgpt.app.config import ChainParametersConfig, StateVarsConfig
@@ -63,6 +66,76 @@ class OutOfScopeChecker:
         )
         return inputs
 
+    def _build_checker_params(self, messages: Sequence[BaseMessage]) -> dict[str, Any]:
+        """Build the prompt parameters shared by the checker and response prompts.
+
+        Chat-agnostic: takes the messages to classify directly instead of reading
+        them from the chat history, so it can be reused outside the chat chain.
+        """
+        if self._channel_config.out_of_scope is None:
+            raise ValueError("out_of_scope must be configured for the channel")
+
+        language_instructions = format_as_markdown_list(
+            self._channel_config.supreme_agent.language_instructions, list_type="ordered"
+        )
+
+        params: dict[str, Any] = dict(
+            chat_history=messages,
+            domain_description=self._channel_config.out_of_scope.domain,
+            tools_description=self._get_tool_description(),
+            chat_bot_language_instructions=language_instructions,
+        )
+
+        blacklist = []
+        if self._channel_config.out_of_scope.use_general_topics_blacklist:
+            blacklist += guardrails_default_prompts.general_topics_blacklist
+        if self._channel_config.out_of_scope.custom_blacklist:
+            blacklist += self._channel_config.out_of_scope.custom_blacklist
+        params["blacklist"] = (
+            (
+                "# The following topics and questions are strictly OUT OF SCOPE:  \n"
+                + format_as_markdown_list(blacklist, list_type="ordered")
+            )
+            if blacklist
+            else ""
+        )
+        return params
+
+    async def classify(
+        self, messages: Sequence[BaseMessage], api_key: str | SecretStr
+    ) -> OutOfScopeCheckerResponse:
+        """Classify whether the given messages are out of scope for the channel.
+
+        This is the chat-agnostic core of the guardrail: just the LLM relevancy
+        decision, with no chat-history bookkeeping, streaming, or state. Reused by
+        both the chat chain (``_stream_response``) and the MCP input guardrail.
+        Requires the channel to have an ``out_of_scope`` configuration.
+        """
+        if self._channel_config.out_of_scope is None:
+            raise ValueError("out_of_scope must be configured for the channel")
+
+        params = self._build_checker_params(messages)
+        checker_prompt = ChatPromptTemplate.from_messages(
+            [
+                SystemMessagePromptTemplate.from_template(
+                    guardrails_default_prompts.checker_prompt
+                ),
+                MessagesPlaceholder(variable_name="chat_history"),
+            ]
+        ).partial(**params)
+
+        model = get_chat_model(
+            api_key=api_key,
+            model_config=self._channel_config.out_of_scope.llm_model_config,
+        )
+
+        checker_chain = checker_prompt | model.with_structured_output(
+            OutOfScopeCheckerResponse, method="json_schema"
+        )
+
+        response: OutOfScopeCheckerResponse = await checker_chain.ainvoke({})  # type: ignore[assignment]
+        return response
+
     async def _stream_response(self, inputs: dict) -> dict:
         state = ChainParameters.get_state(inputs)
         oos_only = state.get(StateVarsConfig.CMD_OUT_OF_SCOPE_ONLY, False)
@@ -99,54 +172,13 @@ class OutOfScopeChecker:
                     self._channel_config.out_of_scope.start_new_conversation_message,
                 )
 
-        language_instructions = format_as_markdown_list(
-            self._channel_config.supreme_agent.language_instructions, list_type="ordered"
-        )
-
-        params = dict(
-            chat_history=history.get_langchain_messages(include_tool_messages=False),
-            domain_description=self._channel_config.out_of_scope.domain,
-            tools_description=self._get_tool_description(),
-            chat_bot_language_instructions=language_instructions,
-        )
-
-        blacklist = []
-        if self._channel_config.out_of_scope.use_general_topics_blacklist:
-            blacklist += guardrails_default_prompts.general_topics_blacklist
-        if self._channel_config.out_of_scope.custom_blacklist:
-            blacklist += self._channel_config.out_of_scope.custom_blacklist
-        params["blacklist"] = (
-            (
-                "# The following topics and questions are strictly OUT OF SCOPE:  \n"
-                + format_as_markdown_list(blacklist, list_type="ordered")
-            )
-            if blacklist
-            else ""
-        )
-
-        checker_prompt = ChatPromptTemplate.from_messages(
-            [
-                SystemMessagePromptTemplate.from_template(
-                    guardrails_default_prompts.checker_prompt
-                ),
-                MessagesPlaceholder(variable_name="chat_history"),
-            ]
-        ).partial(**params)
-
-        model = get_chat_model(
-            api_key=auth_context.api_key,
-            model_config=self._channel_config.out_of_scope.llm_model_config,
-        )
-
-        checker_chain = checker_prompt | model.with_structured_output(
-            OutOfScopeCheckerResponse, method="json_schema"
-        )
+        messages = history.get_langchain_messages(include_tool_messages=False)
 
         show_debug_stages = state.get(StateVarsConfig.SHOW_DEBUG_STAGES, False)
         with optional_timed_stage(
             choice, "[DEBUG] Guardrails: Relevancy", enabled=show_debug_stages
         ) as stage:
-            response: OutOfScopeCheckerResponse = await checker_chain.ainvoke({})  # type: ignore[assignment]
+            response = await self.classify(messages, auth_context.api_key)
             if stage:
                 if response.out_of_scope:
                     stage.append_content(
@@ -176,6 +208,7 @@ class OutOfScopeChecker:
 
         # tell user that the request is out of scope
 
+        params = self._build_checker_params(messages)
         params["out_of_scope_reasoning"] = response.reasoning
         response_prompt = ChatPromptTemplate.from_messages(
             [
@@ -186,6 +219,10 @@ class OutOfScopeChecker:
             ]
         ).partial(**params)
 
+        model = get_chat_model(
+            api_key=auth_context.api_key,
+            model_config=self._channel_config.out_of_scope.llm_model_config,
+        )
         response_chain = response_prompt | model
 
         async for chunk in response_chain.astream(inputs):

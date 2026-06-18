@@ -65,6 +65,9 @@ class WebSearchTool(StatGptTool[WebSearchToolConfig], tool_type=ToolTypes.WEB_SE
 
         return web_search_args_cls
 
+    def get_guardrail_input(self, arguments: dict[str, Any]) -> str | None:
+        return arguments.get("query")
+
     @staticmethod
     def _to_enum_name(domain: str) -> str:
         return domain.upper().replace(".", "_")

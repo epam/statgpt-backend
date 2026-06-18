@@ -51,6 +51,9 @@ class FileRagTool(StatGptTool[FileRagToolConfig], tool_type=ToolTypes.FILE_RAG):
         """Return the schema for the arguments that this tool accepts."""
         return FileRagArgs
 
+    def get_guardrail_input(self, arguments: dict[str, t.Any]) -> str | None:
+        return arguments.get("query")
+
     async def _arun(
         self, inputs: dict, query: str, target_prefilter_json: str | None = None
     ) -> tuple[str, BaseFileRagArtifact]:

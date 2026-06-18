@@ -158,3 +158,12 @@ class StatGptTool(BaseTool, ABC, Generic[ToolConfigType]):
     def get_public_args_schema(self) -> dict[str, Any]:
         """Get JSON Schema for tool parameters, excluding injected args."""
         return self.get_args_schema(self._tool_config).get_public_schema()
+
+    def get_guardrail_input(self, arguments: dict[str, Any]) -> str | None:
+        """Return the free-text user input that should be screened by input
+        guardrails, or None if this tool takes no arbitrary natural-language input.
+
+        Tools that accept an arbitrary natural-language ``query`` override this to
+        expose it; the MCP layer screens that text with the out-of-scope guardrail
+        before executing the tool."""
+        return None

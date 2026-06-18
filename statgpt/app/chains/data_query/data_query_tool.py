@@ -1,3 +1,5 @@
+from typing import Any
+
 from langchain_core.runnables import Runnable
 from mcp.types import ToolAnnotations
 from pydantic import Field
@@ -33,6 +35,9 @@ class DataQueryTool(StatGptTool[DataQueryToolConfig], tool_type=ToolTypes.DATA_Q
     def get_args_schema(cls, tool_config: DataQueryToolConfig) -> type[DataQueryArgs]:
         """Return the schema for the arguments that this tool accepts."""
         return DataQueryArgs
+
+    def get_guardrail_input(self, arguments: dict[str, Any]) -> str | None:
+        return arguments.get("query")
 
     async def _arun(self, inputs: dict, query: str) -> tuple[str, DataQueryArtifact]:
         factory = QueryBuilderFactory(self._tool_config.details)

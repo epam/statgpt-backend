@@ -17,6 +17,9 @@ def _build_adapter(result) -> _McpToolAdapter:
     return _McpToolAdapter(
         langchain_tool=tool,  # type: ignore[arg-type]
         inputs={},
+        # out_of_scope=None disables the guardrail, so run() proceeds straight to the tool.
+        channel_config=SimpleNamespace(out_of_scope=None),  # type: ignore[arg-type]
+        auth_context=SimpleNamespace(),  # type: ignore[arg-type]
         name="fake_tool",
         parameters={},
     )
@@ -70,6 +73,8 @@ async def test_tool_failure_raises_tool_error():
     adapter = _McpToolAdapter(
         langchain_tool=tool,  # type: ignore[arg-type]
         inputs={},
+        channel_config=SimpleNamespace(out_of_scope=None),  # type: ignore[arg-type]
+        auth_context=SimpleNamespace(),  # type: ignore[arg-type]
         name="fake_tool",
         parameters={},
     )
@@ -116,7 +121,9 @@ def test_create_mcp_tool_applies_prefix(fake_statgpt_tool):
     tool_config = _tool_config()
     channel_config = _channel_config(tool_config, prefix="statgpt__")
 
-    mcp_tool = ChannelToolProvider()._create_mcp_tool(tool_config, channel_config, inputs={})
+    mcp_tool = ChannelToolProvider()._create_mcp_tool(
+        tool_config, channel_config, inputs={}, auth_context=SimpleNamespace()
+    )
 
     assert mcp_tool.name == "statgpt__query_data"
     assert mcp_tool.description == "Query data tool."
@@ -126,7 +133,9 @@ def test_create_mcp_tool_empty_prefix_keeps_name(fake_statgpt_tool):
     tool_config = _tool_config()
     channel_config = _channel_config(tool_config, prefix="")
 
-    mcp_tool = ChannelToolProvider()._create_mcp_tool(tool_config, channel_config, inputs={})
+    mcp_tool = ChannelToolProvider()._create_mcp_tool(
+        tool_config, channel_config, inputs={}, auth_context=SimpleNamespace()
+    )
 
     assert mcp_tool.name == "query_data"
 
@@ -135,7 +144,9 @@ def test_create_mcp_tool_uses_mcp_overrides(fake_statgpt_tool):
     tool_config = _tool_config(mcp_name="data", mcp_description="MCP description.")
     channel_config = _channel_config(tool_config, prefix="statgpt__")
 
-    mcp_tool = ChannelToolProvider()._create_mcp_tool(tool_config, channel_config, inputs={})
+    mcp_tool = ChannelToolProvider()._create_mcp_tool(
+        tool_config, channel_config, inputs={}, auth_context=SimpleNamespace()
+    )
 
     assert mcp_tool.name == "statgpt__data"
     assert mcp_tool.description == "MCP description."
