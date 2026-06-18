@@ -9,13 +9,14 @@ from langchain_core.prompts import (
     SystemMessagePromptTemplate,
 )
 from langchain_core.runnables import Runnable, RunnableLambda
-from pydantic import BaseModel, Field, SecretStr
+from pydantic import BaseModel, Field
 
 from statgpt.app.chains.parameters import ChainParameters
 from statgpt.app.config import ChainParametersConfig, StateVarsConfig
 from statgpt.app.default_prompts import guardrails_default_prompts
 from statgpt.app.utils.dial_stages import ChoiceI, optional_timed_stage
 from statgpt.app.utils.message_history import History
+from statgpt.common.auth.auth_context import AuthContext
 from statgpt.common.schemas import ChannelConfig
 from statgpt.common.utils.markdown import format_as_markdown_list
 from statgpt.common.utils.models import get_chat_model
@@ -102,7 +103,7 @@ class OutOfScopeChecker:
         return params
 
     async def classify(
-        self, messages: Sequence[BaseMessage], api_key: str | SecretStr
+        self, messages: Sequence[BaseMessage], auth_context: AuthContext
     ) -> OutOfScopeCheckerResponse:
         """Classify whether the given messages are out of scope for the channel.
 
@@ -125,7 +126,7 @@ class OutOfScopeChecker:
         ).partial(**params)
 
         model = get_chat_model(
-            api_key=api_key,
+            api_key=auth_context.api_key,
             model_config=self._channel_config.out_of_scope.llm_model_config,
         )
 
@@ -135,6 +136,46 @@ class OutOfScopeChecker:
 
         response: OutOfScopeCheckerResponse = await checker_chain.ainvoke({})  # type: ignore[assignment]
         return response
+
+    def _build_response_chain(
+        self, messages: Sequence[BaseMessage], reasoning: str, auth_context: AuthContext
+    ) -> Runnable:
+        """Build the chain that generates the user-facing out-of-scope message.
+
+        Shared by the chat chain (which streams it to the DIAL choice) and the MCP
+        input guardrail (which invokes it for the full message). The prompt is fully
+        bound via ``.partial``, so the chain can be invoked with ``{}``.
+        """
+        if self._channel_config.out_of_scope is None:
+            raise ValueError("out_of_scope must be configured for the channel")
+
+        params = self._build_checker_params(messages)
+        params["out_of_scope_reasoning"] = reasoning
+        response_prompt = ChatPromptTemplate.from_messages(
+            [
+                SystemMessagePromptTemplate.from_template(
+                    guardrails_default_prompts.response_prompt
+                ),
+                MessagesPlaceholder(variable_name="chat_history"),
+            ]
+        ).partial(**params)
+
+        model = get_chat_model(
+            api_key=auth_context.api_key,
+            model_config=self._channel_config.out_of_scope.llm_model_config,
+        )
+        return response_prompt | model
+
+    async def generate_response(
+        self, messages: Sequence[BaseMessage], reasoning: str, auth_context: AuthContext
+    ) -> str:
+        """Generate the user-facing out-of-scope message (non-streaming).
+
+        Reused by the MCP input guardrail, which has no DIAL choice to stream into.
+        """
+        chain = self._build_response_chain(messages, reasoning, auth_context)
+        result = await chain.ainvoke({})
+        return result.content if isinstance(result.content, str) else str(result.content)
 
     async def _stream_response(self, inputs: dict) -> dict:
         state = ChainParameters.get_state(inputs)
@@ -178,7 +219,7 @@ class OutOfScopeChecker:
         with optional_timed_stage(
             choice, "[DEBUG] Guardrails: Relevancy", enabled=show_debug_stages
         ) as stage:
-            response = await self.classify(messages, auth_context.api_key)
+            response = await self.classify(messages, auth_context)
             if stage:
                 if response.out_of_scope:
                     stage.append_content(
@@ -208,22 +249,7 @@ class OutOfScopeChecker:
 
         # tell user that the request is out of scope
 
-        params = self._build_checker_params(messages)
-        params["out_of_scope_reasoning"] = response.reasoning
-        response_prompt = ChatPromptTemplate.from_messages(
-            [
-                SystemMessagePromptTemplate.from_template(
-                    guardrails_default_prompts.response_prompt
-                ),
-                MessagesPlaceholder(variable_name="chat_history"),
-            ]
-        ).partial(**params)
-
-        model = get_chat_model(
-            api_key=auth_context.api_key,
-            model_config=self._channel_config.out_of_scope.llm_model_config,
-        )
-        response_chain = response_prompt | model
+        response_chain = self._build_response_chain(messages, response.reasoning, auth_context)
 
         async for chunk in response_chain.astream(inputs):
             if isinstance(chunk.content, str):

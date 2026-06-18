@@ -38,8 +38,9 @@ async def enforce_input_guardrail(
         return
 
     checker = OutOfScopeChecker(channel_config)
+    messages = [HumanMessage(content=query)]
     try:
-        decision = await checker.classify([HumanMessage(content=query)], auth_context.api_key)
+        decision = await checker.classify(messages, auth_context)
     except Exception:
         # Fail-closed: if the guardrail check cannot run, block the tool call
         # rather than letting an unscreened request through.
@@ -47,4 +48,10 @@ async def enforce_input_guardrail(
         raise ToolError("Request blocked: the safety check could not be completed.") from None
 
     if decision.out_of_scope:
-        raise ToolError(f"This request is out of scope. Reason: {decision.reasoning}")
+        try:
+            message = await checker.generate_response(messages, decision.reasoning, auth_context)
+        except Exception:
+            # Still block the request; only the polished message could not be produced.
+            _log.exception("Out-of-scope response generation failed for MCP tool %s", tool.name)
+            message = f"This request is out of scope. Reason: {decision.reasoning}"
+        raise ToolError(message)

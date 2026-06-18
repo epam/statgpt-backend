@@ -1,7 +1,7 @@
 from types import SimpleNamespace
 
 import pytest
-from langchain_core.messages import HumanMessage
+from langchain_core.messages import AIMessage, HumanMessage
 from langchain_core.runnables import RunnableLambda
 
 from statgpt.app.chains.data_query.data_query_tool import DataQueryTool
@@ -40,10 +40,31 @@ async def test_classify_returns_model_decision(monkeypatch, out_of_scope):
     )
 
     checker = OutOfScopeChecker(_channel_config())  # type: ignore[arg-type]
-    result = await checker.classify([HumanMessage(content="GDP of France")], "key")
+    result = await checker.classify(
+        [HumanMessage(content="GDP of France")],
+        SimpleNamespace(api_key="key"),  # type: ignore[arg-type]
+    )
 
     assert isinstance(result, OutOfScopeCheckerResponse)
     assert result.out_of_scope is out_of_scope
+
+
+async def test_generate_response_returns_model_message(monkeypatch):
+    monkeypatch.setattr(
+        "statgpt.app.chains.out_of_scope_checker.get_chat_model",
+        lambda api_key, model_config: RunnableLambda(
+            lambda _: AIMessage(content="I can only help with official statistics.")
+        ),
+    )
+
+    checker = OutOfScopeChecker(_channel_config())  # type: ignore[arg-type]
+    result = await checker.generate_response(
+        [HumanMessage(content="weather in London")],
+        "off-domain weather request",
+        SimpleNamespace(api_key="key"),  # type: ignore[arg-type]
+    )
+
+    assert result == "I can only help with official statistics."
 
 
 @pytest.mark.parametrize(
