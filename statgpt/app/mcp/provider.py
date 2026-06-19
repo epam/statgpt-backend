@@ -15,7 +15,7 @@ from mcp.types import ContentBlock, TextContent
 from pydantic import PrivateAttr
 from starlette.requests import Request
 
-from statgpt.app.chains.tools import StatGptTool
+from statgpt.app.chains.tools import StatGptTool, ToolInputError
 from statgpt.app.config import ChainParametersConfig
 from statgpt.app.mcp.attachments import data_query_artifact_to_resources
 from statgpt.app.schemas.dial_app_configuration import StatGPTConfiguration
@@ -71,6 +71,9 @@ class _McpToolAdapter(Tool):
         }
         try:
             result = await self._langchain_tool.ainvoke(tool_call)
+        except ToolInputError as e:
+            # Invalid caller-provided arguments: surface the specific message.
+            raise ToolError(str(e)) from e
         except Exception:
             # Catch-all for unexpected errors. Known error cases should return
             # proper content or raise a custom exception caught in a dedicated

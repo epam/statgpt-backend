@@ -289,6 +289,22 @@ class DatasetsMetadataDetails(OneShotToolDetails):
     )
 
 
+class SdmxQueryAppDetails(BaseToolDetails):
+    base_url_raw: str = Field(
+        validation_alias=AliasChoices("base_url", "baseUrl"),
+        serialization_alias="baseUrl",
+        description=(
+            "Trusted base URL prefix prepended to every caller-provided path "
+            "(e.g. an SDMX query application or proxy passthrough endpoint). The caller "
+            "cannot specify a domain, so the tool can only reach this configured host. "
+            "Supports $env:{VAR} syntax."
+        ),
+    )
+
+    def get_base_url(self) -> str:
+        return config_utils.replace_env(self.base_url_raw).rstrip("/")
+
+
 class AvailableTermsDetails(BaseToolDetails):
     include_domain: bool = Field(
         default=False, description="Whether to include the domain of each term in the output"

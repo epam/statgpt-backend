@@ -47,6 +47,14 @@ class ToolRegistry(MutableMapping):
         return len(self._mapping)
 
 
+class ToolInputError(Exception):
+    """Raised by a tool for invalid caller-provided arguments.
+
+    The message is safe to surface to the caller (e.g. translated into an MCP
+    ToolError) instead of being masked as a generic execution failure.
+    """
+
+
 _TOOL_IMPLEMENTATIONS = ToolRegistry()
 
 

@@ -12,6 +12,7 @@ from .tool_details import (
     DatasetsMetadataDetails,
     FileRagDetails,
     PlainContentDetails,
+    SdmxQueryAppDetails,
     TermDefinitionsDetails,
     WebSearchAgentDetails,
     WebSearchDetails,
@@ -28,6 +29,14 @@ class BaseToolConfig(BaseYamlModel):
     )
     description: str = Field(description="The description of the tool.", max_length=4096)
     enabled: bool = Field(default=True, description="Whether the tool is enabled or not.")
+
+    mcp_only: bool = Field(
+        default=False,
+        description=(
+            "If True, the tool is surfaced only via the MCP server and excluded from the"
+            " Supreme Agent (the LLM cannot call it). Used for UI-initiated tool calls."
+        ),
+    )
 
     mcp_name: str | None = Field(
         default=None,
@@ -109,6 +118,14 @@ class AvailablePublicationsTool(BaseToolConfig):
 class PlainContentTool(BaseToolConfig):
     type: ToolTypes = ToolTypes.PLAIN_CONTENT
     details: PlainContentDetails = Field(default_factory=PlainContentDetails)
+
+
+class SdmxQueryAppTool(BaseToolConfig):
+    type: ToolTypes = ToolTypes.SDMX_QUERY_APP
+    # MCP-only by design: the request is built and invoked by the MCP-App component,
+    # never by the Supreme Agent.
+    mcp_only: bool = True
+    details: SdmxQueryAppDetails
 
 
 class AvailableTermsTool(BaseToolConfig):
