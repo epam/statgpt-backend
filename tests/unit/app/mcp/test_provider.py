@@ -5,8 +5,11 @@ from unittest.mock import AsyncMock
 import pandas as pd
 import pytest
 from fastmcp.exceptions import ToolError
+from langchain_core.messages import AIMessage
+from langchain_core.runnables import Runnable, RunnableLambda
 from mcp.types import EmbeddedResource, TextContent
 
+from statgpt.app.chains.out_of_scope_checker import OutOfScopeCheckerResponse
 from statgpt.app.mcp.provider import ChannelToolProvider, _McpToolAdapter
 from statgpt.app.schemas.tool_artifact import DataQueryArtifact
 from statgpt.common.schemas.tools import AvailableDatasetsTool
@@ -81,6 +84,64 @@ async def test_tool_failure_raises_tool_error():
 
     with pytest.raises(ToolError):
         await adapter.run({})
+
+
+class _FakeChatModel(Runnable):
+    """Stands in for the guardrail LLM: structured checker verdict + plain response."""
+
+    def __init__(self, decision: OutOfScopeCheckerResponse, message: str):
+        self._decision = decision
+        self._message = message
+
+    def with_structured_output(self, schema, method=None):
+        return RunnableLambda(lambda _: self._decision)
+
+    def invoke(self, input, config=None, **kwargs):
+        return AIMessage(content=self._message)
+
+
+def _guardrail_channel_config() -> SimpleNamespace:
+    return SimpleNamespace(
+        out_of_scope=SimpleNamespace(
+            domain="official statistics",
+            use_general_topics_blacklist=False,
+            custom_blacklist=None,
+            llm_model_config=SimpleNamespace(),
+        ),
+        supreme_agent=SimpleNamespace(language_instructions=["Answer in English"]),
+        tools=[SimpleNamespace(name="data_query", out_of_scope_description="Query data")],
+    )
+
+
+async def test_run_blocks_out_of_scope_query(monkeypatch):
+    decision = OutOfScopeCheckerResponse(reasoning="off-domain weather request", out_of_scope=True)
+    fake_model = _FakeChatModel(decision, "I can only help with official statistics.")
+    monkeypatch.setattr(
+        "statgpt.app.chains.out_of_scope_checker.get_chat_model",
+        lambda api_key, model_config: fake_model,
+    )
+    monkeypatch.setattr(
+        "statgpt.app.mcp.guardrails.dial_app_settings.skip_out_of_scope_check", False
+    )
+
+    tool = SimpleNamespace(
+        name="data_query",
+        get_guardrail_input=lambda arguments: arguments.get("query"),
+        ainvoke=AsyncMock(),
+    )
+    adapter = _McpToolAdapter(
+        langchain_tool=tool,  # type: ignore[arg-type]
+        inputs={},
+        channel_config=_guardrail_channel_config(),  # type: ignore[arg-type]
+        auth_context=SimpleNamespace(api_key="key"),  # type: ignore[arg-type]
+        name="data_query",
+        parameters={},
+    )
+
+    with pytest.raises(ToolError, match="I can only help with official statistics."):
+        await adapter.run({"query": "weather in London"})
+
+    tool.ainvoke.assert_not_called()
 
 
 def _tool_config(**kwargs) -> AvailableDatasetsTool:
