@@ -6,7 +6,7 @@ from mcp.types import ToolAnnotations
 from pydantic import Field
 
 from statgpt.app.chains.parameters import ChainParameters
-from statgpt.app.chains.tools import StatGptTool, ToolArgs
+from statgpt.app.chains.tools import GuardrailInput, StatGptTool, ToolArgs
 from statgpt.app.config import ChainParametersConfig
 from statgpt.app.schemas import BaseFileRagArtifact
 from statgpt.app.schemas.file_rags.dial_rag import RagFilterDial
@@ -23,7 +23,7 @@ _RAG_IMPLEMENTATIONS: dict[RAGVersion, type[BaseRAGFactory]] = {
 
 
 class FileRagArgs(ToolArgs):
-    query: str = Field(description='''\
+    query: t.Annotated[str, GuardrailInput] = Field(description='''\
 The query to search an answer for.
 - Formulate the query as natural sounding question
 - Keep edits to the user query to a minimum
@@ -50,9 +50,6 @@ class FileRagTool(StatGptTool[FileRagToolConfig], tool_type=ToolTypes.FILE_RAG):
     def get_args_schema(cls, tool_config: FileRagToolConfig) -> type[FileRagArgs]:
         """Return the schema for the arguments that this tool accepts."""
         return FileRagArgs
-
-    def get_guardrail_input(self, arguments: dict[str, t.Any]) -> str | None:
-        return arguments.get("query")
 
     async def _arun(
         self, inputs: dict, query: str, target_prefilter_json: str | None = None

@@ -1,11 +1,11 @@
-from typing import Any
+from typing import Annotated
 
 from langchain_core.prompts import ChatPromptTemplate, SystemMessagePromptTemplate
 from mcp.types import ToolAnnotations
 from pydantic import Field
 
 from statgpt.app.chains.parameters import ChainParameters
-from statgpt.app.chains.tools import StatGptTool, ToolArgs
+from statgpt.app.chains.tools import GuardrailInput, StatGptTool, ToolArgs
 from statgpt.app.default_prompts import datasets_metadata_default_prompts
 from statgpt.app.schemas import ToolArtifact, ToolMessageState
 from statgpt.app.utils.formatters import DatasetsListFormatter
@@ -19,7 +19,7 @@ from ._utils import _create_formatter_config
 
 
 class DatasetsMetadataArgs(ToolArgs):
-    query: str = Field(
+    query: Annotated[str, GuardrailInput] = Field(
         description="Natural language query that can be answered with datasets metadata."
     )
 
@@ -45,9 +45,6 @@ class DatasetsMetadataTool(
     def get_args_schema(cls, tool_config: DatasetsMetadataToolConfig) -> type[DatasetsMetadataArgs]:
         """Return the schema for the arguments that this tool accepts."""
         return DatasetsMetadataArgs
-
-    def get_guardrail_input(self, arguments: dict[str, Any]) -> str | None:
-        return arguments.get("query")
 
     async def _arun(self, inputs: dict, query: str, **kwargs) -> tuple[str, ToolArtifact]:
         data_service = ChainParameters.get_data_service(inputs)

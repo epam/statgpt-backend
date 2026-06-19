@@ -1,16 +1,18 @@
 from types import SimpleNamespace
+from typing import Annotated
 
 import pytest
 from langchain_core.messages import AIMessage, HumanMessage
 from langchain_core.runnables import RunnableLambda
+from pydantic import Field, create_model
 
-from statgpt.app.chains.data_query.data_query_tool import DataQueryTool
-from statgpt.app.chains.datasets_meta.metadata_tool import DatasetsMetadataTool
-from statgpt.app.chains.file_rags.file_rag_tool import FileRagTool
+from statgpt.app.chains.data_query.data_query_tool import DataQueryArgs
+from statgpt.app.chains.datasets_meta.metadata_tool import DatasetsMetadataArgs
+from statgpt.app.chains.file_rags.file_rag_tool import FileRagArgs
 from statgpt.app.chains.out_of_scope_checker import OutOfScopeChecker, OutOfScopeCheckerResponse
-from statgpt.app.chains.tools import StatGptTool
-from statgpt.app.chains.web_search.web_agent import WebSearchAgentTool
-from statgpt.app.chains.web_search.web_rag import WebSearchTool
+from statgpt.app.chains.tools import GuardrailInput, ToolArgs
+from statgpt.app.chains.web_search.web_agent import WebSearchArgs
+from statgpt.app.chains.web_search.web_rag import BaseWebSearchArgs
 
 
 def _channel_config():
@@ -68,15 +70,39 @@ async def test_generate_response_returns_model_message(monkeypatch):
 
 
 @pytest.mark.parametrize(
-    "tool_cls",
-    [DataQueryTool, DatasetsMetadataTool, FileRagTool, WebSearchTool, WebSearchAgentTool],
+    "args_cls",
+    [DataQueryArgs, DatasetsMetadataArgs, FileRagArgs, BaseWebSearchArgs, WebSearchArgs],
 )
-def test_free_text_tools_expose_query_as_guardrail_input(tool_cls):
-    # get_guardrail_input ignores instance state, so it can be called without
-    # constructing the (config-heavy) tool instance.
-    assert tool_cls.get_guardrail_input(object(), {"query": "GDP"}) == "GDP"
-    assert tool_cls.get_guardrail_input(object(), {}) is None
+def test_free_text_args_expose_query_as_guardrail_input(args_cls):
+    assert args_cls.get_guardrail_input({"query": "GDP"}) == "GDP"
+    assert args_cls.get_guardrail_input({}) is None
 
 
-def test_base_tool_has_no_guardrail_input():
-    assert StatGptTool.get_guardrail_input(object(), {"query": "GDP"}) is None
+def test_base_args_have_no_guardrail_input():
+    assert ToolArgs.get_guardrail_input({"query": "GDP"}) is None
+
+
+def test_guardrail_input_follows_renamed_field():
+    # The marker travels with the field declaration: renaming the field keeps the
+    # guardrail wired up without touching any extraction logic.
+    class RenamedArgs(ToolArgs):
+        question: Annotated[str, GuardrailInput] = Field()
+
+    assert RenamedArgs.get_guardrail_input({"question": "GDP"}) == "GDP"
+    assert RenamedArgs.get_guardrail_input({"query": "GDP"}) is None
+
+
+def test_guardrail_input_rejects_multiple_marked_fields():
+    class AmbiguousArgs(ToolArgs):
+        first: Annotated[str, GuardrailInput] = Field()
+        second: Annotated[str, GuardrailInput] = Field()
+
+    with pytest.raises(ValueError, match="multiple guardrail fields"):
+        AmbiguousArgs.get_guardrail_input({"first": "a", "second": "b"})
+
+
+def test_guardrail_marker_survives_create_model_inheritance():
+    # WebSearchTool builds its schema dynamically via create_model(__base__=...);
+    # the inherited marked field must still be screened.
+    dynamic = create_model("DynamicWebSearchArgs", __base__=BaseWebSearchArgs)
+    assert dynamic.get_guardrail_input({"query": "GDP"}) == "GDP"

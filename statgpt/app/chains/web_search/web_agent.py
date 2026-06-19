@@ -1,10 +1,10 @@
-from typing import Any
+from typing import Annotated
 
 from mcp.types import ToolAnnotations
 from pydantic import Field
 
 from statgpt.app.chains.parameters import ChainParameters
-from statgpt.app.chains.tools import StatGptTool, ToolArgs
+from statgpt.app.chains.tools import GuardrailInput, StatGptTool, ToolArgs
 from statgpt.app.schemas import ToolArtifact, ToolMessageState
 from statgpt.common.schemas import ChannelConfig, ToolTypes
 from statgpt.common.schemas import WebSearchAgentTool as WebSearchToolConfig
@@ -13,7 +13,9 @@ from .response_producer import RagResponseProducer, ResponseProducerABC, UrlOnly
 
 
 class WebSearchArgs(ToolArgs):
-    query: str = Field(description="Natural language query optimized for ai web search.")
+    query: Annotated[str, GuardrailInput] = Field(
+        description="Natural language query optimized for ai web search."
+    )
 
 
 class WebSearchAgentTool(StatGptTool[WebSearchToolConfig], tool_type=ToolTypes.WEB_SEARCH_AGENT):
@@ -50,9 +52,6 @@ class WebSearchAgentTool(StatGptTool[WebSearchToolConfig], tool_type=ToolTypes.W
     def get_args_schema(cls, tool_config: WebSearchToolConfig) -> type[WebSearchArgs]:
         """Return the schema for the arguments that this tool accepts."""
         return WebSearchArgs
-
-    def get_guardrail_input(self, arguments: dict[str, Any]) -> str | None:
-        return arguments.get("query")
 
     async def _arun(self, inputs: dict, query: str, **kwargs) -> tuple[str, ToolArtifact]:
         target = ChainParameters.get_target(inputs)

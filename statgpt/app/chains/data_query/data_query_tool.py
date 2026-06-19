@@ -1,10 +1,10 @@
-from typing import Any
+from typing import Annotated
 
 from langchain_core.runnables import Runnable
 from mcp.types import ToolAnnotations
 from pydantic import Field
 
-from statgpt.app.chains.tools import StatGptTool, ToolArgs
+from statgpt.app.chains.tools import GuardrailInput, StatGptTool, ToolArgs
 from statgpt.app.config import ChainParametersConfig
 from statgpt.app.schemas.query_builder import DataQueryEvalAttachment, QueryBuilderAgentState
 from statgpt.app.schemas.tool_artifact import DataQueryArtifact
@@ -18,7 +18,7 @@ from .query_builder.factory import QueryBuilderFactory
 
 
 class DataQueryArgs(ToolArgs):
-    query: str = Field(
+    query: Annotated[str, GuardrailInput] = Field(
         description="An indicator with all of its filters in plain text. "
         "Specify all countries, dates, frequencies, datasets the user requested. "
         "The query must reflect only what the user asked for — do not add, infer, or expand any filters."
@@ -35,9 +35,6 @@ class DataQueryTool(StatGptTool[DataQueryToolConfig], tool_type=ToolTypes.DATA_Q
     def get_args_schema(cls, tool_config: DataQueryToolConfig) -> type[DataQueryArgs]:
         """Return the schema for the arguments that this tool accepts."""
         return DataQueryArgs
-
-    def get_guardrail_input(self, arguments: dict[str, Any]) -> str | None:
-        return arguments.get("query")
 
     async def _arun(self, inputs: dict, query: str) -> tuple[str, DataQueryArtifact]:
         factory = QueryBuilderFactory(self._tool_config.details)
