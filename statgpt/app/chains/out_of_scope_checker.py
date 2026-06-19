@@ -102,15 +102,16 @@ class OutOfScopeChecker:
         )
         return params
 
-    async def classify(
+    def build_checker_chain(
         self, messages: Sequence[BaseMessage], auth_context: AuthContext
-    ) -> OutOfScopeCheckerResponse:
-        """Classify whether the given messages are out of scope for the channel.
+    ) -> Runnable:
+        """Build the chain that classifies whether messages are out of scope.
 
-        This is the chat-agnostic core of the guardrail: just the LLM relevancy
-        decision, with no chat-history bookkeeping, streaming, or state. Reused by
-        both the chat chain (``_stream_response``) and the MCP input guardrail.
-        Requires the channel to have an ``out_of_scope`` configuration.
+        Chat-agnostic core of the guardrail: just the LLM relevancy decision, with
+        no chat-history bookkeeping, streaming, or state. The prompt is fully bound
+        via ``.partial``, so the chain can be invoked with ``{}``. Reused by both
+        the chat chain (``_stream_response``) and the MCP input guardrail. Requires
+        the channel to have an ``out_of_scope`` configuration.
         """
         if self._channel_config.out_of_scope is None:
             raise ValueError("out_of_scope must be configured for the channel")
@@ -130,14 +131,11 @@ class OutOfScopeChecker:
             model_config=self._channel_config.out_of_scope.llm_model_config,
         )
 
-        checker_chain = checker_prompt | model.with_structured_output(
+        return checker_prompt | model.with_structured_output(
             OutOfScopeCheckerResponse, method="json_schema"
         )
 
-        response: OutOfScopeCheckerResponse = await checker_chain.ainvoke({})  # type: ignore[assignment]
-        return response
-
-    def _build_response_chain(
+    def build_response_chain(
         self, messages: Sequence[BaseMessage], reasoning: str, auth_context: AuthContext
     ) -> Runnable:
         """Build the chain that generates the user-facing out-of-scope message.
@@ -165,17 +163,6 @@ class OutOfScopeChecker:
             model_config=self._channel_config.out_of_scope.llm_model_config,
         )
         return response_prompt | model
-
-    async def generate_response(
-        self, messages: Sequence[BaseMessage], reasoning: str, auth_context: AuthContext
-    ) -> str:
-        """Generate the user-facing out-of-scope message (non-streaming).
-
-        Reused by the MCP input guardrail, which has no DIAL choice to stream into.
-        """
-        chain = self._build_response_chain(messages, reasoning, auth_context)
-        result = await chain.ainvoke({})
-        return result.content if isinstance(result.content, str) else str(result.content)
 
     async def _stream_response(self, inputs: dict) -> dict:
         state = ChainParameters.get_state(inputs)
@@ -219,7 +206,8 @@ class OutOfScopeChecker:
         with optional_timed_stage(
             choice, "[DEBUG] Guardrails: Relevancy", enabled=show_debug_stages
         ) as stage:
-            response = await self.classify(messages, auth_context)
+            checker_chain = self.build_checker_chain(messages, auth_context)
+            response = await checker_chain.ainvoke({})
             if stage:
                 if response.out_of_scope:
                     stage.append_content(
@@ -249,7 +237,7 @@ class OutOfScopeChecker:
 
         # tell user that the request is out of scope
 
-        response_chain = self._build_response_chain(messages, response.reasoning, auth_context)
+        response_chain = self.build_response_chain(messages, response.reasoning, auth_context)
 
         async for chunk in response_chain.astream(inputs):
             if isinstance(chunk.content, str):

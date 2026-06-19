@@ -22,19 +22,29 @@ def _auth_context():
 
 
 def _patch_checker(
-    monkeypatch, classify: AsyncMock, generate_response: AsyncMock | None = None
+    monkeypatch, checker_invoke: AsyncMock, response_invoke: AsyncMock | None = None
 ) -> SimpleNamespace:
+    """Stub OutOfScopeChecker with build-only methods returning fake chains.
+
+    The checker now exposes ``build_checker_chain`` / ``build_response_chain`` and the
+    guardrail invokes the returned chains; ``*_invoke`` stand in for ``chain.ainvoke``.
+    """
+    response_invoke = response_invoke or AsyncMock(
+        return_value=SimpleNamespace(content="generated message")
+    )
     checker = SimpleNamespace(
-        classify=classify,
-        generate_response=generate_response or AsyncMock(return_value="generated message"),
+        build_checker_chain=lambda messages, auth_context: SimpleNamespace(ainvoke=checker_invoke),
+        build_response_chain=lambda messages, reasoning, auth_context: SimpleNamespace(
+            ainvoke=response_invoke
+        ),
     )
     monkeypatch.setattr(guardrails, "OutOfScopeChecker", lambda channel_config: checker)
     return checker
 
 
 async def test_skips_when_globally_disabled(monkeypatch):
-    classify = AsyncMock()
-    _patch_checker(monkeypatch, classify)
+    checker_invoke = AsyncMock()
+    _patch_checker(monkeypatch, checker_invoke)
     monkeypatch.setattr(guardrails.dial_app_settings, "skip_out_of_scope_check", True)
 
     await enforce_input_guardrail(
@@ -44,12 +54,12 @@ async def test_skips_when_globally_disabled(monkeypatch):
         _auth_context(),
     )
 
-    classify.assert_not_called()
+    checker_invoke.assert_not_called()
 
 
 async def test_skips_when_channel_guardrails_disabled(monkeypatch):
-    classify = AsyncMock()
-    _patch_checker(monkeypatch, classify)
+    checker_invoke = AsyncMock()
+    _patch_checker(monkeypatch, checker_invoke)
 
     await enforce_input_guardrail(
         _tool("anything"),
@@ -58,12 +68,12 @@ async def test_skips_when_channel_guardrails_disabled(monkeypatch):
         _auth_context(),
     )
 
-    classify.assert_not_called()
+    checker_invoke.assert_not_called()
 
 
 async def test_skips_when_tool_has_no_guardrail_input(monkeypatch):
-    classify = AsyncMock()
-    _patch_checker(monkeypatch, classify)
+    checker_invoke = AsyncMock()
+    _patch_checker(monkeypatch, checker_invoke)
 
     await enforce_input_guardrail(
         _tool(None),
@@ -72,14 +82,16 @@ async def test_skips_when_tool_has_no_guardrail_input(monkeypatch):
         _auth_context(),
     )
 
-    classify.assert_not_called()
+    checker_invoke.assert_not_called()
 
 
 async def test_raises_with_generated_message_when_out_of_scope(monkeypatch):
     decision = SimpleNamespace(out_of_scope=True, reasoning="off-domain weather request")
-    classify = AsyncMock(return_value=decision)
-    generate_response = AsyncMock(return_value="I can only help with official statistics.")
-    _patch_checker(monkeypatch, classify, generate_response)
+    checker_invoke = AsyncMock(return_value=decision)
+    response_invoke = AsyncMock(
+        return_value=SimpleNamespace(content="I can only help with official statistics.")
+    )
+    _patch_checker(monkeypatch, checker_invoke, response_invoke)
 
     with pytest.raises(ToolError, match="I can only help with official statistics."):
         await enforce_input_guardrail(
@@ -89,15 +101,15 @@ async def test_raises_with_generated_message_when_out_of_scope(monkeypatch):
             _auth_context(),
         )
 
-    classify.assert_awaited_once()
-    generate_response.assert_awaited_once()
+    checker_invoke.assert_awaited_once()
+    response_invoke.assert_awaited_once()
 
 
 async def test_falls_back_to_reasoning_when_response_generation_fails(monkeypatch):
     decision = SimpleNamespace(out_of_scope=True, reasoning="off-domain weather request")
-    classify = AsyncMock(return_value=decision)
-    generate_response = AsyncMock(side_effect=RuntimeError("model timeout"))
-    _patch_checker(monkeypatch, classify, generate_response)
+    checker_invoke = AsyncMock(return_value=decision)
+    response_invoke = AsyncMock(side_effect=RuntimeError("model timeout"))
+    _patch_checker(monkeypatch, checker_invoke, response_invoke)
 
     with pytest.raises(ToolError, match="off-domain weather request"):
         await enforce_input_guardrail(
@@ -107,13 +119,13 @@ async def test_falls_back_to_reasoning_when_response_generation_fails(monkeypatc
             _auth_context(),
         )
 
-    generate_response.assert_awaited_once()
+    response_invoke.assert_awaited_once()
 
 
 async def test_passes_when_in_scope(monkeypatch):
     decision = SimpleNamespace(out_of_scope=False, reasoning="statistics query")
-    classify = AsyncMock(return_value=decision)
-    _patch_checker(monkeypatch, classify)
+    checker_invoke = AsyncMock(return_value=decision)
+    _patch_checker(monkeypatch, checker_invoke)
 
     await enforce_input_guardrail(
         _tool("GDP of France"),
@@ -122,12 +134,12 @@ async def test_passes_when_in_scope(monkeypatch):
         _auth_context(),
     )
 
-    classify.assert_awaited_once()
+    checker_invoke.assert_awaited_once()
 
 
-async def test_fails_closed_when_classify_errors(monkeypatch):
-    classify = AsyncMock(side_effect=RuntimeError("model timeout"))
-    _patch_checker(monkeypatch, classify)
+async def test_fails_closed_when_checker_chain_errors(monkeypatch):
+    checker_invoke = AsyncMock(side_effect=RuntimeError("model timeout"))
+    _patch_checker(monkeypatch, checker_invoke)
 
     with pytest.raises(ToolError, match="safety check could not be completed"):
         await enforce_input_guardrail(

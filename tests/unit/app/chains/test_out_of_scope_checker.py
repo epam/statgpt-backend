@@ -29,7 +29,7 @@ def _channel_config():
 
 
 @pytest.mark.parametrize("out_of_scope", [True, False])
-async def test_classify_returns_model_decision(monkeypatch, out_of_scope):
+async def test_build_checker_chain_returns_model_decision(monkeypatch, out_of_scope):
     decision = OutOfScopeCheckerResponse(reasoning="because reasons", out_of_scope=out_of_scope)
 
     class _FakeModel:
@@ -42,16 +42,17 @@ async def test_classify_returns_model_decision(monkeypatch, out_of_scope):
     )
 
     checker = OutOfScopeChecker(_channel_config())  # type: ignore[arg-type]
-    result = await checker.classify(
+    chain = checker.build_checker_chain(
         [HumanMessage(content="GDP of France")],
         SimpleNamespace(api_key="key"),  # type: ignore[arg-type]
     )
+    result = await chain.ainvoke({})
 
     assert isinstance(result, OutOfScopeCheckerResponse)
     assert result.out_of_scope is out_of_scope
 
 
-async def test_generate_response_returns_model_message(monkeypatch):
+async def test_build_response_chain_returns_model_message(monkeypatch):
     monkeypatch.setattr(
         "statgpt.app.chains.out_of_scope_checker.get_chat_model",
         lambda api_key, model_config: RunnableLambda(
@@ -60,13 +61,14 @@ async def test_generate_response_returns_model_message(monkeypatch):
     )
 
     checker = OutOfScopeChecker(_channel_config())  # type: ignore[arg-type]
-    result = await checker.generate_response(
+    chain = checker.build_response_chain(
         [HumanMessage(content="weather in London")],
         "off-domain weather request",
         SimpleNamespace(api_key="key"),  # type: ignore[arg-type]
     )
+    result = await chain.ainvoke({})
 
-    assert result == "I can only help with official statistics."
+    assert result.content == "I can only help with official statistics."
 
 
 @pytest.mark.parametrize(

@@ -40,7 +40,8 @@ async def enforce_input_guardrail(
     checker = OutOfScopeChecker(channel_config)
     messages = [HumanMessage(content=query)]
     try:
-        decision = await checker.classify(messages, auth_context)
+        checker_chain = checker.build_checker_chain(messages, auth_context)
+        decision = await checker_chain.ainvoke({})
     except Exception:
         # Fail-closed: if the guardrail check cannot run, block the tool call
         # rather than letting an unscreened request through.
@@ -49,7 +50,11 @@ async def enforce_input_guardrail(
 
     if decision.out_of_scope:
         try:
-            message = await checker.generate_response(messages, decision.reasoning, auth_context)
+            response_chain = checker.build_response_chain(
+                messages, decision.reasoning, auth_context
+            )
+            result = await response_chain.ainvoke({})
+            message = result.content if isinstance(result.content, str) else str(result.content)
         except Exception:
             # Still block the request; only the polished message could not be produced.
             _log.exception("Out-of-scope response generation failed for MCP tool %s", tool.name)
