@@ -34,6 +34,9 @@ resolutions:
     - message: ".*PyPI::anyio:4\\..*"
       reason: "CANT_FIX_EXCEPTION"
       comment: "MIT License: https://github.com/agronholm/anyio/blob/master/LICENSE"
+    - message: ".*PyPI::websockets:16\\..*"
+      reason: "CANT_FIX_EXCEPTION"
+      comment: "BSD 3-Clause License: https://github.com/python-websockets/websockets/blob/main/LICENSE"
 
     # Pydantic ecosystem
     - message: ".*PyPI::pydantic:2\\..*"
