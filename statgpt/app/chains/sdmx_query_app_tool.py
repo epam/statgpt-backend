@@ -4,15 +4,25 @@ import httpx
 from mcp.types import ToolAnnotations
 from pydantic import Field
 
-from statgpt.app.chains.parameters import ChainParameters
-from statgpt.app.chains.tools import StatGptTool, ToolArgs, ToolInputError
-from statgpt.app.schemas import ToolArtifact, ToolMessageState
-from statgpt.common.auth.auth_context import AuthContext
+from statgpt.app.chains.tools import StatGptTool, ToolArgs, ToolInputError, ToolUpstreamError
+from statgpt.app.schemas import SdmxQueryAppArtifact, ToolMessageState
 from statgpt.common.config import multiline_logger as logger
 from statgpt.common.schemas import SdmxQueryAppTool as SdmxQueryAppToolConfig
 from statgpt.common.schemas import ToolTypes
 
 _HTTP_TIMEOUT = httpx.Timeout(90.0, connect=45.0)
+
+# Reused across calls so the connection pool (and TLS handshakes) is shared by this
+# frequently-invoked passthrough instead of being rebuilt per request. Created lazily
+# on first use so it binds to the running event loop.
+_http_client: httpx.AsyncClient | None = None
+
+
+def _get_http_client() -> httpx.AsyncClient:
+    global _http_client
+    if _http_client is None:
+        _http_client = httpx.AsyncClient(timeout=_HTTP_TIMEOUT)
+    return _http_client
 
 
 class SdmxQueryAppArgs(ToolArgs):
@@ -29,7 +39,10 @@ class SdmxQueryAppArgs(ToolArgs):
     )
     body: dict[str, Any] | None = Field(
         default=None,
-        description="JSON request body for `POST` requests (e.g. availability filters). Omit for `GET`.",
+        description=(
+            "JSON request body for `POST` requests (e.g. availability filters). Must be omitted"
+            " for `GET` requests (supplying it with `GET` is rejected, not silently ignored)."
+        ),
     )
     accept: str | None = Field(
         default=None,
@@ -64,7 +77,7 @@ class SdmxQueryAppTool(StatGptTool[SdmxQueryAppToolConfig], tool_type=ToolTypes.
             raise ToolInputError("`path` must be domain-less (no scheme or host).")
         return f"{base_url}{path}"
 
-    def _build_headers(self, method: str, accept: str | None, auth_context: AuthContext) -> dict:
+    def _build_headers(self, method: str, accept: str | None) -> dict:
         headers: dict[str, str] = {}
         if accept:
             headers["accept"] = accept
@@ -80,22 +93,36 @@ class SdmxQueryAppTool(StatGptTool[SdmxQueryAppToolConfig], tool_type=ToolTypes.
         body: dict[str, Any] | None = None,
         accept: str | None = None,
         **kwargs,
-    ) -> tuple[str, ToolArtifact]:
-        auth_context = ChainParameters.get_auth_context(inputs)
+    ) -> tuple[str, SdmxQueryAppArtifact]:
+        if method == "GET" and body is not None:
+            raise ToolInputError("`body` is not supported for `GET` requests; use `method='POST'`.")
+
         base_url = self._tool_config.details.get_base_url()
         url = self._build_url(base_url, path)
 
-        headers = self._build_headers(method, accept, auth_context)
+        headers = self._build_headers(method, accept)
 
         logger.info(f"SDMX query app passthrough: {method} {url}")
-        async with httpx.AsyncClient(timeout=_HTTP_TIMEOUT) as client:
+        client = _get_http_client()
+        try:
             response = await client.request(
                 method=method,
                 url=url,
                 headers=headers,
                 json=body if method == "POST" else None,
             )
+        except httpx.TimeoutException as e:
+            raise ToolUpstreamError("The SDMX backend did not respond in time (timeout).") from e
+        except httpx.HTTPError as e:
+            # Connection errors, DNS failures, protocol errors, etc.
+            raise ToolUpstreamError(f"Could not reach the SDMX backend: {e}") from e
 
         # Passthrough: return the raw response body regardless of status so the MCP-App
-        # component can render both successful payloads and upstream error responses.
-        return response.text, ToolArtifact(state=ToolMessageState(type=self.tool_type))
+        # component can render both successful payloads and upstream error responses. The
+        # upstream status code and content type are carried on the artifact so the provider
+        # can expose them to the client (the body alone can't reliably convey them).
+        return response.text, SdmxQueryAppArtifact(
+            state=ToolMessageState(type=self.tool_type),
+            status_code=response.status_code,
+            content_type=response.headers.get("content-type"),
+        )

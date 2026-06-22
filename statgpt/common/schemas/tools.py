@@ -1,3 +1,5 @@
+from typing import Literal
+
 from pydantic import Field
 
 from .base import BaseYamlModel
@@ -123,8 +125,8 @@ class PlainContentTool(BaseToolConfig):
 class SdmxQueryAppTool(BaseToolConfig):
     type: ToolTypes = ToolTypes.SDMX_QUERY_APP
     # MCP-only by design: the request is built and invoked by the MCP-App component,
-    # never by the Supreme Agent.
-    mcp_only: bool = True
+    # never by the Supreme Agent. Pinned to True so a YAML config cannot opt out.
+    mcp_only: Literal[True] = True
     details: SdmxQueryAppDetails
 
 

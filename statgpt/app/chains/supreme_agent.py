@@ -62,12 +62,11 @@ class ToolCaller:
 
     @staticmethod
     def get_tools_from_config(channel_config: ChannelConfig) -> list[StatGptTool]:
-        # `mcp_only` tools are surfaced exclusively via the MCP server (e.g. UI-initiated
-        # tool calls) and must not be exposed to the Supreme Agent / LLM.
+        # `agent_tools` excludes `mcp_only` tools, which are surfaced exclusively via the
+        # MCP server (e.g. UI-initiated tool calls) and must not be exposed to the LLM.
         return [
             StatGptTool.from_config(tool_cfg, channel_config)
-            for tool_cfg in channel_config.tools
-            if not tool_cfg.mcp_only
+            for tool_cfg in channel_config.agent_tools
         ]
 
     @staticmethod

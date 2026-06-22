@@ -55,6 +55,15 @@ class ToolInputError(Exception):
     """
 
 
+class ToolUpstreamError(Exception):
+    """Raised by a tool when an upstream dependency (e.g. an HTTP backend) fails.
+
+    Like `ToolInputError`, the message is safe to surface to the caller so that
+    connection/timeout failures yield a clear message instead of being masked as
+    a generic execution failure.
+    """
+
+
 _TOOL_IMPLEMENTATIONS = ToolRegistry()
 
 

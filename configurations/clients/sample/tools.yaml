@@ -175,7 +175,6 @@ tools:
   - type: sdmx_query_app
     <<: *shared_settings
     name: "SDMX_Query_App"
-    mcp_only: true
     description: >-
       MCP-only passthrough tool used by the MCP-App component to fetch SDMX structure and data
       directly from a configured SDMX query backend for client-side rendering.

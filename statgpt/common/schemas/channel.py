@@ -241,6 +241,16 @@ class ChannelConfig(BaseYamlModel):
         tools = [tool for tool in tools if tool.enabled]
         return tools
 
+    @property
+    def agent_tools(self) -> list[BaseToolConfig]:
+        """Enabled tools visible to the Supreme Agent / LLM.
+
+        Excludes ``mcp_only`` tools, which are surfaced exclusively via the MCP server
+        (e.g. UI-initiated tool calls) and must never be exposed to the agent or any
+        agent-facing consumer (e.g. the out-of-scope checker).
+        """
+        return [tool for tool in self.tools if not tool.mcp_only]
+
     def list_named_entity_types(self) -> list[str]:
         return [
             self.country_named_entity_type,

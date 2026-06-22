@@ -34,7 +34,7 @@ class OutOfScopeChecker:
 
     def _get_tool_description(self) -> str:
         return json.dumps(
-            {tool.name: tool.out_of_scope_description for tool in self._channel_config.tools},
+            {tool.name: tool.out_of_scope_description for tool in self._channel_config.agent_tools},
             ensure_ascii=False,
         )
 

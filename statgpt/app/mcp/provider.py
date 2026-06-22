@@ -12,14 +12,14 @@ from fastmcp.tools import Tool, ToolResult
 from fastmcp.utilities.components import FastMCPComponent
 from fastmcp.utilities.versions import VersionSpec
 from mcp.types import ContentBlock, TextContent
-from pydantic import PrivateAttr
+from pydantic import PrivateAttr, ValidationError
 from starlette.requests import Request
 
-from statgpt.app.chains.tools import StatGptTool, ToolInputError
+from statgpt.app.chains.tools import StatGptTool, ToolInputError, ToolUpstreamError
 from statgpt.app.config import ChainParametersConfig
 from statgpt.app.mcp.attachments import data_query_artifact_to_resources
 from statgpt.app.schemas.dial_app_configuration import StatGPTConfiguration
-from statgpt.app.schemas.tool_artifact import DataQueryArtifact
+from statgpt.app.schemas.tool_artifact import DataQueryArtifact, SdmxQueryAppArtifact
 from statgpt.app.security import DialAuthCredentials, create_auth_context
 from statgpt.app.security.exceptions import AuthenticationError, AuthorizationError
 from statgpt.app.services.chat_facade import ChannelServiceFacade
@@ -74,6 +74,15 @@ class _McpToolAdapter(Tool):
         except ToolInputError as e:
             # Invalid caller-provided arguments: surface the specific message.
             raise ToolError(str(e)) from e
+        except ValidationError as e:
+            # Argument-schema validation failures (e.g. missing required field, bad enum
+            # value). Surface a concise message instead of the generic failure.
+            _log.info("Invalid arguments for MCP tool %s: %s", self._langchain_tool.name, e)
+            raise ToolError(f"Invalid arguments for {self._langchain_tool.name}: {e}") from e
+        except ToolUpstreamError as e:
+            # Upstream dependency failure (connection/timeout): surface the specific message.
+            _log.warning("Upstream error in MCP tool %s: %s", self._langchain_tool.name, e)
+            raise ToolError(str(e)) from e
         except Exception:
             # Catch-all for unexpected errors. Known error cases should return
             # proper content or raise a custom exception caught in a dedicated
@@ -82,11 +91,20 @@ class _McpToolAdapter(Tool):
             raise ToolError(f"{self._langchain_tool.name} tool failed to execute")
         text = result.content if isinstance(result.content, str) else str(result.content)
         content: list[ContentBlock] = [TextContent(type="text", text=text)]
+        structured_content: dict[str, Any] | None = None
         if isinstance(result.artifact, DataQueryArtifact):
             # to_csv is CPU-bound and can block on large dataframes; offload to a worker thread.
             resources = await asyncio.to_thread(data_query_artifact_to_resources, result.artifact)
             content.extend(resources)
-        return ToolResult(content=content)
+        elif isinstance(result.artifact, SdmxQueryAppArtifact):
+            # Surface the upstream HTTP metadata so the MCP-App can distinguish success from
+            # error responses and know the body's media type. The raw body stays in the text
+            # content block above to keep the passthrough behavior.
+            structured_content = {
+                "status_code": result.artifact.status_code,
+                "content_type": result.artifact.content_type,
+            }
+        return ToolResult(content=content, structured_content=structured_content)
 
 
 class ChannelToolProvider(Provider):
