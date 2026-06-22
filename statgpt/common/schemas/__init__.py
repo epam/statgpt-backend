@@ -7,6 +7,7 @@ from .channel import (
     ChannelConfig,
     ChannelIndexStatus,
     ChannelUpdate,
+    DeduplicationJob,
     DeduplicationStatus,
     SupremeAgentConfig,
     VectorStoreSizes,
@@ -16,6 +17,7 @@ from .channel_dataset import (
     ChangesBetweenVersionAndActualData,
     ChannelDatasetBase,
     ChannelDatasetExpanded,
+    ChannelDatasetExpandedWithLastUpdatedAt,
     ChannelDatasetVersion,
     ConfigChange,
     DataChange,
@@ -24,7 +26,7 @@ from .channel_dataset import (
 from .composite import ChannelDatasetUpdateResult, DataSetUpdateResponse
 from .data_query_tool import DataQueryDetails, HybridSearchConfig
 from .data_source import DataSource, DataSourceBase, DataSourceType, DataSourceUpdate, Provider
-from .dataset import DataSet, DataSetBase, DataSetDescriptor, DataSetUpdateRequest
+from .dataset import DataSet, DataSetBase, DataSetDescriptor, DataSetUpdateRequest, DeletedDataSet
 from .enums import (
     AuditActionType,
     AuditEntityType,

@@ -16,6 +16,7 @@ from .models import (
     DataSet,
     DataSource,
     DataSourceType,
+    DeduplicationJob,
     GlossaryTerm,
     Job,
 )

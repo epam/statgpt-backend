@@ -1,5 +1,8 @@
 import json
+from collections.abc import Sequence
+from typing import Any
 
+from langchain_core.messages import BaseMessage
 from langchain_core.prompts import (
     ChatPromptTemplate,
     MessagesPlaceholder,
@@ -13,6 +16,7 @@ from statgpt.app.config import ChainParametersConfig, StateVarsConfig
 from statgpt.app.default_prompts import guardrails_default_prompts
 from statgpt.app.utils.dial_stages import ChoiceI, optional_timed_stage
 from statgpt.app.utils.message_history import History
+from statgpt.common.auth.auth_context import AuthContext
 from statgpt.common.schemas import ChannelConfig
 from statgpt.common.utils.markdown import format_as_markdown_list
 from statgpt.common.utils.models import get_chat_model
@@ -63,6 +67,103 @@ class OutOfScopeChecker:
         )
         return inputs
 
+    def _build_checker_params(self, messages: Sequence[BaseMessage]) -> dict[str, Any]:
+        """Build the prompt parameters shared by the checker and response prompts.
+
+        Chat-agnostic: takes the messages to classify directly instead of reading
+        them from the chat history, so it can be reused outside the chat chain.
+        """
+        if self._channel_config.out_of_scope is None:
+            raise ValueError("out_of_scope must be configured for the channel")
+
+        language_instructions = format_as_markdown_list(
+            self._channel_config.supreme_agent.language_instructions, list_type="ordered"
+        )
+
+        params: dict[str, Any] = dict(
+            chat_history=messages,
+            domain_description=self._channel_config.out_of_scope.domain,
+            tools_description=self._get_tool_description(),
+            chat_bot_language_instructions=language_instructions,
+        )
+
+        blacklist = []
+        if self._channel_config.out_of_scope.use_general_topics_blacklist:
+            blacklist += guardrails_default_prompts.general_topics_blacklist
+        if self._channel_config.out_of_scope.custom_blacklist:
+            blacklist += self._channel_config.out_of_scope.custom_blacklist
+        params["blacklist"] = (
+            (
+                "# The following topics and questions are strictly OUT OF SCOPE:  \n"
+                + format_as_markdown_list(blacklist, list_type="ordered")
+            )
+            if blacklist
+            else ""
+        )
+        return params
+
+    def build_checker_chain(
+        self, messages: Sequence[BaseMessage], auth_context: AuthContext
+    ) -> Runnable:
+        """Build the chain that classifies whether messages are out of scope.
+
+        Chat-agnostic core of the guardrail: just the LLM relevancy decision, with
+        no chat-history bookkeeping, streaming, or state. The prompt is fully bound
+        via ``.partial``, so the chain can be invoked with ``{}``. Reused by both
+        the chat chain (``_stream_response``) and the MCP input guardrail. Requires
+        the channel to have an ``out_of_scope`` configuration.
+        """
+        if self._channel_config.out_of_scope is None:
+            raise ValueError("out_of_scope must be configured for the channel")
+
+        params = self._build_checker_params(messages)
+        checker_prompt = ChatPromptTemplate.from_messages(
+            [
+                SystemMessagePromptTemplate.from_template(
+                    guardrails_default_prompts.checker_prompt
+                ),
+                MessagesPlaceholder(variable_name="chat_history"),
+            ]
+        ).partial(**params)
+
+        model = get_chat_model(
+            api_key=auth_context.api_key,
+            model_config=self._channel_config.out_of_scope.llm_model_config,
+        )
+
+        return checker_prompt | model.with_structured_output(
+            OutOfScopeCheckerResponse, method="json_schema"
+        )
+
+    def build_response_chain(
+        self, messages: Sequence[BaseMessage], reasoning: str, auth_context: AuthContext
+    ) -> Runnable:
+        """Build the chain that generates the user-facing out-of-scope message.
+
+        Shared by the chat chain (which streams it to the DIAL choice) and the MCP
+        input guardrail (which invokes it for the full message). The prompt is fully
+        bound via ``.partial``, so the chain can be invoked with ``{}``.
+        """
+        if self._channel_config.out_of_scope is None:
+            raise ValueError("out_of_scope must be configured for the channel")
+
+        params = self._build_checker_params(messages)
+        params["out_of_scope_reasoning"] = reasoning
+        response_prompt = ChatPromptTemplate.from_messages(
+            [
+                SystemMessagePromptTemplate.from_template(
+                    guardrails_default_prompts.response_prompt
+                ),
+                MessagesPlaceholder(variable_name="chat_history"),
+            ]
+        ).partial(**params)
+
+        model = get_chat_model(
+            api_key=auth_context.api_key,
+            model_config=self._channel_config.out_of_scope.llm_model_config,
+        )
+        return response_prompt | model
+
     async def _stream_response(self, inputs: dict) -> dict:
         state = ChainParameters.get_state(inputs)
         oos_only = state.get(StateVarsConfig.CMD_OUT_OF_SCOPE_ONLY, False)
@@ -99,54 +200,14 @@ class OutOfScopeChecker:
                     self._channel_config.out_of_scope.start_new_conversation_message,
                 )
 
-        language_instructions = format_as_markdown_list(
-            self._channel_config.supreme_agent.language_instructions, list_type="ordered"
-        )
-
-        params = dict(
-            chat_history=history.get_langchain_messages(include_tool_messages=False),
-            domain_description=self._channel_config.out_of_scope.domain,
-            tools_description=self._get_tool_description(),
-            chat_bot_language_instructions=language_instructions,
-        )
-
-        blacklist = []
-        if self._channel_config.out_of_scope.use_general_topics_blacklist:
-            blacklist += guardrails_default_prompts.general_topics_blacklist
-        if self._channel_config.out_of_scope.custom_blacklist:
-            blacklist += self._channel_config.out_of_scope.custom_blacklist
-        params["blacklist"] = (
-            (
-                "# The following topics and questions are strictly OUT OF SCOPE:  \n"
-                + format_as_markdown_list(blacklist, list_type="ordered")
-            )
-            if blacklist
-            else ""
-        )
-
-        checker_prompt = ChatPromptTemplate.from_messages(
-            [
-                SystemMessagePromptTemplate.from_template(
-                    guardrails_default_prompts.checker_prompt
-                ),
-                MessagesPlaceholder(variable_name="chat_history"),
-            ]
-        ).partial(**params)
-
-        model = get_chat_model(
-            api_key=auth_context.api_key,
-            model_config=self._channel_config.out_of_scope.llm_model_config,
-        )
-
-        checker_chain = checker_prompt | model.with_structured_output(
-            OutOfScopeCheckerResponse, method="json_schema"
-        )
+        messages = history.get_langchain_messages(include_tool_messages=False)
 
         show_debug_stages = state.get(StateVarsConfig.SHOW_DEBUG_STAGES, False)
         with optional_timed_stage(
             choice, "[DEBUG] Guardrails: Relevancy", enabled=show_debug_stages
         ) as stage:
-            response: OutOfScopeCheckerResponse = await checker_chain.ainvoke({})  # type: ignore[assignment]
+            checker_chain = self.build_checker_chain(messages, auth_context)
+            response = await checker_chain.ainvoke({})
             if stage:
                 if response.out_of_scope:
                     stage.append_content(
@@ -176,17 +237,7 @@ class OutOfScopeChecker:
 
         # tell user that the request is out of scope
 
-        params["out_of_scope_reasoning"] = response.reasoning
-        response_prompt = ChatPromptTemplate.from_messages(
-            [
-                SystemMessagePromptTemplate.from_template(
-                    guardrails_default_prompts.response_prompt
-                ),
-                MessagesPlaceholder(variable_name="chat_history"),
-            ]
-        ).partial(**params)
-
-        response_chain = response_prompt | model
+        response_chain = self.build_response_chain(messages, response.reasoning, auth_context)
 
         async for chunk in response_chain.astream(inputs):
             if isinstance(chunk.content, str):

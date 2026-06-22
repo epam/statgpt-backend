@@ -2,8 +2,7 @@ name: Deploy development
 
 on:
   workflow_dispatch: # manual run
-  registry_package: # on new package version (main path)
-  workflow_run: # HACK: redundant trigger to mitigate GitHub's huge delays in registry_package event processing
+  workflow_run:
     workflows: ["Release Workflow"]
     types:
       - completed
@@ -17,7 +16,7 @@ jobs:
       github.event_name == 'workflow_dispatch' ||
       github.event.registry_package.package_version.container_metadata.tag.name == 'development' ||
       (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'development')
-    uses: epam/ai-dial-ci/.github/workflows/deploy-development.yml@3.1.3
+    uses: epam/ai-dial-ci/.github/workflows/deploy-development.yml@4.5.0
     with:
       gitlab-project-id: "3056"
       gitlab-project-ref: "main"

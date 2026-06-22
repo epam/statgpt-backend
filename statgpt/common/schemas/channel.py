@@ -1,10 +1,10 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from statgpt.common.settings.elastic import ElasticSearchSettings
 
 from .auditable import Auditable
 from .base import BaseYamlModel, DbDefaultBase
-from .enums import ChannelIndexStatusScope, LocaleEnum
+from .enums import ChannelIndexStatusScope, LocaleEnum, PreprocessingStatusEnum
 from .model_config import LLMModelConfig
 from .onboarding import OnboardingConfig
 from .tools import (
@@ -53,6 +53,13 @@ class SupremeAgentConfig(BaseYamlModel):
         default="",
         description=(
             "Custom content for the 'General' section of the system prompt."
+            " If empty, the default content is used."
+        ),
+    )
+    tool_usage_section: str = Field(
+        default="",
+        description=(
+            "Custom content for the 'Tool Usage' section of the system prompt."
             " If empty, the default content is used."
         ),
     )
@@ -105,6 +112,17 @@ class OutOfScopeConfig(BaseYamlModel):
             " start_new_conversation_message. If the number of out-of-scope messages exceeds this"
             " threshold, the start_new_conversation_message will be sent to the user. If set to -1, the"
             " feature is disabled."
+        ),
+    )
+
+
+class McpConfig(BaseYamlModel):
+    tool_name_prefix: str = Field(
+        default="",
+        pattern=r'^[a-zA-Z0-9_\.-]*$',
+        description=(
+            "Prefix prepended to tool names exposed via MCP (e.g. 'statgpt__'). "
+            "Internal agent tool names are unaffected. Empty string disables prefixing."
         ),
     )
 
@@ -173,6 +191,7 @@ class ChannelConfig(BaseYamlModel):
         None, description="The out of scope configuration"
     )
     token_usage: TokenUsageConfig = Field(default_factory=TokenUsageConfig)
+    mcp: McpConfig = Field(default_factory=McpConfig, description="MCP server configuration")
     bearer_token_required: bool = Field(
         default=False,
         description=(
@@ -350,3 +369,28 @@ class ChannelIndexStatus(BaseModel):
     vector_store: VectorStoreStatus = Field(
         description="Vector store status information for the channel"
     )
+
+
+class DeduplicationJob(DbDefaultBase):
+    """Schema for a deduplication job record."""
+
+    model_config = ConfigDict(use_attribute_docstrings=True)
+
+    channel_id: int
+
+    status: PreprocessingStatusEnum
+    """Job execution status (QUEUED, IN_PROGRESS, COMPLETED, FAILED)."""
+
+    reason_for_failure: str | None = None
+
+    non_indicator_remapped: int | None = None
+    """Metadata rows remapped to keeper documents in the non-indicator dimensions store."""
+
+    non_indicator_deleted: int | None = None
+    """Orphaned documents deleted from the non-indicator dimensions store."""
+
+    special_remapped: int | None = None
+    """Metadata rows remapped to keeper documents in the special dimensions store."""
+
+    special_deleted: int | None = None
+    """Orphaned documents deleted from the special dimensions store."""

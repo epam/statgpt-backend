@@ -1,6 +1,7 @@
 from .audit_log import AdminAuditLogService
 from .channel import AdminPortalChannelService
 from .data_source import AdminPortalDataSourceService
+from .data_source_deletion import AdminPortalDataSourceDeletionService
 from .dataset import AdminPortalDataSetService
 from .glossary_of_terms import AdminPortalGlossaryOfTermsService
 from .import_export_jobs import JobsService

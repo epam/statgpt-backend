@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 import statgpt.common.models as models
@@ -6,6 +6,7 @@ import statgpt.common.schemas as schemas
 from statgpt.admin.auth.auth_context import SystemUserAuthContext
 from statgpt.admin.auth.user import require_jwt_auth
 from statgpt.admin.services import AdminPortalDataSetService as DataSetService
+from statgpt.admin.services.exceptions import DatasetInUseError
 from statgpt.common.utils.cancel_dependency import cancel_on_disconnect
 
 router = APIRouter(prefix="/datasets", tags=["datasets"], dependencies=[Depends(require_jwt_auth)])
@@ -85,4 +86,10 @@ async def delete_dataset(
     session: AsyncSession = Depends(models.get_session),
 ) -> None:
     """Delete a dataset by its ID. This is only allowed for datasets that are not used in any channel."""
-    await DataSetService(session).delete(item_id)
+    try:
+        await DataSetService(session).delete(item_id)
+    except DatasetInUseError as e:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Cannot delete dataset because it is still used in channels: {e.usage_summary}.",
+        ) from e

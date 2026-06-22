@@ -324,18 +324,50 @@ async def reload_indicators_for_all_channel_datasets(
 async def deduplicate_channel(
     background_tasks: BackgroundTasks,
     channel_id: int,
-) -> schemas.Channel:
+) -> schemas.DeduplicationJob:
     """Deduplicates the non-indicator and special dimensions vector stores for the channel.
 
-    This operation removes duplicate dimension values based on document content.
-
-    The deduplication runs in the background and returns immediately with status 202 Accepted.
+    Creates a deduplication job, schedules the actual work in the background, and
+    returns the job immediately with status 202 Accepted. Poll the job status via
+    ``GET /channels/deduplication-jobs/{job_id}`` to observe progress and retrieve
+    per-dimension counts of remapped rows and deleted orphan documents.
     """
     async with get_session_context_manager() as session:
         service = ChannelService(session)
-        return await service.deduplicate_all_dimensions(
+        return await service.trigger_deduplication(
             background_tasks=background_tasks, channel_id=channel_id
         )
+
+
+@router.get("/{channel_id}/datasets/deduplication-jobs")
+async def get_deduplication_jobs(
+    channel_id: int,
+    limit: int = 100,
+    offset: int = 0,
+    session: AsyncSession = Depends(models.get_session),
+    _=Depends(cancel_on_disconnect),
+) -> schemas.ListResponse[schemas.DeduplicationJob]:
+    """Get a paginated list of deduplication jobs for a channel."""
+    service = ChannelService(session)
+    jobs = await service.get_deduplication_jobs(channel_id=channel_id, limit=limit, offset=offset)
+    total = await service.get_deduplication_jobs_count(channel_id)
+    return schemas.ListResponse[schemas.DeduplicationJob](
+        data=jobs,
+        limit=limit,
+        offset=offset,
+        count=len(jobs),
+        total=total,
+    )
+
+
+@router.get("/deduplication-jobs/{job_id}")
+async def get_deduplication_job_by_id(
+    job_id: int,
+    session: AsyncSession = Depends(models.get_session),
+    _=Depends(cancel_on_disconnect),
+) -> schemas.DeduplicationJob:
+    """Get a deduplication job by ID for polling status."""
+    return await ChannelService(session).get_deduplication_job_by_id(job_id)
 
 
 @router.get(path="/{channel_id}/index-status")

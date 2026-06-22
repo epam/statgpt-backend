@@ -18,6 +18,7 @@ from starlette.requests import Request
 from statgpt.app.chains.tools import StatGptTool
 from statgpt.app.config import ChainParametersConfig
 from statgpt.app.mcp.attachments import data_query_artifact_to_resources
+from statgpt.app.mcp.guardrails import enforce_input_guardrail
 from statgpt.app.schemas.dial_app_configuration import StatGPTConfiguration
 from statgpt.app.schemas.tool_artifact import DataQueryArtifact
 from statgpt.app.security import DialAuthCredentials, create_auth_context
@@ -51,18 +52,29 @@ class _McpToolAdapter(Tool):
 
     _langchain_tool: StatGptTool = PrivateAttr()
     _inputs: dict[str, Any] = PrivateAttr()
+    _channel_config: ChannelConfig = PrivateAttr()
+    _auth_context: AuthContext = PrivateAttr()
 
     def __init__(
         self,
         langchain_tool: StatGptTool,
         inputs: dict[str, Any],
+        channel_config: ChannelConfig,
+        auth_context: AuthContext,
         **kwargs: Any,
     ):
         super().__init__(**kwargs)
         self._langchain_tool = langchain_tool
         self._inputs = inputs
+        self._channel_config = channel_config
+        self._auth_context = auth_context
 
     async def run(self, arguments: dict[str, Any]) -> ToolResult:
+        # Screen arbitrary free-text input with the out-of-scope guardrail before
+        # executing. Raised ToolError propagates to the MCP client unchanged.
+        await enforce_input_guardrail(
+            self._langchain_tool, arguments, self._channel_config, self._auth_context
+        )
         tool_call = {
             "name": self._langchain_tool.name,
             "args": {**arguments, "inputs": self._inputs},
@@ -105,13 +117,16 @@ class ChannelToolProvider(Provider):
         tool_config: BaseToolConfig,
         channel_config: ChannelConfig,
         inputs: dict[str, Any],
+        auth_context: AuthContext,
     ) -> _McpToolAdapter:
         langchain_tool = StatGptTool.from_config(tool_config, channel_config)
         return _McpToolAdapter(
             langchain_tool=langchain_tool,
             inputs=inputs,
-            name=tool_config.name,
-            description=tool_config.description,
+            channel_config=channel_config,
+            auth_context=auth_context,
+            name=channel_config.mcp.tool_name_prefix + tool_config.effective_mcp_name,
+            description=tool_config.effective_mcp_description,
             parameters=langchain_tool.get_public_args_schema(),
             annotations=langchain_tool.get_mcp_annotations(),
         )
@@ -129,18 +144,22 @@ class ChannelToolProvider(Provider):
             _log.exception("Could not resolve channel context for tools/list")
             return []
 
+        _log.info("Resolving MCP tools list for the `%s` channel", channel_service.deployment_id)
+
         channel_config = channel_service.channel_config
         inputs = _build_mcp_inputs(auth_context, channel_service)
         tools: list[Tool] = []
         for tool_config in channel_config.tools:
             try:
-                mcp_tool = self._create_mcp_tool(tool_config, channel_config, inputs)
+                mcp_tool = self._create_mcp_tool(tool_config, channel_config, inputs, auth_context)
                 tools.append(mcp_tool)
             except Exception:
                 _log.warning("Failed to create MCP tool for %s", tool_config.name, exc_info=True)
         return tools
 
     async def _get_tool(self, name: str, version: VersionSpec | None = None) -> Tool | None:
+        _log.info("%s tool is called via MCP", name)
+
         try:
             auth_context, channel_service = await self._resolve_context(get_http_request())
         except (AuthenticationError, AuthorizationError) as e:
@@ -156,10 +175,15 @@ class ChannelToolProvider(Provider):
             return None
 
         channel_config = channel_service.channel_config
+        prefix = channel_config.mcp.tool_name_prefix
+        if prefix:
+            if not name.startswith(prefix):
+                return None
+            name = name.removeprefix(prefix)
         inputs = _build_mcp_inputs(auth_context, channel_service)
         for tool_config in channel_config.tools:
-            if tool_config.name == name:
-                return self._create_mcp_tool(tool_config, channel_config, inputs)
+            if tool_config.effective_mcp_name == name:
+                return self._create_mcp_tool(tool_config, channel_config, inputs, auth_context)
         return None
 
     async def get_tasks(self) -> Sequence[FastMCPComponent]:

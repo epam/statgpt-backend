@@ -22,7 +22,12 @@ from statgpt.admin.settings.exim import JobsConfig
 from statgpt.common.auth.auth_context import AuthContext
 from statgpt.common.schemas import AuditActionType, AuditEntityType
 from statgpt.common.settings.dial import dial_settings
-from statgpt.common.utils import AttachmentResponse, AttachmentsStorage, attachments_storage_factory
+from statgpt.common.utils import (
+    AttachmentResponse,
+    AttachmentsStorage,
+    attachments_storage_factory,
+    format_exception_reason,
+)
 
 from .channel import AdminPortalChannelService as ChannelService
 from .dataset import AdminPortalDataSetService as DataSetService
@@ -216,7 +221,7 @@ class JobsService:
             job.status = schemas.PreprocessingStatusEnum.QUEUED
         except Exception as e:
             _log.exception(e)
-            job.reason_for_failure = str(e)
+            job.reason_for_failure = format_exception_reason(e)
             job.status = schemas.PreprocessingStatusEnum.FAILED
 
         job.updated_at = func.now()
@@ -298,7 +303,7 @@ class JobsService:
                     file_url = resp.url
         except Exception as e:
             _log.exception(e)
-            job.reason_for_failure = str(e)
+            job.reason_for_failure = format_exception_reason(e)
             await self._update_job_status(job, schemas.PreprocessingStatusEnum.FAILED)
             return schemas.Job.model_validate(job, from_attributes=True)
 
@@ -461,7 +466,7 @@ class JobsService:
                     )
         except Exception as e:
             _log.exception(e)
-            job.reason_for_failure = str(e)
+            job.reason_for_failure = format_exception_reason(e)
             await self._update_job_status(job, schemas.PreprocessingStatusEnum.FAILED)
             return schemas.Job.model_validate(job, from_attributes=True)
 

@@ -176,8 +176,9 @@ normalizationPrompt: >-
   You are an expert in Economics, Statistics, Statistical Data and
   Metadata Exchange and Time Period formatting.
 
-  Your ONLY TASK is to REWRITE the query by (1) expanding COMMONLY KNOWN abbreviations or (2)
-  providing such abbreviation after the unabbreviated text
+  Your ONLY TASK is to REWRITE the query by (1) expanding COMMONLY KNOWN abbreviations or
+  providing such abbreviation after the unabbreviated text, and (2) making a global/worldwide
+  scope explicit as the "World" region.
 
   Details:
 
@@ -192,10 +193,16 @@ normalizationPrompt: >-
   "EU" must be resolved to "European Union", but it MUST NOT be expanded
   to its member countries.
 
+  - if the query asks for data at a global/worldwide scope (words like "global",
+  "globally", "worldwide", "world"), rewrite it so the reference area is explicitly
+  the "World" region; keep the rest of the query unchanged.
+
   Examples:
 
   1. give me gdp for France -> give me gross domestic product (GDP) for France
   2. give me consumer price index for Germany -> give me consumer price index (CPI) for Germany
+  3. what is global unemployment? -> what is unemployment for the World?
+  4. show me worldwide population -> show me population for the World
 namedEntitiesPrompt: >-
   You are an expert in named entity recognition and text labeling.
 
@@ -273,6 +280,11 @@ validationSystemPrompt: >-
   - "Counterparty area" usually refers to the geographic region or country
   that is engaged in trade or other activity with the main country.
   Be careful to correctly identify (main) country and counterparty area dimensions.
+
+  - request for "global" data means to select "World" as a country/region value (if available).
+  No other countries/regions should be selected other than "World".
+  Only if "World" value is not available, select ALL countries/regions
+  (preferably, using special "ALL VALUES" term).
 
   - values for "Frequency" dimension (or its synonyms like "FREQ") must ONLY be selected if user query EXPLICITLY specifies data frequency (eg "give me quarterly GDP")
 
