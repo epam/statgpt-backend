@@ -109,7 +109,7 @@ def _guardrail_channel_config() -> SimpleNamespace:
             llm_model_config=SimpleNamespace(),
         ),
         supreme_agent=SimpleNamespace(language_instructions=["Answer in English"]),
-        tools=[SimpleNamespace(name="data_query", out_of_scope_description="Query data")],
+        agent_tools=[SimpleNamespace(name="data_query", out_of_scope_description="Query data")],
     )
 
 
