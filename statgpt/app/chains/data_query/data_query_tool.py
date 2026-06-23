@@ -1,8 +1,10 @@
+from typing import Annotated
+
 from langchain_core.runnables import Runnable
 from mcp.types import ToolAnnotations
 from pydantic import Field
 
-from statgpt.app.chains.tools import StatGptTool, ToolArgs
+from statgpt.app.chains.tools import GuardrailInput, StatGptTool, ToolArgs
 from statgpt.app.config import ChainParametersConfig
 from statgpt.app.schemas.query_builder import DataQueryEvalAttachment, QueryBuilderAgentState
 from statgpt.app.schemas.tool_artifact import DataQueryArtifact
@@ -16,7 +18,7 @@ from .query_builder.factory import QueryBuilderFactory
 
 
 class DataQueryArgs(ToolArgs):
-    query: str = Field(
+    query: Annotated[str, GuardrailInput] = Field(
         description="An indicator with all of its filters in plain text. "
         "Specify all countries, dates, frequencies, datasets the user requested. "
         "The query must reflect only what the user asked for — do not add, infer, or expand any filters."
