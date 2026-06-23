@@ -30,6 +30,11 @@ from statgpt.common.schemas import BaseToolConfig, ChannelConfig
 
 _log = logging.getLogger(__name__)
 
+# `_meta` marker surfaced on `mcp_only` tools so MCP clients (and the MCP-App App) can tell
+# that a tool is UI-initiated only and must not be offered to / called by the model. Lives
+# under our namespace per the MCP `_meta` key convention.
+MCP_APP_ONLY_META_KEY = "statgpt/mcpAppOnly"
+
 
 def _build_mcp_inputs(
     auth_context: AuthContext,
@@ -141,6 +146,9 @@ class ChannelToolProvider(Provider):
         auth_context: AuthContext,
     ) -> _McpToolAdapter:
         langchain_tool = StatGptTool.from_config(tool_config, channel_config)
+        # Flag MCP-App-only tools in the tool's `_meta` so clients can keep them out of the
+        # model's reach and route them through the UI instead.
+        meta = {MCP_APP_ONLY_META_KEY: True} if tool_config.mcp_only else None
         return _McpToolAdapter(
             langchain_tool=langchain_tool,
             inputs=inputs,
@@ -150,6 +158,7 @@ class ChannelToolProvider(Provider):
             description=tool_config.effective_mcp_description,
             parameters=langchain_tool.get_public_args_schema(),
             annotations=langchain_tool.get_mcp_annotations(),
+            meta=meta,
         )
 
     async def _list_tools(self) -> Sequence[Tool]:

@@ -1,3 +1,5 @@
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from typing import Any, Literal
 
 import httpx
@@ -23,6 +25,23 @@ def _get_http_client() -> httpx.AsyncClient:
     if _http_client is None:
         _http_client = httpx.AsyncClient(timeout=_HTTP_TIMEOUT)
     return _http_client
+
+
+async def close_http_client() -> None:
+    """Close the lazily-created shared client and reset state. No-op if never opened."""
+    global _http_client
+    if _http_client is not None:
+        await _http_client.aclose()
+        _http_client = None
+
+
+@asynccontextmanager
+async def sdmx_query_app_client_context() -> AsyncIterator[None]:
+    """Ensure the lazily-created shared httpx client is closed on exit."""
+    try:
+        yield
+    finally:
+        await close_http_client()
 
 
 class SdmxQueryAppArgs(ToolArgs):
@@ -77,7 +96,7 @@ class SdmxQueryAppTool(StatGptTool[SdmxQueryAppToolConfig], tool_type=ToolTypes.
             raise ToolInputError("`path` must be domain-less (no scheme or host).")
         return f"{base_url}{path}"
 
-    def _build_headers(self, method: str, accept: str | None) -> dict:
+    def _build_headers(self, method: str, accept: str | None) -> dict[str, str]:
         headers: dict[str, str] = {}
         if accept:
             headers["accept"] = accept

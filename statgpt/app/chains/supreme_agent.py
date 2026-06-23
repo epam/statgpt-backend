@@ -361,7 +361,7 @@ class SupremeAgentExecutor:
         tool_calls = []
         tasks = []
 
-        for tool_cfg in self._channel_config.tools:
+        for tool_cfg in self._channel_config.agent_tools:
             if (fake_call := tool_cfg.details.fake_call) is not None:
                 tool_call = self._get_tool_call_from_cfg(tool_cfg.name, fake_call)
                 tool_calls.append(tool_call)

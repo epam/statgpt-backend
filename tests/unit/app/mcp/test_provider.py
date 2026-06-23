@@ -10,7 +10,7 @@ from langchain_core.runnables import Runnable, RunnableLambda
 from mcp.types import EmbeddedResource, TextContent
 
 from statgpt.app.chains.out_of_scope_checker import OutOfScopeCheckerResponse
-from statgpt.app.mcp.provider import ChannelToolProvider, _McpToolAdapter
+from statgpt.app.mcp.provider import MCP_APP_ONLY_META_KEY, ChannelToolProvider, _McpToolAdapter
 from statgpt.app.schemas.tool_artifact import DataQueryArtifact
 from statgpt.common.schemas.tools import AvailableDatasetsTool
 
@@ -211,6 +211,28 @@ def test_create_mcp_tool_uses_mcp_overrides(fake_statgpt_tool):
 
     assert mcp_tool.name == "statgpt__data"
     assert mcp_tool.description == "MCP description."
+
+
+def test_create_mcp_tool_marks_mcp_only_in_meta(fake_statgpt_tool):
+    tool_config = _tool_config(mcp_only=True)
+    channel_config = _channel_config(tool_config, prefix="statgpt__")
+
+    mcp_tool = ChannelToolProvider()._create_mcp_tool(
+        tool_config, channel_config, inputs={}, auth_context=SimpleNamespace()
+    )
+
+    assert mcp_tool.meta == {MCP_APP_ONLY_META_KEY: True}
+
+
+def test_create_mcp_tool_omits_meta_for_agent_tool(fake_statgpt_tool):
+    tool_config = _tool_config()
+    channel_config = _channel_config(tool_config, prefix="statgpt__")
+
+    mcp_tool = ChannelToolProvider()._create_mcp_tool(
+        tool_config, channel_config, inputs={}, auth_context=SimpleNamespace()
+    )
+
+    assert mcp_tool.meta is None
 
 
 async def test_get_tool_resolves_prefixed_name(fake_statgpt_tool, monkeypatch):
