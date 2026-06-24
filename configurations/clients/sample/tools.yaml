@@ -182,7 +182,7 @@ tools:
       The frontend builds a domain-less request (method, path, optional JSON body, and an accept
       header); the backend prepends the trusted base URL and returns the raw response.
     details:
-      base_url: "$env:{SDMX_QUERY_APP_BASE_URL}"
+      base_url: "https://api.imf.org/external/sdmx/3.0"
 
   - type: available_terms
     <<: *shared_settings

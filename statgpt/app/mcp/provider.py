@@ -30,10 +30,12 @@ from statgpt.common.schemas import BaseToolConfig, ChannelConfig
 
 _log = logging.getLogger(__name__)
 
-# `_meta` marker surfaced on `mcp_only` tools so MCP clients (and the MCP-App App) can tell
-# that a tool is UI-initiated only and must not be offered to / called by the model. Lives
-# under our namespace per the MCP `_meta` key convention.
-MCP_APP_ONLY_META_KEY = "statgpt/mcpAppOnly"
+# Per the MCP Apps extension (`io.modelcontextprotocol/ui`), a tool's audience is declared via
+# the `_meta.ui.visibility` field. `mcp_only` tools are app-initiated only: hosts MUST keep them
+# out of the agent's `tools/list` while leaving them callable by the MCP-App from this server.
+# https://github.com/modelcontextprotocol/ext-apps/blob/main/specification/2026-01-26/apps.mdx#visibility
+MCP_UI_META_KEY = "ui"
+APP_ONLY_TOOL_META = {MCP_UI_META_KEY: {"visibility": ["app"]}}
 
 
 def _build_mcp_inputs(
@@ -146,9 +148,10 @@ class ChannelToolProvider(Provider):
         auth_context: AuthContext,
     ) -> _McpToolAdapter:
         langchain_tool = StatGptTool.from_config(tool_config, channel_config)
-        # Flag MCP-App-only tools in the tool's `_meta` so clients can keep them out of the
-        # model's reach and route them through the UI instead.
-        meta = {MCP_APP_ONLY_META_KEY: True} if tool_config.mcp_only else None
+        # Declare MCP-App-only tools as app-visible-only so the host hides them from the model
+        # and routes them through the UI instead. Agent-facing tools keep the spec default
+        # visibility (`["model", "app"]`) by omitting the field.
+        meta = dict(APP_ONLY_TOOL_META) if tool_config.mcp_only else None
         return _McpToolAdapter(
             langchain_tool=langchain_tool,
             inputs=inputs,
