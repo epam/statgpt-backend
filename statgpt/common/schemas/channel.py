@@ -17,6 +17,7 @@ from .tools import (
     DatasetStructureTool,
     FileRagTool,
     PlainContentTool,
+    SdmxQueryAppTool,
     TermDefinitionsTool,
     WebSearchAgentTool,
     WebSearchTool,
@@ -210,6 +211,7 @@ class ChannelConfig(BaseYamlModel):
     data_query: DataQueryTool | None = Field(default=None)
     file_rag: FileRagTool | None = Field(None)
     plain_content: PlainContentTool | None = Field(None)
+    sdmx_query_app: SdmxQueryAppTool | None = Field(None)
     term_definitions: TermDefinitionsTool | None = Field(None)
     web_search: WebSearchTool | None = Field(None)
     web_search_agent: WebSearchAgentTool | None = Field(None)
@@ -225,6 +227,7 @@ class ChannelConfig(BaseYamlModel):
             'data_query',
             'file_rag',
             'plain_content',
+            'sdmx_query_app',
             'term_definitions',
             'web_search',
             'web_search_agent',
@@ -237,6 +240,16 @@ class ChannelConfig(BaseYamlModel):
         ]
         tools = [tool for tool in tools if tool.enabled]
         return tools
+
+    @property
+    def agent_tools(self) -> list[BaseToolConfig]:
+        """Enabled tools visible to the Supreme Agent / LLM.
+
+        Excludes ``mcp_only`` tools, which are surfaced exclusively via the MCP server
+        (e.g. UI-initiated tool calls) and must never be exposed to the agent or any
+        agent-facing consumer (e.g. the out-of-scope checker).
+        """
+        return [tool for tool in self.tools if not tool.mcp_only]
 
     def list_named_entity_types(self) -> list[str]:
         return [

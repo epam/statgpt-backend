@@ -62,8 +62,11 @@ class ToolCaller:
 
     @staticmethod
     def get_tools_from_config(channel_config: ChannelConfig) -> list[StatGptTool]:
+        # `agent_tools` excludes `mcp_only` tools, which are surfaced exclusively via the
+        # MCP server (e.g. UI-initiated tool calls) and must not be exposed to the LLM.
         return [
-            StatGptTool.from_config(tool_cfg, channel_config) for tool_cfg in channel_config.tools
+            StatGptTool.from_config(tool_cfg, channel_config)
+            for tool_cfg in channel_config.agent_tools
         ]
 
     @staticmethod
@@ -358,7 +361,7 @@ class SupremeAgentExecutor:
         tool_calls = []
         tasks = []
 
-        for tool_cfg in self._channel_config.tools:
+        for tool_cfg in self._channel_config.agent_tools:
             if (fake_call := tool_cfg.details.fake_call) is not None:
                 tool_call = self._get_tool_call_from_cfg(tool_cfg.name, fake_call)
                 tool_calls.append(tool_call)

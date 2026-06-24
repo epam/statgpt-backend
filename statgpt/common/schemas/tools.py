@@ -1,3 +1,5 @@
+from typing import Literal
+
 from pydantic import Field
 
 from .base import BaseYamlModel
@@ -12,6 +14,7 @@ from .tool_details import (
     DatasetsMetadataDetails,
     FileRagDetails,
     PlainContentDetails,
+    SdmxQueryAppDetails,
     TermDefinitionsDetails,
     WebSearchAgentDetails,
     WebSearchDetails,
@@ -28,6 +31,24 @@ class BaseToolConfig(BaseYamlModel):
     )
     description: str = Field(description="The description of the tool.", max_length=4096)
     enabled: bool = Field(default=True, description="Whether the tool is enabled or not.")
+
+    mcp_only: bool = Field(
+        default=False,
+        description=(
+            "If True, the tool is surfaced only via the MCP server and excluded from the"
+            " Supreme Agent (the LLM cannot call it). Used for UI-initiated tool calls."
+        ),
+    )
+
+    mcp_visibility: list[Literal["model", "app"]] | None = Field(
+        default=None,
+        description=(
+            'MCP-App visibility per the MCP Apps spec (`_meta.ui.visibility`): a list'
+            ' containing "model" and/or "app". Omit for the spec default ["model", "app"];'
+            ' use ["app"] to hide from the model, ["model"] to hide from the app.'
+            " Independent of `mcp_only` (agent-exclusion only)."
+        ),
+    )
 
     mcp_name: str | None = Field(
         default=None,
@@ -50,6 +71,19 @@ class BaseToolConfig(BaseYamlModel):
     @property
     def out_of_scope_description(self) -> str:
         return self.description
+
+    @property
+    def mcp_meta(self) -> dict | None:
+        """Build the MCP tool `_meta` from `mcp_visibility`.
+
+        Per the MCP Apps extension (`io.modelcontextprotocol/ui`), a tool's audience is
+        declared via `_meta.ui.visibility`. Returns ``None`` when unset so the field is
+        omitted and the host applies the spec default (`["model", "app"]`).
+        https://github.com/modelcontextprotocol/ext-apps/blob/main/specification/2026-01-26/apps.mdx#visibility
+        """
+        if self.mcp_visibility is None:
+            return None
+        return {"ui": {"visibility": self.mcp_visibility}}
 
     @property
     def effective_mcp_name(self) -> str:
@@ -109,6 +143,22 @@ class AvailablePublicationsTool(BaseToolConfig):
 class PlainContentTool(BaseToolConfig):
     type: ToolTypes = ToolTypes.PLAIN_CONTENT
     details: PlainContentDetails = Field(default_factory=PlainContentDetails)
+
+
+def _app_only_visibility() -> list[Literal["model", "app"]]:
+    return ["app"]
+
+
+class SdmxQueryAppTool(BaseToolConfig):
+    type: ToolTypes = ToolTypes.SDMX_QUERY_APP
+    # MCP-only by design: the request is built and invoked by the MCP-App component,
+    # never by the Supreme Agent. Pinned to True so a YAML config cannot opt out.
+    mcp_only: Literal[True] = True
+    # App-only by default so the model never sees this passthrough tool; still overridable.
+    mcp_visibility: list[Literal["model", "app"]] | None = Field(
+        default_factory=_app_only_visibility
+    )
+    details: SdmxQueryAppDetails
 
 
 class AvailableTermsTool(BaseToolConfig):

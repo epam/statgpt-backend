@@ -473,7 +473,18 @@ def _add_tools_to_channel(ch_cfg: dict[str, Any], tools_cfg: dict[str, Any]) -> 
 
         tool_type = tool["type"]
         ch_cfg["details"][tool_type] = {
-            k: v for k, v in tool.items() if k in ("name", "description", "details")
+            k: v
+            for k, v in tool.items()
+            if k
+            in (
+                "name",
+                "description",
+                "details",
+                "mcp_only",
+                "mcp_visibility",
+                "mcp_name",
+                "mcp_description",
+            )
         }
 
 

@@ -19,6 +19,7 @@ from .tool_artifact import (
     DataQueryArtifact,
     DialRagArtifact,
     FailedToolArtifact,
+    SdmxQueryAppArtifact,
     ToolArtifact,
 )
 from .tool_states import FailedToolMessageState, ToolMessageState, ToolResponseStatus
