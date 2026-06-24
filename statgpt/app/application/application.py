@@ -11,6 +11,7 @@ from aidial_sdk.utils._reflection import get_method_implementation
 from fastapi import params as fastapi_params
 
 from statgpt.app.chains.sdmx_query_app_tool import sdmx_query_app_client_context
+from statgpt.app.mcp.widget_resource import widget_client_context
 from statgpt.common.models import DatabaseHealthChecker, optional_msi_token_manager_context
 from statgpt.common.services.data_preloader import preload_data
 from statgpt.common.utils.elastic import elasticsearch_client_context
@@ -22,6 +23,7 @@ async def lifespan(app: "StatGPTApp"):
         optional_msi_token_manager_context(),
         elasticsearch_client_context(),
         sdmx_query_app_client_context(),
+        widget_client_context(),
     ):
         # Check resources' availability:
         await DatabaseHealthChecker().check()

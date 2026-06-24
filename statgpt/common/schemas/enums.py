@@ -54,6 +54,11 @@ class ToolTypes(StrEnum):
     WEB_SEARCH_AGENT = "WEB_SEARCH_AGENT"
 
 
+class McpResourceTypes(StrEnum):
+    PROXIED = "PROXIED"
+    """A resource whose content is proxied verbatim from an external HTTP endpoint."""
+
+
 class RAGVersion(StrEnum):
     DIAL = "DIAL"
     """DIAL RAG PgVector"""

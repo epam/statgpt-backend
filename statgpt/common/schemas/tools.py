@@ -50,6 +50,15 @@ class BaseToolConfig(BaseYamlModel):
         ),
     )
 
+    mcp_app_resource_uri: str | None = Field(
+        default=None,
+        description=(
+            "MCP-App UI resource bound to this tool (`_meta.ui.resourceUri`). When set, the host"
+            " can preload/render the widget at this `ui://` URI when the tool is called. Must"
+            " reference a resource declared in the channel's `mcp.resources`."
+        ),
+    )
+
     mcp_name: str | None = Field(
         default=None,
         pattern=r'^[a-zA-Z0-9_\.-]+$',
@@ -74,16 +83,20 @@ class BaseToolConfig(BaseYamlModel):
 
     @property
     def mcp_meta(self) -> dict | None:
-        """Build the MCP tool `_meta` from `mcp_visibility`.
+        """Build the MCP tool `_meta.ui` from `mcp_visibility` and `mcp_app_resource_uri`.
 
-        Per the MCP Apps extension (`io.modelcontextprotocol/ui`), a tool's audience is
-        declared via `_meta.ui.visibility`. Returns ``None`` when unset so the field is
-        omitted and the host applies the spec default (`["model", "app"]`).
-        https://github.com/modelcontextprotocol/ext-apps/blob/main/specification/2026-01-26/apps.mdx#visibility
+        Per the MCP Apps extension (`io.modelcontextprotocol/ui`), a tool declares its
+        audience via `_meta.ui.visibility` and its bound UI widget via `_meta.ui.resourceUri`.
+        Returns ``None`` when neither is set so the field is omitted and the host applies the
+        spec default visibility (`["model", "app"]`).
+        https://github.com/modelcontextprotocol/ext-apps/blob/main/specification/2026-01-26/apps.mdx
         """
-        if self.mcp_visibility is None:
-            return None
-        return {"ui": {"visibility": self.mcp_visibility}}
+        ui: dict = {}
+        if self.mcp_visibility is not None:
+            ui["visibility"] = self.mcp_visibility
+        if self.mcp_app_resource_uri is not None:
+            ui["resourceUri"] = self.mcp_app_resource_uri
+        return {"ui": ui} if ui else None
 
     @property
     def effective_mcp_name(self) -> str:
