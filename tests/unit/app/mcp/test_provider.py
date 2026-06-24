@@ -10,9 +10,10 @@ from langchain_core.runnables import Runnable, RunnableLambda
 from mcp.types import EmbeddedResource, TextContent
 
 from statgpt.app.chains.out_of_scope_checker import OutOfScopeCheckerResponse
-from statgpt.app.mcp.provider import APP_ONLY_TOOL_META, ChannelToolProvider, _McpToolAdapter
+from statgpt.app.mcp.provider import ChannelToolProvider, _McpToolAdapter
 from statgpt.app.schemas.tool_artifact import DataQueryArtifact
-from statgpt.common.schemas.tools import AvailableDatasetsTool
+from statgpt.common.schemas.tool_details import SdmxQueryAppDetails
+from statgpt.common.schemas.tools import AvailableDatasetsTool, SdmxQueryAppTool
 
 
 def _build_adapter(result) -> _McpToolAdapter:
@@ -213,19 +214,29 @@ def test_create_mcp_tool_uses_mcp_overrides(fake_statgpt_tool):
     assert mcp_tool.description == "MCP description."
 
 
-def test_create_mcp_tool_marks_mcp_only_as_app_visibility(fake_statgpt_tool):
-    tool_config = _tool_config(mcp_only=True)
+def test_create_mcp_tool_app_visibility(fake_statgpt_tool):
+    tool_config = _tool_config(mcp_visibility=["app"])
     channel_config = _channel_config(tool_config, prefix="statgpt__")
 
     mcp_tool = ChannelToolProvider()._create_mcp_tool(
         tool_config, channel_config, inputs={}, auth_context=SimpleNamespace()
     )
 
-    assert mcp_tool.meta == APP_ONLY_TOOL_META
     assert mcp_tool.meta == {"ui": {"visibility": ["app"]}}
 
 
-def test_create_mcp_tool_omits_meta_for_agent_tool(fake_statgpt_tool):
+def test_create_mcp_tool_model_visibility(fake_statgpt_tool):
+    tool_config = _tool_config(mcp_visibility=["model"])
+    channel_config = _channel_config(tool_config, prefix="statgpt__")
+
+    mcp_tool = ChannelToolProvider()._create_mcp_tool(
+        tool_config, channel_config, inputs={}, auth_context=SimpleNamespace()
+    )
+
+    assert mcp_tool.meta == {"ui": {"visibility": ["model"]}}
+
+
+def test_create_mcp_tool_omits_meta_when_visibility_unset(fake_statgpt_tool):
     tool_config = _tool_config()
     channel_config = _channel_config(tool_config, prefix="statgpt__")
 
@@ -277,3 +288,38 @@ def test_effective_mcp_fields_fall_back_to_base_fields():
 
     assert tool_config.effective_mcp_name == "query_data"
     assert tool_config.effective_mcp_description == "Query data tool."
+
+
+def test_mcp_meta_omitted_when_visibility_unset():
+    assert _tool_config().mcp_meta is None
+
+
+@pytest.mark.parametrize("visibility", [["app"], ["model"], ["model", "app"]])
+def test_mcp_meta_wraps_visibility(visibility):
+    tool_config = _tool_config(mcp_visibility=visibility)
+
+    assert tool_config.mcp_meta == {"ui": {"visibility": visibility}}
+
+
+def _sdmx_details() -> SdmxQueryAppDetails:
+    return SdmxQueryAppDetails.model_validate({"base_url": "https://example.test"})
+
+
+def test_sdmx_query_app_defaults_to_app_only():
+    tool_config = SdmxQueryAppTool(
+        name="sdmx", description="SDMX passthrough.", details=_sdmx_details()
+    )
+
+    assert tool_config.mcp_visibility == ["app"]
+    assert tool_config.mcp_meta == {"ui": {"visibility": ["app"]}}
+
+
+def test_sdmx_query_app_visibility_is_overridable():
+    tool_config = SdmxQueryAppTool(
+        name="sdmx",
+        description="SDMX passthrough.",
+        details=_sdmx_details(),
+        mcp_visibility=["model", "app"],
+    )
+
+    assert tool_config.mcp_meta == {"ui": {"visibility": ["model", "app"]}}
