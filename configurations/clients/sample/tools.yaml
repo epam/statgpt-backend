@@ -147,15 +147,15 @@ tools:
         toolCallName: "Searching for data: {query}"
         toolResultName: "Data search result: {query}"
         rules:
-          - pattern: "Constructing Data Queries"
+          - key: constructing_data_query
             debugOnly: false
-          - pattern: "Extracting Named Entities"
+          - key: extracting_named_entities
             debugOnly: false
-          - pattern: "Executing Data Queries"
+          - key: executing_data_query
             debugOnly: false
-          - pattern: "Normalizing Query"
+          - key: normalizing_query
             debugOnly: false
-          - pattern: "Selecting Indicators"
+          - key: selecting_indicators
             debugOnly: false
       messages:
         noDataForCountry: >-
@@ -171,6 +171,19 @@ tools:
           the user, instead of suggesting user to choose one of the datasets. Other tools might be used to search for
           the data.
 
+
+  - type: sdmx_query_app
+    <<: *shared_settings
+    name: "SDMX_Query_App"
+    mcp_visibility: ["app"]
+    description: >-
+      MCP-only passthrough tool used by the MCP-App component to fetch SDMX structure and data
+      directly from a configured SDMX query backend for client-side rendering.
+
+      The frontend builds a domain-less request (method, path, optional JSON body, and an accept
+      header); the backend prepends the trusted base URL and returns the raw response.
+    details:
+      base_url: "https://api.imf.org/external/sdmx/3.0"
 
   - type: available_terms
     <<: *shared_settings

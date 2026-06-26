@@ -2,6 +2,7 @@ import asyncio
 import logging
 from collections import defaultdict
 from collections.abc import Iterable
+from datetime import datetime
 from typing import NamedTuple
 
 from fastapi import HTTPException, status
@@ -60,6 +61,7 @@ class ChannelDataSetSerializer:
         dataset: schemas.DataSet,
         latest_version: schemas.ChannelDatasetVersion | None,
         last_completed_versions: LastCompletedVersions,
+        last_auto_update_job: schemas.AutoUpdateJob | None,
     ) -> schemas.ChannelDatasetExpanded:
         preprocessing_status = (
             StatusEnum.NOT_STARTED
@@ -79,6 +81,23 @@ class ChannelDataSetSerializer:
             latest_version=latest_version,
             last_completed_version=last_completed_versions.last_completed_version,
             previous_completed_version=last_completed_versions.previous_completed_version,
+            last_auto_update_job=last_auto_update_job,
+        )
+
+    @staticmethod
+    def db_to_schema_with_last_updated(
+        item_db: models.ChannelDataset,
+        dataset: schemas.DataSet,
+        latest_version: schemas.ChannelDatasetVersion | None,
+        last_completed_versions: LastCompletedVersions,
+        last_auto_update_job: schemas.AutoUpdateJob | None,
+        last_updated_at: datetime | None,
+    ) -> schemas.ChannelDatasetExpandedWithLastUpdatedAt:
+        base = ChannelDataSetSerializer.db_to_schema(
+            item_db, dataset, latest_version, last_completed_versions, last_auto_update_job
+        )
+        return schemas.ChannelDatasetExpandedWithLastUpdatedAt(
+            **dict(base), last_updated_at=last_updated_at
         )
 
 
@@ -158,6 +177,26 @@ class DataSetService(DbServiceBase):
             channel_id=channel_id,
             ids=ids,
         )
+        datasets = await self._load_data_layer_datasets(
+            items,
+            auth_context,
+            allow_offline=allow_offline,
+            allow_cached_datasets=allow_cached_datasets,
+        )
+
+        return [
+            DataSetSerializer.db_to_schema(item, ds, expand=True)
+            for item, ds in zip(items, datasets)
+        ]
+
+    async def _load_data_layer_datasets(
+        self,
+        items: list[models.DataSet],
+        auth_context: AuthContext,
+        allow_offline: bool = False,
+        allow_cached_datasets: bool = False,
+    ) -> list[DataSet]:
+        """Load the data-layer datasets for the given DB models (concurrently)."""
         sources: set[int] = {i.source_id for i in items}
         handlers = {source_id: await self._get_handler(source_id) for source_id in sources}
 
@@ -175,14 +214,9 @@ class DataSetService(DbServiceBase):
                 )
             )
 
-        datasets: list[DataSet] = await async_utils.gather_with_concurrency(
+        return await async_utils.gather_with_concurrency(
             self._SETTINGS.dataset_concurrency_limit, *tasks
         )
-
-        return [
-            DataSetSerializer.db_to_schema(item, ds, expand=True)
-            for item, ds in zip(items, datasets)
-        ]
 
     async def _get_handler(self, data_source_id: int) -> DataSourceHandler:
         source_service = DataSourceService(self._session, session_lock=self._session_lock)
@@ -288,6 +322,7 @@ class DataSetService(DbServiceBase):
         latest_successful_versions = await self._get_latest_successful_channel_dataset_versions(
             channel_dataset_ids
         )
+        latest_auto_update_jobs = await self._get_latest_auto_update_jobs(channel_dataset_ids)
 
         res = []
         for item in items:
@@ -296,10 +331,78 @@ class DataSetService(DbServiceBase):
             dataset = next(d for d in datasets if d.id == item.dataset_id)
             res.append(
                 ChannelDataSetSerializer.db_to_schema(
-                    item, dataset, latest_version, ds_completed_versions
+                    item,
+                    dataset,
+                    latest_version,
+                    ds_completed_versions,
+                    latest_auto_update_jobs.get(item.id),
                 )
             )
         return res
+
+    async def get_channel_dataset_schemas_with_last_updated(
+        self, limit: int | None, offset: int, channel_id: int, auth_context: AuthContext
+    ) -> list[schemas.ChannelDatasetExpandedWithLastUpdatedAt]:
+        """Like `get_channel_dataset_schemas`, but also resolves each dataset's
+        `last_updated_at` live via the provider-specific `DataSet.updated_at` logic.
+        """
+        items = await self.get_channel_dataset_models(
+            limit=limit, offset=offset, channel_id=channel_id
+        )
+
+        datasets_ids = {d.dataset_id for d in items}
+        dataset_models = await self.get_datasets_models(
+            limit=None, offset=0, expand=True, ids=datasets_ids
+        )
+        loaded = await self._load_data_layer_datasets(
+            dataset_models, auth_context, allow_offline=True
+        )
+        dataset_schemas = {
+            model.id: DataSetSerializer.db_to_schema(model, ds, expand=True)
+            for model, ds in zip(dataset_models, loaded)
+        }
+        resolved = await async_utils.gather_with_concurrency(
+            self._SETTINGS.dataset_concurrency_limit,
+            *(self._resolve_updated_at(ds, auth_context) for ds in loaded),
+        )
+        last_updated_by_id = {model.id: value for model, value in zip(dataset_models, resolved)}
+
+        channel_dataset_ids = [item.id for item in items]
+        latest_versions = await self._get_latest_channel_dataset_versions(channel_dataset_ids)
+        latest_successful_versions = await self._get_latest_successful_channel_dataset_versions(
+            channel_dataset_ids
+        )
+        latest_auto_update_jobs = await self._get_latest_auto_update_jobs(channel_dataset_ids)
+
+        res = []
+        for item in items:
+            latest_version = latest_versions.get(item.id)
+            ds_completed_versions = latest_successful_versions[item.id]
+            res.append(
+                ChannelDataSetSerializer.db_to_schema_with_last_updated(
+                    item,
+                    dataset_schemas[item.dataset_id],
+                    latest_version,
+                    ds_completed_versions,
+                    latest_auto_update_jobs.get(item.id),
+                    last_updated_at=last_updated_by_id.get(item.dataset_id),
+                )
+            )
+        return res
+
+    async def _resolve_updated_at(
+        self, dataset: DataSet, auth_context: AuthContext
+    ) -> datetime | None:
+        """Resolve a dataset's last-updated timestamp, returning None on failure.
+
+        A single dataset with a malformed/unparseable timestamp must not fail the
+        whole listing, so resolution errors are logged and swallowed.
+        """
+        try:
+            return await dataset.updated_at(auth_context)
+        except Exception:
+            _log.exception("Failed to resolve last_updated_at for dataset %s", dataset.entity_id)
+            return None
 
     async def _get_channel_dataset_model_or_raise(self, item_id: int) -> models.ChannelDataset:
         item: models.ChannelDataset | None = await self._session.get(models.ChannelDataset, item_id)
@@ -346,8 +449,15 @@ class DataSetService(DbServiceBase):
         last_completed_versions = await self._get_latest_successful_channel_dataset_versions(
             channel_dataset_ids=[item.id]
         )
+        latest_auto_update_jobs = await self._get_latest_auto_update_jobs(
+            channel_dataset_ids=[item.id]
+        )
         return ChannelDataSetSerializer.db_to_schema(
-            item, dataset, latest_version, last_completed_versions[item.id]
+            item,
+            dataset,
+            latest_version,
+            last_completed_versions[item.id],
+            latest_auto_update_jobs.get(item.id),
         )
 
     async def _get_channel_dataset_version_or_raise(
@@ -427,6 +537,39 @@ class DataSetService(DbServiceBase):
         for row in versions:
             version = schemas.ChannelDatasetVersion.model_validate(row, from_attributes=True)
             result_dict[version.channel_dataset_id] = version
+
+        return result_dict
+
+    async def _get_latest_auto_update_jobs(
+        self, channel_dataset_ids: list[int]
+    ) -> dict[int, schemas.AutoUpdateJob]:
+        """Get the most recent auto-update job for each channel dataset."""
+        if not channel_dataset_ids:
+            return {}
+
+        ranked_jobs = (
+            select(
+                models.AutoUpdateJob,
+                func.row_number()
+                .over(
+                    partition_by=models.AutoUpdateJob.channel_dataset_id,
+                    order_by=models.AutoUpdateJob.id.desc(),
+                )
+                .label("rank"),
+            )
+            .where(models.AutoUpdateJob.channel_dataset_id.in_(channel_dataset_ids))
+            .subquery()
+        )
+
+        query = select(ranked_jobs).where(ranked_jobs.c.rank == 1)
+
+        result = await self._session.execute(query)
+        jobs = result.fetchall()
+
+        result_dict: dict[int, schemas.AutoUpdateJob] = {}
+        for row in jobs:
+            job = schemas.AutoUpdateJob.model_validate(row, from_attributes=True)
+            result_dict[job.channel_dataset_id] = job
 
         return result_dict
 

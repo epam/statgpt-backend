@@ -13,6 +13,16 @@ class Base(AsyncAttrs, DeclarativeBase):
     __table_args__ = {"schema": "collections"}
 
 
+class NoEmbeddingsBase(AsyncAttrs, DeclarativeBase):
+    """Separate SQLAlchemy metadata for document models that omit the vector column.
+
+    Lives in its own MetaData so a no-embeddings concrete model can share a
+    `__tablename__` with the full document model without conflicting.
+    """
+
+    __table_args__ = {"schema": "collections"}
+
+
 class BaseModel(IdMixin, DateMixin, Base):
     __abstract__ = True
 
@@ -24,6 +34,18 @@ class BaseDocument(BaseModel):
 
     document: Mapped[str]
     embeddings: Mapped[list[float]] = mapped_column(Vector(None))
+
+
+class BaseDocumentNoEmbeddings(IdMixin, DateMixin, NoEmbeddingsBase):
+    """Document model without the `embeddings` column.
+
+    Used by code paths that only need `id` / `document` (delete, dedup, duplicate checks)
+    so they do not have to know the embedding length and do not require an embedding model.
+    """
+
+    __abstract__ = True  # this line is necessary
+
+    document: Mapped[str]
 
 
 class BaseDocumentMetadata(BaseModel):
@@ -46,6 +68,15 @@ class ModelsStore:
                 name, (BaseDocument,), {"__tablename__": name, "embeddings": embeddings}
             )
         return cls._models[name]
+
+    @classmethod
+    def get_document_no_embeddings_model(cls, name: str) -> type[BaseDocumentNoEmbeddings]:
+        cache_key = f"{name}__no_embeddings"
+        if cache_key not in cls._models:
+            cls._models[cache_key] = type(
+                cache_key, (BaseDocumentNoEmbeddings,), {"__tablename__": name}
+            )
+        return cls._models[cache_key]
 
     @classmethod
     def get_document_metadata_model(cls, name: str) -> type[BaseDocumentMetadata]:

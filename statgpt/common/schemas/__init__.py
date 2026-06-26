@@ -7,6 +7,7 @@ from .channel import (
     ChannelConfig,
     ChannelIndexStatus,
     ChannelUpdate,
+    DeduplicationJob,
     DeduplicationStatus,
     SupremeAgentConfig,
     VectorStoreSizes,
@@ -16,6 +17,7 @@ from .channel_dataset import (
     ChangesBetweenVersionAndActualData,
     ChannelDatasetBase,
     ChannelDatasetExpanded,
+    ChannelDatasetExpandedWithLastUpdatedAt,
     ChannelDatasetVersion,
     ConfigChange,
     DataChange,
@@ -23,8 +25,8 @@ from .channel_dataset import (
 )
 from .composite import ChannelDatasetUpdateResult, DataSetUpdateResponse
 from .data_query_tool import DataQueryDetails, HybridSearchConfig
-from .data_source import DataSource, DataSourceBase, DataSourceType, DataSourceUpdate
-from .dataset import DataSet, DataSetBase, DataSetDescriptor, DataSetUpdateRequest
+from .data_source import DataSource, DataSourceBase, DataSourceType, DataSourceUpdate, Provider
+from .dataset import DataSet, DataSetBase, DataSetDescriptor, DataSetUpdateRequest, DeletedDataSet
 from .enums import (
     AuditActionType,
     AuditEntityType,
@@ -48,7 +50,7 @@ from .glossary_of_terms import (
 )
 from .jobs import ClearJobsResult, Job
 from .model_config import EmbeddingsModelConfig, LLMModelConfig
-from .tool_details import FakeCall, StagesConfig
+from .tool_details import FakeCall, SdmxQueryAppDetails, StagesConfig
 from .tools import (
     AvailableDatasetsTool,
     AvailablePublicationsTool,
@@ -58,6 +60,7 @@ from .tools import (
     DatasetStructureTool,
     FileRagTool,
     PlainContentTool,
+    SdmxQueryAppTool,
     WebSearchAgentTool,
     WebSearchTool,
 )

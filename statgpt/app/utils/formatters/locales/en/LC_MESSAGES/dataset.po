@@ -6,7 +6,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: statgpt 1.0\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-03-13 00:42+0100\n"
+"POT-Creation-Date: 2026-05-27 20:48+0200\n"
 "PO-Revision-Date: 2024-01-01 00:00+0000\n"
 "Last-Translator: \n"
 "Language-Team: English\n"
@@ -20,7 +20,7 @@ msgid "[Official]"
 msgstr "[Official]"
 
 # Basic labels
-#: dataset_simple.py:30 dataset_query.py:125 dataset_query.py:247
+#: dataset_simple.py:30 dataset_query.py:125 dataset_query.py:253
 #: dataset_availablity_query.py:105
 msgid "ID"
 msgstr "ID"
@@ -279,14 +279,18 @@ msgstr "Query"
 msgid "Indicator"
 msgstr "Indicator"
 
-#: dataset_query.py:221
+#: dataset_query.py:223
+msgid "default time filter is used, as user did not specify any time filter"
+msgstr "default time filter is used, as user did not specify any time filter"
+
+#: dataset_query.py:227
 msgid "default"
 msgstr "default"
 
-#: dataset_query.py:244
+#: dataset_query.py:250
 msgid "Missing dimensions"
 msgstr "Missing dimensions"
 
-#: dataset_query.py:266
+#: dataset_query.py:272
 msgid "example values"
 msgstr "example values"

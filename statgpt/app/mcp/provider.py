@@ -9,16 +9,18 @@ from fastmcp.exceptions import ToolError
 from fastmcp.server.dependencies import get_http_request
 from fastmcp.server.providers import Provider
 from fastmcp.tools import Tool, ToolResult
+from fastmcp.utilities.components import FastMCPComponent
 from fastmcp.utilities.versions import VersionSpec
 from mcp.types import ContentBlock, TextContent
-from pydantic import PrivateAttr
+from pydantic import PrivateAttr, ValidationError
 from starlette.requests import Request
 
-from statgpt.app.chains.tools import StatGptTool
+from statgpt.app.chains.tools import StatGptTool, ToolInputError, ToolUpstreamError
 from statgpt.app.config import ChainParametersConfig
 from statgpt.app.mcp.attachments import data_query_artifact_to_resources
+from statgpt.app.mcp.guardrails import enforce_input_guardrail
 from statgpt.app.schemas.dial_app_configuration import StatGPTConfiguration
-from statgpt.app.schemas.tool_artifact import DataQueryArtifact
+from statgpt.app.schemas.tool_artifact import DataQueryArtifact, SdmxQueryAppArtifact
 from statgpt.app.security import DialAuthCredentials, create_auth_context
 from statgpt.app.security.exceptions import AuthenticationError, AuthorizationError
 from statgpt.app.services.chat_facade import ChannelServiceFacade
@@ -50,18 +52,29 @@ class _McpToolAdapter(Tool):
 
     _langchain_tool: StatGptTool = PrivateAttr()
     _inputs: dict[str, Any] = PrivateAttr()
+    _channel_config: ChannelConfig = PrivateAttr()
+    _auth_context: AuthContext = PrivateAttr()
 
     def __init__(
         self,
         langchain_tool: StatGptTool,
         inputs: dict[str, Any],
+        channel_config: ChannelConfig,
+        auth_context: AuthContext,
         **kwargs: Any,
     ):
         super().__init__(**kwargs)
         self._langchain_tool = langchain_tool
         self._inputs = inputs
+        self._channel_config = channel_config
+        self._auth_context = auth_context
 
     async def run(self, arguments: dict[str, Any]) -> ToolResult:
+        # Screen arbitrary free-text input with the out-of-scope guardrail before
+        # executing. Raised ToolError propagates to the MCP client unchanged.
+        await enforce_input_guardrail(
+            self._langchain_tool, arguments, self._channel_config, self._auth_context
+        )
         tool_call = {
             "name": self._langchain_tool.name,
             "args": {**arguments, "inputs": self._inputs},
@@ -70,6 +83,18 @@ class _McpToolAdapter(Tool):
         }
         try:
             result = await self._langchain_tool.ainvoke(tool_call)
+        except ToolInputError as e:
+            # Invalid caller-provided arguments: surface the specific message.
+            raise ToolError(str(e)) from e
+        except ValidationError as e:
+            # Argument-schema validation failures (e.g. missing required field, bad enum
+            # value). Surface a concise message instead of the generic failure.
+            _log.info("Invalid arguments for MCP tool %s: %s", self._langchain_tool.name, e)
+            raise ToolError(f"Invalid arguments for {self._langchain_tool.name}: {e}") from e
+        except ToolUpstreamError as e:
+            # Upstream dependency failure (connection/timeout): surface the specific message.
+            _log.warning("Upstream error in MCP tool %s: %s", self._langchain_tool.name, e)
+            raise ToolError(str(e)) from e
         except Exception:
             # Catch-all for unexpected errors. Known error cases should return
             # proper content or raise a custom exception caught in a dedicated
@@ -78,22 +103,34 @@ class _McpToolAdapter(Tool):
             raise ToolError(f"{self._langchain_tool.name} tool failed to execute")
         text = result.content if isinstance(result.content, str) else str(result.content)
         content: list[ContentBlock] = [TextContent(type="text", text=text)]
+        structured_content: dict[str, Any] | None = None
         if isinstance(result.artifact, DataQueryArtifact):
             # to_csv is CPU-bound and can block on large dataframes; offload to a worker thread.
             resources = await asyncio.to_thread(data_query_artifact_to_resources, result.artifact)
             content.extend(resources)
-        return ToolResult(content=content)
+        elif isinstance(result.artifact, SdmxQueryAppArtifact):
+            # Surface the upstream HTTP metadata so the MCP-App can distinguish success from
+            # error responses and know the body's media type. The raw body stays in the text
+            # content block above to keep the passthrough behavior.
+            structured_content = {
+                "status_code": result.artifact.status_code,
+                "content_type": result.artifact.content_type,
+            }
+        return ToolResult(content=content, structured_content=structured_content)
 
 
 class ChannelToolProvider(Provider):
     """MCP Provider that dynamically serves tools from a StatGPT channel config."""
 
     async def _resolve_context(self, request: Request) -> tuple[AuthContext, ChannelServiceFacade]:
-        auth_context = await create_auth_context(DialAuthCredentials.from_headers(request.headers))
         deployment_id = request.path_params.get("deployment_id")
         if not deployment_id:
             raise ValueError("Missing deployment_id in path")
         channel_service = await ChannelServiceFacade.get_channel(deployment_id)
+        auth_context = await create_auth_context(
+            DialAuthCredentials.from_headers(request.headers),
+            bearer_token_required=channel_service.channel_config.bearer_token_required,
+        )
         return auth_context, channel_service
 
     def _create_mcp_tool(
@@ -101,15 +138,19 @@ class ChannelToolProvider(Provider):
         tool_config: BaseToolConfig,
         channel_config: ChannelConfig,
         inputs: dict[str, Any],
+        auth_context: AuthContext,
     ) -> _McpToolAdapter:
         langchain_tool = StatGptTool.from_config(tool_config, channel_config)
         return _McpToolAdapter(
             langchain_tool=langchain_tool,
             inputs=inputs,
-            name=tool_config.name,
-            description=tool_config.description,
+            channel_config=channel_config,
+            auth_context=auth_context,
+            name=channel_config.mcp.tool_name_prefix + tool_config.effective_mcp_name,
+            description=tool_config.effective_mcp_description,
             parameters=langchain_tool.get_public_args_schema(),
             annotations=langchain_tool.get_mcp_annotations(),
+            meta=tool_config.mcp_meta,
         )
 
     async def _list_tools(self) -> Sequence[Tool]:
@@ -125,18 +166,22 @@ class ChannelToolProvider(Provider):
             _log.exception("Could not resolve channel context for tools/list")
             return []
 
+        _log.info("Resolving MCP tools list for the `%s` channel", channel_service.deployment_id)
+
         channel_config = channel_service.channel_config
         inputs = _build_mcp_inputs(auth_context, channel_service)
         tools: list[Tool] = []
         for tool_config in channel_config.tools:
             try:
-                mcp_tool = self._create_mcp_tool(tool_config, channel_config, inputs)
+                mcp_tool = self._create_mcp_tool(tool_config, channel_config, inputs, auth_context)
                 tools.append(mcp_tool)
             except Exception:
                 _log.warning("Failed to create MCP tool for %s", tool_config.name, exc_info=True)
         return tools
 
     async def _get_tool(self, name: str, version: VersionSpec | None = None) -> Tool | None:
+        _log.info("%s tool is called via MCP", name)
+
         try:
             auth_context, channel_service = await self._resolve_context(get_http_request())
         except (AuthenticationError, AuthorizationError) as e:
@@ -152,11 +197,24 @@ class ChannelToolProvider(Provider):
             return None
 
         channel_config = channel_service.channel_config
+        prefix = channel_config.mcp.tool_name_prefix
+        if prefix:
+            if not name.startswith(prefix):
+                return None
+            name = name.removeprefix(prefix)
         inputs = _build_mcp_inputs(auth_context, channel_service)
         for tool_config in channel_config.tools:
-            if tool_config.name == name:
-                return self._create_mcp_tool(tool_config, channel_config, inputs)
+            if tool_config.effective_mcp_name == name:
+                return self._create_mcp_tool(tool_config, channel_config, inputs, auth_context)
         return None
+
+    async def get_tasks(self) -> Sequence[FastMCPComponent]:
+        # Tools are per-request (depend on deployment_id + auth headers from the
+        # HTTP request), so there is nothing to register as a Docket background
+        # task at startup. Returning [] also prevents _list_tools() from being
+        # called outside a request context during lifespan startup, which would
+        # otherwise log a spurious "No active HTTP request found" error.
+        return []
 
 
 channel_tool_provider = ChannelToolProvider()

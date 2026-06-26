@@ -26,6 +26,7 @@ from statgpt.common.utils import (
     AttachmentsStorage,
     attachments_storage_factory,
     dial_core_factory,
+    format_exception_reason,
 )
 
 from .channel import AdminPortalChannelService as ChannelService
@@ -220,7 +221,7 @@ class JobsService:
             job.status = schemas.PreprocessingStatusEnum.QUEUED
         except Exception as e:
             _log.exception(e)
-            job.reason_for_failure = str(e)
+            job.reason_for_failure = format_exception_reason(e)
             job.status = schemas.PreprocessingStatusEnum.FAILED
 
         job.updated_at = func.now()
@@ -302,7 +303,7 @@ class JobsService:
                     file_url = resp.url
         except Exception as e:
             _log.exception(e)
-            job.reason_for_failure = str(e)
+            job.reason_for_failure = format_exception_reason(e)
             await self._update_job_status(job, schemas.PreprocessingStatusEnum.FAILED)
             return schemas.Job.model_validate(job, from_attributes=True)
 
@@ -437,7 +438,7 @@ class JobsService:
                     )
         except Exception as e:
             _log.exception(e)
-            job.reason_for_failure = str(e)
+            job.reason_for_failure = format_exception_reason(e)
             await self._update_job_status(job, schemas.PreprocessingStatusEnum.FAILED)
             return schemas.Job.model_validate(job, from_attributes=True)
 

@@ -1,4 +1,5 @@
 from .file_rags import DialRagState
+from .query import AppJsonQuery, AppJsonQueryWithMetadata
 from .selection_candidates import (
     BatchedSelectionOutputBase,
     CandidatesRelevancyMapping,
@@ -18,6 +19,7 @@ from .tool_artifact import (
     DataQueryArtifact,
     DialRagArtifact,
     FailedToolArtifact,
+    SdmxQueryAppArtifact,
     ToolArtifact,
 )
 from .tool_states import FailedToolMessageState, ToolMessageState, ToolResponseStatus

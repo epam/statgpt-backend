@@ -13,6 +13,7 @@ from pydantic import BaseModel, Field
 from statgpt.common.auth.auth_context import AuthContext
 from statgpt.common.schemas.dataset import Status
 from statgpt.common.schemas.enums import DataParsingStatus, DataRequestStatus
+from statgpt.common.schemas.query import JsonQueryWithMetadata
 
 from .attribute import Attribute
 from .base import BaseEntity, EntityType
@@ -101,6 +102,21 @@ class DataResponse(ABC):
     def visual_dataframe(self) -> pd.DataFrame:
         """Return a DataFrame suitable for visualization and export (Plotly grid, CSV file)"""
 
+    @property
+    @abstractmethod
+    def csv_dataframe(self) -> pd.DataFrame:
+        """Return a DataFrame suitable for CSV export attachments."""
+
+    @property
+    @abstractmethod
+    def dimension_ids(self) -> set[str]:
+        """Entity ids of the dataset's dimensions (including the time dimension)."""
+
+    @property
+    @abstractmethod
+    def attribute_ids(self) -> set[str]:
+        """Entity ids of the dataset's attributes."""
+
     @abstractmethod
     def enrich_attachment_name(self, value: str) -> str:
         """Replace placeholders in the attachment name with actual values."""
@@ -142,8 +158,8 @@ class DataResponse(ABC):
 
     @property
     @abstractmethod
-    def json_query(self) -> dict | None:
-        """Return the query in JSON format."""
+    def json_query(self) -> JsonQueryWithMetadata | None:
+        """Return the query as a JSON query model."""
 
     @abstractmethod
     def get_python_code_body(self, suffix: str = "") -> str | None:

@@ -14,6 +14,7 @@ from statgpt.admin.services.channel import (
 from statgpt.admin.services.dataset import AdminPortalDataSetService, auto_update_in_background_task
 from statgpt.common.auth.auth_context import AuthContext
 from statgpt.common.models import get_session_context_manager, optional_msi_token_manager_context
+from statgpt.common.utils.elastic import elasticsearch_client_context
 
 _log = logging.getLogger(__name__)
 _SEPARATOR = "-" * 50
@@ -47,16 +48,12 @@ async def _process_jobs(jobs: list[schemas.AutoUpdateJob], auth_context: AuthCon
     _log.info(_SEPARATOR)
     _log.info(f"Created {len(jobs)} auto-update job(s), starting processing...")
 
-    results = await asyncio.gather(
+    await asyncio.gather(
         *(
             auto_update_in_background_task(auto_update_job_id=job.id, auth_context=auth_context)
             for job in jobs
         ),
-        return_exceptions=True,
     )
-    for job, result in zip(jobs, results):
-        if isinstance(result, Exception):
-            _log.error(f"Auto-update job {job.id} failed with exception:", exc_info=result)
 
 
 async def _get_reindex_channel_ids(job_ids: list[int]) -> set[int]:
@@ -85,8 +82,11 @@ async def _log_results(job_ids: list[int]) -> bool:
     return failed == 0
 
 
-async def _deduplicate_channels(channel_ids: set[int], auth_context: AuthContext) -> None:
+async def _deduplicate_channels(channel_ids: set[int]) -> None:
     """Run deduplication for channels that had a reindex.
+
+    Each channel gets a tracked DeduplicationJob record so the batch run shows up
+    in the same admin/CLI surface as on-demand dedup runs.
 
     NOTE: The number of concurrent executions is limited by the semaphore
     in the ``@background_task`` decorator applied to ``deduplicate_dimensions_in_background_task``.
@@ -94,20 +94,19 @@ async def _deduplicate_channels(channel_ids: set[int], auth_context: AuthContext
     _log.info(_SEPARATOR)
     sorted_ids = sorted(channel_ids)
     _log.info(f"Running deduplication for {len(sorted_ids)} channel(s) with reindex: {sorted_ids}")
-    results = await asyncio.gather(
-        *(
-            deduplicate_dimensions_in_background_task(
-                channel_id=channel_id, auth_context=auth_context
-            )
-            for channel_id in sorted_ids
-        ),
-        return_exceptions=True,
+
+    try:
+        async with get_session_context_manager() as session:
+            jobs = await AdminPortalChannelService(session).create_deduplication_jobs(sorted_ids)
+    except ValueError:
+        # A channel may be deleted between the auto-update and dedup phases.
+        # Skip the dedup phase rather than aborting the whole run.
+        _log.exception("Failed to create deduplication jobs; skipping deduplication phase")
+        return
+
+    await asyncio.gather(
+        *(deduplicate_dimensions_in_background_task(deduplication_job_id=job.id) for job in jobs),
     )
-    for channel_id, result in zip(sorted_ids, results):
-        if isinstance(result, Exception):
-            _log.error(
-                f"Deduplication for channel {channel_id} failed with exception:", exc_info=result
-            )
     _log.info("Deduplication complete")
 
 
@@ -128,7 +127,7 @@ async def run_auto_update() -> bool:
 
     reindex_channel_ids = await _get_reindex_channel_ids(job_ids)
     if reindex_channel_ids:
-        await _deduplicate_channels(reindex_channel_ids, auth_context)
+        await _deduplicate_channels(reindex_channel_ids)
 
     return await _log_results(job_ids)
 
@@ -136,7 +135,7 @@ async def run_auto_update() -> bool:
 async def main() -> None:
     try:
         _log.info("Starting batch auto-update script...")
-        async with optional_msi_token_manager_context():
+        async with optional_msi_token_manager_context(), elasticsearch_client_context():
             success = await run_auto_update()
 
         _log.info(_SEPARATOR)

@@ -35,6 +35,18 @@ class DataQueryArtifact(ToolArtifact):
     )
 
 
+class SdmxQueryAppArtifact(ToolArtifact):
+    """Carries the upstream HTTP metadata for the SDMX query-app passthrough tool so the MCP
+    provider can expose the status code and content type to the client (the raw body is returned
+    as the tool's text content)."""
+
+    status_code: int = Field(description="HTTP status code returned by the upstream request.")
+    content_type: str | None = Field(
+        default=None,
+        description="Value of the upstream `Content-Type` response header, if present.",
+    )
+
+
 # ~~~~~~~~~~~~~ File RAG ~~~~~~~~~~~~~
 
 

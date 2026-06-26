@@ -1,5 +1,8 @@
+from datetime import datetime
+
 from pydantic import BaseModel, Field, computed_field
 
+from .auto_update import AutoUpdateJob
 from .base import DbDefaultBase
 from .dataset import DataSet
 from .enums import PreprocessingStatusEnum
@@ -65,6 +68,23 @@ class ChannelDatasetExpanded(ChannelDatasetBase):
         )
     )
     latest_version: ChannelDatasetVersion | None
+    last_auto_update_job: AutoUpdateJob | None = Field(
+        description=(
+            "The most recent auto-update job for this channel dataset,"
+            " or null if no auto-update job has ever been created."
+        )
+    )
+
+
+class ChannelDatasetExpandedWithLastUpdatedAt(ChannelDatasetExpanded):
+    last_updated_at: datetime | None = Field(
+        default=None,
+        description=(
+            "Timestamp of when the dataset's data was last updated at the source,"
+            " resolved via the provider-specific DataSet.updated_at logic."
+            " Null when the provider exposes no such value or the dataset is offline."
+        ),
+    )
 
 
 class BaseChange(BaseModel):

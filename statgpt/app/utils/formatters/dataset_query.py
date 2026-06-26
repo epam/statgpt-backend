@@ -197,10 +197,7 @@ class DatasetQueryFormatter(BaseFormatter):
                 None,
             )
 
-            if not dim_query:
-                continue
-
-            if not dim_query.values and dim_query.operator != QueryOperator.ALL:
+            if not dim_query or dim_query.is_empty():
                 continue
 
             if dim_query.is_default and not self._config.include_default_queries:
@@ -218,7 +215,13 @@ class DatasetQueryFormatter(BaseFormatter):
             line += self._format_dimension_value(dimension, dim_query)
 
             if dim_query.is_default:
-                line += f" ({self._('default')})"
+                if isinstance(dimension, DateTimeDimension):
+                    default_note = self._(
+                        'default time filter is used, as user did not specify any time filter'
+                    )
+                    line += f" ({default_note})"
+                else:
+                    line += f" ({self._('default')})"
 
             lines.append(line)
 
@@ -235,7 +238,7 @@ class DatasetQueryFormatter(BaseFormatter):
             d
             for d in dataset.dimensions()
             if d.entity_id not in query.dimensions_queries_dict
-            or not query.dimensions_queries_dict[d.entity_id].values
+            or query.dimensions_queries_dict[d.entity_id].is_empty()
         ]
 
         if not missing_dimensions:

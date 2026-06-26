@@ -45,11 +45,7 @@ class StatGptSdmxProxyDataSet(UpdatedAtMixin, Sdmx21DataSet):
         self._annotations = list(annotations)
 
     def _get_query_params(self, sdmx_query: SdmxDataSetQuery) -> dict:
-        params = sdmx_query.get_params()
-        if "detail" in params:
-            params = dict(params)
-            params.pop("detail", None)
-        return params
+        return sdmx_query.get_params_v30()
 
     def _get_annotation_by_id(self, annotation_id: str) -> Sdmx30AnnotationModel | None:
         return next((a for a in self._annotations if a.id == annotation_id), None)

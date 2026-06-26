@@ -40,6 +40,7 @@ from statgpt.common.auth.auth_context import AuthContext
 from statgpt.common.config import multiline_logger as logger
 from statgpt.common.schemas import ChannelConfig, FakeCall
 from statgpt.common.utils import InvalidLLMStreamResponse
+from statgpt.common.utils.llm_call_duration_context import get_llm_call_duration_manager
 from statgpt.common.utils.markdown import format_as_markdown_list
 from statgpt.common.utils.models import get_chat_model
 
@@ -61,8 +62,11 @@ class ToolCaller:
 
     @staticmethod
     def get_tools_from_config(channel_config: ChannelConfig) -> list[StatGptTool]:
+        # `agent_tools` excludes `mcp_only` tools, which are surfaced exclusively via the
+        # MCP server (e.g. UI-initiated tool calls) and must not be exposed to the LLM.
         return [
-            StatGptTool.from_config(tool_cfg, channel_config) for tool_cfg in channel_config.tools
+            StatGptTool.from_config(tool_cfg, channel_config)
+            for tool_cfg in channel_config.agent_tools
         ]
 
     @staticmethod
@@ -171,7 +175,7 @@ class SupremeAgent:
 
         inputs = {
             'chat_history': history.get_langchain_messages(include_tool_messages=True),
-            'datetime_now': configuration.get_current_timestamp(),
+            'today_date': configuration.get_current_date(),
         }
         first_token_time = None
         start_time = datetime.now()
@@ -234,11 +238,14 @@ class SupremeAgent:
             chat_bot_language_instructions=format_as_markdown_list(
                 channel_config.supreme_agent.language_instructions, list_type="ordered"
             ),
-            additional_instructions=channel_config.supreme_agent.additional_instructions,
             additional_context=channel_config.supreme_agent.additional_context,
             general_section=(
                 channel_config.supreme_agent.general_section
                 or supreme_agent_default_prompts.default_general_section
+            ),
+            tool_usage_section=(
+                channel_config.supreme_agent.tool_usage_section
+                or supreme_agent_default_prompts.default_tool_usage_section
             ),
             no_calculations_section=(
                 channel_config.supreme_agent.no_calculations_section
@@ -354,7 +361,7 @@ class SupremeAgentExecutor:
         tool_calls = []
         tasks = []
 
-        for tool_cfg in self._channel_config.tools:
+        for tool_cfg in self._channel_config.agent_tools:
             if (fake_call := tool_cfg.details.fake_call) is not None:
                 tool_call = self._get_tool_call_from_cfg(tool_cfg.name, fake_call)
                 tool_calls.append(tool_call)
@@ -419,3 +426,18 @@ class SupremeAgentExecutor:
             f"| {(first_token_time - start_time_of_last_request).total_seconds():.2f} "
             "| Time since the agent's last request and the first token received in response to it |\n"
         )
+        duration_manager = get_llm_call_duration_manager()
+        if duration_manager is not None:
+            for item in duration_manager.get_durations():
+                performance_stage.append_content(
+                    f"| LLM call duration: {item.deployment} "
+                    "| | "
+                    f"| {item.duration_s:.3f} "
+                    f"| Cumulative duration for {item.deployment} |\n"
+                )
+            performance_stage.append_content(
+                "| Total LLM calls duration "
+                "| | "
+                f"| {duration_manager.total_duration_s:.3f} "
+                "| Sum of all LLM call durations |\n"
+            )

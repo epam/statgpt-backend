@@ -1,7 +1,7 @@
 import re
 from typing import Any
 
-from pydantic import AliasChoices, Field
+from pydantic import AliasChoices, Field, PrivateAttr, model_validator
 
 from statgpt.common.config import LLMModelsEnum
 from statgpt.common.config import utils as config_utils
@@ -17,10 +17,29 @@ class FakeCall(BaseYamlModel):
 
 
 class StageRules(BaseYamlModel):
-    pattern: str = Field(description="The regex pattern to match the stage")
+    pattern: str | None = Field(
+        default=None,
+        description=(
+            "Regex pattern matched against the rendered display name of a stage."
+            " Prefer `key` instead when matching pipeline stages, since display names can be renamed via config."
+        ),
+    )
+    key: str | None = Field(
+        default=None,
+        description=(
+            "Stable logical key of the stage, matched exactly."
+            " Use this for pipeline stages so visibility rules survive display-name renames."
+        ),
+    )
     debug_only: bool = Field(
         description="Whether the stage is only shown in debug mode. If False, it is always shown."
     )
+
+    @model_validator(mode="after")
+    def _require_pattern_or_key(self) -> "StageRules":
+        if (self.pattern is None) == (self.key is None):
+            raise ValueError("StageRules must specify exactly one of `pattern` or `key`.")
+        return self
 
 
 class StagesConfig(BaseYamlModel):
@@ -43,12 +62,38 @@ class StagesConfig(BaseYamlModel):
         default_factory=list, description="The rules for displaying stages"
     )
 
-    def is_stage_debug(self, stage_name: str) -> bool:
-        """Check if the stage should be displayed in debug mode only."""
+    def is_stage_debug(self, key: str | None = None, name: str | None = None) -> bool:
+        """Check if the stage should be displayed in debug mode only.
+
+        Rules with `key` are matched exactly against `key`; rules with `pattern` are
+        regex-matched against `name`. The first matching rule wins. Falls back to the
+        config-level `debug_only` default.
+        """
         for rule in self.rules:
-            if re.match(rule.pattern, stage_name):
+            if rule.key is not None and key is not None and rule.key == key:
+                return rule.debug_only
+            if rule.pattern is not None and name is not None and re.match(rule.pattern, name):
                 return rule.debug_only
         return self.debug_only
+
+
+class StageDescriptor(BaseYamlModel):
+    """Runtime descriptor for a configured stage.
+
+    `name` is the (configurable) display name set via YAML.
+    `key` is the stable logical key — a private attribute set by the parent model
+    based on the descriptor's field name, so it cannot be overridden from YAML.
+    """
+
+    name: str
+    _key: str = PrivateAttr(default="")
+
+    @property
+    def key(self) -> str:
+        return self._key
+
+    def is_debug(self, stages_config: StagesConfig) -> bool:
+        return stages_config.is_stage_debug(key=self._key, name=self.name)
 
 
 class BaseToolDetails(BaseYamlModel):
@@ -242,6 +287,39 @@ class DatasetsMetadataDetails(OneShotToolDetails):
         default_factory=DatasetsMetadataLLMConfig,
         description="The LLM model configuration for the datasets metadata tool.",
     )
+
+
+class SdmxQueryAppDetails(BaseToolDetails):
+    base_url_raw: str = Field(
+        validation_alias=AliasChoices("base_url", "baseUrl"),
+        serialization_alias="baseUrl",
+        description=(
+            "Trusted base URL prefix prepended to every caller-provided path "
+            "(e.g. an SDMX query application or proxy passthrough endpoint). The caller "
+            "cannot specify a domain, so the tool can only reach this configured host. "
+            "Supports $env:{VAR} syntax."
+        ),
+    )
+
+    def get_base_url(self) -> str:
+        return config_utils.replace_env(self.base_url_raw).rstrip("/")
+
+    @model_validator(mode="after")
+    def _validate_base_url(self) -> "SdmxQueryAppDetails":
+        # Resolve and validate the base URL once at config-load time, so a missing
+        # env var or a malformed URL fails fast here instead of on every request.
+        try:
+            base_url = self.get_base_url()
+        except ValueError as e:
+            raise ValueError(f"Could not resolve SDMX query app `base_url`: {e}") from e
+        if not base_url:
+            raise ValueError("SDMX query app `base_url` resolved to an empty value.")
+        if not base_url.startswith(("http://", "https://")):
+            raise ValueError(
+                "SDMX query app `base_url` must start with 'http://' or 'https://',"
+                f" got {base_url!r}."
+            )
+        return self
 
 
 class AvailableTermsDetails(BaseToolDetails):

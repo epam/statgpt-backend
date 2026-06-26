@@ -11,7 +11,7 @@ from statgpt.common.data.quanthub.config import QuanthubDataSetConfig
 from statgpt.common.data.sdmx.v21.attributes_creator import Sdmx21AttributesCreator
 from statgpt.common.data.sdmx.v21.dataflow_loader import DataflowLoader
 from statgpt.common.data.sdmx.v21.dataset import InvalidConfigurationError, SdmxOfflineDataSet
-from statgpt.common.data.sdmx.v21.datasource import Sdmx21DataSourceHandler, SdmxDataSetDescriptor
+from statgpt.common.data.sdmx.v21.datasource import Sdmx21DataSourceHandler
 from statgpt.common.data.sdmx.v21.dimensions_creator import DimensionsCreator
 from statgpt.common.data.sdmx.v21.ratelimiter import SdmxRateLimiterFactory
 from statgpt.common.data.sdmx.v21.schemas import Urn
@@ -61,6 +61,9 @@ class StatGptSdmxProxyDataSourceHandler(Sdmx21DataSourceHandler):
         )
         return SdmxClient.from_config(self._config, auth_context, rate_limiter)
 
+    def _create_dataflow_loader(self, sdmx_client: SdmxClient) -> DataflowLoader:  # type: ignore[override]
+        return DataflowLoader(sdmx_client, structure_extra_headers=proxy_structure_extra_headers)
+
     @staticmethod
     def _to_proxy_annotation(annotation: BaseAnnotation) -> Sdmx30AnnotationModel:
         text = str(annotation.text) if annotation.text else None
@@ -95,9 +98,7 @@ class StatGptSdmxProxyDataSourceHandler(Sdmx21DataSourceHandler):
                 resource_id=dataset_config.urn.resource_id,
                 version=dataset_config.urn.version,
             )
-            dataflow_loader = DataflowLoader(
-                sdmx_client, structure_extra_headers=proxy_structure_extra_headers
-            )
+            dataflow_loader = self._create_dataflow_loader(sdmx_client)
             urn, structure_message = await dataflow_loader.load_structure_message(urn, mode="full")
             dataflow = structure_message.dataflow[urn]
         except Exception:
@@ -216,13 +217,3 @@ class StatGptSdmxProxyDataSourceHandler(Sdmx21DataSourceHandler):
             return await self._get_dataset(
                 entity_id, title, config, auth_context, allow_offline=allow_offline
             )
-
-    async def list_datasets(self, auth_context: AuthContext) -> list[SdmxDataSetDescriptor]:
-        """
-        NOTE: The proxy SDMX 3.0 data source does not support querying across "all" agencies,
-        and the use of "latest" version is not supported by all registries.
-        Listing all datasets is unavailable in this handler.
-        """
-        raise NotImplementedError(
-            "Listing all datasets is unavailable for StatGPT SDMX proxy handler"
-        )

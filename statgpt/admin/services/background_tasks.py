@@ -51,11 +51,16 @@ def background_task(
                     _log.warning(f"[{task_id}] Was cancelled")
                     raise
                 except TimeoutError:
+                    # Contain a per-task timeout at the decorator boundary: do NOT
+                    # re-raise. Otherwise the escaping TimeoutError aborts the
+                    # surrounding asyncio.gather (auto_update batch) or Starlette's
+                    # sequential BackgroundTasks runner, taking down sibling tasks
+                    # that should keep running.
                     if timeout_scope.expired():
                         _log.error(f"[{task_id}] Timed out after {_SETTINGS.task_timeout}s")
                     else:
                         _log.error(f"[{task_id}] Failed with inner timeout")
-                    raise
+                    return None  # type: ignore[return-value]
                 except Exception as e:
                     _log.error(f"[{task_id}] Failed with exception: {e}")
                     raise

@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-03-13 00:42+0100\n"
+"POT-Creation-Date: 2026-05-27 20:48+0200\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -21,7 +21,7 @@ msgstr ""
 msgid "[Official]"
 msgstr ""
 
-#: dataset_simple.py:30 dataset_query.py:125 dataset_query.py:247
+#: dataset_simple.py:30 dataset_query.py:125 dataset_query.py:253
 #: dataset_availablity_query.py:105
 msgid "ID"
 msgstr ""
@@ -263,14 +263,18 @@ msgstr ""
 msgid "Indicator"
 msgstr ""
 
-#: dataset_query.py:221
+#: dataset_query.py:223
+msgid "default time filter is used, as user did not specify any time filter"
+msgstr ""
+
+#: dataset_query.py:227
 msgid "default"
 msgstr ""
 
-#: dataset_query.py:244
+#: dataset_query.py:250
 msgid "Missing dimensions"
 msgstr ""
 
-#: dataset_query.py:266
+#: dataset_query.py:272
 msgid "example values"
 msgstr ""

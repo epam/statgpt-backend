@@ -1,10 +1,10 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from statgpt.common.settings.elastic import ElasticSearchSettings
 
 from .auditable import Auditable
 from .base import BaseYamlModel, DbDefaultBase
-from .enums import ChannelIndexStatusScope, LocaleEnum
+from .enums import ChannelIndexStatusScope, LocaleEnum, PreprocessingStatusEnum
 from .model_config import LLMModelConfig
 from .onboarding import OnboardingConfig
 from .tools import (
@@ -17,6 +17,7 @@ from .tools import (
     DatasetStructureTool,
     FileRagTool,
     PlainContentTool,
+    SdmxQueryAppTool,
     TermDefinitionsTool,
     WebSearchAgentTool,
     WebSearchTool,
@@ -45,10 +46,6 @@ class SupremeAgentConfig(BaseYamlModel):
         default_factory=LLMModelConfig,
         description="LLM model configuration for the supreme agent",
     )
-    additional_instructions: str = Field(
-        default="",
-        description="Additional instructions to put to the agent's system prompt",
-    )
     additional_context: str = Field(
         default="",
         description="Additional context for the supreme agent",
@@ -57,6 +54,13 @@ class SupremeAgentConfig(BaseYamlModel):
         default="",
         description=(
             "Custom content for the 'General' section of the system prompt."
+            " If empty, the default content is used."
+        ),
+    )
+    tool_usage_section: str = Field(
+        default="",
+        description=(
+            "Custom content for the 'Tool Usage' section of the system prompt."
             " If empty, the default content is used."
         ),
     )
@@ -113,6 +117,17 @@ class OutOfScopeConfig(BaseYamlModel):
     )
 
 
+class McpConfig(BaseYamlModel):
+    tool_name_prefix: str = Field(
+        default="",
+        pattern=r'^[a-zA-Z0-9_\.-]*$',
+        description=(
+            "Prefix prepended to tool names exposed via MCP (e.g. 'statgpt__'). "
+            "Internal agent tool names are unaffected. Empty string disables prefixing."
+        ),
+    )
+
+
 class TokenUsageConfig(BaseYamlModel):
     debug_only: bool = Field(
         default=True,
@@ -136,6 +151,20 @@ class ConversationStarterConfig(BaseYamlModel):
 class ConversationStartersConfig(BaseYamlModel):
     intro_text: str = Field(
         description="The text displayed to the user when the conversation starts."
+    )
+    title: str | None = Field(
+        default=None,
+        description=(
+            "Optional override for the conversation-starter widget title. "
+            "If unset, the default JSON-schema title is used."
+        ),
+    )
+    input_placeholder: str | None = Field(
+        default=None,
+        description=(
+            "Optional placeholder text for the chat input field. "
+            "Rendered as the 'statgpt:inputPlaceholder' JSON-schema extension."
+        ),
     )
     buttons: list[ConversationStarterConfig] = Field(
         description="The buttons displayed to the user when the conversation starts."
@@ -163,6 +192,7 @@ class ChannelConfig(BaseYamlModel):
         None, description="The out of scope configuration"
     )
     token_usage: TokenUsageConfig = Field(default_factory=TokenUsageConfig)
+    mcp: McpConfig = Field(default_factory=McpConfig, description="MCP server configuration")
     bearer_token_required: bool = Field(
         default=False,
         description=(
@@ -181,6 +211,7 @@ class ChannelConfig(BaseYamlModel):
     data_query: DataQueryTool | None = Field(default=None)
     file_rag: FileRagTool | None = Field(None)
     plain_content: PlainContentTool | None = Field(None)
+    sdmx_query_app: SdmxQueryAppTool | None = Field(None)
     term_definitions: TermDefinitionsTool | None = Field(None)
     web_search: WebSearchTool | None = Field(None)
     web_search_agent: WebSearchAgentTool | None = Field(None)
@@ -196,6 +227,7 @@ class ChannelConfig(BaseYamlModel):
             'data_query',
             'file_rag',
             'plain_content',
+            'sdmx_query_app',
             'term_definitions',
             'web_search',
             'web_search_agent',
@@ -208,6 +240,16 @@ class ChannelConfig(BaseYamlModel):
         ]
         tools = [tool for tool in tools if tool.enabled]
         return tools
+
+    @property
+    def agent_tools(self) -> list[BaseToolConfig]:
+        """Enabled tools visible to the Supreme Agent / LLM.
+
+        Excludes ``mcp_only`` tools, which are surfaced exclusively via the MCP server
+        (e.g. UI-initiated tool calls) and must never be exposed to the agent or any
+        agent-facing consumer (e.g. the out-of-scope checker).
+        """
+        return [tool for tool in self.tools if not tool.mcp_only]
 
     def list_named_entity_types(self) -> list[str]:
         return [
@@ -340,3 +382,28 @@ class ChannelIndexStatus(BaseModel):
     vector_store: VectorStoreStatus = Field(
         description="Vector store status information for the channel"
     )
+
+
+class DeduplicationJob(DbDefaultBase):
+    """Schema for a deduplication job record."""
+
+    model_config = ConfigDict(use_attribute_docstrings=True)
+
+    channel_id: int
+
+    status: PreprocessingStatusEnum
+    """Job execution status (QUEUED, IN_PROGRESS, COMPLETED, FAILED)."""
+
+    reason_for_failure: str | None = None
+
+    non_indicator_remapped: int | None = None
+    """Metadata rows remapped to keeper documents in the non-indicator dimensions store."""
+
+    non_indicator_deleted: int | None = None
+    """Orphaned documents deleted from the non-indicator dimensions store."""
+
+    special_remapped: int | None = None
+    """Metadata rows remapped to keeper documents in the special dimensions store."""
+
+    special_deleted: int | None = None
+    """Orphaned documents deleted from the special dimensions store."""

@@ -1,8 +1,10 @@
+from typing import Annotated
+
 from mcp.types import ToolAnnotations
 from pydantic import Field
 
 from statgpt.app.chains.parameters import ChainParameters
-from statgpt.app.chains.tools import StatGptTool, ToolArgs
+from statgpt.app.chains.tools import GuardrailInput, StatGptTool, ToolArgs
 from statgpt.app.schemas import ToolArtifact, ToolMessageState
 from statgpt.common.schemas import ChannelConfig, ToolTypes
 from statgpt.common.schemas import WebSearchAgentTool as WebSearchToolConfig
@@ -11,7 +13,9 @@ from .response_producer import RagResponseProducer, ResponseProducerABC, UrlOnly
 
 
 class WebSearchArgs(ToolArgs):
-    query: str = Field(description="Natural language query optimized for ai web search.")
+    query: Annotated[str, GuardrailInput] = Field(
+        description="Natural language query optimized for ai web search."
+    )
 
 
 class WebSearchAgentTool(StatGptTool[WebSearchToolConfig], tool_type=ToolTypes.WEB_SEARCH_AGENT):

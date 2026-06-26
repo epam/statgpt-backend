@@ -6,7 +6,6 @@ import typing as t
 from collections.abc import Generator
 from typing import Any, NamedTuple
 
-from aidial_sdk.chat_completion import Stage
 from pydantic import BaseModel
 
 from statgpt.app.default_prompts import hybrid_search_default_prompts
@@ -18,11 +17,12 @@ from statgpt.app.schemas.query_builder import (
     NamedEntity,
 )
 from statgpt.app.services.chat_facade import VersionedDataSet
+from statgpt.app.utils.dial_stages import BufferedStagesManager, ContentStageI, StageI
 from statgpt.common.config.logging import logger
 from statgpt.common.data.base import DimensionQuery, QueryOperator
 from statgpt.common.hybrid_indexer.schemas import IndicatorIndex, MatchingIndex
 from statgpt.common.schemas import HybridSearchConfig
-from statgpt.common.utils import async_utils
+from statgpt.common.utils import AsyncLoadingCache, async_utils
 from statgpt.common.utils.elastic import ElasticIndex, SearchResult
 from statgpt.common.utils.models import get_chat_model
 from statgpt.common.vectorstore import ScoredVectorStoreDocument, VectorStore
@@ -117,7 +117,11 @@ class HybridSearcher:
             return result
 
         async def search(
-            self, stage, query: str, version_ids: set[int], availability: DatasetDimTermsSetType
+            self,
+            stage: ContentStageI,
+            query: str,
+            version_ids: set[int],
+            availability: DatasetDimTermsSetType,
         ) -> tuple[
             HarmonizedItemsScoredDict,
             PlainItemsScoredDict,
@@ -167,7 +171,7 @@ class HybridSearcher:
             return lexical, semantic, llm_scored, selected, reasoning, timings
 
         async def _query_planner(
-            self, stage: Stage, query: str, version_ids: set[int]
+            self, stage: ContentStageI, query: str, version_ids: set[int]
         ) -> SearchParams:
             primaries, total, candidates, good_candidates = await self._outer.lexical_pre_match(
                 query=query,
@@ -414,9 +418,55 @@ class HybridSearcher:
             candidates = self.make_sure_top_n_is_included(
                 candidates, hybrid_sorted, max_output=search_params.max_candidates
             )
+            candidates = self._include_lexical_only_candidates(
+                candidates,
+                lex_filtered,
+                max_lexical_only=self._outer.config.max_lexical_only_candidates,
+            )
 
             timings.hybrid_candidates_total = time.perf_counter() - t_total
             return lex_filtered, sem_filtered, candidates
+
+        def _include_lexical_only_candidates(
+            self,
+            candidates: list[dict],
+            lex_filtered: HarmonizedItemsScoredDict,
+            max_lexical_only: int,
+        ) -> list[dict]:
+            """Force the top lexical-only candidates into the LLM relevance set.
+
+            Fusion (`_hybrid_combination`) is anchored on the semantic results: it iterates the
+            semantic candidates and drops any id missing from them. A strong keyword match that
+            falls outside the semantic top-k therefore never enters the candidate set, never
+            reaches the LLM relevance judge, and can never be selected — a pure recall loss on
+            rare/coded indicators with weak embeddings. This rescues up to ``max_lexical_only`` such
+            candidates (already availability-filtered, ranked by lexical score) that are not already
+            present, appending them on top of the diversified hybrid candidates so the judge can
+            still score them.
+            """
+            if max_lexical_only <= 0:
+                return candidates
+
+            # can be simplified to:
+            # 1. sort lexical candidates by reversed score
+            # 2. filter out ids present in existing candidates
+            # 3. take slice of lexical candidates
+            # 4. extending the candidates with this slice
+            # this avoids looping and state management inside the loop
+
+            existing_ids = {c['id'] for c in candidates}
+            lexical_sorted = sorted(lex_filtered.items(), key=lambda x: x[1].score, reverse=True)
+
+            added = 0
+            for _id, data in lexical_sorted:
+                if added >= max_lexical_only:
+                    break
+                if _id in existing_ids:
+                    continue
+                candidates.append({"id": _id, "metadata": data.metadata.model_dump()})
+                existing_ids.add(_id)
+                added += 1
+            return candidates
 
         def make_sure_top_n_is_included(
             self,
@@ -665,7 +715,12 @@ class HybridSearcher:
             return batches, indexed
 
         def _filter_candidates(
-            self, stage, indexed, relevance, dataset_max_score, is_only_one_dataset_available: bool
+            self,
+            stage: ContentStageI,
+            indexed,
+            relevance,
+            dataset_max_score,
+            is_only_one_dataset_available: bool,
         ) -> tuple[list[dict[str, Any]], str]:
             result = []
             reasoning = ""
@@ -753,6 +808,13 @@ class HybridSearcher:
         self._indicators_index = indicators_index
         self._vectorstore = vectorstore
 
+        # Memoize tokenization for this search: the same query/candidate strings are tokenized
+        # several times across the pipeline (assess -> dedup -> cleanup -> contiguity filter).
+        # Instance-level on purpose - each HybridSearcher binds a specific `_matching_index`
+        # (per-channel analyzer), so the cache must not be shared across instances. No TTL: it
+        # is discarded with this per-search instance.
+        self._tokenize_cache: AsyncLoadingCache[str] = AsyncLoadingCache()
+
         self._normalization_chain = (
             hybrid_search_default_prompts.normalization_prompt.get_template()
             | self._llm.with_structured_output(method="json_mode")
@@ -800,38 +862,13 @@ class HybridSearcher:
                 period_str = f"to {period.end}"
             period_str = "Time Period:\n" + period_str
 
-        removal_step = ""
-        if entities_str and period_str:
-            removal_step = (
-                "- from the input: "
-                "keep entities marked (DO NOT REMOVE), "
-                "remove entities marked (REMOVE) "
-                "and remove all parts related to Time Period. "
-                "If an entity or part of entity appears in multiple categories "
-                "and at least one instance is marked (DO NOT REMOVE), keep entity"
-            )
-        elif entities_str:
-            removal_step = (
-                "- from the input: "
-                "keep entities marked (DO NOT REMOVE), "
-                "remove entities marked (REMOVE). "
-                "If an entity or part of entity appears in multiple categories "
-                "and at least one instance is marked (DO NOT REMOVE), keep entity"
-            )
-        elif period_str:
-            removal_step = "- from the input remove all parts related to Time Period. Only period"
-
         forbidden_to_remove_str = ""
-        forbidden_step = ""
         if forbidden:
             forbidden_to_remove_str = ", ".join(forbidden)
             forbidden_to_remove_str = f"Forbidden to remove words:\n{forbidden_to_remove_str}\n"
-            forbidden_step = "- do not remove forbidden to remove words from the input if they are present in input"
 
         output = await self._normalization_chain.ainvoke(
             {
-                "removal_step": removal_step,
-                "forbidden_step": forbidden_step,
                 "input": query,
                 "entities": entities_str,
                 "period": period_str,
@@ -864,14 +901,23 @@ class HybridSearcher:
 
     async def _tokenize(self, value: str) -> str:
         value = value.lower()
-        tokens = await self._matching_index.analyze(text=value)
-        return " ".join(t.token for t in tokens)
+
+        async def _load() -> str:
+            tokens = await self._matching_index.analyze(text=value)
+            return " ".join(token.token for token in tokens)
+
+        return await self._tokenize_cache.get(value, _load)
 
     async def _search_by_query(
-        self, stage: Stage, query: str, version_ids: set[int], availability: DatasetDimTermsSetType
+        self,
+        stage: ContentStageI,
+        index: int,
+        query: str,
+        version_ids: set[int],
+        availability: DatasetDimTermsSetType,
     ) -> HybridSearchResultInner:
         if stage:
-            stage.append_content(f"\n1. {query}\n")
+            stage.append_content(f"\n{index}. {query}\n")
 
         hybrid_match = self.HybridMatch(self)
         lexical, semantic, llm_scored, selected, reasoning, timings = await hybrid_match.search(
@@ -890,7 +936,7 @@ class HybridSearcher:
     async def search(
         self,
         *,
-        stage: Stage,
+        stage: StageI,
         query: str,
         datasets: dict[str, VersionedDataSet],
         named_entities: list[NamedEntity],
@@ -908,6 +954,11 @@ class HybridSearcher:
             query, "name_normalized", version_ids, self.config.max_lexical_pre_match_candidates
         )
         timings.lexical_pre_match = time.perf_counter() - t_lexical_pre_match
+        # Drop pre-match phrases that are not actually contiguous in the query so the
+        # normalization / separate-subjects prompts don't protect spurious terms
+        # (e.g. "country groups" surfaced for "... Group of Seven (G7) countries").
+        good_candidates = await self._filter_candidates_present_in_query(query, good_candidates)
+        candidates = await self._filter_candidates_present_in_query(query, candidates)
         forbidden = good_candidates | candidates
         logger.info(
             f"[search], {len(good_candidates)} good candidates, {len(candidates)} candidates "
@@ -935,24 +986,35 @@ class HybridSearcher:
         logger.info(f"[search], {normalized=}, (elapsed {time.perf_counter() - t_total:0.3f} sec)")
 
         t_separate_subjects = time.perf_counter()
-        queries = await self._separate_subjects(normalized, good_candidates)
+        if self.config.disable_separate_subjects:
+            queries = [normalized]
+        else:
+            # TODO: likely need to pass `candidates` (filtered) instead of `good_candidates`
+            queries = await self._separate_subjects(normalized, good_candidates)
         timings.separate_subjects = time.perf_counter() - t_separate_subjects
         logger.info(f"[search], {queries=}, (elapsed {time.perf_counter() - t_total:0.3f} sec)")
 
-        tasks = [
-            self._search_by_query(
-                stage=stage,
-                query=query,
-                version_ids=version_ids,
-                availability=availability_dict,
+        # Each subquery runs in parallel; writing to a shared real `stage`
+        # would interleave output. The manager hands every task its own
+        # buffered substitute and flushes them sequentially on exit (or a
+        # shared DummyStage when the outer stage is disabled).
+        with BufferedStagesManager(stage) as stage_manager:
+            tasks = [
+                self._search_by_query(
+                    stage=stage_manager.create(),
+                    index=index,
+                    query=query,
+                    version_ids=version_ids,
+                    availability=availability_dict,
+                )
+                for index, query in enumerate(queries, start=1)
+            ]
+            t_parallel_subqueries = time.perf_counter()
+            partial: list[HybridSearchResultInner] = await async_utils.gather_with_concurrency(
+                20, *tasks
             )
-            for query in queries
-        ]
-        t_parallel_subqueries = time.perf_counter()
-        partial: list[HybridSearchResultInner] = await async_utils.gather_with_concurrency(
-            20, *tasks
-        )
-        timings.parallel_subqueries_wall = time.perf_counter() - t_parallel_subqueries
+            timings.parallel_subqueries_wall = time.perf_counter() - t_parallel_subqueries
+
         timings.per_subquery = [item.timings for item in partial]
 
         lexical_merged = self._merge_scored_dicts([item.lexical for item in partial])
@@ -1064,6 +1126,29 @@ class HybridSearcher:
                 values = dimension_query.values
                 availability_dict[dataset_id][dimension_id] = set(values)
         return availability_dict
+
+    async def _filter_candidates_present_in_query(
+        self, query: str, candidates: set[str]
+    ) -> set[str]:
+        """Keep only candidates that occur as a contiguous (tokenized) phrase in the query.
+
+        Lexical pre-match highlights indicator-name tokens, so a candidate phrase can be
+        assembled from query words that are not actually adjacent - or are unrelated
+        concepts - in the user's query (e.g. an indicator named "... country groups"
+        matching the query "... Group of Seven (G7) countries"). Such phrases are not
+        really present in the query and must not be added to the protected
+        ("forbidden to remove") terms.
+        """
+        if not candidates:
+            return candidates
+        padded_query = f" {await self._tokenize(query)} "
+        result: set[str] = set()
+        for candidate in candidates:
+            candidate_tokens = await self._tokenize(candidate)
+            # Guard empty: all-stopword phrases tokenize to "" and would match any query.
+            if candidate_tokens and f" {candidate_tokens} " in padded_query:
+                result.add(candidate)
+        return result
 
     async def lexical_pre_match(
         self, query: str, highlight_field: str, version_ids: set[int], max_candidates: int

@@ -47,7 +47,33 @@ class ToolRegistry(MutableMapping):
         return len(self._mapping)
 
 
+class ToolInputError(Exception):
+    """Raised by a tool for invalid caller-provided arguments.
+
+    The message is safe to surface to the caller (e.g. translated into an MCP
+    ToolError) instead of being masked as a generic execution failure.
+    """
+
+
+class ToolUpstreamError(Exception):
+    """Raised by a tool when an upstream dependency (e.g. an HTTP backend) fails.
+
+    Like `ToolInputError`, the message is safe to surface to the caller so that
+    connection/timeout failures yield a clear message instead of being masked as
+    a generic execution failure.
+    """
+
+
 _TOOL_IMPLEMENTATIONS = ToolRegistry()
+
+
+class GuardrailInput:
+    """Marks the single free-text field that input guardrails must screen.
+
+    Attach via ``Annotated[str, GuardrailInput]`` on a ToolArgs field. The marker
+    travels with the field declaration, so renaming the field keeps the guardrail
+    wired up without touching any extraction logic elsewhere. Used like langchain's
+    ``InjectedToolArg`` — a bare class placed in the ``Annotated`` metadata."""
 
 
 class ToolArgs(BaseModel):
@@ -55,6 +81,20 @@ class ToolArgs(BaseModel):
     # LLM can't set this field because it's not added to the tool schema shown to LLM.
     # `inputs` is used to pass execution context from Supreme Agent to the tool.
     inputs: Annotated[dict, InjectedToolArg] = Field()
+
+    @classmethod
+    def get_guardrail_input(cls, arguments: dict[str, Any]) -> str | None:
+        """Return the free-text user input that should be screened by input
+        guardrails, or None if this schema declares no ``GuardrailInput`` field.
+
+        The screened field is identified by the ``GuardrailInput`` marker on the
+        schema, so it stays in sync with the schema definition automatically."""
+        marked = [
+            name for name, field in cls.model_fields.items() if GuardrailInput in field.metadata
+        ]
+        if len(marked) > 1:
+            raise ValueError(f"{cls.__name__} marks multiple guardrail fields: {marked}")
+        return arguments.get(marked[0]) if marked else None
 
     @classmethod
     def get_public_schema(cls) -> dict[str, Any]:
@@ -158,3 +198,11 @@ class StatGptTool(BaseTool, ABC, Generic[ToolConfigType]):
     def get_public_args_schema(self) -> dict[str, Any]:
         """Get JSON Schema for tool parameters, excluding injected args."""
         return self.get_args_schema(self._tool_config).get_public_schema()
+
+    def get_guardrail_input(self, arguments: dict[str, Any]) -> str | None:
+        """Return the free-text user input that should be screened by input
+        guardrails, or None if this tool takes no arbitrary natural-language input.
+
+        Delegates to the args schema, which marks its free-text field with
+        ``GuardrailInput``; see ``ToolArgs.get_guardrail_input``."""
+        return self.get_args_schema(self._tool_config).get_guardrail_input(arguments)

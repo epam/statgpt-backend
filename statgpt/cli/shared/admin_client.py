@@ -18,6 +18,7 @@ from statgpt.common.schemas import (
     DataSetUpdateResponse,
     DataSource,
     DataSourceType,
+    DeduplicationJob,
     GlossaryTerm,
     Job,
 )
@@ -230,10 +231,17 @@ class AdminClient:
                 resp = await self._client.post(url, params=params)
                 self._raise_for_status(resp)
 
-    async def deduplicate_channel(self, channel_id: int) -> None:
-        """Deduplicate channel embeddings."""
+    async def deduplicate_channel(self, channel_id: int) -> DeduplicationJob:
+        """Trigger channel deduplication; returns the created job for polling."""
         resp = await self._client.post(self._url(f"/channels/{channel_id}/datasets/deduplicate"))
         self._raise_for_status(resp)
+        return DeduplicationJob.model_validate(resp.json())
+
+    async def get_deduplication_job(self, job_id: int) -> DeduplicationJob:
+        """Get a deduplication job by ID for polling status."""
+        resp = await self._client.get(self._url(f"/channels/deduplication-jobs/{job_id}"))
+        self._raise_for_status(resp)
+        return DeduplicationJob.model_validate(resp.json())
 
     async def create_channel(self, channel_data: dict[str, Any]) -> Channel:
         """Create a new channel."""
