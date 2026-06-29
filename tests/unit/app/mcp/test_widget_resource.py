@@ -38,7 +38,8 @@ def _clear_caches():
 
 
 def _patch_client(monkeypatch, get) -> None:
-    monkeypatch.setattr(wr, "_get_http_client", lambda: SimpleNamespace(get=get))
+    # Seed the managed client's lazy slot with a fake so the `client` property returns it.
+    monkeypatch.setattr(wr.widget_http_client, "_client", SimpleNamespace(get=get))
 
 
 class TestFromConfig:

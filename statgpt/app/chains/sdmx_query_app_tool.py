@@ -1,5 +1,3 @@
-from collections.abc import AsyncIterator
-from contextlib import asynccontextmanager
 from typing import Any, Literal
 
 import httpx
@@ -11,37 +9,14 @@ from statgpt.app.schemas import SdmxQueryAppArtifact, ToolMessageState
 from statgpt.common.config import multiline_logger as logger
 from statgpt.common.schemas import SdmxQueryAppTool as SdmxQueryAppToolConfig
 from statgpt.common.schemas import ToolTypes
+from statgpt.common.utils import ManagedHttpClient
 
 _HTTP_TIMEOUT = httpx.Timeout(90.0, connect=45.0)
 
-# Reused across calls so the connection pool (and TLS handshakes) is shared by this
-# frequently-invoked passthrough instead of being rebuilt per request. Created lazily
-# on first use so it binds to the running event loop.
-_http_client: httpx.AsyncClient | None = None
-
-
-def _get_http_client() -> httpx.AsyncClient:
-    global _http_client
-    if _http_client is None:
-        _http_client = httpx.AsyncClient(timeout=_HTTP_TIMEOUT)
-    return _http_client
-
-
-async def close_http_client() -> None:
-    """Close the lazily-created shared client and reset state. No-op if never opened."""
-    global _http_client
-    if _http_client is not None:
-        await _http_client.aclose()
-        _http_client = None
-
-
-@asynccontextmanager
-async def sdmx_query_app_client_context() -> AsyncIterator[None]:
-    """Ensure the lazily-created shared httpx client is closed on exit."""
-    try:
-        yield
-    finally:
-        await close_http_client()
+# Shared httpx client (lazy, closed on lifespan exit). Reused across calls so the connection
+# pool (and TLS handshakes) is shared by this frequently-invoked passthrough instead of being
+# rebuilt per request. Entered as an async context manager in the app lifespan.
+sdmx_query_app_http_client = ManagedHttpClient(_HTTP_TIMEOUT)
 
 
 class SdmxQueryAppArgs(ToolArgs):
@@ -122,9 +97,8 @@ class SdmxQueryAppTool(StatGptTool[SdmxQueryAppToolConfig], tool_type=ToolTypes.
         headers = self._build_headers(method, accept)
 
         logger.info(f"SDMX query app passthrough: {method} {url}")
-        client = _get_http_client()
         try:
-            response = await client.request(
+            response = await sdmx_query_app_http_client.client.request(
                 method=method,
                 url=url,
                 headers=headers,
