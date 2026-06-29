@@ -25,8 +25,9 @@ from statgpt.common.utils import (
     AttachmentResponse,
     AttachmentsStorage,
     attachments_storage_factory,
-    dial_core_factory,
+    dial_client_factory,
     format_exception_reason,
+    write_file_to,
 )
 
 from .channel import AdminPortalChannelService as ChannelService
@@ -315,10 +316,10 @@ class JobsService:
     async def download_zip_file(
         file_url: str, zip_file: BinaryIO, auth_context: AuthContext
     ) -> None:
-        async with dial_core_factory(
+        async with dial_client_factory(
             base_url=dial_settings.url, api_key=auth_context.api_key
-        ) as dial_core:
-            await dial_core.write_file_to(file_url, zip_file)
+        ) as dial:
+            await write_file_to(dial, file_url, zip_file)
 
     @staticmethod
     def _validate_export_version(metadata: ExportMetadata) -> None:

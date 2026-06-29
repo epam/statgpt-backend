@@ -23,7 +23,7 @@ from statgpt.common.schemas.token_usage import TokenUsagePricedItem
 from statgpt.common.settings.application import application_settings
 from statgpt.common.settings.dial import dial_settings
 from statgpt.common.settings.langchain import langchain_settings
-from statgpt.common.utils import dial_core_factory
+from statgpt.common.utils import dial_client_factory
 from statgpt.common.utils.callbacks import (
     LCMessageLoggerAsync,
     LLMCallDurationCallback,
@@ -231,10 +231,10 @@ class ChannelCompletion(ChatCompletion):
 
     @staticmethod
     async def _load_pricing(models: Iterable[str]) -> dict[str, Pricing]:
-        async with dial_core_factory(
+        async with dial_client_factory(
             base_url=dial_settings.url, api_key=ModelPricingAuthContext().api_key
-        ) as dial_core:
-            getter = ModelPricingGetter(dial_core)
+        ) as dial:
+            getter = ModelPricingGetter(dial)
 
             res = {}
             for model in models:

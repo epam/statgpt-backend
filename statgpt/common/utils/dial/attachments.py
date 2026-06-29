@@ -1,17 +1,57 @@
 import base64
+import logging
+import os
 import uuid
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from io import BytesIO
 
+import aiofiles
+import httpx
 import pandas as pd
-from aidial_client import ResourceNotFoundError
+from aidial_client import AsyncDial
+from aidial_client.types.metadata import FileMetadata
 from pydantic import BaseModel, ConfigDict, Field, alias_generators
 
 from statgpt.common.settings.dial import dial_settings
 from statgpt.common.utils.media_types import MediaTypes
 
-from .core import DialCore, dial_core_factory
+from .client import dial_client_factory
+
+_log = logging.getLogger(__name__)
+
+
+async def read_file_with_progress(file_path: str, chunk_size: int = 64 * 1024) -> BytesIO:
+    """Read a local file into memory, logging upload progress."""
+    file_size = os.path.getsize(file_path)
+    uploaded = 0
+    chunk_count = 0
+    log_interval = 100
+    buffer = BytesIO()
+
+    _log.info(f"Starting upload of {file_path}")
+    _log.info(f"Total file size: {file_size / (1024 * 1024):.2f} MB")
+
+    async with aiofiles.open(file_path, 'rb') as f:
+        while True:
+            chunk = await f.read(chunk_size)
+            if not chunk:
+                break
+
+            buffer.write(chunk)
+            uploaded += len(chunk)
+            chunk_count += 1
+
+            if chunk_count % log_interval == 0:
+                percent = (uploaded / file_size) * 100
+                _log.info(
+                    f"Uploaded {uploaded / (1024 * 1024):.2f} MB / "
+                    f"{file_size / (1024 * 1024):.2f} MB ({percent:.1f}%)"
+                )
+
+    _log.info(f"Upload completed: {uploaded / (1024 * 1024):.2f} MB total")
+    buffer.seek(0)
+    return buffer
 
 
 class AttachmentResponse(BaseModel):
@@ -24,32 +64,69 @@ class AttachmentResponse(BaseModel):
     updated_at: int | None = Field(
         default=None, description="The updated timestamp in milliseconds"
     )
-    content_length: int = Field(description="The content length of the attachment")
-    content_type: str = Field(description="The content type of the attachment")
+    content_length: int = Field(default=0, description="The content length of the attachment")
+    content_type: str = Field(default="", description="The content type of the attachment")
 
-    model_config = ConfigDict(alias_generator=alias_generators.to_camel)
+    model_config = ConfigDict(alias_generator=alias_generators.to_camel, populate_by_name=True)
+
+    @classmethod
+    def from_file_metadata(cls, metadata: FileMetadata) -> "AttachmentResponse":
+        return cls(
+            name=metadata.name or "",
+            parent_path=metadata.parent_path,
+            bucket=metadata.bucket,
+            url=metadata.url,
+            node_type=metadata.node_type,
+            resource_type=metadata.resource_type,
+            content_length=metadata.content_length or 0,
+            content_type=metadata.content_type or "",
+        )
 
 
 class AttachmentsStorage:
-    def __init__(self, dial_core: DialCore):
-        self._dial_core = dial_core
+    """Higher-level helper for storing/retrieving attachments in DIAL storage.
+
+    Wraps an :class:`AsyncDial` directly: uploads and deletes go through the
+    SDK, while the paginated folder listing uses a thin httpx call (the SDK's
+    metadata resource does not support ``limit``/``token`` pagination).
+    """
+
+    def __init__(self, dial: AsyncDial):
+        self._dial = dial
 
     async def get_files_in_folder(
         self, folder: str, bucket: str | None = None
     ) -> list[AttachmentResponse]:
         """Return a list of files in the specified folder. If the folder does not exist, return an empty list."""
 
-        try:
-            response_json = await self._dial_core.get_file_metadata(folder, bucket=bucket)
-        except ResourceNotFoundError:
-            return []
-        files = [AttachmentResponse.model_validate(item) for item in response_json['items']]
+        if not bucket:
+            bucket = await self._dial.my_bucket()
 
-        while token := response_json.get('nextToken'):
-            response_json = await self._dial_core.get_file_metadata(
-                folder, bucket=bucket, token=token, limit=100
-            )
-            files.extend(AttachmentResponse.model_validate(item) for item in response_json['items'])
+        headers = await self._dial.auth_headers()
+        files: list[AttachmentResponse] = []
+        token: str | None = None
+
+        async with httpx.AsyncClient(
+            base_url=self._dial.base_url, headers=headers, timeout=60
+        ) as client:
+            while True:
+                params: dict[str, str | int] = {"limit": 100}
+                if token:
+                    params["token"] = token
+
+                response = await client.get(f"/v1/metadata/files/{bucket}/{folder}", params=params)
+                if response.status_code == httpx.codes.NOT_FOUND:
+                    return []
+                response.raise_for_status()
+
+                data = response.json()
+                files.extend(
+                    AttachmentResponse.model_validate(item) for item in (data.get('items') or [])
+                )
+
+                token = data.get('nextToken')
+                if not token:
+                    break
 
         return files
 
@@ -59,21 +136,32 @@ class AttachmentsStorage:
         Args:
             url: The value of the `url` filed returned by the DIAL API. (AttachmentResponse.url)
         """
-        await self._dial_core.delete_file(url)
+        await self._dial.files.delete(url)
 
     async def put_file(
-        self, name: str, mime_type: str, content: BytesIO, bucket: str | None = None
+        self, name: str, mime_type: str, content: BytesIO | bytes, bucket: str | None = None
     ) -> AttachmentResponse:
-        response_json = await self._dial_core.put_file(name, mime_type, content, bucket=bucket)
-        return AttachmentResponse.model_validate(response_json)
+        if not bucket:
+            bucket = await self._dial.my_bucket()
+        metadata = await self._dial.files.upload(
+            f"files/{bucket}/{name}", file=(name, content, mime_type)
+        )
+        return AttachmentResponse.from_file_metadata(metadata)
 
     async def put_local_file(
         self, name: str, path: str, *, bucket: str | None = None, show_progress: bool = False
     ) -> AttachmentResponse:
-        response_json = await self._dial_core.put_local_file(
-            name, path, bucket=bucket, show_progress=show_progress
+        if not bucket:
+            bucket = await self._dial.my_bucket()
+        if show_progress:
+            content: BytesIO | bytes = await read_file_with_progress(path)
+        else:
+            async with aiofiles.open(path, 'rb') as f:
+                content = BytesIO(await f.read())
+        metadata = await self._dial.files.upload(
+            f"files/{bucket}/{name}", file=(name, content, "application/octet-stream")
         )
-        return AttachmentResponse.model_validate(response_json)
+        return AttachmentResponse.from_file_metadata(metadata)
 
     async def put_png(self, name: str, content: BytesIO) -> AttachmentResponse:
         file_name = f"{name}-{uuid.uuid4()}.png"
@@ -135,9 +223,9 @@ async def attachments_storage_factory(
     api_key: str, base_url: str = dial_settings.url
 ) -> AsyncIterator[AttachmentsStorage]:
 
-    async with dial_core_factory(base_url=base_url, api_key=api_key) as dial_core:
-        await dial_core.get_bucket()  # Load the bucket ID in the cache
-        yield AttachmentsStorage(dial_core)
+    async with dial_client_factory(base_url=base_url, api_key=api_key) as dial:
+        await dial.my_bucket()  # Load the bucket ID in the cache
+        yield AttachmentsStorage(dial)
 
 
 def b64_encode_image(img_bytes: bytes) -> str:

@@ -21,7 +21,11 @@ from statgpt.common.schemas import AuditActionType, AuditEntityType
 from statgpt.common.schemas import PreprocessingStatusEnum as StatusEnum
 from statgpt.common.services import ChannelSerializer, ChannelService
 from statgpt.common.settings.dial import dial_settings
-from statgpt.common.utils import dial_core_factory
+from statgpt.common.utils import (
+    attachments_storage_factory,
+    dial_client_factory,
+    download_file_by_path,
+)
 from statgpt.common.utils.elastic import ElasticSearchFactory
 from statgpt.common.vectorstore import DedupCounts, VectorStoreFactory
 
@@ -55,8 +59,8 @@ class AdminPortalChannelService(ChannelService):
     async def _export_dial_file_to_folder(
         dial_file_path: str, folder_path: str, auth_context: AuthContext
     ) -> None:
-        async with dial_core_factory(dial_settings.url, auth_context.api_key) as dial_core:
-            content, _ = await dial_core.get_file_by_path(dial_file_path)
+        async with dial_client_factory(dial_settings.url, auth_context.api_key) as dial:
+            content, _ = await download_file_by_path(dial, dial_file_path)
 
         dial_files_root = os.path.join(folder_path, JobsConfig.DIAL_FILES_FOLDER)
         target_file = utils.safe_join(dial_files_root, dial_file_path)
@@ -70,8 +74,10 @@ class AdminPortalChannelService(ChannelService):
         mime_type = guess_type(file_path)[0]
         if not mime_type:
             mime_type = "application/octet-stream"
-        async with dial_core_factory(dial_settings.url, auth_context.api_key) as dial_core:
-            await dial_core.put_file(dial_file_path, mime_type, content)
+        async with attachments_storage_factory(
+            api_key=auth_context.api_key, base_url=dial_settings.url
+        ) as storage:
+            await storage.put_file(dial_file_path, mime_type, content)
 
     async def _create_channel_model(self, data: schemas.ChannelBase) -> models.Channel:
         item = models.Channel(

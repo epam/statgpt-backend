@@ -1,10 +1,11 @@
+from aidial_client import AsyncDial
 from pydantic import ValidationError
 
 from statgpt.common.auth.auth_context import AuthContext
 from statgpt.common.config import multiline_logger as logger
 from statgpt.common.schemas.dial import Pricing
 from statgpt.common.settings.dial import dial_settings
-from statgpt.common.utils import DialCore, TtlCache
+from statgpt.common.utils import TtlCache
 
 _CACHE: TtlCache[Pricing] = TtlCache(ttl=24 * 3600)  # 24 hours
 
@@ -26,8 +27,8 @@ class ModelPricingAuthContext(AuthContext):
 
 class ModelPricingGetter:
 
-    def __init__(self, dial_core: DialCore):
-        self._dial_core = dial_core
+    def __init__(self, dial: AsyncDial):
+        self._dial = dial
 
     async def get_model_pricing(self, model: str) -> Pricing | None:
         if pricing := _CACHE.get(model):
@@ -41,16 +42,16 @@ class ModelPricingGetter:
 
     async def _load_pricing(self, model: str) -> Pricing | None:
         try:
-            model_data = await self._dial_core.get_model_by(name=model)
+            model_data = await self._dial.model.get(model)
         except Exception as e:
             logger.error(f"Failed to fetch model data for model {model}: {e}")
             return None
 
-        if "pricing" not in model_data:
+        if model_data.pricing is None:
             return None
 
         try:
-            return Pricing.model_validate(model_data["pricing"])
+            return Pricing.model_validate(model_data.pricing.model_dump())
         except ValidationError as e:
             logger.info(f"{model_data=}")
             logger.error(f"Failed to validate pricing for model {model}: {e}")

@@ -4,7 +4,7 @@ from statgpt.app.security.exceptions import InsufficientRoleError, MissingApiKey
 from statgpt.app.settings.dial_app import dial_app_settings
 from statgpt.common.auth.auth_context import AuthContext
 from statgpt.common.settings.dial import dial_settings
-from statgpt.common.utils import dial_core_factory
+from statgpt.common.utils import dial_client_factory, get_user_info
 
 from .credentials import DialAuthCredentialsI
 
@@ -82,7 +82,7 @@ async def _check_roles(request: DialAuthCredentialsI, allowed_roles: set[str]) -
     if request.api_key is None:
         return False
 
-    async with dial_core_factory(base_url=dial_settings.url, api_key=request.api_key) as dial_core:
-        response = await dial_core.get_user_info()
+    async with dial_client_factory(base_url=dial_settings.url, api_key=request.api_key) as dial:
+        response = await get_user_info(dial)
         user_roles = set(response.get("roles", []))
         return bool(user_roles & allowed_roles)

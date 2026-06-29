@@ -3,8 +3,9 @@ from datetime import datetime, timedelta
 from typing import Annotated
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, UploadFile, status
-from fastapi.responses import Response
+from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
+from starlette.background import BackgroundTask
 
 import statgpt.common.models as models
 import statgpt.common.schemas as schemas
@@ -18,7 +19,7 @@ from statgpt.common.data.sdmx.v21.dataset import InvalidConfigurationError
 from statgpt.common.models.database import get_session_context_manager
 from statgpt.common.settings.dial import dial_settings
 from statgpt.common.utils.cancel_dependency import cancel_on_disconnect
-from statgpt.common.utils.dial import dial_core_factory
+from statgpt.common.utils.dial import dial_client_factory, open_file_stream
 
 logger = logging.getLogger(__name__)
 
@@ -159,7 +160,7 @@ async def download_job_result_by_id(
     job_id: int,
     session: AsyncSession = Depends(models.get_session),
     _=Depends(cancel_on_disconnect),
-) -> Response:
+) -> StreamingResponse:
     """Download the zip file with the exported channel data by job id.
 
     The job must be of type `EXPORT` and have status `COMPLETED`.
@@ -185,11 +186,11 @@ async def download_job_result_by_id(
             detail=f"Job with id={job_id} has no associated file",
         )
 
-    async with dial_core_factory(
+    async with dial_client_factory(
         base_url=dial_settings.url, api_key=SystemUserAuthContext().api_key
-    ) as dial_core:
-        content, media_type = await dial_core.get_file_with_type(job.file)
-    return Response(content=content, media_type=media_type)
+    ) as dial:
+        stream, media_type, aclose = await open_file_stream(dial, job.file)
+    return StreamingResponse(stream, media_type=media_type, background=BackgroundTask(aclose))
 
 
 DRY_RUN_DESCRIPTION = (
