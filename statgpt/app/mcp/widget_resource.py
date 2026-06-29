@@ -38,7 +38,7 @@ async def _fetch_html(url: str) -> str:
     """GET the widget HTML from the internal frontend endpoint and return the body verbatim."""
     _log.info("Fetching MCP-App widget HTML: GET %s", url)
     try:
-        response = await widget_http_client.client.get(url)
+        response = await widget_http_client.client.get(url, follow_redirects=True)
         response.raise_for_status()
     except httpx.TimeoutException as e:
         raise WidgetResourceError("The widget endpoint did not respond in time (timeout).") from e

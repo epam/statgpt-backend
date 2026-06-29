@@ -5,6 +5,7 @@ from statgpt.common.schemas import McpConfig, ProxiedResourceConfig
 from statgpt.common.schemas.channel import ChannelConfig, SupremeAgentConfig
 from statgpt.common.schemas.enums import McpResourceTypes
 from statgpt.common.schemas.tools import AvailableDatasetsTool
+from statgpt.common.utils.media_types import MediaTypes
 
 _URI = "ui://statgpt/data-widget.html"
 
@@ -24,7 +25,7 @@ class TestProxiedResourceConfig:
         cfg = _proxied()
         assert cfg.type is McpResourceTypes.PROXIED
         assert cfg.cache_ttl_seconds == 60
-        assert cfg.mime_type == "text/html"
+        assert cfg.mime_type == MediaTypes.HTML_MCP_APP
         assert cfg.get_origin() == "https://widget.example"
         assert cfg.get_html_url() == "https://widget-internal.svc/index.html"
 
@@ -44,6 +45,18 @@ class TestProxiedResourceConfig:
 
     def test_origin_trailing_slash_trimmed(self):
         assert _proxied(origin="https://widget.example/").get_origin() == "https://widget.example"
+
+    @pytest.mark.parametrize(
+        "origin",
+        [
+            "https://widget.example/app",  # path
+            "https://widget.example?x=1",  # query
+            "https://widget.example#frag",  # fragment
+        ],
+    )
+    def test_origin_must_be_bare(self, origin: str):
+        with pytest.raises(ValidationError, match="bare origin"):
+            _proxied(origin=origin)
 
     def test_camel_alias_accepted(self):
         cfg = ProxiedResourceConfig.model_validate(

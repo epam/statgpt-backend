@@ -60,10 +60,10 @@ Two pieces of configuration are required:
 
 - `mcp.resources` — a list of resources served by the MCP server. Each entry (type `PROXIED`):
   - `uri` — the `ui://` resource URI (required), e.g. `ui://statgpt/data-widget.html`.
-  - `origin` — origin the widget loads its JS/CSS/fonts from; exposed to the host as `_meta.ui.csp.resourceDomains` (required). Supports `$env:{VAR}`.
+  - `origin` — a bare origin (`scheme://host[:port]`, no path/query/fragment) the widget loads its JS/CSS/fonts from; exposed to the host as `_meta.ui.csp.resourceDomains` (required). Supports `$env:{VAR}`.
   - `html_url` — internal endpoint the backend fetches the HTML from (required). Supports `$env:{VAR}`.
   - `cache_ttl_seconds` — TTL for the in-process HTML cache (default `60`).
-  - `mime_type` — MIME type reported for the content (default `text/html`).
+  - `mime_type` — MIME type reported for the content (default `text/html;profile=mcp-app`, the MCP Apps UI HTML type).
 - Per tool, `mcp_app_resource_uri` — binds the tool to a `uri` declared in `mcp.resources` (added to the tool's `_meta.ui.resourceUri`). Must reference a declared resource.
 
 ```yaml

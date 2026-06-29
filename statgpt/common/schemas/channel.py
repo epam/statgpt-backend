@@ -1,10 +1,12 @@
 from collections import Counter
 from typing import Literal
+from urllib.parse import urlsplit
 
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from statgpt.common.config import utils as config_utils
 from statgpt.common.settings.elastic import ElasticSearchSettings
+from statgpt.common.utils.media_types import MediaTypes
 
 from .auditable import Auditable
 from .base import BaseYamlModel, DbDefaultBase
@@ -173,8 +175,11 @@ class ProxiedResourceConfig(McpResourceConfig):
         description="TTL (seconds) for the in-process cache of the fetched HTML.",
     )
     mime_type: str = Field(
-        default="text/html",
-        description="MIME type reported for the resource content.",
+        default=MediaTypes.HTML_MCP_APP,
+        description=(
+            "MIME type reported for the resource content. Defaults to the MCP Apps UI HTML"
+            " type 'text/html;profile=mcp-app' (ext-apps 2026-01-26)."
+        ),
     )
 
     def get_origin(self) -> str:
@@ -187,10 +192,18 @@ class ProxiedResourceConfig(McpResourceConfig):
     def _validate_urls(self) -> "ProxiedResourceConfig":
         # Resolve $env:{VAR} once at config-load time so a missing var or malformed URL
         # fails fast here instead of on every resources/read.
-        origin = self.get_origin()
-        if not origin.startswith(("http://", "https://")):
+        origin = self.get_origin()  # already $env-resolved and rstrip("/")
+        parts = urlsplit(origin)
+        if (
+            parts.scheme not in ("http", "https")
+            or not parts.netloc
+            or parts.path
+            or parts.query
+            or parts.fragment
+        ):
             raise ValueError(
-                f"MCP resource `origin` must start with 'http://' or 'https://', got {origin!r}."
+                "MCP resource `origin` must be a bare origin like 'https://host[:port]'"
+                f" (no path, query, or fragment), got {origin!r}."
             )
         html_url = self.get_html_url()
         if not html_url.startswith(("http://", "https://")):

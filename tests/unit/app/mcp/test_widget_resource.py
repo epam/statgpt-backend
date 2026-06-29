@@ -8,6 +8,7 @@ from statgpt.app.mcp import widget_resource as wr
 from statgpt.app.mcp.provider import ChannelToolProvider
 from statgpt.app.mcp.widget_resource import WidgetResource, WidgetResourceError
 from statgpt.common.schemas import ProxiedResourceConfig
+from statgpt.common.utils.media_types import MediaTypes
 
 _URI = "ui://statgpt/data-widget.html"
 
@@ -45,9 +46,9 @@ def _patch_client(monkeypatch, get) -> None:
 class TestFromConfig:
     def test_sets_meta_mime_and_uri(self):
         resource = WidgetResource.from_config(
-            _config(origin="https://widget.example/", mime_type="text/html+skybridge")
+            _config(origin="https://widget.example/", mime_type=MediaTypes.HTML_MCP_APP)
         )
-        assert resource.mime_type == "text/html+skybridge"
+        assert resource.mime_type == MediaTypes.HTML_MCP_APP
         assert resource.meta == {"ui": {"csp": {"resourceDomains": ["https://widget.example"]}}}
         assert str(resource.uri) == _URI
 
@@ -56,8 +57,9 @@ class TestRead:
     async def test_fetches_and_caches(self, monkeypatch):
         calls: list[str] = []
 
-        async def fake_get(url: str) -> _FakeResponse:
+        async def fake_get(url: str, **kwargs) -> _FakeResponse:
             calls.append(url)
+            assert kwargs.get("follow_redirects") is True
             return _FakeResponse("<html>hi</html>")
 
         _patch_client(monkeypatch, fake_get)
@@ -69,7 +71,7 @@ class TestRead:
         assert calls == ["https://widget-internal.svc/index.html"]
 
     async def test_raises_on_upstream_error(self, monkeypatch):
-        async def fake_get(url: str):
+        async def fake_get(url: str, **kwargs):
             raise httpx.ConnectError("down")
 
         _patch_client(monkeypatch, fake_get)
@@ -81,7 +83,7 @@ class TestRead:
     async def test_failure_is_not_cached(self, monkeypatch):
         outcomes: list = [httpx.ConnectError("down"), _FakeResponse("<html>ok</html>")]
 
-        async def fake_get(url: str) -> _FakeResponse:
+        async def fake_get(url: str, **kwargs) -> _FakeResponse:
             outcome = outcomes.pop(0)
             if isinstance(outcome, Exception):
                 raise outcome

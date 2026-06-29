@@ -11,6 +11,7 @@ class MediaTypes:
     CSS = "text/css"
     CSV = "text/csv"
     HTML = "text/html"
+    HTML_MCP_APP = "text/html;profile=mcp-app"  # MCP Apps UI HTML resource (ext-apps 2026-01-26)
     JAVASCRIPT = "text/javascript"
     JSON = "application/json"
     YAML = "application/x-yaml"
