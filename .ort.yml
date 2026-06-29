@@ -38,6 +38,11 @@ resolutions:
       reason: "CANT_FIX_EXCEPTION"
       comment: "BSD 3-Clause License: https://github.com/python-websockets/websockets/blob/main/LICENSE"
 
+    # AI DIAL
+    - message: ".*PyPI::aidial-client:0\\..*"
+      reason: "CANT_FIX_EXCEPTION"
+      comment: "Apache 2.0 License: https://github.com/epam/ai-dial-client-python/blob/development/LICENSE"
+
     # Pydantic ecosystem
     - message: ".*PyPI::pydantic:2\\..*"
       reason: "CANT_FIX_EXCEPTION"

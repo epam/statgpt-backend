@@ -19,7 +19,7 @@ from statgpt.common.data.sdmx.v21.dataset import InvalidConfigurationError
 from statgpt.common.models.database import get_session_context_manager
 from statgpt.common.settings.dial import dial_settings
 from statgpt.common.utils.cancel_dependency import cancel_on_disconnect
-from statgpt.common.utils.dial import dial_client_factory, open_file_stream
+from statgpt.common.utils.dial import open_file_stream
 
 logger = logging.getLogger(__name__)
 
@@ -186,10 +186,9 @@ async def download_job_result_by_id(
             detail=f"Job with id={job_id} has no associated file",
         )
 
-    async with dial_client_factory(
-        base_url=dial_settings.url, api_key=SystemUserAuthContext().api_key
-    ) as dial:
-        stream, media_type, aclose = await open_file_stream(dial, job.file)
+    stream, media_type, aclose = await open_file_stream(
+        dial_settings.url, SystemUserAuthContext().api_key, job.file
+    )
     return StreamingResponse(stream, media_type=media_type, background=BackgroundTask(aclose))
 
 

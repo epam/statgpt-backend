@@ -4,13 +4,13 @@ import os
 import uuid
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from http import HTTPStatus
 from io import BytesIO
 
 import aiofiles
-import httpx
 import pandas as pd
-from aidial_client import AsyncDial
-from aidial_client.types.metadata import FileMetadata
+from aidial_client import AsyncDial, DialException
+from aidial_client.types.metadata import FileItem, FileMetadata
 from pydantic import BaseModel, ConfigDict, Field, alias_generators
 
 from statgpt.common.settings.dial import dial_settings
@@ -82,13 +82,22 @@ class AttachmentResponse(BaseModel):
             content_type=metadata.content_type or "",
         )
 
+    @classmethod
+    def from_metadata_item(cls, item: FileItem) -> "AttachmentResponse":
+        """Build from a folder-listing item.
+
+        ``updatedAt`` is not a typed :class:`FileItem` attribute but is returned
+        by DIAL and kept as a model extra, so dumping by alias preserves it.
+        """
+        return cls.model_validate(item.model_dump(by_alias=True, exclude_none=True))
+
 
 class AttachmentsStorage:
     """Higher-level helper for storing/retrieving attachments in DIAL storage.
 
-    Wraps an :class:`AsyncDial` directly: uploads and deletes go through the
-    SDK, while the paginated folder listing uses a thin httpx call (the SDK's
-    metadata resource does not support ``limit``/``token`` pagination).
+    Wraps an :class:`AsyncDial` directly: uploads, deletes, and the paginated
+    folder listing all go through the SDK (the listing uses the metadata
+    resource's ``limit``/``token`` pagination).
     """
 
     def __init__(self, dial: AsyncDial):
@@ -102,31 +111,25 @@ class AttachmentsStorage:
         if not bucket:
             bucket = await self._dial.my_bucket()
 
-        headers = await self._dial.auth_headers()
+        url = f"files/{bucket}/{folder}"
         files: list[AttachmentResponse] = []
         token: str | None = None
 
-        async with httpx.AsyncClient(
-            base_url=self._dial.base_url, headers=headers, timeout=60
-        ) as client:
-            while True:
-                params: dict[str, str | int] = {"limit": 100}
-                if token:
-                    params["token"] = token
-
-                response = await client.get(f"/v1/metadata/files/{bucket}/{folder}", params=params)
-                if response.status_code == httpx.codes.NOT_FOUND:
+        while True:
+            try:
+                metadata = await self._dial.files.get_metadata(url, limit=100, token=token)
+            except DialException as e:
+                if e.status_code == HTTPStatus.NOT_FOUND:
                     return []
-                response.raise_for_status()
+                raise
 
-                data = response.json()
-                files.extend(
-                    AttachmentResponse.model_validate(item) for item in (data.get('items') or [])
-                )
+            files.extend(
+                AttachmentResponse.from_metadata_item(item) for item in (metadata.items or [])
+            )
 
-                token = data.get('nextToken')
-                if not token:
-                    break
+            token = metadata.next_token
+            if not token:
+                break
 
         return files
 
