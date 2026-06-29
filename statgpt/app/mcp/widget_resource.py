@@ -9,16 +9,10 @@ from statgpt.common.utils import AsyncLoadingCache, ManagedHttpClient
 
 _log = logging.getLogger(__name__)
 
-# Widget HTML lives behind an internal endpoint and should respond quickly; keep the timeout
-# tight so a slow frontend doesn't stall resources/read.
 _HTTP_TIMEOUT = httpx.Timeout(15.0, connect=5.0)
-
-# Shared httpx client (lazy, closed on lifespan exit). Entered as an async context manager in
-# the app lifespan.
 widget_http_client = ManagedHttpClient(_HTTP_TIMEOUT)
 
-# One TTL cache per distinct cache_ttl_seconds; cache key is the resolved html_url. AsyncLoadingCache
-# dedups concurrent loads via a per-key lock and does not store loader failures.
+# One TTL cache per distinct cache_ttl_seconds; cache key is the resolved html_url.
 _caches: dict[int, AsyncLoadingCache[str]] = {}
 
 
