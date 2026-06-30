@@ -9,3 +9,4 @@ trivy.yaml @MykhailoRyzhman
 # ~~~ Chat Backend ~~~
 statgpt/app/ @navalnica
 statgpt/common/default_prompts/ @navalnica
+statgpt/common/hybrid_indexer/ @navalnica
