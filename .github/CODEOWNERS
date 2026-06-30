@@ -1,2 +1,12 @@
-* @ypldan
+* @Fedir-Yatsenko
+
+# ~~~ Infra & CI/CD ~~~
 /.github/ @MykhailoRyzhman
+/docker/ @MykhailoRyzhman
+.ort.yml @MykhailoRyzhman
+trivy.yaml @MykhailoRyzhman
+
+# ~~~ Chat Backend ~~~
+statgpt/app/ @navalnica
+statgpt/common/default_prompts/ @navalnica
+statgpt/common/hybrid_indexer/ @navalnica
