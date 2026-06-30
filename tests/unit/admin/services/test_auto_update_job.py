@@ -37,3 +37,26 @@ class TestProcessAutoUpdateJobCancellation:
         assert job.status == StatusEnum.FAILED
         assert job.reason_for_failure
         mock_session.commit.assert_awaited()
+
+    @pytest.mark.asyncio
+    async def test_cancellation_does_not_clobber_completed_job(self) -> None:
+        """A late cancellation must not overwrite an already-terminal COMPLETED
+        job (e.g. one that finished with REINDEX_TRIGGERED)."""
+        job = MagicMock()
+        job.status = StatusEnum.COMPLETED
+
+        mock_session = AsyncMock()
+        mock_session.get = AsyncMock(return_value=job)
+
+        service = AdminPortalDataSetService()
+        # Inject a session so _scoped_session() yields it directly (no real DB).
+        service._DbServiceBase__session = mock_session  # type: ignore[attr-defined]
+        service._set_auto_update_job_status = AsyncMock(  # type: ignore[method-assign]
+            side_effect=asyncio.CancelledError()
+        )
+
+        with pytest.raises(asyncio.CancelledError):
+            await service.process_auto_update_job(auto_update_job_id=1, auth_context=MagicMock())
+
+        assert job.status == StatusEnum.COMPLETED
+        mock_session.commit.assert_not_awaited()

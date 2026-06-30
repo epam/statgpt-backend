@@ -2498,7 +2498,7 @@ class AdminPortalDataSetService(DataSetService):
     async def _mark_auto_update_job_failed(self, auto_update_job_id: int, reason: str) -> None:
         async with self._scoped_session():
             job = await self._session.get(models.AutoUpdateJob, auto_update_job_id)
-            if job is not None:
+            if job is not None and job.status not in StatusEnum.final_statuses():
                 job.status = StatusEnum.FAILED
                 job.reason_for_failure = reason
                 await self._session.commit()
@@ -2646,8 +2646,8 @@ class AdminPortalDataSetService(DataSetService):
             # coroutine, surfacing here as CancelledError (a BaseException that the
             # `except Exception` branch below does NOT catch). Without this branch the
             # job would be left stuck in IN_PROGRESS. Mark it FAILED — shielded so the
-            # write survives the cancellation — then re-raise so the decorator's
-            # timeout machinery still runs.
+            # write survives a subsequent cancel (e.g. shutdown) — then re-raise so
+            # the decorator's timeout machinery still runs.
             _log.error(f"Auto-update job {auto_update_job_id} was cancelled (likely timed out)")
             await asyncio.shield(
                 self._mark_auto_update_job_failed(
