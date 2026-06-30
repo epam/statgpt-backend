@@ -1,11 +1,11 @@
 * @Fedir-Yatsenko
 
-# ~~~ CI/CD ~~~
+# ~~~ Infra & CI/CD ~~~
 /.github/ @MykhailoRyzhman
 /docker/ @MykhailoRyzhman
 .ort.yml @MykhailoRyzhman
 trivy.yaml @MykhailoRyzhman
 
-# ~~~ Prompts ~~~
-statgpt/app/default_prompts @navalnica
-statgpt/common/default_prompts @navalnica
+# ~~~ Chat Backend ~~~
+statgpt/app/ @navalnica
+statgpt/common/default_prompts/ @navalnica
