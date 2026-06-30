@@ -1,10 +1,16 @@
-from pydantic import BaseModel, ConfigDict, Field
+from collections import Counter
+from typing import Literal
+from urllib.parse import urlsplit
 
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field, field_validator, model_validator
+
+from statgpt.common.config import utils as config_utils
 from statgpt.common.settings.elastic import ElasticSearchSettings
+from statgpt.common.utils.media_types import MediaTypes
 
 from .auditable import Auditable
 from .base import BaseYamlModel, DbDefaultBase
-from .enums import ChannelIndexStatusScope, LocaleEnum, PreprocessingStatusEnum
+from .enums import ChannelIndexStatusScope, LocaleEnum, McpResourceTypes, PreprocessingStatusEnum
 from .model_config import LLMModelConfig
 from .onboarding import OnboardingConfig
 from .tools import (
@@ -117,6 +123,97 @@ class OutOfScopeConfig(BaseYamlModel):
     )
 
 
+class McpResourceConfig(BaseYamlModel):
+    """Base config for an MCP resource exposed via the MCP server.
+
+    Subclasses add kind-specific fields; the ``type`` field discriminates between them.
+    """
+
+    type: McpResourceTypes
+    uri: str = Field(
+        description=(
+            "The resource URI exposed via MCP, e.g. 'ui://statgpt/data-widget.html'."
+            " Bound to a tool via its `mcp_app_resource_uri` so the host can preload the widget."
+        ),
+    )
+
+    @field_validator("uri")
+    @classmethod
+    def _validate_uri(cls, uri: str) -> str:
+        if not uri.startswith("ui://"):
+            raise ValueError(f"MCP resource `uri` must start with 'ui://', got {uri!r}.")
+        return uri
+
+
+class ProxiedResourceConfig(McpResourceConfig):
+    """An MCP resource whose HTML is proxied verbatim from an external HTTP endpoint.
+
+    The backend stores no HTML: on `resources/read` it does a server-to-server GET against
+    `html_url`, returns the body verbatim, and caches it for `cache_ttl_seconds`.
+    """
+
+    type: Literal[McpResourceTypes.PROXIED] = McpResourceTypes.PROXIED
+    origin_raw: str = Field(
+        validation_alias=AliasChoices("origin", "originRaw"),
+        serialization_alias="origin",
+        description=(
+            "Origin the widget HTML loads its JS/CSS/fonts from; exposed to the host as"
+            " `_meta.ui.csp.resourceDomains`. Supports $env:{VAR} syntax."
+        ),
+    )
+    html_url_raw: str = Field(
+        validation_alias=AliasChoices("html_url", "htmlUrl", "htmlUrlRaw"),
+        serialization_alias="htmlUrl",
+        description=(
+            "Internal endpoint the backend fetches the resource HTML from (server-to-server)."
+            " Supports $env:{VAR} syntax."
+        ),
+    )
+    cache_ttl_seconds: int = Field(
+        default=60,
+        ge=0,
+        description="TTL (seconds) for the in-process cache of the fetched HTML.",
+    )
+    mime_type: str = Field(
+        default=MediaTypes.HTML_MCP_APP,
+        description=(
+            "MIME type reported for the resource content. Defaults to the MCP Apps UI HTML"
+            " type 'text/html;profile=mcp-app' (ext-apps 2026-01-26)."
+        ),
+    )
+
+    def get_origin(self) -> str:
+        return config_utils.replace_env(self.origin_raw).rstrip("/")
+
+    def get_html_url(self) -> str:
+        return config_utils.replace_env(self.html_url_raw)
+
+    @model_validator(mode="after")
+    def _validate_urls(self) -> "ProxiedResourceConfig":
+        # Resolve $env:{VAR} once at config-load time so a missing var or malformed URL
+        # fails fast here instead of on every resources/read.
+        origin = self.get_origin()  # already $env-resolved and rstrip("/")
+        parts = urlsplit(origin)
+        if (
+            parts.scheme not in ("http", "https")
+            or not parts.netloc
+            or parts.path
+            or parts.query
+            or parts.fragment
+        ):
+            raise ValueError(
+                "MCP resource `origin` must be a bare origin like 'https://host[:port]'"
+                f" (no path, query, or fragment), got {origin!r}."
+            )
+        html_url = self.get_html_url()
+        if not html_url.startswith(("http://", "https://")):
+            raise ValueError(
+                "MCP resource `html_url` must start with 'http://' or 'https://',"
+                f" got {html_url!r}."
+            )
+        return self
+
+
 class McpConfig(BaseYamlModel):
     tool_name_prefix: str = Field(
         default="",
@@ -126,6 +223,28 @@ class McpConfig(BaseYamlModel):
             "Internal agent tool names are unaffected. Empty string disables prefixing."
         ),
     )
+    resources: list[ProxiedResourceConfig] = Field(
+        default_factory=list,
+        description=(
+            "MCP resources (e.g. MCP-App UI widgets) served by the MCP server."
+            " Empty (the default) disables the feature."
+        ),
+    )
+
+    @field_validator("resources")
+    @classmethod
+    def _validate_unique_uris(
+        cls, resources: list[ProxiedResourceConfig]
+    ) -> list[ProxiedResourceConfig]:
+        counts = Counter(r.uri for r in resources)
+        duplicates = {uri for uri, count in counts.items() if count > 1}
+        if duplicates:
+            raise ValueError(f"Duplicate MCP resource uri(s): {sorted(duplicates)}.")
+        return resources
+
+    @property
+    def resource_uris(self) -> set[str]:
+        return {r.uri for r in self.resources}
 
 
 class TokenUsageConfig(BaseYamlModel):
@@ -256,6 +375,19 @@ class ChannelConfig(BaseYamlModel):
             self.country_named_entity_type,
             *self.named_entity_types,
         ]
+
+    @model_validator(mode="after")
+    def _validate_mcp_app_resource_bindings(self) -> "ChannelConfig":
+        # Every tool that binds a UI widget must reference a resource declared in mcp.resources.
+        declared = self.mcp.resource_uris
+        for tool in self.tools:
+            uri = tool.mcp_app_resource_uri
+            if uri is not None and uri not in declared:
+                raise ValueError(
+                    f"Tool {tool.name!r} binds `mcp_app_resource_uri` {uri!r}, which is not"
+                    " declared in `mcp.resources`."
+                )
+        return self
 
 
 class ChannelBase(BaseModel):

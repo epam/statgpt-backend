@@ -28,6 +28,7 @@ from .files import (
     write_yaml,
     write_yaml_to_stream,
 )
+from .http_client import ManagedHttpClient
 from .interval_processor import IntervalProcessor
 from .media_types import MediaTypes
 from .misc import (
