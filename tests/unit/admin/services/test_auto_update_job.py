@@ -32,9 +32,7 @@ class TestProcessAutoUpdateJobCancellation:
         )
 
         with pytest.raises(asyncio.CancelledError):
-            await service.process_auto_update_job(
-                auto_update_job_id=1, auth_context=MagicMock()
-            )
+            await service.process_auto_update_job(auto_update_job_id=1, auth_context=MagicMock())
 
         assert job.status == StatusEnum.FAILED
         assert job.reason_for_failure

@@ -2495,9 +2495,7 @@ class AdminPortalDataSetService(DataSetService):
                 job, StatusEnum.COMPLETED, result=schemas.AutoUpdateResult.REINDEX_TRIGGERED
             )
 
-    async def _mark_auto_update_job_failed(
-        self, auto_update_job_id: int, reason: str
-    ) -> None:
+    async def _mark_auto_update_job_failed(self, auto_update_job_id: int, reason: str) -> None:
         async with self._scoped_session():
             job = await self._session.get(models.AutoUpdateJob, auto_update_job_id)
             if job is not None:
@@ -2659,9 +2657,7 @@ class AdminPortalDataSetService(DataSetService):
             raise
         except Exception as e:
             _log.exception(f"Failed to process auto-update job {auto_update_job_id}")
-            await self._mark_auto_update_job_failed(
-                auto_update_job_id, format_exception_reason(e)
-            )
+            await self._mark_auto_update_job_failed(auto_update_job_id, format_exception_reason(e))
 
 
 @background_task
