@@ -1942,17 +1942,20 @@ class AdminPortalDataSetService(DataSetService):
                     f'Finished processing version_id={channel_dataset_version_id}'
                     f' of channel_dataset_id={channel_dataset_id}'
                 )
+        except asyncio.CancelledError:
+            # background_task timeout raises CancelledError, which `except Exception` misses.
+            _log.error(f"Reindex of version_id={channel_dataset_version_id} was cancelled")
+            await asyncio.shield(
+                self._mark_channel_dataset_version_failed(
+                    channel_dataset_version_id, "Reindex cancelled (likely timed out)"
+                )
+            )
+            raise
         except Exception as e:
             _log.exception(f"Failed to reindex version_id={channel_dataset_version_id}")
-            async with self._scoped_session():
-                version = await self._get_channel_dataset_version_or_raise(
-                    channel_dataset_version_id
-                )
-                await self._update_channel_dataset_version_status(
-                    version,
-                    new_status=StatusEnum.FAILED,
-                    reason_for_failure=format_exception_reason(e),
-                )
+            await self._mark_channel_dataset_version_failed(
+                channel_dataset_version_id, format_exception_reason(e)
+            )
 
     async def clear_channel_dataset_data_in_background(self, channel_dataset_id: int) -> None:
         _log.info(f"Clear data after reindexing channel_dataset_id={channel_dataset_id}")
@@ -2503,6 +2506,20 @@ class AdminPortalDataSetService(DataSetService):
                 job.reason_for_failure = reason
                 await self._session.commit()
 
+    async def _mark_channel_dataset_version_failed(
+        self, channel_dataset_version_id: int, reason: str
+    ) -> None:
+        async with self._scoped_session():
+            version = await self._session.get(
+                models.ChannelDatasetVersion, channel_dataset_version_id
+            )
+            if version is not None and (
+                version.preprocessing_status not in StatusEnum.final_statuses()
+            ):
+                await self._update_channel_dataset_version_status(
+                    version, new_status=StatusEnum.FAILED, reason_for_failure=reason
+                )
+
     async def process_auto_update_job(
         self,
         auto_update_job_id: int,
@@ -2642,12 +2659,7 @@ class AdminPortalDataSetService(DataSetService):
                 )
 
         except asyncio.CancelledError:
-            # A per-task timeout in the @background_task decorator cancels this
-            # coroutine, surfacing here as CancelledError (a BaseException that the
-            # `except Exception` branch below does NOT catch). Without this branch the
-            # job would be left stuck in IN_PROGRESS. Mark it FAILED — shielded so the
-            # write survives a subsequent cancel (e.g. shutdown) — then re-raise so
-            # the decorator's timeout machinery still runs.
+            # background_task timeout raises CancelledError, which `except Exception` misses.
             _log.error(f"Auto-update job {auto_update_job_id} was cancelled (likely timed out)")
             await asyncio.shield(
                 self._mark_auto_update_job_failed(
