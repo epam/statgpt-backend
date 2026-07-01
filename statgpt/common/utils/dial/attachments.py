@@ -6,22 +6,23 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from http import HTTPStatus
 from io import BytesIO
+from typing import Self
 
 import aiofiles
 import pandas as pd
 from aidial_client import AsyncDial, DialException
 from aidial_client.types.metadata import FileItem, FileMetadata
-from pydantic import BaseModel, ConfigDict, Field, alias_generators
+from pydantic import ConfigDict, alias_generators
 
 from statgpt.common.settings.dial import dial_settings
 from statgpt.common.utils.media_types import MediaTypes
 
-from .client import dial_client_factory
+from .client import dial_client_factory, resolve_bucket
 
 _log = logging.getLogger(__name__)
 
 
-async def read_file_with_progress(file_path: str, chunk_size: int = 64 * 1024) -> BytesIO:
+async def _read_file_with_progress(file_path: str, chunk_size: int = 64 * 1024) -> BytesIO:
     """Read a local file into memory, logging upload progress."""
     file_size = os.path.getsize(file_path)
     uploaded = 0
@@ -54,41 +55,25 @@ async def read_file_with_progress(file_path: str, chunk_size: int = 64 * 1024) -
     return buffer
 
 
-class AttachmentResponse(BaseModel):
-    name: str = Field(description="The name of the attachment")
-    parent_path: str | None = Field(default=None, description="The parent path of the attachment")
-    bucket: str = Field(description="The bucket of the attachment")
-    url: str = Field(description="The URL of the attachment")
-    node_type: str = Field(description="The node type of the attachment")
-    resource_type: str = Field(description="The resource type of the attachment")
-    updated_at: int | None = Field(
-        default=None, description="The updated timestamp in milliseconds"
+class AttachmentResponse(FileItem):
+    """A DIAL file item extended with the ``updatedAt`` timestamp DIAL returns
+    for folder-listing entries (not a typed field on :class:`FileItem`)."""
+
+    name: str = ""
+    content_length: int = 0
+    content_type: str = ""
+    updated_at: int | None = None
+
+    model_config = ConfigDict(
+        alias_generator=alias_generators.to_camel, populate_by_name=True, extra="ignore"
     )
-    content_length: int = Field(default=0, description="The content length of the attachment")
-    content_type: str = Field(default="", description="The content type of the attachment")
-
-    model_config = ConfigDict(alias_generator=alias_generators.to_camel, populate_by_name=True)
 
     @classmethod
-    def from_file_metadata(cls, metadata: FileMetadata) -> "AttachmentResponse":
-        return cls(
-            name=metadata.name or "",
-            parent_path=metadata.parent_path,
-            bucket=metadata.bucket,
-            url=metadata.url,
-            node_type=metadata.node_type,
-            resource_type=metadata.resource_type,
-            content_length=metadata.content_length or 0,
-            content_type=metadata.content_type or "",
-        )
+    def from_file_metadata(cls, metadata: FileMetadata) -> Self:
+        return cls.model_validate(metadata.model_dump(by_alias=True, exclude_none=True))
 
     @classmethod
-    def from_metadata_item(cls, item: FileItem) -> "AttachmentResponse":
-        """Build from a folder-listing item.
-
-        ``updatedAt`` is not a typed :class:`FileItem` attribute but is returned
-        by DIAL and kept as a model extra, so dumping by alias preserves it.
-        """
+    def from_metadata_item(cls, item: FileItem) -> Self:
         return cls.model_validate(item.model_dump(by_alias=True, exclude_none=True))
 
 
@@ -109,7 +94,7 @@ class AttachmentsStorage:
         """Return a list of files in the specified folder. If the folder does not exist, return an empty list."""
 
         if not bucket:
-            bucket = await self._dial.my_bucket()
+            bucket = await resolve_bucket(self._dial)
 
         url = f"files/{bucket}/{folder}"
         files: list[AttachmentResponse] = []
@@ -120,7 +105,7 @@ class AttachmentsStorage:
                 metadata = await self._dial.files.get_metadata(url, limit=100, token=token)
             except DialException as e:
                 if e.status_code == HTTPStatus.NOT_FOUND:
-                    return []
+                    return files
                 raise
 
             files.extend(
@@ -145,7 +130,7 @@ class AttachmentsStorage:
         self, name: str, mime_type: str, content: BytesIO | bytes, bucket: str | None = None
     ) -> AttachmentResponse:
         if not bucket:
-            bucket = await self._dial.my_bucket()
+            bucket = await resolve_bucket(self._dial)
         metadata = await self._dial.files.upload(
             f"files/{bucket}/{name}", file=(name, content, mime_type)
         )
@@ -155,9 +140,9 @@ class AttachmentsStorage:
         self, name: str, path: str, *, bucket: str | None = None, show_progress: bool = False
     ) -> AttachmentResponse:
         if not bucket:
-            bucket = await self._dial.my_bucket()
+            bucket = await resolve_bucket(self._dial)
         if show_progress:
-            content: BytesIO | bytes = await read_file_with_progress(path)
+            content: BytesIO | bytes = await _read_file_with_progress(path)
         else:
             async with aiofiles.open(path, 'rb') as f:
                 content = BytesIO(await f.read())
@@ -227,7 +212,7 @@ async def attachments_storage_factory(
 ) -> AsyncIterator[AttachmentsStorage]:
 
     async with dial_client_factory(base_url=base_url, api_key=api_key) as dial:
-        await dial.my_bucket()  # Load the bucket ID in the cache
+        await resolve_bucket(dial)  # Warm the bucket/appdata cache
         yield AttachmentsStorage(dial)
 
 

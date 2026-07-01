@@ -40,7 +40,7 @@ class DialRagMetadataLoader:
             response = await client.get(
                 self._dial_rag_metadata_url,
                 headers={
-                    "Api-Key": self._dial_rag_metadata_api_key.get_secret_value(),
+                    "api-key": self._dial_rag_metadata_api_key.get_secret_value(),
                 },
             )
 

@@ -61,7 +61,7 @@ class JobsService:
             to_date_timestamp = int(to_date.timestamp() * 1000)
 
             for folder in [JobsConfig.DIAL_EXPORT_FOLDER, JobsConfig.DIAL_IMPORT_FOLDER]:
-                files = await attachments_storage.get_files_in_folder(f"{folder}/")
+                files = await attachments_storage.get_files_in_folder(folder)
                 for file in files:
                     if file.updated_at is not None and file.updated_at < to_date_timestamp:
                         if not dry_run:

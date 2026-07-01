@@ -30,6 +30,21 @@ async def dial_client_factory(base_url: str, api_key: str | SecretStr) -> AsyncI
         yield dial
 
 
+async def resolve_bucket(dial: AsyncDial) -> str:
+    """Return the storage prefix for the current key, preferring the
+    per-application ``appdata`` path over the raw bucket id.
+
+    When DIAL returns an ``appdata`` entry (i.e. the key belongs to a DIAL
+    application), files must be namespaced under
+    ``<user_bucket>/appdata/<app_name>`` rather than the raw bucket, otherwise
+    they leak into the user's root bucket.
+    """
+    appdata_home = await dial.my_appdata_home()
+    if appdata_home is not None:
+        return str(appdata_home)
+    return await dial.my_bucket()
+
+
 async def download_file_by_path(
     dial: AsyncDial, path: str, *, bucket: str | None = None
 ) -> tuple[bytes, str]:
@@ -37,7 +52,7 @@ async def download_file_by_path(
     ``(content, content_type)``. The body is buffered in memory; use
     :func:`open_file_stream` for large files."""
     if not bucket:
-        bucket = await dial.my_bucket()
+        bucket = await resolve_bucket(dial)
     download = await dial.files.download(f"files/{bucket}/{path}")
     content = await download.aget_content()
     return content, download.content_type or "application/octet-stream"

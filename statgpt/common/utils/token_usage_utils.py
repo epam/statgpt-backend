@@ -22,13 +22,21 @@ class TokenUsageCostCalculator:
         ]
 
     def _calculate_usage_cost(self, item: TokenUsageItem) -> float | None:
-        """Calculate the cost of the token usage."""
-        if model_pricing := self._model_to_pricing_map.get(item.model):
-            return (
-                item.prompt_tokens * model_pricing.prompt
-                + item.completion_tokens * model_pricing.completion
+        """Calculate the cost of the token usage.
+
+        DIAL exposes prices as strings, so they are coerced to floats here.
+        """
+        model_pricing = self._model_to_pricing_map.get(item.model)
+        if model_pricing is None:
+            return None
+        try:
+            prompt_price = float(model_pricing.prompt)
+            completion_price = (
+                float(model_pricing.completion) if model_pricing.completion is not None else 0.0
             )
-        return None
+        except (TypeError, ValueError):
+            return None
+        return item.prompt_tokens * prompt_price + item.completion_tokens * completion_price
 
 
 class TokenUsageDisplayer:
