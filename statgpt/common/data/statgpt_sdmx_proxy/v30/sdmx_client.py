@@ -1,3 +1,5 @@
+import asyncio
+import contextlib
 import io
 from typing import cast
 from urllib.parse import urlencode
@@ -13,7 +15,7 @@ from statgpt.common.auth.auth_context import AuthContext
 from statgpt.common.config import multiline_logger as logger
 from statgpt.common.data.base.sdmx_schemas import SdmxPlusAvailabilityRequestBody
 from statgpt.common.data.sdmx.v21.ratelimiter import SdmxRateLimiter
-from statgpt.common.data.sdmx.v21.sdmx_client import AsyncSdmxClient
+from statgpt.common.data.sdmx.v21.sdmx_client import _PARSE_DSD_LOCK, AsyncSdmxClient
 from statgpt.common.data.statgpt_sdmx_proxy.config import StatGptSdmxProxyDataSourceConfig
 from statgpt.common.data.statgpt_sdmx_proxy.sdmx_schemas.structure_message import (
     ProxyAgencySchemeResponseBody,
@@ -272,7 +274,9 @@ class AsyncStatGptSdmxProxyClient(AsyncSdmxClient):
         requests_response = self._convert_response(response, req)
         try:
             response_content: io.IOBase = ResponseIO(response)
-            msg = StatGptSdmxProxyDataReader().convert(response_content, structure=dsd)
+            # JSON data parsing is CPU-bound and can take seconds for large messages;
+            # run it off the event loop so concurrent requests are not stalled.
+            msg = await asyncio.to_thread(self._convert_proxy_data, response_content, dsd)
             msg.response = requests_response
         except Exception:
             logger.error(
@@ -287,6 +291,17 @@ class AsyncStatGptSdmxProxyClient(AsyncSdmxClient):
                 f"Unexpected response message type: {type(msg).__name__} for URL {req.url!r}"
             )
         return msg
+
+    @staticmethod
+    def _convert_proxy_data(
+        response_content: io.IOBase, dsd: DataStructureDefinition | None
+    ) -> DataMessage:
+        # The reader attaches `dsd` as `msg.dataflow.structure` and mutates it while parsing
+        # (`msg.structure...getdefault(...)`), so dsd-bearing parses running on worker threads
+        # must be serialized.
+        ctx = _PARSE_DSD_LOCK if dsd is not None else contextlib.nullcontext()
+        with ctx:
+            return StatGptSdmxProxyDataReader().convert(response_content, structure=dsd)
 
     def _build_key_segment(
         self,
