@@ -77,6 +77,16 @@ class History:
             messages = await interceptor.process_messages(messages=messages, state=state)
         return cls(messages=messages)
 
+    def copy(self) -> 'History':
+        """Return a copy with new lists but shared message objects.
+
+        Agent-side mutations are list-level (appends/prepends), so copying the
+        lists fully isolates a speculative run; the message objects themselves
+        are treated as immutable. Do not deepcopy — messages reference SDK
+        objects.
+        """
+        return History(list(self._messages), list(self._tool_messages))
+
     def prepend(self, other: 'History') -> None:
         self._messages = other._messages + self._messages
         if other._tool_messages:

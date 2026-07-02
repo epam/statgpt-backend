@@ -14,7 +14,7 @@ from pydantic import BaseModel, Field
 from statgpt.app.chains.parameters import ChainParameters
 from statgpt.app.config import ChainParametersConfig, StateVarsConfig
 from statgpt.app.default_prompts import guardrails_default_prompts
-from statgpt.app.utils.dial_stages import ChoiceI, optional_timed_stage
+from statgpt.app.utils.dial_stages import ChoiceI, ContentStageI, optional_timed_stage
 from statgpt.app.utils.message_history import History
 from statgpt.common.auth.auth_context import AuthContext
 from statgpt.common.schemas import ChannelConfig
@@ -110,7 +110,7 @@ class OutOfScopeChecker:
         Chat-agnostic core of the guardrail: just the LLM relevancy decision, with
         no chat-history bookkeeping, streaming, or state. The prompt is fully bound
         via ``.partial``, so the chain can be invoked with ``{}``. Reused by both
-        the chat chain (``_stream_response``) and the MCP input guardrail. Requires
+        the chat chain (``stream_response``) and the MCP input guardrail. Requires
         the channel to have an ``out_of_scope`` configuration.
         """
         if self._channel_config.out_of_scope is None:
@@ -164,9 +164,14 @@ class OutOfScopeChecker:
         )
         return response_prompt | model
 
-    async def _stream_response(self, inputs: dict) -> dict:
+    def resolve_skip(self, inputs: dict) -> dict | None:
+        """Resolve the short-circuit paths that bypass the LLM relevancy check.
+
+        Returns the completed ``inputs`` when the check is skipped (guardrails
+        disabled, direct tool calls, or the out-of-scope messages threshold
+        already exceeded), ``None`` when the LLM check should run.
+        """
         state = ChainParameters.get_state(inputs)
-        oos_only = state.get(StateVarsConfig.CMD_OUT_OF_SCOPE_ONLY, False)
         tool_calls = state.get(StateVarsConfig.DIRECT_TOOL_CALLS, [])
 
         skip = ChainParameters.skip_out_of_scope_check(inputs)
@@ -182,7 +187,6 @@ class OutOfScopeChecker:
             )
             return inputs
 
-        auth_context = ChainParameters.get_auth_context(inputs)
         choice = ChainParameters.get_choice(inputs)
         history = ChainParameters.get_history(inputs)
 
@@ -200,30 +204,40 @@ class OutOfScopeChecker:
                     self._channel_config.out_of_scope.start_new_conversation_message,
                 )
 
-        messages = history.get_langchain_messages(include_tool_messages=False)
+        return None
 
-        show_debug_stages = state.get(StateVarsConfig.SHOW_DEBUG_STAGES, False)
-        with optional_timed_stage(
-            choice, "[DEBUG] Guardrails: Relevancy", enabled=show_debug_stages
-        ) as stage:
-            checker_chain = self.build_checker_chain(messages, auth_context)
-            response = await checker_chain.ainvoke({})
-            if stage:
-                if response.out_of_scope:
-                    stage.append_content(
-                        f"Request is out of scope, reasoning: {response.reasoning}"
-                    )
-                else:
-                    stage.append_content(f"Request is in scope, reasoning: {response.reasoning}")
+    async def check(
+        self, messages: Sequence[BaseMessage], auth_context: AuthContext
+    ) -> OutOfScopeCheckerResponse:
+        """Run the LLM relevancy check on the given messages."""
+        checker_chain = self.build_checker_chain(messages, auth_context)
+        return await checker_chain.ainvoke({})
 
-        inputs[ChainParametersConfig.OUT_OF_SCOPE] = response.out_of_scope
-        inputs[ChainParametersConfig.OUT_OF_SCOPE_REASONING] = response.reasoning
+    @staticmethod
+    def append_verdict_to_stage(stage: ContentStageI, response: OutOfScopeCheckerResponse) -> None:
+        if not stage:
+            return
+        if response.out_of_scope:
+            stage.append_content(f"Request is out of scope, reasoning: {response.reasoning}")
+        else:
+            stage.append_content(f"Request is in scope, reasoning: {response.reasoning}")
 
-        if oos_only or not response.out_of_scope:
-            return inputs
+    async def respond_out_of_scope(self, inputs: dict, reasoning: str) -> dict:
+        """Stream the user-facing out-of-scope message to the choice.
 
-        # provide message to user
+        Expects the ``OUT_OF_SCOPE`` keys to be already set on ``inputs`` (they
+        are overridden only when the start-new-conversation threshold trips).
+        """
+        if self._channel_config.out_of_scope is None:
+            raise ValueError("out_of_scope must be configured for the channel")
 
+        auth_context = ChainParameters.get_auth_context(inputs)
+        choice = ChainParameters.get_choice(inputs)
+        history = ChainParameters.get_history(inputs)
+
+        start_new_conversation_messages_threshold = (
+            self._channel_config.out_of_scope.start_new_conversation_messages_threshold
+        )
         if start_new_conversation_messages_threshold != -1:
             out_of_scope_msgs_count = self._count_out_of_scope_msgs(history) + 1
             if out_of_scope_msgs_count > start_new_conversation_messages_threshold:
@@ -237,7 +251,8 @@ class OutOfScopeChecker:
 
         # tell user that the request is out of scope
 
-        response_chain = self.build_response_chain(messages, response.reasoning, auth_context)
+        messages = history.get_langchain_messages(include_tool_messages=False)
+        response_chain = self.build_response_chain(messages, reasoning, auth_context)
 
         async for chunk in response_chain.astream(inputs):
             if isinstance(chunk.content, str):
@@ -245,5 +260,35 @@ class OutOfScopeChecker:
 
         return inputs
 
+    async def stream_response(self, inputs: dict) -> dict:
+        """Sequential composition of the guardrail: skip resolution, LLM check,
+        out-of-scope response. Used when optimistic guardrails are disabled and
+        for the ``CMD_OUT_OF_SCOPE_ONLY`` debug path."""
+        if (resolved := self.resolve_skip(inputs)) is not None:
+            return resolved
+
+        state = ChainParameters.get_state(inputs)
+        auth_context = ChainParameters.get_auth_context(inputs)
+        choice = ChainParameters.get_choice(inputs)
+        history = ChainParameters.get_history(inputs)
+
+        messages = history.get_langchain_messages(include_tool_messages=False)
+
+        show_debug_stages = state.get(StateVarsConfig.SHOW_DEBUG_STAGES, False)
+        with optional_timed_stage(
+            choice, "[DEBUG] Guardrails: Relevancy", enabled=show_debug_stages
+        ) as stage:
+            response = await self.check(messages, auth_context)
+            self.append_verdict_to_stage(stage, response)
+
+        inputs[ChainParametersConfig.OUT_OF_SCOPE] = response.out_of_scope
+        inputs[ChainParametersConfig.OUT_OF_SCOPE_REASONING] = response.reasoning
+
+        oos_only = state.get(StateVarsConfig.CMD_OUT_OF_SCOPE_ONLY, False)
+        if oos_only or not response.out_of_scope:
+            return inputs
+
+        return await self.respond_out_of_scope(inputs, response.reasoning)
+
     async def create_chain(self) -> Runnable:
-        return RunnableLambda(self._stream_response)
+        return RunnableLambda(self.stream_response)

@@ -31,6 +31,9 @@ class ChainParametersConfig:
     TARGET = "target"
     OUT_OF_SCOPE = "out_of_scope"
     OUT_OF_SCOPE_REASONING = "out_of_scope_reasoning"
+    # asyncio.Event set once the out-of-scope verdict resolves to "in scope";
+    # present only on the speculative agent run under optimistic guardrails.
+    OOS_VERDICT_EVENT = "oos_verdict_event"
     PERFORMANCE_STAGE = "performance_stage"
 
 

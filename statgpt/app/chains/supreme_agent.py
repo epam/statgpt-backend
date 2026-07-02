@@ -305,6 +305,13 @@ class SupremeAgentExecutor:
             if tool_calls := response.resp.tool_calls:
                 history.add_chunk_as_tool_message(response.resp)
 
+                # Speculative run under optimistic guardrails: real tool dispatch
+                # must wait for the out-of-scope verdict to confirm the request
+                # is in scope (fake tool calls above are not gated).
+                verdict_event = inputs.get(ChainParametersConfig.OOS_VERDICT_EVENT)
+                if verdict_event is not None:
+                    await verdict_event.wait()
+
                 res: list[ToolMessage] = await asyncio.gather(
                     *(tool_executor.call_tool(tool_call, inputs) for tool_call in tool_calls)
                 )
