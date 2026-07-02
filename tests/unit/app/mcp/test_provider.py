@@ -12,6 +12,7 @@ from mcp.types import EmbeddedResource, TextContent
 from statgpt.app.chains.out_of_scope_checker import OutOfScopeCheckerResponse
 from statgpt.app.mcp.provider import ChannelToolProvider, _McpToolAdapter
 from statgpt.app.schemas.tool_artifact import DataQueryArtifact
+from statgpt.common.schemas.query import JsonQueryMetadata, JsonQueryWithMetadata
 from statgpt.common.schemas.tool_details import SdmxQueryAppDetails
 from statgpt.common.schemas.tools import AvailableDatasetsTool, SdmxQueryAppTool
 
@@ -29,6 +30,18 @@ def _build_adapter(result) -> _McpToolAdapter:
     )
 
 
+def _json_query(urn: str) -> JsonQueryWithMetadata:
+    return JsonQueryWithMetadata(
+        urn=urn,
+        filters=[],
+        metadata=JsonQueryMetadata(
+            country_dimension="REF_AREA",
+            indicator_dimensions=["INDICATOR"],
+            time_period_dimension="TIME_PERIOD",
+        ),
+    )
+
+
 async def test_data_query_artifact_adds_csv_resources():
     df = pd.DataFrame({"x": [1, 2]})
     response = SimpleNamespace(
@@ -36,6 +49,7 @@ async def test_data_query_artifact_adds_csv_resources():
         visual_dataframe=df,
         csv_dataframe=df,
         created_at=datetime(2026, 4, 20, 15, 30, 0, tzinfo=timezone.utc),
+        json_query=_json_query("IMF:CPI(1.0.0)"),
     )
     artifact = DataQueryArtifact.model_construct(data_responses={"ds1": response})
     result = SimpleNamespace(content="answer", artifact=artifact)
@@ -48,6 +62,25 @@ async def test_data_query_artifact_adds_csv_resources():
     resources = [c for c in tool_result.content if isinstance(c, EmbeddedResource)]
     assert len(resources) == 1
     assert resources[0].resource.mimeType == "text/csv"
+    assert tool_result.structured_content is not None
+    assert [q["urn"] for q in tool_result.structured_content["queries"]] == ["IMF:CPI(1.0.0)"]
+
+
+async def test_data_query_artifact_without_query_has_no_structured_content():
+    df = pd.DataFrame({"x": [1]})
+    response = SimpleNamespace(
+        resource_path="IMF:CPI(1.0.0)",
+        visual_dataframe=df,
+        csv_dataframe=df,
+        created_at=datetime(2026, 4, 20, 15, 30, 0, tzinfo=timezone.utc),
+        json_query=None,
+    )
+    artifact = DataQueryArtifact.model_construct(data_responses={"ds1": response})
+    adapter = _build_adapter(SimpleNamespace(content="answer", artifact=artifact))
+
+    tool_result = await adapter.run({})
+
+    assert tool_result.structured_content is None
 
 
 async def test_non_data_query_result_returns_text_only():

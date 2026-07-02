@@ -1,8 +1,10 @@
+from typing import Any
 from urllib.parse import quote
 
 from mcp.types import EmbeddedResource, TextResourceContents
 from pydantic import AnyUrl
 
+from statgpt.app.schemas.query import AppJsonQueryWithMetadata
 from statgpt.app.schemas.tool_artifact import DataQueryArtifact
 
 
@@ -36,3 +38,21 @@ def data_query_artifact_to_resources(
             )
         )
     return resources
+
+
+def data_query_artifact_to_structured_content(
+    artifact: DataQueryArtifact,
+) -> dict[str, Any] | None:
+    """Serialize each DataResponse's json_query as the tool's MCP structured content.
+
+    Returns a ``{"queries": [...]}`` object where each entry is an AppJsonQueryWithMetadata
+    dumped with camelCase aliases, matching the DIAL "Query (JSON)" attachment shape.
+    Returns None when no response carries a query so the provider omits structuredContent.
+    """
+    queries: list[dict[str, Any]] = []
+    for response in artifact.data_responses.values():
+        query = response.json_query
+        if query is None:
+            continue
+        queries.append(AppJsonQueryWithMetadata.from_common(query).model_dump(by_alias=True))
+    return {"queries": queries} if queries else None
