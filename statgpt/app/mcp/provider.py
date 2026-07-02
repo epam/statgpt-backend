@@ -18,7 +18,10 @@ from starlette.requests import Request
 
 from statgpt.app.chains.tools import StatGptTool, ToolInputError, ToolUpstreamError
 from statgpt.app.config import ChainParametersConfig
-from statgpt.app.mcp.attachments import data_query_artifact_to_resources
+from statgpt.app.mcp.attachments import (
+    data_query_artifact_to_resources,
+    data_query_artifact_to_structured_content,
+)
 from statgpt.app.mcp.decorators import guard_channel_resolution
 from statgpt.app.mcp.exceptions import MissingDeploymentIdError
 from statgpt.app.mcp.guardrails import enforce_input_guardrail
@@ -111,6 +114,7 @@ class _McpToolAdapter(Tool):
             # to_csv is CPU-bound and can block on large dataframes; offload to a worker thread.
             resources = await asyncio.to_thread(data_query_artifact_to_resources, result.artifact)
             content.extend(resources)
+            structured_content = data_query_artifact_to_structured_content(result.artifact)
         elif isinstance(result.artifact, SdmxQueryAppArtifact):
             # Surface the upstream HTTP metadata so the MCP-App can distinguish success from
             # error responses and know the body's media type. The raw body stays in the text
