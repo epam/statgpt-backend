@@ -217,10 +217,8 @@ class OutOfScopeChecker:
     def append_verdict_to_stage(stage: ContentStageI, response: OutOfScopeCheckerResponse) -> None:
         if not stage:
             return
-        if response.out_of_scope:
-            stage.append_content(f"Request is out of scope, reasoning: {response.reasoning}")
-        else:
-            stage.append_content(f"Request is in scope, reasoning: {response.reasoning}")
+        scope = "out of scope" if response.out_of_scope else "in scope"
+        stage.append_content(f"Request is {scope}, reasoning: {response.reasoning}")
 
     async def respond_out_of_scope(self, inputs: dict, reasoning: str) -> dict:
         """Stream the user-facing out-of-scope message to the choice.

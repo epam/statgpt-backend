@@ -49,6 +49,13 @@ class BufferedChoice(ChoiceI):
     def _record(self, op: Callable[[ChoiceI], Any]) -> None:
         self._ops.append(op)
 
+    def _dispatch(self, op: Callable[[ChoiceI], Any]) -> Any:
+        if self._mode is _Mode.PASS_THROUGH:
+            return op(self._real)
+        if self._mode is _Mode.BUFFERING:
+            self._record(op)
+        return None
+
     def create_stage(self, *args: Any, **kwargs: Any) -> Any:
         if self._mode is _Mode.PASS_THROUGH:
             return self._real.create_stage(*args, **kwargs)
@@ -58,22 +65,13 @@ class BufferedChoice(ChoiceI):
         return stage
 
     def append_content(self, content: str) -> None:
-        if self._mode is _Mode.PASS_THROUGH:
-            self._real.append_content(content)
-        elif self._mode is _Mode.BUFFERING:
-            self._record(lambda real: real.append_content(content))
+        self._dispatch(lambda real: real.append_content(content))
 
     def add_attachment(self, *args: Any, **kwargs: Any) -> None:
-        if self._mode is _Mode.PASS_THROUGH:
-            self._real.add_attachment(*args, **kwargs)
-        elif self._mode is _Mode.BUFFERING:
-            self._record(lambda real: real.add_attachment(*args, **kwargs))
+        self._dispatch(lambda real: real.add_attachment(*args, **kwargs))
 
     def set_state(self, state: dict) -> None:
-        if self._mode is _Mode.PASS_THROUGH:
-            self._real.set_state(state)
-        elif self._mode is _Mode.BUFFERING:
-            self._record(lambda real: real.set_state(state))
+        self._dispatch(lambda real: real.set_state(state))
 
     def flush_to(self, real_choice: ChoiceI) -> None:
         """Replay the recorded operations onto ``real_choice``, in order, then
