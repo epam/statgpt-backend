@@ -412,7 +412,13 @@ class HybridSearcher:
                 return res
 
             # ES and pgvector queries are independent - run them concurrently.
-            lex, sem_raw = await asyncio.gather(_timed_lexical(), _timed_semantic_raw())
+            # TaskGroup (unlike bare gather) cancels the sibling query on first
+            # failure instead of leaving it running past the request's failure.
+            async with asyncio.TaskGroup() as tg:
+                lex_task = tg.create_task(_timed_lexical())
+                sem_task = tg.create_task(_timed_semantic_raw())
+            lex = lex_task.result()
+            sem_raw = sem_task.result()
 
             lex_filtered: HarmonizedItemsScoredDict = self._filer_candidates_by_availability(
                 lex, availability
