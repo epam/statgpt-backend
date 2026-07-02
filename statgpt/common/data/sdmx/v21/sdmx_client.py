@@ -29,13 +29,19 @@ def init_sdmx(config: SdmxDataSourceConfig):
     sdmx.add_source(config.sdmx_config.to_sdmx1_dict(), override=True)
 
 
-# sdmx1 readers mutate a structure passed via `structure=` (the XML reader extends the DSD via
-# `make_key(..., extend=True)`; the v30 proxy JSON reader attaches it as `msg.dataflow.structure`
-# and adds components via `getdefault`), so dsd-bearing parses running on worker threads must be
-# serialized. No caller of `_parse_response` currently passes a dsd — threaded XML parses run
-# with `structure=None` and build private structures, staying fully parallel; the lock is used
-# by the v30 proxy data path (`AsyncStatGptSdmxProxyClient._proxy_data`).
 _PARSE_DSD_LOCK = threading.Lock()
+
+
+def _dsd_parse_lock(dsd: object | None) -> contextlib.AbstractContextManager[Any]:
+    """Serialize dsd-bearing sdmx1 parses that run on worker threads.
+
+    sdmx1 readers mutate a structure passed via ``structure=`` (the XML reader extends the DSD
+    via ``make_key(..., extend=True)``; the v30 proxy JSON reader attaches it as
+    ``msg.dataflow.structure`` and adds components via ``getdefault``), so concurrent dsd-bearing
+    parses must be serialized. Parses with ``dsd is None`` build private structures and stay
+    fully parallel.
+    """
+    return _PARSE_DSD_LOCK if dsd is not None else contextlib.nullcontext()
 
 
 class AsyncSdmxClient:
@@ -431,8 +437,7 @@ class AsyncSdmxClient:
         # Instantiate reader from class
         reader = reader_class()
 
-        ctx = _PARSE_DSD_LOCK if dsd is not None else contextlib.nullcontext()
-        with ctx:
+        with _dsd_parse_lock(dsd):
             msg = reader.convert(response_content, structure=dsd)
         msg.response = response
         return msg

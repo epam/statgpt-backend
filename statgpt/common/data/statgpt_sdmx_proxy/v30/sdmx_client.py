@@ -1,5 +1,4 @@
 import asyncio
-import contextlib
 import io
 from typing import cast
 from urllib.parse import urlencode
@@ -15,7 +14,7 @@ from statgpt.common.auth.auth_context import AuthContext
 from statgpt.common.config import multiline_logger as logger
 from statgpt.common.data.base.sdmx_schemas import SdmxPlusAvailabilityRequestBody
 from statgpt.common.data.sdmx.v21.ratelimiter import SdmxRateLimiter
-from statgpt.common.data.sdmx.v21.sdmx_client import _PARSE_DSD_LOCK, AsyncSdmxClient
+from statgpt.common.data.sdmx.v21.sdmx_client import AsyncSdmxClient, _dsd_parse_lock
 from statgpt.common.data.statgpt_sdmx_proxy.config import StatGptSdmxProxyDataSourceConfig
 from statgpt.common.data.statgpt_sdmx_proxy.sdmx_schemas.structure_message import (
     ProxyAgencySchemeResponseBody,
@@ -296,11 +295,7 @@ class AsyncStatGptSdmxProxyClient(AsyncSdmxClient):
     def _convert_proxy_data(
         response_content: io.IOBase, dsd: DataStructureDefinition | None
     ) -> DataMessage:
-        # The reader attaches `dsd` as `msg.dataflow.structure` and mutates it while parsing
-        # (`msg.structure...getdefault(...)`), so dsd-bearing parses running on worker threads
-        # must be serialized.
-        ctx = _PARSE_DSD_LOCK if dsd is not None else contextlib.nullcontext()
-        with ctx:
+        with _dsd_parse_lock(dsd):
             return StatGptSdmxProxyDataReader().convert(response_content, structure=dsd)
 
     def _build_key_segment(
