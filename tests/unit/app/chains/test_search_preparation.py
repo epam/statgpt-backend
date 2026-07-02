@@ -26,10 +26,19 @@ REWRITTEN_QUERY = 'rewritten query'
 
 
 class FakeChoice:
-    """Minimal ChoiceI implementation for ChainState validation."""
+    """Minimal ChoiceI implementation for ChainState validation.
+
+    ``create_stage`` records invocations instead of raising: LangChain swallows
+    exceptions raised inside callbacks, so tests assert ``created_stages`` is
+    empty after the chain run.
+    """
+
+    def __init__(self) -> None:
+        self.created_stages: list[tuple[tuple[Any, ...], dict[str, Any]]] = []
 
     def create_stage(self, *args: Any, **kwargs: Any) -> Any:
-        raise AssertionError('no stage expected in this test')
+        self.created_stages.append((args, kwargs))
+        return Mock()
 
     def append_content(self, content: str) -> Any:
         pass
@@ -109,6 +118,9 @@ async def test_search_preparation_chain_produces_all_stage1_keys():
 
     result = await factory.create().ainvoke(inputs)
 
+    # all Stage-1 stages are debug-only under the default config: none may open
+    assert inputs['choice'].created_stages == []
+
     expected_keys = {
         'versioned_datasets_dict',
         'normalized_query',
@@ -136,6 +148,7 @@ async def test_normalized_query_after_selection_equals_rewritten_query():
 
     result = await factory.create().ainvoke(inputs)
 
+    assert inputs['choice'].created_stages == []
     assert result['normalized_query'] == REWRITTEN_QUERY
     # raw normalization output is preserved before the rewrite
     assert result['normalized_query_raw'] == NORMALIZED_QUERY
@@ -146,6 +159,8 @@ async def test_stage1_step_inputs_preserve_data_dependencies():
     inputs = _make_inputs()
 
     await factory.create().ainvoke(inputs)
+
+    assert inputs['choice'].created_stages == []
 
     # the merged head runs on the raw tool inputs: neither normalization nor datetime
     # may observe outputs of other head branches

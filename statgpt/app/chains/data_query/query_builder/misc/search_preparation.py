@@ -155,7 +155,12 @@ class SearchPreparationChainFactory:
             #     query_with_expanded_groups=self._group_expander_chain.create_chain,
             # )
             # load available datasets, normalize (summarize) conversation and extract time range
-            # in parallel: each consumes only the raw tool input
+            # in parallel: each consumes only the raw tool input.
+            # NOTE: both StageCallbacks below are bound to this single merged run, so each
+            # stage's displayed duration spans the whole parallel step, and a failure in any
+            # branch closes both stages as FAILED. Sibling branches are not cancelled on
+            # failure (RunnableParallel gathers without cancellation) — accepted trade-offs
+            # of merging the head; see the performance plan for details.
             RunnablePassthrough.assign(
                 versioned_datasets_dict=dataset_utils.get_available_datasets,
                 normalized_query=self._normalization_chain.create_chain,
