@@ -5,32 +5,43 @@ TCP+TLS handshake on every request (and leaking never-closed clients). This modu
 lazily-created shared clients instead:
 
 - one client for all LLM/embeddings traffic;
-- one client per SDMX data source, keyed by the source id and its static headers, so a
-  reconfigured source (e.g. a rotated API key) transparently gets a fresh client.
+- one client per SDMX data source configuration, keyed by the source id and its static
+  headers, so a reconfigured source (e.g. a rotated API key) transparently gets a fresh
+  client while in-flight requests keep using the old one.
 
 ``close_shared_http_clients`` must be awaited on application shutdown (both app lifespans).
+
+For a component-owned shared client with its own lifecycle, use
+``statgpt.common.utils.http_client.ManagedHttpClient`` instead; the pools here are
+process-global and are all closed together via ``close_shared_http_clients``.
 """
 
 import httpx
 
+# Deliberately lower than the openai SDK's DEFAULT_CONNECTION_LIMITS (1000/100): one process
+# talks to a handful of DIAL/Azure endpoints, not thousands of hosts.
 _LLM_LIMITS = httpx.Limits(max_connections=200, max_keepalive_connections=50)
 # Mirrors the timeout previously set per-construction in AsyncSdmxClient._create_httpx_client.
 _SDMX_TIMEOUT = httpx.Timeout(90.0, connect=45.0)
 
+_SdmxPoolKey = tuple[str, frozenset[tuple[str, str]]]
+
 _llm_client: httpx.AsyncClient | None = None
-_sdmx_clients: dict[str, tuple[frozenset[tuple[str, str]], httpx.AsyncClient]] = {}
-_retired_sdmx_clients: list[httpx.AsyncClient] = []
+_sdmx_clients: dict[_SdmxPoolKey, httpx.AsyncClient] = {}
 
 
 def get_shared_llm_http_client() -> httpx.AsyncClient:
     """Return the shared client for LLM/embeddings traffic, creating it lazily.
 
-    No client-level timeout: the openai SDK applies its per-request timeout on top of a
-    provided ``http_client``, and the model factories pass explicit timeouts.
+    Mirrors the openai SDK's ``_DefaultAsyncHttpxClient`` defaults where they matter:
+    ``follow_redirects=True`` (the SDK-built client follows 3xx transparently, e.g. ingress
+    http->https redirects), while no client-level timeout is set — the SDK applies its
+    per-request timeout on top of a provided ``http_client``, and the model factories pass
+    explicit timeouts.
     """
     global _llm_client
     if _llm_client is None or _llm_client.is_closed:
-        _llm_client = httpx.AsyncClient(limits=_LLM_LIMITS)
+        _llm_client = httpx.AsyncClient(limits=_LLM_LIMITS, follow_redirects=True)
     return _llm_client
 
 
@@ -39,34 +50,29 @@ def get_shared_sdmx_http_client(
 ) -> httpx.AsyncClient:
     """Return the shared client for an SDMX data source, creating it lazily.
 
-    Keyed by ``source_id``; when the static headers change (the source was reconfigured),
-    a new client is created and the old one is retired rather than closed — in-flight
-    requests may still use it, so it is only closed by ``close_shared_http_clients``.
+    Keyed by ``(source_id, static headers)``: when the static headers change (the source was
+    reconfigured), subsequent calls get a fresh client while in-flight requests keep using
+    the old one, which stays pooled under its own key until ``close_shared_http_clients``
+    (its idle keepalive sockets expire on their own). Pool growth is thus bounded by the
+    number of distinct source configurations seen.
     """
-    headers_key = frozenset((headers or {}).items())
-    cached = _sdmx_clients.get(source_id)
-    if cached is not None:
-        cached_headers_key, client = cached
-        if cached_headers_key == headers_key and not client.is_closed:
-            return client
-        if not client.is_closed:
-            _retired_sdmx_clients.append(client)
-    client = httpx.AsyncClient(timeout=_SDMX_TIMEOUT, headers=headers)
-    _sdmx_clients[source_id] = (headers_key, client)
+    key: _SdmxPoolKey = (source_id, frozenset((headers or {}).items()))
+    client = _sdmx_clients.get(key)
+    if client is None or client.is_closed:
+        client = httpx.AsyncClient(timeout=_SDMX_TIMEOUT, headers=headers)
+        _sdmx_clients[key] = client
     return client
 
 
 async def close_shared_http_clients() -> None:
-    """Close all shared clients (including retired ones). Safe to call multiple times."""
+    """Close all shared clients. Safe to call multiple times."""
     global _llm_client
     clients: list[httpx.AsyncClient] = []
     if _llm_client is not None:
         clients.append(_llm_client)
         _llm_client = None
-    clients.extend(client for _, client in _sdmx_clients.values())
+    clients.extend(_sdmx_clients.values())
     _sdmx_clients.clear()
-    clients.extend(_retired_sdmx_clients)
-    _retired_sdmx_clients.clear()
     for client in clients:
         if not client.is_closed:
             await client.aclose()

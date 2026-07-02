@@ -17,6 +17,9 @@ class TestSharedLlmHttpClient:
     async def test_returns_same_client(self) -> None:
         assert http_pool.get_shared_llm_http_client() is http_pool.get_shared_llm_http_client()
 
+    async def test_follows_redirects_like_openai_sdk_default(self) -> None:
+        assert http_pool.get_shared_llm_http_client().follow_redirects is True
+
     async def test_recreates_after_close(self) -> None:
         client = http_pool.get_shared_llm_http_client()
         await client.aclose()
@@ -42,7 +45,7 @@ class TestSharedSdmxHttpClient:
         client = http_pool.get_shared_sdmx_http_client("source-a")
         assert http_pool.get_shared_sdmx_http_client("source-a", headers={}) is client
 
-    async def test_recreates_on_header_change(self) -> None:
+    async def test_distinct_header_sets_coexist(self) -> None:
         old_client = http_pool.get_shared_sdmx_http_client("source-a", headers={"api-key": "old"})
 
         new_client = http_pool.get_shared_sdmx_http_client("source-a", headers={"api-key": "new"})
@@ -53,6 +56,11 @@ class TestSharedSdmxHttpClient:
         assert (
             http_pool.get_shared_sdmx_http_client("source-a", headers={"api-key": "new"})
             is new_client
+        )
+        # Both header sets stay pooled under their own keys — no create/retire thrashing.
+        assert (
+            http_pool.get_shared_sdmx_http_client("source-a", headers={"api-key": "old"})
+            is old_client
         )
 
     async def test_recreates_after_close(self) -> None:
@@ -72,16 +80,16 @@ class TestSharedSdmxHttpClient:
 
 
 class TestCloseSharedHttpClients:
-    async def test_closes_all_clients_including_retired(self) -> None:
+    async def test_closes_all_clients_including_superseded_header_sets(self) -> None:
         llm_client = http_pool.get_shared_llm_http_client()
-        retired = http_pool.get_shared_sdmx_http_client("source-a", headers={"api-key": "old"})
+        superseded = http_pool.get_shared_sdmx_http_client("source-a", headers={"api-key": "old"})
         current = http_pool.get_shared_sdmx_http_client("source-a", headers={"api-key": "new"})
         other = http_pool.get_shared_sdmx_http_client("source-b")
 
         await http_pool.close_shared_http_clients()
 
         assert llm_client.is_closed
-        assert retired.is_closed
+        assert superseded.is_closed
         assert current.is_closed
         assert other.is_closed
 

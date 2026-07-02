@@ -29,13 +29,17 @@ async def lifespan(app: "StatGPTApp"):
         # Check resources' availability:
         await DatabaseHealthChecker().check()
 
-        # Start data preloading in the background
-        asyncio.create_task(preload_data(allow_cached_datasets=True, use_resolved_config=True))
+        # Start data preloading in the background (the reference also protects the task from GC)
+        preload_task = asyncio.create_task(
+            preload_data(allow_cached_datasets=True, use_resolved_config=True)
+        )
 
         try:
             yield
         finally:
-            # Clean up
+            # Clean up: stop a still-running preload before closing the pools its calls use
+            preload_task.cancel()
+            await asyncio.gather(preload_task, return_exceptions=True)
             await close_shared_http_clients()
 
 
