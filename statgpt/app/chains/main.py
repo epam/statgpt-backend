@@ -1,3 +1,5 @@
+import asyncio
+
 from langchain_core.runnables import Runnable, RunnablePassthrough
 
 from statgpt.app.chains.out_of_scope_checker import OutOfScopeChecker
@@ -62,8 +64,15 @@ class MainChainFactory:
         state[StateVarsConfig.DIRECT_TOOL_CALLS] = tool_calls_parsed
 
         tool_executor = ToolCaller.from_config(self._channel_config)
-        for tool_call in tool_calls_parsed:
-            tool_msg = await tool_executor.call_tool(tool_call, inputs, show_stage=False)
+        # Dispatch concurrently (mirrors the agent path); gather preserves the
+        # original tool-call order for history.
+        tool_messages = await asyncio.gather(
+            *(
+                tool_executor.call_tool(tool_call, inputs, show_stage=False)
+                for tool_call in tool_calls_parsed
+            )
+        )
+        for tool_msg in tool_messages:
             history.add_tool_message(tool_msg)
 
         return inputs
