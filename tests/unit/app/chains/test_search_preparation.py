@@ -113,7 +113,7 @@ def _make_inputs() -> dict:
 
 
 async def test_search_preparation_chain_produces_all_stage1_keys():
-    factory, stubs = _make_factory()
+    factory, _ = _make_factory()
     inputs = _make_inputs()
 
     result = await factory.create().ainvoke(inputs)
@@ -143,7 +143,7 @@ async def test_search_preparation_chain_produces_all_stage1_keys():
 
 
 async def test_normalized_query_after_selection_equals_rewritten_query():
-    factory, stubs = _make_factory()
+    factory, _ = _make_factory()
     inputs = _make_inputs()
 
     result = await factory.create().ainvoke(inputs)
