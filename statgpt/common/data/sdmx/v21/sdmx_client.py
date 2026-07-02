@@ -1,6 +1,7 @@
 import asyncio
 import io
 import os
+import threading
 from typing import IO, Any
 
 import httpx
@@ -25,6 +26,12 @@ from statgpt.common.utils import AsyncLoadingCache
 
 def init_sdmx(config: SdmxDataSourceConfig):
     sdmx.add_source(config.sdmx_config.to_sdmx1_dict(), override=True)
+
+
+# The sdmx1 reader mutates a structure passed via `structure=` (e.g. `make_key(..., extend=True)`
+# adds missing components to the shared DSD), so dsd-bearing parses running on worker threads
+# must be serialized.
+_PARSE_DSD_LOCK = threading.Lock()
 
 
 class AsyncSdmxClient:
@@ -342,7 +349,9 @@ class AsyncSdmxClient:
     async def _fetch(self, req: PreparedRequest, tofile: os.PathLike | IO | None = None) -> Message:
         httpx_response = await self._perform_request(req)
         response = self._convert_response(httpx_response, req)
-        return self._parse_response(response, tofile=tofile)
+        # XML parsing is CPU-bound and can take seconds for large data messages;
+        # run it off the event loop so concurrent requests are not stalled.
+        return await asyncio.to_thread(self._parse_response, response, tofile)
 
     async def _perform_request(self, req: PreparedRequest, max_retries=3, delay=3) -> Response:
         attempts = 0
@@ -418,7 +427,11 @@ class AsyncSdmxClient:
         # Instantiate reader from class
         reader = reader_class()
 
-        msg = reader.convert(response_content, structure=dsd)
+        if dsd is not None:
+            with _PARSE_DSD_LOCK:
+                msg = reader.convert(response_content, structure=dsd)
+        else:
+            msg = reader.convert(response_content, structure=dsd)
         msg.response = response
         return msg
 
