@@ -145,6 +145,45 @@ class TestAsyncLoadingCacheRefresh:
         result = await cache.get("k", AsyncMock(return_value="wrong"))
         assert result == "old"
 
+    @pytest.mark.asyncio
+    async def test_refresh_validator_rejection_keeps_existing_entry(self) -> None:
+        cache: AsyncLoadingCache[str] = AsyncLoadingCache()
+        await cache.get("k", AsyncMock(return_value="old"))
+
+        result = await cache.refresh(
+            "k", AsyncMock(return_value="stub"), validator=lambda v: v != "stub"
+        )
+
+        # The rejected value is returned to the caller but not cached
+        assert result == "stub"
+        loader = AsyncMock(return_value="wrong")
+        assert await cache.get("k", loader) == "old"
+        loader.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_refresh_validator_acceptance_replaces_entry(self) -> None:
+        cache: AsyncLoadingCache[str] = AsyncLoadingCache()
+        await cache.get("k", AsyncMock(return_value="old"))
+
+        result = await cache.refresh(
+            "k", AsyncMock(return_value="new"), validator=lambda v: v == "new"
+        )
+
+        assert result == "new"
+        loader = AsyncMock(return_value="wrong")
+        assert await cache.get("k", loader) == "new"
+        loader.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_refresh_validator_rejection_does_not_populate_empty_cache(self) -> None:
+        cache: AsyncLoadingCache[str] = AsyncLoadingCache()
+
+        await cache.refresh("k", AsyncMock(return_value="stub"), validator=lambda v: v != "stub")
+
+        loader = AsyncMock(return_value="fresh")
+        assert await cache.get("k", loader) == "fresh"
+        loader.assert_awaited_once()
+
 
 class TestAsyncLoadingCacheRemove:
 

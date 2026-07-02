@@ -203,17 +203,20 @@ class QuanthubSdmx21DataSourceHandler(Sdmx21DataSourceHandler):
                         entity_id, title, config, auth_context, allow_offline=allow_offline
                     )
 
+                # NOTE: the loader produces an OfflineDataset when allow_offline=True
+                # and loading fails. The validator rejects it, so `refresh` never
+                # replaces a healthy cached entry with an offline stub, and `get`
+                # retries a cached stub on the next access (in case the upstream
+                # recovered).
+                def validator(ds: QuanthubSdmx21DataSet | SdmxOfflineDataSet) -> bool:
+                    return not isinstance(ds, SdmxOfflineDataSet) and ds.config == dataset_config
+
                 if force_refresh:
-                    return await self._dataset_cache.refresh(key=str(entity_id), loader=loader)
+                    return await self._dataset_cache.refresh(
+                        key=str(entity_id), loader=loader, validator=validator
+                    )
                 return await self._dataset_cache.get(
-                    key=str(entity_id),
-                    loader=loader,
-                    # NOTE: OfflineDataset may end up in the cache when allow_offline=True
-                    # and loading fails. The validator rejects it on the next access,
-                    # triggering a fresh load attempt (in case the upstream recovered).
-                    validator=lambda ds: (
-                        not isinstance(ds, SdmxOfflineDataSet) and ds.config == dataset_config
-                    ),
+                    key=str(entity_id), loader=loader, validator=validator
                 )
             return await self._get_dataset(
                 entity_id, title, config, auth_context, allow_offline=allow_offline

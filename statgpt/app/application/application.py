@@ -23,8 +23,13 @@ _log = logging.getLogger(__name__)
 
 async def _preload_data_periodically() -> None:
     """Warm up dataset caches at startup, then refresh them before entries expire."""
-    # One-shot warm-up: populate the caches without evicting live entries
-    await preload_data(allow_cached_datasets=True, use_resolved_config=True)
+    # One-shot warm-up: populate the caches without evicting live entries.
+    # Guarded so a transient failure (e.g. DB connect) does not kill the task
+    # before the refresh loop starts.
+    try:
+        await preload_data(allow_cached_datasets=True, use_resolved_config=True)
+    except Exception:
+        _log.exception("Startup dataset preload failed")
 
     interval = data_preloader_settings.refresh_interval_seconds
     if interval <= 0:
@@ -37,6 +42,15 @@ async def _preload_data_periodically() -> None:
             )
         except Exception:
             _log.exception("Periodic dataset preload failed")
+
+
+def _log_preload_task_exit(task: asyncio.Task) -> None:
+    # The shutdown `gather(..., return_exceptions=True)` swallows exceptions,
+    # so log any non-cancellation crash here to make a dead warm-keeper visible.
+    if task.cancelled():
+        return
+    if (exc := task.exception()) is not None:
+        _log.error("Dataset preload task terminated unexpectedly", exc_info=exc)
 
 
 @asynccontextmanager
@@ -53,6 +67,7 @@ async def lifespan(app: "StatGPTApp"):
         # Start data preloading in the background.
         # Keep the task reference so it is not garbage-collected mid-run.
         preload_task = asyncio.create_task(_preload_data_periodically())
+        preload_task.add_done_callback(_log_preload_task_exit)
 
         yield
 
