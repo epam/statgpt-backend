@@ -28,6 +28,7 @@ from statgpt.common.config import multiline_logger as logger
 from statgpt.common.models import DatabaseHealthChecker, optional_msi_token_manager_context
 from statgpt.common.services.data_preloader import preload_data
 from statgpt.common.utils.elastic import elasticsearch_client_context
+from statgpt.common.utils.http_pool import close_shared_http_clients
 
 Lifespan = Callable[[FastAPI], AsyncContextManager[None]]
 
@@ -41,8 +42,11 @@ async def app_lifespan(app_: FastAPI):
         # Start data preloading in the background
         asyncio.create_task(preload_data(allow_cached_datasets=False, use_resolved_config=False))
 
-        yield
-        # Clean up
+        try:
+            yield
+        finally:
+            # Clean up
+            await close_shared_http_clients()
 
 
 lifespan: Lifespan = app_lifespan

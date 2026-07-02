@@ -15,6 +15,7 @@ from statgpt.app.mcp.widget_resource import widget_http_client
 from statgpt.common.models import DatabaseHealthChecker, optional_msi_token_manager_context
 from statgpt.common.services.data_preloader import preload_data
 from statgpt.common.utils.elastic import elasticsearch_client_context
+from statgpt.common.utils.http_pool import close_shared_http_clients
 
 
 @asynccontextmanager
@@ -31,8 +32,11 @@ async def lifespan(app: "StatGPTApp"):
         # Start data preloading in the background
         asyncio.create_task(preload_data(allow_cached_datasets=True, use_resolved_config=True))
 
-        yield
-        # Clean up
+        try:
+            yield
+        finally:
+            # Clean up
+            await close_shared_http_clients()
 
 
 class StatGPTApp(DIALApp):

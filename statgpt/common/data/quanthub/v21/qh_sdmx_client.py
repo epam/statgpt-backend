@@ -19,6 +19,7 @@ from statgpt.common.data.quanthub.sdmx_schemas.v30 import (
 from statgpt.common.data.sdmx.v21.ratelimiter import SdmxRateLimiter
 from statgpt.common.data.sdmx.v21.sdmx_client import AsyncSdmxClient, init_sdmx
 from statgpt.common.utils import TtlCache
+from statgpt.common.utils.http_pool import get_shared_sdmx_http_client
 
 from .attributes_parser import AttributesParser
 from .authorizer import QuanthubAuthorizer, QuanthubAuthorizerFactory
@@ -50,7 +51,9 @@ class AsyncQuanthubClient(AsyncSdmxClient):
         headers: dict[str, str] = {}
         if config.api_key and config.api_key_header:
             headers[config.api_key_header] = config.get_api_key().get_secret_value()
-        httpx_client = cls._create_httpx_client(headers=headers)
+        # Static api-key headers stay client-level: they are part of the shared-pool key,
+        # so rotating the key transparently yields a fresh client.
+        httpx_client = get_shared_sdmx_http_client(config.get_id(), headers=headers)
 
         authorizer = None
         if config.auth_enabled:

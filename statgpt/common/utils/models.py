@@ -30,6 +30,7 @@ from statgpt.common.config.logging import multiline_logger as logger
 from statgpt.common.schemas import EmbeddingsModelConfig, LLMModelConfig
 from statgpt.common.settings.dial import dial_settings
 from statgpt.common.utils.callbacks import BrokenResponseInterceptor
+from statgpt.common.utils.http_pool import get_shared_llm_http_client
 
 
 def get_chat_model(
@@ -49,6 +50,7 @@ def get_chat_model(
         max_retries=10,
         api_key=api_key,  # since we use SecretStr, it won't be logged
         timeout=timeout,  # timeouts are crucial!
+        http_async_client=get_shared_llm_http_client(),  # shared pool; per-request timeout still applies
     )
 
     params.update(model_config.model_dump(mode="json", exclude_none=True, exclude={"deployment"}))
@@ -77,6 +79,7 @@ def get_embeddings_model(
         api_version=model_config.api_version,
         max_retries=10,
         api_key=api_key,  # since we use SecretStr, it won't be logged
+        http_async_client=get_shared_llm_http_client(),  # shared pool
     )
     api_key_log = f'{api_key.get_secret_value()[:3]}*****{api_key.get_secret_value()[-2:]}'
     logger.info(

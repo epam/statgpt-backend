@@ -10,7 +10,6 @@ from sdmx.model.common import Agency, AgencyScheme, InternationalString
 from statgpt.common.data.sdmx.common.config import SdmxConfig
 from statgpt.common.data.statgpt_sdmx_proxy.config import StatGptSdmxProxyDataSourceConfig
 from statgpt.common.data.statgpt_sdmx_proxy.v30.datasource import StatGptSdmxProxyDataSourceHandler
-from statgpt.common.data.statgpt_sdmx_proxy.v30.sdmx_client import AsyncStatGptSdmxProxyClient
 from statgpt.common.schemas.data_source import Provider
 
 FIXTURE = Path(__file__).parent / "agency_schemes_response.json"
@@ -66,9 +65,8 @@ async def test_proxy_list_providers_parses_real_agency_scheme_response(
 ) -> None:
     transport = _mock_transport(FIXTURE.read_bytes())
     monkeypatch.setattr(
-        AsyncStatGptSdmxProxyClient,
-        "_create_httpx_client",
-        staticmethod(lambda *, headers=None: httpx.AsyncClient(transport=transport)),
+        "statgpt.common.data.sdmx.v21.sdmx_client.get_shared_sdmx_http_client",
+        lambda source_id, headers=None: httpx.AsyncClient(transport=transport),
     )
 
     handler = StatGptSdmxProxyDataSourceHandler(_proxy_config())
