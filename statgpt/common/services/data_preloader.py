@@ -24,7 +24,11 @@ class _DataPreloaderAuthContext(AuthContext):
         return dial_settings.api_key.get_secret_value()
 
 
-async def preload_data(allow_cached_datasets: bool, use_resolved_config: bool) -> None:
+async def preload_data(
+    allow_cached_datasets: bool,
+    use_resolved_config: bool,
+    force_refresh: bool = False,
+) -> None:
     """Preload all datasets into cache.
 
     Args:
@@ -32,6 +36,8 @@ async def preload_data(allow_cached_datasets: bool, use_resolved_config: bool) -
         use_resolved_config: If True, use resolved_config from completed versions
             (with concrete URN values). If False, use original dataset config
             (which may contain dynamic values like 'latest').
+        force_refresh: Reload datasets and replace cached entries even if they
+            are still live (used by the periodic cache refresher).
     """
     _log.info('~~~ Data preload ~~~')
 
@@ -42,6 +48,7 @@ async def preload_data(allow_cached_datasets: bool, use_resolved_config: bool) -
                 auth_context=_DataPreloaderAuthContext(),
                 allow_cached_datasets=allow_cached_datasets,
                 use_resolved_config=use_resolved_config,
+                force_refresh=force_refresh,
             )
             _log.info(f'{count} datasets preloaded')
         except Exception:

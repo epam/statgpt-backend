@@ -81,6 +81,71 @@ class TestAsyncLoadingCacheGet:
         assert loader.await_count == 2
 
 
+class TestAsyncLoadingCacheRefresh:
+
+    @pytest.mark.asyncio
+    async def test_refresh_replaces_live_entry(self) -> None:
+        cache: AsyncLoadingCache[str] = AsyncLoadingCache()
+        await cache.get("k", AsyncMock(return_value="old"))
+
+        result = await cache.refresh("k", AsyncMock(return_value="new"))
+
+        assert result == "new"
+        loader = AsyncMock(return_value="wrong")
+        assert await cache.get("k", loader) == "new"
+        loader.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_refresh_extends_expiry(self) -> None:
+        cache: AsyncLoadingCache[str] = AsyncLoadingCache(ttl=60)
+        start = time.monotonic()
+        await cache.get("k", AsyncMock(return_value="old"))
+
+        with patch.object(time, "monotonic", return_value=start + 50):
+            await cache.refresh("k", AsyncMock(return_value="new"))
+
+        # Past the original expiry (start + 60) but before the refreshed one (start + 110)
+        loader = AsyncMock(return_value="reloaded")
+        with patch.object(time, "monotonic", return_value=start + 100):
+            result = await cache.get("k", loader)
+
+        assert result == "new"
+        loader.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_concurrent_get_during_refresh_waits_and_sees_new_value(self) -> None:
+        cache: AsyncLoadingCache[str] = AsyncLoadingCache()
+        release = asyncio.Event()
+
+        async def slow_refresh_loader() -> str:
+            await release.wait()
+            return "refreshed"
+
+        refresh_task = asyncio.ensure_future(cache.refresh("k", slow_refresh_loader))
+        await asyncio.sleep(0)  # let refresh acquire the per-key lock
+
+        get_loader = AsyncMock(return_value="from-get")
+        get_task = asyncio.ensure_future(cache.get("k", get_loader))
+        await asyncio.sleep(0)  # get misses the cache and blocks on the lock
+
+        release.set()
+
+        assert await refresh_task == "refreshed"
+        assert await get_task == "refreshed"
+        get_loader.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_refresh_failure_keeps_existing_entry(self) -> None:
+        cache: AsyncLoadingCache[str] = AsyncLoadingCache()
+        await cache.get("k", AsyncMock(return_value="old"))
+
+        with pytest.raises(ValueError, match="boom"):
+            await cache.refresh("k", AsyncMock(side_effect=ValueError("boom")))
+
+        result = await cache.get("k", AsyncMock(return_value="wrong"))
+        assert result == "old"
+
+
 class TestAsyncLoadingCacheRemove:
 
     @pytest.mark.asyncio

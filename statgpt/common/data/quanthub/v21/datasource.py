@@ -1,4 +1,5 @@
 import uuid
+from collections.abc import Awaitable
 
 import httpx
 from httpx import HTTPStatusError
@@ -191,15 +192,22 @@ class QuanthubSdmx21DataSourceHandler(Sdmx21DataSourceHandler):
         auth_context: AuthContext,
         allow_offline: bool = False,
         allow_cached: bool = False,
+        force_refresh: bool = False,
     ) -> QuanthubSdmx21DataSet | SdmxOfflineDataSet:
         with debug_timer(f"QuanthubSdmx21DataSourceHandler.get_dataset: {title}"):
             if allow_cached and not self._config.auth_enabled:
                 dataset_config = self.parse_data_set_config(config)
+
+                def loader() -> Awaitable[QuanthubSdmx21DataSet | SdmxOfflineDataSet]:
+                    return self._get_dataset(
+                        entity_id, title, config, auth_context, allow_offline=allow_offline
+                    )
+
+                if force_refresh:
+                    return await self._dataset_cache.refresh(key=str(entity_id), loader=loader)
                 return await self._dataset_cache.get(
                     key=str(entity_id),
-                    loader=lambda: self._get_dataset(
-                        entity_id, title, config, auth_context, allow_offline=allow_offline
-                    ),
+                    loader=loader,
                     # NOTE: OfflineDataset may end up in the cache when allow_offline=True
                     # and loading fails. The validator rejects it on the next access,
                     # triggering a fresh load attempt (in case the upstream recovered).
