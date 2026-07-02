@@ -308,9 +308,7 @@ class SupremeAgentExecutor:
                 # Speculative run under optimistic guardrails: real tool dispatch
                 # must wait for the out-of-scope verdict to confirm the request
                 # is in scope (fake tool calls above are not gated).
-                verdict_event = inputs.get(ChainParametersConfig.OOS_VERDICT_EVENT)
-                if verdict_event is not None:
-                    await verdict_event.wait()
+                await self._await_oos_verdict(inputs)
 
                 res: list[ToolMessage] = await asyncio.gather(
                     *(tool_executor.call_tool(tool_call, inputs) for tool_call in tool_calls)
@@ -337,6 +335,11 @@ class SupremeAgentExecutor:
                     return ""
             elif response.finished:
                 if response.first_token_time is not None:
+                    # The performance stage lives on the real choice, not the
+                    # buffered speculative one, so its rows must also wait for
+                    # the verdict — otherwise a cancelled speculative run would
+                    # leave debug rows visible to the user.
+                    await self._await_oos_verdict(inputs)
                     self._log_performance(inputs, response.start_time, response.first_token_time)
 
                 if data_query_artifacts:
@@ -390,6 +393,18 @@ class SupremeAgentExecutor:
                 fake_history.add_tool_message_as_dial_message(tool_msg)
 
         return fake_history
+
+    @staticmethod
+    async def _await_oos_verdict(inputs: dict) -> None:
+        """Block until the out-of-scope verdict confirms the request is in scope.
+
+        No-op outside a speculative run (no event in ``inputs``). On an
+        out-of-scope verdict the event is never set: the orchestrator cancels
+        the agent task while it waits here, so the gated write never happens.
+        """
+        verdict_event = inputs.get(ChainParametersConfig.OOS_VERDICT_EVENT)
+        if verdict_event is not None:
+            await verdict_event.wait()
 
     @staticmethod
     def _get_tool_call_from_cfg(tool_name, fake_call: FakeCall) -> DialMessage:

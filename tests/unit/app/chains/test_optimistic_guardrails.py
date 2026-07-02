@@ -1,16 +1,28 @@
 import asyncio
+from datetime import datetime
 
 import pytest
 from aidial_sdk.chat_completion import CustomContent
 from aidial_sdk.chat_completion import Message as DialMessage
 from aidial_sdk.chat_completion import Role
+from langchain_core.messages import AIMessageChunk, ToolCall, ToolMessage
+from langchain_core.runnables import Runnable
 
 from statgpt.app.chains.main import MainChainFactory
 from statgpt.app.chains.out_of_scope_checker import OutOfScopeChecker, OutOfScopeCheckerResponse
 from statgpt.app.chains.parameters import ChainParameters
+from statgpt.app.chains.supreme_agent import (
+    SupremeAgent,
+    SupremeAgentExecutor,
+    ToolCaller,
+    _SupremeAgentResponse,
+)
 from statgpt.app.config import ChainParametersConfig, StateVarsConfig
+from statgpt.app.schemas.dial_app_configuration import StatGPTConfiguration
+from statgpt.app.settings.dial_app import dial_app_settings
 from statgpt.app.utils.message_history import History
 from statgpt.common.schemas.channel import ChannelConfig, OutOfScopeConfig, SupremeAgentConfig
+from statgpt.common.schemas.tools import DataQueryTool
 
 
 class RecordingChoice:
@@ -301,3 +313,227 @@ async def test_cmd_out_of_scope_only_stays_sequential(factory: MainChainFactory,
     assert result[ChainParametersConfig.OUT_OF_SCOPE] is True
     assert result[ChainParametersConfig.OUT_OF_SCOPE_REASONING] == "off-domain request"
     assert real_choice.log == []  # verdict only: no out-of-scope response streamed
+
+
+# ~~~ create_chain composition (DIAL_APP_OPTIMISTIC_GUARDRAILS kill switch) ~~~
+
+
+def _chain_afuncs(chain: Runnable) -> list:
+    """Async functions of the top-level steps of a RunnableSequence."""
+    return [afunc for step in chain.steps if (afunc := getattr(step, "afunc", None)) is not None]
+
+
+async def test_create_chain_composes_guarded_orchestrator_when_flag_on(
+    factory: MainChainFactory, monkeypatch
+):
+    monkeypatch.setattr(dial_app_settings, "optimistic_guardrails", True)
+
+    afuncs = _chain_afuncs(await factory.create_chain())
+
+    assert factory._guarded_main_chain in afuncs
+    # the main chain runs inside the orchestrator, not as a top-level step,
+    # and there is no sequential checker step
+    assert factory._main_chain not in afuncs
+    assert all(
+        getattr(afunc, "__func__", None) is not OutOfScopeChecker.stream_response
+        for afunc in afuncs
+    )
+
+
+async def test_create_chain_composes_sequential_checker_when_flag_off(
+    factory: MainChainFactory, monkeypatch
+):
+    monkeypatch.setattr(dial_app_settings, "optimistic_guardrails", False)
+
+    afuncs = _chain_afuncs(await factory.create_chain())
+
+    assert factory._guarded_main_chain not in afuncs
+    assert factory._main_chain in afuncs
+    assert any(
+        getattr(afunc, "__func__", None) is OutOfScopeChecker.stream_response for afunc in afuncs
+    )
+
+
+# ~~~ SupremeAgentExecutor verdict gate (real stream_response loop) ~~~
+
+
+class RecordingStage:
+    """Minimal performance-stage stand-in recording appended content."""
+
+    def __init__(self):
+        self.contents: list[str] = []
+
+    def append_content(self, content: str) -> None:
+        self.contents.append(content)
+
+
+class ScriptedSupremeAgent:
+    """LLM boundary stub: each ``run`` call returns the next scripted turn."""
+
+    def __init__(self, turns: list[_SupremeAgentResponse]):
+        self._turns = list(turns)
+        self.turns_started = 0
+
+    async def run(self, history, configuration) -> _SupremeAgentResponse:
+        self.turns_started += 1
+        return self._turns.pop(0)
+
+
+class RecordingToolCaller:
+    """Tool boundary stub recording every dispatched tool call."""
+
+    def __init__(self):
+        self.tools: list = []
+        self.calls: list[str] = []
+
+    async def call_tool(self, tool_call, inputs, show_stage=True, prefix='') -> ToolMessage:
+        self.calls.append(tool_call["name"])
+        return ToolMessage(content="tool result", tool_call_id=tool_call["id"])
+
+
+def _tool_call_turn() -> _SupremeAgentResponse:
+    now = datetime.now()
+    resp = AIMessageChunk(
+        content="",
+        tool_calls=[ToolCall(name="Data_Query", args={}, id="call-1", type="tool_call")],
+    )
+    return _SupremeAgentResponse(start_time=now, first_token_time=None, resp=resp, finished=True)
+
+
+def _final_turn() -> _SupremeAgentResponse:
+    now = datetime.now()
+    resp = AIMessageChunk(content="final answer")
+    return _SupremeAgentResponse(start_time=now, first_token_time=now, resp=resp, finished=True)
+
+
+@pytest.fixture
+def agent_channel_config(channel_config: ChannelConfig) -> ChannelConfig:
+    # stream_response requires a configured data_query tool
+    return channel_config.model_copy(
+        update={"data_query": DataQueryTool(name="Data_Query", description="Query data.")}
+    )
+
+
+def _make_executor(
+    monkeypatch, channel_config: ChannelConfig, turns: list[_SupremeAgentResponse]
+) -> tuple[SupremeAgentExecutor, RecordingToolCaller, ScriptedSupremeAgent]:
+    tool_caller = RecordingToolCaller()
+    agent = ScriptedSupremeAgent(turns)
+    monkeypatch.setattr(ToolCaller, "from_config", lambda config: tool_caller)
+    monkeypatch.setattr(SupremeAgent, "create", lambda choice, auth_context, config, tools: agent)
+    return SupremeAgentExecutor(channel_config), tool_caller, agent
+
+
+def _agent_inputs(verdict_event: asyncio.Event | None = None) -> dict:
+    inputs = {
+        ChainParametersConfig.STATE: {},
+        ChainParametersConfig.CHOICE: RecordingChoice(),
+        ChainParametersConfig.HISTORY: History([_user_message("what is GDP?")]),
+        ChainParametersConfig.AUTH_CONTEXT: object(),
+        ChainParametersConfig.CONFIGURATION: StatGPTConfiguration(),
+        ChainParametersConfig.PERFORMANCE_STAGE: RecordingStage(),
+        ChainParametersConfig.START_OF_REQUEST: datetime.now(),
+    }
+    if verdict_event is not None:
+        inputs[ChainParametersConfig.OOS_VERDICT_EVENT] = verdict_event
+    return inputs
+
+
+async def _settle() -> None:
+    """Let all currently runnable tasks progress until they block."""
+    for _ in range(20):
+        await asyncio.sleep(0)
+
+
+async def test_agent_tool_dispatch_waits_for_verdict(
+    agent_channel_config: ChannelConfig, monkeypatch
+):
+    executor, tool_caller, agent = _make_executor(
+        monkeypatch, agent_channel_config, [_tool_call_turn(), _final_turn()]
+    )
+    verdict_event = asyncio.Event()
+
+    task = asyncio.create_task(executor.stream_response(_agent_inputs(verdict_event)))
+    await _settle()
+
+    # turn 1 finished (checker slower than the agent), yet the gate holds
+    assert agent.turns_started == 1
+    assert tool_caller.calls == []
+
+    verdict_event.set()
+    result = await task
+
+    assert tool_caller.calls == ["Data_Query"]
+    assert agent.turns_started == 2
+    assert result == "final answer"
+
+
+async def test_agent_cancelled_while_gated_never_dispatches_tools(
+    agent_channel_config: ChannelConfig, monkeypatch
+):
+    executor, tool_caller, agent = _make_executor(
+        monkeypatch, agent_channel_config, [_tool_call_turn(), _final_turn()]
+    )
+    # out-of-scope verdict: the event is never set, the task gets cancelled
+    task = asyncio.create_task(executor.stream_response(_agent_inputs(asyncio.Event())))
+    await _settle()
+
+    assert agent.turns_started == 1
+    assert tool_caller.calls == []
+
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+
+    assert tool_caller.calls == []
+
+
+async def test_agent_performance_rows_wait_for_verdict(
+    agent_channel_config: ChannelConfig, monkeypatch
+):
+    executor, _, agent = _make_executor(monkeypatch, agent_channel_config, [_final_turn()])
+    verdict_event = asyncio.Event()
+    inputs = _agent_inputs(verdict_event)
+    performance_stage = inputs[ChainParametersConfig.PERFORMANCE_STAGE]
+
+    task = asyncio.create_task(executor.stream_response(inputs))
+    await _settle()
+
+    # the agent answered without tool calls; the performance stage lives on
+    # the real choice, so its rows must not appear before the verdict
+    assert agent.turns_started == 1
+    assert performance_stage.contents == []
+
+    verdict_event.set()
+    assert await task == "final answer"
+    assert performance_stage.contents  # rows written once the verdict resolved
+
+
+async def test_agent_cancelled_while_gated_writes_no_performance_rows(
+    agent_channel_config: ChannelConfig, monkeypatch
+):
+    executor, _, _ = _make_executor(monkeypatch, agent_channel_config, [_final_turn()])
+    inputs = _agent_inputs(asyncio.Event())
+    performance_stage = inputs[ChainParametersConfig.PERFORMANCE_STAGE]
+
+    task = asyncio.create_task(executor.stream_response(inputs))
+    await _settle()
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+
+    assert performance_stage.contents == []
+
+
+async def test_agent_without_verdict_event_runs_ungated(
+    agent_channel_config: ChannelConfig, monkeypatch
+):
+    executor, tool_caller, agent = _make_executor(
+        monkeypatch, agent_channel_config, [_tool_call_turn(), _final_turn()]
+    )
+
+    result = await executor.stream_response(_agent_inputs())
+
+    assert tool_caller.calls == ["Data_Query"]
+    assert agent.turns_started == 2
+    assert result == "final answer"
