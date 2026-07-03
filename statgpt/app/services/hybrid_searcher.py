@@ -1,3 +1,4 @@
+import asyncio
 import collections
 import json
 import re
@@ -277,15 +278,22 @@ class HybridSearcher:
 
             return items_dict
 
-        async def _es_get_by_id(self, _id: str) -> IndicatorIndex | None:
-            query = {"term": {"id.keyword": _id}}
-            result: SearchResult = await self._outer._indicators_index.search(query=query, size=1)
-            if len(result.hits.hits) == 0:
-                logger.warning(f"HybridMatch: cannot find by id {_id}")
-                return None
-            res_raw = result.hits.hits[0].source
-            res = IndicatorIndex.model_validate(res_raw)
-            return res
+        async def _es_get_by_ids(self, ids: list[str]) -> dict[str, IndicatorIndex]:
+            """Fetch all documents for `ids` in a single terms query (avoids N+1 ES lookups)."""
+            if not ids:
+                return {}
+            query = {"terms": {"id.keyword": ids}}
+            result: SearchResult = await self._outer._indicators_index.search(
+                query=query, size=len(ids)
+            )
+            found: dict[str, IndicatorIndex] = {}
+            for hit in result.hits.hits:
+                item = IndicatorIndex.model_validate(hit.source)
+                found[item.id] = item
+            for _id in ids:
+                if _id not in found:
+                    logger.warning(f"HybridMatch: cannot find by id {_id}")
+            return found
 
         async def _semantic_raw(
             self, user_query: str, version_ids: set[int], max_query: int
@@ -313,6 +321,15 @@ class HybridSearcher:
             semantic: PlainItemsScoredDict,
             alpha: float,
         ) -> HarmonizedItemsScoredDict:
+            missing_ids = list(
+                dict.fromkeys(
+                    _id
+                    for document in sem_raw
+                    if (_id := document.metadata['id']) in semantic and _id not in lexical
+                )
+            )
+            fetched = await self._es_get_by_ids(missing_ids)
+
             hybrid = {}
 
             for document in sem_raw:
@@ -328,7 +345,7 @@ class HybridSearcher:
                 if _id in lexical:
                     metadata = lexical[_id].metadata
                 else:
-                    metadata = await self._es_get_by_id(_id)
+                    metadata = fetched.get(_id)
 
                 if metadata is None:
                     continue
@@ -378,20 +395,34 @@ class HybridSearcher:
 
             t_total = time.perf_counter()
 
-            t_lexical = time.perf_counter()
-            lex = await self._lexical(
-                query, version_ids, max_query=search_params.max_lexical_candidates
-            )
-            timings.lexical = time.perf_counter() - t_lexical
+            async def _timed_lexical() -> HarmonizedItemsScoredDict:
+                t_lexical = time.perf_counter()
+                res = await self._lexical(
+                    query, version_ids, max_query=search_params.max_lexical_candidates
+                )
+                timings.lexical = time.perf_counter() - t_lexical
+                return res
+
+            async def _timed_semantic_raw() -> list[ScoredVectorStoreDocument]:
+                t_semantic_raw = time.perf_counter()
+                res = await self._semantic_raw(
+                    query, version_ids, max_query=search_params.max_semantic_candidates
+                )
+                timings.semantic_raw = time.perf_counter() - t_semantic_raw
+                return res
+
+            # ES and pgvector queries are independent - run them concurrently.
+            # TaskGroup (unlike bare gather) cancels the sibling query on first
+            # failure instead of leaving it running past the request's failure.
+            async with asyncio.TaskGroup() as tg:
+                lex_task = tg.create_task(_timed_lexical())
+                sem_task = tg.create_task(_timed_semantic_raw())
+            lex = lex_task.result()
+            sem_raw = sem_task.result()
+
             lex_filtered: HarmonizedItemsScoredDict = self._filer_candidates_by_availability(
                 lex, availability
             )
-
-            t_semantic_raw = time.perf_counter()
-            sem_raw: list[ScoredVectorStoreDocument] = await self._semantic_raw(
-                query, version_ids, max_query=search_params.max_semantic_candidates
-            )
-            timings.semantic_raw = time.perf_counter() - t_semantic_raw
             sem_indexed = self._semantic_result(sem_raw)
             sem_filtered: PlainItemsScoredDict = self._filer_candidates_by_availability(
                 sem_indexed, availability
