@@ -50,6 +50,36 @@ details:
     # ...
 ```
 
+### MCP Apps (UI widgets)
+
+StatGPT can advertise an [MCP App](https://github.com/modelcontextprotocol/ext-apps) UI widget for a tool, so an MCP host renders custom UI around the tool's result. This is **disabled by default** and configured per channel.
+
+The widget HTML is produced by a separate frontend service — **the backend stores no HTML**. On `resources/read`, the backend does a server-to-server GET against the frontend's internal endpoint, returns the body verbatim, and caches it for a short TTL.
+
+Two pieces of configuration are required:
+
+- `mcp.resources` — a list of resources served by the MCP server. Each entry (type `PROXIED`):
+  - `uri` — the `ui://` resource URI (required), e.g. `ui://statgpt/data-widget.html`.
+  - `origin` — a bare origin (`scheme://host[:port]`, no path/query/fragment) the widget loads its JS/CSS/fonts from; exposed to the host as `_meta.ui.csp.resourceDomains` (required). Supports `$env:{VAR}`.
+  - `html_url` — internal endpoint the backend fetches the HTML from (required). Supports `$env:{VAR}`.
+  - `cache_ttl_seconds` — TTL for the in-process HTML cache (default `60`).
+  - `mime_type` — MIME type reported for the content (default `text/html;profile=mcp-app`, the MCP Apps UI HTML type).
+- Per tool, `mcp_app_resource_uri` — binds the tool to a `uri` declared in `mcp.resources` (added to the tool's `_meta.ui.resourceUri`). Must reference a declared resource.
+
+```yaml
+details:
+  mcp:
+    resources:
+      - type: PROXIED
+        uri: "ui://statgpt/data-widget.html"
+        origin: "https://widget.statgpt.example"
+        html_url: "$env:{WIDGET_HTML_URL}"   # e.g. http://widget-internal.svc/_mcp-app/index.html
+        cache_ttl_seconds: 60
+  data_query:
+    # ...
+    mcp_app_resource_uri: "ui://statgpt/data-widget.html"
+```
+
 ### DIAL Core Configuration
 
 To expose an existing StatGPT application's tools over MCP, add an `mcp` section to its entry in DIAL Core's `applications` config. The rest of the application fields (`endpoint`, `features`, etc.) are expected to already exist.

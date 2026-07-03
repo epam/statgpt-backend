@@ -6,6 +6,7 @@ from typing import Any
 from uuid import uuid4
 
 from fastmcp.exceptions import ToolError
+from fastmcp.resources import Resource
 from fastmcp.server.dependencies import get_http_request
 from fastmcp.server.providers import Provider
 from fastmcp.tools import Tool, ToolResult
@@ -17,16 +18,21 @@ from starlette.requests import Request
 
 from statgpt.app.chains.tools import StatGptTool, ToolInputError, ToolUpstreamError
 from statgpt.app.config import ChainParametersConfig
-from statgpt.app.mcp.attachments import data_query_artifact_to_resources
+from statgpt.app.mcp.attachments import (
+    data_query_artifact_to_resources,
+    data_query_artifact_to_structured_content,
+)
+from statgpt.app.mcp.decorators import guard_channel_resolution
+from statgpt.app.mcp.exceptions import MissingDeploymentIdError
 from statgpt.app.mcp.guardrails import enforce_input_guardrail
+from statgpt.app.mcp.widget_resource import WidgetResource
 from statgpt.app.schemas.dial_app_configuration import StatGPTConfiguration
 from statgpt.app.schemas.tool_artifact import DataQueryArtifact, SdmxQueryAppArtifact
 from statgpt.app.security import DialAuthCredentials, create_auth_context
-from statgpt.app.security.exceptions import AuthenticationError, AuthorizationError
 from statgpt.app.services.chat_facade import ChannelServiceFacade
 from statgpt.app.utils.dial_stages import DummyStage, NullChoice
 from statgpt.common.auth.auth_context import AuthContext
-from statgpt.common.schemas import BaseToolConfig, ChannelConfig
+from statgpt.common.schemas import BaseToolConfig, ChannelConfig, ProxiedResourceConfig
 
 _log = logging.getLogger(__name__)
 
@@ -108,6 +114,7 @@ class _McpToolAdapter(Tool):
             # to_csv is CPU-bound and can block on large dataframes; offload to a worker thread.
             resources = await asyncio.to_thread(data_query_artifact_to_resources, result.artifact)
             content.extend(resources)
+            structured_content = data_query_artifact_to_structured_content(result.artifact)
         elif isinstance(result.artifact, SdmxQueryAppArtifact):
             # Surface the upstream HTTP metadata so the MCP-App can distinguish success from
             # error responses and know the body's media type. The raw body stays in the text
@@ -125,7 +132,7 @@ class ChannelToolProvider(Provider):
     async def _resolve_context(self, request: Request) -> tuple[AuthContext, ChannelServiceFacade]:
         deployment_id = request.path_params.get("deployment_id")
         if not deployment_id:
-            raise ValueError("Missing deployment_id in path")
+            raise MissingDeploymentIdError()
         channel_service = await ChannelServiceFacade.get_channel(deployment_id)
         auth_context = await create_auth_context(
             DialAuthCredentials.from_headers(request.headers),
@@ -153,18 +160,9 @@ class ChannelToolProvider(Provider):
             meta=tool_config.mcp_meta,
         )
 
+    @guard_channel_resolution(default=[], log_prefix="tools/list")
     async def _list_tools(self) -> Sequence[Tool]:
-        try:
-            auth_context, channel_service = await self._resolve_context(get_http_request())
-        except (AuthenticationError, AuthorizationError) as e:
-            _log.warning("Auth error resolving channel context for tools/list: %s", e)
-            return []
-        except ValueError as e:
-            _log.warning("Configuration error resolving channel context for tools/list: %s", e)
-            return []
-        except Exception:
-            _log.exception("Could not resolve channel context for tools/list")
-            return []
+        auth_context, channel_service = await self._resolve_context(get_http_request())
 
         _log.info("Resolving MCP tools list for the `%s` channel", channel_service.deployment_id)
 
@@ -179,22 +177,11 @@ class ChannelToolProvider(Provider):
                 _log.warning("Failed to create MCP tool for %s", tool_config.name, exc_info=True)
         return tools
 
+    @guard_channel_resolution(default=None, log_prefix="tools/call", detail_arg="name")
     async def _get_tool(self, name: str, version: VersionSpec | None = None) -> Tool | None:
         _log.info("%s tool is called via MCP", name)
 
-        try:
-            auth_context, channel_service = await self._resolve_context(get_http_request())
-        except (AuthenticationError, AuthorizationError) as e:
-            _log.warning("Auth error resolving channel context for tools/call (%s): %s", name, e)
-            return None
-        except ValueError as e:
-            _log.warning(
-                "Configuration error resolving channel context for tools/call (%s): %s", name, e
-            )
-            return None
-        except Exception:
-            _log.exception("Could not resolve channel context for tools/call (%s)", name)
-            return None
+        auth_context, channel_service = await self._resolve_context(get_http_request())
 
         channel_config = channel_service.channel_config
         prefix = channel_config.mcp.tool_name_prefix
@@ -206,6 +193,33 @@ class ChannelToolProvider(Provider):
         for tool_config in channel_config.tools:
             if tool_config.effective_mcp_name == name:
                 return self._create_mcp_tool(tool_config, channel_config, inputs, auth_context)
+        return None
+
+    @staticmethod
+    def _build_resource(config: ProxiedResourceConfig) -> Resource:
+        # Today only ProxiedResourceConfig exists; dispatch on type as more kinds are added.
+        return WidgetResource.from_config(config)
+
+    @guard_channel_resolution(default=[], log_prefix="resources/list")
+    async def _list_resources(self) -> Sequence[Resource]:
+        _, channel_service = await self._resolve_context(get_http_request())
+        resources: list[Resource] = []
+        for resource_config in channel_service.channel_config.mcp.resources:
+            try:
+                resources.append(self._build_resource(resource_config))
+            except Exception:
+                _log.warning(
+                    "Failed to create MCP resource for %s", resource_config.uri, exc_info=True
+                )
+        return resources
+
+    @guard_channel_resolution(default=None, log_prefix="resources/read", detail_arg="uri")
+    async def _get_resource(self, uri: str, version: VersionSpec | None = None) -> Resource | None:
+        _log.info("%s resource is requested via MCP", uri)
+        _, channel_service = await self._resolve_context(get_http_request())
+        for resource_config in channel_service.channel_config.mcp.resources:
+            if resource_config.uri == uri:
+                return self._build_resource(resource_config)
         return None
 
     async def get_tasks(self) -> Sequence[FastMCPComponent]:
