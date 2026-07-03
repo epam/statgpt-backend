@@ -1,11 +1,16 @@
-from typing import Any
+import logging
 from urllib.parse import quote
 
 from mcp.types import EmbeddedResource, TextResourceContents
 from pydantic import AnyUrl
 
+from statgpt.app.schemas.mcp import DataQueryStructuredContent, DataQueryToolsInfo
 from statgpt.app.schemas.query import AppJsonQueryWithMetadata
 from statgpt.app.schemas.tool_artifact import DataQueryArtifact
+from statgpt.app.services.python_code_generator import generate_merged_python_code
+from statgpt.common.schemas import ChannelConfig
+
+_log = logging.getLogger(__name__)
 
 
 def data_query_artifact_to_resources(
@@ -41,18 +46,31 @@ def data_query_artifact_to_resources(
 
 
 def data_query_artifact_to_structured_content(
-    artifact: DataQueryArtifact,
-) -> dict[str, Any] | None:
-    """Serialize each DataResponse's json_query as the tool's MCP structured content.
+    artifact: DataQueryArtifact, channel_config: ChannelConfig
+) -> DataQueryStructuredContent | None:
+    """Build the data query tool's MCP structured content from the artifact.
 
-    Returns a ``{"queries": [...]}`` object where each entry is an AppJsonQueryWithMetadata
-    dumped with camelCase aliases, matching the DIAL "Query (JSON)" attachment shape.
-    Returns None when no response carries a query so the provider omits structuredContent.
+    Collects each DataResponse's json_query, generates a reproducible sdmx1 snippet for
+    them, and records the companion SDMX-proxy tool name. Returns None when no response
+    carries a query so the provider omits structuredContent.
     """
-    queries: list[dict[str, Any]] = []
+    queries: list[AppJsonQueryWithMetadata] = []
     for response in artifact.data_responses.values():
         query = response.json_query
         if query is None:
             continue
-        queries.append(AppJsonQueryWithMetadata.from_common(query).model_dump(by_alias=True))
-    return {"queries": queries} if queries else None
+        queries.append(AppJsonQueryWithMetadata.from_common(query))
+    if not queries:
+        return None
+
+    try:
+        python_code = generate_merged_python_code(queries)
+    except ValueError:
+        _log.exception("Failed to generate python code for MCP structured content")
+        python_code = ""
+
+    sdmx_query_app = channel_config.sdmx_query_app
+    tools = DataQueryToolsInfo(
+        sdmx_proxy=sdmx_query_app.name if sdmx_query_app is not None else None
+    )
+    return DataQueryStructuredContent(queries=queries, python_code=python_code, tools=tools)
