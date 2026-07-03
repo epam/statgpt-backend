@@ -1,3 +1,4 @@
+import asyncio
 import json
 import logging
 import os.path
@@ -1941,17 +1942,20 @@ class AdminPortalDataSetService(DataSetService):
                     f'Finished processing version_id={channel_dataset_version_id}'
                     f' of channel_dataset_id={channel_dataset_id}'
                 )
+        except asyncio.CancelledError:
+            # background_task timeout raises CancelledError, which `except Exception` misses.
+            _log.error(f"Reindex of version_id={channel_dataset_version_id} was cancelled")
+            await asyncio.shield(
+                self._mark_channel_dataset_version_failed(
+                    channel_dataset_version_id, "Reindex cancelled (likely timed out)"
+                )
+            )
+            raise
         except Exception as e:
             _log.exception(f"Failed to reindex version_id={channel_dataset_version_id}")
-            async with self._scoped_session():
-                version = await self._get_channel_dataset_version_or_raise(
-                    channel_dataset_version_id
-                )
-                await self._update_channel_dataset_version_status(
-                    version,
-                    new_status=StatusEnum.FAILED,
-                    reason_for_failure=format_exception_reason(e),
-                )
+            await self._mark_channel_dataset_version_failed(
+                channel_dataset_version_id, format_exception_reason(e)
+            )
 
     async def clear_channel_dataset_data_in_background(self, channel_dataset_id: int) -> None:
         _log.info(f"Clear data after reindexing channel_dataset_id={channel_dataset_id}")
@@ -2494,6 +2498,28 @@ class AdminPortalDataSetService(DataSetService):
                 job, StatusEnum.COMPLETED, result=schemas.AutoUpdateResult.REINDEX_TRIGGERED
             )
 
+    async def _mark_auto_update_job_failed(self, auto_update_job_id: int, reason: str) -> None:
+        async with self._scoped_session():
+            job = await self._session.get(models.AutoUpdateJob, auto_update_job_id)
+            if job is not None and job.status not in StatusEnum.final_statuses():
+                job.status = StatusEnum.FAILED
+                job.reason_for_failure = reason
+                await self._session.commit()
+
+    async def _mark_channel_dataset_version_failed(
+        self, channel_dataset_version_id: int, reason: str
+    ) -> None:
+        async with self._scoped_session():
+            version = await self._session.get(
+                models.ChannelDatasetVersion, channel_dataset_version_id
+            )
+            if version is not None and (
+                version.preprocessing_status not in StatusEnum.final_statuses()
+            ):
+                await self._update_channel_dataset_version_status(
+                    version, new_status=StatusEnum.FAILED, reason_for_failure=reason
+                )
+
     async def process_auto_update_job(
         self,
         auto_update_job_id: int,
@@ -2632,14 +2658,18 @@ class AdminPortalDataSetService(DataSetService):
                     auth_context=auth_context,
                 )
 
+        except asyncio.CancelledError:
+            # background_task timeout raises CancelledError, which `except Exception` misses.
+            _log.error(f"Auto-update job {auto_update_job_id} was cancelled (likely timed out)")
+            await asyncio.shield(
+                self._mark_auto_update_job_failed(
+                    auto_update_job_id, "Job cancelled (likely timed out)"
+                )
+            )
+            raise
         except Exception as e:
             _log.exception(f"Failed to process auto-update job {auto_update_job_id}")
-            async with self._scoped_session():
-                job = await self._session.get(models.AutoUpdateJob, auto_update_job_id)
-                if job is not None:
-                    job.status = StatusEnum.FAILED
-                    job.reason_for_failure = format_exception_reason(e)
-                    await self._session.commit()
+            await self._mark_auto_update_job_failed(auto_update_job_id, format_exception_reason(e))
 
 
 @background_task
