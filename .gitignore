@@ -25,3 +25,5 @@ reports
 .dial
 .python-version
 .statgpt
+statgpt/mcp_lite/EXPERIMENTS.md
+statgpt/mcp_lite/eval_runs/
