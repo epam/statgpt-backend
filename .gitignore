@@ -27,3 +27,5 @@ reports
 .statgpt
 statgpt/mcp_lite/EXPERIMENTS.md
 statgpt/mcp_lite/eval_runs/
+.claude/skills/*.zip
+.claude/skills/mcp-inspector
