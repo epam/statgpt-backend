@@ -1,8 +1,10 @@
+from typing import Annotated
+
 from langchain_core.runnables import Runnable
 from mcp.types import ToolAnnotations
 from pydantic import Field
 
-from statgpt.app.chains.tools import StatGptTool, ToolArgs
+from statgpt.app.chains.tools import GuardrailInput, StatGptTool, ToolArgs
 from statgpt.app.config import ChainParametersConfig
 from statgpt.app.schemas.query_builder import DataQueryEvalAttachment, QueryBuilderAgentState
 from statgpt.app.schemas.tool_artifact import DataQueryArtifact
@@ -16,12 +18,10 @@ from .query_builder.factory import QueryBuilderFactory
 
 
 class DataQueryArgs(ToolArgs):
-    query: str = Field(
-        description="Concise data query that includes as detailed as possible information on indicators, time frame, "
-        "countries, regions and other dimensions. \n\n* Tool works best for single indicator query (e.g. "
-        "GDP, inflation), so try to send one query per indicator\n* At the same time tool works very well "
-        "with query that includes multiple values for countries, regions and other dimensions (e.g. France "
-        "and UK, Baltic countries and Poland)"
+    query: Annotated[str, GuardrailInput] = Field(
+        description="An indicator with all of its filters in plain text. "
+        "Specify all countries, dates, frequencies, datasets the user requested. "
+        "The query must reflect only what the user asked for — do not add, infer, or expand any filters."
     )
 
 

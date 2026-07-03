@@ -58,10 +58,31 @@ class DataSet(DataSetBase, DbDefaultBase, Auditable):
         return self.title
 
     def get_state_after(self) -> dict:
-        return self.model_dump(mode='json', exclude={"created_at", "updated_at", "description"})
+        return self.model_dump(
+            mode='json',
+            exclude={"created_at", "updated_at", "description", "data_source"},
+        )
 
     def get_item_id(self) -> int:
         return self.id
+
+
+class DeletedDataSet(DataSetBase, Auditable):
+    """Auditable representation of a deleted dataset."""
+
+    id: int
+
+    def get_entity_id(self) -> str:
+        return str(self.id_)
+
+    def get_entity_name(self) -> str:
+        return self.title
+
+    def get_item_id(self) -> int:
+        return self.id
+
+    def get_state_after(self) -> dict:
+        return self.model_dump(mode='json')
 
 
 class DataSetUpdateRequest(BaseModel):

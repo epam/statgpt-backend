@@ -1,10 +1,16 @@
-from pydantic import BaseModel, Field
+from collections import Counter
+from typing import Literal
+from urllib.parse import urlsplit
 
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field, field_validator, model_validator
+
+from statgpt.common.config import utils as config_utils
 from statgpt.common.settings.elastic import ElasticSearchSettings
+from statgpt.common.utils.media_types import MediaTypes
 
 from .auditable import Auditable
 from .base import BaseYamlModel, DbDefaultBase
-from .enums import ChannelIndexStatusScope, LocaleEnum
+from .enums import ChannelIndexStatusScope, LocaleEnum, McpResourceTypes, PreprocessingStatusEnum
 from .model_config import LLMModelConfig
 from .onboarding import OnboardingConfig
 from .tools import (
@@ -17,6 +23,7 @@ from .tools import (
     DatasetStructureTool,
     FileRagTool,
     PlainContentTool,
+    SdmxQueryAppTool,
     TermDefinitionsTool,
     WebSearchAgentTool,
     WebSearchTool,
@@ -53,6 +60,13 @@ class SupremeAgentConfig(BaseYamlModel):
         default="",
         description=(
             "Custom content for the 'General' section of the system prompt."
+            " If empty, the default content is used."
+        ),
+    )
+    tool_usage_section: str = Field(
+        default="",
+        description=(
+            "Custom content for the 'Tool Usage' section of the system prompt."
             " If empty, the default content is used."
         ),
     )
@@ -107,6 +121,130 @@ class OutOfScopeConfig(BaseYamlModel):
             " feature is disabled."
         ),
     )
+
+
+class McpResourceConfig(BaseYamlModel):
+    """Base config for an MCP resource exposed via the MCP server.
+
+    Subclasses add kind-specific fields; the ``type`` field discriminates between them.
+    """
+
+    type: McpResourceTypes
+    uri: str = Field(
+        description=(
+            "The resource URI exposed via MCP, e.g. 'ui://statgpt/data-widget.html'."
+            " Bound to a tool via its `mcp_app_resource_uri` so the host can preload the widget."
+        ),
+    )
+
+    @field_validator("uri")
+    @classmethod
+    def _validate_uri(cls, uri: str) -> str:
+        if not uri.startswith("ui://"):
+            raise ValueError(f"MCP resource `uri` must start with 'ui://', got {uri!r}.")
+        return uri
+
+
+class ProxiedResourceConfig(McpResourceConfig):
+    """An MCP resource whose HTML is proxied verbatim from an external HTTP endpoint.
+
+    The backend stores no HTML: on `resources/read` it does a server-to-server GET against
+    `html_url`, returns the body verbatim, and caches it for `cache_ttl_seconds`.
+    """
+
+    type: Literal[McpResourceTypes.PROXIED] = McpResourceTypes.PROXIED
+    origin_raw: str = Field(
+        validation_alias=AliasChoices("origin", "originRaw"),
+        serialization_alias="origin",
+        description=(
+            "Origin the widget HTML loads its JS/CSS/fonts from; exposed to the host as"
+            " `_meta.ui.csp.resourceDomains`. Supports $env:{VAR} syntax."
+        ),
+    )
+    html_url_raw: str = Field(
+        validation_alias=AliasChoices("html_url", "htmlUrl", "htmlUrlRaw"),
+        serialization_alias="htmlUrl",
+        description=(
+            "Internal endpoint the backend fetches the resource HTML from (server-to-server)."
+            " Supports $env:{VAR} syntax."
+        ),
+    )
+    cache_ttl_seconds: int = Field(
+        default=60,
+        ge=0,
+        description="TTL (seconds) for the in-process cache of the fetched HTML.",
+    )
+    mime_type: str = Field(
+        default=MediaTypes.HTML_MCP_APP,
+        description=(
+            "MIME type reported for the resource content. Defaults to the MCP Apps UI HTML"
+            " type 'text/html;profile=mcp-app' (ext-apps 2026-01-26)."
+        ),
+    )
+
+    def get_origin(self) -> str:
+        return config_utils.replace_env(self.origin_raw).rstrip("/")
+
+    def get_html_url(self) -> str:
+        return config_utils.replace_env(self.html_url_raw)
+
+    @model_validator(mode="after")
+    def _validate_urls(self) -> "ProxiedResourceConfig":
+        # Resolve $env:{VAR} once at config-load time so a missing var or malformed URL
+        # fails fast here instead of on every resources/read.
+        origin = self.get_origin()  # already $env-resolved and rstrip("/")
+        parts = urlsplit(origin)
+        if (
+            parts.scheme not in ("http", "https")
+            or not parts.netloc
+            or parts.path
+            or parts.query
+            or parts.fragment
+        ):
+            raise ValueError(
+                "MCP resource `origin` must be a bare origin like 'https://host[:port]'"
+                f" (no path, query, or fragment), got {origin!r}."
+            )
+        html_url = self.get_html_url()
+        if not html_url.startswith(("http://", "https://")):
+            raise ValueError(
+                "MCP resource `html_url` must start with 'http://' or 'https://',"
+                f" got {html_url!r}."
+            )
+        return self
+
+
+class McpConfig(BaseYamlModel):
+    tool_name_prefix: str = Field(
+        default="",
+        pattern=r'^[a-zA-Z0-9_\.-]*$',
+        description=(
+            "Prefix prepended to tool names exposed via MCP (e.g. 'statgpt__'). "
+            "Internal agent tool names are unaffected. Empty string disables prefixing."
+        ),
+    )
+    resources: list[ProxiedResourceConfig] = Field(
+        default_factory=list,
+        description=(
+            "MCP resources (e.g. MCP-App UI widgets) served by the MCP server."
+            " Empty (the default) disables the feature."
+        ),
+    )
+
+    @field_validator("resources")
+    @classmethod
+    def _validate_unique_uris(
+        cls, resources: list[ProxiedResourceConfig]
+    ) -> list[ProxiedResourceConfig]:
+        counts = Counter(r.uri for r in resources)
+        duplicates = {uri for uri, count in counts.items() if count > 1}
+        if duplicates:
+            raise ValueError(f"Duplicate MCP resource uri(s): {sorted(duplicates)}.")
+        return resources
+
+    @property
+    def resource_uris(self) -> set[str]:
+        return {r.uri for r in self.resources}
 
 
 class TokenUsageConfig(BaseYamlModel):
@@ -173,6 +311,7 @@ class ChannelConfig(BaseYamlModel):
         None, description="The out of scope configuration"
     )
     token_usage: TokenUsageConfig = Field(default_factory=TokenUsageConfig)
+    mcp: McpConfig = Field(default_factory=McpConfig, description="MCP server configuration")
     bearer_token_required: bool = Field(
         default=False,
         description=(
@@ -191,6 +330,7 @@ class ChannelConfig(BaseYamlModel):
     data_query: DataQueryTool | None = Field(default=None)
     file_rag: FileRagTool | None = Field(None)
     plain_content: PlainContentTool | None = Field(None)
+    sdmx_query_app: SdmxQueryAppTool | None = Field(None)
     term_definitions: TermDefinitionsTool | None = Field(None)
     web_search: WebSearchTool | None = Field(None)
     web_search_agent: WebSearchAgentTool | None = Field(None)
@@ -206,6 +346,7 @@ class ChannelConfig(BaseYamlModel):
             'data_query',
             'file_rag',
             'plain_content',
+            'sdmx_query_app',
             'term_definitions',
             'web_search',
             'web_search_agent',
@@ -219,11 +360,34 @@ class ChannelConfig(BaseYamlModel):
         tools = [tool for tool in tools if tool.enabled]
         return tools
 
+    @property
+    def agent_tools(self) -> list[BaseToolConfig]:
+        """Enabled tools visible to the Supreme Agent / LLM.
+
+        Excludes ``mcp_only`` tools, which are surfaced exclusively via the MCP server
+        (e.g. UI-initiated tool calls) and must never be exposed to the agent or any
+        agent-facing consumer (e.g. the out-of-scope checker).
+        """
+        return [tool for tool in self.tools if not tool.mcp_only]
+
     def list_named_entity_types(self) -> list[str]:
         return [
             self.country_named_entity_type,
             *self.named_entity_types,
         ]
+
+    @model_validator(mode="after")
+    def _validate_mcp_app_resource_bindings(self) -> "ChannelConfig":
+        # Every tool that binds a UI widget must reference a resource declared in mcp.resources.
+        declared = self.mcp.resource_uris
+        for tool in self.tools:
+            uri = tool.mcp_app_resource_uri
+            if uri is not None and uri not in declared:
+                raise ValueError(
+                    f"Tool {tool.name!r} binds `mcp_app_resource_uri` {uri!r}, which is not"
+                    " declared in `mcp.resources`."
+                )
+        return self
 
 
 class ChannelBase(BaseModel):
@@ -350,3 +514,28 @@ class ChannelIndexStatus(BaseModel):
     vector_store: VectorStoreStatus = Field(
         description="Vector store status information for the channel"
     )
+
+
+class DeduplicationJob(DbDefaultBase):
+    """Schema for a deduplication job record."""
+
+    model_config = ConfigDict(use_attribute_docstrings=True)
+
+    channel_id: int
+
+    status: PreprocessingStatusEnum
+    """Job execution status (QUEUED, IN_PROGRESS, COMPLETED, FAILED)."""
+
+    reason_for_failure: str | None = None
+
+    non_indicator_remapped: int | None = None
+    """Metadata rows remapped to keeper documents in the non-indicator dimensions store."""
+
+    non_indicator_deleted: int | None = None
+    """Orphaned documents deleted from the non-indicator dimensions store."""
+
+    special_remapped: int | None = None
+    """Metadata rows remapped to keeper documents in the special dimensions store."""
+
+    special_deleted: int | None = None
+    """Orphaned documents deleted from the special dimensions store."""

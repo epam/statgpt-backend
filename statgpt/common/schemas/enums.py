@@ -48,9 +48,15 @@ class ToolTypes(StrEnum):
     DATA_QUERY = "DATA_QUERY"
     FILE_RAG = "FILE_RAG"
     PLAIN_CONTENT = "PLAIN_CONTENT"
+    SDMX_QUERY_APP = "SDMX_QUERY_APP"
     TERM_DEFINITIONS = "TERM_DEFINITIONS"
     WEB_SEARCH = "WEB_SEARCH"
     WEB_SEARCH_AGENT = "WEB_SEARCH_AGENT"
+
+
+class McpResourceTypes(StrEnum):
+    PROXIED = "PROXIED"
+    """A resource whose content is proxied verbatim from an external HTTP endpoint."""
 
 
 class RAGVersion(StrEnum):

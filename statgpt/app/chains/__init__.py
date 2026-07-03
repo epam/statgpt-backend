@@ -11,4 +11,5 @@ from .file_rags import FileRagTool
 from .glossary_tools import AvailableTermsTool, TermDefinitionsTool
 from .main import MainChainFactory
 from .plain_content_tool import PlainContentTool
+from .sdmx_query_app_tool import SdmxQueryAppTool
 from .web_search import WebSearchAgentTool, WebSearchTool

@@ -1,4 +1,5 @@
-from collections.abc import Iterable
+from collections.abc import AsyncIterator, Iterable
+from contextlib import asynccontextmanager
 from typing import Any
 
 from elasticsearch import AsyncElasticsearch, helpers
@@ -208,3 +209,20 @@ class ElasticSearchFactory:
             cls._indexes[name] = index
 
         return cls._indexes[name]
+
+    @classmethod
+    async def close(cls) -> None:
+        """Close the singleton client and reset cached state. No-op if never opened."""
+        if cls._client is not None:
+            await cls._client.close()
+            cls._client = None
+            cls._indexes.clear()
+
+
+@asynccontextmanager
+async def elasticsearch_client_context() -> AsyncIterator[None]:
+    """Ensure the lazily-created Elasticsearch singleton is closed on exit."""
+    try:
+        yield
+    finally:
+        await ElasticSearchFactory.close()

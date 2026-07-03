@@ -2,11 +2,19 @@ import uuid
 import zipfile
 from abc import ABC, abstractmethod
 from collections.abc import Iterable
+from typing import NamedTuple
 
 from langchain_core.documents import Document
 
 from .document import ScoredVectorStoreDocument
 from .embeddings import EmbeddingModel
+
+
+class DedupCounts(NamedTuple):
+    """Per-call result of a deduplicate-by-document-content run."""
+
+    remapped: int
+    deleted: int
 
 
 class EmbeddinglessVectorStore(ABC):
@@ -30,8 +38,12 @@ class EmbeddinglessVectorStore(ABC):
         """Removes all documents by dataset_id or version_ids."""
 
     @abstractmethod
-    async def deduplicate_by_document_content(self) -> None:
-        """Removes and remaps duplicate documents based on document content."""
+    async def deduplicate_by_document_content(self) -> DedupCounts:
+        """Removes and remaps duplicate documents based on document content.
+
+        Returns the number of metadata rows remapped to keeper documents and the
+        number of orphaned duplicate documents that were deleted.
+        """
 
     @abstractmethod
     async def has_duplicates(self) -> tuple[bool, int]:

@@ -289,6 +289,39 @@ class DatasetsMetadataDetails(OneShotToolDetails):
     )
 
 
+class SdmxQueryAppDetails(BaseToolDetails):
+    base_url_raw: str = Field(
+        validation_alias=AliasChoices("base_url", "baseUrl"),
+        serialization_alias="baseUrl",
+        description=(
+            "Trusted base URL prefix prepended to every caller-provided path "
+            "(e.g. an SDMX query application or proxy passthrough endpoint). The caller "
+            "cannot specify a domain, so the tool can only reach this configured host. "
+            "Supports $env:{VAR} syntax."
+        ),
+    )
+
+    def get_base_url(self) -> str:
+        return config_utils.replace_env(self.base_url_raw).rstrip("/")
+
+    @model_validator(mode="after")
+    def _validate_base_url(self) -> "SdmxQueryAppDetails":
+        # Resolve and validate the base URL once at config-load time, so a missing
+        # env var or a malformed URL fails fast here instead of on every request.
+        try:
+            base_url = self.get_base_url()
+        except ValueError as e:
+            raise ValueError(f"Could not resolve SDMX query app `base_url`: {e}") from e
+        if not base_url:
+            raise ValueError("SDMX query app `base_url` resolved to an empty value.")
+        if not base_url.startswith(("http://", "https://")):
+            raise ValueError(
+                "SDMX query app `base_url` must start with 'http://' or 'https://',"
+                f" got {base_url!r}."
+            )
+        return self
+
+
 class AvailableTermsDetails(BaseToolDetails):
     include_domain: bool = Field(
         default=False, description="Whether to include the domain of each term in the output"

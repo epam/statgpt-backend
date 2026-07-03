@@ -1,12 +1,12 @@
 import re
 from enum import StrEnum
-from typing import Any
+from typing import Annotated, Any
 
 from mcp.types import ToolAnnotations
 from pydantic import Field, create_model
 
 from statgpt.app.chains.parameters import ChainParameters
-from statgpt.app.chains.tools import StatGptTool, ToolArgs
+from statgpt.app.chains.tools import GuardrailInput, StatGptTool, ToolArgs
 from statgpt.app.schemas import ToolArtifact, ToolMessageState
 from statgpt.common.config import multiline_logger as logger
 from statgpt.common.schemas import ChannelConfig, ToolTypes
@@ -16,7 +16,7 @@ from .response_producer import RagResponseProducer, ResponseProducerABC, UrlOnly
 
 
 class BaseWebSearchArgs(ToolArgs):
-    query: str = Field(
+    query: Annotated[str, GuardrailInput] = Field(
         description=(
             "Natural language query optimized for ai web search."
             " The value of this field cannot include the `site:<domain>` operator,"

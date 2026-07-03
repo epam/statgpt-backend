@@ -1,3 +1,4 @@
+import asyncio
 import json
 import logging
 import os.path
@@ -10,14 +11,15 @@ from typing import Any, NamedTuple
 import yaml
 from fastapi import BackgroundTasks, HTTPException, status
 from pydantic import ValidationError
+from sqlalchemy import delete
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
-from sqlalchemy.sql.expression import func, select, text, update
+from sqlalchemy.sql.expression import func, select
 
 import statgpt.common.models as models
 import statgpt.common.schemas as schemas
 from statgpt.admin.audit.decorators import audit_action
-from statgpt.admin.auth.auth_context import SystemUserAuthContext
+from statgpt.admin.audit.service import AuditService
 from statgpt.admin.settings.exim import ExImSettings, JobsConfig
 from statgpt.common import utils
 from statgpt.common.auth.auth_context import AuthContext
@@ -44,13 +46,15 @@ from statgpt.common.settings.document import (
     IndicatorDocumentMetadataFields,
     SpecialDimensionValueDocumentMetadataFields,
 )
-from statgpt.common.utils import async_utils, crc32_hash_incremental_async
+from statgpt.common.utils import async_utils, crc32_hash_incremental_async, format_exception_reason
 from statgpt.common.utils.elastic import ElasticIndex, ElasticSearchFactory, SearchResult
 from statgpt.common.vectorstore import EmbeddinglessVectorStore, VectorStore, VectorStoreFactory
 
 from .background_tasks import background_task
 from .channel import AdminPortalChannelService as ChannelService
 from .data_source import AdminPortalDataSourceService as DataSourceService
+from .exceptions import BlockingDataset, DatasetInUseError
+from .status_recovery import set_failed_status
 
 _log = logging.getLogger(__name__)
 
@@ -708,29 +712,89 @@ class AdminPortalDataSetService(DataSetService):
             channel_results=channel_results,
         )
 
-    @audit_action(entity_type=AuditEntityType.DATASET, action_type=AuditActionType.DELETE)
-    async def delete(self, item_id: int) -> schemas.DataSet:
-        deleted_item = await self.get_schema_by_id(
-            item_id,
-            auth_context=SystemUserAuthContext(),
-            allow_offline=True,
-        )
-        item = await self.get_model_by_id(item_id)
+    async def _validate_datasets_deletable(self, items: list[models.DataSet]) -> None:
+        if not items:
+            return
 
-        count = await self.get_channel_datasets_count(dataset_id=item.id)
-        if count > 0:
-            _log.warning(
-                f"The dataset(id={item_id}) is used in {count} channels, therefore it cannot be deleted."
+        dataset_ids = [item.id for item in items]
+        query = (
+            select(models.ChannelDataset.dataset_id, func.count())
+            .where(models.ChannelDataset.dataset_id.in_(dataset_ids))
+            .group_by(models.ChannelDataset.dataset_id)
+        )
+        in_use = (await self._session.execute(query)).all()
+        if not in_use:
+            return
+
+        datasets_by_id = {item.id: item for item in items}
+        blocking = sorted(
+            (
+                BlockingDataset(
+                    dataset_id=dataset_id,
+                    dataset_title=datasets_by_id[dataset_id].title,
+                    channel_count=count,
+                )
+                for dataset_id, count in in_use
+            ),
+            key=lambda ds: ds.dataset_title,
+        )
+        details = ", ".join(f"id={ds.dataset_id} ({ds.channels_label})" for ds in blocking)
+        _log.warning(f"Cannot delete dataset(s) used in channels: {details}")
+        raise DatasetInUseError(blocking)
+
+    @staticmethod
+    def _deleted_schema_from_model(item: models.DataSet) -> schemas.DeletedDataSet:
+        return schemas.DeletedDataSet(
+            id=item.id,
+            id_=item.id_,
+            title=item.title,
+            data_source_id=item.source_id,
+            details=item.details,
+        )
+
+    async def _delete_datasets(self, datasets: Iterable[models.DataSet]) -> None:
+        items = list(datasets)
+        if not items:
+            return
+
+        async def _do_delete() -> None:
+            await self._validate_datasets_deletable(items)
+            for item in items:
+                _log.info(f"Deleting dataset(id={item.id}): {item.title!r}")
+
+            deleted = [self._deleted_schema_from_model(item) for item in items]
+            await self._session.execute(
+                delete(models.DataSet).where(models.DataSet.id.in_([item.id for item in items]))
             )
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail=(
-                    f"Cannot delete dataset that is used in at least one channel."
-                    f" Currently {count} channels are using this dataset."
-                ),
+            await self._session.flush()
+            AuditService(self._session).persist_batch(
+                entity_type=AuditEntityType.DATASET,
+                action_type=AuditActionType.DELETE,
+                items=deleted,
             )
+
+        if self._session.in_transaction():
+            await _do_delete()
+            return
+
+        async with self._session.begin():
+            await _do_delete()
+
+    async def delete_datasets_by_source_id(self, source_id: int) -> None:
+        datasets = await self.get_datasets_models(
+            limit=None,
+            offset=0,
+            source_id=source_id,
+        )
+        await self._delete_datasets(datasets)
+
+    @audit_action(entity_type=AuditEntityType.DATASET, action_type=AuditActionType.DELETE)
+    async def delete(self, item_id: int) -> schemas.DeletedDataSet:
+        item = await self.get_model_by_id(item_id)
+        await self._validate_datasets_deletable([item])
 
         _log.info(f"Deleting dataset(id={item.id}): {item.title!r}")
+        deleted_item = self._deleted_schema_from_model(item)
         await self._session.delete(item)
         await self._session.flush()
         return deleted_item
@@ -998,10 +1062,8 @@ class AdminPortalDataSetService(DataSetService):
             channel.special_dimensions_table_name,
             channel.non_indicator_dimensions_table_name,
         ]
-        for collection_name in collections:
-            vector_store = await vector_store_factory.get_embeddingless_vector_store(
-                collection_name=collection_name,
-            )
+        for col in collections:
+            vector_store = await vector_store_factory.get_embeddingless_vector_store(col)
             await vector_store.remove_documents_by(dataset_id=dataset_id, version_ids=version_ids)
 
     @staticmethod
@@ -1305,47 +1367,10 @@ class AdminPortalDataSetService(DataSetService):
         else:
             _log.info("No versions to clear data for.")
 
-    async def _set_failed_status(
-        self,
-        model: Any,
-        status_column: Any,
-        status_field_name: str,
-    ) -> int:
-        """Sets the status of all stuck records to FAILED for the given model.
-
-        Returns:
-             the number of updated rows.
-        """
-        table_name = model.__tablename__
-
-        _log.info(f"Setting FAILED status for all non-completed {table_name}...")
-
-        query = (
-            update(model)
-            .where(
-                status_column.notin_(StatusEnum.final_statuses()),
-                model.updated_at < text("NOW() - INTERVAL '12 hours'"),
-            )
-            .values(
-                **{status_field_name: StatusEnum.FAILED},
-                reason_for_failure=func.coalesce(
-                    model.reason_for_failure,  # type: ignore[attr-defined]
-                    "Stuck in a non-final status with no recorded failure reason."
-                    " Marked as FAILED by fix_statuses script.",
-                ),
-                updated_at=func.now(),
-            )
-        )
-
-        result = await self._session.execute(query)
-        row_count: int = result.rowcount  # type: ignore[attr-defined]
-
-        _log.info(f"Updated {row_count} {table_name} record(s) to FAILED status")
-        return row_count
-
     async def set_failed_status_for_channel_dataset_version(self) -> None:
         """Sets the status of all not-completed channel dataset versions to FAILED."""
-        await self._set_failed_status(
+        await set_failed_status(
+            self._session,
             models.ChannelDatasetVersion,
             models.ChannelDatasetVersion.preprocessing_status,
             "preprocessing_status",
@@ -1354,7 +1379,8 @@ class AdminPortalDataSetService(DataSetService):
 
     async def set_failed_status_for_stuck_jobs(self) -> None:
         """Sets the status of all stuck Job records to FAILED."""
-        await self._set_failed_status(
+        await set_failed_status(
+            self._session,
             models.Job,
             models.Job.status,
             "status",
@@ -1363,7 +1389,8 @@ class AdminPortalDataSetService(DataSetService):
 
     async def set_failed_status_for_stuck_auto_update_jobs(self) -> None:
         """Sets the status of all stuck AutoUpdateJob records to FAILED."""
-        await self._set_failed_status(
+        await set_failed_status(
+            self._session,
             models.AutoUpdateJob,
             models.AutoUpdateJob.status,
             "status",
@@ -1915,15 +1942,20 @@ class AdminPortalDataSetService(DataSetService):
                     f'Finished processing version_id={channel_dataset_version_id}'
                     f' of channel_dataset_id={channel_dataset_id}'
                 )
+        except asyncio.CancelledError:
+            # background_task timeout raises CancelledError, which `except Exception` misses.
+            _log.error(f"Reindex of version_id={channel_dataset_version_id} was cancelled")
+            await asyncio.shield(
+                self._mark_channel_dataset_version_failed(
+                    channel_dataset_version_id, "Reindex cancelled (likely timed out)"
+                )
+            )
+            raise
         except Exception as e:
             _log.exception(f"Failed to reindex version_id={channel_dataset_version_id}")
-            async with self._scoped_session():
-                version = await self._get_channel_dataset_version_or_raise(
-                    channel_dataset_version_id
-                )
-                await self._update_channel_dataset_version_status(
-                    version, new_status=StatusEnum.FAILED, reason_for_failure=str(e)
-                )
+            await self._mark_channel_dataset_version_failed(
+                channel_dataset_version_id, format_exception_reason(e)
+            )
 
     async def clear_channel_dataset_data_in_background(self, channel_dataset_id: int) -> None:
         _log.info(f"Clear data after reindexing channel_dataset_id={channel_dataset_id}")
@@ -1947,9 +1979,7 @@ class AdminPortalDataSetService(DataSetService):
             # Phase B: Vector store + elastic clearing — no DB session held
             if versions_to_clear:
                 await self._clear_channel_dataset_data(
-                    channel,
-                    dataset_id=None,
-                    version_ids=versions_to_clear,
+                    channel, dataset_id=None, version_ids=versions_to_clear
                 )
             else:
                 _log.info("No versions to clear data for.")
@@ -2460,15 +2490,35 @@ class AdminPortalDataSetService(DataSetService):
                 max_n_embeddings=None,
             )
 
-        await self.clear_channel_dataset_data_in_background(
-            channel_dataset_id=params.channel_dataset_id,
-        )
+        await self.clear_channel_dataset_data_in_background(params.channel_dataset_id)
 
         async with self._scoped_session():
             job = await self._get_auto_update_job_or_raise(auto_update_job_id)
             await self._set_auto_update_job_status(
                 job, StatusEnum.COMPLETED, result=schemas.AutoUpdateResult.REINDEX_TRIGGERED
             )
+
+    async def _mark_auto_update_job_failed(self, auto_update_job_id: int, reason: str) -> None:
+        async with self._scoped_session():
+            job = await self._session.get(models.AutoUpdateJob, auto_update_job_id)
+            if job is not None and job.status not in StatusEnum.final_statuses():
+                job.status = StatusEnum.FAILED
+                job.reason_for_failure = reason
+                await self._session.commit()
+
+    async def _mark_channel_dataset_version_failed(
+        self, channel_dataset_version_id: int, reason: str
+    ) -> None:
+        async with self._scoped_session():
+            version = await self._session.get(
+                models.ChannelDatasetVersion, channel_dataset_version_id
+            )
+            if version is not None and (
+                version.preprocessing_status not in StatusEnum.final_statuses()
+            ):
+                await self._update_channel_dataset_version_status(
+                    version, new_status=StatusEnum.FAILED, reason_for_failure=reason
+                )
 
     async def process_auto_update_job(
         self,
@@ -2608,14 +2658,18 @@ class AdminPortalDataSetService(DataSetService):
                     auth_context=auth_context,
                 )
 
+        except asyncio.CancelledError:
+            # background_task timeout raises CancelledError, which `except Exception` misses.
+            _log.error(f"Auto-update job {auto_update_job_id} was cancelled (likely timed out)")
+            await asyncio.shield(
+                self._mark_auto_update_job_failed(
+                    auto_update_job_id, "Job cancelled (likely timed out)"
+                )
+            )
+            raise
         except Exception as e:
             _log.exception(f"Failed to process auto-update job {auto_update_job_id}")
-            async with self._scoped_session():
-                job = await self._session.get(models.AutoUpdateJob, auto_update_job_id)
-                if job is not None:
-                    job.status = StatusEnum.FAILED
-                    job.reason_for_failure = str(e)
-                    await self._session.commit()
+            await self._mark_auto_update_job_failed(auto_update_job_id, format_exception_reason(e))
 
 
 @background_task
@@ -2665,8 +2719,6 @@ async def reload_indicators_in_background_task(
 async def clear_channel_dataset_data_in_background_task(channel_dataset_id: int) -> None:
     try:
         service = AdminPortalDataSetService()
-        await service.clear_channel_dataset_data_in_background(
-            channel_dataset_id=channel_dataset_id,
-        )
+        await service.clear_channel_dataset_data_in_background(channel_dataset_id)
     except Exception as e:
         _log.exception(e)

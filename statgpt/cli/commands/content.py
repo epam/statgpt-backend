@@ -4,6 +4,7 @@ import os
 from collections import defaultdict
 from typing import Any
 
+from pydantic import ValidationError
 from rich.panel import Panel
 
 from statgpt.cli.commands.base import Command, CommandArg, CommandGroup
@@ -21,14 +22,18 @@ from statgpt.cli.shared import (
     select_datasets_interactive,
 )
 from statgpt.common import utils
+from statgpt.common.data import DataManager
 from statgpt.common.data.sdmx.common import UrnReference
 from statgpt.common.schemas import (
     Channel,
+    ChannelBase,
     ChannelDatasetExpanded,
     ChannelDatasetUpdateResult,
     ChannelDatasetUpdateStatus,
     DataSet,
+    DataSetBase,
     DataSource,
+    DataSourceBase,
     GlossaryTerm,
 )
 from statgpt.common.utils import dial_core_factory
@@ -334,6 +339,81 @@ def _get_mime_type(filename: str) -> str:
     return "application/octet-stream"
 
 
+def _warn_change_detection_skipped(entity_type: str, entity_id: str, exc: Exception) -> None:
+    print_warning(
+        f"  Change detection skipped for {entity_type} '{entity_id}' " f"(assuming changed): {exc}"
+    )
+
+
+def _channel_changed(incoming_cfg: dict[str, Any], existing: Channel) -> bool:
+    """Return True if channel config differs from what is stored."""
+    deployment_id = incoming_cfg.get('deployment_id') or existing.deployment_id
+    try:
+        incoming = ChannelBase.model_validate(incoming_cfg)
+        stored = ChannelBase.model_validate(existing.model_dump(mode='json', by_alias=True))
+        return incoming != stored
+    except (ValidationError, KeyError, AttributeError) as exc:
+        _warn_change_detection_skipped('channel', deployment_id, exc)
+        return True
+
+
+def _data_source_changed(incoming_cfg: dict[str, Any], existing: DataSource) -> bool:
+    """Return True if data source config differs from what is stored."""
+    if 'details' not in incoming_cfg:
+        title = incoming_cfg.get('title', existing.title)
+        raise ValueError(f"Data source '{title}' is missing required 'details' configuration")
+
+    try:
+        config_class = DataManager.get_config_class(existing.type.name)
+        incoming_details = incoming_cfg['details']
+        normalized_details = config_class.model_validate(incoming_details).model_dump(
+            mode='json',
+            by_alias=True,
+        )
+        incoming = DataSourceBase.model_validate({**incoming_cfg, 'details': normalized_details})
+        stored = DataSourceBase.model_validate(existing.model_dump(mode='json', by_alias=True))
+        return incoming != stored
+    except (ValidationError, KeyError, AttributeError) as exc:
+        title = incoming_cfg.get('title') or existing.title
+        _warn_change_detection_skipped('data source', title, exc)
+        return True
+
+
+def _dataset_changed(
+    incoming_cfg: dict[str, Any],
+    existing: DataSet,
+    data_source: DataSource | None,
+) -> bool:
+    """Return True if dataset config differs from what is stored."""
+    dataset_id = incoming_cfg.get('id_') or existing.id_
+    try:
+        incoming_details = incoming_cfg.get('details', existing.details)
+        if data_source is not None:
+            handler_class = DataManager.get_data_source_handler_class(data_source.type.name)
+            parsed_config = handler_class.parse_data_set_config(incoming_details)
+            normalized_details = parsed_config.model_dump(mode='json', by_alias=True)
+            # When the data source manages the title automatically, skip title comparison
+            # to avoid an update loop (CLI sets YAML title → source restores its own title).
+            use_title_from_src = parsed_config.model_dump().get('use_title_from_src', False)
+        else:
+            normalized_details = incoming_details
+            use_title_from_src = False
+        exclude_fields = {'title'} if use_title_from_src else set()
+        normalized = DataSetBase.model_validate({**incoming_cfg, 'details': normalized_details})
+        incoming_dump = normalized.model_dump(
+            mode='json',
+            by_alias=True,
+            exclude=exclude_fields,
+        )
+        existing_dump = DataSetBase.model_validate(
+            existing.model_dump(mode='json', by_alias=True)
+        ).model_dump(mode='json', by_alias=True, exclude=exclude_fields)
+        return incoming_dump != existing_dump
+    except (ValidationError, KeyError, AttributeError) as exc:
+        _warn_change_detection_skipped('dataset', str(dataset_id), exc)
+        return True
+
+
 async def _process_channels(
     client: AdminClient,
     channel_cfg: dict[str, Any],
@@ -356,9 +436,13 @@ async def _process_channels(
         _add_onboarding_to_channel(ch_cfg, onboarding_cfg)
 
         if deployment_id in existing:
-            # Update existing channel
-            channel = await client.update_channel(existing[deployment_id].id, ch_cfg)
-            print_info(f"  Updated channel: {deployment_id}")
+            existing_ch = existing[deployment_id]
+            if _channel_changed(ch_cfg, existing_ch):
+                channel = await client.update_channel(existing_ch.id, ch_cfg)
+                print_info(f"  Updated channel: {deployment_id}")
+            else:
+                channel = existing_ch
+                print_info(f"  Channel unchanged: {deployment_id}")
         else:
             # Create new channel
             channel = await client.create_channel(ch_cfg)
@@ -389,7 +473,7 @@ def _add_tools_to_channel(ch_cfg: dict[str, Any], tools_cfg: dict[str, Any]) -> 
 
         tool_type = tool["type"]
         ch_cfg["details"][tool_type] = {
-            k: v for k, v in tool.items() if k in ("name", "description", "details")
+            k: v for k, v in tool.items() if k not in ["channels", "type"]
         }
 
 
@@ -466,8 +550,13 @@ async def _process_data_sources(
             ds_cfg["type_id"] = ds_types.get(type_name)
 
         if title in existing:
-            ds = await client.update_data_source(existing[title].id, ds_cfg)
-            print_info(f"  Updated data source: {title}")
+            existing_ds = existing[title]
+            if _data_source_changed(ds_cfg, existing_ds):
+                ds = await client.update_data_source(existing_ds.id, ds_cfg)
+                print_info(f"  Updated data source: {title}")
+            else:
+                ds = existing_ds
+                print_info(f"  Data source unchanged: {title}")
         else:
             ds = await client.create_data_source(ds_cfg)
             print_info(f"  Created data source: {title}")
@@ -550,17 +639,23 @@ async def _process_datasets(
         dataset_id_str = ds_cfg.get("id_")
 
         if dataset_id_str and dataset_id_str in existing_datasets:
-            response = await client.update_dataset(existing_datasets[dataset_id_str].id, ds_cfg)
-            dataset = response.dataset
-            print_info(f"  Updated dataset: {urn}")
+            existing_dataset = existing_datasets[dataset_id_str]
+            linked_ds = data_sources.get(ds_name) if ds_name else None
+            if _dataset_changed(ds_cfg, existing_dataset, linked_ds):
+                response = await client.update_dataset(existing_dataset.id, ds_cfg)
+                dataset = response.dataset
+                print_info(f"  Updated dataset: {urn}")
 
-            # Display channel datasets update results
-            _display_channel_results(response.channel_results)
+                # Display channel datasets update results
+                _display_channel_results(response.channel_results)
 
-            # Collect datasets needing reindex for summary
-            for r in response.channel_results:
-                if r.status == ChannelDatasetUpdateStatus.NEEDS_REINDEX:
-                    datasets_needing_reindex[r.channel.deployment_id].append(urn or "None")
+                # Collect datasets needing reindex for summary
+                for r in response.channel_results:
+                    if r.status == ChannelDatasetUpdateStatus.NEEDS_REINDEX:
+                        datasets_needing_reindex[r.channel.deployment_id].append(urn or "None")
+            else:
+                dataset = existing_dataset
+                print_info(f"  Dataset unchanged: {urn}")
         else:
             dataset = await client.create_dataset(ds_cfg)
             print_info(f"  Created dataset: {urn}")
