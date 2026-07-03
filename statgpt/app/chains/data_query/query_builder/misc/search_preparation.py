@@ -148,17 +148,33 @@ class SearchPreparationChainFactory:
         )
 
         chain = (
-            RunnablePassthrough.assign(
-                versioned_datasets_dict=dataset_utils.get_available_datasets,
-            )
             # # unpack country groups in the user prompt
-            # | RunnablePassthrough.assign(
+            # # NOTE: if re-enabled, it must precede the merged assign below,
+            # # since its output feeds the normalization chain
+            # RunnablePassthrough.assign(
             #     query_with_expanded_groups=self._group_expander_chain.create_chain,
             # )
-            # normalize (summarize) conversation
-            | RunnablePassthrough.assign(
+            # load available datasets, normalize (summarize) conversation and extract time range
+            # in parallel: each consumes only the raw tool input.
+            # NOTE: both StageCallbacks below are bound to this single merged run, so each
+            # stage's displayed duration spans the whole parallel step, and a failure in any
+            # branch closes both stages as FAILED. Sibling branches are not cancelled on
+            # failure (RunnableParallel gathers without cancellation) — accepted trade-offs
+            # of merging the head; see the performance plan for details.
+            RunnablePassthrough.assign(
+                versioned_datasets_dict=dataset_utils.get_available_datasets,
                 normalized_query=self._normalization_chain.create_chain,
-            ).with_config(config=RunnableConfig(callbacks=[normalizing_query_stage_callback]))
+                date_time_query_response=self._datetime_chain.create_chain,
+            ).with_config(
+                config=RunnableConfig(
+                    callbacks=[
+                        normalizing_query_stage_callback,
+                        StageCallback(
+                            "Extracting Time Range", self._populate_datetime, debug_only=True
+                        ),
+                    ]
+                )
+            )
             # save 'normalized_query' to separate variable, since it will be overwritten later
             | RunnablePassthrough.assign(normalized_query_raw=lambda d: d["normalized_query"])
             | (
@@ -180,20 +196,10 @@ class SearchPreparationChainFactory:
                     ]
                 )
             )
-            # extract named entities and time range
+            # extract named entities from the rewritten normalized query
             | RunnablePassthrough.assign(
                 named_entities_response=self._named_entities_chain.create_chain,
-                date_time_query_response=self._datetime_chain.create_chain,
-            ).with_config(
-                config=RunnableConfig(
-                    callbacks=[
-                        named_entities_stage_callback,
-                        StageCallback(
-                            "Extracting Time Range", self._populate_datetime, debug_only=True
-                        ),
-                    ]
-                )
-            )
+            ).with_config(config=RunnableConfig(callbacks=[named_entities_stage_callback]))
             | RunnablePassthrough.assign(
                 country_named_entities=self._get_country_named_entities,
             )
