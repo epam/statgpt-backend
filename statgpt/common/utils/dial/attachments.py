@@ -96,13 +96,15 @@ class AttachmentsStorage:
         if not bucket:
             bucket = await resolve_bucket(self._dial)
 
-        url = f"files/{bucket}/{folder}"
+        url = f"files/{bucket}/{folder}/"
         files: list[AttachmentResponse] = []
         token: str | None = None
 
         while True:
             try:
-                metadata = await self._dial.files.get_metadata(url, limit=100, token=token)
+                metadata = await self._dial.files.metadata.get(
+                    resource="files", relative_url=url, limit=100, token=token
+                )
             except DialException as e:
                 if e.status_code == HTTPStatus.NOT_FOUND:
                     return files
@@ -131,8 +133,9 @@ class AttachmentsStorage:
     ) -> AttachmentResponse:
         if not bucket:
             bucket = await resolve_bucket(self._dial)
+        data = content.getvalue() if isinstance(content, BytesIO) else content
         metadata = await self._dial.files.upload(
-            f"files/{bucket}/{name}", file=(name, content, mime_type)
+            f"files/{bucket}/{name}", file=(name, data, mime_type)
         )
         return AttachmentResponse.from_file_metadata(metadata)
 
@@ -142,10 +145,10 @@ class AttachmentsStorage:
         if not bucket:
             bucket = await resolve_bucket(self._dial)
         if show_progress:
-            content: BytesIO | bytes = await _read_file_with_progress(path)
+            content = (await _read_file_with_progress(path)).getvalue()
         else:
             async with aiofiles.open(path, 'rb') as f:
-                content = BytesIO(await f.read())
+                content = await f.read()
         metadata = await self._dial.files.upload(
             f"files/{bucket}/{name}", file=(name, content, "application/octet-stream")
         )

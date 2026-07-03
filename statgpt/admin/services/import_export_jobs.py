@@ -203,7 +203,7 @@ class JobsService:
                 resp = await attachments_storage.put_file(
                     f"{JobsConfig.DIAL_IMPORT_FOLDER}/{file_name}",
                     mime_type=file.content_type,
-                    content=file.file,  # type: ignore
+                    content=await file.read(),
                 )
                 job.file = resp.url
 
