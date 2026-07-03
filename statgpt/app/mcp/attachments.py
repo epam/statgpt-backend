@@ -1,4 +1,3 @@
-import logging
 from urllib.parse import quote
 
 from mcp.types import EmbeddedResource, TextResourceContents
@@ -9,8 +8,6 @@ from statgpt.app.schemas.query import AppJsonQueryWithMetadata
 from statgpt.app.schemas.tool_artifact import DataQueryArtifact
 from statgpt.app.services.python_code_generator import generate_merged_python_code
 from statgpt.common.schemas import ChannelConfig
-
-_log = logging.getLogger(__name__)
 
 
 def data_query_artifact_to_resources(
@@ -63,12 +60,7 @@ def data_query_artifact_to_structured_content(
     if not queries:
         return None
 
-    try:
-        python_code = generate_merged_python_code(queries)
-    except ValueError:
-        _log.exception("Failed to generate python code for MCP structured content")
-        python_code = ""
-
+    python_code = generate_merged_python_code(queries)
     sdmx_query_app = channel_config.sdmx_query_app
     tools = DataQueryToolsInfo(
         sdmx_proxy=sdmx_query_app.name if sdmx_query_app is not None else None
