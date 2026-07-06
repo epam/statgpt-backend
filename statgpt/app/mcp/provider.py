@@ -126,6 +126,12 @@ class _McpToolAdapter(Tool):
                 status_code=result.artifact.status_code,
                 content_type=result.artifact.content_type,
             )
+        _log.info(
+            "Sending MCP tool %s response: %d content block(s), structured_content=%s",
+            self._langchain_tool.name,
+            len(content),
+            type(structured_content).__name__ if structured_content else None,
+        )
         return ToolResult(content=content, structured_content=structured_content)
 
 
@@ -190,12 +196,20 @@ class ChannelToolProvider(Provider):
         prefix = channel_config.mcp.tool_name_prefix
         if prefix:
             if not name.startswith(prefix):
+                _log.warning(
+                    "MCP tool %s not found: name does not start with the `%s` prefix",
+                    name,
+                    prefix,
+                )
                 return None
             name = name.removeprefix(prefix)
         inputs = _build_mcp_inputs(auth_context, channel_service)
         for tool_config in channel_config.tools:
             if tool_config.effective_mcp_name == name:
                 return self._create_mcp_tool(tool_config, channel_config, inputs, auth_context)
+        _log.warning(
+            "MCP tool %s not found in the `%s` channel", name, channel_service.deployment_id
+        )
         return None
 
     @staticmethod
@@ -223,6 +237,9 @@ class ChannelToolProvider(Provider):
         for resource_config in channel_service.channel_config.mcp.resources:
             if resource_config.uri == uri:
                 return self._build_resource(resource_config)
+        _log.warning(
+            "MCP resource %s not found in the `%s` channel", uri, channel_service.deployment_id
+        )
         return None
 
     async def get_tasks(self) -> Sequence[FastMCPComponent]:
