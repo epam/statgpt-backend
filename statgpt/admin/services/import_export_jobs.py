@@ -197,15 +197,21 @@ class JobsService:
             file_type = file.filename.split(".")[-1]
             file_name = f"job-{job.id}.{file_type}"
 
-            async with attachments_storage_factory(
-                api_key=auth_context.api_key
-            ) as attachments_storage:
-                resp = await attachments_storage.put_file(
-                    f"{JobsConfig.DIAL_IMPORT_FOLDER}/{file_name}",
-                    mime_type=file.content_type,
-                    content=await file.read(),
-                )
-                job.file = resp.url
+            with tempfile.TemporaryDirectory() as tmp_dir:
+                tmp_path = os.path.join(tmp_dir, file_name)
+                await file.seek(0)
+                with open(tmp_path, "wb") as out:
+                    while chunk := await file.read(1024 * 1024):
+                        out.write(chunk)
+
+                async with attachments_storage_factory(
+                    api_key=auth_context.api_key
+                ) as attachments_storage:
+                    resp = await attachments_storage.put_local_file(
+                        f"{JobsConfig.DIAL_IMPORT_FOLDER}/{file_name}",
+                        tmp_path,
+                    )
+                    job.file = resp.url
 
             _log.info(
                 f"Creating import job with args: {clean_up=}, {update_datasets=}, {update_data_sources=}"

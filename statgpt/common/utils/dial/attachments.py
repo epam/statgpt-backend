@@ -5,10 +5,9 @@ import uuid
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from http import HTTPStatus
-from io import BytesIO
+from io import BufferedReader, BytesIO, FileIO
 from typing import Self
 
-import aiofiles
 import pandas as pd
 from aidial_client import AsyncDial, DialException
 from aidial_client.types.metadata import FileItem, FileMetadata
@@ -22,37 +21,37 @@ from .client import dial_client_factory, resolve_bucket
 _log = logging.getLogger(__name__)
 
 
-async def _read_file_with_progress(file_path: str, chunk_size: int = 64 * 1024) -> BytesIO:
-    """Read a local file into memory, logging upload progress."""
-    file_size = os.path.getsize(file_path)
-    uploaded = 0
-    chunk_count = 0
-    log_interval = 100
-    buffer = BytesIO()
+class _ProgressBufferedReader(BufferedReader):
+    """A ``BufferedReader`` that logs upload progress as it is read.
 
-    _log.info(f"Starting upload of {file_path}")
-    _log.info(f"Total file size: {file_size / (1024 * 1024):.2f} MB")
+    Subclasses ``BufferedReader`` because the DIAL SDK validates upload content
+    against ``bytes | str | BufferedReader | IO[bytes]`` using pydantic v1, and
+    ``isinstance(obj, typing.IO)`` is ``False`` for arbitrary file-like objects
+    (e.g. ``BytesIO``). A real ``BufferedReader`` subclass is the only file-like
+    type that both passes validation and lets httpx stream from disk.
+    """
 
-    async with aiofiles.open(file_path, 'rb') as f:
-        while True:
-            chunk = await f.read(chunk_size)
-            if not chunk:
-                break
+    def __init__(self, path: str, log_interval: int = 100) -> None:
+        super().__init__(FileIO(path, "rb"))
+        self._total = os.path.getsize(path)
+        self._uploaded = 0
+        self._chunk_count = 0
+        self._log_interval = log_interval
+        _log.info(f"Starting upload of {path}")
+        _log.info(f"Total file size: {self._total / (1024 * 1024):.2f} MB")
 
-            buffer.write(chunk)
-            uploaded += len(chunk)
-            chunk_count += 1
-
-            if chunk_count % log_interval == 0:
-                percent = (uploaded / file_size) * 100
+    def read(self, size: int | None = -1) -> bytes:
+        chunk = super().read(size)
+        if chunk:
+            self._uploaded += len(chunk)
+            self._chunk_count += 1
+            if self._chunk_count % self._log_interval == 0:
+                percent = (self._uploaded / self._total * 100) if self._total else 0.0
                 _log.info(
-                    f"Uploaded {uploaded / (1024 * 1024):.2f} MB / "
-                    f"{file_size / (1024 * 1024):.2f} MB ({percent:.1f}%)"
+                    f"Uploaded {self._uploaded / (1024 * 1024):.2f} MB / "
+                    f"{self._total / (1024 * 1024):.2f} MB ({percent:.1f}%)"
                 )
-
-    _log.info(f"Upload completed: {uploaded / (1024 * 1024):.2f} MB total")
-    buffer.seek(0)
-    return buffer
+        return chunk
 
 
 class AttachmentResponse(FileItem):
@@ -133,6 +132,8 @@ class AttachmentsStorage:
     ) -> AttachmentResponse:
         if not bucket:
             bucket = await resolve_bucket(self._dial)
+        # The SDK's pydantic-v1 validation does not accept BytesIO as IO[bytes],
+        # so materialize it to bytes here.
         data = content.getvalue() if isinstance(content, BytesIO) else content
         metadata = await self._dial.files.upload(
             f"files/{bucket}/{name}", file=(name, data, mime_type)
@@ -144,14 +145,15 @@ class AttachmentsStorage:
     ) -> AttachmentResponse:
         if not bucket:
             bucket = await resolve_bucket(self._dial)
-        if show_progress:
-            content = (await _read_file_with_progress(path)).getvalue()
-        else:
-            async with aiofiles.open(path, 'rb') as f:
-                content = await f.read()
-        metadata = await self._dial.files.upload(
-            f"files/{bucket}/{name}", file=(name, content, "application/octet-stream")
+        reader = (
+            _ProgressBufferedReader(path) if show_progress else BufferedReader(FileIO(path, "rb"))
         )
+        try:
+            metadata = await self._dial.files.upload(
+                f"files/{bucket}/{name}", file=(name, reader, "application/octet-stream")
+            )
+        finally:
+            reader.close()
         return AttachmentResponse.from_file_metadata(metadata)
 
     async def put_png(self, name: str, content: BytesIO) -> AttachmentResponse:
