@@ -1,8 +1,11 @@
+import logging
 from typing import Never
 
 from statgpt.app.schemas.query import AppJsonQueryWithMetadata
 from statgpt.common.data.sdmx.python_code import generate_python_query_body
 from statgpt.common.schemas.query import JsonComponentQuery, JsonQueryOperator
+
+_log = logging.getLogger(__name__)
 
 PYTHON_SDMX1_HEADER = """\
 # Uses the [sdmx1 library](https://pypi.org/project/sdmx1/)
@@ -138,6 +141,21 @@ def generate_python_code_from_query(query: AppJsonQueryWithMetadata, suffix: str
     )
 
 
+def _snippet_or_placeholder(query: AppJsonQueryWithMetadata, suffix: str = "") -> str:
+    """Return a query's sdmx1 snippet, or a commented placeholder if it can't be expressed.
+
+    Some queries have no faithful SDMX REST representation (e.g. exclusive ``gt`` / ``lt``
+    time bounds, or a multi-value ``in`` on the time dimension) and raise ValueError. We
+    keep the rest of the merged snippet usable by substituting an explanatory comment for
+    just the offending query instead of dropping the whole snippet.
+    """
+    try:
+        return generate_python_code_from_query(query, suffix=suffix)
+    except ValueError:
+        _log.exception("Failed to generate sdmx1 snippet for query %s", query.urn)
+        return f"# Unable to generate a reproducible sdmx1 snippet for {query.urn}."
+
+
 def generate_merged_python_code(queries: list[AppJsonQueryWithMetadata]) -> str:
     queries = [
         q
@@ -147,10 +165,10 @@ def generate_merged_python_code(queries: list[AppJsonQueryWithMetadata]) -> str:
     if not queries:
         return PYTHON_SDMX1_HEADER
     if len(queries) == 1:
-        body = generate_python_code_from_query(queries[0])
+        body = _snippet_or_placeholder(queries[0])
     else:
         sections = [
-            f"# Dataset: {query.urn}\n{generate_python_code_from_query(query, suffix=f'_{i}')}"
+            f"# Dataset: {query.urn}\n{_snippet_or_placeholder(query, suffix=f'_{i}')}"
             for i, query in enumerate(queries, start=1)
         ]
         body = "\n\n".join(sections)

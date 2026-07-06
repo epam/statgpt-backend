@@ -206,6 +206,49 @@ def test_generate_merged_python_code_multi_query_separates_sections() -> None:
     assert "provider_1" in code and "provider_2" in code
 
 
+def _make_query_with_unrepresentable_time(urn: str) -> AppJsonQueryWithMetadata:
+    """A query with an exclusive `gt` time bound, which has no SDMX REST representation."""
+    return AppJsonQueryWithMetadata(
+        urn=urn,
+        filters=[
+            JsonComponentQuery(component_code="A", operator=JsonQueryOperator.IN, values=["a1"]),
+            JsonComponentQuery(
+                component_code="TIME_PERIOD", operator=JsonQueryOperator.GT, values=["2020"]
+            ),
+        ],
+        metadata=JsonQueryMetadata(
+            country_dimension="A",
+            indicator_dimensions=["B"],
+            time_period_dimension="TIME_PERIOD",
+        ),
+    )
+
+
+def test_generate_merged_python_code_single_unrepresentable_query_yields_placeholder() -> None:
+    urn = "IMF:DF_BAD(1.0)"
+    code = generate_merged_python_code([_make_query_with_unrepresentable_time(urn)])
+
+    assert code.startswith(PYTHON_SDMX1_HEADER + "\n\n")
+    assert f"# Unable to generate a reproducible sdmx1 snippet for {urn}." in code
+    # The failure is isolated: no partial/broken request body is emitted.
+    assert "sdmx.Client" not in code
+
+
+def test_generate_merged_python_code_skips_only_the_unrepresentable_query() -> None:
+    good_urn = "IMF:DF_GOOD(1.0)"
+    bad_urn = "IMF:DF_BAD(1.0)"
+    code = generate_merged_python_code(
+        [_make_query(good_urn), _make_query_with_unrepresentable_time(bad_urn)]
+    )
+
+    # The good dataset still renders a complete snippet...
+    assert f"# Dataset: {good_urn}" in code
+    assert 'sdmx.Client("IMF")' in code
+    # ...while the bad one degrades to a placeholder instead of dropping the whole snippet.
+    assert f"# Dataset: {bad_urn}" in code
+    assert f"# Unable to generate a reproducible sdmx1 snippet for {bad_urn}." in code
+
+
 def test_generate_merged_python_code_drops_dataset_with_any_excluded_filter() -> None:
     excluded_query = AppJsonQueryWithMetadata(
         urn="IMF:DF_X(1.0)",
