@@ -124,9 +124,9 @@ class TokenUsageByModelsCallback(AsyncCallbackHandler):
 
     def __init__(self) -> None:
         super().__init__()
-        self._run_2_deployment: dict[UUID, str] = {}
+        self._deployment_ids: dict[UUID, str] = {}
 
-    async def on_chat_model_start(
+    def on_chat_model_start(  # type: ignore[override]
         self,
         serialized: dict[str, t.Any],
         messages: list[list[t.Any]],
@@ -134,19 +134,20 @@ class TokenUsageByModelsCallback(AsyncCallbackHandler):
         run_id: UUID,
         **kwargs: t.Any,
     ) -> None:
-        try:
-            self._run_2_deployment[run_id] = serialized['kwargs']['deployment_name']
-        except (KeyError, TypeError):
-            pass
+        if serialized['id'][-1] == 'AzureChatOpenAI':
+            try:
+                self._deployment_ids[run_id] = serialized['kwargs']['deployment_name']
+            except (KeyError, TypeError):
+                pass
 
-    async def on_llm_end(
+    def on_llm_end(  # type: ignore[override]
         self,
         response: LLMResult,
         *,
         run_id: UUID,
         **kwargs: t.Any,
     ) -> None:
-        deployment_id = self._run_2_deployment.pop(run_id, None)
+        deployment_id = self._deployment_ids.pop(run_id, None)
 
         try:
             generation = response.generations[0][0]
