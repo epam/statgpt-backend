@@ -11,19 +11,23 @@ from mcp.types import EmbeddedResource, TextContent
 
 from statgpt.app.chains.out_of_scope_checker import OutOfScopeCheckerResponse
 from statgpt.app.mcp.provider import ChannelToolProvider, _McpToolAdapter
-from statgpt.app.schemas.tool_artifact import DataQueryArtifact
+from statgpt.app.schemas.tool_artifact import DataQueryArtifact, SdmxQueryAppArtifact
 from statgpt.common.schemas.query import JsonQueryMetadata, JsonQueryWithMetadata
 from statgpt.common.schemas.tool_details import SdmxQueryAppDetails
 from statgpt.common.schemas.tools import AvailableDatasetsTool, SdmxQueryAppTool
 
 
-def _build_adapter(result) -> _McpToolAdapter:
+def _build_adapter(
+    result, sdmx_query_app=SimpleNamespace(name="sdmx_query_app")
+) -> _McpToolAdapter:
     tool = SimpleNamespace(name="fake_tool", ainvoke=AsyncMock(return_value=result))
     return _McpToolAdapter(
         langchain_tool=tool,  # type: ignore[arg-type]
         inputs={},
         # out_of_scope=None disables the guardrail, so run() proceeds straight to the tool.
-        channel_config=SimpleNamespace(out_of_scope=None),  # type: ignore[arg-type]
+        channel_config=SimpleNamespace(  # type: ignore[arg-type]
+            out_of_scope=None, sdmx_query_app=sdmx_query_app
+        ),
         auth_context=SimpleNamespace(),  # type: ignore[arg-type]
         name="fake_tool",
         parameters={},
@@ -62,8 +66,12 @@ async def test_data_query_artifact_adds_csv_resources():
     resources = [c for c in tool_result.content if isinstance(c, EmbeddedResource)]
     assert len(resources) == 1
     assert resources[0].resource.mimeType == "text/csv"
-    assert tool_result.structured_content is not None
-    assert [q["urn"] for q in tool_result.structured_content["queries"]] == ["IMF:CPI(1.0.0)"]
+    structured = tool_result.structured_content
+    assert structured is not None
+    assert [q["urn"] for q in structured["queries"]] == ["IMF:CPI(1.0.0)"]
+    assert structured["tools"] == {"sdmxProxy": "sdmx_query_app"}
+    assert structured["version"] == 1
+    assert "import sdmx" in structured["pythonCode"]
 
 
 async def test_data_query_artifact_without_query_has_no_structured_content():
@@ -81,6 +89,40 @@ async def test_data_query_artifact_without_query_has_no_structured_content():
     tool_result = await adapter.run({})
 
     assert tool_result.structured_content is None
+
+
+async def test_data_query_structured_content_omits_sdmx_proxy_when_unconfigured():
+    df = pd.DataFrame({"x": [1]})
+    response = SimpleNamespace(
+        resource_path="IMF:CPI(1.0.0)",
+        visual_dataframe=df,
+        csv_dataframe=df,
+        created_at=datetime(2026, 4, 20, 15, 30, 0, tzinfo=timezone.utc),
+        json_query=_json_query("IMF:CPI(1.0.0)"),
+    )
+    artifact = DataQueryArtifact.model_construct(data_responses={"ds1": response})
+    adapter = _build_adapter(
+        SimpleNamespace(content="answer", artifact=artifact), sdmx_query_app=None
+    )
+
+    tool_result = await adapter.run({})
+
+    assert tool_result.structured_content is not None
+    assert tool_result.structured_content["tools"] == {"sdmxProxy": None}
+
+
+async def test_sdmx_query_app_artifact_exposes_http_metadata():
+    artifact = SdmxQueryAppArtifact.model_construct(
+        status_code=200, content_type="application/json"
+    )
+    adapter = _build_adapter(SimpleNamespace(content="<xml/>", artifact=artifact))
+
+    tool_result = await adapter.run({})
+
+    assert tool_result.structured_content == {
+        "statusCode": 200,
+        "contentType": "application/json",
+    }
 
 
 async def test_non_data_query_result_returns_text_only():

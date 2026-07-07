@@ -1,11 +1,21 @@
 """Unit tests for HybridSearcher.HybridMatch candidate assembly."""
 
-from unittest.mock import Mock
+import asyncio
+import uuid
+from unittest.mock import AsyncMock, Mock
 
 import pytest
 
-from statgpt.app.services.hybrid_searcher import HarmonizedItemScored, HybridSearcher
-from statgpt.common.hybrid_indexer.schemas import IndicatorIndex
+from statgpt.app.schemas.query_builder import HybridMatchTimings
+from statgpt.app.services.hybrid_searcher import (
+    HarmonizedItemScored,
+    HybridSearcher,
+    PlainItemScored,
+    SearchParams,
+)
+from statgpt.common.hybrid_indexer.schemas import IndicatorIndex, MatchingIndex
+from statgpt.common.utils.elastic import SearchResult
+from statgpt.common.vectorstore import ScoredVectorStoreDocument
 
 
 def _indicator(id_: str, dataset_id: str = "ds1") -> IndicatorIndex:
@@ -30,6 +40,45 @@ def _candidate(id_: str, dataset_id: str = "ds1") -> dict:
 
 def _lex(id_: str, score: float, dataset_id: str = "ds1") -> HarmonizedItemScored:
     return HarmonizedItemScored(score=score, metadata=_indicator(id_, dataset_id))
+
+
+def _plain(id_: str, score: float, dataset_id: str = "ds1") -> PlainItemScored:
+    metadata = MatchingIndex.model_validate(_indicator(id_, dataset_id).model_dump())
+    return PlainItemScored(score=score, metadata=metadata)
+
+
+def _doc(id_: str, score: float, dataset_id: str = "ds1") -> ScoredVectorStoreDocument:
+    return ScoredVectorStoreDocument(
+        page_content=f"name {id_}",
+        metadata=_indicator(id_, dataset_id).model_dump(),
+        table_name="indicators",
+        document_id=1,
+        dataset_id=uuid.uuid4(),
+        version_id=1,
+        score=score,
+    )
+
+
+def _search_result(indicators: list[IndicatorIndex]) -> SearchResult:
+    return SearchResult.model_validate(
+        {
+            "took": 1,
+            "timed_out": False,
+            "hits": {
+                "total": {"value": len(indicators), "relation": "eq"},
+                "max_score": 1.0 if indicators else None,
+                "hits": [
+                    {
+                        "_index": "indicators",
+                        "_id": indicator.id,
+                        "_score": 1.0,
+                        "_source": indicator.model_dump(),
+                    }
+                    for indicator in indicators
+                ],
+            },
+        }
+    )
 
 
 @pytest.fixture
@@ -95,3 +144,92 @@ def test_appended_candidate_has_consumable_shape(match):
     metadata = appended["metadata"]
     for key in ("dataset_id", "primary_normalized", "name_normalized", "where", "series"):
         assert key in metadata
+
+
+async def test_es_get_by_ids_no_query_for_empty_ids(match):
+    match._outer._indicators_index.search = AsyncMock()
+
+    assert await match._es_get_by_ids([]) == {}
+    match._outer._indicators_index.search.assert_not_awaited()
+
+
+async def test_es_get_by_ids_warns_per_missing_id(match, monkeypatch):
+    logger_mock = Mock()
+    monkeypatch.setattr("statgpt.app.services.hybrid_searcher.logger", logger_mock)
+    match._outer._indicators_index.search = AsyncMock(
+        return_value=_search_result([_indicator("a")])
+    )
+
+    found = await match._es_get_by_ids(["a", "b", "c"])
+
+    assert set(found) == {"a"}
+    warned = [call.args[0] for call in logger_mock.warning.call_args_list]
+    assert any("b" in msg for msg in warned)
+    assert any("c" in msg for msg in warned)
+    assert len(warned) == 2
+
+
+async def test_hybrid_combination_fetches_missing_ids_in_one_query(match):
+    """Ids absent from the lexical results are fetched with a single terms query (no N+1)."""
+    sem_raw = [
+        _doc("a", 0.9),  # present in lexical -> no ES lookup
+        _doc("b", 0.8),  # missing from lexical -> fetched from ES
+        _doc("c", 0.7),  # missing from lexical and from ES -> dropped
+        _doc("d", 0.6),  # filtered out by availability -> not fetched
+        _doc("b", 0.5),  # duplicate id -> requested once
+    ]
+    lexical = {"a": _lex("a", 0.5)}
+    semantic = {"a": _plain("a", 0.9), "b": _plain("b", 0.8), "c": _plain("c", 0.7)}
+    search_mock = AsyncMock(return_value=_search_result([_indicator("b")]))
+    match._outer._indicators_index.search = search_mock
+
+    hybrid = await match._hybrid_combination(
+        sem_raw=sem_raw, lexical=lexical, semantic=semantic, alpha=0.5
+    )
+
+    search_mock.assert_awaited_once_with(query={"terms": {"id.keyword": ["b", "c"]}}, size=2)
+    assert set(hybrid) == {"a", "b"}
+    assert hybrid["a"].score == pytest.approx(0.5 * 0.9 + 0.5 * 0.5)
+    assert hybrid["b"].score == pytest.approx(0.5 * 0.8)
+
+
+async def test_hybrid_candidates_runs_lexical_and_semantic_concurrently(match):
+    match._outer.config.max_output_div = 2
+    match._outer.config.max_lexical_only_candidates = 0
+
+    semantic_started = asyncio.Event()
+
+    async def fake_lexical(query, version_ids, max_query):
+        # Resolves only after the semantic search has started: sequential
+        # execution would hang here (bounded by the wait_for timeouts).
+        await asyncio.wait_for(semantic_started.wait(), timeout=1)
+        return {"a": _lex("a", 0.5)}
+
+    async def fake_semantic_raw(query, version_ids, max_query):
+        semantic_started.set()
+        return [_doc("a", 0.9)]
+
+    match._lexical = fake_lexical
+    match._semantic_raw = fake_semantic_raw
+
+    timings = HybridMatchTimings()
+    search_params = SearchParams(
+        alpha=0.5, max_candidates=10, max_semantic_candidates=10, max_lexical_candidates=10
+    )
+    lex_filtered, sem_filtered, candidates = await asyncio.wait_for(
+        match._hybrid_candidates(
+            query="q",
+            version_ids={1},
+            availability={"ds1": {}},
+            search_params=search_params,
+            timings=timings,
+        ),
+        timeout=1,
+    )
+
+    assert set(lex_filtered) == {"a"}
+    assert set(sem_filtered) == {"a"}
+    assert [c["id"] for c in candidates] == ["a"]
+    # per-part timings are measured inside each coroutine
+    assert timings.lexical > 0
+    assert timings.semantic_raw > 0

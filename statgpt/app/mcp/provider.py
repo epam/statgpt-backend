@@ -27,6 +27,7 @@ from statgpt.app.mcp.exceptions import MissingDeploymentIdError
 from statgpt.app.mcp.guardrails import enforce_input_guardrail
 from statgpt.app.mcp.widget_resource import WidgetResource
 from statgpt.app.schemas.dial_app_configuration import StatGPTConfiguration
+from statgpt.app.schemas.mcp import DataQueryStructuredContent, SdmxProxyStructuredContent
 from statgpt.app.schemas.tool_artifact import DataQueryArtifact, SdmxQueryAppArtifact
 from statgpt.app.security import DialAuthCredentials, create_auth_context
 from statgpt.app.services.chat_facade import ChannelServiceFacade
@@ -109,20 +110,28 @@ class _McpToolAdapter(Tool):
             raise ToolError(f"{self._langchain_tool.name} tool failed to execute")
         text = result.content if isinstance(result.content, str) else str(result.content)
         content: list[ContentBlock] = [TextContent(type="text", text=text)]
-        structured_content: dict[str, Any] | None = None
+        structured_content: DataQueryStructuredContent | SdmxProxyStructuredContent | None = None
         if isinstance(result.artifact, DataQueryArtifact):
             # to_csv is CPU-bound and can block on large dataframes; offload to a worker thread.
             resources = await asyncio.to_thread(data_query_artifact_to_resources, result.artifact)
             content.extend(resources)
-            structured_content = data_query_artifact_to_structured_content(result.artifact)
+            structured_content = data_query_artifact_to_structured_content(
+                result.artifact, self._channel_config
+            )
         elif isinstance(result.artifact, SdmxQueryAppArtifact):
             # Surface the upstream HTTP metadata so the MCP-App can distinguish success from
             # error responses and know the body's media type. The raw body stays in the text
             # content block above to keep the passthrough behavior.
-            structured_content = {
-                "status_code": result.artifact.status_code,
-                "content_type": result.artifact.content_type,
-            }
+            structured_content = SdmxProxyStructuredContent(
+                status_code=result.artifact.status_code,
+                content_type=result.artifact.content_type,
+            )
+        _log.info(
+            "Sending MCP tool %s response: %d content block(s), structured_content=%s",
+            self._langchain_tool.name,
+            len(content),
+            type(structured_content).__name__ if structured_content else None,
+        )
         return ToolResult(content=content, structured_content=structured_content)
 
 
@@ -187,12 +196,20 @@ class ChannelToolProvider(Provider):
         prefix = channel_config.mcp.tool_name_prefix
         if prefix:
             if not name.startswith(prefix):
+                _log.warning(
+                    "MCP tool %s not found: name does not start with the `%s` prefix",
+                    name,
+                    prefix,
+                )
                 return None
             name = name.removeprefix(prefix)
         inputs = _build_mcp_inputs(auth_context, channel_service)
         for tool_config in channel_config.tools:
             if tool_config.effective_mcp_name == name:
                 return self._create_mcp_tool(tool_config, channel_config, inputs, auth_context)
+        _log.warning(
+            "MCP tool %s not found in the `%s` channel", name, channel_service.deployment_id
+        )
         return None
 
     @staticmethod
@@ -220,6 +237,9 @@ class ChannelToolProvider(Provider):
         for resource_config in channel_service.channel_config.mcp.resources:
             if resource_config.uri == uri:
                 return self._build_resource(resource_config)
+        _log.warning(
+            "MCP resource %s not found in the `%s` channel", uri, channel_service.deployment_id
+        )
         return None
 
     async def get_tasks(self) -> Sequence[FastMCPComponent]:
