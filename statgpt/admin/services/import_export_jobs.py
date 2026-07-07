@@ -7,6 +7,7 @@ import zipfile
 from datetime import datetime
 from typing import BinaryIO
 
+from aidial_client.types.metadata import FileItem
 from fastapi import BackgroundTasks, HTTPException, UploadFile, status
 from pydantic import BaseModel, ValidationError
 from sqlalchemy import select
@@ -22,7 +23,6 @@ from statgpt.common.auth.auth_context import AuthContext
 from statgpt.common.schemas import AuditActionType, AuditEntityType
 from statgpt.common.settings.dial import dial_settings
 from statgpt.common.utils import (
-    AttachmentResponse,
     AttachmentsStorage,
     attachments_storage_factory,
     dial_client_factory,
@@ -52,7 +52,7 @@ class JobsService:
     @staticmethod
     async def _delete_dial_files(
         to_date: datetime,
-        deleted_files: list[AttachmentResponse],
+        deleted_files: list[FileItem],
         dry_run: bool,
         auth_context: AuthContext,
     ) -> None:
@@ -90,7 +90,7 @@ class JobsService:
     ) -> schemas.ClearJobsResult:
         _log.info(f"Clearing jobs before {to_date}. Dry run: {dry_run}")
 
-        deleted_files: list[AttachmentResponse] = []
+        deleted_files: list[FileItem] = []
         deleted_jobs: list[schemas.Job] = []
         try:
             await self._delete_dial_files(to_date, deleted_files, dry_run, auth_context)

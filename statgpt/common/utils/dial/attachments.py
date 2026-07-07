@@ -6,12 +6,10 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from http import HTTPStatus
 from io import BufferedReader, BytesIO, FileIO
-from typing import Self
 
 import pandas as pd
 from aidial_client import AsyncDial, DialException
 from aidial_client.types.metadata import FileItem, FileMetadata
-from pydantic import ConfigDict, alias_generators
 
 from statgpt.common.settings.dial import dial_settings
 from statgpt.common.utils.media_types import MediaTypes
@@ -54,26 +52,8 @@ class _ProgressBufferedReader(BufferedReader):
         return chunk
 
 
-class AttachmentResponse(FileItem):
-    """A DIAL file item extended with the ``updatedAt`` timestamp DIAL returns
-    for folder-listing entries (not a typed field on :class:`FileItem`)."""
-
-    name: str = ""
-    content_length: int = 0
-    content_type: str = ""
-    updated_at: int | None = None
-
-    model_config = ConfigDict(
-        alias_generator=alias_generators.to_camel, populate_by_name=True, extra="ignore"
-    )
-
-    @classmethod
-    def from_file_metadata(cls, metadata: FileMetadata) -> Self:
-        return cls.model_validate(metadata.model_dump(by_alias=True, exclude_none=True))
-
-    @classmethod
-    def from_metadata_item(cls, item: FileItem) -> Self:
-        return cls.model_validate(item.model_dump(by_alias=True, exclude_none=True))
+def _file_item_from_metadata(metadata: FileMetadata) -> FileItem:
+    return FileItem.model_validate(metadata.model_dump(by_alias=True, exclude_none=True))
 
 
 class AttachmentsStorage:
@@ -87,16 +67,14 @@ class AttachmentsStorage:
     def __init__(self, dial: AsyncDial):
         self._dial = dial
 
-    async def get_files_in_folder(
-        self, folder: str, bucket: str | None = None
-    ) -> list[AttachmentResponse]:
+    async def get_files_in_folder(self, folder: str, bucket: str | None = None) -> list[FileItem]:
         """Return a list of files in the specified folder. If the folder does not exist, return an empty list."""
 
         if not bucket:
             bucket = await resolve_bucket(self._dial)
 
         url = f"files/{bucket}/{folder}/"
-        files: list[AttachmentResponse] = []
+        files: list[FileItem] = []
         token: str | None = None
 
         while True:
@@ -109,9 +87,7 @@ class AttachmentsStorage:
                     return files
                 raise
 
-            files.extend(
-                AttachmentResponse.from_metadata_item(item) for item in (metadata.items or [])
-            )
+            files.extend(metadata.items or [])
 
             token = metadata.next_token
             if not token:
@@ -123,13 +99,13 @@ class AttachmentsStorage:
         """Delete the file at the specified URL.
 
         Args:
-            url: The value of the `url` filed returned by the DIAL API. (AttachmentResponse.url)
+            url: The value of the `url` field returned by the DIAL API. (FileItem.url)
         """
         await self._dial.files.delete(url)
 
     async def put_file(
         self, name: str, mime_type: str, content: BytesIO | bytes, bucket: str | None = None
-    ) -> AttachmentResponse:
+    ) -> FileItem:
         if not bucket:
             bucket = await resolve_bucket(self._dial)
         # The SDK's pydantic-v1 validation does not accept BytesIO as IO[bytes],
@@ -138,11 +114,11 @@ class AttachmentsStorage:
         metadata = await self._dial.files.upload(
             f"files/{bucket}/{name}", file=(name, data, mime_type)
         )
-        return AttachmentResponse.from_file_metadata(metadata)
+        return _file_item_from_metadata(metadata)
 
     async def put_local_file(
         self, name: str, path: str, *, bucket: str | None = None, show_progress: bool = False
-    ) -> AttachmentResponse:
+    ) -> FileItem:
         if not bucket:
             bucket = await resolve_bucket(self._dial)
         reader = (
@@ -154,18 +130,18 @@ class AttachmentsStorage:
             )
         finally:
             reader.close()
-        return AttachmentResponse.from_file_metadata(metadata)
+        return _file_item_from_metadata(metadata)
 
-    async def put_png(self, name: str, content: BytesIO) -> AttachmentResponse:
+    async def put_png(self, name: str, content: BytesIO) -> FileItem:
         file_name = f"{name}-{uuid.uuid4()}.png"
         return await self.put_file(file_name, MediaTypes.PNG, content)
 
-    async def put_png_bytes(self, name: str, content: bytes) -> AttachmentResponse:
+    async def put_png_bytes(self, name: str, content: bytes) -> FileItem:
         buffer = BytesIO(content)
         buffer.seek(0)
         return await self.put_png(name, buffer)
 
-    async def put_json(self, name: str, content: str) -> AttachmentResponse:
+    async def put_json(self, name: str, content: str) -> FileItem:
         buffer = BytesIO()
         buffer.write(content.encode("utf-8"))
         buffer.seek(0)
@@ -175,35 +151,33 @@ class AttachmentsStorage:
             content=buffer,
         )
 
-    async def put_pdb(self, name: str, content: BytesIO) -> AttachmentResponse:
+    async def put_pdb(self, name: str, content: BytesIO) -> FileItem:
         return await self.put_file(
             name=f"{name}-{uuid.uuid4()}.pdb",
             mime_type=MediaTypes.PDB,
             content=content,
         )
 
-    async def put_pdb_bytes(self, name: str, content: bytes) -> AttachmentResponse:
+    async def put_pdb_bytes(self, name: str, content: bytes) -> FileItem:
         buffer = BytesIO(content)
         buffer.seek(0)
         return await self.put_pdb(name, buffer)
 
-    async def put_xlsx(self, name: str, content: BytesIO) -> AttachmentResponse:
+    async def put_xlsx(self, name: str, content: BytesIO) -> FileItem:
         return await self.put_file(
             name=f"{name}-{uuid.uuid4()}.xlsx",
             content=content,
             mime_type=MediaTypes.XLSX,
         )
 
-    async def put_csv(self, name: str, content: BytesIO) -> AttachmentResponse:
+    async def put_csv(self, name: str, content: BytesIO) -> FileItem:
         return await self.put_file(
             name=f"{name}-{uuid.uuid4()}.csv",
             content=content,
             mime_type=MediaTypes.CSV,
         )
 
-    async def put_csv_from_dataframe(
-        self, name: str, dataframe: pd.DataFrame
-    ) -> AttachmentResponse:
+    async def put_csv_from_dataframe(self, name: str, dataframe: pd.DataFrame) -> FileItem:
         """Put a CSV file from a pandas DataFrame."""
         csv_buffer = BytesIO()
         dataframe.to_csv(csv_buffer, index=False, date_format="%Y-%m-%d", lineterminator="\n")

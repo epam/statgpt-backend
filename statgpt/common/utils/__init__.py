@@ -1,7 +1,6 @@
 from .async_loading_cache import AsyncLoadingCache
 from .db_mixins import DateMixin, IdMixin
 from .dial import (
-    AttachmentResponse,
     AttachmentsStorage,
     attachments_storage_factory,
     dial_client_factory,
