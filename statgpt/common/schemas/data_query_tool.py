@@ -247,9 +247,13 @@ class HybridSearchConfig(BaseYamlModel):
             "before searching. When disabled, the normalized query is searched as a single query."
         ),
     )
-    use_only_best_score: bool = Field(
-        default=True,
-        description="Whether to use only indicators with best score, instead of allowing indicators with lower scores.",
+    include_lower_scored_datasets: bool = Field(
+        default=False,
+        description=(
+            "When true, keep the best-scored indicators of each dataset that passes the score "
+            "thresholds, even if other datasets have higher-scored indicators. "
+            "When false, keep only the indicators with the best overall score."
+        ),
     )
     single_dataset_score_threshold: int = Field(
         default=2,

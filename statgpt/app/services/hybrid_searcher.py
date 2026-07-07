@@ -815,12 +815,12 @@ class HybridSearcher:
                 candidate['score'] = score
                 dataset_id = str(candidate['dataset_id'])
 
-                if self._outer.config.use_only_best_score:
-                    is_good_candidate = max_overall_score and score == max_overall_score
-                else:
+                if self._outer.config.include_lower_scored_datasets:
                     is_good_candidate = (
                         dataset_id in dataset_max_score and dataset_max_score[dataset_id] == score
                     )
+                else:
+                    is_good_candidate = max_overall_score and score == max_overall_score
                 if is_good_candidate:
                     result.append(candidate)
             return result, reasoning
