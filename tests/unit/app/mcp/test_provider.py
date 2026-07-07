@@ -4,13 +4,14 @@ from unittest.mock import AsyncMock
 
 import pandas as pd
 import pytest
+from fastmcp.apps import AppConfig
 from fastmcp.exceptions import ToolError
 from langchain_core.messages import AIMessage
 from langchain_core.runnables import Runnable, RunnableLambda
 from mcp.types import EmbeddedResource, TextContent
 
 from statgpt.app.chains.out_of_scope_checker import OutOfScopeCheckerResponse
-from statgpt.app.mcp.provider import ChannelToolProvider, _McpToolAdapter
+from statgpt.app.mcp.provider import ChannelToolProvider, _McpToolAdapter, _tool_app_config
 from statgpt.app.schemas.tool_artifact import DataQueryArtifact, SdmxQueryAppArtifact
 from statgpt.common.schemas.query import JsonQueryMetadata, JsonQueryWithMetadata
 from statgpt.common.schemas.tool_details import SdmxQueryAppDetails
@@ -365,15 +366,36 @@ def test_effective_mcp_fields_fall_back_to_base_fields():
     assert tool_config.effective_mcp_description == "Query data tool."
 
 
-def test_mcp_meta_omitted_when_visibility_unset():
-    assert _tool_config().mcp_meta is None
+def test_tool_app_config_none_when_nothing_set():
+    assert _tool_app_config(_tool_config()) is None
 
 
 @pytest.mark.parametrize("visibility", [["app"], ["model"], ["model", "app"]])
-def test_mcp_meta_wraps_visibility(visibility):
+def test_tool_app_config_carries_visibility(visibility):
     tool_config = _tool_config(mcp_visibility=visibility)
 
-    assert tool_config.mcp_meta == {"ui": {"visibility": visibility}}
+    assert _tool_app_config(tool_config) == AppConfig(visibility=visibility)
+
+
+def test_tool_app_config_carries_resource_uri():
+    tool_config = _tool_config(mcp_app_resource_uri="ui://statgpt/data-widget.html")
+
+    assert _tool_app_config(tool_config) == AppConfig(resource_uri="ui://statgpt/data-widget.html")
+
+
+async def test_get_tool_serializes_ui_meta(fake_statgpt_tool, monkeypatch):
+    tool_config = _tool_config(
+        mcp_visibility=["app"], mcp_app_resource_uri="ui://statgpt/data-widget.html"
+    )
+    channel_config = _channel_config(tool_config, prefix="")
+    provider = _build_provider(channel_config, monkeypatch)
+
+    mcp_tool = await provider._get_tool("query_data")
+
+    assert mcp_tool is not None
+    assert mcp_tool.meta == {
+        "ui": {"visibility": ["app"], "resourceUri": "ui://statgpt/data-widget.html"}
+    }
 
 
 def _sdmx_details() -> SdmxQueryAppDetails:
@@ -386,7 +408,7 @@ def test_sdmx_query_app_defaults_to_app_only():
     )
 
     assert tool_config.mcp_visibility == ["app"]
-    assert tool_config.mcp_meta == {"ui": {"visibility": ["app"]}}
+    assert _tool_app_config(tool_config) == AppConfig(visibility=["app"])
 
 
 def test_sdmx_query_app_visibility_is_overridable():
@@ -397,4 +419,4 @@ def test_sdmx_query_app_visibility_is_overridable():
         mcp_visibility=["model", "app"],
     )
 
-    assert tool_config.mcp_meta == {"ui": {"visibility": ["model", "app"]}}
+    assert _tool_app_config(tool_config) == AppConfig(visibility=["model", "app"])
