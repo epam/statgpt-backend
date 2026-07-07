@@ -248,7 +248,7 @@ class HybridSearchConfig(BaseYamlModel):
         ),
     )
     use_only_best_score: bool = Field(
-        default=False,
+        default=True,
         description="Whether to use only indicators with best score, instead of allowing indicators with lower scores.",
     )
     single_dataset_score_threshold: int = Field(
