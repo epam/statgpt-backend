@@ -105,6 +105,9 @@ class IndicatorsSearchChainFactory(DimensionSearchChainFactoryBase):
                 hybrid_search_timings=(
                     lambda d: d["indicators_selection_result"].hybrid_search_timings
                 ),
+                hybrid_subquery_candidates=(
+                    lambda d: d["indicators_selection_result"].subquery_candidates
+                ),
             ).with_config(
                 config=RunnableConfig(
                     callbacks=[

@@ -7,14 +7,16 @@ import typing as t
 from collections.abc import Generator
 from typing import Any, NamedTuple
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from statgpt.app.default_prompts import hybrid_search_default_prompts
 from statgpt.app.schemas.query_builder import (
     DatasetAvailabilityQueriesType,
     DateTimeQueryResponse,
     HybridMatchTimings,
+    HybridRawCandidate,
     HybridSearchTimings,
+    HybridSubqueryCandidates,
     NamedEntity,
 )
 from statgpt.app.services.chat_facade import VersionedDataSet
@@ -82,6 +84,7 @@ class HybridSearchResultInner(BaseModel):
     llm_scored: list[HybridCandidateScored]
     final: DatasetDimTermsSetType
     timings: HybridMatchTimings
+    subquery_candidates: HybridSubqueryCandidates
 
 
 class HybridSearchResult(BaseModel):
@@ -90,6 +93,7 @@ class HybridSearchResult(BaseModel):
     llm_scored: list[HybridCandidateScored]
     final_queries: dict[str, list[DimensionQuery]]
     timings: HybridSearchTimings
+    subquery_candidates: list[HybridSubqueryCandidates] = Field(default_factory=list)
 
 
 class HybridSearcher:
@@ -127,6 +131,7 @@ class HybridSearcher:
             HarmonizedItemsScoredDict,
             PlainItemsScoredDict,
             list[HybridCandidateScored],
+            list[dict],
             list[dict],
             str,
             HybridMatchTimings,
@@ -169,7 +174,7 @@ class HybridSearcher:
                 reasoning += batch_reasoning
             timings.relevance_total = time.perf_counter() - t_relevance_total
             timings.total = time.perf_counter() - t_total
-            return lexical, semantic, llm_scored, selected, reasoning, timings
+            return lexical, semantic, llm_scored, selected, candidates, reasoning, timings
 
         async def _query_planner(
             self, stage: ContentStageI, query: str, version_ids: set[int]
@@ -951,16 +956,26 @@ class HybridSearcher:
             stage.append_content(f"\n{index}. {query}\n")
 
         hybrid_match = self.HybridMatch(self)
-        lexical, semantic, llm_scored, selected, reasoning, timings = await hybrid_match.search(
-            stage, query, version_ids, availability
+        lexical, semantic, llm_scored, selected, candidates, reasoning, timings = (
+            await hybrid_match.search(stage, query, version_ids, availability)
         )
         final = self._best_of(selected)
+        subquery_candidates = HybridSubqueryCandidates(
+            query=query,
+            candidates=[
+                HybridRawCandidate(
+                    id=c['id'], metadata=IndicatorIndex.model_validate(c['metadata'])
+                )
+                for c in candidates
+            ],
+        )
         res = HybridSearchResultInner(
             lexical=lexical,
             semantic=semantic,
             llm_scored=llm_scored,
             final=final,
             timings=timings,
+            subquery_candidates=subquery_candidates,
         )
         return res
 
@@ -1067,6 +1082,7 @@ class HybridSearcher:
             llm_scored=llm_scored_merged,
             final_queries=final_queries,
             timings=timings,
+            subquery_candidates=[item.subquery_candidates for item in partial],
         )
 
     @staticmethod

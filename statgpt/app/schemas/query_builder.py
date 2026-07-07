@@ -19,6 +19,7 @@ from statgpt.common.data.base import (
     DimensionQuery,
     QueryOperator,
 )
+from statgpt.common.hybrid_indexer.schemas import IndicatorIndex
 from statgpt.common.schemas import ToolTypes
 
 from .selection_candidates import (
@@ -174,10 +175,28 @@ class HybridSearchTimings(BaseModel):
     per_subquery: list[HybridMatchTimings] = Field(default_factory=list)
 
 
+class HybridRawCandidate(BaseModel):
+    """One raw hybrid-search candidate, before LLM relevancy scoring."""
+
+    id: str
+    metadata: IndicatorIndex
+
+
+class HybridSubqueryCandidates(BaseModel):
+    """Raw hybrid-search candidates of one subquery, in retrieval order.
+
+    The list order defines the (1)..(N) numbering the relevancy prompt sees.
+    """
+
+    query: str
+    candidates: list[HybridRawCandidate] = Field(default_factory=list)
+
+
 class IndicatorsSearchResult(BaseModel):
     queries: DatasetAvailabilityQueriesType
     retrieval_results: RetrievalStagesResults
     hybrid_search_timings: HybridSearchTimings | None = None
+    subquery_candidates: list[HybridSubqueryCandidates] | None = None
 
 
 class SpecialDimensionChainOutput(BaseModel):
@@ -250,6 +269,14 @@ class QueryBuilderAgentState(ToolMessageState):
         default=None,
         description=(
             "Per-phase timing breakdown of the hybrid indicator search. "
+            "None when debug stages are disabled."
+        ),
+    )
+    hybrid_raw_candidates: list[HybridSubqueryCandidates] | None = Field(
+        default=None,
+        description=(
+            "Raw hybrid-search candidates per subquery, in retrieval order "
+            "(the order defines the relevancy prompt numbering). "
             "None when debug stages are disabled."
         ),
     )
@@ -403,6 +430,7 @@ class ChainState(BaseModel):
 
     retrieval_results: RetrievalStagesResults = RetrievalStagesResults()
     hybrid_search_timings: HybridSearchTimings | None = None
+    hybrid_subquery_candidates: list[HybridSubqueryCandidates] | None = None
     special_dims_outputs: dict[str, SpecialDimensionChainOutput] = {}
     dataset_queries: dict[str, DataSetQuery] = {}  # final data queries
 

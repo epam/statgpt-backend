@@ -99,6 +99,7 @@ def set_tool_state(inputs: dict) -> dict:
         dimension_id_to_name=chain_state.dimension_id_to_name,
         special_dims_outputs=chain_state.special_dims_outputs,
         hybrid_search_timings=chain_state.hybrid_search_timings,
+        hybrid_raw_candidates=chain_state.hybrid_subquery_candidates,
     )
     agent_state_dict = agent_state.model_dump(mode='json')
 
