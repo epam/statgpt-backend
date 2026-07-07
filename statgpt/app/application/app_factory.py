@@ -12,6 +12,7 @@ from statgpt.app.mcp.app import mcp
 from statgpt.app.settings.dial_app import dial_app_settings
 from statgpt.common.settings.application import application_settings
 from statgpt.common.settings.dial import dial_settings
+from statgpt.mcp_lite.app import mcp as mcp_lite
 
 from .application import StatGPTApp
 from .application import lifespan as base_lifespan
@@ -49,11 +50,12 @@ class DialAppFactory:
         _log.info("Creating DIAL app name=%s", dial_app_settings.dial_app_name)
 
         mcp_app = mcp.http_app(path="/", transport="streamable-http", stateless_http=True)
+        mcp_lite_app = mcp_lite.http_app(path="/", transport="streamable-http", stateless_http=True)
 
         @asynccontextmanager
         async def lifespan(app_: StatGPTApp):  # noqa: E306
             async with base_lifespan(app_):
-                async with mcp_app.lifespan(app_):
+                async with mcp_app.lifespan(app_), mcp_lite_app.lifespan(app_):
                     yield
 
         app = StatGPTApp(
@@ -88,6 +90,10 @@ class DialAppFactory:
         mcp_path = "/api/v1/{deployment_id}/mcp"
         _log.info("Mounting MCP app at %s", mcp_path)
         app.mount(mcp_path, mcp_app)
+
+        mcp_lite_path = "/api/v1/{deployment_id}/mcp-lite"
+        _log.info("Mounting MCP-Lite app at %s", mcp_lite_path)
+        app.mount(mcp_lite_path, mcp_lite_app)
 
         # Add memory debug endpoints (only in development)
         if application_settings.memory_debug:
