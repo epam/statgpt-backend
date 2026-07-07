@@ -5,12 +5,15 @@ import uuid
 from unittest.mock import AsyncMock, Mock
 
 import pytest
+from pydantic import ValidationError
 
 from statgpt.app.schemas.query_builder import HybridMatchTimings
 from statgpt.app.services.hybrid_searcher import (
     HarmonizedItemScored,
+    HybridCandidateScored,
     HybridSearcher,
     PlainItemScored,
+    RelevanceScore,
     SearchParams,
 )
 from statgpt.common.hybrid_indexer.schemas import IndicatorIndex, MatchingIndex
@@ -233,3 +236,42 @@ async def test_hybrid_candidates_runs_lexical_and_semantic_concurrently(match):
     # per-part timings are measured inside each coroutine
     assert timings.lexical > 0
     assert timings.semantic_raw > 0
+
+
+def _indexed_entry(num: str, real_id: str, dataset_id: str = "ds1") -> dict:
+    """An `indexed` entry in the shape produced by _prepare_for_relevance."""
+    return {
+        "id": real_id,
+        "dataset_id": dataset_id,
+        "primary": f"primary {num}",
+        "name": f"name {num}",
+        "name_original": f"Name {num}",
+        "where": [],
+        "series": [],
+    }
+
+
+def test_add_llm_scores_skips_anchor_and_maps_scores(match):
+    """The structured RelevanceScore list maps to scored candidates; number 0 (the
+    cross-batch anchor) is dropped and the real candidate ids/scores are preserved."""
+    indexed = {
+        "0": _indexed_entry("0", "anchor"),
+        "1": _indexed_entry("1", "real-a"),
+        "2": _indexed_entry("2", "real-b"),
+    }
+    scores = [
+        RelevanceScore(number=0, score=3),  # cross-batch anchor -> dropped
+        RelevanceScore(number=1, score=2),
+        RelevanceScore(number=2, score=0),
+    ]
+
+    result = match._add_llm_scores_to_indexed(indexed=indexed, scores=scores)
+
+    assert all(isinstance(c, HybridCandidateScored) for c in result)
+    assert [(c.id, c.score) for c in result] == [("real-a", 2), ("real-b", 0)]
+
+
+def test_relevance_score_rejects_out_of_range_score():
+    """score is constrained to 0-3; anything else must fail validation."""
+    with pytest.raises(ValidationError):
+        RelevanceScore(number=1, score=4)  # type: ignore[arg-type]
