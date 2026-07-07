@@ -1,15 +1,17 @@
+import logging
 from typing import Any, Literal
 
 import httpx
 from mcp.types import ToolAnnotations
-from pydantic import Field
+from pydantic import Field, field_validator, model_validator
 
-from statgpt.app.chains.tools import StatGptTool, ToolArgs, ToolInputError, ToolUpstreamError
+from statgpt.app.chains.tools import StatGptTool, ToolArgs, ToolUpstreamError
 from statgpt.app.schemas import SdmxQueryAppArtifact, ToolMessageState
-from statgpt.common.config import multiline_logger as logger
 from statgpt.common.schemas import SdmxQueryAppTool as SdmxQueryAppToolConfig
 from statgpt.common.schemas import ToolTypes
 from statgpt.common.utils import ManagedHttpClient
+
+_log = logging.getLogger(__name__)
 
 _HTTP_TIMEOUT = httpx.Timeout(90.0, connect=45.0)
 
@@ -43,6 +45,23 @@ class SdmxQueryAppArgs(ToolArgs):
         description="Value forwarded as the `Accept` header (e.g. an SDMX media type).",
     )
 
+    @field_validator("path")
+    @classmethod
+    def _path_stays_on_configured_host(cls, path: str) -> str:
+        if not path.startswith("/"):
+            raise ValueError("`path` must start with '/'.")
+        # Reject protocol-relative paths and absolute URLs to keep requests on the
+        # configured host (the base URL is prepended verbatim, no urljoin).
+        if path.startswith("//") or "://" in path:
+            raise ValueError("`path` must be domain-less (no scheme or host).")
+        return path
+
+    @model_validator(mode="after")
+    def _no_body_for_get(self) -> "SdmxQueryAppArgs":
+        if self.method == "GET" and self.body is not None:
+            raise ValueError("`body` is not supported for `GET` requests; use `method='POST'`.")
+        return self
+
 
 class SdmxQueryAppTool(StatGptTool[SdmxQueryAppToolConfig], tool_type=ToolTypes.SDMX_QUERY_APP):
     """MCP-only passthrough tool that forwards a frontend-built SDMX request to a configured
@@ -61,16 +80,6 @@ class SdmxQueryAppTool(StatGptTool[SdmxQueryAppToolConfig], tool_type=ToolTypes.
     def get_args_schema(cls, tool_config: SdmxQueryAppToolConfig) -> type[SdmxQueryAppArgs]:
         return SdmxQueryAppArgs
 
-    @staticmethod
-    def _build_url(base_url: str, path: str) -> str:
-        if not path.startswith("/"):
-            raise ToolInputError("`path` must start with '/'.")
-        # Reject protocol-relative paths and absolute URLs to keep requests on the
-        # configured host (the base URL is prepended verbatim, no urljoin).
-        if path.startswith("//") or "://" in path:
-            raise ToolInputError("`path` must be domain-less (no scheme or host).")
-        return f"{base_url}{path}"
-
     def _build_headers(self, method: str, accept: str | None) -> dict[str, str]:
         headers: dict[str, str] = {}
         if accept:
@@ -88,15 +97,10 @@ class SdmxQueryAppTool(StatGptTool[SdmxQueryAppToolConfig], tool_type=ToolTypes.
         accept: str | None = None,
         **kwargs,
     ) -> tuple[str, SdmxQueryAppArtifact]:
-        if method == "GET" and body is not None:
-            raise ToolInputError("`body` is not supported for `GET` requests; use `method='POST'`.")
-
-        base_url = self._tool_config.details.get_base_url()
-        url = self._build_url(base_url, path)
-
+        url = f"{self._tool_config.details.get_base_url()}{path}"
         headers = self._build_headers(method, accept)
 
-        logger.info(f"SDMX query app passthrough: {method} {url}")
+        _log.info("SDMX query app passthrough: %s %s", method, url)
         try:
             response = await sdmx_query_app_http_client.client.request(
                 method=method,

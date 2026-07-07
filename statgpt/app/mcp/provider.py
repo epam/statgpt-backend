@@ -16,7 +16,7 @@ from mcp.types import ContentBlock, TextContent
 from pydantic import PrivateAttr, ValidationError
 from starlette.requests import Request
 
-from statgpt.app.chains.tools import StatGptTool, ToolInputError, ToolUpstreamError
+from statgpt.app.chains.tools import StatGptTool, ToolUpstreamError
 from statgpt.app.config import ChainParametersConfig
 from statgpt.app.mcp.attachments import (
     data_query_artifact_to_resources,
@@ -90,9 +90,6 @@ class _McpToolAdapter(Tool):
         }
         try:
             result = await self._langchain_tool.ainvoke(tool_call)
-        except ToolInputError as e:
-            # Invalid caller-provided arguments: surface the specific message.
-            raise ToolError(str(e)) from e
         except ValidationError as e:
             # Argument-schema validation failures (e.g. missing required field, bad enum
             # value). Surface a concise message instead of the generic failure.
