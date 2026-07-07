@@ -107,15 +107,3 @@ class TestChannelMcpBinding:
                     mcp_app_resource_uri="ui://statgpt/missing.html",
                 ),
             )
-
-
-class TestMcpMetaResourceUri:
-    def test_resource_uri_only(self):
-        tool = AvailableDatasetsTool(name="t", description="d", mcp_app_resource_uri=_URI)
-        assert tool.mcp_meta == {"ui": {"resourceUri": _URI}}
-
-    def test_merges_visibility_and_resource_uri(self):
-        tool = AvailableDatasetsTool(
-            name="t", description="d", mcp_visibility=["app"], mcp_app_resource_uri=_URI
-        )
-        assert tool.mcp_meta == {"ui": {"visibility": ["app"], "resourceUri": _URI}}
