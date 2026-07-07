@@ -47,20 +47,12 @@ class ToolRegistry(MutableMapping):
         return len(self._mapping)
 
 
-class ToolInputError(Exception):
-    """Raised by a tool for invalid caller-provided arguments.
-
-    The message is safe to surface to the caller (e.g. translated into an MCP
-    ToolError) instead of being masked as a generic execution failure.
-    """
-
-
 class ToolUpstreamError(Exception):
     """Raised by a tool when an upstream dependency (e.g. an HTTP backend) fails.
 
-    Like `ToolInputError`, the message is safe to surface to the caller so that
-    connection/timeout failures yield a clear message instead of being masked as
-    a generic execution failure.
+    The message is safe to surface to the caller (e.g. translated into an MCP
+    ToolError) so that connection/timeout failures yield a clear message instead
+    of being masked as a generic execution failure.
     """
 
 
