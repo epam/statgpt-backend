@@ -16,7 +16,12 @@ For a component-owned shared client with its own lifecycle, use
 process-global and are all closed together via ``close_shared_http_clients``.
 """
 
+import asyncio
+import logging
+
 import httpx
+
+logger = logging.getLogger(__name__)
 
 # Deliberately lower than the openai SDK's DEFAULT_CONNECTION_LIMITS (1000/100): one process
 # talks to a handful of DIAL/Azure endpoints, not thousands of hosts.
@@ -65,7 +70,7 @@ def get_shared_sdmx_http_client(
 
 
 async def close_shared_http_clients() -> None:
-    """Close all shared clients. Safe to call multiple times."""
+    """Close all shared clients; failures are logged, not raised. Safe to call multiple times."""
     global _llm_client
     clients: list[httpx.AsyncClient] = []
     if _llm_client is not None:
@@ -73,6 +78,10 @@ async def close_shared_http_clients() -> None:
         _llm_client = None
     clients.extend(_sdmx_clients.values())
     _sdmx_clients.clear()
-    for client in clients:
-        if not client.is_closed:
-            await client.aclose()
+    results = await asyncio.gather(
+        *(client.aclose() for client in clients if not client.is_closed),
+        return_exceptions=True,
+    )
+    for result in results:
+        if isinstance(result, BaseException):
+            logger.error(f"Failed to close a shared HTTP client: {result!r}")
