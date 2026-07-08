@@ -11,12 +11,14 @@ from aidial_sdk.deployment.truncate_prompt import TruncatePromptRequest
 from aidial_sdk.utils._reflection import get_method_implementation
 from fastapi import params as fastapi_params
 
+from statgpt.app.chains.file_rags.dial_rag.metadata_loader import dial_rag_metadata_http_client
 from statgpt.app.chains.sdmx_query_app_tool import sdmx_query_app_http_client
 from statgpt.app.mcp.widget_resource import widget_http_client
 from statgpt.common.models import DatabaseHealthChecker, optional_msi_token_manager_context
 from statgpt.common.services.data_preloader import preload_data
 from statgpt.common.settings.data_preloader import data_preloader_settings
 from statgpt.common.utils.elastic import elasticsearch_client_context
+from statgpt.common.utils.http_pool import shared_http_clients_context
 
 _log = logging.getLogger(__name__)
 
@@ -60,6 +62,8 @@ async def lifespan(app: "StatGPTApp"):
         elasticsearch_client_context(),
         sdmx_query_app_http_client,
         widget_http_client,
+        dial_rag_metadata_http_client,
+        shared_http_clients_context(),
     ):
         # Check resources' availability:
         await DatabaseHealthChecker().check()
@@ -71,7 +75,8 @@ async def lifespan(app: "StatGPTApp"):
 
         yield
 
-        # Clean up
+        # Clean up: stop the preload task before the shared HTTP pools close,
+        # since the preload uses them.
         preload_task.cancel()
         await asyncio.gather(preload_task, return_exceptions=True)
 

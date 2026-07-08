@@ -1,4 +1,3 @@
-import asyncio
 import os
 import sys
 from collections.abc import Callable
@@ -26,23 +25,27 @@ from statgpt.admin.routers import router
 from statgpt.admin.settings.app import APP_SETTINGS
 from statgpt.common.config import multiline_logger as logger
 from statgpt.common.models import DatabaseHealthChecker, optional_msi_token_manager_context
-from statgpt.common.services.data_preloader import preload_data
+from statgpt.common.services.data_preloader import preload_data_task_context
 from statgpt.common.utils.elastic import elasticsearch_client_context
+from statgpt.common.utils.http_pool import shared_http_clients_context
 
 Lifespan = Callable[[FastAPI], AsyncContextManager[None]]
 
 
 @asynccontextmanager
 async def app_lifespan(app_: FastAPI):
-    async with optional_msi_token_manager_context(), elasticsearch_client_context():
+    async with (
+        optional_msi_token_manager_context(),
+        elasticsearch_client_context(),
+        shared_http_clients_context(),
+    ):
         # Check resources' availability:
         await DatabaseHealthChecker().check()
 
-        # Start data preloading in the background
-        asyncio.create_task(preload_data(allow_cached_datasets=False, use_resolved_config=False))
-
-        yield
-        # Clean up
+        async with preload_data_task_context(
+            allow_cached_datasets=False, use_resolved_config=False
+        ):
+            yield
 
 
 lifespan: Lifespan = app_lifespan
@@ -57,7 +60,9 @@ if APP_SETTINGS.beta_mcp_enabled:
         logger.warning(f"MCP is enabled, but optional beta-mcp dependencies are not installed: {e}")
         sys.exit(1)
 
-    mcp_app = mcp.http_app(path="/", transport="streamable-http", stateless_http=True)
+    mcp_app = mcp.http_app(
+        path="/", transport="streamable-http", stateless_http=True, allowed_hosts=["*"]
+    )
 
     @asynccontextmanager
     async def combined_lifespan(app_: FastAPI):

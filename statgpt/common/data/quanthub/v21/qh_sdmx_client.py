@@ -19,6 +19,7 @@ from statgpt.common.data.quanthub.sdmx_schemas.v30 import (
 from statgpt.common.data.sdmx.v21.ratelimiter import SdmxRateLimiter
 from statgpt.common.data.sdmx.v21.sdmx_client import AsyncSdmxClient, init_sdmx
 from statgpt.common.utils import TtlCache
+from statgpt.common.utils.http_pool import get_shared_sdmx_http_client
 
 from .attributes_parser import AttributesParser
 from .authorizer import QuanthubAuthorizer, QuanthubAuthorizerFactory
@@ -50,7 +51,7 @@ class AsyncQuanthubClient(AsyncSdmxClient):
         headers: dict[str, str] = {}
         if config.api_key and config.api_key_header:
             headers[config.api_key_header] = config.get_api_key().get_secret_value()
-        httpx_client = cls._create_httpx_client(headers=headers)
+        httpx_client = get_shared_sdmx_http_client(config.get_id())
 
         authorizer = None
         if config.auth_enabled:
@@ -67,6 +68,7 @@ class AsyncQuanthubClient(AsyncSdmxClient):
             attributes_url=config.get_attributes_url(),
             availability_via_post_url=config.get_availability_via_post_url(),
             rate_limiter=rate_limiter,
+            static_headers=headers,
         )
 
     def __init__(
@@ -78,12 +80,14 @@ class AsyncQuanthubClient(AsyncSdmxClient):
         attributes_url: str | None,
         availability_via_post_url: str | None,
         rate_limiter: SdmxRateLimiter,
+        static_headers: dict[str, str] | None = None,
     ):
         super().__init__(
             sync_client=sync_client,
             httpx_client=httpx_client,
             authorizer=authorizer,
             rate_limiter=rate_limiter,
+            static_headers=static_headers,
         )
         self._annotations_url = annotations_url
         self._attributes_url = attributes_url
@@ -135,9 +139,9 @@ class AsyncQuanthubClient(AsyncSdmxClient):
         if (item := self._attributes_cache.get(url)) is not None:
             return item
 
-        headers = {}
+        headers = dict(self._static_headers)
         if self._authorizer is not None:
-            headers = await self._authorizer.get_authorization_headers()
+            headers.update(await self._authorizer.get_authorization_headers())
 
         params: dict[str, str | int] = {"attributes": "dataset", "measures": "none", "limit": 1}
 
@@ -163,9 +167,9 @@ class AsyncQuanthubClient(AsyncSdmxClient):
         if (item := self._annotation_cache.get(url)) is not None:
             return item
 
-        headers = {}
+        headers = dict(self._static_headers)
         if self._authorizer is not None:
-            headers = await self._authorizer.get_authorization_headers()
+            headers.update(await self._authorizer.get_authorization_headers())
 
         params = {
             "references": "none",

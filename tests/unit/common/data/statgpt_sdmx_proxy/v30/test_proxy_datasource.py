@@ -10,7 +10,6 @@ from sdmx.model.common import Agency, AgencyScheme, InternationalString
 from statgpt.common.data.sdmx.common.config import SdmxConfig
 from statgpt.common.data.statgpt_sdmx_proxy.config import StatGptSdmxProxyDataSourceConfig
 from statgpt.common.data.statgpt_sdmx_proxy.v30.datasource import StatGptSdmxProxyDataSourceHandler
-from statgpt.common.data.statgpt_sdmx_proxy.v30.sdmx_client import AsyncStatGptSdmxProxyClient
 from statgpt.common.schemas.data_source import Provider
 
 FIXTURE = Path(__file__).parent / "agency_schemes_response.json"
@@ -65,14 +64,14 @@ async def test_proxy_list_providers_parses_real_agency_scheme_response(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     transport = _mock_transport(FIXTURE.read_bytes())
-    monkeypatch.setattr(
-        AsyncStatGptSdmxProxyClient,
-        "_create_httpx_client",
-        staticmethod(lambda *, headers=None: httpx.AsyncClient(transport=transport)),
-    )
+    async with httpx.AsyncClient(transport=transport) as http_client:
+        monkeypatch.setattr(
+            "statgpt.common.data.sdmx.v21.sdmx_client.get_shared_sdmx_http_client",
+            lambda source_id: http_client,
+        )
 
-    handler = StatGptSdmxProxyDataSourceHandler(_proxy_config())
-    providers = await handler.list_providers(auth_context=None)  # type: ignore[arg-type]
+        handler = StatGptSdmxProxyDataSourceHandler(_proxy_config())
+        providers = await handler.list_providers(auth_context=None)  # type: ignore[arg-type]
 
     assert providers == [
         Provider(id="BIS", name="Bank for International Settlements"),
