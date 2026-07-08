@@ -48,7 +48,9 @@ class DialAppFactory:
     def create_app(self) -> DIALApp:
         _log.info("Creating DIAL app name=%s", dial_app_settings.dial_app_name)
 
-        mcp_app = mcp.http_app(path="/", transport="streamable-http", stateless_http=True)
+        mcp_app = mcp.http_app(
+            path="/", transport="streamable-http", stateless_http=True, allowed_hosts=["*"]
+        )
 
         @asynccontextmanager
         async def lifespan(app_: StatGPTApp):  # noqa: E306

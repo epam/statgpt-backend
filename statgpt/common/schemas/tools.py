@@ -82,23 +82,6 @@ class BaseToolConfig(BaseYamlModel):
         return self.description
 
     @property
-    def mcp_meta(self) -> dict | None:
-        """Build the MCP tool `_meta.ui` from `mcp_visibility` and `mcp_app_resource_uri`.
-
-        Per the MCP Apps extension (`io.modelcontextprotocol/ui`), a tool declares its
-        audience via `_meta.ui.visibility` and its bound UI widget via `_meta.ui.resourceUri`.
-        Returns ``None`` when neither is set so the field is omitted and the host applies the
-        spec default visibility (`["model", "app"]`).
-        https://github.com/modelcontextprotocol/ext-apps/blob/main/specification/2026-01-26/apps.mdx
-        """
-        ui: dict = {}
-        if self.mcp_visibility is not None:
-            ui["visibility"] = self.mcp_visibility
-        if self.mcp_app_resource_uri is not None:
-            ui["resourceUri"] = self.mcp_app_resource_uri
-        return {"ui": ui} if ui else None
-
-    @property
     def effective_mcp_name(self) -> str:
         return self.mcp_name if self.mcp_name is not None else self.name
 
