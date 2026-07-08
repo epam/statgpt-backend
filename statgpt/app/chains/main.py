@@ -1,6 +1,6 @@
 import asyncio
 
-from langchain_core.runnables import Runnable, RunnablePassthrough
+from langchain_core.runnables import Runnable, RunnableLambda, RunnablePassthrough
 
 from statgpt.app.chains.out_of_scope_checker import OutOfScopeChecker
 from statgpt.app.chains.parameters import ChainParameters
@@ -33,10 +33,10 @@ class MainChainFactory:
 
         return (
             RunnablePassthrough.assign(**{ChainParametersConfig.HISTORY: self._init_history})
-            | self._direct_tool_calls_chain
+            | RunnableLambda(self._direct_tool_calls_chain)
             | out_of_scope_chain
-            | self._main_chain
-            | self._update_state
+            | RunnableLambda(self._main_chain)
+            | RunnableLambda(self._update_state)
         )
 
     async def _direct_tool_calls_chain(self, inputs: dict) -> dict:
