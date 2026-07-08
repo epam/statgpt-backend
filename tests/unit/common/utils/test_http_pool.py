@@ -108,3 +108,21 @@ class TestCloseSharedHttpClients:
 
         await http_pool.close_shared_http_clients()
         await http_pool.close_shared_http_clients()  # must not raise
+
+
+class TestSharedHttpClientsContext:
+    async def test_closes_clients_on_exit(self) -> None:
+        async with http_pool.shared_http_clients_context():
+            llm_client = http_pool.get_shared_llm_http_client()
+            sdmx_client = http_pool.get_shared_sdmx_http_client("source-a")
+
+        assert llm_client.is_closed
+        assert sdmx_client.is_closed
+
+    async def test_closes_clients_on_error(self) -> None:
+        with pytest.raises(RuntimeError, match="boom"):
+            async with http_pool.shared_http_clients_context():
+                client = http_pool.get_shared_llm_http_client()
+                raise RuntimeError("boom")
+
+        assert client.is_closed

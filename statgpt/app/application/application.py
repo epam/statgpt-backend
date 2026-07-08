@@ -1,4 +1,3 @@
-import asyncio
 from collections.abc import Sequence
 from contextlib import asynccontextmanager
 
@@ -14,9 +13,9 @@ from statgpt.app.chains.file_rags.dial_rag.metadata_loader import dial_rag_metad
 from statgpt.app.chains.sdmx_query_app_tool import sdmx_query_app_http_client
 from statgpt.app.mcp.widget_resource import widget_http_client
 from statgpt.common.models import DatabaseHealthChecker, optional_msi_token_manager_context
-from statgpt.common.services.data_preloader import preload_data
+from statgpt.common.services.data_preloader import preload_data_task_context
 from statgpt.common.utils.elastic import elasticsearch_client_context
-from statgpt.common.utils.http_pool import close_shared_http_clients
+from statgpt.common.utils.http_pool import shared_http_clients_context
 
 
 @asynccontextmanager
@@ -27,22 +26,13 @@ async def lifespan(app: "StatGPTApp"):
         sdmx_query_app_http_client,
         widget_http_client,
         dial_rag_metadata_http_client,
+        shared_http_clients_context(),
     ):
         # Check resources' availability:
         await DatabaseHealthChecker().check()
 
-        # Start data preloading in the background (the reference also protects the task from GC)
-        preload_task = asyncio.create_task(
-            preload_data(allow_cached_datasets=True, use_resolved_config=True)
-        )
-
-        try:
+        async with preload_data_task_context(allow_cached_datasets=True, use_resolved_config=True):
             yield
-        finally:
-            # Clean up: stop a still-running preload before closing the pools its calls use
-            preload_task.cancel()
-            await asyncio.gather(preload_task, return_exceptions=True)
-            await close_shared_http_clients()
 
 
 class StatGPTApp(DIALApp):

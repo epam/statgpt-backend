@@ -18,6 +18,8 @@ process-global and are all closed together via ``close_shared_http_clients``.
 
 import asyncio
 import logging
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 
 import httpx
 
@@ -85,3 +87,12 @@ async def close_shared_http_clients() -> None:
     for result in results:
         if isinstance(result, BaseException):
             logger.error(f"Failed to close a shared HTTP client: {result!r}")
+
+
+@asynccontextmanager
+async def shared_http_clients_context() -> AsyncIterator[None]:
+    """Close all shared clients on exit (for use in an app lifespan's ``async with`` stack)."""
+    try:
+        yield
+    finally:
+        await close_shared_http_clients()
