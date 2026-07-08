@@ -60,8 +60,9 @@ def get_chat_model(
         params.setdefault('callbacks', []).append(callback)
 
     api_key_log = f'{api_key.get_secret_value()[:3]}*****{api_key.get_secret_value()[-2:]}'
+    params_log = {k: v for k, v in params.items() if k not in ('api_key', 'http_async_client')}
     logger.info(
-        f'creating langchain LLM with the following params: {params}, Api key: {api_key_log}'
+        f'creating langchain LLM with the following params: {params_log}, Api key: {api_key_log}'
     )
     return AzureChatOpenAI.model_validate(params)
 
@@ -82,7 +83,8 @@ def get_embeddings_model(
         http_async_client=get_shared_llm_http_client(),  # shared pool
     )
     api_key_log = f'{api_key.get_secret_value()[:3]}*****{api_key.get_secret_value()[-2:]}'
+    params_log = {k: v for k, v in params.items() if k not in ('api_key', 'http_async_client')}
     logger.info(
-        f'creating langchain embeddings with the following params: {params}, Api key: {api_key_log}'
+        f'creating langchain embeddings with the following params: {params_log}, Api key: {api_key_log}'
     )
     return AzureOpenAIEmbeddings.model_validate(params)

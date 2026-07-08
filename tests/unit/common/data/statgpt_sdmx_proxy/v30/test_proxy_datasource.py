@@ -64,13 +64,14 @@ async def test_proxy_list_providers_parses_real_agency_scheme_response(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     transport = _mock_transport(FIXTURE.read_bytes())
-    monkeypatch.setattr(
-        "statgpt.common.data.sdmx.v21.sdmx_client.get_shared_sdmx_http_client",
-        lambda source_id: httpx.AsyncClient(transport=transport),
-    )
+    async with httpx.AsyncClient(transport=transport) as http_client:
+        monkeypatch.setattr(
+            "statgpt.common.data.sdmx.v21.sdmx_client.get_shared_sdmx_http_client",
+            lambda source_id: http_client,
+        )
 
-    handler = StatGptSdmxProxyDataSourceHandler(_proxy_config())
-    providers = await handler.list_providers(auth_context=None)  # type: ignore[arg-type]
+        handler = StatGptSdmxProxyDataSourceHandler(_proxy_config())
+        providers = await handler.list_providers(auth_context=None)  # type: ignore[arg-type]
 
     assert providers == [
         Provider(id="BIS", name="Bank for International Settlements"),
