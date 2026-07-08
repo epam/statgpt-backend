@@ -60,20 +60,56 @@ async def preload_data(
     _log.info('~~~ Data preload finished ~~~')
 
 
+async def _run_dataset_preload(
+    allow_cached_datasets: bool,
+    use_resolved_config: bool,
+    refresh_interval_seconds: int,
+) -> None:
+    """Warm up dataset caches, then (if an interval is set) keep them warm.
+
+    Runs an initial warm-up and, when ``refresh_interval_seconds > 0``, force-refreshes
+    the caches on that interval so entries are replaced before they expire. Each pass is
+    guarded so a transient failure (e.g. a DB hiccup) neither kills the task before the
+    refresh loop starts nor stops later refreshes.
+    """
+    # The first pass warms up without evicting live entries; later passes force-replace.
+    force_refresh = False
+    while True:
+        try:
+            await preload_data(
+                allow_cached_datasets=allow_cached_datasets,
+                use_resolved_config=use_resolved_config,
+                force_refresh=force_refresh,
+            )
+        except Exception:
+            _log.exception("%s dataset preload failed", "Periodic" if force_refresh else "Startup")
+        if refresh_interval_seconds <= 0:
+            return
+        await asyncio.sleep(refresh_interval_seconds)
+        force_refresh = True
+
+
 @asynccontextmanager
 async def preload_data_task_context(
-    allow_cached_datasets: bool, use_resolved_config: bool
+    allow_cached_datasets: bool,
+    use_resolved_config: bool,
+    refresh_interval_seconds: int = 0,
 ) -> AsyncIterator[None]:
-    """Run :func:`preload_data` as a background task for the duration of the context.
+    """Run dataset preloading as a background task for the duration of the context.
+
+    With ``refresh_interval_seconds > 0`` the task keeps the caches warm by
+    force-refreshing entries on that interval after the initial warm-up; with ``0``
+    (the default) it performs a single warm-up and exits.
 
     The held reference protects the task from GC; on exit a still-running preload is
     cancelled and awaited, so resources its calls use (e.g. shared HTTP pools) can be
     closed safely afterwards.
     """
     task = asyncio.create_task(
-        preload_data(
+        _run_dataset_preload(
             allow_cached_datasets=allow_cached_datasets,
             use_resolved_config=use_resolved_config,
+            refresh_interval_seconds=refresh_interval_seconds,
         )
     )
     try:
