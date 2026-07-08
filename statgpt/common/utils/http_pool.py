@@ -23,7 +23,7 @@ from contextlib import asynccontextmanager
 
 import httpx
 
-logger = logging.getLogger(__name__)
+_log = logging.getLogger(__name__)
 
 # Deliberately lower than the openai SDK's DEFAULT_CONNECTION_LIMITS (1000/100): one process
 # talks to a handful of DIAL/Azure endpoints, not thousands of hosts.
@@ -79,7 +79,7 @@ async def close_shared_http_clients() -> None:
     )
     for result in results:
         if isinstance(result, BaseException):
-            logger.error(f"Failed to close a shared HTTP client: {result!r}")
+            _log.error(f"Failed to close a shared HTTP client: {result!r}")
 
 
 @asynccontextmanager
