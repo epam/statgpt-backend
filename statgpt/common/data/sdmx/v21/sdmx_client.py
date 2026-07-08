@@ -51,11 +51,15 @@ class AsyncSdmxClient:
         httpx_client: httpx.AsyncClient,
         authorizer: IAuthorizer | None,
         rate_limiter: SdmxRateLimiter,
+        static_headers: dict[str, str] | None = None,
     ):
         self._sync_client = sync_client
         self._httpx_client = httpx_client
         self._authorizer = authorizer
         self._rate_limiter = rate_limiter
+        # Applied per request (not on the shared httpx client) so a reconfigured source
+        # (e.g. a rotated API key) keeps using the same pooled connections.
+        self._static_headers = static_headers or {}
 
     async def dataflow(
         self,
@@ -338,7 +342,7 @@ class AsyncSdmxClient:
         else:
             auth_headers = await self._authorizer.get_authorization_headers()
         default_headers = self._sync_client.source.headers.get(resource.name, {})
-        return {**default_headers, **auth_headers, **headers}
+        return {**default_headers, **self._static_headers, **auth_headers, **headers}
 
     async def _fetch(self, req: PreparedRequest, tofile: os.PathLike | IO | None = None) -> Message:
         httpx_response = await self._perform_request(req)

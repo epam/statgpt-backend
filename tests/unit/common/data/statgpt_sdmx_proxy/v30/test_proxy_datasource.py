@@ -66,7 +66,7 @@ async def test_proxy_list_providers_parses_real_agency_scheme_response(
     transport = _mock_transport(FIXTURE.read_bytes())
     monkeypatch.setattr(
         "statgpt.common.data.sdmx.v21.sdmx_client.get_shared_sdmx_http_client",
-        lambda source_id, headers=None: httpx.AsyncClient(transport=transport),
+        lambda source_id: httpx.AsyncClient(transport=transport),
     )
 
     handler = StatGptSdmxProxyDataSourceHandler(_proxy_config())

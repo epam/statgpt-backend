@@ -5,9 +5,9 @@ TCP+TLS handshake on every request (and leaking never-closed clients). This modu
 lazily-created shared clients instead:
 
 - one client for all LLM/embeddings traffic;
-- one client per SDMX data source configuration, keyed by the source id and its static
-  headers, so a reconfigured source (e.g. a rotated API key) transparently gets a fresh
-  client while in-flight requests keep using the old one.
+- one client per SDMX data source, keyed by the source id. The clients carry no auth
+  state: static headers (e.g. API keys) are applied per request by the SDMX clients, so
+  a reconfigured source (e.g. a rotated API key) keeps using its pooled connections.
 
 ``close_shared_http_clients`` must be awaited on application shutdown (both app lifespans).
 
@@ -31,10 +31,8 @@ _LLM_LIMITS = httpx.Limits(max_connections=200, max_keepalive_connections=50)
 # Mirrors the timeout previously set per-construction in AsyncSdmxClient._create_httpx_client.
 _SDMX_TIMEOUT = httpx.Timeout(90.0, connect=45.0)
 
-_SdmxPoolKey = tuple[str, frozenset[tuple[str, str]]]
-
 _llm_client: httpx.AsyncClient | None = None
-_sdmx_clients: dict[_SdmxPoolKey, httpx.AsyncClient] = {}
+_sdmx_clients: dict[str, httpx.AsyncClient] = {}
 
 
 def get_shared_llm_http_client() -> httpx.AsyncClient:
@@ -52,22 +50,17 @@ def get_shared_llm_http_client() -> httpx.AsyncClient:
     return _llm_client
 
 
-def get_shared_sdmx_http_client(
-    source_id: str, headers: dict[str, str] | None = None
-) -> httpx.AsyncClient:
+def get_shared_sdmx_http_client(source_id: str) -> httpx.AsyncClient:
     """Return the shared client for an SDMX data source, creating it lazily.
 
-    Keyed by ``(source_id, static headers)``: when the static headers change (the source was
-    reconfigured), subsequent calls get a fresh client while in-flight requests keep using
-    the old one, which stays pooled under its own key until ``close_shared_http_clients``
-    (its idle keepalive sockets expire on their own). Pool growth is thus bounded by the
-    number of distinct source configurations seen.
+    The client carries no auth state: static headers (e.g. an API key) are applied per
+    request by the SDMX clients, so a reconfigured source keeps using the same pooled
+    connections.
     """
-    key: _SdmxPoolKey = (source_id, frozenset((headers or {}).items()))
-    client = _sdmx_clients.get(key)
+    client = _sdmx_clients.get(source_id)
     if client is None or client.is_closed:
-        client = httpx.AsyncClient(timeout=_SDMX_TIMEOUT, headers=headers)
-        _sdmx_clients[key] = client
+        client = httpx.AsyncClient(timeout=_SDMX_TIMEOUT)
+        _sdmx_clients[source_id] = client
     return client
 
 
