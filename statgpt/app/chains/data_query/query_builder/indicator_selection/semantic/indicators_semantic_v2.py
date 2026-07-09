@@ -1,6 +1,6 @@
 from copy import deepcopy
 
-from langchain_core.runnables import Runnable, RunnablePassthrough
+from langchain_core.runnables import Runnable, RunnableLambda, RunnablePassthrough
 
 from statgpt.app.chains.data_query.query_builder.indicator_selection.base import (
     SemanticIndicatorSelectionBase,
@@ -210,7 +210,7 @@ class IndicatorSelectionSemanticV2ChainFactory(SemanticIndicatorSelectionBase):
             )
             | RunnablePassthrough.assign(llm_indicator_queries=indicator_selection_chain)
             | RunnablePassthrough.assign(llm_indicator_queries=self._convert_llm_indicator_queries)
-            | self._show_indicator_queries_stage
+            | RunnableLambda(self._show_indicator_queries_stage)
             | RunnablePassthrough.assign(
                 strong_queries=self._add_llm_indicator_queries_to_strong_queries
             )
