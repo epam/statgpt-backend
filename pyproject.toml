@@ -15,7 +15,7 @@ dependencies = [
     'pydantic-settings (>=2.14.2,<3.0.0)',       # Settings management
 
     # SDMX & Data processing
-    'sdmx1 (>=2.14.0,<3.0.0)',                   # SDMX data format support
+    'sdmx1 (>=2.26.0,<3.0.0)',                   # SDMX data format support
     'pandas (>=2.2.3,<3.0.0)',                   # Data manipulation
     'numpy (>=1.26.4,<2.0.0)',                   # Pinned to 1.x: CVE-2018-1999024 is a false positive (MathJax XSS); avoid breaking 2.x major
     'plotly (>=5.21.0,<6.0.0)',                  # Data visualization

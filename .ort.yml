@@ -176,7 +176,7 @@ resolutions:
       comment: "MIT License: https://github.com/langchain-ai/langgraph/blob/main/libs/sdk-py/LICENSE"
 
     # WARNINGS (dual-license packages)
-    - message: ".*PyPI::packaging:25\\..*"
+    - message: ".*PyPI::packaging:26\\..*"
       reason: "CANT_FIX_EXCEPTION"
       comment: "Dual (Apache 2.0 OR BSD 2-Clause): https://github.com/pypa/packaging/blob/main/LICENSE"
     - message: ".*PyPI::python-dateutil:2\\..*"

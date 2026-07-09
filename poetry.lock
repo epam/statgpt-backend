@@ -3768,14 +3768,14 @@ files = [
 
 [[package]]
 name = "packaging"
-version = "25.0"
+version = "26.2"
 description = "Core utilities for Python packages"
 optional = false
 python-versions = ">=3.8"
 groups = ["main", "dev"]
 files = [
-    {file = "packaging-25.0-py3-none-any.whl", hash = "sha256:29572ef2b1f17581046b3a2227d5c611fb25ec70ca1ba8554b24b0e69331a484"},
-    {file = "packaging-25.0.tar.gz", hash = "sha256:d443872c98d677bf60f6a1f2f8c1cb748e8fe762d2bf9d3148b5599295b0fc4f"},
+    {file = "packaging-26.2-py3-none-any.whl", hash = "sha256:5fc45236b9446107ff2415ce77c807cee2862cb6fac22b8a73826d0693b0980e"},
+    {file = "packaging-26.2.tar.gz", hash = "sha256:ff452ff5a3e828ce110190feff1178bb1f2ea2281fa2075aadb987c2fb221661"},
 ]
 
 [[package]]
@@ -5507,18 +5507,19 @@ files = [
 
 [[package]]
 name = "sdmx1"
-version = "2.25.0"
+version = "2.26.0"
 description = "Statistical Data and Metadata eXchange (SDMX)"
 optional = false
 python-versions = ">=3.10"
 groups = ["main"]
 files = [
-    {file = "sdmx1-2.25.0-py3-none-any.whl", hash = "sha256:940f9fc67e92d8dbced1793b76d77b59256cc1b57a9203b76f77104c5ea4d1e2"},
-    {file = "sdmx1-2.25.0.tar.gz", hash = "sha256:573e7bc98ab0351d02eec805787b2c1e0af197d19f2f164e0b11ee8092ade63c"},
+    {file = "sdmx1-2.26.0-py3-none-any.whl", hash = "sha256:de7147381f40aad93bee45d7adc6567558f83f1f4a6c63ac5fbc22a0d0ed7f95"},
+    {file = "sdmx1-2.26.0.tar.gz", hash = "sha256:253e8cae85e3c752a6faaa3f7cfbad93f43a09dcb52f2e41f22aa1c71bc7b6e2"},
 ]
 
 [package.dependencies]
 lxml = ">=3.6"
+packaging = ">=26"
 pandas = ">=1.0"
 platformdirs = ">=4.1"
 python-dateutil = "*"
@@ -5527,7 +5528,7 @@ requests = ">=2.7"
 [package.extras]
 cache = ["requests-cache"]
 docs = ["furo", "ipython", "sphinx (>=8)"]
-tests = ["filelock", "gitpython", "jinja2", "pytest (>=5)", "pytest-cov", "pytest-rerunfailures", "pytest-xdist", "requests-cache", "responses"]
+tests = ["filelock", "gitpython", "jinja2", "pytest (>=9)", "pytest-cov", "pytest-rerunfailures", "pytest-xdist", "requests-cache", "responses"]
 
 [[package]]
 name = "secretstorage"
@@ -6825,4 +6826,4 @@ mcp = ["fastmcp"]
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.11,<3.12"
-content-hash = "e918590865a9873217b2d7fb9f1f3f963aaf5f1d24c3c9fecd0018683071a9f5"
+content-hash = "f9c3120d1f376ecccee07eb4b3493c78a5085760d5128f31833957a3c9c2b6e9"
