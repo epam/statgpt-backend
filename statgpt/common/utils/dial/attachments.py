@@ -107,9 +107,7 @@ class AttachmentsStorage:
         # The SDK's pydantic-v1 validation does not accept BytesIO as IO[bytes],
         # so materialize it to bytes here.
         data = content.getvalue() if isinstance(content, BytesIO) else content
-        return await self._dial.files.upload(
-            f"files/{bucket}/{name}", file=(name, data, mime_type)
-        )
+        return await self._dial.files.upload(f"files/{bucket}/{name}", file=(name, data, mime_type))
 
     async def put_local_file(
         self, name: str, path: str, *, bucket: str | None = None, show_progress: bool = False
