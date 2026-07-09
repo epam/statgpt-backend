@@ -284,7 +284,7 @@ class BrokenResponseInterceptor(AsyncCallbackHandler):
 
     async def on_llm_new_token(
         self,
-        token: str,
+        token: str | list[str | dict[str, t.Any]],
         *,
         chunk: GenerationChunk | ChatGenerationChunk | None = None,
         run_id: UUID,
@@ -292,6 +292,11 @@ class BrokenResponseInterceptor(AsyncCallbackHandler):
         tags: list[str] | None = None,
         **kwargs: t.Any,
     ) -> None:
+        if isinstance(token, list):
+            # content-block tokens: match against the concatenated text parts
+            token = ''.join(
+                part if isinstance(part, str) else str(part.get('text', '')) for part in token
+            )
         if self._regex.fullmatch(token) is None:
             self._chunk_number = 0
             return

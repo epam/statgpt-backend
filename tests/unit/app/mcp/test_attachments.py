@@ -25,6 +25,12 @@ def _make_artifact(data_responses: dict) -> DataQueryArtifact:
     return DataQueryArtifact.model_construct(data_responses=data_responses)
 
 
+def _channel_config(sdmx_proxy_name: str | None = "sdmx_query_app") -> SimpleNamespace:
+    # The converter only reads channel_config.sdmx_query_app(.name).
+    sdmx_query_app = SimpleNamespace(name=sdmx_proxy_name) if sdmx_proxy_name is not None else None
+    return SimpleNamespace(sdmx_query_app=sdmx_query_app)
+
+
 def _json_query(urn: str) -> JsonQueryWithMetadata:
     return JsonQueryWithMetadata(
         urn=urn,
@@ -138,17 +144,35 @@ def test_structured_content_serializes_single_query():
         {"ds1": _response("IMF:CPI(1.0.0)", df, json_query=_json_query("IMF:CPI(1.0.0)"))}
     )
 
-    structured = data_query_artifact_to_structured_content(artifact)
+    structured = data_query_artifact_to_structured_content(artifact, _channel_config())
 
     assert structured is not None
-    assert list(structured) == ["queries"]
-    assert len(structured["queries"]) == 1
-    query = structured["queries"][0]
+    data = structured.model_dump(by_alias=True)
+    assert list(data) == ["queries", "pythonCode", "tools", "version"]
+    assert data["tools"] == {"sdmxProxy": "sdmx_query_app"}
+    assert data["version"] == 1
+    assert "import sdmx" in data["pythonCode"]
+    assert len(data["queries"]) == 1
+    query = data["queries"][0]
     assert query["urn"] == "IMF:CPI(1.0.0)"
     assert query["disabled"] is False
     assert query["sdmx1Source"] == "IMF_DATA"
     assert query["filters"][0]["componentCode"] == "REF_AREA"
     assert query["metadata"]["keyDimensionIdsInDsdOrder"] == ["REF_AREA", "INDICATOR"]
+
+
+def test_structured_content_omits_sdmx_proxy_when_unconfigured():
+    df = pd.DataFrame({"x": [1]})
+    artifact = _make_artifact(
+        {"ds1": _response("IMF:CPI(1.0.0)", df, json_query=_json_query("IMF:CPI(1.0.0)"))}
+    )
+
+    structured = data_query_artifact_to_structured_content(
+        artifact, _channel_config(sdmx_proxy_name=None)
+    )
+
+    assert structured is not None
+    assert structured.tools.sdmx_proxy is None
 
 
 def test_structured_content_preserves_insertion_order():
@@ -160,10 +184,10 @@ def test_structured_content_preserves_insertion_order():
         }
     )
 
-    structured = data_query_artifact_to_structured_content(artifact)
+    structured = data_query_artifact_to_structured_content(artifact, _channel_config())
 
     assert structured is not None
-    assert [q["urn"] for q in structured["queries"]] == ["IMF:CPI(1.0.0)", "BIS:IR(2.1.0)"]
+    assert [q.urn for q in structured.queries] == ["IMF:CPI(1.0.0)", "BIS:IR(2.1.0)"]
 
 
 def test_structured_content_skips_responses_without_query():
@@ -175,16 +199,16 @@ def test_structured_content_skips_responses_without_query():
         }
     )
 
-    structured = data_query_artifact_to_structured_content(artifact)
+    structured = data_query_artifact_to_structured_content(artifact, _channel_config())
 
     assert structured is not None
-    assert [q["urn"] for q in structured["queries"]] == ["IMF:OK(1.0.0)"]
+    assert [q.urn for q in structured.queries] == ["IMF:OK(1.0.0)"]
 
 
 def test_structured_content_returns_none_when_no_queries():
     df = pd.DataFrame({"x": [1]})
     artifact = _make_artifact({"no_query": _response("IMF:NOQ(1.0.0)", df, json_query=None)})
 
-    assert data_query_artifact_to_structured_content(artifact) is None
+    assert data_query_artifact_to_structured_content(artifact, _channel_config()) is None
 
-    assert data_query_artifact_to_structured_content(_make_artifact({})) is None
+    assert data_query_artifact_to_structured_content(_make_artifact({}), _channel_config()) is None

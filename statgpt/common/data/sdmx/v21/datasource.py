@@ -509,7 +509,9 @@ class Sdmx21DataSourceHandler(
         auth_context: AuthContext,
         allow_offline: bool = False,
         allow_cached: bool = False,
+        force_refresh: bool = False,
     ) -> Sdmx21DataSet | SdmxOfflineDataSet:
+        # NOTE: this handler has no dataset cache, so `force_refresh` is ignored
         with debug_timer(f"Sdmx21DataSourceHandler.get_dataset: {title}"):
             return await self._get_dataset(
                 entity_id,

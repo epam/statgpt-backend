@@ -35,16 +35,19 @@ from statgpt.common.services import (
     GlossaryOfTermsService,
 )
 from statgpt.common.settings.application import application_settings
+from statgpt.common.settings.dataflow_loader import DataflowLoaderSettings
 from statgpt.common.settings.document import (
     DimensionValueDocumentMetadataFields,
     IndicatorDocumentMetadataFields,
     SpecialDimensionValueDocumentMetadataFields,
 )
-from statgpt.common.utils import AsyncLoadingCache
+from statgpt.common.utils import AsyncLoadingCache, async_utils
 from statgpt.common.utils.timer import debug_timer
 from statgpt.common.vectorstore import ScoredVectorStoreDocument, VectorStore, VectorStoreFactory
 
 _log = logging.getLogger(__name__)
+
+_dataflow_loader_settings = DataflowLoaderSettings()
 
 _INDICATORS_TOTAL_TOKEN = "{indicators_total}"
 
@@ -431,27 +434,32 @@ class ChannelServiceFacade:
                 )
             }
 
-        res = []
-        for dataset in datasets:
+        async def load_one(dataset: _DatasetRecord) -> VersionedDataSet | None:
             data_source = data_sources[dataset.source_id]
             handler = await self._get_handler_class(
                 data_source.type.id, data_source.type.name, data_source.details
             )
             version = versions[dataset.id]
             config_to_use = self._get_config_for_query(dataset.details, version)
-            if await handler.is_dataset_available(config_to_use, auth_context):
-                ds = await handler.get_dataset(
-                    entity_id=dataset.id_,
-                    title=dataset.title,
-                    config=config_to_use,
-                    auth_context=auth_context,
-                    allow_offline=True,
-                    allow_cached=True,
-                )
-                if ds.status.status == 'online':
-                    res.append(VersionedDataSet(version=version, data=ds))
+            if not await handler.is_dataset_available(config_to_use, auth_context):
+                return None
+            ds = await handler.get_dataset(
+                entity_id=dataset.id_,
+                title=dataset.title,
+                config=config_to_use,
+                auth_context=auth_context,
+                allow_offline=True,
+                allow_cached=True,
+            )
+            if ds.status.status != 'online':
+                return None
+            return VersionedDataSet(version=version, data=ds)
 
-        return res
+        loaded = await async_utils.gather_with_concurrency(
+            _dataflow_loader_settings.dataset_concurrency_limit,
+            *(load_one(dataset) for dataset in datasets),
+        )
+        return [ds for ds in loaded if ds is not None]
 
     async def list_available_datasets(self, auth_context: AuthContext) -> list[VersionedDataSet]:
         return await self._load_datasets(auth_context)

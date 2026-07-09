@@ -30,6 +30,10 @@ class AsyncLoadingCache(Generic[T]):
             self._locks[key] = asyncio.Lock()
         return self._locks[key]
 
+    def _make_entry(self, value: T) -> _CacheEntry[T]:
+        expires_at = time.monotonic() + self._ttl if self._ttl is not None else float('inf')
+        return _CacheEntry(value=value, expires_at=expires_at)
+
     def _is_valid(self, key: str, validator: Callable[[T], bool] | None) -> bool:
         if key not in self._cache:
             return False
@@ -60,10 +64,29 @@ class AsyncLoadingCache(Generic[T]):
                 return self._cache[key].value
 
             value = await loader()
-            self._cache[key] = _CacheEntry(
-                value=value,
-                expires_at=time.monotonic() + self._ttl if self._ttl is not None else float('inf'),
-            )
+            self._cache[key] = self._make_entry(value)
+            return value
+
+    async def refresh(
+        self,
+        key: str,
+        loader: Callable[[], Awaitable[T]],
+        validator: Callable[[T], bool] | None = None,
+    ) -> T:
+        """Load a fresh value and replace the cached entry, extending its TTL.
+
+        Unlike `get`, always runs the loader — even if a live entry exists.
+        Runs under the per-key lock, so concurrent `get` calls that miss the
+        cache wait for the refresh and then read its result. The previously
+        cached entry is kept if the loader raises or if the fresh value is
+        rejected by the validator (the rejected value is still returned,
+        but not cached).
+        """
+        lock = self._get_lock(key)
+        async with lock:
+            value = await loader()
+            if validator is None or validator(value):
+                self._cache[key] = self._make_entry(value)
             return value
 
     def remove(self, key: str) -> None:

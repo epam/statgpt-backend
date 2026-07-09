@@ -766,6 +766,7 @@ class DataSetService(DbServiceBase):
         auth_context: AuthContext,
         allow_cached_datasets: bool = False,
         use_resolved_config: bool = True,
+        force_refresh: bool = False,
     ) -> int:
         """Preload all datasets to warm up the cache.
 
@@ -775,6 +776,8 @@ class DataSetService(DbServiceBase):
             use_resolved_config: If True, use resolved_config from completed versions
                 (with concrete URN values). If False, use original dataset config
                 (which may contain dynamic values like 'latest').
+            force_refresh: Reload datasets and replace cached entries even if they
+                are still live (used by the periodic cache refresher).
 
         Returns:
             Number of datasets preloaded.
@@ -807,6 +810,7 @@ class DataSetService(DbServiceBase):
                     auth_context=auth_context,
                     allow_offline=True,
                     allow_cached=allow_cached_datasets,
+                    force_refresh=force_refresh,
                 )
             )
 

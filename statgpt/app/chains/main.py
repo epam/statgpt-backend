@@ -1,7 +1,7 @@
 import asyncio
 import copy
 
-from langchain_core.runnables import Runnable, RunnablePassthrough
+from langchain_core.runnables import Runnable, RunnableLambda, RunnablePassthrough
 
 from statgpt.app.chains.out_of_scope_checker import OutOfScopeChecker
 from statgpt.app.chains.parameters import ChainParameters
@@ -44,10 +44,10 @@ class MainChainFactory:
 
         return (
             RunnablePassthrough.assign(**{ChainParametersConfig.HISTORY: self._init_history})
-            | self._direct_tool_calls_chain
+            | RunnableLambda(self._direct_tool_calls_chain)
             | out_of_scope_chain
-            | self._main_chain
-            | self._update_state
+            | RunnableLambda(self._main_chain)
+            | RunnableLambda(self._update_state)
         )
 
     async def _direct_tool_calls_chain(self, inputs: dict) -> dict:
@@ -75,8 +75,17 @@ class MainChainFactory:
         state[StateVarsConfig.DIRECT_TOOL_CALLS] = tool_calls_parsed
 
         tool_executor = ToolCaller.from_config(self._channel_config)
-        for tool_call in tool_calls_parsed:
-            tool_msg = await tool_executor.call_tool(tool_call, inputs, show_stage=False)
+        # Dispatch concurrently with bare gather to mirror the agent path
+        # (supreme_agent); gather preserves the original tool-call order for
+        # history. Accepted trade-off: on first failure sibling tool calls keep
+        # running detached instead of being cancelled - same as the agent path.
+        tool_messages = await asyncio.gather(
+            *(
+                tool_executor.call_tool(tool_call, inputs, show_stage=False)
+                for tool_call in tool_calls_parsed
+            )
+        )
+        for tool_msg in tool_messages:
             history.add_tool_message(tool_msg)
 
         return inputs

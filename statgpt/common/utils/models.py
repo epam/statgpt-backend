@@ -30,6 +30,7 @@ from statgpt.common.config.logging import multiline_logger as logger
 from statgpt.common.schemas import EmbeddingsModelConfig, LLMModelConfig
 from statgpt.common.settings.dial import dial_settings
 from statgpt.common.utils.callbacks import BrokenResponseInterceptor
+from statgpt.common.utils.http_pool import get_shared_llm_http_client
 
 
 def get_chat_model(
@@ -49,6 +50,7 @@ def get_chat_model(
         max_retries=10,
         api_key=api_key,  # since we use SecretStr, it won't be logged
         timeout=timeout,  # timeouts are crucial!
+        http_async_client=get_shared_llm_http_client(),  # shared pool; per-request timeout still applies
     )
 
     params.update(model_config.model_dump(mode="json", exclude_none=True, exclude={"deployment"}))
@@ -58,8 +60,9 @@ def get_chat_model(
         params.setdefault('callbacks', []).append(callback)
 
     api_key_log = f'{api_key.get_secret_value()[:3]}*****{api_key.get_secret_value()[-2:]}'
+    params_log = {k: v for k, v in params.items() if k not in ('api_key', 'http_async_client')}
     logger.info(
-        f'creating langchain LLM with the following params: {params}, Api key: {api_key_log}'
+        f'creating langchain LLM with the following params: {params_log}, Api key: {api_key_log}'
     )
     return AzureChatOpenAI.model_validate(params)
 
@@ -77,9 +80,11 @@ def get_embeddings_model(
         api_version=model_config.api_version,
         max_retries=10,
         api_key=api_key,  # since we use SecretStr, it won't be logged
+        http_async_client=get_shared_llm_http_client(),  # shared pool
     )
     api_key_log = f'{api_key.get_secret_value()[:3]}*****{api_key.get_secret_value()[-2:]}'
+    params_log = {k: v for k, v in params.items() if k not in ('api_key', 'http_async_client')}
     logger.info(
-        f'creating langchain embeddings with the following params: {params}, Api key: {api_key_log}'
+        f'creating langchain embeddings with the following params: {params_log}, Api key: {api_key_log}'
     )
     return AzureOpenAIEmbeddings.model_validate(params)
