@@ -9,7 +9,7 @@ from io import BufferedReader, BytesIO, FileIO
 
 import pandas as pd
 from aidial_client import AsyncDial, DialException
-from aidial_client.types.metadata import FileItem, FileMetadata
+from aidial_client.types.metadata import FileItem
 
 from statgpt.common.settings.dial import dial_settings
 from statgpt.common.utils.media_types import MediaTypes
@@ -50,10 +50,6 @@ class _ProgressBufferedReader(BufferedReader):
                     f"{self._total / (1024 * 1024):.2f} MB ({percent:.1f}%)"
                 )
         return chunk
-
-
-def _file_item_from_metadata(metadata: FileMetadata) -> FileItem:
-    return FileItem.model_validate(metadata.model_dump(by_alias=True, exclude_none=True))
 
 
 class AttachmentsStorage:
@@ -111,10 +107,9 @@ class AttachmentsStorage:
         # The SDK's pydantic-v1 validation does not accept BytesIO as IO[bytes],
         # so materialize it to bytes here.
         data = content.getvalue() if isinstance(content, BytesIO) else content
-        metadata = await self._dial.files.upload(
+        return await self._dial.files.upload(
             f"files/{bucket}/{name}", file=(name, data, mime_type)
         )
-        return _file_item_from_metadata(metadata)
 
     async def put_local_file(
         self, name: str, path: str, *, bucket: str | None = None, show_progress: bool = False
@@ -125,12 +120,11 @@ class AttachmentsStorage:
             _ProgressBufferedReader(path) if show_progress else BufferedReader(FileIO(path, "rb"))
         )
         try:
-            metadata = await self._dial.files.upload(
+            return await self._dial.files.upload(
                 f"files/{bucket}/{name}", file=(name, reader, "application/octet-stream")
             )
         finally:
             reader.close()
-        return _file_item_from_metadata(metadata)
 
     async def put_png(self, name: str, content: BytesIO) -> FileItem:
         file_name = f"{name}-{uuid.uuid4()}.png"
