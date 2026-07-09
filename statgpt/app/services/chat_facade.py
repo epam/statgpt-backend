@@ -35,6 +35,7 @@ from statgpt.common.services import (
     GlossaryOfTermsService,
 )
 from statgpt.common.settings.application import application_settings
+from statgpt.common.settings.dataflow_loader import DataflowLoaderSettings
 from statgpt.common.settings.document import (
     DimensionValueDocumentMetadataFields,
     IndicatorDocumentMetadataFields,
@@ -45,6 +46,8 @@ from statgpt.common.utils.timer import debug_timer
 from statgpt.common.vectorstore import ScoredVectorStoreDocument, VectorStore, VectorStoreFactory
 
 _log = logging.getLogger(__name__)
+
+_dataflow_loader_settings = DataflowLoaderSettings()
 
 _INDICATORS_TOTAL_TOKEN = "{indicators_total}"
 
@@ -453,7 +456,8 @@ class ChannelServiceFacade:
             return VersionedDataSet(version=version, data=ds)
 
         loaded = await async_utils.gather_with_concurrency(
-            10, *(load_one(dataset) for dataset in datasets)
+            _dataflow_loader_settings.dataset_concurrency_limit,
+            *(load_one(dataset) for dataset in datasets),
         )
         return [ds for ds in loaded if ds is not None]
 
