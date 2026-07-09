@@ -1,3 +1,7 @@
+import warnings
+
+import pytest
+
 from statgpt.common.schemas.data_query_tool import HybridSearchConfig
 
 
@@ -8,7 +12,15 @@ class TestIncludeLowerScoredDatasetsBackCompat:
     def test_default(self):
         cfg = HybridSearchConfig.model_validate({})
         assert cfg.include_lower_scored_datasets is False
-        assert cfg.use_only_best_score is None
+        with pytest.warns(DeprecationWarning):
+            assert cfg.use_only_best_score is None
+
+    def test_validation_does_not_warn(self):
+        """The back-compat validator reads the deprecated field internally without
+        triggering its DeprecationWarning."""
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", DeprecationWarning)
+            HybridSearchConfig.model_validate({"useOnlyBestScore": True})
 
     def test_new_field_used_as_is(self):
         cfg = HybridSearchConfig.model_validate({"includeLowerScoredDatasets": True})

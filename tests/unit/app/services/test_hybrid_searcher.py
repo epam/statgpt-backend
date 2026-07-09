@@ -14,6 +14,7 @@ from statgpt.app.services.hybrid_searcher import (
     HybridSearcher,
     PlainItemScored,
     RelevanceScore,
+    RelevancyResponse,
     SearchParams,
 )
 from statgpt.common.hybrid_indexer.schemas import IndicatorIndex, MatchingIndex
@@ -251,16 +252,14 @@ def _indexed_entry(num: str, real_id: str, dataset_id: str = "ds1") -> dict:
     }
 
 
-def test_add_llm_scores_skips_anchor_and_maps_scores(match):
-    """The structured RelevanceScore list maps to scored candidates; number 0 (the
-    cross-batch anchor) is dropped and the real candidate ids/scores are preserved."""
+def test_add_llm_scores_maps_scores(match):
+    """The structured RelevanceScore list maps to scored candidates, preserving
+    the real candidate ids/scores."""
     indexed = {
-        "0": _indexed_entry("0", "anchor"),
         "1": _indexed_entry("1", "real-a"),
         "2": _indexed_entry("2", "real-b"),
     }
     scores = [
-        RelevanceScore(number=0, score=3),  # cross-batch anchor -> dropped
         RelevanceScore(number=1, score=2),
         RelevanceScore(number=2, score=0),
     ]
@@ -271,7 +270,44 @@ def test_add_llm_scores_skips_anchor_and_maps_scores(match):
     assert [(c.id, c.score) for c in result] == [("real-a", 2), ("real-b", 0)]
 
 
-def test_relevance_score_rejects_out_of_range_score():
-    """score is constrained to 0-3; anything else must fail validation."""
+def _relevance_item(num: str) -> dict:
+    """An item in the shape produced by _prepare_for_relevance / _pre_append_confirmed."""
+    return {
+        "id": num,
+        "dataset_id": "ds1",
+        "primary": f"primary {num}",
+        "name": f"name {num}",
+        "where": [{"dim": "value"}],
+    }
+
+
+async def test_relevance_candidates_drops_anchor_and_invented_numbers(match, monkeypatch):
+    """LLM scores are filtered at the source: the cross-batch anchor (0) is dropped
+    silently, numbers absent from the batch are dropped with a warning, so consumers
+    can look candidates up in `indexed` without guards."""
+    logger_mock = Mock()
+    monkeypatch.setattr("statgpt.app.services.hybrid_searcher.logger", logger_mock)
+    match._outer._relevancy_chain.ainvoke = AsyncMock(
+        return_value=RelevancyResponse(
+            relevance=[
+                RelevanceScore(number=0, score=3),  # cross-batch anchor
+                RelevanceScore(number=1, score=2),
+                RelevanceScore(number=7, score=3),  # invented by the LLM
+            ]
+        )
+    )
+    items = [_relevance_item("0"), _relevance_item("1")]
+
+    scores = await match._relevance_candidates("some query", items)
+
+    assert [(s.number, s.score) for s in scores] == [(1, 2)]
+    warned = [call.args[0] for call in logger_mock.warning.call_args_list]
+    assert len(warned) == 1 and "7" in warned[0]
+
+
+def test_relevance_score_rejects_out_of_range_values():
+    """score is constrained to 0-3 and number to >= 0; anything else must fail validation."""
     with pytest.raises(ValidationError):
         RelevanceScore(number=1, score=4)  # type: ignore[arg-type]
+    with pytest.raises(ValidationError):
+        RelevanceScore(number=-1, score=1)

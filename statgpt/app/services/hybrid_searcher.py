@@ -36,7 +36,8 @@ class RelevanceScore(BaseModel):
     """One candidate's relevance score, as returned by the relevancy LLM."""
 
     number: int = Field(
-        description="Reference number of the candidate, taken from its round brackets in the input."
+        ge=0,
+        description="Reference number of the candidate, taken from its round brackets in the input.",
     )
     score: t.Literal[0, 1, 2, 3] = Field(
         description=(
@@ -132,9 +133,6 @@ class HybridSearcher:
             result = []
             for relevance_score in scores:
                 _id = str(relevance_score.number)
-                if _id == '0':
-                    # best from previous batches - skip
-                    continue
                 item = HybridCandidateScored(**indexed[_id], score=relevance_score.score)
                 result.append(item)
             return result
@@ -263,12 +261,29 @@ class HybridSearcher:
         def _convex_combination(cls, sem: float, lex: float, alpha: float) -> float:
             return alpha * sem + (1 - alpha) * lex
 
-        async def _relevance_candidates(self, query: str, items) -> list[RelevanceScore]:
+        async def _relevance_candidates(
+            self, query: str, items: list[dict[str, Any]]
+        ) -> list[RelevanceScore]:
             items_str = self._format_relevance_items(items)
             output: RelevancyResponse = await self._outer._relevancy_chain.ainvoke(
                 {"statement": query.lower(), "items": items_str}
             )
-            return output.relevance
+            # Keep only scores of real candidates: drop the cross-batch anchor "(0)"
+            # (its score is only a quality reference) and numbers the LLM invented,
+            # so consumers can look candidates up in `indexed` safely.
+            valid_numbers = {item['id'] for item in items}
+            scores = []
+            for score in output.relevance:
+                _id = str(score.number)
+                if _id == '0':
+                    continue
+                if _id not in valid_numbers:
+                    logger.warning(
+                        f"Relevancy LLM returned unknown candidate number {_id}; skipping"
+                    )
+                    continue
+                scores.append(score)
+            return scores
 
         async def _lexical(
             self, user_query: str, version_ids: set[int], max_query: int
@@ -780,8 +795,6 @@ class HybridSearcher:
 
             for relevance_score in relevance:
                 _id = str(relevance_score.number)
-                if _id == "0":
-                    continue
                 candidate = indexed[_id]
                 score = relevance_score.score
                 dataset_id = str(candidate['dataset_id'])
@@ -808,8 +821,6 @@ class HybridSearcher:
             )
             for relevance_score in relevance:
                 _id = str(relevance_score.number)
-                if _id == "0":
-                    continue
                 candidate = indexed[_id]
                 score = relevance_score.score
                 candidate['score'] = score

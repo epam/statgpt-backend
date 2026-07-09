@@ -257,6 +257,10 @@ class HybridSearchConfig(BaseYamlModel):
     )
     use_only_best_score: bool | None = Field(
         default=None,
+        deprecated=(
+            "`use_only_best_score` is deprecated; use `include_lower_scored_datasets` instead "
+            "(inverse meaning)."
+        ),
         description=(
             "Deprecated. Superseded by `include_lower_scored_datasets`, which has the inverse "
             "meaning (`use_only_best_score=True` == `include_lower_scored_datasets=False`). "
@@ -287,11 +291,13 @@ class HybridSearchConfig(BaseYamlModel):
         the new field when the new one is not explicitly set. When both are set, the
         new field wins.
         """
+        # read via __dict__: attribute access on a deprecated field emits a DeprecationWarning
+        use_only_best_score: bool | None = self.__dict__.get("use_only_best_score")
         if (
             "include_lower_scored_datasets" not in self.model_fields_set
-            and self.use_only_best_score is not None
+            and use_only_best_score is not None
         ):
-            self.include_lower_scored_datasets = not self.use_only_best_score
+            self.include_lower_scored_datasets = not use_only_best_score
         return self
 
 
