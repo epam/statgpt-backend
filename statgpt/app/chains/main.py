@@ -32,8 +32,6 @@ class MainChainFactory:
         )
 
     async def create_chain(self) -> Runnable:
-        # TODO(#497 follow-up): after the optimistic path soaks, converge the two
-        # compositions below into one orchestrator (sequential = degenerate case).
         out_of_scope = self._channel_config.out_of_scope
         if out_of_scope is not None and out_of_scope.optimistic:
             return (
