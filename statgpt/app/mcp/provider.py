@@ -5,6 +5,7 @@ from datetime import datetime
 from typing import Any
 from uuid import uuid4
 
+from fastmcp.apps import AppConfig, app_config_to_meta_dict
 from fastmcp.exceptions import ToolError
 from fastmcp.resources import Resource
 from fastmcp.server.dependencies import get_http_request
@@ -16,7 +17,7 @@ from mcp.types import ContentBlock, TextContent
 from pydantic import PrivateAttr, ValidationError
 from starlette.requests import Request
 
-from statgpt.app.chains.tools import StatGptTool, ToolInputError, ToolUpstreamError
+from statgpt.app.chains.tools import StatGptTool, ToolUpstreamError
 from statgpt.app.config import ChainParametersConfig
 from statgpt.app.mcp.attachments import (
     data_query_artifact_to_resources,
@@ -36,6 +37,22 @@ from statgpt.common.auth.auth_context import AuthContext
 from statgpt.common.schemas import BaseToolConfig, ChannelConfig, ProxiedResourceConfig
 
 _log = logging.getLogger(__name__)
+
+
+def _tool_app_config(tool_config: BaseToolConfig) -> AppConfig | None:
+    """Build the MCP Apps config (``_meta.ui``) from the config's MCP-App fields.
+
+    Uses fastmcp's typed ``AppConfig`` so the wire format (camelCase aliases per the
+    MCP Apps extension) stays in sync with the library. Returns ``None`` when neither
+    field is set so ``_meta`` is omitted and the host applies the spec default
+    visibility (``["model", "app"]``).
+    """
+    if tool_config.mcp_visibility is None and tool_config.mcp_app_resource_uri is None:
+        return None
+    return AppConfig(
+        visibility=tool_config.mcp_visibility,
+        resource_uri=tool_config.mcp_app_resource_uri,
+    )
 
 
 def _build_mcp_inputs(
@@ -90,9 +107,6 @@ class _McpToolAdapter(Tool):
         }
         try:
             result = await self._langchain_tool.ainvoke(tool_call)
-        except ToolInputError as e:
-            # Invalid caller-provided arguments: surface the specific message.
-            raise ToolError(str(e)) from e
         except ValidationError as e:
             # Argument-schema validation failures (e.g. missing required field, bad enum
             # value). Surface a concise message instead of the generic failure.
@@ -126,6 +140,12 @@ class _McpToolAdapter(Tool):
                 status_code=result.artifact.status_code,
                 content_type=result.artifact.content_type,
             )
+        _log.info(
+            "Sending MCP tool %s response: %d content block(s), structured_content=%s",
+            self._langchain_tool.name,
+            len(content),
+            type(structured_content).__name__ if structured_content else None,
+        )
         return ToolResult(content=content, structured_content=structured_content)
 
 
@@ -151,6 +171,7 @@ class ChannelToolProvider(Provider):
         auth_context: AuthContext,
     ) -> _McpToolAdapter:
         langchain_tool = StatGptTool.from_config(tool_config, channel_config)
+        app_config = _tool_app_config(tool_config)
         return _McpToolAdapter(
             langchain_tool=langchain_tool,
             inputs=inputs,
@@ -160,7 +181,7 @@ class ChannelToolProvider(Provider):
             description=tool_config.effective_mcp_description,
             parameters=langchain_tool.get_public_args_schema(),
             annotations=langchain_tool.get_mcp_annotations(),
-            meta=tool_config.mcp_meta,
+            meta={"ui": app_config_to_meta_dict(app_config)} if app_config else None,
         )
 
     @guard_channel_resolution(default=[], log_prefix="tools/list")
@@ -190,12 +211,20 @@ class ChannelToolProvider(Provider):
         prefix = channel_config.mcp.tool_name_prefix
         if prefix:
             if not name.startswith(prefix):
+                _log.warning(
+                    "MCP tool %s not found: name does not start with the `%s` prefix",
+                    name,
+                    prefix,
+                )
                 return None
             name = name.removeprefix(prefix)
         inputs = _build_mcp_inputs(auth_context, channel_service)
         for tool_config in channel_config.tools:
             if tool_config.effective_mcp_name == name:
                 return self._create_mcp_tool(tool_config, channel_config, inputs, auth_context)
+        _log.warning(
+            "MCP tool %s not found in the `%s` channel", name, channel_service.deployment_id
+        )
         return None
 
     @staticmethod
@@ -223,6 +252,9 @@ class ChannelToolProvider(Provider):
         for resource_config in channel_service.channel_config.mcp.resources:
             if resource_config.uri == uri:
                 return self._build_resource(resource_config)
+        _log.warning(
+            "MCP resource %s not found in the `%s` channel", uri, channel_service.deployment_id
+        )
         return None
 
     async def get_tasks(self) -> Sequence[FastMCPComponent]:

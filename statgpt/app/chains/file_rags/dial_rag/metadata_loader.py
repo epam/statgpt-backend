@@ -9,6 +9,10 @@ from statgpt.app.settings.dial_rag import dial_rag_settings
 from statgpt.common.auth.auth_context import AuthContext
 from statgpt.common.config import multiline_logger as logger
 from statgpt.common.settings.dial import dial_settings
+from statgpt.common.utils import ManagedHttpClient
+
+_HTTP_TIMEOUT = httpx.Timeout(60.0)
+dial_rag_metadata_http_client = ManagedHttpClient(_HTTP_TIMEOUT)
 
 
 class DialRagMetadataLoader:
@@ -36,13 +40,12 @@ class DialRagMetadataLoader:
         return DialRagMetadataResponse.model_validate(response_dict)
 
     async def _load(self) -> dict:
-        async with httpx.AsyncClient(timeout=60) as client:
-            response = await client.get(
-                self._dial_rag_metadata_url,
-                headers={
-                    "api-key": self._dial_rag_metadata_api_key.get_secret_value(),
-                },
-            )
+        response = await dial_rag_metadata_http_client.client.get(
+            self._dial_rag_metadata_url,
+            headers={
+                "api-key": self._dial_rag_metadata_api_key.get_secret_value(),
+            },
+        )
 
         if not response.is_success:
             logger.error(

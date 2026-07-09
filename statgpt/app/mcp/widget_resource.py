@@ -1,6 +1,7 @@
 import logging
 
 import httpx
+from fastmcp.apps import AppConfig, ResourceCSP, app_config_to_meta_dict
 from fastmcp.resources import Resource
 from pydantic import PrivateAttr
 
@@ -63,7 +64,11 @@ class WidgetResource(Resource):
         return cls(
             uri=config.uri,  # type: ignore[arg-type]  # str is coerced to AnyUrl
             mime_type=config.mime_type,
-            meta={"ui": {"csp": {"resourceDomains": [config.get_origin()]}}},
+            meta={
+                "ui": app_config_to_meta_dict(
+                    AppConfig(csp=ResourceCSP(resource_domains=[config.get_origin()]))
+                )
+            },
             html_url=config.get_html_url(),
             cache_ttl_seconds=config.cache_ttl_seconds,
         )
