@@ -1,4 +1,5 @@
 import uuid
+from collections.abc import Awaitable
 
 from sdmx.model.common import BaseAnnotation
 
@@ -198,21 +199,31 @@ class StatGptSdmxProxyDataSourceHandler(Sdmx21DataSourceHandler):
         auth_context: AuthContext,
         allow_offline: bool = False,
         allow_cached: bool = False,
+        force_refresh: bool = False,
     ) -> StatGptSdmxProxyDataSet | SdmxOfflineDataSet:
         with debug_timer(f"StatGptSdmxProxyDataSourceHandler.get_dataset: {title}"):
             if allow_cached:
                 dataset_config = self.parse_data_set_config(config)
-                return await self._dataset_cache.get(
-                    key=str(entity_id),
-                    loader=lambda: self._get_dataset(
+
+                def loader() -> Awaitable[StatGptSdmxProxyDataSet | SdmxOfflineDataSet]:
+                    return self._get_dataset(
                         entity_id, title, config, auth_context, allow_offline=allow_offline
-                    ),
-                    # NOTE: OfflineDataset may end up in the cache when allow_offline=True
-                    # and loading fails. The validator rejects it on the next access,
-                    # triggering a fresh load attempt (in case the upstream recovered).
-                    validator=lambda ds: (
-                        not isinstance(ds, SdmxOfflineDataSet) and ds.config == dataset_config
-                    ),
+                    )
+
+                # NOTE: the loader produces an OfflineDataset when allow_offline=True
+                # and loading fails. The validator rejects it, so `refresh` never
+                # replaces a healthy cached entry with an offline stub, and `get`
+                # retries a cached stub on the next access (in case the upstream
+                # recovered).
+                def validator(ds: StatGptSdmxProxyDataSet | SdmxOfflineDataSet) -> bool:
+                    return not isinstance(ds, SdmxOfflineDataSet) and ds.config == dataset_config
+
+                if force_refresh:
+                    return await self._dataset_cache.refresh(
+                        key=str(entity_id), loader=loader, validator=validator
+                    )
+                return await self._dataset_cache.get(
+                    key=str(entity_id), loader=loader, validator=validator
                 )
             return await self._get_dataset(
                 entity_id, title, config, auth_context, allow_offline=allow_offline
