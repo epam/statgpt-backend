@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, Self
 
 from pydantic import (
     Field,
@@ -255,6 +255,15 @@ class HybridSearchConfig(BaseYamlModel):
             "When false, keep only the indicators with the best overall score."
         ),
     )
+    use_only_best_score: bool | None = Field(
+        default=None,
+        description=(
+            "Deprecated. Superseded by `include_lower_scored_datasets`, which has the inverse "
+            "meaning (`use_only_best_score=True` == `include_lower_scored_datasets=False`). "
+            "Kept for backward compatibility: when `include_lower_scored_datasets` is not set, "
+            "this value is used. Prefer `include_lower_scored_datasets` in new configs."
+        ),
+    )
     single_dataset_score_threshold: int = Field(
         default=2,
         description="Relevance score threshold for when indicators are available only from a single dataset.",
@@ -268,6 +277,22 @@ class HybridSearchConfig(BaseYamlModel):
         le=3,
     )
     prompts: HybridSearchPrompts = Field(default_factory=HybridSearchPrompts)
+
+    @model_validator(mode="after")
+    def _apply_deprecated_use_only_best_score(self) -> Self:
+        """Honor the deprecated `use_only_best_score` for backward compatibility.
+
+        `include_lower_scored_datasets` replaced `use_only_best_score` with inverse
+        meaning. Old channel configs still set `useOnlyBestScore`, so we map it onto
+        the new field when the new one is not explicitly set. When both are set, the
+        new field wins.
+        """
+        if (
+            "include_lower_scored_datasets" not in self.model_fields_set
+            and self.use_only_best_score is not None
+        ):
+            self.include_lower_scored_datasets = not self.use_only_best_score
+        return self
 
 
 class DataQueryStageNames(BaseYamlModel):
