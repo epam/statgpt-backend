@@ -52,7 +52,7 @@ class StatGptSdmxProxyDataSet(UpdatedAtMixin, Sdmx21DataSet):
 
     def _get_annotation_value_by_id(self, annotation_id: str) -> str | None:
         if annotation := self._get_annotation_by_id(annotation_id):
-            return annotation.value
+            return annotation.value or annotation.text
         return None
 
     def _get_attribute_value_by_id(self, attribute_id: str) -> str | None:
