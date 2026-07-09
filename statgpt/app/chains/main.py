@@ -5,7 +5,7 @@ from contextlib import asynccontextmanager
 
 from langchain_core.runnables import Runnable, RunnableLambda, RunnablePassthrough
 
-from statgpt.app.chains.out_of_scope_checker import OutOfScopeChecker
+from statgpt.app.chains.out_of_scope_checker import OutOfScopeChecker, OutOfScopeCheckerResponse
 from statgpt.app.chains.parameters import ChainParameters
 from statgpt.app.chains.supreme_agent import SupremeAgentExecutor, ToolCaller
 from statgpt.app.config import StateVarsConfig
@@ -32,6 +32,8 @@ class MainChainFactory:
         )
 
     async def create_chain(self) -> Runnable:
+        # TODO(#497 follow-up): after the optimistic path soaks, converge the two
+        # compositions below into one orchestrator (sequential = degenerate case).
         out_of_scope = self._channel_config.out_of_scope
         if out_of_scope is not None and out_of_scope.optimistic:
             return (
@@ -93,35 +95,52 @@ class MainChainFactory:
         return inputs
 
     async def _guarded_main_chain(self, inputs: dict) -> dict:
-        """Run the out-of-scope check concurrently with a speculative agent run.
+        """Run the out-of-scope check concurrently with a speculative agent run,
+        committing the speculative output only on an in-scope verdict.
 
-        The agent runs against a recording choice, a copied history, and a
-        deepcopied state; its irreversible side effects (real tool dispatch) are
-        gated on a permission event. In scope: flush the recording, commit
-        history/state, await the agent — visible output matches the sequential
-        flow, minus one LLM round-trip of latency. Out of scope: cancel the
-        agent, discard the recording, and stream the out-of-scope response
-        exactly as the sequential flow does.
+        Divergences from the sequential flow (optimistic path only): an agent failure
+        after the in-scope verdict discards speculative state rather than partially
+        persisting it; debug performance/LLM-duration surfaces include cancelled
+        speculative calls, and their TTFT reflects the buffered first token, which can
+        precede the verdict.
         """
         checker = OutOfScopeChecker(self._channel_config)
-        if (resolved := checker.try_short_circuit(inputs)) is not None:
-            return await self._main_chain(resolved)
+        if checker.resolve_short_circuit(inputs):
+            return await self._main_chain(inputs)
 
         state = ChainParameters.get_state(inputs)
         if state.get(StateVarsConfig.CMD_OUT_OF_SCOPE_ONLY, False):
-            # Checker-only debug path: nothing to speculate on, stay sequential.
-            return await checker.stream_response(inputs)
+            # Checker-only debug path: run the check, don't respond or speculate.
+            await checker.check_with_stage(inputs)
+            return inputs
 
+        spec_inputs, recording, gate = self._build_speculative_inputs(inputs)
+
+        checker_task = asyncio.create_task(checker.check_with_stage(inputs))
+        agent_task = asyncio.create_task(self._main_chain(spec_inputs))
+
+        async with self._speculative_cleanup((checker_task, agent_task), recording):
+            response = await checker_task
+            if response.out_of_scope:
+                return await self._abort_speculation(inputs, checker, agent_task, response)
+            return await self._commit_speculation(inputs, agent_task, recording, gate, response)
+
+    @staticmethod
+    def _build_speculative_inputs(
+        inputs: dict,
+    ) -> tuple[dict, RecordingChoice, asyncio.Event]:
+        """Build the isolated (spec_inputs, recording, gate) for a speculative run.
+
+        Isolation invariant: every real-choice-derived object on ``spec_inputs`` must
+        be substituted or routed through the recording, else speculative writes escape
+        before the verdict commits. Guarded by
+        ``test_build_speculative_inputs_substitutes_write_surfaces``.
+        """
+        state = ChainParameters.get_state(inputs)
         history = ChainParameters.get_history(inputs)
-        choice = ChainParameters.get_choice(inputs)
 
         gate = asyncio.Event()
         recording = RecordingChoice()
-        # Isolation invariant: every real-choice-derived object placed on
-        # spec_inputs must be substituted (choice/history/state below) or routed
-        # through the recording (adopt_stage below). Anything left pointing at the
-        # real choice would let speculative writes escape before the in-scope
-        # verdict commits.
         spec_inputs = {
             **inputs,
             ChainParametersConfig.CHOICE: recording,
@@ -132,65 +151,72 @@ class MainChainFactory:
             ChainParametersConfig.OUT_OF_SCOPE: False,
             ChainParametersConfig.OUT_OF_SCOPE_REASONING: None,
         }
-        # The performance stage lives on the real choice; route it through the
-        # recording so speculative rows are held back until the run is committed.
-        # A falsy stage (debug off) is left as-is — _log_performance early-returns.
+        # Route the real-choice performance stage through the recording so its rows
+        # are buffered too. Falsy stage (debug off) is left as-is.
         perf_stage = inputs.get(ChainParametersConfig.PERFORMANCE_STAGE)
         if perf_stage:
             spec_inputs[ChainParametersConfig.PERFORMANCE_STAGE] = recording.adopt_stage(perf_stage)
+        return spec_inputs, recording, gate
 
-        checker_task = asyncio.create_task(checker.check_with_stage(inputs))
-        agent_task = asyncio.create_task(self._main_chain(spec_inputs))
+    @staticmethod
+    async def _commit_speculation(
+        inputs: dict,
+        agent_task: asyncio.Task,
+        recording: RecordingChoice,
+        gate: asyncio.Event,
+        response: OutOfScopeCheckerResponse,
+    ) -> dict:
+        """Commit an in-scope speculative run: permit gated tool dispatch, flush the
+        buffer to the real choice, then commit state and history onto ``inputs``.
 
-        # The context manager guarantees that, however this block exits (commit,
-        # out-of-scope, checker failure, cancellation, or flush_to raising
-        # mid-replay), neither task outlives the call and no un-flushed
-        # speculative output escapes.
-        async with self._speculative_cleanup((checker_task, agent_task), recording):
-            response = await checker_task
+        State is committed in place — channel_completion holds a reference for
+        set_dial_state.
+        """
+        logger.info("optimistic guardrails: in-scope verdict, committing speculative run")
+        choice = ChainParameters.get_choice(inputs)
+        state = ChainParameters.get_state(inputs)
 
-            if not response.out_of_scope:
-                logger.info("optimistic guardrails: in-scope verdict, committing speculative run")
-                gate.set()  # permit the agent's real tool dispatch
-                recording.flush_to(choice)
-                result = await agent_task  # propagate agent errors normally
-                # Commit the speculative state by mutating the original dict in
-                # place: channel_completion holds a reference to it for set_dial_state.
-                state.clear()
-                state.update(result[ChainParametersConfig.STATE])
-                result[ChainParametersConfig.STATE] = state
-                result[ChainParametersConfig.CHOICE] = choice
-                result[ChainParametersConfig.OUT_OF_SCOPE] = response.out_of_scope
-                result[ChainParametersConfig.OUT_OF_SCOPE_REASONING] = response.reasoning
-                result.pop(ChainParametersConfig.SIDE_EFFECT_GATE, None)
-                return result  # committed speculative inputs (incl. history)
+        gate.set()
+        recording.flush_to(choice)
+        result = await agent_task
+        state.clear()
+        state.update(result[ChainParametersConfig.STATE])
+        result[ChainParametersConfig.STATE] = state
+        result[ChainParametersConfig.CHOICE] = choice
+        result[ChainParametersConfig.OUT_OF_SCOPE] = response.out_of_scope
+        result[ChainParametersConfig.OUT_OF_SCOPE_REASONING] = response.reasoning
+        result.pop(ChainParametersConfig.SIDE_EFFECT_GATE, None)
+        return result
 
-            # Out of scope: stop the speculative run now (before the out-of-scope
-            # LLM response) and surface any genuine agent failure, which would
-            # otherwise be invisible on out-of-scope traffic.
-            logger.info("optimistic guardrails: out-of-scope verdict, discarding speculative run")
-            agent_task.cancel()
-            outcome = (await asyncio.gather(agent_task, return_exceptions=True))[0]
-            if isinstance(outcome, BaseException) and not isinstance(
-                outcome, asyncio.CancelledError
-            ):
-                logger.warning(
-                    "speculative agent run failed before the out-of-scope abort",
-                    exc_info=outcome,
-                )
-            # inputs carries the OUT_OF_SCOPE keys written by check_with_stage.
-            return await checker.respond_out_of_scope(inputs, response.reasoning)
+    @staticmethod
+    async def _abort_speculation(
+        inputs: dict,
+        checker: OutOfScopeChecker,
+        agent_task: asyncio.Task,
+        response: OutOfScopeCheckerResponse,
+    ) -> dict:
+        """Discard an out-of-scope speculative run: cancel and reap the agent
+        (surfacing a genuine failure, otherwise invisible on out-of-scope traffic),
+        then stream the out-of-scope response.
+        """
+        logger.info("optimistic guardrails: out-of-scope verdict, discarding speculative run")
+        agent_task.cancel()
+        outcome = (await asyncio.gather(agent_task, return_exceptions=True))[0]
+        if isinstance(outcome, BaseException) and not isinstance(outcome, asyncio.CancelledError):
+            logger.warning(
+                "speculative agent run failed before the out-of-scope abort",
+                exc_info=outcome,
+            )
+        # inputs carries the OUT_OF_SCOPE keys written by check_with_stage.
+        return await checker.respond_out_of_scope(inputs, response.reasoning)
 
     @staticmethod
     @asynccontextmanager
     async def _speculative_cleanup(
         tasks: tuple[asyncio.Task, ...], recording: RecordingChoice
     ) -> AsyncIterator[None]:
-        """Ensure no speculative work outlives the block.
-
-        On exit — normal or exceptional — cancel and reap any still-running task,
-        then drop any un-flushed buffer. All three are no-ops on the committed
-        path (tasks already awaited, recording already in pass-through).
+        """Cancel and reap any still-running task on exit, then drop any un-flushed
+        buffer. No-ops on the committed path (tasks awaited, recording in pass-through).
         """
         try:
             yield

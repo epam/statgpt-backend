@@ -31,9 +31,8 @@ class ChainParametersConfig:
     TARGET = "target"
     OUT_OF_SCOPE = "out_of_scope"
     OUT_OF_SCOPE_REASONING = "out_of_scope_reasoning"
-    # asyncio.Event granting a speculative run permission to perform irreversible
-    # external side effects (e.g. real tool dispatch). Set once the orchestrator
-    # confirms the run should commit; present only on a speculative agent run.
+    # Event permitting a speculative run's real side effects (tool dispatch); set on
+    # commit, present only during speculation.
     SIDE_EFFECT_GATE = "side_effect_gate"
     PERFORMANCE_STAGE = "performance_stage"
 

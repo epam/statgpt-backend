@@ -20,7 +20,9 @@ from statgpt.app.chains.supreme_agent import (
 )
 from statgpt.app.config import ChainParametersConfig, StateVarsConfig
 from statgpt.app.schemas.dial_app_configuration import StatGPTConfiguration
+from statgpt.app.utils.dial_stages import ChoiceI, ContentStageI
 from statgpt.app.utils.message_history import History
+from statgpt.app.utils.recording_choice import RecordingChoice, RecordingStage
 from statgpt.common.schemas.channel import ChannelConfig, OutOfScopeConfig, SupremeAgentConfig
 from statgpt.common.schemas.tools import DataQueryTool
 
@@ -387,6 +389,40 @@ async def test_perf_rows_discarded_on_out_of_scope(factory: MainChainFactory, mo
     await factory._guarded_main_chain(inputs)
 
     assert perf_stage.contents == []  # discarded speculative run: no perf rows
+
+
+# ~~~ speculative-inputs isolation invariant ~~~
+
+
+def test_build_speculative_inputs_substitutes_write_surfaces(factory: MainChainFactory):
+    """Every choice/stage write surface on spec_inputs must be a recording proxy.
+
+    Guards the isolation invariant: if a future inputs key carries a real-choice
+    write surface without substitution, this fails instead of silently leaking
+    speculative output to the user before the in-scope verdict commits. Removing
+    either substitution below (choice or performance stage) makes it fail.
+    """
+    real_choice = ChoiceLog()
+    inputs = _make_inputs(real_choice)
+    inputs[ChainParametersConfig.PERFORMANCE_STAGE] = StageLog()
+
+    spec_inputs, recording, gate = factory._build_speculative_inputs(inputs)
+
+    assert spec_inputs[ChainParametersConfig.CHOICE] is recording
+    assert isinstance(gate, asyncio.Event)
+
+    # ChoiceI/ContentStageI are runtime_checkable, so this catches any value exposing
+    # create_stage/append_content — the ways output reaches the real choice. StageI is
+    # intentionally omitted: its content_stream property raises on a buffering
+    # RecordingStage during the isinstance check, and every stage already satisfies
+    # ContentStageI via append_content. Legitimate matches are only recording proxies.
+    write_surface = (ChoiceI, ContentStageI)
+    for key, value in spec_inputs.items():
+        if isinstance(value, write_surface):
+            assert isinstance(value, (RecordingChoice, RecordingStage)), (
+                f"spec_inputs[{key!r}] is an un-substituted write surface "
+                f"({type(value).__name__}); substitute it or route it through the recording"
+            )
 
 
 # ~~~ abnormal-exit reaping and observability ~~~

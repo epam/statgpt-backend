@@ -1,13 +1,8 @@
 """Record/replay proxies for the DIAL choice, used by speculative execution.
 
-``RecordingChoice`` implements the ``ChoiceI`` protocol. While *buffering*, every
-operation is recorded instead of being forwarded to the real choice; once the
-speculation is resolved, the buffer is either replayed onto the real choice
+While buffering, ``RecordingChoice`` records every choice/stage operation instead
+of forwarding it; on resolution the buffer is replayed onto the real choice
 (:meth:`RecordingChoice.flush_to`) or dropped (:meth:`RecordingChoice.discard`).
-
-Distinct from ``dial_stages.BufferedStage``, a content-only buffer: the proxies
-here capture the full choice surface — including stage creation and lifecycle —
-so a whole speculative agent run can be replayed verbatim.
 """
 
 import enum
@@ -29,11 +24,9 @@ class _Mode(enum.Enum):
 class RecordingChoice(ChoiceI):
     """A ``ChoiceI`` proxy that records operations for a later replay.
 
-    All recorded operations — both choice-level ones and those of the
-    ``RecordingStage`` proxies it hands out — share a single ordered op list, so
-    a replay reproduces the exact original write order (including nested
-    stages). Timed stages compute their durations at record time, so timings
-    shown after a replay stay correct.
+    Choice-level ops and those of the ``RecordingStage`` proxies it hands out share
+    one ordered op list, so a replay reproduces the original write order (including
+    nested stages).
     """
 
     def __init__(self) -> None:
@@ -64,18 +57,10 @@ class RecordingChoice(ChoiceI):
             self._record(lambda real: stage._attach(real.create_stage(*args, **kwargs)))
         return stage
 
-    def adopt_stage(self, real_stage: Any) -> "RecordingStage":
-        """Proxy an already-materialized real stage created on the real choice.
-
-        Unlike :meth:`create_stage`, no ``create_stage`` op is recorded — the
-        real stage already exists. Ops recorded while buffering resolve the
-        pre-attached stage at flush, so its writes replay in global recording
-        order alongside the rest of the buffered output; after flush they pass
-        through directly, and after discard they are no-ops.
-
-        Used to route a stage that lives on the real choice (e.g. the shared
-        performance stage) through the buffer, so speculative writes to it are
-        held back until the run is committed.
+    def adopt_stage(self, real_stage: StageI) -> "RecordingStage":
+        """Proxy a stage that already exists on the real choice (e.g. the shared
+        performance stage) so writes to it are buffered with the rest and replay in
+        global recording order. No ``create_stage`` op is recorded.
         """
         stage = RecordingStage(self)
         stage._attach(real_stage)
@@ -91,12 +76,9 @@ class RecordingChoice(ChoiceI):
         self._dispatch(lambda real: real.set_state(state))
 
     def flush_to(self, real_choice: ChoiceI) -> None:
-        """Replay the recorded operations onto ``real_choice``, in order, then
-        switch self (and all issued stages) to pass-through delegation.
-
-        Deliberately synchronous: the replay and the mode flip happen without
-        yielding to the event loop, so a still-running speculative task cannot
-        interleave writes mid-flush. Idempotent — a second call is a no-op.
+        """Replay the recorded ops onto ``real_choice`` in order, then switch to
+        pass-through. Synchronous on purpose: no ``await`` between replay and the mode
+        flip, so a running speculative task can't interleave writes. Idempotent.
         """
         if self._mode is not _Mode.BUFFERING:
             return
@@ -107,8 +89,7 @@ class RecordingChoice(ChoiceI):
         self._mode = _Mode.PASS_THROUGH
 
     def discard(self) -> None:
-        """Drop the buffer; subsequent operations (e.g. a final write from a
-        cancelled task) become no-ops and never touch the real choice."""
+        """Drop the buffer; later ops become no-ops and never touch the real choice."""
         if self._mode is not _Mode.BUFFERING:
             return
         self._ops.clear()
@@ -116,23 +97,19 @@ class RecordingChoice(ChoiceI):
 
 
 class RecordingStage(StageI):
-    """Stage proxy handed out by :meth:`RecordingChoice.create_stage` and
-    :meth:`RecordingChoice.adopt_stage`.
+    """Stage proxy handed out by ``RecordingChoice``.
 
-    Records its operations into the parent choice's shared op list (preserving
-    the global write order). During the replay the parent attaches the real
-    stage; afterwards all calls delegate to it directly. After ``discard()`` on
-    the parent, every call is a no-op.
+    Records into the parent's shared op list; on replay the parent attaches the real
+    stage and calls delegate to it, after discard they are no-ops.
     """
 
     def __init__(self, parent: RecordingChoice) -> None:
         self._parent = parent
-        # The real stage created during the replay; ops recorded earlier resolve
-        # it lazily, so recording order equals replay order. Pre-set for stages
-        # obtained via ``adopt_stage`` (the real stage already exists).
-        self._real_stage: Any = None
+        # Attached lazily during replay (recorded ops resolve it then); pre-set by
+        # ``adopt_stage``.
+        self._real_stage: StageI | None = None
 
-    def _attach(self, real_stage: Any) -> None:
+    def _attach(self, real_stage: StageI) -> None:
         self._real_stage = real_stage
 
     def _dispatch(self, op: Callable[[Any], Any]) -> Any:
@@ -160,9 +137,9 @@ class RecordingStage(StageI):
 
     @property
     def content_stream(self) -> ContentStream:
-        # Streaming from a not-yet-materialized stage is not possible; nothing
-        # in the speculative agent path uses `content_stream`.
+        # Unavailable while buffering; nothing on the speculative path uses it.
         if self._parent._mode is _Mode.PASS_THROUGH:
+            assert self._real_stage is not None, "pass-through implies an attached real stage"
             return self._real_stage.content_stream
         raise NotImplementedError("content_stream is not available on a recording stage")
 
@@ -171,7 +148,5 @@ class RecordingStage(StageI):
         return self
 
     def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> Any:
-        # In buffering mode the recorded op replays the original exc info, so
-        # the real stage closes with the same status; the record-time exception
-        # keeps propagating here (returns None).
+        # Recorded op replays this exc info, so the real stage closes with the same status.
         return self._dispatch(lambda stage: stage.__exit__(exc_type, exc_val, exc_tb))

@@ -1,5 +1,10 @@
 class StateVarsConfig:
-    """Keys to access artifacts stored in DIAL message state."""
+    """Keys to access artifacts stored in DIAL message state.
+
+    Values must be plain, deepcopy-able data: the optimistic-guardrails orchestrator
+    deepcopies the whole state dict per request (see
+    ``MainChainFactory._build_speculative_inputs``).
+    """
 
     # TODO: move to using pydantic model for statgpt state
 
