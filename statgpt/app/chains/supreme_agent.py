@@ -305,10 +305,10 @@ class SupremeAgentExecutor:
             if tool_calls := response.resp.tool_calls:
                 history.add_chunk_as_tool_message(response.resp)
 
-                # Speculative run under optimistic guardrails: real tool dispatch
-                # must wait for the out-of-scope verdict to confirm the request
-                # is in scope (fake tool calls above are not gated).
-                await self._await_oos_verdict(inputs)
+                # Real tool dispatch is an irreversible external effect: in a
+                # speculative run, wait for the orchestrator's permission before
+                # calling tools (fake tool calls above are not gated).
+                await self._await_side_effect_gate(inputs)
 
                 res: list[ToolMessage] = await asyncio.gather(
                     *(tool_executor.call_tool(tool_call, inputs) for tool_call in tool_calls)
@@ -335,11 +335,6 @@ class SupremeAgentExecutor:
                     return ""
             elif response.finished:
                 if response.first_token_time is not None:
-                    # The performance stage lives on the real choice, not the
-                    # buffered speculative one, so its rows must also wait for
-                    # the verdict — otherwise a cancelled speculative run would
-                    # leave debug rows visible to the user.
-                    await self._await_oos_verdict(inputs)
                     self._log_performance(inputs, response.start_time, response.first_token_time)
 
                 if data_query_artifacts:
@@ -395,16 +390,16 @@ class SupremeAgentExecutor:
         return fake_history
 
     @staticmethod
-    async def _await_oos_verdict(inputs: dict) -> None:
-        """Block until the out-of-scope verdict confirms the request is in scope.
+    async def _await_side_effect_gate(inputs: dict) -> None:
+        """Block until the orchestrator permits irreversible external effects.
 
-        No-op outside a speculative run (no event in ``inputs``). On an
-        out-of-scope verdict the event is never set: the orchestrator cancels
-        the agent task while it waits here, so the gated write never happens.
+        No-op outside a speculative run (no gate in ``inputs``). When the run is
+        rejected the gate is never set: the orchestrator cancels the agent task
+        while it waits here, so the gated side effect never happens.
         """
-        verdict_event = inputs.get(ChainParametersConfig.OOS_VERDICT_EVENT)
-        if verdict_event is not None:
-            await verdict_event.wait()
+        gate = inputs.get(ChainParametersConfig.SIDE_EFFECT_GATE)
+        if gate is not None:
+            await gate.wait()
 
     @staticmethod
     def _get_tool_call_from_cfg(tool_name, fake_call: FakeCall) -> DialMessage:

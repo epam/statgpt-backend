@@ -1,6 +1,6 @@
 from aidial_sdk.chat_completion.enums import Status
 
-from statgpt.app.utils.buffered_choice import BufferedChoice, BufferedStage
+from statgpt.app.utils.recording_choice import RecordingChoice, RecordingStage
 
 
 class FakeStage:
@@ -55,23 +55,23 @@ class FakeChoice:
 
 
 def test_flush_replays_ops_in_recording_order_including_nested_stages():
-    buffered = BufferedChoice()
+    recording = RecordingChoice()
 
-    buffered.append_content("before")
-    with buffered.create_stage("outer") as outer:
+    recording.append_content("before")
+    with recording.create_stage("outer") as outer:
         outer.append_content("outer-1")
-        with buffered.create_stage("inner") as inner:
+        with recording.create_stage("inner") as inner:
             inner.append_name(" (0.5s)")
             inner.append_content("inner-1")
         outer.add_attachment(title="table", data="csv")
         outer.append_content("outer-2")
-    buffered.add_attachment(title="chart")
-    buffered.append_content("after")
+    recording.add_attachment(title="chart")
+    recording.append_content("after")
 
     real = FakeChoice()
     assert real.log == []  # nothing reaches the real choice while buffering
 
-    buffered.flush_to(real)
+    recording.flush_to(real)
 
     assert real.log == [
         ("content", "before"),
@@ -92,15 +92,15 @@ def test_flush_replays_ops_in_recording_order_including_nested_stages():
 
 
 def test_explicit_stage_lifecycle_is_replayed():
-    buffered = BufferedChoice()
+    recording = RecordingChoice()
 
-    stage = buffered.create_stage("manual")
+    stage = recording.create_stage("manual")
     stage.open()
     stage.append_content("body")
     stage.close(Status.FAILED)
 
     real = FakeChoice()
-    buffered.flush_to(real)
+    recording.flush_to(real)
 
     assert real.log == [
         ("create_stage", "manual"),
@@ -111,17 +111,17 @@ def test_explicit_stage_lifecycle_is_replayed():
 
 
 def test_pass_through_after_flush():
-    buffered = BufferedChoice()
-    stage = buffered.create_stage("pre-flush")
+    recording = RecordingChoice()
+    stage = recording.create_stage("pre-flush")
     stage.append_content("buffered")
 
     real = FakeChoice()
-    buffered.flush_to(real)
+    recording.flush_to(real)
     real.log.clear()
 
-    buffered.append_content("live")
+    recording.append_content("live")
     stage.append_content("live-stage")  # a stage issued before the flush delegates too
-    post_flush_stage = buffered.create_stage("post-flush")
+    post_flush_stage = recording.create_stage("post-flush")
 
     assert isinstance(post_flush_stage, FakeStage)  # real stage, not a proxy
     assert real.log == [
@@ -132,32 +132,91 @@ def test_pass_through_after_flush():
 
 
 def test_noop_after_discard():
-    buffered = BufferedChoice()
-    buffered.append_content("speculative")
-    stage = buffered.create_stage("stage")
+    recording = RecordingChoice()
+    recording.append_content("speculative")
+    stage = recording.create_stage("stage")
     stage.append_content("speculative-stage")
 
-    buffered.discard()
+    recording.discard()
 
     # A cancelled task racing a final write must not touch the real choice.
-    buffered.append_content("late")
+    recording.append_content("late")
     stage.append_content("late-stage")
-    late_stage = buffered.create_stage("late")
+    late_stage = recording.create_stage("late")
     late_stage.append_content("ignored")
 
     real = FakeChoice()
-    buffered.flush_to(real)  # flush after discard is a no-op
+    recording.flush_to(real)  # flush after discard is a no-op
 
-    assert isinstance(late_stage, BufferedStage)
+    assert isinstance(late_stage, RecordingStage)
     assert real.log == []
 
 
 def test_flush_is_idempotent():
-    buffered = BufferedChoice()
-    buffered.append_content("once")
+    recording = RecordingChoice()
+    recording.append_content("once")
 
     real = FakeChoice()
-    buffered.flush_to(real)
-    buffered.flush_to(real)
+    recording.flush_to(real)
+    recording.flush_to(real)
 
     assert real.log == [("content", "once")]
+
+
+# ~~~ adopt_stage: proxy a stage that already exists on the real choice ~~~
+
+
+def test_adopt_stage_buffers_until_flush_with_no_create_stage_op():
+    real = FakeChoice()
+    # a stage that was created on the real choice before the speculative run
+    perf = FakeStage(real.log, "perf")
+
+    recording = RecordingChoice()
+    proxy = recording.adopt_stage(perf)
+
+    recording.append_content("before")
+    proxy.append_content("perf-row-1")
+    recording.append_content("after")
+    proxy.append_content("perf-row-2")
+
+    assert real.log == []  # held back while buffering
+
+    recording.flush_to(real)
+
+    # replayed in global recording order; no ("create_stage", ...) op for the adopted stage
+    assert real.log == [
+        ("content", "before"),
+        ("stage_content", "perf", "perf-row-1"),
+        ("content", "after"),
+        ("stage_content", "perf", "perf-row-2"),
+    ]
+
+
+def test_adopt_stage_passes_through_after_flush():
+    real = FakeChoice()
+    perf = FakeStage(real.log, "perf")
+
+    recording = RecordingChoice()
+    proxy = recording.adopt_stage(perf)
+    recording.flush_to(real)
+    real.log.clear()
+
+    proxy.append_content("live-row")
+
+    assert real.log == [("stage_content", "perf", "live-row")]
+
+
+def test_adopt_stage_noop_after_discard():
+    real = FakeChoice()
+    perf = FakeStage(real.log, "perf")
+
+    recording = RecordingChoice()
+    proxy = recording.adopt_stage(perf)
+    proxy.append_content("speculative-row")
+
+    recording.discard()
+
+    proxy.append_content("late-row")
+    recording.flush_to(real)  # no-op
+
+    assert real.log == []

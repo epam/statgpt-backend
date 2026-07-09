@@ -31,9 +31,10 @@ class ChainParametersConfig:
     TARGET = "target"
     OUT_OF_SCOPE = "out_of_scope"
     OUT_OF_SCOPE_REASONING = "out_of_scope_reasoning"
-    # asyncio.Event set once the out-of-scope verdict resolves to "in scope";
-    # present only on the speculative agent run under optimistic guardrails.
-    OOS_VERDICT_EVENT = "oos_verdict_event"
+    # asyncio.Event granting a speculative run permission to perform irreversible
+    # external side effects (e.g. real tool dispatch). Set once the orchestrator
+    # confirms the run should commit; present only on a speculative agent run.
+    SIDE_EFFECT_GATE = "side_effect_gate"
     PERFORMANCE_STAGE = "performance_stage"
 
 

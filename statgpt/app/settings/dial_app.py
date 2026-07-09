@@ -49,16 +49,6 @@ class DialAppSettings(BaseSettings):
         description="Skip out-of-scope check for queries",
     )
 
-    optimistic_guardrails: bool = Field(
-        default=True,
-        alias="DIAL_APP_OPTIMISTIC_GUARDRAILS",
-        description=(
-            "Run the out-of-scope guardrail LLM check concurrently with a speculative"
-            " supreme agent run whose output is buffered until the request is confirmed"
-            " in scope. Disable to restore the sequential check-then-agent flow."
-        ),
-    )
-
     cmd_out_of_scope_only: bool = Field(
         default=False,
         alias="CMD_OUT_OF_SCOPE_ONLY",

@@ -1,4 +1,5 @@
 import asyncio
+import logging
 from datetime import datetime
 
 import pytest
@@ -19,13 +20,12 @@ from statgpt.app.chains.supreme_agent import (
 )
 from statgpt.app.config import ChainParametersConfig, StateVarsConfig
 from statgpt.app.schemas.dial_app_configuration import StatGPTConfiguration
-from statgpt.app.settings.dial_app import dial_app_settings
 from statgpt.app.utils.message_history import History
 from statgpt.common.schemas.channel import ChannelConfig, OutOfScopeConfig, SupremeAgentConfig
 from statgpt.common.schemas.tools import DataQueryTool
 
 
-class RecordingChoice:
+class ChoiceLog:
     """Minimal ChoiceI stand-in recording all writes."""
 
     def __init__(self):
@@ -43,6 +43,16 @@ class RecordingChoice:
 
     def set_state(self, state: dict):
         self.log.append(("state", state))
+
+
+class StageLog:
+    """Minimal performance-stage stand-in recording appended content."""
+
+    def __init__(self):
+        self.contents: list[str] = []
+
+    def append_content(self, content: str) -> None:
+        self.contents.append(content)
 
 
 @pytest.fixture
@@ -74,7 +84,7 @@ def _out_of_scope_ai_message() -> DialMessage:
     )
 
 
-def _make_inputs(choice: RecordingChoice, history: History | None = None) -> dict:
+def _make_inputs(choice: ChoiceLog, history: History | None = None) -> dict:
     return {
         ChainParametersConfig.STATE: {},
         ChainParametersConfig.CHOICE: choice,
@@ -96,7 +106,7 @@ def _patch_check_forbidden(monkeypatch):
 
 
 async def test_in_scope_commits_speculative_run(factory: MainChainFactory, monkeypatch):
-    real_choice = RecordingChoice()
+    real_choice = ChoiceLog()
     inputs = _make_inputs(real_choice)
     state = inputs[ChainParametersConfig.STATE]
     history = inputs[ChainParametersConfig.HISTORY]
@@ -112,8 +122,8 @@ async def test_in_scope_commits_speculative_run(factory: MainChainFactory, monke
         seen["state"]["agent_ran"] = True
         seen["history"].add_dial_message(_user_message("tool output"))
         agent_wrote.set()
-        # mirror the real tool-dispatch gate: wait for the verdict
-        await spec_inputs[ChainParametersConfig.OOS_VERDICT_EVENT].wait()
+        # mirror the real side-effect gate: wait for the orchestrator's permission
+        await spec_inputs[ChainParametersConfig.SIDE_EFFECT_GATE].wait()
         return spec_inputs
 
     async def fake_check(self, messages, auth_context) -> OutOfScopeCheckerResponse:
@@ -131,7 +141,7 @@ async def test_in_scope_commits_speculative_run(factory: MainChainFactory, monke
     assert result[ChainParametersConfig.OUT_OF_SCOPE] is False
     assert result[ChainParametersConfig.OUT_OF_SCOPE_REASONING] == "stats question"
     assert result[ChainParametersConfig.CHOICE] is real_choice
-    assert ChainParametersConfig.OOS_VERDICT_EVENT not in result
+    assert ChainParametersConfig.SIDE_EFFECT_GATE not in result
 
     # state committed in place: same dict object, speculative mutations applied
     assert result[ChainParametersConfig.STATE] is state
@@ -147,7 +157,7 @@ async def test_in_scope_commits_speculative_run(factory: MainChainFactory, monke
 async def test_out_of_scope_cancels_agent_and_discards_buffer(
     factory: MainChainFactory, monkeypatch
 ):
-    real_choice = RecordingChoice()
+    real_choice = ChoiceLog()
     inputs = _make_inputs(real_choice)
     state = inputs[ChainParametersConfig.STATE]
     history = inputs[ChainParametersConfig.HISTORY]
@@ -160,7 +170,7 @@ async def test_out_of_scope_cancels_agent_and_discards_buffer(
         ChainParameters.get_state(spec_inputs)["agent_ran"] = True
         agent_wrote.set()
         try:
-            await spec_inputs[ChainParametersConfig.OOS_VERDICT_EVENT].wait()
+            await spec_inputs[ChainParametersConfig.SIDE_EFFECT_GATE].wait()
         except asyncio.CancelledError:
             agent_cancelled.set()
             raise
@@ -192,14 +202,14 @@ async def test_out_of_scope_cancels_agent_and_discards_buffer(
 
 
 async def test_checker_failure_cancels_agent_and_reraises(factory: MainChainFactory, monkeypatch):
-    real_choice = RecordingChoice()
+    real_choice = ChoiceLog()
     inputs = _make_inputs(real_choice)
 
     agent_cancelled = asyncio.Event()
 
     async def fake_agent(spec_inputs: dict) -> dict:
         try:
-            await spec_inputs[ChainParametersConfig.OOS_VERDICT_EVENT].wait()
+            await spec_inputs[ChainParametersConfig.SIDE_EFFECT_GATE].wait()
         except asyncio.CancelledError:
             agent_cancelled.set()
             raise
@@ -219,7 +229,7 @@ async def test_checker_failure_cancels_agent_and_reraises(factory: MainChainFact
 
 
 async def test_skip_check_flag_runs_main_chain_sequentially(factory: MainChainFactory, monkeypatch):
-    real_choice = RecordingChoice()
+    real_choice = ChoiceLog()
     inputs = _make_inputs(real_choice)
     inputs[ChainParametersConfig.SKIP_OUT_OF_SCOPE_CHECK] = True
 
@@ -242,7 +252,7 @@ async def test_skip_check_flag_runs_main_chain_sequentially(factory: MainChainFa
 async def test_direct_tool_calls_run_main_chain_sequentially(
     factory: MainChainFactory, monkeypatch
 ):
-    real_choice = RecordingChoice()
+    real_choice = ChoiceLog()
     inputs = _make_inputs(real_choice)
     inputs[ChainParametersConfig.STATE][StateVarsConfig.DIRECT_TOOL_CALLS] = [{"name": "tool"}]
 
@@ -274,7 +284,7 @@ async def test_threshold_exceeded_starts_new_conversation_sequentially(
         messages.append(_out_of_scope_ai_message())
     messages.append(_user_message("still off topic"))
 
-    real_choice = RecordingChoice()
+    real_choice = ChoiceLog()
     inputs = _make_inputs(real_choice, history=History(messages))
 
     seen: dict = {}
@@ -295,7 +305,7 @@ async def test_threshold_exceeded_starts_new_conversation_sequentially(
 
 
 async def test_cmd_out_of_scope_only_stays_sequential(factory: MainChainFactory, monkeypatch):
-    real_choice = RecordingChoice()
+    real_choice = ChoiceLog()
     inputs = _make_inputs(real_choice)
     inputs[ChainParametersConfig.STATE][StateVarsConfig.CMD_OUT_OF_SCOPE_ONLY] = True
 
@@ -315,7 +325,182 @@ async def test_cmd_out_of_scope_only_stays_sequential(factory: MainChainFactory,
     assert real_choice.log == []  # verdict only: no out-of-scope response streamed
 
 
-# ~~~ create_chain composition (DIAL_APP_OPTIMISTIC_GUARDRAILS kill switch) ~~~
+# ~~~ speculative performance-stage substitution (orchestrator level) ~~~
+
+
+async def test_perf_rows_buffered_until_commit(factory: MainChainFactory, monkeypatch):
+    real_choice = ChoiceLog()
+    inputs = _make_inputs(real_choice)
+    perf_stage = StageLog()
+    inputs[ChainParametersConfig.PERFORMANCE_STAGE] = perf_stage
+
+    agent_wrote = asyncio.Event()
+
+    async def fake_agent(spec_inputs: dict) -> dict:
+        # the agent writes perf rows to the (proxied) shared performance stage
+        ChainParameters.get_performance_stage(spec_inputs).append_content("perf-row")
+        agent_wrote.set()
+        await spec_inputs[ChainParametersConfig.SIDE_EFFECT_GATE].wait()
+        return spec_inputs
+
+    async def fake_check(self, messages, auth_context) -> OutOfScopeCheckerResponse:
+        await agent_wrote.wait()
+        # perf rows are held back through the recording, not on the real stage yet
+        assert perf_stage.contents == []
+        return OutOfScopeCheckerResponse(reasoning="stats question", out_of_scope=False)
+
+    monkeypatch.setattr(factory, "_main_chain", fake_agent)
+    _patch_check(monkeypatch, fake_check)
+
+    await factory._guarded_main_chain(inputs)
+
+    assert perf_stage.contents == ["perf-row"]  # flushed on commit
+    # the real perf stage was proxied, never recreated on the real choice
+    assert real_choice.log == []
+
+
+async def test_perf_rows_discarded_on_out_of_scope(factory: MainChainFactory, monkeypatch):
+    real_choice = ChoiceLog()
+    inputs = _make_inputs(real_choice)
+    perf_stage = StageLog()
+    inputs[ChainParametersConfig.PERFORMANCE_STAGE] = perf_stage
+
+    agent_wrote = asyncio.Event()
+
+    async def fake_agent(spec_inputs: dict) -> dict:
+        ChainParameters.get_performance_stage(spec_inputs).append_content("perf-row")
+        agent_wrote.set()
+        await spec_inputs[ChainParametersConfig.SIDE_EFFECT_GATE].wait()
+        return spec_inputs
+
+    async def fake_check(self, messages, auth_context) -> OutOfScopeCheckerResponse:
+        await agent_wrote.wait()
+        return OutOfScopeCheckerResponse(reasoning="off-domain request", out_of_scope=True)
+
+    async def fake_respond(self, respond_inputs: dict, reasoning: str) -> dict:
+        return respond_inputs
+
+    monkeypatch.setattr(factory, "_main_chain", fake_agent)
+    _patch_check(monkeypatch, fake_check)
+    monkeypatch.setattr(OutOfScopeChecker, "respond_out_of_scope", fake_respond)
+
+    await factory._guarded_main_chain(inputs)
+
+    assert perf_stage.contents == []  # discarded speculative run: no perf rows
+
+
+# ~~~ abnormal-exit reaping and observability ~~~
+
+
+async def test_agent_failure_after_commit_propagates_without_state_commit(
+    factory: MainChainFactory, monkeypatch
+):
+    real_choice = ChoiceLog()
+    inputs = _make_inputs(real_choice)
+    state = inputs[ChainParametersConfig.STATE]
+
+    agent_wrote = asyncio.Event()
+
+    async def fake_agent(spec_inputs: dict) -> dict:
+        ChainParameters.get_choice(spec_inputs).append_content("speculative answer")
+        ChainParameters.get_state(spec_inputs)["agent_ran"] = True
+        agent_wrote.set()
+        await spec_inputs[ChainParametersConfig.SIDE_EFFECT_GATE].wait()
+        raise RuntimeError("agent exploded after commit")
+
+    async def fake_check(self, messages, auth_context) -> OutOfScopeCheckerResponse:
+        await agent_wrote.wait()
+        return OutOfScopeCheckerResponse(reasoning="stats question", out_of_scope=False)
+
+    monkeypatch.setattr(factory, "_main_chain", fake_agent)
+    _patch_check(monkeypatch, fake_check)
+
+    with pytest.raises(RuntimeError, match="agent exploded after commit"):
+        await factory._guarded_main_chain(inputs)
+
+    # the in-scope verdict flushed the buffered prefix before the agent failed
+    assert real_choice.log == [("content", "speculative answer")]
+    # but the speculative state was never committed onto the original dict
+    assert "agent_ran" not in state
+
+
+async def test_oos_path_logs_speculative_agent_failure(
+    factory: MainChainFactory, monkeypatch, caplog
+):
+    real_choice = ChoiceLog()
+    inputs = _make_inputs(real_choice)
+
+    agent_done = asyncio.Event()
+
+    async def fake_agent(spec_inputs: dict) -> dict:
+        try:
+            raise RuntimeError("speculative agent bug")
+        finally:
+            agent_done.set()
+
+    async def fake_check(self, messages, auth_context) -> OutOfScopeCheckerResponse:
+        await agent_done.wait()
+        return OutOfScopeCheckerResponse(reasoning="off-domain request", out_of_scope=True)
+
+    async def fake_respond(self, respond_inputs: dict, reasoning: str) -> dict:
+        ChainParameters.get_choice(respond_inputs).append_content("out-of-scope message")
+        return respond_inputs
+
+    monkeypatch.setattr(factory, "_main_chain", fake_agent)
+    _patch_check(monkeypatch, fake_check)
+    monkeypatch.setattr(OutOfScopeChecker, "respond_out_of_scope", fake_respond)
+
+    with caplog.at_level(logging.WARNING, logger="statgpt"):
+        result = await factory._guarded_main_chain(inputs)
+
+    # the swallowed speculative failure is surfaced, not lost
+    assert any("speculative agent run failed" in r.message for r in caplog.records)
+    # the user still gets a clean out-of-scope response
+    assert real_choice.log == [("content", "out-of-scope message")]
+    assert result[ChainParametersConfig.OUT_OF_SCOPE] is True
+
+
+async def test_flush_failure_reaps_agent_task(factory: MainChainFactory, monkeypatch):
+    class ExplodingChoice(ChoiceLog):
+        def append_content(self, content: str):
+            raise RuntimeError("choice closed")
+
+    real_choice = ExplodingChoice()
+    inputs = _make_inputs(real_choice)
+    state = inputs[ChainParametersConfig.STATE]
+
+    agent_wrote = asyncio.Event()
+    agent_cancelled = asyncio.Event()
+
+    async def fake_agent(spec_inputs: dict) -> dict:
+        ChainParameters.get_choice(spec_inputs).append_content("speculative answer")
+        ChainParameters.get_state(spec_inputs)["agent_ran"] = True
+        agent_wrote.set()
+        try:
+            # the gate is set before flush_to raises; the reap-cancel then lands
+            # here at the gate await, which is where the run must observe it
+            await spec_inputs[ChainParametersConfig.SIDE_EFFECT_GATE].wait()
+        except asyncio.CancelledError:
+            agent_cancelled.set()
+            raise
+        return spec_inputs
+
+    async def fake_check(self, messages, auth_context) -> OutOfScopeCheckerResponse:
+        await agent_wrote.wait()
+        return OutOfScopeCheckerResponse(reasoning="stats question", out_of_scope=False)
+
+    monkeypatch.setattr(factory, "_main_chain", fake_agent)
+    _patch_check(monkeypatch, fake_check)
+
+    # flush_to raises mid-replay after the gate was set; the live agent must be reaped
+    with pytest.raises(RuntimeError, match="choice closed"):
+        await factory._guarded_main_chain(inputs)
+
+    assert agent_cancelled.is_set()
+    assert "agent_ran" not in state  # speculative state never committed
+
+
+# ~~~ create_chain composition (per-channel out_of_scope.optimistic flag) ~~~
 
 
 def _chain_afuncs(chain: Runnable) -> list:
@@ -323,10 +508,11 @@ def _chain_afuncs(chain: Runnable) -> list:
     return [afunc for step in chain.steps if (afunc := getattr(step, "afunc", None)) is not None]
 
 
-async def test_create_chain_composes_guarded_orchestrator_when_flag_on(
-    factory: MainChainFactory, monkeypatch
+async def test_create_chain_composes_guarded_orchestrator_when_optimistic(
+    channel_config: ChannelConfig,
 ):
-    monkeypatch.setattr(dial_app_settings, "optimistic_guardrails", True)
+    channel_config.out_of_scope.optimistic = True
+    factory = MainChainFactory(channel_config)
 
     afuncs = _chain_afuncs(await factory.create_chain())
 
@@ -340,11 +526,10 @@ async def test_create_chain_composes_guarded_orchestrator_when_flag_on(
     )
 
 
-async def test_create_chain_composes_sequential_checker_when_flag_off(
-    factory: MainChainFactory, monkeypatch
+async def test_create_chain_composes_sequential_checker_when_not_optimistic(
+    factory: MainChainFactory,
 ):
-    monkeypatch.setattr(dial_app_settings, "optimistic_guardrails", False)
-
+    # channel_config.out_of_scope.optimistic defaults to False
     afuncs = _chain_afuncs(await factory.create_chain())
 
     assert factory._guarded_main_chain not in afuncs
@@ -354,17 +539,19 @@ async def test_create_chain_composes_sequential_checker_when_flag_off(
     )
 
 
-# ~~~ SupremeAgentExecutor verdict gate (real stream_response loop) ~~~
+async def test_create_chain_composes_sequential_checker_when_out_of_scope_absent(
+    channel_config: ChannelConfig,
+):
+    channel_config.out_of_scope = None
+    factory = MainChainFactory(channel_config)
+
+    afuncs = _chain_afuncs(await factory.create_chain())
+
+    assert factory._guarded_main_chain not in afuncs
+    assert factory._main_chain in afuncs
 
 
-class RecordingStage:
-    """Minimal performance-stage stand-in recording appended content."""
-
-    def __init__(self):
-        self.contents: list[str] = []
-
-    def append_content(self, content: str) -> None:
-        self.contents.append(content)
+# ~~~ SupremeAgentExecutor side-effect gate (real stream_response loop) ~~~
 
 
 class ScriptedSupremeAgent:
@@ -424,18 +611,18 @@ def _make_executor(
     return SupremeAgentExecutor(channel_config), tool_caller, agent
 
 
-def _agent_inputs(verdict_event: asyncio.Event | None = None) -> dict:
+def _agent_inputs(gate: asyncio.Event | None = None) -> dict:
     inputs = {
         ChainParametersConfig.STATE: {},
-        ChainParametersConfig.CHOICE: RecordingChoice(),
+        ChainParametersConfig.CHOICE: ChoiceLog(),
         ChainParametersConfig.HISTORY: History([_user_message("what is GDP?")]),
         ChainParametersConfig.AUTH_CONTEXT: object(),
         ChainParametersConfig.CONFIGURATION: StatGPTConfiguration(),
-        ChainParametersConfig.PERFORMANCE_STAGE: RecordingStage(),
+        ChainParametersConfig.PERFORMANCE_STAGE: StageLog(),
         ChainParametersConfig.START_OF_REQUEST: datetime.now(),
     }
-    if verdict_event is not None:
-        inputs[ChainParametersConfig.OOS_VERDICT_EVENT] = verdict_event
+    if gate is not None:
+        inputs[ChainParametersConfig.SIDE_EFFECT_GATE] = gate
     return inputs
 
 
@@ -445,22 +632,20 @@ async def _settle() -> None:
         await asyncio.sleep(0)
 
 
-async def test_agent_tool_dispatch_waits_for_verdict(
-    agent_channel_config: ChannelConfig, monkeypatch
-):
+async def test_agent_tool_dispatch_waits_for_gate(agent_channel_config: ChannelConfig, monkeypatch):
     executor, tool_caller, agent = _make_executor(
         monkeypatch, agent_channel_config, [_tool_call_turn(), _final_turn()]
     )
-    verdict_event = asyncio.Event()
+    gate = asyncio.Event()
 
-    task = asyncio.create_task(executor.stream_response(_agent_inputs(verdict_event)))
+    task = asyncio.create_task(executor.stream_response(_agent_inputs(gate)))
     await _settle()
 
     # turn 1 finished (checker slower than the agent), yet the gate holds
     assert agent.turns_started == 1
     assert tool_caller.calls == []
 
-    verdict_event.set()
+    gate.set()
     result = await task
 
     assert tool_caller.calls == ["Data_Query"]
@@ -474,7 +659,7 @@ async def test_agent_cancelled_while_gated_never_dispatches_tools(
     executor, tool_caller, agent = _make_executor(
         monkeypatch, agent_channel_config, [_tool_call_turn(), _final_turn()]
     )
-    # out-of-scope verdict: the event is never set, the task gets cancelled
+    # out-of-scope verdict: the gate is never set, the task gets cancelled
     task = asyncio.create_task(executor.stream_response(_agent_inputs(asyncio.Event())))
     await _settle()
 
@@ -488,46 +673,7 @@ async def test_agent_cancelled_while_gated_never_dispatches_tools(
     assert tool_caller.calls == []
 
 
-async def test_agent_performance_rows_wait_for_verdict(
-    agent_channel_config: ChannelConfig, monkeypatch
-):
-    executor, _, agent = _make_executor(monkeypatch, agent_channel_config, [_final_turn()])
-    verdict_event = asyncio.Event()
-    inputs = _agent_inputs(verdict_event)
-    performance_stage = inputs[ChainParametersConfig.PERFORMANCE_STAGE]
-
-    task = asyncio.create_task(executor.stream_response(inputs))
-    await _settle()
-
-    # the agent answered without tool calls; the performance stage lives on
-    # the real choice, so its rows must not appear before the verdict
-    assert agent.turns_started == 1
-    assert performance_stage.contents == []
-
-    verdict_event.set()
-    assert await task == "final answer"
-    assert performance_stage.contents  # rows written once the verdict resolved
-
-
-async def test_agent_cancelled_while_gated_writes_no_performance_rows(
-    agent_channel_config: ChannelConfig, monkeypatch
-):
-    executor, _, _ = _make_executor(monkeypatch, agent_channel_config, [_final_turn()])
-    inputs = _agent_inputs(asyncio.Event())
-    performance_stage = inputs[ChainParametersConfig.PERFORMANCE_STAGE]
-
-    task = asyncio.create_task(executor.stream_response(inputs))
-    await _settle()
-    task.cancel()
-    with pytest.raises(asyncio.CancelledError):
-        await task
-
-    assert performance_stage.contents == []
-
-
-async def test_agent_without_verdict_event_runs_ungated(
-    agent_channel_config: ChannelConfig, monkeypatch
-):
+async def test_agent_without_gate_runs_ungated(agent_channel_config: ChannelConfig, monkeypatch):
     executor, tool_caller, agent = _make_executor(
         monkeypatch, agent_channel_config, [_tool_call_turn(), _final_turn()]
     )

@@ -102,6 +102,19 @@ class OutOfScopeConfig(BaseYamlModel):
             " If false, only custom_blacklist will be used."
         ),
     )
+    optimistic: bool = Field(
+        default=False,
+        description=(
+            "Run the out-of-scope LLM check concurrently with a speculative supreme-agent run"
+            " whose output is buffered until the request is confirmed in scope, shaving one LLM"
+            " round-trip off time-to-first-token. Every out-of-scope request then additionally"
+            " costs a cancelled speculative agent run (including its fake tool calls), so disable"
+            " on channels with heavy off-topic traffic. Behavioral divergences from the sequential"
+            " flow: if the agent fails after an in-scope verdict, speculative state is discarded"
+            " rather than partially persisted; debug performance and LLM-duration surfaces include"
+            " cancelled speculative calls."
+        ),
+    )
     start_new_conversation_message: str = Field(
         default=(
             "Threshold of out-of-scope messages in conversation history exceeded. Please start a new chat if you'd like "

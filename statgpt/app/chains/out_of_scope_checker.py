@@ -164,12 +164,14 @@ class OutOfScopeChecker:
         )
         return response_prompt | model
 
-    def resolve_skip(self, inputs: dict) -> dict | None:
+    def try_short_circuit(self, inputs: dict) -> dict | None:
         """Resolve the short-circuit paths that bypass the LLM relevancy check.
 
-        Returns the completed ``inputs`` when the check is skipped (guardrails
-        disabled, direct tool calls, or the out-of-scope messages threshold
-        already exceeded), ``None`` when the LLM check should run.
+        Mutates ``inputs`` and may stream to the choice (the start-new-conversation
+        message on the threshold path). Returns the completed ``inputs`` when the
+        check is skipped (guardrails disabled, direct tool calls, or the
+        out-of-scope messages threshold already exceeded), ``None`` when the LLM
+        check should run.
         """
         state = ChainParameters.get_state(inputs)
         tool_calls = state.get(StateVarsConfig.DIRECT_TOOL_CALLS, [])
@@ -220,6 +222,32 @@ class OutOfScopeChecker:
         scope = "out of scope" if response.out_of_scope else "in scope"
         stage.append_content(f"Request is {scope}, reasoning: {response.reasoning}")
 
+    async def check_with_stage(self, inputs: dict) -> OutOfScopeCheckerResponse:
+        """Run the LLM relevancy check inside the ``[DEBUG] Guardrails: Relevancy``
+        stage and record the verdict on ``inputs``.
+
+        Shared by the sequential (``stream_response``) and concurrent
+        (``MainChainFactory._guarded_main_chain``) compositions so the visible
+        verdict stage and the ``OUT_OF_SCOPE`` keys are produced identically.
+        """
+        state = ChainParameters.get_state(inputs)
+        auth_context = ChainParameters.get_auth_context(inputs)
+        choice = ChainParameters.get_choice(inputs)
+        history = ChainParameters.get_history(inputs)
+
+        messages = history.get_langchain_messages(include_tool_messages=False)
+
+        show_debug_stages = state.get(StateVarsConfig.SHOW_DEBUG_STAGES, False)
+        with optional_timed_stage(
+            choice, "[DEBUG] Guardrails: Relevancy", enabled=show_debug_stages
+        ) as stage:
+            response = await self.check(messages, auth_context)
+            self.append_verdict_to_stage(stage, response)
+
+        inputs[ChainParametersConfig.OUT_OF_SCOPE] = response.out_of_scope
+        inputs[ChainParametersConfig.OUT_OF_SCOPE_REASONING] = response.reasoning
+        return response
+
     async def respond_out_of_scope(self, inputs: dict, reasoning: str) -> dict:
         """Stream the user-facing out-of-scope message to the choice.
 
@@ -262,26 +290,12 @@ class OutOfScopeChecker:
         """Sequential composition of the guardrail: skip resolution, LLM check,
         out-of-scope response. Used when optimistic guardrails are disabled and
         for the ``CMD_OUT_OF_SCOPE_ONLY`` debug path."""
-        if (resolved := self.resolve_skip(inputs)) is not None:
+        if (resolved := self.try_short_circuit(inputs)) is not None:
             return resolved
 
+        response = await self.check_with_stage(inputs)
+
         state = ChainParameters.get_state(inputs)
-        auth_context = ChainParameters.get_auth_context(inputs)
-        choice = ChainParameters.get_choice(inputs)
-        history = ChainParameters.get_history(inputs)
-
-        messages = history.get_langchain_messages(include_tool_messages=False)
-
-        show_debug_stages = state.get(StateVarsConfig.SHOW_DEBUG_STAGES, False)
-        with optional_timed_stage(
-            choice, "[DEBUG] Guardrails: Relevancy", enabled=show_debug_stages
-        ) as stage:
-            response = await self.check(messages, auth_context)
-            self.append_verdict_to_stage(stage, response)
-
-        inputs[ChainParametersConfig.OUT_OF_SCOPE] = response.out_of_scope
-        inputs[ChainParametersConfig.OUT_OF_SCOPE_REASONING] = response.reasoning
-
         oos_only = state.get(StateVarsConfig.CMD_OUT_OF_SCOPE_ONLY, False)
         if oos_only or not response.out_of_scope:
             return inputs

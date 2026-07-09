@@ -24,6 +24,7 @@ channels:
           deployment: "gpt-4.1-2025-04-14"
         use_general_topics_blacklist: true
         domain: "Statistics, economics and SDMX."
+        optimistic: true
       token_usage:
         debug_only: false
         stage_name: "Token Usage"
