@@ -117,6 +117,11 @@ class MainChainFactory:
 
         gate = asyncio.Event()
         recording = RecordingChoice()
+        # Isolation invariant: every real-choice-derived object placed on
+        # spec_inputs must be substituted (choice/history/state below) or routed
+        # through the recording (adopt_stage below). Anything left pointing at the
+        # real choice would let speculative writes escape before the in-scope
+        # verdict commits.
         spec_inputs = {
             **inputs,
             ChainParametersConfig.CHOICE: recording,

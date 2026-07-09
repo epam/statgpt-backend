@@ -391,11 +391,13 @@ class SupremeAgentExecutor:
 
     @staticmethod
     async def _await_side_effect_gate(inputs: dict) -> None:
-        """Block until the orchestrator permits irreversible external effects.
+        """Block until the orchestrator permits the agent's main-loop tool
+        dispatch (the fake tool calls earlier in the run are deliberately
+        ungated).
 
         No-op outside a speculative run (no gate in ``inputs``). When the run is
         rejected the gate is never set: the orchestrator cancels the agent task
-        while it waits here, so the gated side effect never happens.
+        while it waits here, so the gated dispatch never happens.
         """
         gate = inputs.get(ChainParametersConfig.SIDE_EFFECT_GATE)
         if gate is not None:
