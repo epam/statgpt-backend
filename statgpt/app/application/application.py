@@ -14,6 +14,7 @@ from statgpt.app.chains.sdmx_query_app_tool import sdmx_query_app_http_client
 from statgpt.app.mcp.widget_resource import widget_http_client
 from statgpt.common.models import DatabaseHealthChecker, optional_msi_token_manager_context
 from statgpt.common.services.data_preloader import preload_data_task_context
+from statgpt.common.settings.data_preloader import data_preloader_settings
 from statgpt.common.utils.elastic import elasticsearch_client_context
 from statgpt.common.utils.http_pool import shared_http_clients_context
 
@@ -31,7 +32,14 @@ async def lifespan(app: "StatGPTApp"):
         # Check resources' availability:
         await DatabaseHealthChecker().check()
 
-        async with preload_data_task_context(allow_cached_datasets=True, use_resolved_config=True):
+        # Start the dataset preload only after the health check, and nested inside
+        # shared_http_clients_context so it is cancelled and awaited before the shared
+        # HTTP pools it uses are closed on shutdown.
+        async with preload_data_task_context(
+            allow_cached_datasets=True,
+            use_resolved_config=True,
+            refresh_interval_seconds=data_preloader_settings.refresh_interval_seconds,
+        ):
             yield
 
 
