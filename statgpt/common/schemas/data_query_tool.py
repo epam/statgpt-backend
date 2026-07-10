@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, Self
 
 from pydantic import (
     Field,
@@ -247,9 +247,26 @@ class HybridSearchConfig(BaseYamlModel):
             "before searching. When disabled, the normalized query is searched as a single query."
         ),
     )
-    use_only_best_score: bool = Field(
+    include_lower_scored_datasets: bool = Field(
         default=False,
-        description="Whether to use only indicators with best score, instead of allowing indicators with lower scores.",
+        description=(
+            "When true, keep the best-scored indicators of each dataset that passes the score "
+            "thresholds, even if other datasets have higher-scored indicators. "
+            "When false, keep only the indicators with the best overall score."
+        ),
+    )
+    use_only_best_score: bool | None = Field(
+        default=None,
+        deprecated=(
+            "`use_only_best_score` is deprecated; use `include_lower_scored_datasets` instead "
+            "(inverse meaning)."
+        ),
+        description=(
+            "Deprecated. Superseded by `include_lower_scored_datasets`, which has the inverse "
+            "meaning (`use_only_best_score=True` == `include_lower_scored_datasets=False`). "
+            "Kept for backward compatibility: when `include_lower_scored_datasets` is not set, "
+            "this value is used. Prefer `include_lower_scored_datasets` in new configs."
+        ),
     )
     single_dataset_score_threshold: int = Field(
         default=2,
@@ -264,6 +281,24 @@ class HybridSearchConfig(BaseYamlModel):
         le=3,
     )
     prompts: HybridSearchPrompts = Field(default_factory=HybridSearchPrompts)
+
+    @model_validator(mode="after")
+    def _apply_deprecated_use_only_best_score(self) -> Self:
+        """Honor the deprecated `use_only_best_score` for backward compatibility.
+
+        `include_lower_scored_datasets` replaced `use_only_best_score` with inverse
+        meaning. Old channel configs still set `useOnlyBestScore`, so we map it onto
+        the new field when the new one is not explicitly set. When both are set, the
+        new field wins.
+        """
+        # read via __dict__: attribute access on a deprecated field emits a DeprecationWarning
+        use_only_best_score: bool | None = self.__dict__.get("use_only_best_score")
+        if (
+            "include_lower_scored_datasets" not in self.model_fields_set
+            and use_only_best_score is not None
+        ):
+            self.include_lower_scored_datasets = not use_only_best_score
+        return self
 
 
 class DataQueryStageNames(BaseYamlModel):
