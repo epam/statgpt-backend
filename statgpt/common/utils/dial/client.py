@@ -8,8 +8,6 @@ from pydantic import SecretStr
 
 _log = logging.getLogger(__name__)
 
-_DIAL_REQUEST_TIMEOUT = 600
-
 
 @asynccontextmanager
 async def dial_client_factory(base_url: str, api_key: str | SecretStr) -> AsyncIterator[AsyncDial]:
@@ -22,11 +20,7 @@ async def dial_client_factory(base_url: str, api_key: str | SecretStr) -> AsyncI
     if isinstance(api_key, SecretStr):
         api_key = api_key.get_secret_value()
 
-    async with AsyncDial(
-        base_url=base_url,
-        api_key=api_key,
-        timeout=_DIAL_REQUEST_TIMEOUT,
-    ) as dial:
+    async with AsyncDial(base_url=base_url, api_key=api_key) as dial:
         yield dial
 
 

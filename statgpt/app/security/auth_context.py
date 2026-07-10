@@ -2,7 +2,6 @@ import logging
 from functools import cached_property
 
 from aidial_client import DialException
-from pydantic import ValidationError
 
 from statgpt.app.security.exceptions import InsufficientRoleError, MissingApiKeyError
 from statgpt.app.settings.dial_app import dial_app_settings
@@ -92,7 +91,8 @@ async def _check_roles(request: DialAuthCredentialsI, allowed_roles: set[str]) -
         async with dial_client_factory(base_url=dial_settings.url, api_key=request.api_key) as dial:
             user_info = await dial.user.info()
             return bool(set(user_info.roles) & allowed_roles)
-    except (DialException, ValidationError) as e:
-        # Deny by default if user info can't be fetched or lacks a valid `roles` field.
+    except DialException as e:
+        # Deny by default if user info can't be fetched or parsed (the SDK wraps
+        # response parsing failures in ParsingDataError, a DialException subclass).
         _log.warning(f"Failed to resolve user roles, denying system-user access: {e}")
         return False

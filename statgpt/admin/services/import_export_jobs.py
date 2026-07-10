@@ -7,6 +7,7 @@ import zipfile
 from datetime import datetime
 from typing import BinaryIO
 
+import aiofiles
 from aidial_client.types.metadata import FileItem
 from fastapi import BackgroundTasks, HTTPException, UploadFile, status
 from pydantic import BaseModel, ValidationError
@@ -200,9 +201,9 @@ class JobsService:
             with tempfile.TemporaryDirectory() as tmp_dir:
                 tmp_path = os.path.join(tmp_dir, file_name)
                 await file.seek(0)
-                with open(tmp_path, "wb") as out:
+                async with aiofiles.open(tmp_path, "wb") as out:
                     while chunk := await file.read(1024 * 1024):
-                        out.write(chunk)
+                        await out.write(chunk)
 
                 async with attachments_storage_factory(
                     api_key=auth_context.api_key
@@ -210,6 +211,7 @@ class JobsService:
                     resp = await attachments_storage.put_local_file(
                         f"{JobsConfig.DIAL_IMPORT_FOLDER}/{file_name}",
                         tmp_path,
+                        mime_type=file.content_type,
                     )
                     job.file = resp.url
 

@@ -69,6 +69,8 @@ class AttachmentsStorage:
         if not bucket:
             bucket = await resolve_bucket(self._dial)
 
+        folder = folder.strip('/')
+        # The trailing "/" is required: DIAL treats "example/" as a folder and "example" as a file.
         url = f"files/{bucket}/{folder}/"
         files: list[FileItem] = []
         token: str | None = None
@@ -110,7 +112,13 @@ class AttachmentsStorage:
         return await self._dial.files.upload(f"files/{bucket}/{name}", file=(name, data, mime_type))
 
     async def put_local_file(
-        self, name: str, path: str, *, bucket: str | None = None, show_progress: bool = False
+        self,
+        name: str,
+        path: str,
+        *,
+        mime_type: str = "application/octet-stream",
+        bucket: str | None = None,
+        show_progress: bool = False,
     ) -> FileItem:
         if not bucket:
             bucket = await resolve_bucket(self._dial)
@@ -119,7 +127,7 @@ class AttachmentsStorage:
         )
         try:
             return await self._dial.files.upload(
-                f"files/{bucket}/{name}", file=(name, reader, "application/octet-stream")
+                f"files/{bucket}/{name}", file=(name, reader, mime_type)
             )
         finally:
             reader.close()

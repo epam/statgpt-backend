@@ -74,9 +74,7 @@ class AdminPortalChannelService(ChannelService):
         mime_type = guess_type(file_path)[0]
         if not mime_type:
             mime_type = "application/octet-stream"
-        async with attachments_storage_factory(
-            api_key=auth_context.api_key, base_url=dial_settings.url
-        ) as storage:
+        async with attachments_storage_factory(api_key=auth_context.api_key) as storage:
             await storage.put_file(dial_file_path, mime_type, content)
 
     async def _create_channel_model(self, data: schemas.ChannelBase) -> models.Channel:

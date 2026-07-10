@@ -1,6 +1,10 @@
+import logging
+
 import pandas as pd
 
 from statgpt.common.schemas.token_usage import TokenUsageItem, TokenUsagePricedItem
+
+_log = logging.getLogger(__name__)
 
 
 class TokenUsageCostCalculator:
@@ -34,7 +38,8 @@ class TokenUsageCostCalculator:
             completion_price = (
                 float(model_pricing.completion) if model_pricing.completion is not None else 0.0
             )
-        except (TypeError, ValueError):
+        except (TypeError, ValueError) as e:
+            _log.warning(f"Invalid pricing for model {item.model!r}: {e}")
             return None
         return item.prompt_tokens * prompt_price + item.completion_tokens * completion_price
 

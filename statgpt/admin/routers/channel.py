@@ -2,6 +2,7 @@ import logging
 from datetime import datetime, timedelta
 from typing import Annotated
 
+from aidial_client import ResourceNotFoundError
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, UploadFile, status
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -186,9 +187,15 @@ async def download_job_result_by_id(
             detail=f"Job with id={job_id} has no associated file",
         )
 
-    stream, media_type, aclose = await open_file_stream(
-        dial_settings.url, SystemUserAuthContext().api_key, job.file
-    )
+    try:
+        stream, media_type, aclose = await open_file_stream(
+            dial_settings.url, SystemUserAuthContext().api_key, job.file
+        )
+    except ResourceNotFoundError:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"File of the job with id={job_id} was not found in the file storage",
+        )
     return StreamingResponse(stream, media_type=media_type, background=BackgroundTask(aclose))
 
 
