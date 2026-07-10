@@ -1,6 +1,7 @@
 import logging
 
 import pandas as pd
+from aidial_client.types.model import ModelPricing
 
 from statgpt.common.schemas.token_usage import TokenUsageItem, TokenUsagePricedItem
 
@@ -8,7 +9,7 @@ _log = logging.getLogger(__name__)
 
 
 class TokenUsageCostCalculator:
-    def __init__(self, model_to_pricing_map: dict) -> None:
+    def __init__(self, model_to_pricing_map: dict[str, ModelPricing]) -> None:
         self._model_to_pricing_map = model_to_pricing_map
 
     def get_token_usage_with_costs(

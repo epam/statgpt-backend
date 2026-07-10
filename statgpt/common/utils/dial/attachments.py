@@ -51,6 +51,15 @@ class _ProgressBufferedReader(BufferedReader):
                 )
         return chunk
 
+    def seek(self, pos: int, whence: int = 0) -> int:
+        # httpx rewinds the reader when the SDK retries an upload; restart the
+        # progress accounting so the retried upload doesn't log past 100%.
+        res = super().seek(pos, whence)
+        if res == 0:
+            self._uploaded = 0
+            self._chunk_count = 0
+        return res
+
 
 class AttachmentsStorage:
     """Higher-level helper for storing/retrieving attachments in DIAL storage.
