@@ -125,8 +125,20 @@ class DataSourceHandler(
         auth_context: AuthContext,
         allow_offline: bool = False,
         allow_cached: bool = False,
+        force_refresh: bool = False,
     ) -> DataSetType:
-        pass
+        """Load the dataset.
+
+        Args:
+            entity_id: The dataset entity id.
+            title: The dataset title.
+            config: The dataset configuration.
+            auth_context: Caller credentials.
+            allow_offline: Return an offline dataset stub instead of raising on load failure.
+            allow_cached: Allow serving the dataset from the handler's cache (if it has one).
+            force_refresh: Reload the dataset and replace the cached entry even if it is
+                still live. Ignored by handlers without a dataset cache.
+        """
 
     @abstractmethod
     async def close(self):
