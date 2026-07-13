@@ -5,6 +5,7 @@ from datetime import datetime
 from typing import Any
 from uuid import uuid4
 
+from fastmcp.apps import AppConfig, app_config_to_meta_dict
 from fastmcp.exceptions import ToolError
 from fastmcp.resources import Resource
 from fastmcp.server.dependencies import get_http_request
@@ -36,6 +37,22 @@ from statgpt.common.auth.auth_context import AuthContext
 from statgpt.common.schemas import BaseToolConfig, ChannelConfig, ProxiedResourceConfig
 
 _log = logging.getLogger(__name__)
+
+
+def _tool_app_config(tool_config: BaseToolConfig) -> AppConfig | None:
+    """Build the MCP Apps config (``_meta.ui``) from the config's MCP-App fields.
+
+    Uses fastmcp's typed ``AppConfig`` so the wire format (camelCase aliases per the
+    MCP Apps extension) stays in sync with the library. Returns ``None`` when neither
+    field is set so ``_meta`` is omitted and the host applies the spec default
+    visibility (``["model", "app"]``).
+    """
+    if tool_config.mcp_visibility is None and tool_config.mcp_app_resource_uri is None:
+        return None
+    return AppConfig(
+        visibility=tool_config.mcp_visibility,
+        resource_uri=tool_config.mcp_app_resource_uri,
+    )
 
 
 def _build_mcp_inputs(
@@ -154,6 +171,7 @@ class ChannelToolProvider(Provider):
         auth_context: AuthContext,
     ) -> _McpToolAdapter:
         langchain_tool = StatGptTool.from_config(tool_config, channel_config)
+        app_config = _tool_app_config(tool_config)
         return _McpToolAdapter(
             langchain_tool=langchain_tool,
             inputs=inputs,
@@ -163,7 +181,7 @@ class ChannelToolProvider(Provider):
             description=tool_config.effective_mcp_description,
             parameters=langchain_tool.get_public_args_schema(),
             annotations=langchain_tool.get_mcp_annotations(),
-            meta=tool_config.mcp_meta,
+            meta={"ui": app_config_to_meta_dict(app_config)} if app_config else None,
         )
 
     @guard_channel_resolution(default=[], log_prefix="tools/list")

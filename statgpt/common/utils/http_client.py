@@ -12,6 +12,9 @@ class ManagedHttpClient:
     No ``base_url`` is configured: callers pass absolute URLs. A single client already pools
     connections per origin, so one instance can serve multiple hosts; create separate
     instances only when the client *config* (e.g. timeout) must differ.
+
+    For process-global pools shared across call sites (LLM/embeddings and SDMX traffic,
+    closed together on shutdown), use ``statgpt.common.utils.http_pool`` instead.
     """
 
     def __init__(self, timeout: httpx.Timeout) -> None:

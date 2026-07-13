@@ -15,7 +15,7 @@ dependencies = [
     'pydantic-settings (>=2.14.2,<3.0.0)',       # Settings management
 
     # SDMX & Data processing
-    'sdmx1 (>=2.14.0,<3.0.0)',                   # SDMX data format support
+    'sdmx1 (>=2.26.0,<3.0.0)',                   # SDMX data format support
     'pandas (>=2.2.3,<3.0.0)',                   # Data manipulation
     'numpy (>=1.26.4,<2.0.0)',                   # Pinned to 1.x: CVE-2018-1999024 is a false positive (MathJax XSS); avoid breaking 2.x major
     'plotly (>=5.21.0,<6.0.0)',                  # Data visualization
@@ -30,8 +30,8 @@ dependencies = [
     'elasticsearch[async] (>=8.14.0,<9.0.0)',    # Elasticsearch client
 
     # LLM & AI
-    'langchain (>=1.2.0,<2.0.0)',                # LLM orchestration framework
-    'langchain-core (>=1.3.3,<1.4.0)',           # Core LangChain functionality
+    'langchain (>=1.3.9,<1.4.0)',                # LLM orchestration framework
+    'langchain-core (>=1.4.7,<1.5.0)',           # Core LangChain functionality
     'langchain-openai (>=1.1.0,<2.0.0)',         # OpenAI LangChain integration
     'openai (>=2.26.0,<3.0.0)',                  # OpenAI API client
 
@@ -72,7 +72,7 @@ cli = [
     "python-keycloak>=4.0.0,<5.0.0",
 ]
 mcp = [
-    "fastmcp>=3.2.0,<4.0.0",
+    "fastmcp>=3.4.3,<4.0.0",
 ]
 
 [project.scripts]

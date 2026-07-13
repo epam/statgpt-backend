@@ -34,6 +34,29 @@ DatasetDimTermsSetType: t.TypeAlias = dict[str, dict[str, set[str]]]
 """ dataset_id -> dimension_id -> set of allowed/selected terms (values) """
 
 
+class RelevanceScore(BaseModel):
+    """One candidate's relevance score, as returned by the relevancy LLM."""
+
+    number: int = Field(
+        ge=0,
+        description="Reference number of the candidate, taken from its round brackets in the input.",
+    )
+    score: t.Literal[0, 1, 2, 3] = Field(
+        description=(
+            "Relevance of the candidate to the statement: "
+            "0 irrelevant, 1 somewhat relevant, 2 highly relevant, 3 extremely relevant."
+        )
+    )
+
+
+class RelevancyResponse(BaseModel):
+    """Structured-output schema for the relevancy prompt."""
+
+    relevance: list[RelevanceScore] = Field(
+        description="One entry per numbered candidate in the input."
+    )
+
+
 class PlainItemScored(BaseModel):
     score: float
     metadata: MatchingIndex
@@ -109,15 +132,12 @@ class HybridSearcher:
             self._candidates_primary_components = None
 
         def _add_llm_scores_to_indexed(
-            self, indexed: dict, scores: list[dict[str, int]]
+            self, indexed: dict, scores: list[RelevanceScore]
         ) -> list[HybridCandidateScored]:
             result = []
-            for score_dict in scores:
-                id_, score = list(score_dict.items())[0]
-                if id_ == '0':
-                    # best from previous batches - skip
-                    continue
-                item = HybridCandidateScored(**indexed[id_], score=int(score))
+            for relevance_score in scores:
+                _id = str(relevance_score.number)
+                item = HybridCandidateScored(**indexed[_id], score=relevance_score.score)
                 result.append(item)
             return result
 
@@ -246,12 +266,29 @@ class HybridSearcher:
         def _convex_combination(cls, sem: float, lex: float, alpha: float) -> float:
             return alpha * sem + (1 - alpha) * lex
 
-        async def _relevance_candidates(self, query: str, items):
+        async def _relevance_candidates(
+            self, query: str, items: list[dict[str, Any]]
+        ) -> list[RelevanceScore]:
             items_str = self._format_relevance_items(items)
-            output = await self._outer._relevancy_chain.ainvoke(
+            output: RelevancyResponse = await self._outer._relevancy_chain.ainvoke(
                 {"statement": query.lower(), "items": items_str}
             )
-            return output['relevance']
+            # Keep only scores of real candidates: drop the cross-batch anchor "(0)"
+            # (its score is only a quality reference) and numbers the LLM invented,
+            # so consumers can look candidates up in `indexed` safely.
+            valid_numbers = {item['id'] for item in items}
+            scores = []
+            for score in output.relevance:
+                _id = str(score.number)
+                if _id == '0':
+                    continue
+                if _id not in valid_numbers:
+                    logger.warning(
+                        f"Relevancy LLM returned unknown candidate number {_id}; skipping"
+                    )
+                    continue
+                scores.append(score)
+            return scores
 
         async def _lexical(
             self, user_query: str, version_ids: set[int], max_query: int
@@ -754,19 +791,17 @@ class HybridSearcher:
             self,
             stage: ContentStageI,
             indexed,
-            relevance,
+            relevance: list[RelevanceScore],
             dataset_max_score,
             is_only_one_dataset_available: bool,
         ) -> tuple[list[dict[str, Any]], str]:
             result = []
             reasoning = ""
 
-            for candidate_dict in relevance:
-                _id = str(list(candidate_dict.keys())[0])
-                if _id == "0":
-                    continue
+            for relevance_score in relevance:
+                _id = str(relevance_score.number)
                 candidate = indexed[_id]
-                score = int(candidate_dict[_id])
+                score = relevance_score.score
                 dataset_id = str(candidate['dataset_id'])
                 self._dataset_max_score(
                     _id,
@@ -789,21 +824,19 @@ class HybridSearcher:
             max_overall_score = (
                 max(dataset_max_score.values()) if len(dataset_max_score) > 0 else None
             )
-            for candidate_dict in relevance:
-                _id = str(list(candidate_dict.keys())[0])
-                if _id == "0":
-                    continue
+            for relevance_score in relevance:
+                _id = str(relevance_score.number)
                 candidate = indexed[_id]
-                score = int(candidate_dict[_id])
+                score = relevance_score.score
                 candidate['score'] = score
                 dataset_id = str(candidate['dataset_id'])
 
-                if self._outer.config.use_only_best_score:
-                    is_good_candidate = max_overall_score and score == max_overall_score
-                else:
+                if self._outer.config.include_lower_scored_datasets:
                     is_good_candidate = (
                         dataset_id in dataset_max_score and dataset_max_score[dataset_id] == score
                     )
+                else:
+                    is_good_candidate = max_overall_score and score == max_overall_score
                 if is_good_candidate:
                     result.append(candidate)
             return result, reasoning
@@ -863,7 +896,7 @@ class HybridSearcher:
             config.prompts.relevancy_prompts or hybrid_search_default_prompts.relevancy_prompt
         )
         self._relevancy_chain = relevancy_prompt.get_template() | self._llm.with_structured_output(
-            method="json_mode"
+            schema=RelevancyResponse, method="json_schema"
         )
 
     @property

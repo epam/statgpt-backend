@@ -131,36 +131,67 @@ separateSubjectsPrompt:
 
 relevancyPrompt:
   systemMessage: |-
-    # Role
-    You are an expert in statistical indicators. By scoring how relevant each candidate
-    series of indicators is to a statement, you help answer the user's question with the
-    best-suited statistical data.
-
     # Task
-    Score every candidate indicator given in the user message against the statement
-    (also in the user message). Assign each a relevance score of 0, 1, 2, or 3.
+    You are an expert in statistical indicators. Each candidate in Input is a set of
+    dimension-value labels - a partial key selecting data in an SDMX dataset.
+    Score every candidate against the Statement by MEANING, not shared words: 0, 1, 2, or 3.
 
-    # Instructions
-    Apply every step:
-    1. The input consists of separate groups of items - analyze all groups.
-    2. Each numbered item describes a statistical indicator - analyze all items.
-    3. Use the number in round brackets only as the output reference; use all other text
-       as relevance context. Every item that has a number in round brackets MUST appear
-       in the output together with its score.
-    4. Use all parent levels of an item as part of its relevance context.
-    5. Score each indicator against the statement on this scale:
-         - 0 - irrelevant
-         - 1 - somewhat relevant
-         - 2 - highly relevant
-         - 3 - extremely relevant
-    6. If an indicator is at least somewhat relevant to the statement, its score MUST NOT be 0.
-    7. If the statement has an extra clarification description, the candidate item MUST
-       contain a part relevant to that clarification to score 3. This clarification can be
-       essential to distinguish relevant from extremely relevant items. Ignore punctuation
-       such as commas or brackets in the clarification.
+    # Scoring scale
+    First work out what indicator the statement asks for. It may be named directly, or described
+    only by its economic meaning - e.g. "economic growth rate" means the gross domestic product
+    growth rate. Then classify each candidate:
+
+    THE REQUESTED INDICATOR - the indicator the statement asks for, possibly in a variant:
+    the same indicator calculated or presented differently (gross vs net; a different unit or
+    currency; current vs constant prices). Dimension values that only complete the key without
+    changing what is measured (e.g. "assets, positions" on a foreign direct investment series)
+    keep it here.
+      - 3 - extremely relevant: matches every variant the statement specifies (none specified =
+            any variant matches). Axes the statement does not mention never lower the score:
+            "debt as percent of GDP" says nothing about gross vs net, so both score 3.
+      - 2 - highly relevant: a different variant than the statement specified (e.g. it asks for
+            percent of GDP and the candidate is in domestic currency).
+
+    A RELATED BUT DIFFERENT MEASURE - a distinct quantity in the same family: a level vs a rate
+    of change (GDP value vs GDP growth), a stock vs a flow (debt outstanding vs net incurrence
+    of liabilities), the opposite side of the same instrument (asset held vs liability owed),
+    income earned on it (reinvested earnings on foreign direct investment), or a component,
+    input, or denominator of it.
+      - 1 - somewhat relevant: always.
+
+    UNRELATED - a different subject entirely.
+      - 0 - irrelevant: always. A shared unit of measure (e.g. percent of GDP) does not make it
+            relevant.
+
+    Scores are absolute, not a ranking: several candidates may share a score, including 3.
+
+    # Input format
+    An indented bullet list:
+    - A numbered "(N) ..." line is one candidate to score, identified by N.
+    - A line without a number is a group header - shared context for the numbered lines beneath
+      it, not itself a candidate.
+    - A "(0) ..." line, if present, is the best candidate from the previous batch, kept as a
+      quality reference - score it like any other.
 
     # Output format
-    Return only a JSON object, no markdown: {{"relevance": [{{"number": "score"}}]}}
+    Exactly one entry per numbered candidate: no omissions, duplicates, or invented numbers.
+
+    # Example
+    Statement:
+    government debt as a percent of gross domestic product
+
+    Input:
+    - gross debt, general government
+        - (1) gross debt, general government, percent of gross domestic product (gdp)
+        - (2) gross debt, general government, domestic currency
+    - (3) net debt, general government, percent of gross domestic product (gdp)
+    - (4) portfolio investment, debt securities, general government, assets, positions
+    - (5) gross domestic product, current prices
+    - (6) current account balance (credit less debit), percent of gdp
+
+    Output:
+    {{"relevance": [{{"number": 1, "score": 3}}, {{"number": 2, "score": 2}}, {{"number": 3, "score": 3}}, {{"number": 4, "score": 1}}, {{"number": 5, "score": 1}}, {{"number": 6, "score": 0}}]}}
+
   userMessage: |-
     Statement:
     {statement}

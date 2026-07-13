@@ -1,6 +1,6 @@
 from copy import deepcopy
 
-from langchain_core.runnables import Runnable, RunnablePassthrough
+from langchain_core.runnables import Runnable, RunnableLambda, RunnablePassthrough
 
 from statgpt.app.chains.parameters import ChainParameters
 from statgpt.app.schemas.query_builder import (
@@ -173,6 +173,6 @@ class IndicatorsSelectionHybrid(IndicatorSelectionBase):
     def create_chain(self) -> Runnable:
         return (
             RunnablePassthrough.assign(search_result=self._get_search_result)
-            | self._show_indicator_queries_stage
+            | RunnableLambda(self._show_indicator_queries_stage)
             | self._get_primary_queries_with_retrieval_results
         )

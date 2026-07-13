@@ -21,6 +21,7 @@ from statgpt.common.data.sdmx.common.config import SdmxDataSourceConfig
 from statgpt.common.data.sdmx.v21.ratelimiter import SdmxRateLimiter
 from statgpt.common.settings.sdmx import sdmx_settings
 from statgpt.common.utils import AsyncLoadingCache
+from statgpt.common.utils.http_pool import get_shared_sdmx_http_client
 
 
 def init_sdmx(config: SdmxDataSourceConfig):
@@ -40,7 +41,7 @@ class AsyncSdmxClient:
 
         init_sdmx(config)
         sync_client = Client(config.get_id())
-        httpx_client = cls._create_httpx_client()
+        httpx_client = get_shared_sdmx_http_client(config.get_id())
 
         return cls(sync_client, httpx_client, None, rate_limiter)
 
@@ -50,11 +51,15 @@ class AsyncSdmxClient:
         httpx_client: httpx.AsyncClient,
         authorizer: IAuthorizer | None,
         rate_limiter: SdmxRateLimiter,
+        static_headers: dict[str, str] | None = None,
     ):
         self._sync_client = sync_client
         self._httpx_client = httpx_client
         self._authorizer = authorizer
         self._rate_limiter = rate_limiter
+        # Applied per request (not on the shared httpx client) so a reconfigured source
+        # (e.g. a rotated API key) keeps using the same pooled connections.
+        self._static_headers = static_headers or {}
 
     async def dataflow(
         self,
@@ -337,7 +342,7 @@ class AsyncSdmxClient:
         else:
             auth_headers = await self._authorizer.get_authorization_headers()
         default_headers = self._sync_client.source.headers.get(resource.name, {})
-        return {**default_headers, **auth_headers, **headers}
+        return {**default_headers, **self._static_headers, **auth_headers, **headers}
 
     async def _fetch(self, req: PreparedRequest, tofile: os.PathLike | IO | None = None) -> Message:
         httpx_response = await self._perform_request(req)
@@ -425,8 +430,3 @@ class AsyncSdmxClient:
     @staticmethod
     def _get_flow_ref(resource_id: str, agency_id: str, version: str) -> str:
         return f"{agency_id},{resource_id},{version}"
-
-    @staticmethod
-    def _create_httpx_client(*, headers: dict[str, str] | None = None) -> httpx.AsyncClient:
-        """Create an HTTPX client with default settings."""
-        return httpx.AsyncClient(timeout=httpx.Timeout(90.0, connect=45.0), headers=headers)
