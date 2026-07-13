@@ -138,6 +138,7 @@ class IndicatorsSelectionHybrid(IndicatorSelectionBase):
         search_result: HybridSearchResult = inputs['search_result']
 
         return RetrievalStagesResults(
+            hybrid_raw_candidates=search_result.subquery_candidates,
             indicators=dict(
                 lexical=format_hybrid_scored_dicts(
                     dicts=search_result.lexical,
@@ -161,14 +162,12 @@ class IndicatorsSelectionHybrid(IndicatorSelectionBase):
         final_queries = self._get_final_queries(inputs)
         retrieval_results = self._get_retrieval_results(inputs)
         search_result: HybridSearchResult = inputs['search_result']
-        # Don't overload the result with timings and raw candidates
-        # if show_debug_stages is disabled
-        show_debug = chain_state.show_debug_stages
+        # Don't overload the result with timings if show_debug_stages is disabled
+        timings = search_result.timings if chain_state.show_debug_stages else None
         return IndicatorsSearchResult(
             queries=final_queries,
             retrieval_results=retrieval_results,
-            hybrid_search_timings=search_result.timings if show_debug else None,
-            subquery_candidates=search_result.subquery_candidates if show_debug else None,
+            hybrid_search_timings=timings,
         )
 
     def create_chain(self) -> Runnable:
