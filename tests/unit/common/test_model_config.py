@@ -32,12 +32,30 @@ class TestLLMModelConfigValidation:
                 False,
             ),
             (LLMModelsEnum.GPT_5_2_2025_12_11, None, ReasoningEffortEnum.NONE, 0, None, False),
+            (LLMModelsEnum.GPT_5_4_2026_03_05, None, ReasoningEffortEnum.NONE, 0, None, False),
+            (
+                LLMModelsEnum.GPT_5_4_2026_03_05_REASONING,
+                None,
+                ReasoningEffortEnum.MEDIUM,
+                1,
+                None,
+                False,
+            ),
+            (
+                LLMModelsEnum.GPT_5_6_TERRA_2026_07_09,
+                None,
+                ReasoningEffortEnum.NONE,
+                0,
+                None,
+                False,
+            ),
             # GPT-5: seed not supported
             (LLMModelsEnum.GPT_5_MINI_2025_08_07, 42, ReasoningEffortEnum.MEDIUM, 1, None, True),
             (LLMModelsEnum.GPT_5_1_2025_11_13, 42, ReasoningEffortEnum.MEDIUM, 1, None, True),
             # GPT-5: reasoning_effort required
             (LLMModelsEnum.GPT_5_MINI_2025_08_07, None, None, 1, None, True),
             (LLMModelsEnum.GPT_5_1_2025_11_13, None, None, 1, None, True),
+            (LLMModelsEnum.GPT_5_6_LUNA_2026_07_09_REASONING, None, None, 1, None, True),
             # GPT-5 Mini: reasoning_effort=none not supported
             (LLMModelsEnum.GPT_5_MINI_2025_08_07, None, ReasoningEffortEnum.NONE, 0.5, None, True),
             # GPT-5: temperature must be 1 when reasoning enabled
