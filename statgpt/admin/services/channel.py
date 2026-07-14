@@ -215,9 +215,31 @@ class AdminPortalChannelService(ChannelService):
             channel_data = await self._load_channel_data_from_zip(zip_file)
             if clean_up:
                 await self._cleanup_existing_channel(channel_data.deployment_id)
-            created_channel = await self.create_channel(channel_data)
+                existing_channel = None
+            else:
+                existing_channel = await self.find_channel_by_deployment_id(
+                    channel_data.deployment_id
+                )
+
+            if existing_channel is not None:
+                _log.info(
+                    f"Merging import into existing channel id={existing_channel.id} "
+                    f"(deployment_id={channel_data.deployment_id!r})"
+                )
+                channel = await self.update(
+                    existing_channel.id,
+                    schemas.ChannelUpdate(
+                        title=channel_data.title,
+                        description=channel_data.description,
+                        deployment_id=channel_data.deployment_id,
+                        llm_model=channel_data.llm_model,
+                        details=channel_data.details,
+                    ),
+                )
+            else:
+                channel = await self.create_channel(channel_data)
             await self._session.commit()
-            return await self.get_model_by_id(created_channel.id)
+            return await self.get_model_by_id(channel.id)
 
         return await self._get_existing_channel_by_deployment_id(deployment_id)
 
@@ -256,6 +278,12 @@ class AdminPortalChannelService(ChannelService):
         channel_data = schemas.ChannelBase.model_validate(channel_data_json)
         _log.info(f"Importing channel: {channel_data!r}")
         return channel_data
+
+    async def find_channel_by_deployment_id(self, deployment_id: str) -> models.Channel | None:
+        try:
+            return await self.get_channel_by_deployment_id(deployment_id)
+        except NoResultFound:
+            return None
 
     async def _cleanup_existing_channel(self, deployment_id: str) -> None:
         try:

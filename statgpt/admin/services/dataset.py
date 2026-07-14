@@ -352,13 +352,23 @@ class AdminPortalDataSetService(DataSetService):
     async def _add_datasets_to_channel(
         self, channel_id: int, datasets: list[schemas.DataSet]
     ) -> None:
+        existing_dataset_ids = {
+            ch_ds.dataset_id
+            for ch_ds in await self.get_channel_dataset_models(
+                limit=None, offset=0, channel_id=channel_id
+            )
+        }
         items = [
             models.ChannelDataset(
                 channel_id=channel_id,
                 dataset_id=ds.id,
             )
             for ds in datasets
+            if ds.id not in existing_dataset_ids
         ]
+
+        if not items:
+            return
 
         self._session.add_all(items)
         await self._session.commit()
@@ -403,6 +413,7 @@ class AdminPortalDataSetService(DataSetService):
         datasets: list[schemas.DataSet],
         versions: dict[int, models.ChannelDatasetVersion],
         auth_context: AuthContext,
+        merge: bool = False,
     ) -> None:
         _log.info("Importing vector store data...")
         vector_store_factory = VectorStoreFactory()
@@ -415,12 +426,12 @@ class AdminPortalDataSetService(DataSetService):
         }
 
         collections = [
-            channel.non_indicator_dimensions_table_name,
-            channel.indicator_table_name,
-            channel.special_dimensions_table_name,
+            (channel.non_indicator_dimensions_table_name, not merge),
+            (channel.indicator_table_name, True),
+            (channel.special_dimensions_table_name, not merge),
         ]
 
-        for table in collections:
+        for table, clear_existing in collections:
             table_folder = table.split('_', maxsplit=1)[0]
 
             vector_store = await vector_store_factory.get_vector_store(
@@ -430,7 +441,11 @@ class AdminPortalDataSetService(DataSetService):
             )
 
             await vector_store.import_from_zipfile(
-                zip_file, table_folder, dataset_versions, data_sources
+                zip_file,
+                table_folder,
+                dataset_versions,
+                data_sources,
+                clear_existing=clear_existing,
             )
 
         _log.info("Finished importing vector store data")
@@ -493,6 +508,7 @@ class AdminPortalDataSetService(DataSetService):
         update_data_sources: bool,
         scope: schemas.ExportScope,
         auth_context: AuthContext,
+        merge: bool = False,
     ) -> None:
         datasets = await self._import_or_load_datasets(
             zip_file, channel_db, update_datasets, update_data_sources, scope, auth_context
@@ -504,7 +520,7 @@ class AdminPortalDataSetService(DataSetService):
                 zip_file, datasets, channel_id=channel_db.id
             )
             await self._import_indexes(
-                zip_file, channel_db, datasets, versions, channel_config, auth_context
+                zip_file, channel_db, datasets, versions, channel_config, auth_context, merge
             )
             await self._mark_versions_completed(versions)
 
@@ -546,9 +562,10 @@ class AdminPortalDataSetService(DataSetService):
         versions: dict[int, models.ChannelDatasetVersion],
         channel_config: schemas.ChannelConfig,
         auth_context: AuthContext,
+        merge: bool = False,
     ) -> None:
         await self._import_vector_store_tables(
-            zip_file, channel_db, datasets, versions, auth_context
+            zip_file, channel_db, datasets, versions, auth_context, merge
         )
         await self._import_elastic_data_if_needed(
             zip_file, channel_db, datasets, versions, channel_config
