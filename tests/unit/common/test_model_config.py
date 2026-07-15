@@ -32,15 +32,6 @@ class TestLLMModelConfigValidation:
                 False,
             ),
             (LLMModelsEnum.GPT_5_2_2025_12_11, None, ReasoningEffortEnum.NONE, 0, None, False),
-            (LLMModelsEnum.GPT_5_4_2026_03_05, None, ReasoningEffortEnum.NONE, 0, None, False),
-            (
-                LLMModelsEnum.GPT_5_4_2026_03_05_REASONING,
-                None,
-                ReasoningEffortEnum.MEDIUM,
-                1,
-                None,
-                False,
-            ),
             (
                 LLMModelsEnum.GPT_5_6_TERRA_2026_07_09,
                 None,
