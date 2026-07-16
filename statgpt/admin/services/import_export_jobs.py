@@ -391,8 +391,6 @@ class JobsService:
         """
 
         async with models.get_session_context_manager() as session:
-            deployment_id = None
-            scope = schemas.ExportScope.FULL
             try:
                 with zip_file.open("metadata.json") as meta_file:
                     metadata = ExportMetadata.model_validate_json(meta_file.read())
@@ -413,20 +411,13 @@ class JobsService:
                 ) from e
 
             channel_service = ChannelService(session)
-            existing_channel = (
-                None
-                if clean_up or deployment_id is None
-                else await channel_service.find_channel_by_deployment_id(deployment_id)
-            )
-            is_merge = existing_channel is not None
 
-            channel_db = await channel_service.import_channel_from_zip(
+            is_merge, channel_db = await channel_service.import_channel_from_zip(
                 zip_file,
                 clean_up,
                 scope=scope,
                 deployment_id=deployment_id,
                 auth_context=auth_context,
-                existing_channel=existing_channel,
             )
 
             job.channel_id = channel_db.id

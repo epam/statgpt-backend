@@ -205,10 +205,9 @@ class AdminPortalChannelService(ChannelService):
         zip_file: zipfile.ZipFile,
         clean_up: bool,
         scope: schemas.ExportScope,
-        deployment_id: str | None,
+        deployment_id: str,
         auth_context: AuthContext,
-        existing_channel: models.Channel | None = None,
-    ) -> models.Channel:
+    ) -> tuple[bool, models.Channel]:
         if scope.includes_dial_files():
             await self._import_dial_files_from_zip(zip_file, auth_context)
 
@@ -217,12 +216,15 @@ class AdminPortalChannelService(ChannelService):
             if clean_up:
                 await self._cleanup_existing_channel(channel_data.deployment_id)
                 existing_channel = None
+            else:
+                existing_channel = await self.find_channel_by_deployment_id(deployment_id)
 
             if existing_channel is not None:
                 _log.info(
                     f"Merging import into existing channel id={existing_channel.id} "
                     f"(deployment_id={channel_data.deployment_id!r})"
                 )
+                is_merge = True
                 channel = await self.update(
                     existing_channel.id,
                     schemas.ChannelUpdate(
@@ -234,11 +236,12 @@ class AdminPortalChannelService(ChannelService):
                     ),
                 )
             else:
+                is_merge = False
                 channel = await self.create_channel(channel_data)
             await self._session.commit()
-            return await self.get_model_by_id(channel.id)
+            return is_merge, await self.get_model_by_id(channel.id)
 
-        return await self._get_existing_channel_by_deployment_id(deployment_id)
+        return True, await self.get_channel_by_deployment_id(deployment_id)
 
     async def _import_dial_files_from_zip(
         self, zip_file: zipfile.ZipFile, auth_context: AuthContext
@@ -289,16 +292,6 @@ class AdminPortalChannelService(ChannelService):
             pass  # No channel found, nothing to delete
         else:
             await self.delete(existing_channel.id)
-
-    async def _get_existing_channel_by_deployment_id(
-        self, deployment_id: str | None
-    ) -> models.Channel:
-        if deployment_id is None:
-            raise ValueError("deployment_id is required when importing indexes only.")
-        try:
-            return await self.get_channel_by_deployment_id(deployment_id)
-        except NoResultFound:
-            raise ValueError(f"Channel with deployment_id {deployment_id} not found during import.")
 
     @staticmethod
     async def _deduplicate_collection(collection_name: str, label: str) -> DedupCounts:
