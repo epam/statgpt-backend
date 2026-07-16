@@ -439,7 +439,7 @@ class JobsService:
             await dataset_service.import_datasets_and_data_sources_from_zip(
                 channel_db,
                 zip_file,
-                update_datasets=update_datasets or is_merge,
+                update_datasets=update_datasets,
                 update_data_sources=update_data_sources,
                 scope=scope,
                 auth_context=auth_context,

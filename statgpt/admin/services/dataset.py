@@ -421,23 +421,19 @@ class AdminPortalDataSetService(DataSetService):
         vector_store_factory = VectorStoreFactory()
 
         dataset_versions: dict[uuid.UUID, int] = {
-            dataset.id_: versions[dataset.id].id
-            for dataset in datasets
-            if dataset.id in versions
+            dataset.id_: versions[dataset.id].id for dataset in datasets if dataset.id in versions
         }
         data_sources: dict[uuid.UUID, int] = {
-            dataset.id_: dataset.data_source_id
-            for dataset in datasets
-            if dataset.id in versions
+            dataset.id_: dataset.data_source_id for dataset in datasets if dataset.id in versions
         }
 
         collections = [
-            (channel.non_indicator_dimensions_table_name, not merge),
-            (channel.indicator_table_name, not merge),
-            (channel.special_dimensions_table_name, not merge),
+            channel.non_indicator_dimensions_table_name,
+            channel.indicator_table_name,
+            channel.special_dimensions_table_name,
         ]
 
-        for table, clear_existing in collections:
+        for table in collections:
             table_folder = table.split('_', maxsplit=1)[0]
 
             vector_store = await vector_store_factory.get_vector_store(
@@ -447,11 +443,7 @@ class AdminPortalDataSetService(DataSetService):
             )
 
             await vector_store.import_from_zipfile(
-                zip_file,
-                table_folder,
-                dataset_versions,
-                data_sources,
-                clear_existing=clear_existing,
+                zip_file, table_folder, dataset_versions, data_sources, clear_existing=not merge
             )
 
         _log.info("Finished importing vector store data")
