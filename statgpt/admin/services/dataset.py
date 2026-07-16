@@ -352,13 +352,23 @@ class AdminPortalDataSetService(DataSetService):
     async def _add_datasets_to_channel(
         self, channel_id: int, datasets: list[schemas.DataSet]
     ) -> None:
+        existing_dataset_ids = {
+            ch_ds.dataset_id
+            for ch_ds in await self.get_channel_dataset_models(
+                limit=None, offset=0, channel_id=channel_id
+            )
+        }
         items = [
             models.ChannelDataset(
                 channel_id=channel_id,
                 dataset_id=ds.id,
             )
             for ds in datasets
+            if ds.id not in existing_dataset_ids
         ]
+
+        if not items:
+            return
 
         self._session.add_all(items)
         await self._session.commit()
@@ -369,29 +379,31 @@ class AdminPortalDataSetService(DataSetService):
         with zip_file.open(JobsConfig.VERSIONS_FILE) as file:
             versions_json = yaml.safe_load(file)
 
-        datasets_dict = {ds.id: ds for ds in datasets}
-
         channel_datasets = await self.get_channel_dataset_models(
             limit=None, offset=0, channel_id=channel_id
         )
-        versions = {}
-        for ch_ds in channel_datasets:
-            dataset = datasets_dict[ch_ds.dataset_id]
+        channel_dataset_by_dataset_id = {ch_ds.dataset_id: ch_ds for ch_ds in channel_datasets}
 
-            other = {}
-            if v := versions_json['data'].get(str(dataset.id_)):
-                other['creation_reason'] = "Imported from zip"
-                other.update(v)
-            else:
-                _log.warning(f"No version data found for dataset {dataset.title!r}")
-                other['creation_reason'] = "Imported from zip without version data"
+        versions = {}
+        # Only create versions for datasets present in the archive. On a merge
+        # into an existing channel the archive may be a subset of the channel's
+        # datasets, and pre-existing datasets must not get spurious new versions.
+        for dataset in datasets:
+            ch_ds = channel_dataset_by_dataset_id[dataset.id]
+
+            v = versions_json['data'].get(str(dataset.id_))
+            if not v:
+                _log.info(f"No version data in archive for dataset {dataset.title!r}. Skipping.")
+                continue
+
             version = models.ChannelDatasetVersion(
                 channel_dataset_id=ch_ds.id,
                 # `version` will be set by the DB trigger automatically
                 preprocessing_status=StatusEnum.IN_PROGRESS,
-                **other,
+                creation_reason="Imported from zip",
+                **v,
             )
-            versions[ch_ds.dataset_id] = version
+            versions[dataset.id] = version
         self._session.add_all(versions.values())
         await self._session.commit()
         return versions
@@ -403,15 +415,16 @@ class AdminPortalDataSetService(DataSetService):
         datasets: list[schemas.DataSet],
         versions: dict[int, models.ChannelDatasetVersion],
         auth_context: AuthContext,
+        merge: bool = False,
     ) -> None:
         _log.info("Importing vector store data...")
         vector_store_factory = VectorStoreFactory()
 
         dataset_versions: dict[uuid.UUID, int] = {
-            dataset.id_: versions[dataset.id].id for dataset in datasets
+            dataset.id_: versions[dataset.id].id for dataset in datasets if dataset.id in versions
         }
         data_sources: dict[uuid.UUID, int] = {
-            dataset.id_: dataset.data_source_id for dataset in datasets
+            dataset.id_: dataset.data_source_id for dataset in datasets if dataset.id in versions
         }
 
         collections = [
@@ -430,7 +443,7 @@ class AdminPortalDataSetService(DataSetService):
             )
 
             await vector_store.import_from_zipfile(
-                zip_file, table_folder, dataset_versions, data_sources
+                zip_file, table_folder, dataset_versions, data_sources, clear_existing=not merge
             )
 
         _log.info("Finished importing vector store data")
@@ -459,7 +472,9 @@ class AdminPortalDataSetService(DataSetService):
 
         for folder, index in indexes:
             for dataset in datasets:
-                version = versions[dataset.id]
+                version = versions.get(dataset.id)
+                if version is None:
+                    continue
 
                 file_name = self._get_elasticsearch_store_file_name(dataset)
                 file_path = f"{folder}/{file_name}"
@@ -493,6 +508,7 @@ class AdminPortalDataSetService(DataSetService):
         update_data_sources: bool,
         scope: schemas.ExportScope,
         auth_context: AuthContext,
+        merge: bool = False,
     ) -> None:
         datasets = await self._import_or_load_datasets(
             zip_file, channel_db, update_datasets, update_data_sources, scope, auth_context
@@ -504,11 +520,38 @@ class AdminPortalDataSetService(DataSetService):
                 zip_file, datasets, channel_id=channel_db.id
             )
             await self._import_indexes(
-                zip_file, channel_db, datasets, versions, channel_config, auth_context
+                zip_file, channel_db, datasets, versions, channel_config, auth_context, merge=merge
             )
             await self._mark_versions_completed(versions)
 
         await self._session.commit()
+
+        if merge and scope.includes_indexes():
+            await self._clear_superseded_versions_after_merge(channel_db.id, datasets)
+
+    async def _clear_superseded_versions_after_merge(
+        self, channel_id: int, datasets: list[schemas.DataSet]
+    ) -> None:
+        """Prunes superseded version data for datasets re-imported by a merge.
+
+        A merge appends a new version's documents on top of the existing ones.
+        Search only ever queries each dataset's latest version, so the older
+        versions' documents are dead weight; clearing them (keeping the last two
+        completed versions, per the reindex policy) keeps the vector stores and
+        Elastic indexes from growing on every merge. In particular this is what
+        keeps the appended indicator store lean, since indicators are
+        dataset-specific and are not covered by the cross-dataset dimension
+        dedup. Failures are non-fatal: the freshly imported data is already in
+        place.
+        """
+        for dataset in datasets:
+            try:
+                await self.clear_channel_dataset_versions_data(channel_id, dataset.id)
+            except Exception:
+                _log.exception(
+                    f"Failed to clear superseded versions for dataset {dataset.id} "
+                    f"in channel {channel_id} after merge import"
+                )
 
     async def _import_or_load_datasets(
         self,
@@ -546,9 +589,10 @@ class AdminPortalDataSetService(DataSetService):
         versions: dict[int, models.ChannelDatasetVersion],
         channel_config: schemas.ChannelConfig,
         auth_context: AuthContext,
+        merge: bool = False,
     ) -> None:
         await self._import_vector_store_tables(
-            zip_file, channel_db, datasets, versions, auth_context
+            zip_file, channel_db, datasets, versions, auth_context, merge=merge
         )
         await self._import_elastic_data_if_needed(
             zip_file, channel_db, datasets, versions, channel_config

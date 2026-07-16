@@ -1151,8 +1151,15 @@ class PgVectorStore(PgEmbeddinglessVectorStore, VectorStore):
         folder_prefix: str,
         dataset_versions: dict[uuid.UUID, int],
         data_sources: dict[uuid.UUID, int],
+        clear_existing: bool = True,
     ) -> None:
-        """Clears the current vector store and imports data from the specified zip file folder.
+        """Imports data from the specified zip file folder.
+
+        When ``clear_existing`` is ``True`` (default) the collection is dropped
+        before importing (full replace). When ``False`` the archived documents
+        are appended on top of the existing collection (merge); duplicate
+        document content is expected to be reconciled by a later deduplication
+        pass.
 
         Validates:
         - Embedding model name matches
@@ -1177,8 +1184,14 @@ class PgVectorStore(PgEmbeddinglessVectorStore, VectorStore):
             f"from archive"
         )
 
-        await self.clear()
-        _log.info(f"Cleared existing tables for collection '{self._collection_name}'")
+        if clear_existing:
+            await self.clear()
+            _log.info(f"Cleared existing tables for collection '{self._collection_name}'")
+        else:
+            _log.info(
+                f"Merging into existing collection '{self._collection_name}' "
+                "(appending documents without clearing)"
+            )
 
         async with get_session_context_manager() as session:
             document_model = await self._get_document_model()
