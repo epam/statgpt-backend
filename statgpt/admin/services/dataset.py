@@ -379,14 +379,17 @@ class AdminPortalDataSetService(DataSetService):
         with zip_file.open(JobsConfig.VERSIONS_FILE) as file:
             versions_json = yaml.safe_load(file)
 
-        datasets_dict = {ds.id: ds for ds in datasets}
-
         channel_datasets = await self.get_channel_dataset_models(
             limit=None, offset=0, channel_id=channel_id
         )
+        channel_dataset_by_dataset_id = {ch_ds.dataset_id: ch_ds for ch_ds in channel_datasets}
+
         versions = {}
-        for ch_ds in channel_datasets:
-            dataset = datasets_dict[ch_ds.dataset_id]
+        # Only create versions for datasets present in the archive. On a merge
+        # into an existing channel the archive may be a subset of the channel's
+        # datasets, and pre-existing datasets must not get spurious new versions.
+        for dataset in datasets:
+            ch_ds = channel_dataset_by_dataset_id[dataset.id]
 
             other = {}
             if v := versions_json['data'].get(str(dataset.id_)):
@@ -401,7 +404,7 @@ class AdminPortalDataSetService(DataSetService):
                 preprocessing_status=StatusEnum.IN_PROGRESS,
                 **other,
             )
-            versions[ch_ds.dataset_id] = version
+            versions[dataset.id] = version
         self._session.add_all(versions.values())
         await self._session.commit()
         return versions
@@ -427,7 +430,7 @@ class AdminPortalDataSetService(DataSetService):
 
         collections = [
             (channel.non_indicator_dimensions_table_name, not merge),
-            (channel.indicator_table_name, True),
+            (channel.indicator_table_name, not merge),
             (channel.special_dimensions_table_name, not merge),
         ]
 
@@ -520,11 +523,38 @@ class AdminPortalDataSetService(DataSetService):
                 zip_file, datasets, channel_id=channel_db.id
             )
             await self._import_indexes(
-                zip_file, channel_db, datasets, versions, channel_config, auth_context, merge
+                zip_file, channel_db, datasets, versions, channel_config, auth_context, merge=merge
             )
             await self._mark_versions_completed(versions)
 
         await self._session.commit()
+
+        if merge and scope.includes_indexes():
+            await self._clear_superseded_versions_after_merge(channel_db.id, datasets)
+
+    async def _clear_superseded_versions_after_merge(
+        self, channel_id: int, datasets: list[schemas.DataSet]
+    ) -> None:
+        """Prunes superseded version data for datasets re-imported by a merge.
+
+        A merge appends a new version's documents on top of the existing ones.
+        Search only ever queries each dataset's latest version, so the older
+        versions' documents are dead weight; clearing them (keeping the last two
+        completed versions, per the reindex policy) keeps the vector stores and
+        Elastic indexes from growing on every merge. In particular this is what
+        keeps the appended indicator store lean, since indicators are
+        dataset-specific and are not covered by the cross-dataset dimension
+        dedup. Failures are non-fatal: the freshly imported data is already in
+        place.
+        """
+        for dataset in datasets:
+            try:
+                await self.clear_channel_dataset_versions_data(channel_id, dataset.id)
+            except Exception:
+                _log.exception(
+                    f"Failed to clear superseded versions for dataset {dataset.id} "
+                    f"in channel {channel_id} after merge import"
+                )
 
     async def _import_or_load_datasets(
         self,
@@ -565,7 +595,7 @@ class AdminPortalDataSetService(DataSetService):
         merge: bool = False,
     ) -> None:
         await self._import_vector_store_tables(
-            zip_file, channel_db, datasets, versions, auth_context, merge
+            zip_file, channel_db, datasets, versions, auth_context, merge=merge
         )
         await self._import_elastic_data_if_needed(
             zip_file, channel_db, datasets, versions, channel_config

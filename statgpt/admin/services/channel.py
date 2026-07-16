@@ -207,6 +207,7 @@ class AdminPortalChannelService(ChannelService):
         scope: schemas.ExportScope,
         deployment_id: str | None,
         auth_context: AuthContext,
+        existing_channel: models.Channel | None = None,
     ) -> models.Channel:
         if scope.includes_dial_files():
             await self._import_dial_files_from_zip(zip_file, auth_context)
@@ -216,10 +217,6 @@ class AdminPortalChannelService(ChannelService):
             if clean_up:
                 await self._cleanup_existing_channel(channel_data.deployment_id)
                 existing_channel = None
-            else:
-                existing_channel = await self.find_channel_by_deployment_id(
-                    channel_data.deployment_id
-                )
 
             if existing_channel is not None:
                 _log.info(
@@ -303,14 +300,26 @@ class AdminPortalChannelService(ChannelService):
         except NoResultFound:
             raise ValueError(f"Channel with deployment_id {deployment_id} not found during import.")
 
+    @staticmethod
+    async def _deduplicate_collection(collection_name: str, label: str) -> DedupCounts:
+        """Deduplicates a single vector store collection by document content.
+
+        Documents with identical content are merged into a single keeper and
+        the metadata references are remapped, so per-version associations are
+        preserved.
+        """
+        _log.info(f"Deduplicating {label} (collection {collection_name!r})")
+        vector_store = await VectorStoreFactory().get_embeddingless_vector_store(
+            collection_name=collection_name,
+        )
+        return await vector_store.deduplicate_by_document_content()
+
     async def deduplicate_channel_dimensions(
         self, channel_id: int
     ) -> tuple[DedupCounts, DedupCounts]:
         """Deduplicates the non-indicator and special dimensions vector stores for the channel.
 
         Returns ``(non_indicator_counts, special_counts)``.
-        Deduplication is performed based on document content. Documents with
-        identical content are merged.
         """
         async with self._scoped_session():
             channel = await self.get_model_by_id(channel_id)
@@ -318,21 +327,14 @@ class AdminPortalChannelService(ChannelService):
             non_indicator_dims_table = channel.non_indicator_dimensions_table_name
             special_dims_table = channel.special_dimensions_table_name
 
-        vector_store_factory = VectorStoreFactory()
-
-        _log.info(f"Deduplicating non_indicator_dimensions for channel {channel_id}")
-        non_indicator_dims_store = await vector_store_factory.get_embeddingless_vector_store(
-            collection_name=non_indicator_dims_table,
+        non_indicator_counts = await self._deduplicate_collection(
+            non_indicator_dims_table, "non_indicator_dimensions"
         )
-        non_indicator_counts = await non_indicator_dims_store.deduplicate_by_document_content()
-
-        _log.info(f"Deduplicating special_dimensions for channel {channel_id}")
-        special_dims_store = await vector_store_factory.get_embeddingless_vector_store(
-            collection_name=special_dims_table,
+        special_counts = await self._deduplicate_collection(
+            special_dims_table, "special_dimensions"
         )
-        special_counts = await special_dims_store.deduplicate_by_document_content()
 
-        _log.info(f"Deduplication completed for channel {channel_id}")
+        _log.info(f"Dimension deduplication completed for channel {channel_id}")
         return non_indicator_counts, special_counts
 
     async def trigger_deduplication(

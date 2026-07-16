@@ -426,6 +426,7 @@ class JobsService:
                 scope=scope,
                 deployment_id=deployment_id,
                 auth_context=auth_context,
+                existing_channel=existing_channel,
             )
 
             job.channel_id = channel_db.id
@@ -484,10 +485,6 @@ class JobsService:
             return schemas.Job.model_validate(job, from_attributes=True)
 
         if should_deduplicate:
-            # The merge appended archived documents on top of existing ones, so
-            # collapse duplicate dimension documents. Run on a fresh service so
-            # dedup uses its own short-lived sessions. A dedup failure must not
-            # fail the import: the data is already in place.
             _log.info(f"Deduplicating dimensions after merge import for channel {channel_id}")
             try:
                 await ChannelService().deduplicate_channel_dimensions(channel_id)
