@@ -200,7 +200,7 @@ class AdminPortalChannelService(ChannelService):
 
         return channel_db
 
-    async def import_channel_from_zip(
+    async def import_channel_config_from_zip(
         self,
         zip_file: zipfile.ZipFile,
         clean_up: bool,

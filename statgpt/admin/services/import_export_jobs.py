@@ -412,7 +412,7 @@ class JobsService:
 
             channel_service = ChannelService(session)
 
-            is_merge, channel_db = await channel_service.import_channel_from_zip(
+            is_merge, channel_db = await channel_service.import_channel_config_from_zip(
                 zip_file,
                 clean_up,
                 scope=scope,
