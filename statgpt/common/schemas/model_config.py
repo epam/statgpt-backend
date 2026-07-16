@@ -75,14 +75,6 @@ class LLMModelConfig(BaseModelConfig):
                 and self.reasoning_effort is ReasoningEffortEnum.NONE
             ):
                 raise ValueError("reasoning_effort=none is not supported for GPT-5 Mini")
-            if (
-                self.deployment.is_reasoning_deployment
-                and self.reasoning_effort is ReasoningEffortEnum.NONE
-            ):
-                raise ValueError(
-                    "reasoning_effort=none is not supported for '-reasoning' deployments:"
-                    " they ignore it and reason anyway. Use the base deployment instead."
-                )
             if self.reasoning_effort is not ReasoningEffortEnum.NONE and self.temperature != 1:
                 raise ValueError(
                     "temperature must be set to 1 when reasoning_effort is enabled for GPT-5 models"
