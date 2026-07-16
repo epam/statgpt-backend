@@ -62,6 +62,8 @@ class McpResourceTypes(StrEnum):
 class RAGVersion(StrEnum):
     DIAL = "DIAL"
     """DIAL RAG PgVector"""
+    GENERIC = "GENERIC"
+    """Generic RAG DIAL application (reuses the DIAL RAG transport)"""
 
 
 class DecoderOfLatestEnum(StrEnum):

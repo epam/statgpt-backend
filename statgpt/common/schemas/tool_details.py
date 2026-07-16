@@ -111,8 +111,12 @@ class BaseToolDetails(BaseYamlModel):
 
 class FileRagDetails(BaseToolDetails):
     version: RAGVersion
+    """RAG backend. `DIAL` targets the DIAL RAG service; `GENERIC` targets a Generic RAG
+    DIAL application, reusing the same chat-completions transport (only the RAG configuration
+    payload and metadata shape differ). For `GENERIC`, point `deployment_id` at the generic-rag
+    application id and `metadata_endpoint` at its `/channel/metadata` route."""
 
-    # For Dial RAG:
+    # For Dial RAG / Generic RAG:
     deployment_id_raw: str = Field(
         default="statgpt-dial-rag-pgvector",
         validation_alias=AliasChoices("deployment_id", "deploymentId"),
@@ -122,7 +126,9 @@ class FileRagDetails(BaseToolDetails):
     metadata_endpoint_raw: str = Field(
         default="/indexing/documents/metadata",
         validation_alias=AliasChoices("metadata_endpoint", "metadataEndpoint"),
-        description="The metadata endpoint path for DIAL RAG. Supports $env:{VAR} syntax.",
+        description="The metadata endpoint path for the RAG service. Supports $env:{VAR} syntax. "
+        "For GENERIC RAG, use the full DIAL application route, e.g. "
+        "'/v1/deployments/<app>/route/channel/metadata'.",
         serialization_alias="metadataEndpoint",
     )
     prefilter_llm_model_config: LLMModelConfig = Field(default_factory=LLMModelConfig)
