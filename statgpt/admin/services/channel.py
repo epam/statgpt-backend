@@ -294,17 +294,15 @@ class AdminPortalChannelService(ChannelService):
             await self.delete(existing_channel.id)
 
     @staticmethod
-    async def _deduplicate_collection(collection_name: str, label: str) -> DedupCounts:
+    async def _deduplicate_collection(collection_name: str) -> DedupCounts:
         """Deduplicates a single vector store collection by document content.
 
         Documents with identical content are merged into a single keeper and
         the metadata references are remapped, so per-version associations are
         preserved.
         """
-        _log.info(f"Deduplicating {label} (collection {collection_name!r})")
-        vector_store = await VectorStoreFactory().get_embeddingless_vector_store(
-            collection_name=collection_name,
-        )
+        _log.info(f"Deduplicating collection {collection_name!r}")
+        vector_store = await VectorStoreFactory().get_embeddingless_vector_store(collection_name)
         return await vector_store.deduplicate_by_document_content()
 
     async def deduplicate_channel_dimensions(
@@ -320,12 +318,8 @@ class AdminPortalChannelService(ChannelService):
             non_indicator_dims_table = channel.non_indicator_dimensions_table_name
             special_dims_table = channel.special_dimensions_table_name
 
-        non_indicator_counts = await self._deduplicate_collection(
-            non_indicator_dims_table, "non_indicator_dimensions"
-        )
-        special_counts = await self._deduplicate_collection(
-            special_dims_table, "special_dimensions"
-        )
+        non_indicator_counts = await self._deduplicate_collection(non_indicator_dims_table)
+        special_counts = await self._deduplicate_collection(special_dims_table)
 
         _log.info(f"Dimension deduplication completed for channel {channel_id}")
         return non_indicator_counts, special_counts
