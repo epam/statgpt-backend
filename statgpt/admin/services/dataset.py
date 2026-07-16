@@ -391,18 +391,17 @@ class AdminPortalDataSetService(DataSetService):
         for dataset in datasets:
             ch_ds = channel_dataset_by_dataset_id[dataset.id]
 
-            other = {}
-            if v := versions_json['data'].get(str(dataset.id_)):
-                other['creation_reason'] = "Imported from zip"
-                other.update(v)
-            else:
-                _log.warning(f"No version data found for dataset {dataset.title!r}")
-                other['creation_reason'] = "Imported from zip without version data"
+            v = versions_json['data'].get(str(dataset.id_))
+            if not v:
+                _log.info(f"No version data in archive for dataset {dataset.title!r}. Skipping.")
+                continue
+
             version = models.ChannelDatasetVersion(
                 channel_dataset_id=ch_ds.id,
                 # `version` will be set by the DB trigger automatically
                 preprocessing_status=StatusEnum.IN_PROGRESS,
-                **other,
+                creation_reason="Imported from zip",
+                **v,
             )
             versions[dataset.id] = version
         self._session.add_all(versions.values())
@@ -422,10 +421,14 @@ class AdminPortalDataSetService(DataSetService):
         vector_store_factory = VectorStoreFactory()
 
         dataset_versions: dict[uuid.UUID, int] = {
-            dataset.id_: versions[dataset.id].id for dataset in datasets
+            dataset.id_: versions[dataset.id].id
+            for dataset in datasets
+            if dataset.id in versions
         }
         data_sources: dict[uuid.UUID, int] = {
-            dataset.id_: dataset.data_source_id for dataset in datasets
+            dataset.id_: dataset.data_source_id
+            for dataset in datasets
+            if dataset.id in versions
         }
 
         collections = [
@@ -477,7 +480,9 @@ class AdminPortalDataSetService(DataSetService):
 
         for folder, index in indexes:
             for dataset in datasets:
-                version = versions[dataset.id]
+                version = versions.get(dataset.id)
+                if version is None:
+                    continue
 
                 file_name = self._get_elasticsearch_store_file_name(dataset)
                 file_path = f"{folder}/{file_name}"
