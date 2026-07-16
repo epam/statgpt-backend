@@ -82,6 +82,11 @@ class LLMModelsEnum(StrEnum):
         }
 
     @property
+    def is_reasoning_deployment(self) -> bool:
+        """Check if the model is a '-reasoning' deployment variant."""
+        return self.value.endswith("-reasoning")
+
+    @property
     def is_gpt_5_family(self) -> bool:
         """Check if the model belongs to the GPT-5 family."""
         return self in {
