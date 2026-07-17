@@ -90,8 +90,11 @@ async def export_channel(
 
 
 IMPORT_CHANNEL_CLEAN_UP_DESCRIPTION = (
-    "If enabled and a channel with the same `deployment_id` exists, it will be deleted."
-    " If disabled and a channel with the same `deployment_id` exists, the import job will fail."
+    "If enabled and a channel with the same `deployment_id` exists, it will be deleted"
+    " and rebuilt from scratch."
+    " If disabled and a channel with the same `deployment_id` exists, the archive is merged"
+    " into it: configs and datasets are updated in place, new datasets and indexes are added,"
+    " and dimension indexes are deduplicated afterwards."
 )
 
 

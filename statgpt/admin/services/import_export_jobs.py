@@ -363,12 +363,15 @@ class JobsService:
         update_datasets: bool,
         update_data_sources: bool,
         auth_context: AuthContext,
-    ) -> int:
-        """Import channel data including datasets and embeddings from the zip file."""
+    ) -> tuple[int, bool]:
+        """Import channel data including datasets and embeddings from the zip file.
+
+        Returns the imported channel id and whether deduplication should run
+        afterwards (true when this was a merge into an existing channel that
+        already had indexes).
+        """
 
         async with models.get_session_context_manager() as session:
-            deployment_id = None
-            scope = schemas.ExportScope.FULL
             try:
                 with zip_file.open("metadata.json") as meta_file:
                     metadata = ExportMetadata.model_validate_json(meta_file.read())
@@ -389,7 +392,8 @@ class JobsService:
                 ) from e
 
             channel_service = ChannelService(session)
-            channel_db = await channel_service.import_channel_from_zip(
+
+            is_merge, channel_db = await channel_service.import_channel_config_from_zip(
                 zip_file,
                 clean_up,
                 scope=scope,
@@ -407,13 +411,14 @@ class JobsService:
             await dataset_service.import_datasets_and_data_sources_from_zip(
                 channel_db,
                 zip_file,
-                update_datasets,
-                update_data_sources,
+                update_datasets=update_datasets,
+                update_data_sources=update_data_sources,
                 scope=scope,
                 auth_context=auth_context,
+                merge=is_merge,
             )
 
-            return channel_db.id
+            return channel_db.id, is_merge and scope.includes_indexes()
 
     async def import_channel_in_background(
         self,
@@ -442,7 +447,7 @@ class JobsService:
                     )
 
                 with zipfile.ZipFile(zip_file_path, 'r') as zip_file:
-                    channel_id = await self._import_data_from_zip(
+                    channel_id, should_deduplicate = await self._import_data_from_zip(
                         job, zip_file, clean_up, update_datasets, update_data_sources, auth_context
                     )
         except Exception as e:
@@ -450,6 +455,13 @@ class JobsService:
             job.reason_for_failure = format_exception_reason(e)
             await self._update_job_status(job, schemas.PreprocessingStatusEnum.FAILED)
             return schemas.Job.model_validate(job, from_attributes=True)
+
+        if should_deduplicate:
+            _log.info(f"Deduplicating dimensions after merge import for channel {channel_id}")
+            try:
+                await ChannelService().deduplicate_channel_dimensions(channel_id)
+            except Exception:
+                _log.exception(f"Deduplication after merge import failed for channel {channel_id}")
 
         await self._update_job_status(job, schemas.PreprocessingStatusEnum.COMPLETED)
         _log.info(f"Channel(id={channel_id}) imported successfully. Job id={job_id}")
