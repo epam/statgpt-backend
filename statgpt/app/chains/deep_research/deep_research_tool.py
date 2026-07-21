@@ -35,6 +35,8 @@ class DeepResearchTool(StatGptTool[DeepResearchToolConfig], tool_type=ToolTypes.
 
     def _construct_history(self, query: str) -> list[dict[str, Any]]:
         messages: list[dict[str, Any]] = []
+        # This tool reads the system prompt from `details.system_prompt`; the inherited
+        # `BaseToolDetails.prompts.system_prompt` field is intentionally not honored here.
         if system_prompt := self._tool_config.details.system_prompt:
             messages.append({'role': 'system', 'content': system_prompt})
         messages.append({'role': 'user', 'content': query})
@@ -65,23 +67,29 @@ class DeepResearchTool(StatGptTool[DeepResearchToolConfig], tool_type=ToolTypes.
             state.get(StateVarsConfig.SHOW_DEBUG_STAGES, False) or details.always_show_stages
         )
 
+        response: str | None = None
         time_start = time.monotonic()
-        stream = await client.chat.completions.create(**create_kwargs)
-        dial_streamer = OpenAiToDialStreamer(
-            target,
-            choice,
-            deployment=deployment_id,
-            stream_content=True,
-            show_debug_stages=show_debug_stages,
-            stages_config=details.stages_config,
-        )
+        async with client:
+            stream = await client.chat.completions.create(**create_kwargs)
+            dial_streamer = OpenAiToDialStreamer(
+                target,
+                choice,
+                deployment=deployment_id,
+                stream_content=True,
+                show_debug_stages=show_debug_stages,
+                stages_config=details.stages_config,
+            )
 
-        with dial_streamer:
-            try:
-                async for chunk in stream:
-                    dial_streamer.send_chunk(chunk)
-            except APIError as e:
-                logger.exception(e)
+            with dial_streamer:
+                try:
+                    async for chunk in stream:
+                        dial_streamer.send_chunk(chunk)
+                except APIError as e:
+                    logger.exception(e)
+                    response = "<error>Something went wrong</error>"
+
+                if response is None:
+                    response = dial_streamer.content_with_attachments_metadata
 
         duration_s = time.monotonic() - time_start
         if (duration_manager := get_llm_call_duration_manager()) is not None:
@@ -89,6 +97,5 @@ class DeepResearchTool(StatGptTool[DeepResearchToolConfig], tool_type=ToolTypes.
                 LLMCallDurationItem(deployment=deployment_id, duration_s=duration_s)
             )
 
-        response = dial_streamer.content_with_attachments_metadata
         artifact = ToolArtifact(state=ToolMessageState(type=self.tool_type))
         return response, artifact
