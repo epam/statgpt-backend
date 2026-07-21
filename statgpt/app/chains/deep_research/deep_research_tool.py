@@ -58,10 +58,6 @@ class DeepResearchTool(StatGptTool[DeepResearchToolConfig], tool_type=ToolTypes.
             stream=True,
             messages=self._construct_history(query),
         )
-        if details.configuration:
-            create_kwargs["extra_body"] = dict(
-                custom_fields=dict(configuration=details.configuration)
-            )
 
         show_debug_stages = (
             state.get(StateVarsConfig.SHOW_DEBUG_STAGES, False) or details.always_show_stages

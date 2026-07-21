@@ -231,9 +231,6 @@ class DeepResearchDetails(BaseToolDetails):
         description="The DIAL deployment_id of the Deep Research application. Supports $env:{VAR} syntax.",
         serialization_alias="deploymentId",
     )
-    configuration: dict[str, Any] | None = Field(
-        default=None, description="The configuration passed to the Deep Research application"
-    )
     system_prompt: str | None = Field(
         default=None,
         description="The system prompt for the Deep Research application.",
