@@ -15,7 +15,7 @@ class GenericRagAgentFactory(DialRagAgentFactory):
 
     def _build_extra_body(self, pre_filter_response: PreFilterResponse) -> dict | None:
         rag_filter = pre_filter_response.rag_filter
-        if rag_filter is None:
+        if rag_filter is None or (not rag_filter.filters and rag_filter.top_n is None):
             return None
         config = GenericRagConfiguration.from_rag_filter_dial(rag_filter)
         return {

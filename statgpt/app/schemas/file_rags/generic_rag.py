@@ -20,8 +20,14 @@ class GenericSingleFilter(BaseModel):
     publication_date: GenericDateInterval | None = None
 
 
+def _default_sort_by() -> list[Literal["publication_date"]]:
+    return ["publication_date"]
+
+
 class GenericTopN(BaseModel):
-    sort_by: list[str] = Field(default_factory=lambda: ["publication_date"], min_length=1)
+    sort_by: list[Literal["publication_date"]] = Field(
+        default_factory=_default_sort_by, min_length=1
+    )
     order: SortOrder = SortOrder.desc
     limit: int = Field(gt=0)
 
