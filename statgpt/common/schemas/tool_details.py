@@ -225,6 +225,31 @@ class WebSearchAgentDetails(BaseToolDetails):
         return config_utils.replace_env(self.deployment_id_raw)
 
 
+class DeepResearchDetails(BaseToolDetails):
+    deployment_id_raw: str = Field(
+        validation_alias=AliasChoices("deployment_id", "deploymentId"),
+        description="The DIAL deployment_id of the Deep Research application. Supports $env:{VAR} syntax.",
+        serialization_alias="deploymentId",
+    )
+    configuration: dict[str, Any] | None = Field(
+        default=None, description="The configuration passed to the Deep Research application"
+    )
+    system_prompt: str | None = Field(
+        default=None,
+        description="The system prompt for the Deep Research application.",
+    )
+    always_show_stages: bool = Field(
+        default=False,
+        description=(
+            "If enabled, the stages received from the Deep Research application will always be shown."
+            " Otherwise, they will be displayed depending on the conversation debug flag."
+        ),
+    )
+
+    def get_deployment_id(self) -> str:
+        return config_utils.replace_env(self.deployment_id_raw)
+
+
 class PublicationType(BaseYamlModel):
     name: str = Field(description="The name of the publication type")
     description: str = Field(description="The description of the publication type")

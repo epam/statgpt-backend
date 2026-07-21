@@ -158,6 +158,25 @@ tools:
     details:
       base_url: "https://api.imf.org/external/sdmx/3.0"
 
+  - type: deep_research
+    <<: *shared_settings
+    name: "Deep_Research"
+    description: >-
+      Runs an in-depth, multi-step research investigation on a single question and streams back a
+      synthesized answer together with the sources it consulted.
+
+      Use this tool for broad, open-ended or exploratory questions that require gathering and
+      reasoning over information from multiple sources, rather than a single data point.
+
+      For structured statistical data (indicators, time series) prefer the `Query_Data` tool, and
+      for glossary terminology prefer the `Term_Definitions` tool.
+    details:
+      deploymentId: "$env:{DEEP_RESEARCH_DEPLOYMENT_ID}"
+      alwaysShowStages: false
+      stagesConfig:
+        toolCallName: "Researching: {query}"
+        toolResultName: "Research result: {query}"
+
   - type: available_terms
     <<: *shared_settings
     name: "Available_Terms"

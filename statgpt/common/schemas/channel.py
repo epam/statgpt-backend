@@ -21,6 +21,7 @@ from .tools import (
     DataQueryTool,
     DatasetsMetadataTool,
     DatasetStructureTool,
+    DeepResearchTool,
     FileRagTool,
     PlainContentTool,
     SdmxQueryAppTool,
@@ -334,6 +335,7 @@ class ChannelConfig(BaseYamlModel):
     term_definitions: TermDefinitionsTool | None = Field(None)
     web_search: WebSearchTool | None = Field(None)
     web_search_agent: WebSearchAgentTool | None = Field(None)
+    deep_research: DeepResearchTool | None = Field(None)
 
     @property
     def tool_fields(self) -> list[str]:
@@ -350,6 +352,7 @@ class ChannelConfig(BaseYamlModel):
             'term_definitions',
             'web_search',
             'web_search_agent',
+            'deep_research',
         ]
 
     @property
