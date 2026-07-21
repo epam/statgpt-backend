@@ -111,10 +111,11 @@ class BaseToolDetails(BaseYamlModel):
 
 class FileRagDetails(BaseToolDetails):
     version: RAGVersion
-    """RAG backend. `DIAL` targets the DIAL RAG service; `GENERIC` targets a Generic RAG
-    DIAL application, reusing the same chat-completions transport (only the RAG configuration
-    payload and metadata shape differ). For `GENERIC`, point `deployment_id` at the generic-rag
-    application id and `metadata_endpoint` at its `/channel/metadata` route."""
+    """RAG backend. `GENERIC` targets a Generic RAG DIAL application, reusing the same
+    chat-completions transport (only the RAG configuration payload and metadata shape differ);
+    point `deployment_id` at the generic-rag application id and `metadata_endpoint` at its
+    `/channel/metadata` route. `DIAL` targets the legacy DIAL RAG service and is deprecated
+    in favor of `GENERIC`."""
 
     # For Dial RAG / Generic RAG:
     deployment_id_raw: str = Field(
