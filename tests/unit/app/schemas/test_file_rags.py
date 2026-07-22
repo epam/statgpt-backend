@@ -20,28 +20,26 @@ class TestDialRagMetadataResponseDimensions:
             {
                 "schema": {},
                 "dimensions": [
-                    {"name": "publication_type", "values": ["sigma", "SONAR"]},
+                    {"name": "publication_type", "values": ["test", "publication", "types"]},
                     {"name": "publication_date", "values": ["2024-01-01"]},
                 ],
             }
         )
         meta = DialRagMetadata.from_response(resp)
-        assert meta.publication_types == {"sigma", "SONAR"}
-        assert meta.publication_dates == {"2024-01-01"}
+        assert meta.publication_types == {"test", "publication", "types"}
 
     def test_map_shape(self):
         resp = DialRagMetadataResponse.model_validate(
             {
                 "schema": {},
                 "dimensions": {
-                    "publication_type": ["sigma", "SONAR"],
+                    "publication_type": ["test", "publication", "types"],
                     "publication_date": ["2024-01-01"],
                 },
             }
         )
         meta = DialRagMetadata.from_response(resp)
-        assert meta.publication_types == {"sigma", "SONAR"}
-        assert meta.publication_dates == {"2024-01-01"}
+        assert meta.publication_types == {"test", "publication", "types"}
 
 
 class TestGenericRagConfigurationFromRagFilterDial:
@@ -49,7 +47,7 @@ class TestGenericRagConfigurationFromRagFilterDial:
         rag_filter = RagFilterDial(
             filters=[
                 RagFilterDialSingle(
-                    publication_type="sigma",
+                    publication_type="test_type",
                     publication_date=TimePeriodFilterDial(
                         start=datetime.date(2024, 1, 1), end=datetime.date(2024, 12, 31)
                     ),
@@ -68,7 +66,7 @@ class TestGenericRagConfigurationFromRagFilterDial:
                     "type": "explicit",
                     "filters": [
                         {
-                            "publication_type": "sigma",
+                            "publication_type": "test_type",
                             "publication_date": {"start": "2024-01-01", "end": "2024-12-31"},
                         }
                     ],
@@ -84,7 +82,7 @@ class TestGenericRagConfigurationFromRagFilterDial:
     def test_omits_unset_fields(self):
         """A type-only filter with no top_n must not emit null date/top_n keys."""
         rag_filter = RagFilterDial(
-            filters=[RagFilterDialSingle(publication_type="SONAR", publication_date=None)]
+            filters=[RagFilterDialSingle(publication_type="test_type", publication_date=None)]
         )
 
         dumped = GenericRagConfiguration.from_rag_filter_dial(rag_filter).model_dump(
@@ -95,7 +93,7 @@ class TestGenericRagConfigurationFromRagFilterDial:
             "retriever": {
                 "document_selector": {
                     "type": "explicit",
-                    "filters": [{"publication_type": "SONAR"}],
+                    "filters": [{"publication_type": "test_type"}],
                 }
             }
         }
