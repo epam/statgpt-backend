@@ -264,15 +264,11 @@ class DialRagMetadataResponse(BaseModel):
 
 
 class DialRagMetadata(BaseModel):
-    publication_dates: set[StrictStr] = Field()
     publication_types: set[StrictStr] = Field()
 
     @classmethod
     def from_response(cls, response: DialRagMetadataResponse) -> "DialRagMetadata":
         return cls(
-            publication_dates=cls._extract_dimension_values(
-                response.dimensions, "publication_date"
-            ),
             publication_types=cls._extract_dimension_values(
                 response.dimensions, "publication_type"
             ),
