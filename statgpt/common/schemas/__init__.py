@@ -61,6 +61,7 @@ from .tools import (
     DataQueryTool,
     DatasetsMetadataTool,
     DatasetStructureTool,
+    DeepResearchTool,
     FileRagTool,
     PlainContentTool,
     SdmxQueryAppTool,
