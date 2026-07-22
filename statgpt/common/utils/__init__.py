@@ -1,11 +1,12 @@
 from .async_loading_cache import AsyncLoadingCache
 from .db_mixins import DateMixin, IdMixin
 from .dial import (
-    AttachmentResponse,
     AttachmentsStorage,
-    DialCore,
     attachments_storage_factory,
-    dial_core_factory,
+    dial_client_factory,
+    download_file_by_path,
+    open_file_stream,
+    write_file_to,
 )
 from .exceptions import InvalidLLMStreamResponse, format_exception_reason
 from .files import (
