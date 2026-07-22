@@ -60,6 +60,9 @@ class LLMModelsEnum(StrEnum):
     GPT_5_4_2026_03_05 = "gpt-5.4-2026-03-05"
     GPT_5_4_MINI_2026_03_17 = "gpt-5.4-mini-2026-03-17"
     GPT_5_5_2026_04_24 = "gpt-5.5-2026-04-24"
+    GPT_5_6_LUNA_2026_07_09 = "gpt-5.6-luna-2026-07-09"
+    GPT_5_6_SOL_2026_07_09 = "gpt-5.6-sol-2026-07-09"
+    GPT_5_6_TERRA_2026_07_09 = "gpt-5.6-terra-2026-07-09"
 
     @property
     def deployment_id(self) -> str:
@@ -85,4 +88,7 @@ class LLMModelsEnum(StrEnum):
             LLMModelsEnum.GPT_5_4_2026_03_05,
             LLMModelsEnum.GPT_5_4_MINI_2026_03_17,
             LLMModelsEnum.GPT_5_5_2026_04_24,
+            LLMModelsEnum.GPT_5_6_LUNA_2026_07_09,
+            LLMModelsEnum.GPT_5_6_SOL_2026_07_09,
+            LLMModelsEnum.GPT_5_6_TERRA_2026_07_09,
         }

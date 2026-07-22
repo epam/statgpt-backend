@@ -1,6 +1,5 @@
+from aidial_client.types.metadata import FileItem
 from pydantic import BaseModel, Field
-
-from statgpt.common.utils import AttachmentResponse
 
 from .auditable import Auditable
 from .base import DbDefaultBase
@@ -42,7 +41,5 @@ class ClearJobsResult(BaseModel):
         default=None, description="Reason for failure if the job has failed."
     )
 
-    deleted_files: list[AttachmentResponse] = Field(
-        description="List of deleted files in the Dial storage."
-    )
+    deleted_files: list[FileItem] = Field(description="List of deleted files in the Dial storage.")
     deleted_jobs: list[Job] = Field(description="List of deleted jobs.")

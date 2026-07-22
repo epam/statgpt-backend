@@ -37,7 +37,7 @@ from statgpt.common.schemas import (
     GlossaryTerm,
     RAGVersion,
 )
-from statgpt.common.utils import dial_core_factory
+from statgpt.common.utils import attachments_storage_factory
 
 VALID_COMPONENTS = {"channels", "datasources", "datasets", "glossaries", "files"}
 
@@ -308,7 +308,7 @@ async def _upload_dial_files(dial_files_dir: str) -> None:
     print_info("Uploading files to DIAL...")
 
     try:
-        async with dial_core_factory(dial_url, dial_api_key) as dial:
+        async with attachments_storage_factory(dial_api_key, base_url=dial_url) as storage:
             for root, _, files in os.walk(dial_files_dir):
                 for file in files:
                     file_path = os.path.join(root, file)
@@ -319,7 +319,7 @@ async def _upload_dial_files(dial_files_dir: str) -> None:
 
                     with open(file_path, "rb") as f:
                         content = f.read()
-                        await dial.put_file(dial_path, mime_type, content)
+                        await storage.put_file(dial_path, mime_type, content)
     except Exception as e:
         print_error(f"Failed to connect to DIAL: {e}")
         return
