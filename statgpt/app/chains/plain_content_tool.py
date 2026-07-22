@@ -8,7 +8,7 @@ from statgpt.common.schemas import PlainContentTool as PlainContentToolConfig
 from statgpt.common.schemas import ToolTypes
 from statgpt.common.settings.dial import dial_settings
 from statgpt.common.utils import MediaTypes
-from statgpt.common.utils.dial import dial_core_factory
+from statgpt.common.utils.dial import dial_client_factory, download_file_by_path
 
 
 class _PlainContentToolAuthContext(AuthContext):
@@ -37,11 +37,11 @@ class PlainContentTool(StatGptTool[PlainContentToolConfig], tool_type=ToolTypes.
 
     async def _arun(self, inputs: dict) -> tuple[str, ToolArtifact]:
         # it's assumed that file is stored under app's API key
-        async with dial_core_factory(
+        async with dial_client_factory(
             dial_settings.url, _PlainContentToolAuthContext().api_key
-        ) as dial_core:
-            content, content_type = await dial_core.get_file_by_path(
-                self._tool_config.details.file_path
+        ) as dial:
+            content, content_type = await download_file_by_path(
+                dial, self._tool_config.details.file_path
             )
         text = content.decode('utf-8')
         if self._tool_config.details.replace_envs:

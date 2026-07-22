@@ -7,7 +7,8 @@ import zipfile
 from datetime import datetime
 from typing import BinaryIO
 
-import httpx
+import aiofiles
+from aidial_client.types.metadata import FileItem
 from fastapi import BackgroundTasks, HTTPException, UploadFile, status
 from pydantic import BaseModel, ValidationError
 from sqlalchemy import select
@@ -23,10 +24,11 @@ from statgpt.common.auth.auth_context import AuthContext
 from statgpt.common.schemas import AuditActionType, AuditEntityType
 from statgpt.common.settings.dial import dial_settings
 from statgpt.common.utils import (
-    AttachmentResponse,
     AttachmentsStorage,
     attachments_storage_factory,
+    dial_client_factory,
     format_exception_reason,
+    write_file_to,
 )
 
 from .channel import AdminPortalChannelService as ChannelService
@@ -51,7 +53,7 @@ class JobsService:
     @staticmethod
     async def _delete_dial_files(
         to_date: datetime,
-        deleted_files: list[AttachmentResponse],
+        deleted_files: list[FileItem],
         dry_run: bool,
         auth_context: AuthContext,
     ) -> None:
@@ -60,7 +62,7 @@ class JobsService:
             to_date_timestamp = int(to_date.timestamp() * 1000)
 
             for folder in [JobsConfig.DIAL_EXPORT_FOLDER, JobsConfig.DIAL_IMPORT_FOLDER]:
-                files = await attachments_storage.get_files_in_folder(f"{folder}/")
+                files = await attachments_storage.get_files_in_folder(folder)
                 for file in files:
                     if file.updated_at is not None and file.updated_at < to_date_timestamp:
                         if not dry_run:
@@ -89,7 +91,7 @@ class JobsService:
     ) -> schemas.ClearJobsResult:
         _log.info(f"Clearing jobs before {to_date}. Dry run: {dry_run}")
 
-        deleted_files: list[AttachmentResponse] = []
+        deleted_files: list[FileItem] = []
         deleted_jobs: list[schemas.Job] = []
         try:
             await self._delete_dial_files(to_date, deleted_files, dry_run, auth_context)
@@ -196,15 +198,22 @@ class JobsService:
             file_type = file.filename.split(".")[-1]
             file_name = f"job-{job.id}.{file_type}"
 
-            async with attachments_storage_factory(
-                api_key=auth_context.api_key
-            ) as attachments_storage:
-                resp = await attachments_storage.put_file(
-                    f"{JobsConfig.DIAL_IMPORT_FOLDER}/{file_name}",
-                    mime_type=file.content_type,
-                    content=file.file,  # type: ignore
-                )
-                job.file = resp.url
+            with tempfile.TemporaryDirectory() as tmp_dir:
+                tmp_path = os.path.join(tmp_dir, file_name)
+                await file.seek(0)
+                async with aiofiles.open(tmp_path, "wb") as out:
+                    while chunk := await file.read(1024 * 1024):
+                        await out.write(chunk)
+
+                async with attachments_storage_factory(
+                    api_key=auth_context.api_key
+                ) as attachments_storage:
+                    resp = await attachments_storage.put_local_file(
+                        f"{JobsConfig.DIAL_IMPORT_FOLDER}/{file_name}",
+                        tmp_path,
+                        mime_type=file.content_type,
+                    )
+                    job.file = resp.url
 
             _log.info(
                 f"Creating import job with args: {clean_up=}, {update_datasets=}, {update_data_sources=}"
@@ -315,38 +324,10 @@ class JobsService:
     async def download_zip_file(
         file_url: str, zip_file: BinaryIO, auth_context: AuthContext
     ) -> None:
-        """TODO: Perhaps this method should be moved in Dial core or attachments module."""
-        client = httpx.AsyncClient(
-            base_url=dial_settings.url,
-            headers={'Api-Key': auth_context.api_key},
-        )
-        async with client.stream('GET', f"/v1/{file_url}") as response:
-            response.raise_for_status()
-            total_size = int(response.headers.get('content-length', 0))
-            downloaded = 0
-            chunk_count = 0
-            log_interval = 100  # Log every 100 chunks
-
-            _log.info(f"Starting download from {file_url}")
-            if total_size > 0:
-                _log.info(f"Total file size: {total_size / (1024 * 1024):.2f} MB")
-
-            async for chunk in response.aiter_bytes():
-                zip_file.write(chunk)
-                downloaded += len(chunk)
-                chunk_count += 1
-
-                if chunk_count % log_interval == 0:
-                    if total_size > 0:
-                        percent = (downloaded / total_size) * 100
-                        _log.info(
-                            f"Downloaded {downloaded / (1024 * 1024):.2f} MB / "
-                            f"{total_size / (1024 * 1024):.2f} MB ({percent:.1f}%)"
-                        )
-                    else:
-                        _log.info(f"Downloaded {downloaded / (1024 * 1024):.2f} MB")
-
-            _log.info(f"Download completed: {downloaded / (1024 * 1024):.2f} MB total")
+        async with dial_client_factory(
+            base_url=dial_settings.url, api_key=auth_context.api_key
+        ) as dial:
+            await write_file_to(dial, file_url, zip_file)
 
     @staticmethod
     def _validate_export_version(metadata: ExportMetadata) -> None:
