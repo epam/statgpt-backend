@@ -7,6 +7,7 @@ from .data_query import DataQueryTool
 from .datasets_meta.available_datasets_tool import AvailableDatasetsTool
 from .datasets_meta.metadata_tool import DatasetsMetadataTool
 from .datasets_meta.structure_tool import DatasetStructureTool
+from .datasets_metadata_app_tool import DatasetsMetadataAppTool
 from .deep_research import DeepResearchTool
 from .file_rags import FileRagTool
 from .glossary_tools import AvailableTermsTool, TermDefinitionsTool

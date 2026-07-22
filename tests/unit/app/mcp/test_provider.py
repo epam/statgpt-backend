@@ -12,10 +12,21 @@ from mcp.types import EmbeddedResource, TextContent
 
 from statgpt.app.chains.out_of_scope_checker import OutOfScopeCheckerResponse
 from statgpt.app.mcp.provider import ChannelToolProvider, _McpToolAdapter, _tool_app_config
-from statgpt.app.schemas.tool_artifact import DataQueryArtifact, SdmxQueryAppArtifact
+from statgpt.app.schemas.service import ChannelDatasetsMetadataResponse
+from statgpt.app.schemas.tool_artifact import (
+    DataQueryArtifact,
+    DatasetsMetadataAppArtifact,
+    SdmxQueryAppArtifact,
+)
+from statgpt.app.schemas.tool_states import ToolMessageState
+from statgpt.common.schemas import ToolTypes
 from statgpt.common.schemas.query import JsonQueryMetadata, JsonQueryWithMetadata
 from statgpt.common.schemas.tool_details import SdmxQueryAppDetails
-from statgpt.common.schemas.tools import AvailableDatasetsTool, SdmxQueryAppTool
+from statgpt.common.schemas.tools import (
+    AvailableDatasetsTool,
+    DatasetsMetadataAppTool,
+    SdmxQueryAppTool,
+)
 
 
 def _build_adapter(
@@ -123,6 +134,26 @@ async def test_sdmx_query_app_artifact_exposes_http_metadata():
     assert tool_result.structured_content == {
         "statusCode": 200,
         "contentType": "application/json",
+    }
+
+
+async def test_datasets_metadata_app_artifact_exposes_payload():
+    response = ChannelDatasetsMetadataResponse(
+        deployment_id="dep", title="Channel", n_datasets=0, datasets=[]
+    )
+    artifact = DatasetsMetadataAppArtifact(
+        state=ToolMessageState(type=ToolTypes.DATASETS_METADATA_APP),
+        response=response,
+    )
+    adapter = _build_adapter(SimpleNamespace(content=response.model_dump_json(), artifact=artifact))
+
+    tool_result = await adapter.run({})
+
+    assert tool_result.structured_content == {
+        "deployment_id": "dep",
+        "title": "Channel",
+        "n_datasets": 0,
+        "datasets": [],
     }
 
 
@@ -420,3 +451,13 @@ def test_sdmx_query_app_visibility_is_overridable():
     )
 
     assert _tool_app_config(tool_config) == AppConfig(visibility=["model", "app"])
+
+
+def test_datasets_metadata_app_defaults_to_app_only():
+    tool_config = DatasetsMetadataAppTool(
+        name="datasets_metadata", description="Datasets metadata."
+    )
+
+    assert tool_config.mcp_only is True
+    assert tool_config.mcp_visibility == ["app"]
+    assert _tool_app_config(tool_config) == AppConfig(visibility=["app"])

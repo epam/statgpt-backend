@@ -5,6 +5,7 @@ from statgpt.common.schemas import ToolTypes
 
 from .file_rags import BaseRagState, DialRagState
 from .query_builder import DataQueryEvalAttachment, QueryBuilderAgentState
+from .service import ChannelDatasetsMetadataResponse
 from .tool_states import FailedToolMessageState, ToolMessageState
 
 
@@ -44,6 +45,16 @@ class SdmxQueryAppArtifact(ToolArtifact):
     content_type: str | None = Field(
         default=None,
         description="Value of the upstream `Content-Type` response header, if present.",
+    )
+
+
+class DatasetsMetadataAppArtifact(ToolArtifact):
+    """Carries the channel datasets metadata payload for the MCP-App-only datasets-metadata tool
+    so the MCP provider can surface it as structured content for the UI widget (the JSON body is
+    also returned as the tool's text content)."""
+
+    response: ChannelDatasetsMetadataResponse = Field(
+        description="The datasets metadata payload, matching the `/metadata/datasets` endpoint."
     )
 
 

@@ -29,7 +29,12 @@ from statgpt.app.mcp.guardrails import enforce_input_guardrail
 from statgpt.app.mcp.widget_resource import WidgetResource
 from statgpt.app.schemas.dial_app_configuration import StatGPTConfiguration
 from statgpt.app.schemas.mcp import DataQueryStructuredContent, SdmxProxyStructuredContent
-from statgpt.app.schemas.tool_artifact import DataQueryArtifact, SdmxQueryAppArtifact
+from statgpt.app.schemas.service import ChannelDatasetsMetadataResponse
+from statgpt.app.schemas.tool_artifact import (
+    DataQueryArtifact,
+    DatasetsMetadataAppArtifact,
+    SdmxQueryAppArtifact,
+)
 from statgpt.app.security import DialAuthCredentials, create_auth_context
 from statgpt.app.services.chat_facade import ChannelServiceFacade
 from statgpt.app.utils.dial_stages import DummyStage, NullChoice
@@ -124,7 +129,12 @@ class _McpToolAdapter(Tool):
             raise ToolError(f"{self._langchain_tool.name} tool failed to execute")
         text = result.content if isinstance(result.content, str) else str(result.content)
         content: list[ContentBlock] = [TextContent(type="text", text=text)]
-        structured_content: DataQueryStructuredContent | SdmxProxyStructuredContent | None = None
+        structured_content: (
+            DataQueryStructuredContent
+            | SdmxProxyStructuredContent
+            | ChannelDatasetsMetadataResponse
+            | None
+        ) = None
         if isinstance(result.artifact, DataQueryArtifact):
             # to_csv is CPU-bound and can block on large dataframes; offload to a worker thread.
             resources = await asyncio.to_thread(data_query_artifact_to_resources, result.artifact)
@@ -140,6 +150,10 @@ class _McpToolAdapter(Tool):
                 status_code=result.artifact.status_code,
                 content_type=result.artifact.content_type,
             )
+        elif isinstance(result.artifact, DatasetsMetadataAppArtifact):
+            # Surface the datasets metadata payload as structured content so the UI widget can
+            # consume it directly (the JSON body is also in the text content block above).
+            structured_content = result.artifact.response
         _log.info(
             "Sending MCP tool %s response: %d content block(s), structured_content=%s",
             self._langchain_tool.name,
