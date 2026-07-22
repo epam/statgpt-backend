@@ -77,6 +77,16 @@ class AdminPortalChannelService(ChannelService):
         async with attachments_storage_factory(api_key=auth_context.api_key) as storage:
             await storage.put_file(dial_file_path, mime_type, content)
 
+    @staticmethod
+    def _warn_if_deprecated_rag(details: schemas.ChannelConfig | None) -> None:
+        file_rag = details.file_rag if details is not None else None
+        if file_rag is not None and file_rag.details.version is schemas.RAGVersion.DIAL:
+            _log.warning(
+                "The '%s' file RAG backend is deprecated; use '%s' instead.",
+                schemas.RAGVersion.DIAL.value,
+                schemas.RAGVersion.GENERIC.value,
+            )
+
     async def _create_channel_model(self, data: schemas.ChannelBase) -> models.Channel:
         item = models.Channel(
             title=data.title,
@@ -95,6 +105,7 @@ class AdminPortalChannelService(ChannelService):
 
     @audit_action(entity_type=AuditEntityType.CHANNEL, action_type=AuditActionType.CREATE)
     async def create_channel(self, data: schemas.ChannelBase) -> schemas.Channel:
+        self._warn_if_deprecated_rag(data.details)
         item = await self._create_channel_model(data)
         return ChannelSerializer.db_to_schema(item)
 
@@ -103,6 +114,7 @@ class AdminPortalChannelService(ChannelService):
         item = await self._get_item_or_raise(item_id)
 
         if data.details is not None:
+            self._warn_if_deprecated_rag(data.details)
             data.details = data.details.model_dump(mode="json", by_alias=True)  # type: ignore
 
         query = (

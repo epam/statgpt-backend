@@ -16,9 +16,11 @@ from statgpt.common.schemas import RAGVersion, ToolTypes
 
 from .base import BaseRAGFactory
 from .dial_rag import DialRagAgentFactory
+from .generic_rag import GenericRagAgentFactory
 
 _RAG_IMPLEMENTATIONS: dict[RAGVersion, type[BaseRAGFactory]] = {
     RAGVersion.DIAL: DialRagAgentFactory,
+    RAGVersion.GENERIC: GenericRagAgentFactory,
 }
 
 

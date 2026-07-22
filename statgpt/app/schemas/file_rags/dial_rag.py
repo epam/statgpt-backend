@@ -4,7 +4,15 @@ import datetime
 import enum
 from typing import Any, ClassVar, Literal, Self
 
-from pydantic import BaseModel, ConfigDict, Field, PositiveInt, StrictStr, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    PositiveInt,
+    StrictStr,
+    field_validator,
+    model_validator,
+)
 
 from statgpt.app.schemas.file_rags import BaseRagState
 from statgpt.common.config import multiline_logger as logger
@@ -261,6 +269,19 @@ class DialRagMetadataResponse(BaseModel):
     dimensions: list[Dimension] = Field()
 
     model_config = ConfigDict(populate_by_name=True)
+
+    @field_validator('dimensions', mode='before')
+    @classmethod
+    def _normalize_dimensions(cls, value: Any) -> Any:
+        """Accept both metadata shapes.
+
+        DIAL RAG returns dimensions as a list ``[{name, values}]``, while the
+        Generic RAG ``/channel/metadata`` endpoint returns a map
+        ``{name: [values]}``. Normalize the map form into the list form.
+        """
+        if isinstance(value, dict):
+            return [{"name": name, "values": values} for name, values in value.items()]
+        return value
 
 
 class DialRagMetadata(BaseModel):
