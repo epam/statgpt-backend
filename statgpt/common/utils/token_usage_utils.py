@@ -1,10 +1,15 @@
+import logging
+
 import pandas as pd
+from aidial_client.types.model import ModelPricing
 
 from statgpt.common.schemas.token_usage import TokenUsageItem, TokenUsagePricedItem
 
+_log = logging.getLogger(__name__)
+
 
 class TokenUsageCostCalculator:
-    def __init__(self, model_to_pricing_map: dict) -> None:
+    def __init__(self, model_to_pricing_map: dict[str, ModelPricing]) -> None:
         self._model_to_pricing_map = model_to_pricing_map
 
     def get_token_usage_with_costs(
@@ -22,13 +27,22 @@ class TokenUsageCostCalculator:
         ]
 
     def _calculate_usage_cost(self, item: TokenUsageItem) -> float | None:
-        """Calculate the cost of the token usage."""
-        if model_pricing := self._model_to_pricing_map.get(item.model):
-            return (
-                item.prompt_tokens * model_pricing.prompt
-                + item.completion_tokens * model_pricing.completion
+        """Calculate the cost of the token usage.
+
+        DIAL exposes prices as strings, so they are coerced to floats here.
+        """
+        model_pricing = self._model_to_pricing_map.get(item.model)
+        if model_pricing is None:
+            return None
+        try:
+            prompt_price = float(model_pricing.prompt)
+            completion_price = (
+                float(model_pricing.completion) if model_pricing.completion is not None else 0.0
             )
-        return None
+        except (TypeError, ValueError) as e:
+            _log.warning(f"Invalid pricing for model {item.model!r}: {e}")
+            return None
+        return item.prompt_tokens * prompt_price + item.completion_tokens * completion_price
 
 
 class TokenUsageDisplayer:

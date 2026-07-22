@@ -3,6 +3,7 @@ from collections.abc import Iterable
 from datetime import datetime
 
 import openai
+from aidial_client.types.model import ModelPricing
 from aidial_sdk.chat_completion import ChatCompletion, Choice, Request, Response
 from aidial_sdk.deployment.configuration import ConfigurationRequest, ConfigurationResponse
 from aidial_sdk.exceptions import HTTPException as DIALException
@@ -18,12 +19,11 @@ from statgpt.app.services.chat_facade import ChannelServiceFacade
 from statgpt.app.settings.dial_app import dial_app_settings
 from statgpt.app.utils.dial_exceptions import RateLimitException
 from statgpt.app.utils.dial_stages import optional_timed_stage
-from statgpt.common.schemas.dial import Pricing
 from statgpt.common.schemas.token_usage import TokenUsagePricedItem
 from statgpt.common.settings.application import application_settings
 from statgpt.common.settings.dial import dial_settings
 from statgpt.common.settings.langchain import langchain_settings
-from statgpt.common.utils import dial_core_factory
+from statgpt.common.utils import dial_client_factory
 from statgpt.common.utils.callbacks import (
     LCMessageLoggerAsync,
     LLMCallDurationCallback,
@@ -230,11 +230,11 @@ class ChannelCompletion(ChatCompletion):
         return priced_usage
 
     @staticmethod
-    async def _load_pricing(models: Iterable[str]) -> dict[str, Pricing]:
-        async with dial_core_factory(
+    async def _load_pricing(models: Iterable[str]) -> dict[str, ModelPricing]:
+        async with dial_client_factory(
             base_url=dial_settings.url, api_key=ModelPricingAuthContext().api_key
-        ) as dial_core:
-            getter = ModelPricingGetter(dial_core)
+        ) as dial:
+            getter = ModelPricingGetter(dial)
 
             res = {}
             for model in models:

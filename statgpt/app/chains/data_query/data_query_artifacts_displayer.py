@@ -264,7 +264,7 @@ class DataQueryArtifactDisplayer:
             data_response.file_name, data_response.csv_dataframe
         )
         title = data_response.enrich_attachment_name(self._config.csv_file.name)
-        return dict(type=response.content_type, title=title, url=response.url)
+        return dict(type=response.content_type or MediaTypes.CSV, title=title, url=response.url)
 
     @catch_and_log_async(logger)
     async def _attach_json_query(self, data_response: DataResponse) -> dict[str, str] | None:

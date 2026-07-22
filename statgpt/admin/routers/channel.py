@@ -2,7 +2,7 @@ import logging
 from datetime import datetime, timedelta
 from typing import Annotated
 
-import httpx
+from aidial_client import ResourceNotFoundError
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, UploadFile, status
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -20,6 +20,7 @@ from statgpt.common.data.sdmx.v21.dataset import InvalidConfigurationError
 from statgpt.common.models.database import get_session_context_manager
 from statgpt.common.settings.dial import dial_settings
 from statgpt.common.utils.cancel_dependency import cancel_on_disconnect
+from statgpt.common.utils.dial import open_file_stream
 
 logger = logging.getLogger(__name__)
 
@@ -183,18 +184,22 @@ async def download_job_result_by_id(
             detail=f"Job with id={job_id} is not completed",
         )
 
-    # Code below was copied from the httpx documentation
-    # https://www.python-httpx.org/async/#streaming-responses
-    client = httpx.AsyncClient(
-        base_url=dial_settings.url,
-        headers={'Api-Key': SystemUserAuthContext().api_key},
-    )
-    req = client.build_request("GET", f"/v1/{job.file}")
-    r = await client.send(req, stream=True)
-    media_type = r.headers.get('content-type')
-    return StreamingResponse(
-        r.aiter_bytes(), background=BackgroundTask(r.aclose), media_type=media_type
-    )
+    if not job.file:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Job with id={job_id} has no associated file",
+        )
+
+    try:
+        stream, media_type, aclose = await open_file_stream(
+            dial_settings.url, SystemUserAuthContext().api_key, job.file
+        )
+    except ResourceNotFoundError:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"File of the job with id={job_id} was not found in the file storage",
+        )
+    return StreamingResponse(stream, media_type=media_type, background=BackgroundTask(aclose))
 
 
 DRY_RUN_DESCRIPTION = (
