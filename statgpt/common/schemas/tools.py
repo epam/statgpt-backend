@@ -12,6 +12,7 @@ from .tool_details import (
     AvailableTermsDetails,
     BaseToolDetails,
     DatasetsMetadataDetails,
+    DeepResearchDetails,
     FileRagDetails,
     PlainContentDetails,
     SdmxQueryAppDetails,
@@ -129,6 +130,11 @@ class WebSearchTool(BaseToolConfig):
 class WebSearchAgentTool(BaseToolConfig):
     type: ToolTypes = ToolTypes.WEB_SEARCH_AGENT
     details: WebSearchAgentDetails = Field(default_factory=WebSearchAgentDetails)  # type: ignore
+
+
+class DeepResearchTool(BaseToolConfig):
+    type: ToolTypes = ToolTypes.DEEP_RESEARCH
+    details: DeepResearchDetails = Field(default_factory=DeepResearchDetails)  # type: ignore
 
 
 class AvailablePublicationsTool(BaseToolConfig):

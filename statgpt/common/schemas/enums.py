@@ -52,6 +52,7 @@ class ToolTypes(StrEnum):
     TERM_DEFINITIONS = "TERM_DEFINITIONS"
     WEB_SEARCH = "WEB_SEARCH"
     WEB_SEARCH_AGENT = "WEB_SEARCH_AGENT"
+    DEEP_RESEARCH = "DEEP_RESEARCH"
 
 
 class McpResourceTypes(StrEnum):
