@@ -107,7 +107,7 @@ resolutions:
     - message: ".*PyPI::zstandard:0\\..*"
       reason: "CANT_FIX_EXCEPTION"
       comment: "BSD 3-Clause License: https://github.com/indygreg/python-zstandard/blob/main/LICENSE"
-    - message: ".*PyPI::setuptools:80\\..*"
+    - message: ".*PyPI::setuptools:83\\..*"
       reason: "CANT_FIX_EXCEPTION"
       comment: "MIT License: https://github.com/pypa/setuptools/blob/main/LICENSE"
     - message: ".*PyPI::zipp:3\\..*"
