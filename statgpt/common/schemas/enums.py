@@ -63,7 +63,14 @@ class McpResourceTypes(StrEnum):
 
 class RAGVersion(StrEnum):
     DIAL = "DIAL"
-    """DIAL RAG PgVector"""
+    """DIAL RAG PgVector.
+
+    .. deprecated::
+        Use :attr:`GENERIC` instead. The DIAL RAG backend is kept for backward
+        compatibility and will be removed in a future release.
+    """
+    GENERIC = "GENERIC"
+    """Generic RAG DIAL application (reuses the DIAL RAG transport)"""
 
 
 class DecoderOfLatestEnum(StrEnum):

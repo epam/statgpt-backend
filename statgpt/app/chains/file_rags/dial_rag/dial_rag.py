@@ -157,6 +157,13 @@ class DialRagAgentFactory(BaseRAGFactory):
                 reference_type=attachment.get('reference_type'),
             )
 
+    def _build_extra_body(self, pre_filter_response: PreFilterResponse) -> dict | None:
+        """Build the `extra_body` (RAG configuration) sent with the chat completion request."""
+        rag_filter = pre_filter_response.rag_filter
+        if rag_filter is None:
+            return None
+        return {"custom_fields": {"configuration": rag_filter.as_dial_dict()}}
+
     async def _stream_response(self, inputs: dict) -> dict:
         logger.info(f'{type(self).__name__}._stream_response()')
 
@@ -206,9 +213,7 @@ class DialRagAgentFactory(BaseRAGFactory):
         inputs_to_log = {'query': query, 'prefilter': prefilter_dict}
         logger.info(f'calling DIAL RAG with following inputs: {inputs_to_log}')
 
-        configuration_params = (
-            None if prefilter_dict is None else {"custom_fields": {"configuration": prefilter_dict}}
-        )
+        configuration_params = self._build_extra_body(pre_filter_response)
 
         dial_rag_client = self._init_dial_rag_client(auth_context)
         deployment_name = self._tool_config.details.get_deployment_id()
