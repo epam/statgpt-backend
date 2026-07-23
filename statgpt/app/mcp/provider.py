@@ -128,7 +128,7 @@ class _McpToolAdapter(Tool):
             _log.exception("Error executing MCP tool %s", self._langchain_tool.name)
             raise ToolError(f"{self._langchain_tool.name} tool failed to execute")
         text = result.content if isinstance(result.content, str) else str(result.content)
-        content: list[ContentBlock] = [TextContent(type="text", text=text)]
+        content: list[ContentBlock] = [TextContent(type="text", text=text)] if text else []
         structured_content: (
             DataQueryStructuredContent
             | SdmxProxyStructuredContent

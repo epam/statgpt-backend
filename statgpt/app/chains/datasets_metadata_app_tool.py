@@ -26,7 +26,8 @@ class DatasetsMetadataAppTool(
 
         response = await build_channel_datasets_metadata(data_service.channel, auth_context)
 
-        return response.model_dump_json(), DatasetsMetadataAppArtifact(
+        artifact = DatasetsMetadataAppArtifact(
             state=ToolMessageState(type=self.tool_type),
             response=response,
         )
+        return "", artifact
