@@ -140,7 +140,7 @@ class _McpToolAdapter(Tool):
             resources = await asyncio.to_thread(data_query_artifact_to_resources, result.artifact)
             content.extend(resources)
             structured_content = data_query_artifact_to_structured_content(
-                result.artifact, self._channel_config
+                result.artifact, self._channel_config, message=text or None
             )
         elif isinstance(result.artifact, SdmxQueryAppArtifact):
             # Surface the upstream HTTP metadata so the MCP-App can distinguish success from

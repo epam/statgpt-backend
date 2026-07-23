@@ -254,18 +254,7 @@ class Sdmx21DataResponse(DataResponse):
 
     @property
     def json_query(self) -> JsonQueryWithMetadata:
-        return JsonQueryWithMetadata(
-            urn=self.dataset.short_urn,
-            filters=self._to_component_filters(self.sdmx_query),
-            metadata=JsonQueryMetadata(
-                country_dimension=self.dataset.config.country_dimension,
-                indicator_dimensions=self.dataset.config.indicator_dimensions,
-                time_period_dimension=self.dataset.config.time_period_dimension_id,
-                dataset_url=self.dataset.dataset_url,
-                key_dimension_ids_in_dsd_order=self.dataset.sdmx_key_dimension_ids_in_dsd_order,
-            ),
-            sdmx1_source=self.dataset.get_resolved_sdmx1_source(),
-        )
+        return self.dataset.sdmx_query_to_json_query(self.sdmx_query)
 
     def get_python_code_body(self, suffix: str = "") -> str | None:
         return self.dataset.get_python_code_body(self.sdmx_query, suffix=suffix)
@@ -319,53 +308,6 @@ class Sdmx21DataResponse(DataResponse):
             dataset_name=self.dataset.name,
             figure_title=(figure.layout.title.text or '').replace('<br>', ' '),
         )
-
-    @staticmethod
-    def _create_time_dimension_query(
-        time_dimension_query: TimeDimensionQuery | None,
-    ) -> JsonComponentQuery | None:
-        if not time_dimension_query:
-            return None
-
-        if time_dimension_query.start_period and time_dimension_query.end_period:
-            return JsonComponentQuery(
-                component_code=time_dimension_query.time_dimension_id,
-                operator=JsonQueryOperator.BETWEEN,
-                values=[
-                    time_dimension_query.start_period,
-                    time_dimension_query.end_period,
-                ],
-            )
-        elif time_dimension_query.start_period:
-            return JsonComponentQuery(
-                component_code=time_dimension_query.time_dimension_id,
-                operator=JsonQueryOperator.GE,
-                values=[time_dimension_query.start_period],
-            )
-        elif time_dimension_query.end_period:
-            return JsonComponentQuery(
-                component_code=time_dimension_query.time_dimension_id,
-                operator=JsonQueryOperator.LE,
-                values=[time_dimension_query.end_period],
-            )
-        return None
-
-    @classmethod
-    def _to_component_filters(cls, sdmx_query: SdmxDataSetQuery) -> list[JsonComponentQuery]:
-        res = [
-            JsonComponentQuery(
-                component_code=k,
-                operator=JsonQueryOperator.IN,
-                values=v,
-            )
-            for k, v in sdmx_query.categorical_dimensions.items()
-        ]
-
-        time_query = cls._create_time_dimension_query(sdmx_query.time_dimension_query)
-        if time_query:
-            res.append(time_query)
-
-        return res
 
 
 class Sdmx21DataSet(
@@ -905,6 +847,70 @@ class Sdmx21DataSet(
             elif dimension.is_time_dimension:
                 self._append_time_dimension_query(dimension_query, result)
         return result
+
+    def to_json_query(self, query: DataSetQuery) -> JsonQueryWithMetadata:
+        return self.sdmx_query_to_json_query(self._to_sdmx_query(query))
+
+    def sdmx_query_to_json_query(self, sdmx_query: SdmxDataSetQuery) -> JsonQueryWithMetadata:
+        return JsonQueryWithMetadata(
+            urn=self.short_urn,
+            filters=self._to_component_filters(sdmx_query),
+            metadata=JsonQueryMetadata(
+                country_dimension=self.config.country_dimension,
+                indicator_dimensions=self.config.indicator_dimensions,
+                time_period_dimension=self.config.time_period_dimension_id,
+                dataset_url=self.dataset_url,
+                key_dimension_ids_in_dsd_order=self.sdmx_key_dimension_ids_in_dsd_order,
+            ),
+            sdmx1_source=self.get_resolved_sdmx1_source(),
+        )
+
+    @classmethod
+    def _to_component_filters(cls, sdmx_query: SdmxDataSetQuery) -> list[JsonComponentQuery]:
+        res = [
+            JsonComponentQuery(
+                component_code=k,
+                operator=JsonQueryOperator.IN,
+                values=v,
+            )
+            for k, v in sdmx_query.categorical_dimensions.items()
+        ]
+
+        time_query = cls._create_time_dimension_query(sdmx_query.time_dimension_query)
+        if time_query:
+            res.append(time_query)
+
+        return res
+
+    @staticmethod
+    def _create_time_dimension_query(
+        time_dimension_query: TimeDimensionQuery | None,
+    ) -> JsonComponentQuery | None:
+        if not time_dimension_query:
+            return None
+
+        if time_dimension_query.start_period and time_dimension_query.end_period:
+            return JsonComponentQuery(
+                component_code=time_dimension_query.time_dimension_id,
+                operator=JsonQueryOperator.BETWEEN,
+                values=[
+                    time_dimension_query.start_period,
+                    time_dimension_query.end_period,
+                ],
+            )
+        elif time_dimension_query.start_period:
+            return JsonComponentQuery(
+                component_code=time_dimension_query.time_dimension_id,
+                operator=JsonQueryOperator.GE,
+                values=[time_dimension_query.start_period],
+            )
+        elif time_dimension_query.end_period:
+            return JsonComponentQuery(
+                component_code=time_dimension_query.time_dimension_id,
+                operator=JsonQueryOperator.LE,
+                values=[time_dimension_query.end_period],
+            )
+        return None
 
     def _to_sdmx_availability_query(
         self, availability_query: DataSetAvailabilityQuery

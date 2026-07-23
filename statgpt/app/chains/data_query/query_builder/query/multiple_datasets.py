@@ -50,10 +50,12 @@ class MultipleDatasetsChain:
             content += f"\n\n{self._agent_only_message}"
         return content
 
-    def _get_dataset_choices(self, inputs: dict) -> list[DataSetChoice]:
-        datasets_dict: dict[str, VersionedDataSet] = inputs["datasets_dict"]
-        dataset_queries: dict[str, DataSetQuery] = inputs["dataset_queries"]
-
+    @staticmethod
+    def build_dataset_choices(
+        datasets_dict: dict[str, VersionedDataSet],
+        dataset_queries: dict[str, DataSetQuery],
+    ) -> list[DataSetChoice]:
+        """Build the list of datasets the user/agent can choose from to disambiguate a query."""
         dataset_choices = []
         for dataset_id, versioned_dataset in datasets_dict.items():
             if dataset_id not in dataset_queries:
@@ -77,6 +79,5 @@ class MultipleDatasetsChain:
         return RunnablePassthrough.assign(
             **{
                 DataQueryParameters.RESPONSE_FIELD: self._get_response_content,
-                # DataQueryParameters.DATASET_CHOICES: self._get_dataset_choices,
             }
         )

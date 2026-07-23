@@ -8,6 +8,8 @@ from statgpt.app.chains.parameters import ChainParameters
 from statgpt.app.chains.utils import time_period_utils
 from statgpt.app.config import ChainParametersConfig, StateVarsConfig
 from statgpt.app.default_prompts import data_query_default_prompts
+from statgpt.app.schemas.enums import DataQueryStatus
+from statgpt.app.schemas.query import AppJsonQueryWithMetadata
 from statgpt.app.schemas.query_builder import (
     ChainState,
     DatasetAvailabilityQueriesType,
@@ -351,6 +353,36 @@ class FinalizeQueryChainFactory:
 
         return terms_id2name
 
+    @staticmethod
+    def _stamp_state(inputs: dict, status: DataQueryStatus, **payload) -> None:
+        """Record the pipeline outcome + payload on the already-built tool state.
+
+        ``set_tool_state`` runs before this routing step, so the state dict is present in
+        ``inputs`` and re-validated into ``QueryBuilderAgentState`` when the artifact is built.
+        """
+        state = inputs.get(DataQueryParameters.STATE)
+        if not isinstance(state, dict):
+            logger.warning("Data query state unavailable; cannot record status %s", status)
+            return
+        state["status"] = status.value
+        state.update({key: value for key, value in payload.items() if value is not None})
+
+    @staticmethod
+    def _build_constructed_queries(
+        dataset_queries: dict[str, DataSetQuery],
+        datasets_dict: dict,
+    ) -> list[AppJsonQueryWithMetadata]:
+        """Serialize constructed (not executed) queries for non-executed outcomes."""
+        constructed: list[AppJsonQueryWithMetadata] = []
+        for dataset_id, dataset_query in dataset_queries.items():
+            versioned_dataset = datasets_dict.get(dataset_id)
+            if versioned_dataset is None:
+                continue
+            json_query = versioned_dataset.data.to_json_query(dataset_query)
+            if json_query is not None:
+                constructed.append(AppJsonQueryWithMetadata.from_common(json_query))
+        return constructed
+
     async def _route_based_on_data_query_status(self, inputs: dict) -> Runnable:
         chain_state = ChainState(**inputs)
         dataset_queries = chain_state.dataset_queries
@@ -369,6 +401,7 @@ class FinalizeQueryChainFactory:
             #
             # Currently we don't differentiate between these cases,
             # and the message shown to user is misleading.
+            self._stamp_state(inputs, DataQueryStatus.NO_DATA)
             return await self._no_data_chain.create_chain(inputs)
 
         global_state = ChainParameters.get_state(inputs)
@@ -379,6 +412,13 @@ class FinalizeQueryChainFactory:
                 "queries were not executed, their status (valid/invalid) is unknown, "
                 "because data query post-processing is disabled in config"
             )
+            self._stamp_state(
+                inputs,
+                DataQueryStatus.NOT_EXECUTED,
+                constructed_queries=self._build_constructed_queries(
+                    dataset_queries, chain_state.datasets_dict
+                ),
+            )
             return RunnablePassthrough.assign(
                 **{DataQueryParameters.RESPONSE_FIELD: lambda _: response}
             )
@@ -386,12 +426,21 @@ class FinalizeQueryChainFactory:
         valid_queries = {ds_id: dq for ds_id, dq in dataset_queries.items() if dq.is_valid}
 
         if self._config.clarify_if_multiple_datasets and len(valid_queries) > 1:
+            self._stamp_state(
+                inputs,
+                DataQueryStatus.DATASET_SELECTION_REQUIRED,
+                candidate_datasets=MultipleDatasetsChain.build_dataset_choices(
+                    chain_state.datasets_dict, valid_queries
+                ),
+            )
             return (
                 self._summarize_queries_chain.create_chain
                 | await self._multiple_datasets_chain.create_chain()
             )
 
         if len(valid_queries) >= 1:
+            # data_available vs no_data is decided in ExecuteQueryChain, which knows whether
+            # the executed query returned any rows.
             return (
                 RunnablePassthrough.assign(
                     **{ChainParametersConfig.DATASET_QUERIES: lambda _: valid_queries}
@@ -400,6 +449,13 @@ class FinalizeQueryChainFactory:
             )
 
         if any(q.invalidity_reason is not None for q in dataset_queries.values()):
+            self._stamp_state(
+                inputs,
+                DataQueryStatus.INVALID_TIME_PERIOD,
+                constructed_queries=self._build_constructed_queries(
+                    dataset_queries, chain_state.datasets_dict
+                ),
+            )
             return (
                 self._summarize_queries_chain.create_chain
                 | self._invalid_time_period_chain.create_chain()
@@ -408,6 +464,17 @@ class FinalizeQueryChainFactory:
         # all queries are invalid: have some dimensions are missing
         # ToDo: adjust to process multiple datasets
         dataset_id = next(iter(dataset_queries))
+
+        self._stamp_state(
+            inputs,
+            DataQueryStatus.MISSING_DIMENSIONS,
+            missing_dimensions=IncompleteQueriesChain.build_missing_dimensions_info(
+                dataset_id,
+                chain_state.datasets_dict[dataset_id],
+                dataset_queries[dataset_id],
+                chain_state.strong_availability[dataset_id],
+            ),
+        )
 
         query_formatter = DatasetQueryFormatter(
             config=DatasetQueryFormatterConfig(

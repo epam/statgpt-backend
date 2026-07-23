@@ -10,6 +10,7 @@ from langchain_core.runnables import (
 from statgpt.app.chains.data_query.parameters import DataQueryParameters
 from statgpt.app.chains.parameters import ChainParameters
 from statgpt.app.config import ChainParametersConfig
+from statgpt.app.schemas.enums import DataQueryStatus
 from statgpt.app.schemas.query_builder import ChainState
 from statgpt.app.services.chat_facade import VersionedDataSet
 from statgpt.app.utils.callbacks import StageCallback
@@ -72,6 +73,18 @@ class ExecuteQueryChain:
         response_content += f"\n[Data Query executed at {timestamp}]"
 
         inputs[DataQueryParameters.RESPONSE_FIELD] = response_content
+
+        # The query was built and executed; report data_available only when at least one
+        # response actually carries rows, otherwise treat it as no_data.
+        has_data = any(
+            response is not None and not response.csv_dataframe.empty
+            for response in (data_responses or {}).values()
+        )
+        state = inputs.get(DataQueryParameters.STATE)
+        if isinstance(state, dict):
+            state["status"] = (
+                DataQueryStatus.DATA_AVAILABLE if has_data else DataQueryStatus.NO_DATA
+            ).value
         return inputs
 
     @classmethod

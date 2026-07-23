@@ -328,6 +328,15 @@ class DataSet(BaseEntity, Generic[DataSetConfigType, DataSourceHandlerType], ABC
     async def query(self, query: DataSetQuery, auth_context: AuthContext) -> DataResponse | None:
         pass
 
+    def to_json_query(self, query: DataSetQuery) -> JsonQueryWithMetadata | None:
+        """Serialize a constructed (not necessarily executed) query to a JSON query model.
+
+        Mirrors the shape of ``DataResponse.json_query`` so callers can surface a query
+        even when it was never executed (e.g. an invalid or not-yet-run query). Returns
+        None when the dataset kind has no JSON query representation.
+        """
+        return None
+
 
 class OfflineDataSet(DataSet, Generic[DataSetConfigType, DataSourceHandlerType], ABC):
     """Class for cases where dataset loading failed"""

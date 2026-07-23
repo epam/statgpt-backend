@@ -12,6 +12,7 @@ from mcp.types import EmbeddedResource, TextContent
 
 from statgpt.app.chains.out_of_scope_checker import OutOfScopeCheckerResponse
 from statgpt.app.mcp.provider import ChannelToolProvider, _McpToolAdapter, _tool_app_config
+from statgpt.app.schemas.enums import DataQueryStatus
 from statgpt.app.schemas.service import ChannelDatasetsMetadataResponse
 from statgpt.app.schemas.tool_artifact import (
     DataQueryArtifact,
@@ -58,6 +59,15 @@ def _json_query(urn: str) -> JsonQueryWithMetadata:
     )
 
 
+def _state(status: DataQueryStatus = DataQueryStatus.DATA_AVAILABLE) -> SimpleNamespace:
+    return SimpleNamespace(
+        status=status,
+        constructed_queries=[],
+        candidate_datasets=[],
+        missing_dimensions=None,
+    )
+
+
 async def test_data_query_artifact_adds_csv_resources():
     df = pd.DataFrame({"x": [1, 2]})
     response = SimpleNamespace(
@@ -67,7 +77,7 @@ async def test_data_query_artifact_adds_csv_resources():
         created_at=datetime(2026, 4, 20, 15, 30, 0, tzinfo=timezone.utc),
         json_query=_json_query("IMF:CPI(1.0.0)"),
     )
-    artifact = DataQueryArtifact.model_construct(data_responses={"ds1": response})
+    artifact = DataQueryArtifact.model_construct(data_responses={"ds1": response}, state=_state())
     result = SimpleNamespace(content="answer", artifact=artifact)
     adapter = _build_adapter(result)
 
@@ -80,27 +90,26 @@ async def test_data_query_artifact_adds_csv_resources():
     assert resources[0].resource.mimeType == "text/csv"
     structured = tool_result.structured_content
     assert structured is not None
+    assert structured["status"] == DataQueryStatus.DATA_AVAILABLE
     assert [q["urn"] for q in structured["queries"]] == ["IMF:CPI(1.0.0)"]
     assert structured["tools"] == {"sdmxProxy": "sdmx_query_app"}
-    assert structured["version"] == 1
+    assert structured["version"] == 2
     assert "import sdmx" in structured["pythonCode"]
 
 
-async def test_data_query_artifact_without_query_has_no_structured_content():
-    df = pd.DataFrame({"x": [1]})
-    response = SimpleNamespace(
-        resource_path="IMF:CPI(1.0.0)",
-        visual_dataframe=df,
-        csv_dataframe=df,
-        created_at=datetime(2026, 4, 20, 15, 30, 0, tzinfo=timezone.utc),
-        json_query=None,
+async def test_data_query_no_data_returns_status_and_message():
+    artifact = DataQueryArtifact.model_construct(
+        data_responses={}, state=_state(DataQueryStatus.NO_DATA)
     )
-    artifact = DataQueryArtifact.model_construct(data_responses={"ds1": response})
-    adapter = _build_adapter(SimpleNamespace(content="answer", artifact=artifact))
+    adapter = _build_adapter(SimpleNamespace(content="No relevant data found.", artifact=artifact))
 
     tool_result = await adapter.run({})
 
-    assert tool_result.structured_content is None
+    structured = tool_result.structured_content
+    assert structured is not None
+    assert structured["status"] == DataQueryStatus.NO_DATA
+    assert structured["message"] == "No relevant data found."
+    assert structured["queries"] == []
 
 
 async def test_data_query_structured_content_omits_sdmx_proxy_when_unconfigured():
@@ -112,7 +121,7 @@ async def test_data_query_structured_content_omits_sdmx_proxy_when_unconfigured(
         created_at=datetime(2026, 4, 20, 15, 30, 0, tzinfo=timezone.utc),
         json_query=_json_query("IMF:CPI(1.0.0)"),
     )
-    artifact = DataQueryArtifact.model_construct(data_responses={"ds1": response})
+    artifact = DataQueryArtifact.model_construct(data_responses={"ds1": response}, state=_state())
     adapter = _build_adapter(
         SimpleNamespace(content="answer", artifact=artifact), sdmx_query_app=None
     )

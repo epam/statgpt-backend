@@ -4,6 +4,8 @@ import pandas as pd
 from pydantic import BaseModel, ConfigDict, Field
 
 from statgpt.app.config import StateVarsConfig
+from statgpt.app.schemas.enums import DataQueryStatus
+from statgpt.app.schemas.query import AppJsonQueryWithMetadata
 from statgpt.app.services.chat_facade import (
     ChannelServiceFacade,
     ScoredDimensionCandidate,
@@ -20,6 +22,7 @@ from statgpt.common.data.base import (
     QueryOperator,
 )
 from statgpt.common.schemas import ToolTypes
+from statgpt.common.schemas.base import BaseYamlModel
 
 from .selection_candidates import (
     BatchedSelectionOutputBase,
@@ -195,6 +198,53 @@ class SpecialDimensionChainOutput(BaseModel):
         )
 
 
+class DataSetChoice(BaseYamlModel):
+    """
+    Represent a dataset choice available for selection by either agent or user.
+    """
+
+    id: str = Field(description="The unique identifier of the dataset, used for selection.")
+    name: str = Field(description="The human-readable name of the dataset, used for display.")
+    description: str | None = Field(
+        default=None,
+        description="A brief description of the dataset, providing context and details.",
+    )
+    is_official: bool = Field(
+        default=False,
+        description="Indicates whether the dataset is official or not.",
+    )
+
+
+class DimensionValueInfo(BaseYamlModel):
+    """An available value of a dimension the user can pick from."""
+
+    id: str = Field(description="The dimension value id used in queries.")
+    name: str = Field(description="The human-readable name of the value.")
+    description: str | None = Field(
+        default=None, description="An optional description of the value."
+    )
+
+
+class MissingDimensionInfo(BaseYamlModel):
+    """A required dimension not yet specified, with the values available to choose from."""
+
+    dimension_id: str = Field(description="The entity id of the missing dimension.")
+    name: str = Field(description="The human-readable name of the missing dimension.")
+    available_values: list[DimensionValueInfo] = Field(
+        default_factory=list,
+        description="Values available for this dimension given the rest of the query.",
+    )
+
+
+class MissingDimensionsInfo(BaseYamlModel):
+    """Describes why a query is incomplete: which dimensions still need a value."""
+
+    dataset_id: str = Field(description="The dataset the missing dimensions belong to.")
+    dimensions: list[MissingDimensionInfo] = Field(
+        default_factory=list, description="The missing required dimensions."
+    )
+
+
 class QueryBuilderAgentState(ToolMessageState):
     """
     Output model to access selected artifacts of a Query Builder Agent.
@@ -252,6 +302,23 @@ class QueryBuilderAgentState(ToolMessageState):
             "Per-phase timing breakdown of the hybrid indicator search. "
             "None when debug stages are disabled."
         ),
+    )
+    status: DataQueryStatus = Field(
+        default=DataQueryStatus.NO_DATA,
+        description="Outcome of the data query pipeline (which branch produced the response).",
+    )
+    constructed_queries: list[AppJsonQueryWithMetadata] = Field(
+        default_factory=list,
+        description="Queries constructed but not executed, surfaced for non-executed outcomes "
+        "(invalid time period, not executed).",
+    )
+    candidate_datasets: list[DataSetChoice] = Field(
+        default_factory=list,
+        description="Datasets to choose from when the query matches multiple datasets.",
+    )
+    missing_dimensions: MissingDimensionsInfo | None = Field(
+        default=None,
+        description="Required dimensions the user must specify, when the query is incomplete.",
     )
 
 
@@ -434,20 +501,3 @@ class MetaStateKeys:
 
     CHAIN_STATE = 'chain_state'  # main state
     SPECIAL_DIMENSIONS_OUTPUTS = 'special_dims_outputs'
-
-
-class DataSetChoice(BaseModel):
-    """
-    Represent a dataset choice available for selection by either agent or user.
-    """
-
-    id: str = Field(description="The unique identifier of the dataset, used for selection.")
-    name: str = Field(description="The human-readable name of the dataset, used for display.")
-    description: str | None = Field(
-        default=None,
-        description="A brief description of the dataset, providing context and details.",
-    )
-    is_official: bool = Field(
-        default=False,
-        description="Indicates whether the dataset is official or not.",
-    )
