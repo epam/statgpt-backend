@@ -19,6 +19,7 @@ from .tools import (
     AvailableTermsTool,
     BaseToolConfig,
     DataQueryTool,
+    DatasetsMetadataAppTool,
     DatasetsMetadataTool,
     DatasetStructureTool,
     DeepResearchTool,
@@ -332,6 +333,7 @@ class ChannelConfig(BaseYamlModel):
     file_rag: FileRagTool | None = Field(None)
     plain_content: PlainContentTool | None = Field(None)
     sdmx_query_app: SdmxQueryAppTool | None = Field(None)
+    datasets_metadata_app: DatasetsMetadataAppTool | None = Field(None)
     term_definitions: TermDefinitionsTool | None = Field(None)
     web_search: WebSearchTool | None = Field(None)
     web_search_agent: WebSearchAgentTool | None = Field(None)
@@ -349,6 +351,7 @@ class ChannelConfig(BaseYamlModel):
             'file_rag',
             'plain_content',
             'sdmx_query_app',
+            'datasets_metadata_app',
             'term_definitions',
             'web_search',
             'web_search_agent',

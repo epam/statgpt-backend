@@ -59,6 +59,7 @@ from .tools import (
     AvailablePublicationsTool,
     BaseToolConfig,
     DataQueryTool,
+    DatasetsMetadataAppTool,
     DatasetsMetadataTool,
     DatasetStructureTool,
     DeepResearchTool,

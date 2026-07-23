@@ -163,6 +163,17 @@ class SdmxQueryAppTool(BaseToolConfig):
     details: SdmxQueryAppDetails
 
 
+class DatasetsMetadataAppTool(BaseToolConfig):
+    type: ToolTypes = ToolTypes.DATASETS_METADATA_APP
+    # MCP-only by design: consumed by the MCP-App (UI widget), never by the Supreme Agent.
+    # Pinned to True so a YAML config cannot opt out.
+    mcp_only: Literal[True] = True
+    # App-only by default so the model never sees this metadata tool; still overridable.
+    mcp_visibility: list[Literal["model", "app"]] | None = Field(
+        default_factory=_app_only_visibility
+    )
+
+
 class AvailableTermsTool(BaseToolConfig):
     type: ToolTypes = ToolTypes.AVAILABLE_TERMS
     details: AvailableTermsDetails = Field(default_factory=AvailableTermsDetails)

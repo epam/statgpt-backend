@@ -17,6 +17,7 @@ from .state import ChatState
 from .tool_artifact import (
     BaseFileRagArtifact,
     DataQueryArtifact,
+    DatasetsMetadataAppArtifact,
     DialRagArtifact,
     FailedToolArtifact,
     SdmxQueryAppArtifact,

@@ -11,13 +11,12 @@ from statgpt.app.schemas import (
     SettingsResponse,
 )
 from statgpt.app.security import DialAuthCredentials, create_auth_context
+from statgpt.app.services.channel_datasets_metadata import build_channel_datasets_metadata
 from statgpt.app.services.chat_facade import ChannelServiceFacade
 from statgpt.app.services.python_code_generator import generate_merged_python_code
 from statgpt.app.settings.dial_app import dial_app_settings
 from statgpt.common.auth.auth_context import AuthContext
 from statgpt.common.config import Versions
-from statgpt.common.models.database import get_readonly_session_context_manager
-from statgpt.common.services.dataset import DataSetService
 
 router = APIRouter()
 
@@ -109,25 +108,7 @@ async def channel_datasets_metadata(
             detail="The API deployment for this resource does not exist.",
         )
 
-    async with get_readonly_session_context_manager() as session:
-        datasets = await DataSetService(session).get_channel_dataset_schemas_with_last_updated(
-            limit=None,
-            offset=0,
-            channel_id=service.channel.id,
-            auth_context=auth_context,
-        )
-
-    for ds in datasets:
-        resolved = ds.last_completed_version and ds.last_completed_version.resolved_config
-        if resolved:
-            ds.dataset = ds.dataset.model_copy(update={"details": resolved})
-
-    return ChannelDatasetsMetadataResponse(
-        deployment_id=service.channel.deployment_id,
-        title=service.channel.title,
-        n_datasets=len(datasets),
-        datasets=datasets,
-    )
+    return await build_channel_datasets_metadata(service.channel, auth_context)
 
 
 @router.post("/python-attachment")
