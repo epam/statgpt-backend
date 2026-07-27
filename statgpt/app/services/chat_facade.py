@@ -219,8 +219,6 @@ class DeepResearchChannelConfiguration(BaseChannelConfiguration):
     frontend renders the control exclusively where the capability is available.
     """
 
-    # Re-declared so `FormMetaclass` re-emits the `dial:chatMessageInputDisabled`
-    # schema extension; otherwise this subclass would drop it relative to the base.
     model_config = DialConfigDict(chat_message_input_disabled=False)
 
     deep_research: bool = DialField(
