@@ -12,9 +12,11 @@ from statgpt.app.schemas.enums import DataQueryStatus
 from statgpt.app.schemas.query import AppJsonQueryWithMetadata
 from statgpt.app.schemas.query_builder import (
     ChainState,
+    DataQueryMcpPayload,
     DatasetAvailabilityQueriesType,
     DatasetDimensionTermNameType,
 )
+from statgpt.app.services.chat_facade import VersionedDataSet
 from statgpt.app.utils.callbacks import StageCallback
 from statgpt.app.utils.datetime_adjuster import expand_time_range
 from statgpt.app.utils.formatters import (
@@ -355,22 +357,28 @@ class FinalizeQueryChainFactory:
 
     @staticmethod
     def _stamp_state(inputs: dict, status: DataQueryStatus, **payload) -> None:
-        """Record the pipeline outcome + payload on the already-built tool state.
+        """Record the pipeline outcome on the tool state and the MCP-only payload separately.
 
-        ``set_tool_state`` runs before this routing step, so the state dict is present in
-        ``inputs`` and re-validated into ``QueryBuilderAgentState`` when the artifact is built.
+        The ``status`` is written onto the persisted ``QueryBuilderAgentState`` dict (``set_tool_state``
+        runs before this routing step, so it is present in ``inputs``). The payload fields
+        (constructed queries, candidate datasets, missing dimensions) go into a separate
+        ``DataQueryMcpPayload`` under ``DataQueryParameters.MCP_PAYLOAD`` so they never reach the
+        persisted state — they are consumed only when building the MCP structured content.
         """
         state = inputs.get(DataQueryParameters.STATE)
         if not isinstance(state, dict):
             logger.warning("Data query state unavailable; cannot record status %s", status)
             return
         state["status"] = status.value
-        state.update({key: value for key, value in payload.items() if value is not None})
+
+        cleaned = {key: value for key, value in payload.items() if value is not None}
+        if cleaned:
+            inputs[DataQueryParameters.MCP_PAYLOAD] = DataQueryMcpPayload(**cleaned)
 
     @staticmethod
     def _build_constructed_queries(
         dataset_queries: dict[str, DataSetQuery],
-        datasets_dict: dict,
+        datasets_dict: dict[str, VersionedDataSet],
     ) -> list[AppJsonQueryWithMetadata]:
         """Serialize constructed (not executed) queries for non-executed outcomes."""
         constructed: list[AppJsonQueryWithMetadata] = []

@@ -6,7 +6,11 @@ from pydantic import Field
 
 from statgpt.app.chains.tools import GuardrailInput, StatGptTool, ToolArgs
 from statgpt.app.config import ChainParametersConfig
-from statgpt.app.schemas.query_builder import DataQueryEvalAttachment, QueryBuilderAgentState
+from statgpt.app.schemas.query_builder import (
+    DataQueryEvalAttachment,
+    DataQueryMcpPayload,
+    QueryBuilderAgentState,
+)
 from statgpt.app.schemas.tool_artifact import DataQueryArtifact
 from statgpt.common.config import multiline_logger as logger
 from statgpt.common.data.base import DataResponse
@@ -54,10 +58,16 @@ class DataQueryTool(StatGptTool[DataQueryToolConfig], tool_type=ToolTypes.DATA_Q
             if v is not None
         }
         state: QueryBuilderAgentState = res.get(DataQueryParameters.STATE, QueryBuilderAgentState())
+        mcp_payload: DataQueryMcpPayload = res.get(
+            DataQueryParameters.MCP_PAYLOAD, DataQueryMcpPayload()
+        )
         eval_attachment: DataQueryEvalAttachment = res.get(
             DataQueryParameters.EVAL_ATTACHMENT, DataQueryEvalAttachment()
         )
 
         return response_str, DataQueryArtifact(
-            data_responses=data_responses, state=state, eval_attachment=eval_attachment
+            data_responses=data_responses,
+            state=state,
+            mcp_payload=mcp_payload,
+            eval_attachment=eval_attachment,
         )

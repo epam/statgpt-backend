@@ -307,6 +307,16 @@ class QueryBuilderAgentState(ToolMessageState):
         default=DataQueryStatus.NO_DATA,
         description="Outcome of the data query pipeline (which branch produced the response).",
     )
+
+
+class DataQueryMcpPayload(BaseModel):
+    """MCP-response-only data captured for a single data query invocation.
+
+    Lives on the in-memory ``DataQueryArtifact``, never on the persisted ``QueryBuilderAgentState``,
+    so these potentially heavy payloads aren't serialized to the DIAL server or carried across turns
+    (they are consumed only when building the MCP structured content).
+    """
+
     constructed_queries: list[AppJsonQueryWithMetadata] = Field(
         default_factory=list,
         description="Queries constructed but not executed, surfaced for non-executed outcomes "

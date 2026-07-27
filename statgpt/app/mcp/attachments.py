@@ -58,6 +58,7 @@ def data_query_artifact_to_structured_content(
     - ``no_data``: just the status and the human-readable message.
     """
     state = artifact.state
+    mcp_payload = artifact.mcp_payload
     status = state.status
 
     sdmx_query_app = channel_config.sdmx_query_app
@@ -79,7 +80,7 @@ def data_query_artifact_to_structured_content(
         )
 
     if status in (DataQueryStatus.INVALID_TIME_PERIOD, DataQueryStatus.NOT_EXECUTED):
-        queries = state.constructed_queries
+        queries = mcp_payload.constructed_queries
         return DataQueryStructuredContent(
             status=status,
             queries=queries,
@@ -89,12 +90,18 @@ def data_query_artifact_to_structured_content(
 
     if status is DataQueryStatus.DATASET_SELECTION_REQUIRED:
         return DataQueryStructuredContent(
-            status=status, message=message, candidate_datasets=state.candidate_datasets, tools=tools
+            status=status,
+            message=message,
+            candidate_datasets=mcp_payload.candidate_datasets,
+            tools=tools,
         )
 
     if status is DataQueryStatus.MISSING_DIMENSIONS:
         return DataQueryStructuredContent(
-            status=status, message=message, missing_dimensions=state.missing_dimensions, tools=tools
+            status=status,
+            message=message,
+            missing_dimensions=mcp_payload.missing_dimensions,
+            tools=tools,
         )
 
     # no_data (and any status without a dedicated payload)

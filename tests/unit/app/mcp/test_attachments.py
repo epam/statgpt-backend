@@ -11,6 +11,7 @@ from statgpt.app.mcp.attachments import (
 from statgpt.app.schemas.enums import DataQueryStatus
 from statgpt.app.schemas.query import AppJsonQueryWithMetadata
 from statgpt.app.schemas.query_builder import (
+    DataQueryMcpPayload,
     DataSetChoice,
     DimensionValueInfo,
     MissingDimensionInfo,
@@ -28,25 +29,35 @@ _FIXED_TS = datetime(2026, 4, 20, 15, 30, 0, tzinfo=timezone.utc)
 _FIXED_TS_STR = _FIXED_TS.strftime("%Y%m%dT%H%M%SZ")
 
 
-def _state(
-    status: DataQueryStatus = DataQueryStatus.DATA_AVAILABLE,
+def _state(status: DataQueryStatus = DataQueryStatus.DATA_AVAILABLE) -> SimpleNamespace:
+    # The converter only reads `status` off the artifact's state.
+    return SimpleNamespace(status=status)
+
+
+def _mcp_payload(
     *,
     constructed_queries: list | None = None,
     candidate_datasets: list | None = None,
     missing_dimensions: MissingDimensionsInfo | None = None,
-) -> SimpleNamespace:
-    # The converter only reads these fields off the artifact's state.
-    return SimpleNamespace(
-        status=status,
+) -> DataQueryMcpPayload:
+    return DataQueryMcpPayload(
         constructed_queries=constructed_queries or [],
         candidate_datasets=candidate_datasets or [],
         missing_dimensions=missing_dimensions,
     )
 
 
-def _make_artifact(data_responses: dict, state: SimpleNamespace | None = None) -> DataQueryArtifact:
-    # Bypass pydantic validation — the converter only reads data_responses and state.
-    return DataQueryArtifact.model_construct(data_responses=data_responses, state=state or _state())
+def _make_artifact(
+    data_responses: dict,
+    state: SimpleNamespace | None = None,
+    mcp_payload: DataQueryMcpPayload | None = None,
+) -> DataQueryArtifact:
+    # Bypass pydantic validation — the converter only reads data_responses, state and mcp_payload.
+    return DataQueryArtifact.model_construct(
+        data_responses=data_responses,
+        state=state or _state(),
+        mcp_payload=mcp_payload or _mcp_payload(),
+    )
 
 
 def _channel_config(sdmx_proxy_name: str | None = "sdmx_query_app") -> SimpleNamespace:
@@ -249,7 +260,9 @@ def test_structured_content_dataset_selection_carries_candidates():
         DataSetChoice(id="BIS:IR", name="Rates"),
     ]
     artifact = _make_artifact(
-        {}, state=_state(DataQueryStatus.DATASET_SELECTION_REQUIRED, candidate_datasets=candidates)
+        {},
+        state=_state(DataQueryStatus.DATASET_SELECTION_REQUIRED),
+        mcp_payload=_mcp_payload(candidate_datasets=candidates),
     )
 
     structured = data_query_artifact_to_structured_content(artifact, _channel_config())
@@ -273,7 +286,9 @@ def test_structured_content_missing_dimensions_carries_payload():
         ],
     )
     artifact = _make_artifact(
-        {}, state=_state(DataQueryStatus.MISSING_DIMENSIONS, missing_dimensions=missing)
+        {},
+        state=_state(DataQueryStatus.MISSING_DIMENSIONS),
+        mcp_payload=_mcp_payload(missing_dimensions=missing),
     )
 
     structured = data_query_artifact_to_structured_content(artifact, _channel_config())
@@ -292,10 +307,8 @@ def test_structured_content_missing_dimensions_carries_payload():
 def test_structured_content_invalid_time_period_uses_constructed_queries():
     artifact = _make_artifact(
         {},
-        state=_state(
-            DataQueryStatus.INVALID_TIME_PERIOD,
-            constructed_queries=[_app_query("IMF:CPI(1.0.0)")],
-        ),
+        state=_state(DataQueryStatus.INVALID_TIME_PERIOD),
+        mcp_payload=_mcp_payload(constructed_queries=[_app_query("IMF:CPI(1.0.0)")]),
     )
 
     structured = data_query_artifact_to_structured_content(artifact, _channel_config())

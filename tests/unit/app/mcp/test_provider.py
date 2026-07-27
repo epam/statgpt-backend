@@ -60,12 +60,7 @@ def _json_query(urn: str) -> JsonQueryWithMetadata:
 
 
 def _state(status: DataQueryStatus = DataQueryStatus.DATA_AVAILABLE) -> SimpleNamespace:
-    return SimpleNamespace(
-        status=status,
-        constructed_queries=[],
-        candidate_datasets=[],
-        missing_dimensions=None,
-    )
+    return SimpleNamespace(status=status)
 
 
 async def test_data_query_artifact_adds_csv_resources():

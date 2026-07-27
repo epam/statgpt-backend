@@ -4,7 +4,7 @@ from statgpt.common.data.base import DataResponse
 from statgpt.common.schemas import ToolTypes
 
 from .file_rags import BaseRagState, DialRagState
-from .query_builder import DataQueryEvalAttachment, QueryBuilderAgentState
+from .query_builder import DataQueryEvalAttachment, DataQueryMcpPayload, QueryBuilderAgentState
 from .service import ChannelDatasetsMetadataResponse
 from .tool_states import FailedToolMessageState, ToolMessageState
 
@@ -30,6 +30,10 @@ class DataQueryArtifact(ToolArtifact):
     data_responses: dict[str, DataResponse] = Field(
         description="Mapping from dataset id to response "
         "if the data request was successfully built and executed."
+    )
+    mcp_payload: DataQueryMcpPayload = Field(
+        default_factory=DataQueryMcpPayload,
+        description="MCP-response-only data (not persisted to the tool state).",
     )
     eval_attachment: DataQueryEvalAttachment = Field(
         description="Attachment containing additional information for evaluation."
