@@ -222,7 +222,7 @@ class DeepResearchChannelConfiguration(BaseChannelConfiguration):
     model_config = DialConfigDict(chat_message_input_disabled=False)
 
     deep_research: bool = DialField(
-        title="Enable Deep research",
+        title="Deep research",
         description="Run the request in Deep Research mode.",
         default=False,
     )

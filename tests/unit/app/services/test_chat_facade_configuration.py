@@ -76,7 +76,7 @@ class TestDeepResearchConfiguration:
 
         prop = schema["properties"]["deep_research"]
         assert prop["type"] == "boolean"
-        assert prop["title"] == "Enable Deep research"
+        assert prop["title"] == "Deep research"
         assert prop["default"] is False
         # the base schema stays intact aside from the added toggle
         assert schema.get("dial:chatMessageInputDisabled") is False
@@ -92,5 +92,5 @@ class TestDeepResearchConfiguration:
             _channel_config(deep_research=_deep_research_tool(), starters=starters)
         )
 
-        assert schema["properties"]["deep_research"]["title"] == "Enable Deep research"
+        assert schema["properties"]["deep_research"]["title"] == "Deep research"
         assert "starter" in schema["properties"]
