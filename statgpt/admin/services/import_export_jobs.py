@@ -25,6 +25,7 @@ from statgpt.common.schemas import AuditActionType, AuditEntityType
 from statgpt.common.settings.dial import dial_settings
 from statgpt.common.utils import (
     AttachmentsStorage,
+    MediaTypes,
     attachments_storage_factory,
     dial_client_factory,
     format_exception_reason,
@@ -307,6 +308,7 @@ class JobsService:
                     resp = await attachments_storage.put_local_file(
                         f"{JobsConfig.DIAL_EXPORT_FOLDER}/{os.path.basename(path)}",
                         path,
+                        mime_type=MediaTypes.ZIP,
                         show_progress=True,
                     )
                     file_url = resp.url
