@@ -212,6 +212,22 @@ class BaseChannelConfiguration(BaseModel, metaclass=FormMetaclass):
     )
 
 
+class DeepResearchChannelConfiguration(BaseChannelConfiguration):
+    """Configuration variant that advertises the Deep Research toggle.
+
+    Used only for channels that have the Deep Research tool configured, so the
+    frontend renders the control exclusively where the capability is available.
+    """
+
+    model_config = DialConfigDict(chat_message_input_disabled=False)
+
+    deep_research: bool = DialField(
+        title="Deep research",
+        description="Run the request in Deep Research mode.",
+        default=False,
+    )
+
+
 class ChannelServiceFacade:
     _indicators_total_cache: AsyncLoadingCache[int] = AsyncLoadingCache(
         ttl=dial_app_settings.indicators_total_cache_ttl
@@ -278,14 +294,25 @@ class ChannelServiceFacade:
     def channel_config(self) -> ChannelConfig:
         return self._channel.details
 
+    def _is_deep_research_available(self) -> bool:
+        """Whether the channel has the Deep Research tool configured and enabled."""
+        tool = self.channel_config.deep_research
+        return tool is not None and tool.enabled
+
     async def get_dial_channel_configuration(self, auth_context: AuthContext) -> dict[str, Any]:
+        base_configuration_cls: type[BaseChannelConfiguration] = (
+            DeepResearchChannelConfiguration
+            if self._is_deep_research_available()
+            else BaseChannelConfiguration
+        )
+
         conversation_starters_config = self.channel_config.conversation_starters
         if conversation_starters_config is None:
             _log.info(
                 f"No conversation starters configuration found for channel {self._channel.title}"
             )
 
-            return BaseChannelConfiguration.model_json_schema()
+            return base_configuration_cls.model_json_schema()
 
         _log.info(
             f"Conversation starters configuration found for channel {self._channel.title}, {conversation_starters_config=}"
@@ -320,7 +347,7 @@ class ChannelServiceFacade:
         if input_placeholder is not None:
             other_fields["json_schema_extra"] = {"statgpt:inputPlaceholder": input_placeholder}
 
-        class StatGPTConfiguration(BaseChannelConfiguration):
+        class StatGPTConfiguration(base_configuration_cls):  # type: ignore[misc,valid-type]
             starter: int | None = DialField(
                 default=None, description=intro_text, buttons=buttons, **other_fields
             )
