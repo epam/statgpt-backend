@@ -45,3 +45,4 @@ class MediaTypes:
     UNKNOWN_BINARY = "application/octet-stream"
     XLS = "application/vnd.ms-excel"  # .xls
     XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"  # .xlsx
+    ZIP = "application/zip"  # .zip
