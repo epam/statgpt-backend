@@ -3,8 +3,9 @@ from pydantic import BaseModel, ConfigDict, Field
 from statgpt.common.data.base import DataResponse
 from statgpt.common.schemas import ToolTypes
 
+from .data_query_outcome import DataQueryMcpPayload
 from .file_rags import BaseRagState, DialRagState
-from .query_builder import DataQueryEvalAttachment, DataQueryMcpPayload, QueryBuilderAgentState
+from .query_builder import DataQueryEvalAttachment, QueryBuilderAgentState
 from .service import ChannelDatasetsMetadataResponse
 from .tool_states import FailedToolMessageState, ToolMessageState
 

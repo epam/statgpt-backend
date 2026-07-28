@@ -11,6 +11,7 @@ from langchain_core.runnables import (
 from statgpt.app.chains.data_query.parameters import DataQueryParameters
 from statgpt.app.chains.data_query.query_builder import utils as query_utils
 from statgpt.app.chains.parameters import ChainParameters
+from statgpt.app.schemas.data_query_outcome import DataQueryStatus
 from statgpt.app.schemas.query_builder import ChainState, MetaStateKeys
 from statgpt.app.utils.callbacks import StageCallback
 from statgpt.common.config import multiline_logger as logger
@@ -112,6 +113,11 @@ class DimensionSearchChainFactory(DimensionSearchChainFactoryBase):
             )
         )
 
+    @staticmethod
+    def _stamp_no_data_status(inputs: dict) -> dict:
+        query_utils.set_data_query_status(inputs, DataQueryStatus.NO_DATA)
+        return inputs
+
     async def _route_based_on_nonindicators_status(self, inputs: dict) -> Runnable:
         chain_state = ChainState(**inputs)
         country_entities = chain_state.country_named_entities
@@ -144,7 +150,11 @@ class DimensionSearchChainFactory(DimensionSearchChainFactoryBase):
             inputs['skip_finalization'] = True
             target = ChainParameters.get_target(inputs)
             target.append_content(message)
-            return RunnableLambda(query_utils.set_tool_state)
+            # This branch bypasses the finalization router, so it has to record the outcome
+            # itself — otherwise the state keeps the default `failed` status.
+            return RunnableLambda(query_utils.set_tool_state) | RunnableLambda(
+                self._stamp_no_data_status
+            )
         else:
             return self._create_nonindicators_ok_chain()
 

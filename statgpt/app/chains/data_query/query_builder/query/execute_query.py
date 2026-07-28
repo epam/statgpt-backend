@@ -8,16 +8,18 @@ from langchain_core.runnables import (
 )
 
 from statgpt.app.chains.data_query.parameters import DataQueryParameters
+from statgpt.app.chains.data_query.query_builder import utils as query_utils
 from statgpt.app.chains.parameters import ChainParameters
 from statgpt.app.config import ChainParametersConfig
-from statgpt.app.schemas.enums import DataQueryStatus
+from statgpt.app.schemas.data_query_outcome import DataQueryStatus
 from statgpt.app.schemas.query_builder import ChainState
 from statgpt.app.services.chat_facade import VersionedDataSet
 from statgpt.app.utils.callbacks import StageCallback
 from statgpt.app.utils.formatters import DatasetQueryFormatter, DatasetQueryFormatterConfig
 from statgpt.common.auth.auth_context import AuthContext
-from statgpt.common.data.base import DataSetQuery
+from statgpt.common.data.base import DataResponse, DataSetQuery
 from statgpt.common.schemas import StagesConfig
+from statgpt.common.schemas.enums import DataParsingStatus, DataRequestStatus
 from statgpt.common.schemas.tool_details import StageDescriptor
 
 from .summarize_query import SummarizeQueriesChain
@@ -74,18 +76,28 @@ class ExecuteQueryChain:
 
         inputs[DataQueryParameters.RESPONSE_FIELD] = response_content
 
-        # The query was built and executed; report data_available only when at least one
-        # response actually carries rows, otherwise treat it as no_data.
-        has_data = any(
-            response is not None and not response.csv_dataframe.empty
-            for response in (data_responses or {}).values()
-        )
-        state = inputs.get(DataQueryParameters.STATE)
-        if isinstance(state, dict):
-            state["status"] = (
-                DataQueryStatus.DATA_AVAILABLE if has_data else DataQueryStatus.NO_DATA
-            ).value
+        query_utils.set_data_query_status(inputs, self._execution_status(data_responses))
         return inputs
+
+    @staticmethod
+    def _execution_status(data_responses: dict[str, DataResponse | None] | None) -> DataQueryStatus:
+        """Classify the outcome of executed queries.
+
+        Rows win: a partially failed fan-out that still returned data is reported as
+        ``data_available``. Otherwise a fetch or parse failure is reported as ``failed`` rather
+        than as an empty result — ``Sdmx21DataSet.query`` swallows those errors and returns an
+        empty response, so row count alone cannot tell them apart.
+        """
+        responses = [r for r in (data_responses or {}).values() if r is not None]
+        if any(not response.is_empty for response in responses):
+            return DataQueryStatus.DATA_AVAILABLE
+        if any(
+            response.status.request_status == DataRequestStatus.FAILED
+            or response.status.parsing_status == DataParsingStatus.FAILED
+            for response in responses
+        ):
+            return DataQueryStatus.FAILED
+        return DataQueryStatus.EXECUTED_NO_DATA
 
     @classmethod
     def _get_data_query_chain(

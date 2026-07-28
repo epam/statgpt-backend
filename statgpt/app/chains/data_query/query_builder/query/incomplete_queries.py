@@ -13,7 +13,7 @@ from langchain_core.runnables import Runnable, RunnablePassthrough
 
 from statgpt.app.chains.data_query.parameters import DataQueryParameters
 from statgpt.app.chains.parameters import ChainParameters
-from statgpt.app.schemas.query_builder import (
+from statgpt.app.schemas.data_query_outcome import (
     DimensionValueInfo,
     MissingDimensionInfo,
     MissingDimensionsInfo,

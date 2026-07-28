@@ -169,6 +169,10 @@ class Sdmx21DataResponse(DataResponse):
         """Return full SDMX observation-level dataframe for CSV export."""
         return self.dataframe
 
+    @property
+    def is_empty(self) -> bool:
+        return self.df.empty
+
     @cached_property
     def dimension_ids(self) -> set[str]:
         return {d.entity_id for d in self.dataset.dimensions()}

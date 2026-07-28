@@ -109,6 +109,15 @@ class DataResponse(ABC):
 
     @property
     @abstractmethod
+    def is_empty(self) -> bool:
+        """Whether the response carries no observations.
+
+        Cheaper than testing one of the dataframes above, which derive from the raw data and
+        materialize it (copy, id-to-name mapping, reshaping) on first access.
+        """
+
+    @property
+    @abstractmethod
     def dimension_ids(self) -> set[str]:
         """Entity ids of the dataset's dimensions (including the time dimension)."""
 

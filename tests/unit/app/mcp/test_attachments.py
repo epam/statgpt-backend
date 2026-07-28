@@ -8,15 +8,15 @@ from statgpt.app.mcp.attachments import (
     data_query_artifact_to_resources,
     data_query_artifact_to_structured_content,
 )
-from statgpt.app.schemas.enums import DataQueryStatus
-from statgpt.app.schemas.query import AppJsonQueryWithMetadata
-from statgpt.app.schemas.query_builder import (
+from statgpt.app.schemas.data_query_outcome import (
     DataQueryMcpPayload,
+    DataQueryStatus,
     DataSetChoice,
     DimensionValueInfo,
     MissingDimensionInfo,
     MissingDimensionsInfo,
 )
+from statgpt.app.schemas.query import AppJsonQueryWithMetadata
 from statgpt.app.schemas.tool_artifact import DataQueryArtifact
 from statgpt.common.schemas.query import (
     JsonComponentQuery,
@@ -304,16 +304,35 @@ def test_structured_content_missing_dimensions_carries_payload():
     }
 
 
-def test_structured_content_invalid_time_period_uses_constructed_queries():
+def test_structured_content_invalid_time_period_carries_message_only():
+    # The rejected time period was never applied to the constructed queries, so reporting them
+    # would describe a query the user did not ask for.
     artifact = _make_artifact(
         {},
         state=_state(DataQueryStatus.INVALID_TIME_PERIOD),
         mcp_payload=_mcp_payload(constructed_queries=[_app_query("IMF:CPI(1.0.0)")]),
     )
 
-    structured = data_query_artifact_to_structured_content(artifact, _channel_config())
+    structured = data_query_artifact_to_structured_content(
+        artifact, _channel_config(), message="The selected end date (2030) is outside 2000-2019."
+    )
 
     assert structured.status is DataQueryStatus.INVALID_TIME_PERIOD
+    assert structured.message == "The selected end date (2030) is outside 2000-2019."
+    assert structured.queries == []
+    assert structured.python_code is None
+
+
+def test_structured_content_not_executed_uses_constructed_queries():
+    artifact = _make_artifact(
+        {},
+        state=_state(DataQueryStatus.NOT_EXECUTED),
+        mcp_payload=_mcp_payload(constructed_queries=[_app_query("IMF:CPI(1.0.0)")]),
+    )
+
+    structured = data_query_artifact_to_structured_content(artifact, _channel_config())
+
+    assert structured.status is DataQueryStatus.NOT_EXECUTED
     assert [q.urn for q in structured.queries] == ["IMF:CPI(1.0.0)"]
     assert "import sdmx" in structured.python_code
 
@@ -324,5 +343,46 @@ def test_structured_content_not_executed_without_queries_has_no_python_code():
     structured = data_query_artifact_to_structured_content(artifact, _channel_config())
 
     assert structured.status is DataQueryStatus.NOT_EXECUTED
+    assert structured.queries == []
+    assert structured.python_code is None
+
+
+def test_structured_content_executed_no_data_still_reports_the_queries():
+    # The queries ran and returned nothing: a client should still be able to show what was asked.
+    df = pd.DataFrame()
+    artifact = _make_artifact(
+        {"ds1": _response("IMF:CPI(1.0.0)", df, json_query=_json_query("IMF:CPI(1.0.0)"))},
+        state=_state(DataQueryStatus.EXECUTED_NO_DATA),
+    )
+
+    structured = data_query_artifact_to_structured_content(artifact, _channel_config())
+
+    assert structured.status is DataQueryStatus.EXECUTED_NO_DATA
+    assert [q.urn for q in structured.queries] == ["IMF:CPI(1.0.0)"]
+    assert "import sdmx" in structured.python_code
+
+
+def test_structured_content_failed_reports_the_queries_that_errored():
+    df = pd.DataFrame()
+    artifact = _make_artifact(
+        {"ds1": _response("IMF:CPI(1.0.0)", df, json_query=_json_query("IMF:CPI(1.0.0)"))},
+        state=_state(DataQueryStatus.FAILED),
+    )
+
+    structured = data_query_artifact_to_structured_content(artifact, _channel_config())
+
+    assert structured.status is DataQueryStatus.FAILED
+    assert [q.urn for q in structured.queries] == ["IMF:CPI(1.0.0)"]
+    assert "import sdmx" in structured.python_code
+
+
+def test_structured_content_failed_without_responses_has_no_queries():
+    # `failed` is also the default status, reached when the pipeline errored before executing
+    # anything — there is nothing to report but the status.
+    artifact = _make_artifact({}, state=_state(DataQueryStatus.FAILED))
+
+    structured = data_query_artifact_to_structured_content(artifact, _channel_config())
+
+    assert structured.status is DataQueryStatus.FAILED
     assert structured.queries == []
     assert structured.python_code is None

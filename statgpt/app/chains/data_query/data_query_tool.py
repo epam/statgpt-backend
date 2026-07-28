@@ -6,11 +6,8 @@ from pydantic import Field
 
 from statgpt.app.chains.tools import GuardrailInput, StatGptTool, ToolArgs
 from statgpt.app.config import ChainParametersConfig
-from statgpt.app.schemas.query_builder import (
-    DataQueryEvalAttachment,
-    DataQueryMcpPayload,
-    QueryBuilderAgentState,
-)
+from statgpt.app.schemas.data_query_outcome import DataQueryMcpPayload
+from statgpt.app.schemas.query_builder import DataQueryEvalAttachment, QueryBuilderAgentState
 from statgpt.app.schemas.tool_artifact import DataQueryArtifact
 from statgpt.common.config import multiline_logger as logger
 from statgpt.common.data.base import DataResponse

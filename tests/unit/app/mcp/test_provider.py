@@ -12,7 +12,7 @@ from mcp.types import EmbeddedResource, TextContent
 
 from statgpt.app.chains.out_of_scope_checker import OutOfScopeCheckerResponse
 from statgpt.app.mcp.provider import ChannelToolProvider, _McpToolAdapter, _tool_app_config
-from statgpt.app.schemas.enums import DataQueryStatus
+from statgpt.app.schemas.data_query_outcome import DataQueryStatus
 from statgpt.app.schemas.service import ChannelDatasetsMetadataResponse
 from statgpt.app.schemas.tool_artifact import (
     DataQueryArtifact,

@@ -2,7 +2,8 @@ from langchain_core.runnables import Runnable, RunnablePassthrough
 
 from statgpt.app.chains.data_query.parameters import DataQueryParameters
 from statgpt.app.chains.parameters import ChainParameters
-from statgpt.app.schemas.query_builder import ChainState, DataSetChoice
+from statgpt.app.schemas.data_query_outcome import DataSetChoice
+from statgpt.app.schemas.query_builder import ChainState
 from statgpt.app.services.chat_facade import VersionedDataSet
 from statgpt.app.utils.formatters import DatasetQueryFormatter, DatasetQueryFormatterConfig
 from statgpt.common.data.base import DataSetQuery

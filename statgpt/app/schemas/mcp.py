@@ -1,8 +1,11 @@
 from pydantic import ConfigDict, Field
 
-from statgpt.app.schemas.enums import DataQueryStatus
+from statgpt.app.schemas.data_query_outcome import (
+    DataQueryStatus,
+    DataSetChoice,
+    MissingDimensionsInfo,
+)
 from statgpt.app.schemas.query import AppJsonQueryWithMetadata
-from statgpt.app.schemas.query_builder import DataSetChoice, MissingDimensionsInfo
 from statgpt.common.schemas.base import BaseYamlModel
 
 
@@ -31,8 +34,8 @@ class DataQueryStructuredContent(BaseYamlModel):
     )
     queries: list[AppJsonQueryWithMetadata] = Field(
         default_factory=list,
-        description="The queries, one per dataset. Present for data_available, invalid_time_period "
-        "and not_executed outcomes.",
+        description="The queries, one per dataset. Present for the data_available, "
+        "executed_no_data, failed and not_executed outcomes.",
     )
     python_code: str | None = Field(
         default=None,
