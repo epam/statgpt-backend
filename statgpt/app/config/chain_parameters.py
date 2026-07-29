@@ -31,6 +31,9 @@ class ChainParametersConfig:
     TARGET = "target"
     OUT_OF_SCOPE = "out_of_scope"
     OUT_OF_SCOPE_REASONING = "out_of_scope_reasoning"
+    # Event permitting a speculative run's real side effects (tool dispatch); set on
+    # commit, present only during speculation.
+    SIDE_EFFECT_GATE = "side_effect_gate"
     PERFORMANCE_STAGE = "performance_stage"
 
 

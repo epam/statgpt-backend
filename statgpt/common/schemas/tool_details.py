@@ -12,6 +12,13 @@ from .model_config import LLMModelConfig
 
 
 class FakeCall(BaseYamlModel):
+    """A predefined tool call injected into history before the agent's first turn.
+
+    Fake calls run the real tool ungated during speculative optimistic-guardrails runs
+    (before the in-scope verdict), so a tool given a ``fake_call`` must be
+    side-effect-free.
+    """
+
     tool_call_id: str = Field(description="The tool call id of the fake call")
     args: str = Field(default="{}", description="Fake call arguments as JSON string")
 

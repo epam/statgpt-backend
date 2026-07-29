@@ -89,6 +89,12 @@ class ToolCaller:
     async def call_tool(
         self, tool_call: ToolCall, inputs: dict, show_stage: bool = True, prefix: str = ''
     ) -> ToolMessage:
+        """Dispatch a single tool call and return its ToolMessage.
+
+        Main-loop dispatch is gated on ``SIDE_EFFECT_GATE`` during speculative runs;
+        fake and direct tool calls run ungated, so they must target side-effect-free
+        tools.
+        """
         tool_call = deepcopy(tool_call)  # to prevent edits to incoming tool call object
 
         tool = self._tools[tool_call['name']]
@@ -305,6 +311,10 @@ class SupremeAgentExecutor:
             if tool_calls := response.resp.tool_calls:
                 history.add_chunk_as_tool_message(response.resp)
 
+                # Gate real tool dispatch behind the orchestrator's commit (no-op
+                # outside a speculative run).
+                await self._await_side_effect_gate(inputs)
+
                 res: list[ToolMessage] = await asyncio.gather(
                     *(tool_executor.call_tool(tool_call, inputs) for tool_call in tool_calls)
                 )
@@ -357,6 +367,11 @@ class SupremeAgentExecutor:
     async def _fake_tool_calls(
         self, tool_executor: ToolCaller, inputs: dict, show_stages: bool
     ) -> History:
+        """Execute the channel's configured fake tool calls, returned as history.
+
+        These run ungated even during a speculative run, so fake calls must be
+        side-effect-free — see ``FakeCall``.
+        """
         fake_history = History.create_empty()
         tool_calls = []
         tasks = []
@@ -383,6 +398,16 @@ class SupremeAgentExecutor:
                 fake_history.add_tool_message_as_dial_message(tool_msg)
 
         return fake_history
+
+    @staticmethod
+    async def _await_side_effect_gate(inputs: dict) -> None:
+        """Block until the orchestrator permits main-loop tool dispatch; no-op outside
+        a speculative run. A rejected run is cancelled while waiting here, so its gated
+        dispatch never happens.
+        """
+        gate = ChainParameters.get_side_effect_gate(inputs)
+        if gate is not None:
+            await gate.wait()
 
     @staticmethod
     def _get_tool_call_from_cfg(tool_name, fake_call: FakeCall) -> DialMessage:

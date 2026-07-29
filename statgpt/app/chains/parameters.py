@@ -1,3 +1,4 @@
+import asyncio
 import typing as t
 from datetime import datetime
 
@@ -90,6 +91,11 @@ class ChainParameters:
     @staticmethod
     def get_start_of_request(data: dict) -> datetime:
         return data[ChainParametersConfig.START_OF_REQUEST]
+
+    @staticmethod
+    def get_side_effect_gate(data: dict) -> asyncio.Event | None:
+        """Speculative-run permission gate; present only on a speculative agent run."""
+        return data.get(ChainParametersConfig.SIDE_EFFECT_GATE)
 
     @staticmethod
     def get_state(data: dict) -> dict[str, t.Any]:
