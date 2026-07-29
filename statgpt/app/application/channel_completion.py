@@ -19,6 +19,12 @@ from statgpt.app.services.chat_facade import ChannelServiceFacade
 from statgpt.app.settings.dial_app import dial_app_settings
 from statgpt.app.utils.dial_exceptions import RateLimitException
 from statgpt.app.utils.dial_stages import optional_timed_stage
+from statgpt.app.utils.message_history import (
+    CommandOnlyMessageError,
+    History,
+    InvalidHistoryError,
+    dump_dial_messages,
+)
 from statgpt.common.schemas.token_usage import TokenUsagePricedItem
 from statgpt.common.settings.application import application_settings
 from statgpt.common.settings.dial import dial_settings
@@ -35,6 +41,13 @@ from statgpt.common.utils.token_usage_context import TokenUsageManager, token_us
 from statgpt.common.utils.token_usage_utils import TokenUsageCostCalculator, TokenUsageDisplayer
 
 _log = logging.getLogger(__name__)
+
+_INVALID_HISTORY_MESSAGE = (
+    "This conversation contains a message that cannot be processed. Please start a new chat."
+)
+_COMMAND_ONLY_MESSAGE = (
+    "Your message contains only commands. Please add your question and send it again."
+)
 
 
 class ChannelCompletion(ChatCompletion):
@@ -140,6 +153,13 @@ class ChannelCompletion(ChatCompletion):
                 callbacks.append(TokenUsageByModelsCallback())
                 state = ChainParameters.get_state(inputs)  # default in case of error
                 try:
+                    # Interceptors run while building the history and may update `state`
+                    # (e.g. the `!show_debug_stages` command),
+                    # so build it before reading debug flags from the state.
+                    inputs[ParamsConfig.HISTORY] = await History.from_dial_with_interceptors(
+                        messages=request.messages, state=state, data_service=service
+                    )
+
                     name = '[DEBUG] Performance of request'
                     debug = state.get(StateVarsConfig.SHOW_DEBUG_STAGES, False)
                     with optional_timed_stage(choice=choice, name=name, enabled=debug) as stage:
@@ -149,6 +169,19 @@ class ChannelCompletion(ChatCompletion):
                         )
                     state = ChainParameters.get_state(chains_response)
                     state[StateVarsConfig.ERROR] = None
+                except CommandOnlyMessageError as e:
+                    # Fully explained by the command stripping, so no message dump is needed.
+                    _log.info(f"Command-only user message: {e}")
+                    choice.append_content(_COMMAND_ONLY_MESSAGE)
+                    state[StateVarsConfig.ERROR] = str(e)
+                except InvalidHistoryError as e:
+                    _log.warning(f"Invalid message history: {e}")
+                    choice.append_content(_INVALID_HISTORY_MESSAGE)
+                    state[StateVarsConfig.ERROR] = str(e)
+                    state[StateVarsConfig.RECEIVED_MESSAGES] = dump_dial_messages(request.messages)
+                except DIALException as e:
+                    _log.warning(f"Request rejected: {e.message}")
+                    raise
                 except openai.RateLimitError as e:
                     _log.warning("openai.RateLimitError", exc_info=e)
                     state[StateVarsConfig.ERROR] = str(e)
