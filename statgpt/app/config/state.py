@@ -13,6 +13,7 @@ class StateVarsConfig:
     CMD_SKIP_TOOLS_EXECUTION = "cmd_skip_tools_execution"
     ERROR = 'error'
     LLM_CALL_DURATIONS = "llm_call_durations"
+    RECEIVED_MESSAGES = "received_messages"
 
     # values used in Agentic approach
     DIRECT_TOOL_CALLS = "direct_tool_calls"
