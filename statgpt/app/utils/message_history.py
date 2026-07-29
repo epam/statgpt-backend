@@ -128,6 +128,7 @@ class History:
         """Convert a DialMessage to a LangChain message."""
         if msg.role == Role.USER:
             if not (usr_msg_content := msg.content):
+                logger.info(f"User message content is empty: {msg=}")
                 raise ValueError("User message content is empty")
             return HumanMessage(content=_convert_content(usr_msg_content))
         elif msg.role == Role.ASSISTANT:
