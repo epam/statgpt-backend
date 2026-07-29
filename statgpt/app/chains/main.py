@@ -1,5 +1,6 @@
 import asyncio
 
+from aidial_sdk.exceptions import InvalidRequestError
 from langchain_core.runnables import Runnable, RunnableLambda
 
 from statgpt.app.chains.out_of_scope_checker import OutOfScopeChecker
@@ -7,7 +8,10 @@ from statgpt.app.chains.parameters import ChainParameters
 from statgpt.app.chains.supreme_agent import SupremeAgentExecutor, ToolCaller
 from statgpt.app.config import StateVarsConfig
 from statgpt.app.settings.dial_app import dial_app_settings
-from statgpt.app.utils.message_history import dial_tool_call_to_langchain_tool_call
+from statgpt.app.utils.message_history import (
+    InvalidToolCallError,
+    dial_tool_call_to_langchain_tool_call,
+)
 from statgpt.common.config import logger
 from statgpt.common.schemas import ChannelConfig
 
@@ -44,10 +48,15 @@ class MainChainFactory:
             return inputs  # This is a common request, so we skip direct tool calls chain
 
         # parse tool calls to langchain format
-        tool_calls_parsed = []
-        for dial_tool_call in tool_calls_received:
-            lc_tool_call = dial_tool_call_to_langchain_tool_call(dial_tool_call)
-            tool_calls_parsed.append(lc_tool_call)
+        try:
+            tool_calls_parsed = [
+                dial_tool_call_to_langchain_tool_call(tool_call)
+                for tool_call in tool_calls_received
+            ]
+        except InvalidToolCallError as e:
+            # The caller sent these tool calls in the current request,
+            # so this is a bad request rather than a corrupted history.
+            raise InvalidRequestError(str(e)) from e
 
         state[StateVarsConfig.DIRECT_TOOL_CALLS] = tool_calls_parsed
 

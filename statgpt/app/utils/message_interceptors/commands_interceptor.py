@@ -82,7 +82,11 @@ class CommandsInterceptor(BaseMessageInterceptor):
         """
         1. for last user message, remove commands and update state
         2. for rest of user messages, simply remove commands from message content
+
+        Edited messages are replaced with copies instead of being mutated in place,
+        so the caller's messages (e.g. `request.messages`) keep the content we received.
         """
+        result = list(messages)
 
         for ix, msg in enumerate(reversed(messages)):
             if msg.role != Role.USER:
@@ -94,11 +98,14 @@ class CommandsInterceptor(BaseMessageInterceptor):
 
             state_or_none = state if ix == 0 else None
 
+            content = msg.content
             for cmd in self._commands:
-                msg_edited = cmd.process_query(query=msg.content, state=state_or_none)
-                msg.content = msg_edited
+                content = cmd.process_query(query=content, state=state_or_none)
 
-        return messages
+            if content != msg.content:
+                result[len(messages) - 1 - ix] = msg.model_copy(update={'content': content})
+
+        return result
 
     def process_query(self, query: str) -> str:
         """Simply remove commands from the query, without updating state"""

@@ -27,6 +27,18 @@ class InvalidHistoryError(Exception):
     """Raised when DIAL messages cannot be converted into a valid history."""
 
 
+class CommandOnlyMessageError(Exception):
+    """Raised when a user message consists solely of interceptable commands."""
+
+
+class InvalidToolCallError(Exception):
+    """Raised when a DIAL tool call cannot be converted into a LangChain tool call.
+
+    Callers map this to a request- or history-level error, depending on whether the tool
+    call arrived in the current request or was echoed back to us as part of the history.
+    """
+
+
 def dump_dial_messages(messages: Sequence[DialMessage]) -> list[dict]:
     """Serialize DIAL messages for debugging.
 
@@ -56,10 +68,18 @@ def _convert_content(
 
 
 def dial_tool_call_to_langchain_tool_call(tool_call: DialToolCall) -> LangChainToolCall:
+    try:
+        args = json.loads(tool_call.function.arguments)
+    except json.JSONDecodeError as e:
+        raise InvalidToolCallError(
+            f"Tool call {tool_call.id!r} ({tool_call.function.name!r})"
+            f" has invalid JSON arguments: {e}"
+        ) from e
+
     return LangChainToolCall(
         id=tool_call.id,
         name=tool_call.function.name,
-        args=json.loads(tool_call.function.arguments),
+        args=args,
         type='tool_call',
     )
 
@@ -91,21 +111,42 @@ class History:
 
         [!] Update the `state` dictionary with the flags corresponding to the commands.
         """
+        cls._validate_received_messages(messages)
+
         interceptors = [
             CommandsInterceptor.create_default(),
             SystemMessageInterceptor(data_service=data_service),
         ]
         for interceptor in interceptors:
             messages = await interceptor.process_messages(messages=messages, state=state)
-        cls._validate_messages(messages)
+
+        cls._validate_processed_messages(messages)
         return cls(messages=messages)
 
     @staticmethod
-    def _validate_messages(messages: list[DialMessage]) -> None:
-        """Fail fast on messages that cannot be converted to LangChain messages."""
+    def _validate_received_messages(messages: list[DialMessage]) -> None:
+        """Reject messages we cannot build a history from, as they were received.
+
+        Runs before the interceptors so that the reported index matches the request, and
+        so that messages emptied by interception are not reported as malformed input.
+        """
         for ix, msg in enumerate(messages):
             if msg.role == Role.USER and not msg.content:
                 raise InvalidHistoryError(f"User message at index {ix} has empty content")
+            if msg.role == Role.TOOL and not msg.tool_call_id:
+                raise InvalidHistoryError(f"Tool message at index {ix} has no tool_call_id")
+
+    @staticmethod
+    def _validate_processed_messages(messages: list[DialMessage]) -> None:
+        """Reject user messages that the interceptors emptied.
+
+        `_validate_received_messages` has already rejected empty user content, so anything
+        empty at this point was stripped by the `CommandsInterceptor`, i.e. the message
+        consisted of nothing but commands.
+        """
+        for msg in messages:
+            if msg.role == Role.USER and not msg.content:
+                raise CommandOnlyMessageError("User message consists only of commands")
 
     def prepend(self, other: 'History') -> None:
         self._messages = other._messages + self._messages
@@ -161,15 +202,22 @@ class History:
                 raise InvalidHistoryError("User message content is empty")
             return HumanMessage(content=_convert_content(usr_msg_content))
         elif msg.role == Role.ASSISTANT:
-            return AIMessage(
-                content=_convert_content(msg.content) if msg.content else '',
-                tool_calls=(
+            try:
+                tool_calls = (
                     [dial_tool_call_to_langchain_tool_call(t) for t in msg.tool_calls]
                     if msg.tool_calls
                     else []
-                ),
+                )
+            except InvalidToolCallError as e:
+                # Echoed back to us as part of the history, so the history is unusable.
+                raise InvalidHistoryError(f"Assistant message has an invalid tool call: {e}") from e
+            return AIMessage(
+                content=_convert_content(msg.content) if msg.content else '',
+                tool_calls=tool_calls,
             )
         elif msg.role == Role.TOOL:
+            if not msg.tool_call_id:
+                raise InvalidHistoryError("Tool message has no tool_call_id")
             msg_content = _convert_content(msg.content) if msg.content else ''
             return ToolMessage(content=msg_content, tool_call_id=msg.tool_call_id)
         elif msg.role == Role.SYSTEM:
@@ -289,5 +337,7 @@ class History:
                     tool_messages.append(SystemMessage.model_validate(tool_msg))
                 else:
                     logger.info(f"Tool message: {tool_msg}")
-                    raise RuntimeError(f"Unknown tool message type: {msg_type!r}")
+                    # Our own state, echoed back: an unknown type means the conversation
+                    # predates a change to the tool message format.
+                    raise InvalidHistoryError(f"Unknown tool message type: {msg_type!r}")
         return tool_messages
