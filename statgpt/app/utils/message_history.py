@@ -23,6 +23,28 @@ from statgpt.app.utils.message_interceptors.system_msg_interceptor import System
 from statgpt.common.config import multiline_logger as logger
 
 
+class InvalidHistoryError(Exception):
+    """Raised when DIAL messages cannot be converted into a valid history."""
+
+
+def dump_dial_messages(messages: Sequence[DialMessage]) -> list[dict]:
+    """Serialize DIAL messages for debugging.
+
+    `custom_content` is dropped entirely from assistant messages - it carries the tool
+    messages, stages and attachments we echo back, which would dwarf the rest of the dump.
+    Attachment payloads are dropped from the other messages.
+    """
+    result = []
+    for msg in messages:
+        exclude: set[str] | dict[str, t.Any] = (
+            {'custom_content'}
+            if msg.role == Role.ASSISTANT
+            else {'custom_content': {'attachments': {'__all__': {'data'}}}}
+        )
+        result.append(msg.model_dump(mode='json', exclude_none=True, exclude=exclude))
+    return result
+
+
 def _convert_content(
     content: str | list[MessageContentPart],
 ) -> str | list[str | dict[str, t.Any]]:
@@ -75,7 +97,15 @@ class History:
         ]
         for interceptor in interceptors:
             messages = await interceptor.process_messages(messages=messages, state=state)
+        cls._validate_messages(messages)
         return cls(messages=messages)
+
+    @staticmethod
+    def _validate_messages(messages: list[DialMessage]) -> None:
+        """Fail fast on messages that cannot be converted to LangChain messages."""
+        for ix, msg in enumerate(messages):
+            if msg.role == Role.USER and not msg.content:
+                raise InvalidHistoryError(f"User message at index {ix} has empty content")
 
     def prepend(self, other: 'History') -> None:
         self._messages = other._messages + self._messages
@@ -128,8 +158,7 @@ class History:
         """Convert a DialMessage to a LangChain message."""
         if msg.role == Role.USER:
             if not (usr_msg_content := msg.content):
-                logger.info(f"User message content is empty: {msg=}")
-                raise ValueError("User message content is empty")
+                raise InvalidHistoryError("User message content is empty")
             return HumanMessage(content=_convert_content(usr_msg_content))
         elif msg.role == Role.ASSISTANT:
             return AIMessage(
