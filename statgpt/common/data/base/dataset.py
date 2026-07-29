@@ -109,6 +109,15 @@ class DataResponse(ABC):
 
     @property
     @abstractmethod
+    def is_empty(self) -> bool:
+        """Whether the response carries no observations.
+
+        Cheaper than testing one of the dataframes above, which derive from the raw data and
+        materialize it (copy, id-to-name mapping, reshaping) on first access.
+        """
+
+    @property
+    @abstractmethod
     def dimension_ids(self) -> set[str]:
         """Entity ids of the dataset's dimensions (including the time dimension)."""
 
@@ -327,6 +336,15 @@ class DataSet(BaseEntity, Generic[DataSetConfigType, DataSourceHandlerType], ABC
     @abstractmethod
     async def query(self, query: DataSetQuery, auth_context: AuthContext) -> DataResponse | None:
         pass
+
+    def to_json_query(self, query: DataSetQuery) -> JsonQueryWithMetadata | None:
+        """Serialize a constructed (not necessarily executed) query to a JSON query model.
+
+        Mirrors the shape of ``DataResponse.json_query`` so callers can surface a query
+        even when it was never executed (e.g. an invalid or not-yet-run query). Returns
+        None when the dataset kind has no JSON query representation.
+        """
+        return None
 
 
 class OfflineDataSet(DataSet, Generic[DataSetConfigType, DataSourceHandlerType], ABC):

@@ -1,3 +1,5 @@
+from collections.abc import Callable
+
 from aidial_sdk.chat_completion import Stage
 from langchain_core.runnables import Runnable, RunnableConfig, RunnableLambda, RunnablePassthrough
 
@@ -8,11 +10,14 @@ from statgpt.app.chains.parameters import ChainParameters
 from statgpt.app.chains.utils import time_period_utils
 from statgpt.app.config import ChainParametersConfig, StateVarsConfig
 from statgpt.app.default_prompts import data_query_default_prompts
+from statgpt.app.schemas.data_query_outcome import DataQueryMcpPayload, DataQueryStatus
+from statgpt.app.schemas.query import AppJsonQueryWithMetadata
 from statgpt.app.schemas.query_builder import (
     ChainState,
     DatasetAvailabilityQueriesType,
     DatasetDimensionTermNameType,
 )
+from statgpt.app.services.chat_facade import VersionedDataSet
 from statgpt.app.utils.callbacks import StageCallback
 from statgpt.app.utils.datetime_adjuster import expand_time_range
 from statgpt.app.utils.formatters import (
@@ -351,6 +356,49 @@ class FinalizeQueryChainFactory:
 
         return terms_id2name
 
+    @staticmethod
+    def _stamp_state(
+        inputs: dict,
+        status: DataQueryStatus,
+        payload_factory: Callable[[], DataQueryMcpPayload] | None = None,
+    ) -> None:
+        """Record the pipeline outcome on the tool state and the MCP-only payload separately.
+
+        The ``status`` is written onto the persisted ``QueryBuilderAgentState`` dict (``set_tool_state``
+        runs before this routing step, so it is present in ``inputs``). The payload (constructed
+        queries, candidate datasets, missing dimensions) goes into a separate ``DataQueryMcpPayload``
+        under ``DataQueryParameters.MCP_PAYLOAD`` so it never reaches the persisted state — it is
+        consumed only when building the MCP structured content.
+
+        The payload is built lazily and guarded: it decorates the MCP response only, so a failure
+        while collecting it must never break the answer the user gets. The status is recorded either
+        way.
+        """
+        query_utils.set_data_query_status(inputs, status)
+
+        if payload_factory is None:
+            return
+        try:
+            inputs[DataQueryParameters.MCP_PAYLOAD] = payload_factory()
+        except Exception:
+            logger.exception("Failed to build the MCP payload for status %s", status)
+
+    @staticmethod
+    def _build_constructed_queries(
+        dataset_queries: dict[str, DataSetQuery],
+        datasets_dict: dict[str, VersionedDataSet],
+    ) -> list[AppJsonQueryWithMetadata]:
+        """Serialize constructed (not executed) queries for the not-executed outcome."""
+        constructed: list[AppJsonQueryWithMetadata] = []
+        for dataset_id, dataset_query in dataset_queries.items():
+            versioned_dataset = datasets_dict.get(dataset_id)
+            if versioned_dataset is None:
+                continue
+            json_query = versioned_dataset.data.to_json_query(dataset_query)
+            if json_query is not None:
+                constructed.append(AppJsonQueryWithMetadata.from_common(json_query))
+        return constructed
+
     async def _route_based_on_data_query_status(self, inputs: dict) -> Runnable:
         chain_state = ChainState(**inputs)
         dataset_queries = chain_state.dataset_queries
@@ -369,6 +417,7 @@ class FinalizeQueryChainFactory:
             #
             # Currently we don't differentiate between these cases,
             # and the message shown to user is misleading.
+            self._stamp_state(inputs, DataQueryStatus.NO_DATA)
             return await self._no_data_chain.create_chain(inputs)
 
         global_state = ChainParameters.get_state(inputs)
@@ -379,6 +428,15 @@ class FinalizeQueryChainFactory:
                 "queries were not executed, their status (valid/invalid) is unknown, "
                 "because data query post-processing is disabled in config"
             )
+            self._stamp_state(
+                inputs,
+                DataQueryStatus.NOT_EXECUTED,
+                payload_factory=lambda: DataQueryMcpPayload(
+                    constructed_queries=self._build_constructed_queries(
+                        dataset_queries, chain_state.datasets_dict
+                    )
+                ),
+            )
             return RunnablePassthrough.assign(
                 **{DataQueryParameters.RESPONSE_FIELD: lambda _: response}
             )
@@ -386,12 +444,23 @@ class FinalizeQueryChainFactory:
         valid_queries = {ds_id: dq for ds_id, dq in dataset_queries.items() if dq.is_valid}
 
         if self._config.clarify_if_multiple_datasets and len(valid_queries) > 1:
+            self._stamp_state(
+                inputs,
+                DataQueryStatus.DATASET_SELECTION_REQUIRED,
+                payload_factory=lambda: DataQueryMcpPayload(
+                    candidate_datasets=MultipleDatasetsChain.build_dataset_choices(
+                        chain_state.datasets_dict, valid_queries
+                    )
+                ),
+            )
             return (
                 self._summarize_queries_chain.create_chain
                 | await self._multiple_datasets_chain.create_chain()
             )
 
         if len(valid_queries) >= 1:
+            # data_available / executed_no_data / failed is decided in ExecuteQueryChain, which
+            # knows whether the executed queries returned any rows and whether they errored.
             return (
                 RunnablePassthrough.assign(
                     **{ChainParametersConfig.DATASET_QUERIES: lambda _: valid_queries}
@@ -400,6 +469,11 @@ class FinalizeQueryChainFactory:
             )
 
         if any(q.invalidity_reason is not None for q in dataset_queries.values()):
+            # No queries are surfaced here on purpose: the rejected time period was never applied
+            # to them (see `_apply_selected_time_period_to_query`), so serializing them would
+            # describe a query the user did not ask for — one that would happily return data.
+            # The response text names the requested period and the available range instead.
+            self._stamp_state(inputs, DataQueryStatus.INVALID_TIME_PERIOD)
             return (
                 self._summarize_queries_chain.create_chain
                 | self._invalid_time_period_chain.create_chain()
@@ -408,6 +482,19 @@ class FinalizeQueryChainFactory:
         # all queries are invalid: have some dimensions are missing
         # ToDo: adjust to process multiple datasets
         dataset_id = next(iter(dataset_queries))
+
+        self._stamp_state(
+            inputs,
+            DataQueryStatus.MISSING_DIMENSIONS,
+            payload_factory=lambda: DataQueryMcpPayload(
+                missing_dimensions=IncompleteQueriesChain.build_missing_dimensions_info(
+                    dataset_id,
+                    chain_state.datasets_dict[dataset_id],
+                    dataset_queries[dataset_id],
+                    chain_state.strong_availability[dataset_id],
+                )
+            ),
+        )
 
         query_formatter = DatasetQueryFormatter(
             config=DatasetQueryFormatterConfig(

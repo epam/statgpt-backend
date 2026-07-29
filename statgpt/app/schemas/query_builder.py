@@ -4,6 +4,7 @@ import pandas as pd
 from pydantic import BaseModel, ConfigDict, Field
 
 from statgpt.app.config import StateVarsConfig
+from statgpt.app.schemas.data_query_outcome import DataQueryStatus
 from statgpt.app.services.chat_facade import (
     ChannelServiceFacade,
     ScoredDimensionCandidate,
@@ -253,6 +254,12 @@ class QueryBuilderAgentState(ToolMessageState):
             "None when debug stages are disabled."
         ),
     )
+    status: DataQueryStatus = Field(
+        default=DataQueryStatus.FAILED,
+        description="Outcome of the data query pipeline (which branch produced the response). "
+        "Every branch overrides the default, so `failed` means the data fetch errored or no "
+        "branch was reached.",
+    )
 
 
 class DataQueryEvalAttachment(BaseModel):
@@ -434,20 +441,3 @@ class MetaStateKeys:
 
     CHAIN_STATE = 'chain_state'  # main state
     SPECIAL_DIMENSIONS_OUTPUTS = 'special_dims_outputs'
-
-
-class DataSetChoice(BaseModel):
-    """
-    Represent a dataset choice available for selection by either agent or user.
-    """
-
-    id: str = Field(description="The unique identifier of the dataset, used for selection.")
-    name: str = Field(description="The human-readable name of the dataset, used for display.")
-    description: str | None = Field(
-        default=None,
-        description="A brief description of the dataset, providing context and details.",
-    )
-    is_official: bool = Field(
-        default=False,
-        description="Indicates whether the dataset is official or not.",
-    )

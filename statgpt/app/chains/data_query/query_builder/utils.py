@@ -1,5 +1,8 @@
+import logging
+
 from statgpt.app.chains.data_query.parameters import DataQueryParameters
 from statgpt.app.chains.parameters import ChainParameters
+from statgpt.app.schemas.data_query_outcome import DataQueryStatus
 from statgpt.app.schemas.query_builder import (
     ChainState,
     DataQueryEvalAttachment,
@@ -13,6 +16,12 @@ from statgpt.common.data.base import (
     QueryOperator,
     VirtualDimensionValue,
 )
+
+_log = logging.getLogger(__name__)
+
+# `QueryBuilderAgentState` is dumped to a dict by `set_tool_state` and only re-validated by the
+# tool itself, so the status has to be written by key. Keep that key in one place.
+_STATUS_FIELD = 'status'
 
 
 def filter_empty_dataset_availability_queries(queries: DatasetAvailabilityQueriesType):
@@ -111,3 +120,22 @@ def set_tool_state(inputs: dict) -> dict:
     inputs[DataQueryParameters.EVAL_ATTACHMENT] = eval_attachment_dict
 
     return inputs
+
+
+def set_data_query_status(inputs: dict, status: DataQueryStatus) -> None:
+    """Record the pipeline outcome on the tool state built by :func:`set_tool_state`.
+
+    The state is kept as a dict in ``inputs`` until the tool re-validates it, so this is the
+    single place that knows the field name. The status is persisted with the tool state (it is
+    visible in DIAL ``custom_content.state``, which is useful when debugging a response) and is
+    also what the MCP layer maps to structured content.
+    """
+    state = inputs.get(DataQueryParameters.STATE)
+    if not isinstance(state, dict):
+        _log.warning(
+            "Data query state is unavailable (%s); cannot record status %s",
+            type(state).__name__,
+            status,
+        )
+        return
+    state[_STATUS_FIELD] = status.value

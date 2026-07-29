@@ -8,6 +8,15 @@ from statgpt.app.mcp.attachments import (
     data_query_artifact_to_resources,
     data_query_artifact_to_structured_content,
 )
+from statgpt.app.schemas.data_query_outcome import (
+    DataQueryMcpPayload,
+    DataQueryStatus,
+    DataSetChoice,
+    DimensionValueInfo,
+    MissingDimensionInfo,
+    MissingDimensionsInfo,
+)
+from statgpt.app.schemas.query import AppJsonQueryWithMetadata
 from statgpt.app.schemas.tool_artifact import DataQueryArtifact
 from statgpt.common.schemas.query import (
     JsonComponentQuery,
@@ -20,9 +29,35 @@ _FIXED_TS = datetime(2026, 4, 20, 15, 30, 0, tzinfo=timezone.utc)
 _FIXED_TS_STR = _FIXED_TS.strftime("%Y%m%dT%H%M%SZ")
 
 
-def _make_artifact(data_responses: dict) -> DataQueryArtifact:
-    # Bypass pydantic validation — the converter only reads data_responses.
-    return DataQueryArtifact.model_construct(data_responses=data_responses)
+def _state(status: DataQueryStatus = DataQueryStatus.DATA_AVAILABLE) -> SimpleNamespace:
+    # The converter only reads `status` off the artifact's state.
+    return SimpleNamespace(status=status)
+
+
+def _mcp_payload(
+    *,
+    constructed_queries: list | None = None,
+    candidate_datasets: list | None = None,
+    missing_dimensions: MissingDimensionsInfo | None = None,
+) -> DataQueryMcpPayload:
+    return DataQueryMcpPayload(
+        constructed_queries=constructed_queries or [],
+        candidate_datasets=candidate_datasets or [],
+        missing_dimensions=missing_dimensions,
+    )
+
+
+def _make_artifact(
+    data_responses: dict,
+    state: SimpleNamespace | None = None,
+    mcp_payload: DataQueryMcpPayload | None = None,
+) -> DataQueryArtifact:
+    # Bypass pydantic validation — the converter only reads data_responses, state and mcp_payload.
+    return DataQueryArtifact.model_construct(
+        data_responses=data_responses,
+        state=state or _state(),
+        mcp_payload=mcp_payload or _mcp_payload(),
+    )
 
 
 def _channel_config(sdmx_proxy_name: str | None = "sdmx_query_app") -> SimpleNamespace:
@@ -138,7 +173,11 @@ def test_no_responses_returns_empty_list():
     assert data_query_artifact_to_resources(artifact) == []
 
 
-def test_structured_content_serializes_single_query():
+def _app_query(urn: str) -> AppJsonQueryWithMetadata:
+    return AppJsonQueryWithMetadata.from_common(_json_query(urn))
+
+
+def test_structured_content_data_available_serializes_single_query():
     df = pd.DataFrame({"x": [1]})
     artifact = _make_artifact(
         {"ds1": _response("IMF:CPI(1.0.0)", df, json_query=_json_query("IMF:CPI(1.0.0)"))}
@@ -146,11 +185,10 @@ def test_structured_content_serializes_single_query():
 
     structured = data_query_artifact_to_structured_content(artifact, _channel_config())
 
-    assert structured is not None
     data = structured.model_dump(by_alias=True)
-    assert list(data) == ["queries", "pythonCode", "tools", "version"]
+    assert data["status"] == DataQueryStatus.DATA_AVAILABLE
     assert data["tools"] == {"sdmxProxy": "sdmx_query_app"}
-    assert data["version"] == 1
+    assert data["version"] == 2
     assert "import sdmx" in data["pythonCode"]
     assert len(data["queries"]) == 1
     query = data["queries"][0]
@@ -171,11 +209,10 @@ def test_structured_content_omits_sdmx_proxy_when_unconfigured():
         artifact, _channel_config(sdmx_proxy_name=None)
     )
 
-    assert structured is not None
     assert structured.tools.sdmx_proxy is None
 
 
-def test_structured_content_preserves_insertion_order():
+def test_structured_content_data_available_preserves_insertion_order():
     df = pd.DataFrame({"x": [1]})
     artifact = _make_artifact(
         {
@@ -186,11 +223,10 @@ def test_structured_content_preserves_insertion_order():
 
     structured = data_query_artifact_to_structured_content(artifact, _channel_config())
 
-    assert structured is not None
     assert [q.urn for q in structured.queries] == ["IMF:CPI(1.0.0)", "BIS:IR(2.1.0)"]
 
 
-def test_structured_content_skips_responses_without_query():
+def test_structured_content_data_available_skips_responses_without_query():
     df = pd.DataFrame({"x": [1]})
     artifact = _make_artifact(
         {
@@ -201,14 +237,152 @@ def test_structured_content_skips_responses_without_query():
 
     structured = data_query_artifact_to_structured_content(artifact, _channel_config())
 
-    assert structured is not None
     assert [q.urn for q in structured.queries] == ["IMF:OK(1.0.0)"]
 
 
-def test_structured_content_returns_none_when_no_queries():
-    df = pd.DataFrame({"x": [1]})
-    artifact = _make_artifact({"no_query": _response("IMF:NOQ(1.0.0)", df, json_query=None)})
+def test_structured_content_no_data_carries_message():
+    artifact = _make_artifact({}, state=_state(DataQueryStatus.NO_DATA))
 
-    assert data_query_artifact_to_structured_content(artifact, _channel_config()) is None
+    structured = data_query_artifact_to_structured_content(
+        artifact, _channel_config(), message="No relevant data found."
+    )
 
-    assert data_query_artifact_to_structured_content(_make_artifact({}), _channel_config()) is None
+    assert structured.status is DataQueryStatus.NO_DATA
+    assert structured.message == "No relevant data found."
+    assert structured.queries == []
+    assert structured.python_code is None
+    assert structured.tools.sdmx_proxy == "sdmx_query_app"
+
+
+def test_structured_content_dataset_selection_carries_candidates():
+    candidates = [
+        DataSetChoice(id="IMF:CPI", name="CPI", description="Prices", is_official=True),
+        DataSetChoice(id="BIS:IR", name="Rates"),
+    ]
+    artifact = _make_artifact(
+        {},
+        state=_state(DataQueryStatus.DATASET_SELECTION_REQUIRED),
+        mcp_payload=_mcp_payload(candidate_datasets=candidates),
+    )
+
+    structured = data_query_artifact_to_structured_content(artifact, _channel_config())
+
+    assert structured.status is DataQueryStatus.DATASET_SELECTION_REQUIRED
+    data = structured.model_dump(by_alias=True)
+    assert [c["id"] for c in data["candidateDatasets"]] == ["IMF:CPI", "BIS:IR"]
+    assert data["candidateDatasets"][0]["isOfficial"] is True
+    assert data["queries"] == []
+
+
+def test_structured_content_missing_dimensions_carries_payload():
+    missing = MissingDimensionsInfo(
+        dataset_id="ds1",
+        dimensions=[
+            MissingDimensionInfo(
+                dimension_id="FREQ",
+                name="Frequency",
+                available_values=[DimensionValueInfo(id="A", name="Annual")],
+            )
+        ],
+    )
+    artifact = _make_artifact(
+        {},
+        state=_state(DataQueryStatus.MISSING_DIMENSIONS),
+        mcp_payload=_mcp_payload(missing_dimensions=missing),
+    )
+
+    structured = data_query_artifact_to_structured_content(artifact, _channel_config())
+
+    assert structured.status is DataQueryStatus.MISSING_DIMENSIONS
+    data = structured.model_dump(by_alias=True)["missingDimensions"]
+    assert data["datasetId"] == "ds1"
+    assert data["dimensions"][0]["dimensionId"] == "FREQ"
+    assert data["dimensions"][0]["availableValues"][0] == {
+        "id": "A",
+        "name": "Annual",
+        "description": None,
+    }
+
+
+def test_structured_content_invalid_time_period_carries_message_only():
+    # The rejected time period was never applied to the constructed queries, so reporting them
+    # would describe a query the user did not ask for.
+    artifact = _make_artifact(
+        {},
+        state=_state(DataQueryStatus.INVALID_TIME_PERIOD),
+        mcp_payload=_mcp_payload(constructed_queries=[_app_query("IMF:CPI(1.0.0)")]),
+    )
+
+    structured = data_query_artifact_to_structured_content(
+        artifact, _channel_config(), message="The selected end date (2030) is outside 2000-2019."
+    )
+
+    assert structured.status is DataQueryStatus.INVALID_TIME_PERIOD
+    assert structured.message == "The selected end date (2030) is outside 2000-2019."
+    assert structured.queries == []
+    assert structured.python_code is None
+
+
+def test_structured_content_not_executed_uses_constructed_queries():
+    artifact = _make_artifact(
+        {},
+        state=_state(DataQueryStatus.NOT_EXECUTED),
+        mcp_payload=_mcp_payload(constructed_queries=[_app_query("IMF:CPI(1.0.0)")]),
+    )
+
+    structured = data_query_artifact_to_structured_content(artifact, _channel_config())
+
+    assert structured.status is DataQueryStatus.NOT_EXECUTED
+    assert [q.urn for q in structured.queries] == ["IMF:CPI(1.0.0)"]
+    assert "import sdmx" in structured.python_code
+
+
+def test_structured_content_not_executed_without_queries_has_no_python_code():
+    artifact = _make_artifact({}, state=_state(DataQueryStatus.NOT_EXECUTED))
+
+    structured = data_query_artifact_to_structured_content(artifact, _channel_config())
+
+    assert structured.status is DataQueryStatus.NOT_EXECUTED
+    assert structured.queries == []
+    assert structured.python_code is None
+
+
+def test_structured_content_executed_no_data_still_reports_the_queries():
+    # The queries ran and returned nothing: a client should still be able to show what was asked.
+    df = pd.DataFrame()
+    artifact = _make_artifact(
+        {"ds1": _response("IMF:CPI(1.0.0)", df, json_query=_json_query("IMF:CPI(1.0.0)"))},
+        state=_state(DataQueryStatus.EXECUTED_NO_DATA),
+    )
+
+    structured = data_query_artifact_to_structured_content(artifact, _channel_config())
+
+    assert structured.status is DataQueryStatus.EXECUTED_NO_DATA
+    assert [q.urn for q in structured.queries] == ["IMF:CPI(1.0.0)"]
+    assert "import sdmx" in structured.python_code
+
+
+def test_structured_content_failed_reports_the_queries_that_errored():
+    df = pd.DataFrame()
+    artifact = _make_artifact(
+        {"ds1": _response("IMF:CPI(1.0.0)", df, json_query=_json_query("IMF:CPI(1.0.0)"))},
+        state=_state(DataQueryStatus.FAILED),
+    )
+
+    structured = data_query_artifact_to_structured_content(artifact, _channel_config())
+
+    assert structured.status is DataQueryStatus.FAILED
+    assert [q.urn for q in structured.queries] == ["IMF:CPI(1.0.0)"]
+    assert "import sdmx" in structured.python_code
+
+
+def test_structured_content_failed_without_responses_has_no_queries():
+    # `failed` is also the default status, reached when the pipeline errored before executing
+    # anything — there is nothing to report but the status.
+    artifact = _make_artifact({}, state=_state(DataQueryStatus.FAILED))
+
+    structured = data_query_artifact_to_structured_content(artifact, _channel_config())
+
+    assert structured.status is DataQueryStatus.FAILED
+    assert structured.queries == []
+    assert structured.python_code is None
