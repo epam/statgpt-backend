@@ -213,7 +213,11 @@ class ChannelCompletion(ChatCompletion):
         if custom_content := last_response.custom_content:
             if state := custom_content.state:
                 if (show_debug_stages := state.get(StateVarsConfig.SHOW_DEBUG_STAGES)) is not None:
-                    return {**defaults, StateVarsConfig.SHOW_DEBUG_STAGES: show_debug_stages}
+                    defaults[StateVarsConfig.SHOW_DEBUG_STAGES] = show_debug_stages
+                # Carry the Deep Research clarification session across turns so the Supreme
+                # Agent can mediate the multi-turn flow and resume the Deep Research run.
+                if (dr_session := state.get(StateVarsConfig.DEEP_RESEARCH_SESSION)) is not None:
+                    defaults[StateVarsConfig.DEEP_RESEARCH_SESSION] = dr_session
 
         return defaults
 

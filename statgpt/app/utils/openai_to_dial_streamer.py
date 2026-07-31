@@ -40,6 +40,7 @@ class OpenAiToDialStreamer:
         self._content = ""
         self._stages: dict[int, Stage] = {}
         self._attachments: list[dict[str, Any]] = []
+        self._state: dict[str, Any] | None = None
 
     def __enter__(self):
         return self
@@ -55,6 +56,30 @@ class OpenAiToDialStreamer:
     @property
     def attachments(self) -> list[dict[str, Any]]:
         return self._attachments
+
+    @property
+    def state(self) -> dict[str, Any] | None:
+        """The `custom_content.state` set by the downstream deployment, if any."""
+        return self._state
+
+    def enable_content_streaming(self) -> None:
+        """Switch from buffering to live streaming, flushing whatever content and attachments have
+        been buffered so far. Idempotent. Lets a caller start buffered and go live once it decides
+        the response should be shown as-is (e.g. a Deep Research report once research starts)."""
+        if self._stream_content:
+            return
+        self._stream_content = True
+        if self._content:
+            self._target.append_content(self._content)
+        for attachment in self._attachments:
+            self._target.add_attachment(
+                type=attachment.get('type'),
+                title=attachment.get('title'),
+                data=attachment.get('data'),
+                url=attachment.get('url'),
+                reference_url=attachment.get('reference_url'),
+                reference_type=attachment.get('reference_type'),
+            )
 
     @property
     def attachments_metadata(self) -> str:
@@ -94,6 +119,9 @@ class OpenAiToDialStreamer:
             self._target.append_content(content)
 
     def _process_custom_content(self, custom_content: dict[str, Any]) -> None:
+        if (state := custom_content.get('state')) is not None:
+            self._state = state
+
         if attachments := custom_content.get('attachments'):
             for attachment in attachments:
                 self._process_attachment(attachment)
