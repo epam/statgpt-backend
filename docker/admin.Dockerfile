@@ -62,6 +62,18 @@ WORKDIR $APP_HOME
 RUN adduser -u 1001 --disabled-password --gecos "" appuser
 COPY --chown=appuser --from=builder $APP_HOME .
 
+# The service runs from the prebuilt venv and never invokes pip/venv at runtime.
+# Remove packaging tooling so its vendored/bundled deps (pip's msgpack,
+# ensurepip's setuptools wheel) aren't flagged as CVEs. The installed
+# setuptools/wheel stay pinned & patched.
+RUN rm -rf /usr/local/lib/python3.11/ensurepip \
+ && rm -rf /usr/local/lib/python3.11/site-packages/pip \
+           /usr/local/lib/python3.11/site-packages/pip-*.dist-info \
+           /usr/local/bin/pip* \
+ && rm -rf /home/app/.venv/lib/python3.11/site-packages/pip \
+           /home/app/.venv/lib/python3.11/site-packages/pip-*.dist-info \
+           /home/app/.venv/bin/pip*
+
 COPY --chmod=755 ./docker/scripts/admin_docker_entrypoint.sh /docker_entrypoint.sh
 
 EXPOSE 8000
