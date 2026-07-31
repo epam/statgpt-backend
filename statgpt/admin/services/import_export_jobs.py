@@ -407,7 +407,9 @@ class JobsService:
             await self._update_job_status(job, schemas.PreprocessingStatusEnum.IN_PROGRESS)
             if scope.includes_configs():
                 glossary_service = GlossaryOfTermsService(session)
-                await glossary_service.import_glossary_from_zip(zip_file, channel_db.id)
+                await glossary_service.import_glossary_from_zip(
+                    zip_file, channel_db.id, merge=is_merge
+                )
 
             dataset_service = DataSetService(session)
             await dataset_service.import_datasets_and_data_sources_from_zip(

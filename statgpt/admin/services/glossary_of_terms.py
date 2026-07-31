@@ -170,7 +170,9 @@ class AdminPortalGlossaryOfTermsService(GlossaryOfTermsService):
         utils.write_csv_from_dict_list(glossary_terms_data, glossary_file)
         _log.info(f"Exported glossary terms to {glossary_file!r}.")
 
-    async def import_glossary_from_zip(self, zip_file: zipfile.ZipFile, channel_id: int) -> None:
+    async def import_glossary_from_zip(
+        self, zip_file: zipfile.ZipFile, channel_id: int, merge: bool = False
+    ) -> None:
         if JobsConfig.GLOSSARY_TERMS_FILE not in zip_file.namelist():
             _log.info("No glossary terms found in the zip file.")
             return
@@ -183,5 +185,55 @@ class AdminPortalGlossaryOfTermsService(GlossaryOfTermsService):
         glossary_terms_base = [
             schemas.GlossaryTermBase.model_validate(item) for item in glossary_terms_data
         ]
+
+        if merge:
+            await self._merge_terms(channel_id, glossary_terms_base)
+            return
+
         items = await self.add_terms_bulk(channel_id=channel_id, data=glossary_terms_base)
         _log.info(f"Imported {len(items)} glossary terms.")
+
+    async def _merge_terms(self, channel_id: int, terms: list[schemas.GlossaryTermBase]) -> None:
+        """Merge terms into an existing channel without creating duplicates.
+
+        A term is identified by ``(term, domain, source)``. An incoming row whose
+        identity already exists updates the stored definition; a new identity is
+        inserted; rows that are unchanged (or repeated within the archive itself)
+        are ignored, so re-importing the same archive stays idempotent (issue #564).
+        """
+        existing_by_identity = {
+            self._term_identity(item): item
+            for item in await self.get_term_models_by_channel(channel_id, limit=None, offset=0)
+        }
+
+        to_add: list[schemas.GlossaryTermBase] = []
+        to_update: list[schemas.GlossaryTermUpdateBulk] = []
+        seen_identities: set[tuple[str, str, str]] = set()
+
+        for term in terms:
+            identity = self._term_identity(term)
+            if identity in seen_identities:
+                continue  # collapse rows duplicated within the archive itself
+            seen_identities.add(identity)
+
+            existing_term = existing_by_identity.get(identity)
+            if existing_term is None:
+                to_add.append(term)
+            elif existing_term.definition != term.definition:
+                to_update.append(
+                    schemas.GlossaryTermUpdateBulk(id=existing_term.id, definition=term.definition)
+                )
+
+        if to_add:
+            await self.add_terms_bulk(channel_id=channel_id, data=to_add)
+        if to_update:
+            await self.update_terms_bulk(data=to_update)
+
+        _log.info(f"Merged glossary terms: {len(to_add)} added, {len(to_update)} updated.")
+
+    @staticmethod
+    def _term_identity(
+        term: models.GlossaryTerm | schemas.GlossaryTermBase,
+    ) -> tuple[str, str, str]:
+        """Identity of a term independent of its definition."""
+        return term.term, term.domain, term.source
