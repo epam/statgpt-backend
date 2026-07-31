@@ -52,15 +52,24 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     WEB_CONCURRENCY=1 \
     PYDANTIC_V2=True
 
-# CVE-2026-23949 (jaraco.context vendored in setuptools), CVE-2026-24049 (wheel vendored in setuptools)
-RUN pip install --upgrade pip \
-  && pip install "setuptools==80.10.2" "wheel==0.46.2"
-
 WORKDIR $APP_HOME
 
 # Create non-root user and copy built application
 RUN adduser -u 1001 --disabled-password --gecos "" appuser
 COPY --chown=appuser --from=builder $APP_HOME .
+
+# The service runs from the prebuilt venv and never invokes pip/venv at runtime,
+# and the venv does not expose system site-packages. The base image installs only
+# pip/setuptools/wheel there, so it is wiped wholesale: that clears their CVEs plus
+# the ones from their vendored/bundled deps (pip's msgpack, setuptools' wheel and
+# jaraco.context). Do not install into the system interpreter, it gets emptied here.
+# The venv keeps its own pinned & patched setuptools/wheel.
+RUN rm -rf /usr/local/lib/python3.11/ensurepip \
+           /usr/local/lib/python3.11/site-packages/* \
+           /usr/local/bin/pip* /usr/local/bin/wheel \
+ && rm -rf /home/app/.venv/lib/python3.11/site-packages/pip \
+           /home/app/.venv/lib/python3.11/site-packages/pip-*.dist-info \
+           /home/app/.venv/bin/pip*
 
 COPY --chmod=755 ./docker/scripts/admin_docker_entrypoint.sh /docker_entrypoint.sh
 
