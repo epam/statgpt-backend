@@ -196,32 +196,41 @@ class AdminPortalGlossaryOfTermsService(GlossaryOfTermsService):
     async def _merge_terms(self, channel_id: int, terms: list[schemas.GlossaryTermBase]) -> None:
         """Merge terms into an existing channel without creating duplicates.
 
-        A term is identified by ``(term, domain, source)``. An incoming row whose
-        identity already exists updates the stored definition; a new identity is
-        inserted; rows that are unchanged (or repeated within the archive itself)
-        are ignored, so re-importing the same archive stays idempotent (issue #564).
+        A term is identified by its name, which is unique per channel (see the
+        ``channel_id + term`` constraint). An incoming row whose name already
+        exists updates the stored fields when any differ; a new name is inserted;
+        names that are unchanged (or repeated within the archive itself) are
+        ignored, so re-importing the same archive stays idempotent (issue #564).
         """
-        existing_by_identity = {
-            self._term_identity(item): item
+        existing_by_term = {
+            item.term: item
             for item in await self.get_term_models_by_channel(channel_id, limit=None, offset=0)
         }
 
         to_add: list[schemas.GlossaryTermBase] = []
         to_update: list[schemas.GlossaryTermUpdateBulk] = []
-        seen_identities: set[tuple[str, str, str]] = set()
+        seen_terms: set[str] = set()
 
         for term in terms:
-            identity = self._term_identity(term)
-            if identity in seen_identities:
+            if term.term in seen_terms:
                 continue  # collapse rows duplicated within the archive itself
-            seen_identities.add(identity)
+            seen_terms.add(term.term)
 
-            existing_term = existing_by_identity.get(identity)
+            existing_term = existing_by_term.get(term.term)
             if existing_term is None:
                 to_add.append(term)
-            elif existing_term.definition != term.definition:
+            elif (
+                existing_term.definition != term.definition
+                or existing_term.domain != term.domain
+                or existing_term.source != term.source
+            ):
                 to_update.append(
-                    schemas.GlossaryTermUpdateBulk(id=existing_term.id, definition=term.definition)
+                    schemas.GlossaryTermUpdateBulk(
+                        id=existing_term.id,
+                        definition=term.definition,
+                        domain=term.domain,
+                        source=term.source,
+                    )
                 )
 
         if to_add:
@@ -230,10 +239,3 @@ class AdminPortalGlossaryOfTermsService(GlossaryOfTermsService):
             await self.update_terms_bulk(data=to_update)
 
         _log.info(f"Merged glossary terms: {len(to_add)} added, {len(to_update)} updated.")
-
-    @staticmethod
-    def _term_identity(
-        term: models.GlossaryTerm | schemas.GlossaryTermBase,
-    ) -> tuple[str, str, str]:
-        """Identity of a term independent of its definition."""
-        return term.term, term.domain, term.source

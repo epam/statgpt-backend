@@ -88,30 +88,30 @@ async def test_merge_updates_edited_definition() -> None:
 
 
 @pytest.mark.asyncio
-async def test_merge_dedupes_rows_within_archive() -> None:
-    """Rows duplicated inside the archive itself collapse to a single insert (issue #564)."""
-    service = _make_service(existing=[])
-    zip_file = _make_zip([_row("GDP"), _row("GDP")])
-
-    await service.import_glossary_from_zip(zip_file, channel_id=1, merge=True)
-
-    service.add_terms_bulk.assert_awaited_once()
-    added = service.add_terms_bulk.await_args.kwargs["data"]
-    assert [item.term for item in added] == ["GDP"]
-
-
-@pytest.mark.asyncio
-async def test_merge_treats_different_domain_as_distinct() -> None:
-    """Identity includes domain, so the same name under a new domain is added, not updated."""
-    service = _make_service(existing=[_term("GDP", domain="Econ")])
+async def test_merge_updates_changed_metadata_for_same_name() -> None:
+    """A term is matched by name only, so changed domain/source updates it, not duplicates it."""
+    service = _make_service(existing=[_term("GDP", domain="Econ", term_id=7)])
     zip_file = _make_zip([_row("GDP", domain="Trade")])
 
     await service.import_glossary_from_zip(zip_file, channel_id=1, merge=True)
 
+    service.add_terms_bulk.assert_not_awaited()
+    service.update_terms_bulk.assert_awaited_once()
+    updates = service.update_terms_bulk.await_args.kwargs["data"]
+    assert [(u.id, u.domain) for u in updates] == [(7, "Trade")]
+
+
+@pytest.mark.asyncio
+async def test_merge_dedupes_within_archive_by_name() -> None:
+    """Rows sharing a name inside the archive collapse to a single insert (issue #564)."""
+    service = _make_service(existing=[])
+    zip_file = _make_zip([_row("GDP", domain="Econ"), _row("GDP", domain="Trade")])
+
+    await service.import_glossary_from_zip(zip_file, channel_id=1, merge=True)
+
     service.add_terms_bulk.assert_awaited_once()
     added = service.add_terms_bulk.await_args.kwargs["data"]
-    assert [(item.term, item.domain) for item in added] == [("GDP", "Trade")]
-    service.update_terms_bulk.assert_not_awaited()
+    assert [(item.term, item.domain) for item in added] == [("GDP", "Econ")]
 
 
 @pytest.mark.asyncio
