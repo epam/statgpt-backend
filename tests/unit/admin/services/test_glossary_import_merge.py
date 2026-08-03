@@ -5,6 +5,8 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+from fastapi import HTTPException, status
+from sqlalchemy.exc import IntegrityError
 
 from statgpt.admin.services.glossary_of_terms import AdminPortalGlossaryOfTermsService
 from statgpt.admin.settings.exim import JobsConfig
@@ -126,3 +128,40 @@ async def test_non_merge_adds_all_without_checking_existing() -> None:
     added = service.add_terms_bulk.await_args.kwargs["data"]
     assert [item.term for item in added] == ["GDP"]
     service.update_terms_bulk.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_non_merge_dedupes_within_archive_by_name() -> None:
+    """A pre-fix archive with duplicate names collapses before insert (issue #564)."""
+    service = _make_service(existing=[])
+    zip_file = _make_zip([_row("GDP", domain="Econ"), _row("GDP", domain="Trade")])
+
+    await service.import_glossary_from_zip(zip_file, channel_id=1, merge=False)
+
+    service.add_terms_bulk.assert_awaited_once()
+    added = service.add_terms_bulk.await_args.kwargs["data"]
+    assert [(item.term, item.domain) for item in added] == [("GDP", "Econ")]
+
+
+def _integrity_error(message: str) -> IntegrityError:
+    return IntegrityError("INSERT ...", {}, Exception(message))
+
+
+def test_integrity_error_maps_unique_violation_to_409() -> None:
+    """A duplicate name surfaces as an actionable 409, not an asyncpg 500."""
+    err = _integrity_error("<class 'asyncpg.exceptions.UniqueViolationError'>: duplicate key")
+
+    with pytest.raises(HTTPException) as exc_info:
+        AdminPortalGlossaryOfTermsService._raise_for_integrity_error(err, term="GDP")
+
+    assert exc_info.value.status_code == status.HTTP_409_CONFLICT
+    assert "GDP" in exc_info.value.detail
+
+
+def test_integrity_error_maps_other_errors_to_500() -> None:
+    err = _integrity_error("some other database failure")
+
+    with pytest.raises(HTTPException) as exc_info:
+        AdminPortalGlossaryOfTermsService._raise_for_integrity_error(err)
+
+    assert exc_info.value.status_code == status.HTTP_500_INTERNAL_SERVER_ERROR

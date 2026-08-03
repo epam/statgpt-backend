@@ -22,7 +22,9 @@ def upgrade() -> None:
     # Some environments already contain duplicate glossary terms (same channel_id
     # and term) created by earlier imports. Remove them, keeping the most recently
     # inserted row per (channel_id, term), so the unique constraint can be added.
-    op.execute(sa.text("""
+    # This DELETE is irreversible, so report how many rows were dropped to give the
+    # operator a record (e.g. a hand-curated `GDP` kept in two domains).
+    result = op.get_bind().execute(sa.text("""
             DELETE FROM glossary_terms
             WHERE id NOT IN (
                 SELECT MAX(id)
@@ -30,6 +32,11 @@ def upgrade() -> None:
                 GROUP BY channel_id, term
             )
             """))
+    if result.rowcount:
+        print(
+            f"Removed {result.rowcount} duplicate glossary term(s) "
+            "before adding uq_glossary_terms_channel_id_term."
+        )
     op.create_unique_constraint(
         'uq_glossary_terms_channel_id_term',
         'glossary_terms',

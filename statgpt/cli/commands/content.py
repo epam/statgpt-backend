@@ -515,35 +515,57 @@ async def _process_glossary(
     channel: Channel,
     terms: list[dict[str, str]],
 ) -> None:
-    """Process glossary terms for a channel."""
-    existing = await client.get_glossary_terms(channel.id)
-    existing_map: dict[tuple[str, str | None, str | None], GlossaryTerm] = {
-        (t.term, t.domain, t.source): t for t in existing
-    }
+    """Process glossary terms for a channel.
 
-    add_terms = []
-    update_terms = []
+    A term is identified by its name, which is unique per channel
+    (uq_glossary_terms_channel_id_term). Matching by name keeps metadata edits
+    (definition/domain/source) as updates instead of add-then-delete churn, so
+    changing a term's domain or source cannot be misread as a new term and
+    violate the constraint (aligns with the merge path in the admin service).
+    """
+    existing = await client.get_glossary_terms(channel.id)
+    existing_by_term: dict[str, GlossaryTerm] = {t.term: t for t in existing}
+
+    add_terms: list[dict[str, str]] = []
+    update_terms: list[dict[str, Any]] = []
+    seen_terms: set[str] = set()
     found_ids: set[int] = set()
 
     for term in terms:
-        key = (term["term"], term.get("domain"), term.get("source"))
-        if key in existing_map:
-            existing_term = existing_map[key]
-            found_ids.add(existing_term.id)
-            if term.get("definition") != existing_term.definition:
-                update_terms.append({"id": existing_term.id, "definition": term["definition"]})
-        else:
-            add_terms.append(term)
+        name = term["term"]
+        if name in seen_terms:
+            continue  # collapse rows duplicated within the CSV itself
+        seen_terms.add(name)
 
+        existing_term = existing_by_term.get(name)
+        if existing_term is None:
+            add_terms.append(term)
+            continue
+
+        found_ids.add(existing_term.id)
+        if (
+            term.get("definition") != existing_term.definition
+            or term.get("domain") != existing_term.domain
+            or term.get("source") != existing_term.source
+        ):
+            update_terms.append(
+                {
+                    "id": existing_term.id,
+                    "definition": term.get("definition"),
+                    "domain": term.get("domain"),
+                    "source": term.get("source"),
+                }
+            )
+
+    # Delete removed terms before adding, so a renamed term cannot momentarily
+    # collide with a leftover row under the unique constraint.
+    delete_ids = [t.id for t in existing if t.id not in found_ids]
+    if delete_ids:
+        await client.delete_glossary_terms_bulk(delete_ids)
     if add_terms:
         await client.create_glossary_terms_bulk(channel.id, add_terms)
     if update_terms:
         await client.update_glossary_terms_bulk(update_terms)
-
-    # Delete removed terms
-    delete_ids = [t.id for t in existing if t.id not in found_ids]
-    if delete_ids:
-        await client.delete_glossary_terms_bulk(delete_ids)
 
 
 async def _process_data_sources(

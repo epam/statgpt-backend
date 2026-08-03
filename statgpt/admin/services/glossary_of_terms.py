@@ -7,6 +7,7 @@ from typing import cast
 
 from fastapi import HTTPException, status
 from sqlalchemy import ColumnElement, delete, func, update
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from statgpt.admin.settings.exim import JobsConfig
@@ -20,6 +21,51 @@ class AdminPortalGlossaryOfTermsService(GlossaryOfTermsService):
 
     def __init__(self, session: AsyncSession) -> None:
         super().__init__(session, None)  # No need for session lock in Admin Portal
+
+    @staticmethod
+    def _raise_for_integrity_error(e: IntegrityError, term: str | None = None) -> None:
+        """Translate a DB integrity failure into an actionable HTTP error.
+
+        A duplicate name hits uq_glossary_terms_channel_id_term; surface it as a
+        409 instead of leaking an asyncpg UniqueViolationError traceback as a 500.
+        """
+        _log.warning(e)
+
+        if "UniqueViolationError" in str(e.orig):
+            detail = (
+                f"Key term={term!r} already exists in this channel."
+                if term is not None
+                else "A glossary term with the same name already exists in this channel."
+            )
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=detail)
+
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Unknown db error"
+        )
+
+    @staticmethod
+    def _dedupe_by_name(
+        terms: list[schemas.GlossaryTermBase],
+    ) -> list[schemas.GlossaryTermBase]:
+        """Collapse rows that share a term name, keeping the first occurrence.
+
+        A term name is unique per channel (uq_glossary_terms_channel_id_term), yet
+        archives exported before that constraint can legitimately contain duplicate
+        names (issue #564). Collapsing here keeps a bulk insert from aborting on
+        the constraint.
+        """
+        seen: set[str] = set()
+        deduped: list[schemas.GlossaryTermBase] = []
+        for term in terms:
+            if term.term in seen:
+                continue
+            seen.add(term.term)
+            deduped.append(term)
+
+        collapsed = len(terms) - len(deduped)
+        if collapsed:
+            _log.info(f"Collapsed {collapsed} duplicate glossary term(s) sharing a name.")
+        return deduped
 
     async def add_term(
         self, channel_id: int, data: schemas.GlossaryTermBase
@@ -36,7 +82,11 @@ class AdminPortalGlossaryOfTermsService(GlossaryOfTermsService):
             source=data.source,
         )
         self._session.add(term)
-        await self._session.commit()
+        try:
+            await self._session.commit()
+        except IntegrityError as e:
+            await self._session.rollback()
+            self._raise_for_integrity_error(e, term=data.term)
 
         return schemas.GlossaryTerm.model_validate(term, from_attributes=True)
 
@@ -49,8 +99,12 @@ class AdminPortalGlossaryOfTermsService(GlossaryOfTermsService):
             .values(**data.model_dump(mode="json", exclude_unset=True), updated_at=func.now())
             .returning(models.GlossaryTerm)
         )
-        item = (await self._session.execute(query)).scalar_one()
-        await self._session.commit()
+        try:
+            item = (await self._session.execute(query)).scalar_one()
+            await self._session.commit()
+        except IntegrityError as e:
+            await self._session.rollback()
+            self._raise_for_integrity_error(e, term=data.term)
 
         return schemas.GlossaryTerm.model_validate(item, from_attributes=True)
 
@@ -81,7 +135,11 @@ class AdminPortalGlossaryOfTermsService(GlossaryOfTermsService):
         ]
 
         self._session.add_all(terms)
-        await self._session.commit()
+        try:
+            await self._session.commit()
+        except IntegrityError as e:
+            await self._session.rollback()
+            self._raise_for_integrity_error(e)
 
         return [schemas.GlossaryTerm.model_validate(item, from_attributes=True) for item in terms]
 
@@ -114,7 +172,11 @@ class AdminPortalGlossaryOfTermsService(GlossaryOfTermsService):
 
         if updated_item_ids:
             _log.info(f"Updating {len(updated_item_ids)} of {len(data)} terms: {updated_item_ids}")
-            await self._session.commit()
+            try:
+                await self._session.commit()
+            except IntegrityError as e:
+                await self._session.rollback()
+                self._raise_for_integrity_error(e)
 
             # `session.refresh()` can only be applied to one element, so it's better to query all update elements.
             existing_terms = [item for item in existing_terms if item.id not in updated_item_ids]
@@ -190,7 +252,10 @@ class AdminPortalGlossaryOfTermsService(GlossaryOfTermsService):
             await self._merge_terms(channel_id, glossary_terms_base)
             return
 
-        items = await self.add_terms_bulk(channel_id=channel_id, data=glossary_terms_base)
+        # A pre-fix archive can carry duplicate names (issue #564); collapse them
+        # so the insert does not abort on uq_glossary_terms_channel_id_term.
+        deduped = self._dedupe_by_name(glossary_terms_base)
+        items = await self.add_terms_bulk(channel_id=channel_id, data=deduped)
         _log.info(f"Imported {len(items)} glossary terms.")
 
     async def _merge_terms(self, channel_id: int, terms: list[schemas.GlossaryTermBase]) -> None:
@@ -209,13 +274,8 @@ class AdminPortalGlossaryOfTermsService(GlossaryOfTermsService):
 
         to_add: list[schemas.GlossaryTermBase] = []
         to_update: list[schemas.GlossaryTermUpdateBulk] = []
-        seen_terms: set[str] = set()
 
-        for term in terms:
-            if term.term in seen_terms:
-                continue  # collapse rows duplicated within the archive itself
-            seen_terms.add(term.term)
-
+        for term in self._dedupe_by_name(terms):
             existing_term = existing_by_term.get(term.term)
             if existing_term is None:
                 to_add.append(term)
