@@ -67,6 +67,29 @@ class DataSourceConfig(BaseModel, ABC):
             mode='json', by_alias=True
         )
 
+    def external_details_key(self) -> str | None:
+        """Identity of the external system that owns part of this config's `details`.
+
+        None when nothing in `details` is externally owned. Configs returning the same key
+        share an owner, so their externally-owned details are loaded once.
+        """
+        return None
+
+    async def load_external_details(self) -> dict[str, t.Any]:
+        """Load the externally-owned part of `details`, keyed by serialization alias.
+
+        Raises whatever domain exception the external system's client raises; callers decide
+        how tolerant to be.
+        """
+        return {}
+
+    async def push_external_details(self) -> None:
+        """Send the externally-owned part of `details` back to the system that owns it.
+
+        A no-op when this config does not specify a value, so an update can leave the
+        external system untouched.
+        """
+
 
 DataSourceConfigType = t.TypeVar("DataSourceConfigType", bound=DataSourceConfig)
 DataSetType = t.TypeVar("DataSetType", bound=DataSet)

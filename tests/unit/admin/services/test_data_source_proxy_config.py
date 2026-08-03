@@ -62,24 +62,24 @@ def _proxy_config(**overrides) -> StatGptSdmxProxyDataSourceConfig:
 class TestReadEnrichment:
     async def test_fetches_the_live_configuration(self, service, mocker) -> None:
         fetch = mocker.patch(
-            "statgpt.admin.services.data_source.fetch_proxy_config",
+            "statgpt.common.data.statgpt_sdmx_proxy.config.fetch_proxy_config",
             AsyncMock(return_value=_STORED_CONFIG),
         )
         item = _data_source()
 
-        await service._enrich_with_proxy_config([item])
+        await service._enrich_with_external_details([item])
 
         assert item.details["proxyConfig"] == _STORED_CONFIG
         fetch.assert_awaited_once_with(_URL)
 
     async def test_reports_a_cold_start_as_null(self, service, mocker) -> None:
         mocker.patch(
-            "statgpt.admin.services.data_source.fetch_proxy_config",
+            "statgpt.common.data.statgpt_sdmx_proxy.config.fetch_proxy_config",
             AsyncMock(return_value=None),
         )
         item = _data_source()
 
-        await service._enrich_with_proxy_config([item])
+        await service._enrich_with_external_details([item])
 
         assert item.details["proxyConfig"] is None
 
@@ -87,90 +87,98 @@ class TestReadEnrichment:
         self, service, mocker, caplog
     ) -> None:
         mocker.patch(
-            "statgpt.admin.services.data_source.fetch_proxy_config",
+            "statgpt.common.data.statgpt_sdmx_proxy.config.fetch_proxy_config",
             AsyncMock(side_effect=ProxyConfigServerError("connection refused")),
         )
         item = _data_source()
 
         with caplog.at_level("WARNING"):
-            await service._enrich_with_proxy_config([item])
+            await service._enrich_with_external_details([item])
 
         assert "proxyConfig" not in item.details
         assert "connection refused" in caplog.text
 
-    async def test_skips_non_proxy_data_sources(self, service, mocker) -> None:
-        fetch = mocker.patch("statgpt.admin.services.data_source.fetch_proxy_config", AsyncMock())
+    async def test_skips_data_sources_without_externally_owned_details(
+        self, service, mocker
+    ) -> None:
+        fetch = mocker.patch(
+            "statgpt.common.data.statgpt_sdmx_proxy.config.fetch_proxy_config", AsyncMock()
+        )
         item = _data_source(type_name="SDMX21")
 
-        await service._enrich_with_proxy_config([item])
+        await service._enrich_with_external_details([item])
 
         assert "proxyConfig" not in item.details
         fetch.assert_not_awaited()
 
     async def test_fetches_a_shared_config_server_once(self, service, mocker) -> None:
         fetch = mocker.patch(
-            "statgpt.admin.services.data_source.fetch_proxy_config",
+            "statgpt.common.data.statgpt_sdmx_proxy.config.fetch_proxy_config",
             AsyncMock(return_value=_STORED_CONFIG),
         )
         items = [_data_source(title="a"), _data_source(title="b")]
 
-        await service._enrich_with_proxy_config(items)
+        await service._enrich_with_external_details(items)
 
         assert [item.details["proxyConfig"] for item in items] == [_STORED_CONFIG] * 2
         fetch.assert_awaited_once_with(_URL)
 
     async def test_skips_a_data_source_with_invalid_details(self, service, mocker, caplog) -> None:
-        fetch = mocker.patch("statgpt.admin.services.data_source.fetch_proxy_config", AsyncMock())
+        fetch = mocker.patch(
+            "statgpt.common.data.statgpt_sdmx_proxy.config.fetch_proxy_config", AsyncMock()
+        )
         item = _data_source(details={"sdmxConfig": {"id": "proxy"}})  # missing url and name
 
         with caplog.at_level("WARNING"):
-            await service._enrich_with_proxy_config([item])
+            await service._enrich_with_external_details([item])
 
         assert "proxyConfig" not in item.details
-        assert "Cannot resolve the proxy config server URL" in caplog.text
+        assert "Cannot resolve the external details owner" in caplog.text
         fetch.assert_not_awaited()
 
 
 class TestWritePush:
     async def test_pushes_a_submitted_configuration(self, service, mocker) -> None:
         push = mocker.patch(
-            "statgpt.admin.services.data_source.push_proxy_config",
+            "statgpt.common.data.statgpt_sdmx_proxy.config.push_proxy_config",
             AsyncMock(return_value=_STORED_CONFIG),
         )
 
-        await service._push_proxy_config(_proxy_config(proxy_config=_STORED_CONFIG))
+        await service._push_external_details(_proxy_config(proxy_config=_STORED_CONFIG))
 
         push.assert_awaited_once_with(_URL, _STORED_CONFIG)
 
     async def test_leaves_the_config_server_alone_when_nothing_is_submitted(
         self, service, mocker
     ) -> None:
-        push = mocker.patch("statgpt.admin.services.data_source.push_proxy_config", AsyncMock())
+        push = mocker.patch(
+            "statgpt.common.data.statgpt_sdmx_proxy.config.push_proxy_config", AsyncMock()
+        )
 
-        await service._push_proxy_config(_proxy_config())
+        await service._push_external_details(_proxy_config())
 
         push.assert_not_awaited()
 
     async def test_reports_a_rejected_configuration_to_the_caller(self, service, mocker) -> None:
         mocker.patch(
-            "statgpt.admin.services.data_source.push_proxy_config",
+            "statgpt.common.data.statgpt_sdmx_proxy.config.push_proxy_config",
             AsyncMock(side_effect=ProxyConfigValidationError("agency IMF has no registry")),
         )
 
         with pytest.raises(HTTPException) as exc:
-            await service._push_proxy_config(_proxy_config(proxy_config=_STORED_CONFIG))
+            await service._push_external_details(_proxy_config(proxy_config=_STORED_CONFIG))
 
         assert exc.value.status_code == 422
         assert "agency IMF has no registry" in exc.value.detail
 
     async def test_swallows_an_unreachable_config_server(self, service, mocker, caplog) -> None:
         mocker.patch(
-            "statgpt.admin.services.data_source.push_proxy_config",
+            "statgpt.common.data.statgpt_sdmx_proxy.config.push_proxy_config",
             AsyncMock(side_effect=ProxyConfigServerError("connection refused")),
         )
 
         with caplog.at_level("WARNING"):
-            await service._push_proxy_config(_proxy_config(proxy_config=_STORED_CONFIG))
+            await service._push_external_details(_proxy_config(proxy_config=_STORED_CONFIG))
 
         assert "connection refused" in caplog.text
 

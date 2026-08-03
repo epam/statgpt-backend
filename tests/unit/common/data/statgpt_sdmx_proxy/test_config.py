@@ -1,10 +1,19 @@
 """Config-validation tests for the StatGPT SDMX proxy data source."""
 
+from unittest.mock import AsyncMock
+
 import pytest
 from pydantic import ValidationError
 
-from statgpt.common.data.sdmx.common.config import ProviderDiscoveryMode, SdmxConfig
+from statgpt.common.data.sdmx.common.config import (
+    ProviderDiscoveryMode,
+    SdmxConfig,
+    SdmxDataSourceConfig,
+)
 from statgpt.common.data.statgpt_sdmx_proxy.config import StatGptSdmxProxyDataSourceConfig
+from statgpt.common.data.statgpt_sdmx_proxy.config_client import ProxyConfigServerError
+
+_URL = "http://config-server:8060/statgpt/sdmx-proxy-config-server/api/v0/config"
 
 
 def _proxy_config(**overrides) -> StatGptSdmxProxyDataSourceConfig:
@@ -79,3 +88,71 @@ def test_matches_stored_detects_a_changed_persisted_field() -> None:
     stored = _proxy_config(locale="en")
 
     assert not incoming.matches_stored(stored)
+
+
+class TestExternalDetails:
+    """The config server owns `proxyConfig`, so the config loads and pushes it on request."""
+
+    @pytest.fixture(autouse=True)
+    def config_server_host(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("SDMX_PROXY_CONFIG_SERVER_HOST", "http://config-server:8060")
+
+    def test_the_key_is_the_config_server_url(self) -> None:
+        assert _proxy_config().external_details_key() == _URL
+
+    async def test_load_returns_the_served_configuration(self, mocker) -> None:
+        stored = {"agencies": [{"name": "IMF"}]}
+        fetch = mocker.patch(
+            "statgpt.common.data.statgpt_sdmx_proxy.config.fetch_proxy_config",
+            AsyncMock(return_value=stored),
+        )
+
+        assert await _proxy_config().load_external_details() == {"proxyConfig": stored}
+        fetch.assert_awaited_once_with(_URL)
+
+    async def test_load_reports_a_cold_start_as_null(self, mocker) -> None:
+        mocker.patch(
+            "statgpt.common.data.statgpt_sdmx_proxy.config.fetch_proxy_config",
+            AsyncMock(return_value=None),
+        )
+
+        assert await _proxy_config().load_external_details() == {"proxyConfig": None}
+
+    async def test_load_propagates_a_config_server_failure(self, mocker) -> None:
+        mocker.patch(
+            "statgpt.common.data.statgpt_sdmx_proxy.config.fetch_proxy_config",
+            AsyncMock(side_effect=ProxyConfigServerError("connection refused")),
+        )
+
+        with pytest.raises(ProxyConfigServerError):
+            await _proxy_config().load_external_details()
+
+    async def test_push_sends_the_submitted_configuration(self, mocker) -> None:
+        stored = {"agencies": [{"name": "IMF"}]}
+        push = mocker.patch(
+            "statgpt.common.data.statgpt_sdmx_proxy.config.push_proxy_config",
+            AsyncMock(return_value=stored),
+        )
+
+        await _proxy_config(proxy_config=stored).push_external_details()
+
+        push.assert_awaited_once_with(_URL, stored)
+
+    async def test_push_leaves_the_config_server_alone_when_nothing_is_submitted(
+        self, mocker
+    ) -> None:
+        push = mocker.patch(
+            "statgpt.common.data.statgpt_sdmx_proxy.config.push_proxy_config", AsyncMock()
+        )
+
+        await _proxy_config().push_external_details()
+
+        push.assert_not_awaited()
+
+
+def test_a_data_source_without_externally_owned_details_has_no_key() -> None:
+    """The base hook opts out, so the admin service skips such data sources entirely."""
+    config = SdmxDataSourceConfig(
+        sdmx_config=SdmxConfig(id="plain", url="https://example.invalid", name="plain")
+    )
+    assert config.external_details_key() is None

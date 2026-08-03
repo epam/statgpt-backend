@@ -17,21 +17,14 @@ from statgpt.admin.audit.decorators import audit_action
 from statgpt.admin.settings.exim import JobsConfig
 from statgpt.common import utils
 from statgpt.common.data import DataManager, DataSourceConfig
-from statgpt.common.data.statgpt_sdmx_proxy.config import StatGptSdmxProxyDataSourceConfig
 from statgpt.common.data.statgpt_sdmx_proxy.config_client import (
     ProxyConfigServerError,
     ProxyConfigValidationError,
-    fetch_proxy_config,
-    push_proxy_config,
 )
 from statgpt.common.schemas import AuditActionType, AuditEntityType
 from statgpt.common.services import DataSourceSerializer, DataSourceService, DataSourceTypeService
 
 _log = logging.getLogger(__name__)
-
-# Serialization alias of `StatGptSdmxProxyDataSourceConfig.proxy_config`: `details` is stored
-# camelCase, so this is the key the admin portal sees and sends back.
-_PROXY_CONFIG_KEY = "proxyConfig"
 
 
 class AdminPortalDataSourceService(DataSourceService):
@@ -60,100 +53,104 @@ class AdminPortalDataSourceService(DataSourceService):
         return parsed_config
 
     @staticmethod
-    def _proxy_config_url(item: schemas.DataSource) -> str | None:
-        """Return the resolved config server URL, or None if this is not an SDMX proxy source."""
+    def _external_details_owner(
+        item: schemas.DataSource,
+    ) -> tuple[DataSourceConfig, str] | None:
+        """Return the item's config and the key of the system owning part of its `details`.
+
+        None when the data source type has no externally-owned details, or when `details`
+        cannot be parsed - a data source must stay readable either way.
+        """
 
         config_class = DataManager.get_config_class(item.type.name)
-        if not issubclass(config_class, StatGptSdmxProxyDataSourceConfig):
-            return None
-
         try:
             config = config_class.model_validate(item.details)
         except ValidationError as e:
             _log.warning(
-                "Cannot resolve the proxy config server URL of data source %r: %s", item.title, e
+                "Cannot resolve the external details owner of data source %r: %s", item.title, e
             )
             return None
-        return config.get_config_url()
+
+        if (key := config.external_details_key()) is None:
+            return None
+        return config, key
 
     @staticmethod
-    async def _fetch_proxy_config(url: str) -> tuple[bool, dict[str, Any] | None]:
-        """Load a proxy configuration, reporting failures instead of raising.
+    async def _load_external_details(
+        config: DataSourceConfig, key: str
+    ) -> tuple[bool, dict[str, Any]]:
+        """Load externally-owned details, reporting failures instead of raising.
 
         Returns:
-            A `(fetched, config)` pair. `fetched` is False when the config server could not be
-            read, which is distinct from the server answering that it holds no configuration yet.
+            A `(loaded, details)` pair. `loaded` is False when the owning system could not be
+            read, which is distinct from it answering that it holds no value yet.
         """
 
         try:
-            return True, await fetch_proxy_config(url)
+            return True, await config.load_external_details()
         except ProxyConfigServerError as e:
-            _log.warning("Could not load the SDMX proxy configuration from %s: %s", url, e)
-            return False, None
+            _log.warning("Could not load the externally-owned details from %s: %s", key, e)
+            return False, {}
 
-    async def _enrich_with_proxy_config(self, items: Sequence[schemas.DataSource]) -> None:
-        """Populate `details.proxyConfig` of SDMX proxy data sources from their config server.
+    async def _enrich_with_external_details(self, items: Sequence[schemas.DataSource]) -> None:
+        """Populate the externally-owned part of each data source's `details` from its owner.
 
-        The config server owns the value, so it is always read live instead of being cached or
-        persisted. Data sources sharing a config server are fetched once. When a config server
-        cannot be read the key is left absent - a data source must stay readable when its config
-        server is down, and an absent key tells the admin portal not to offer the configuration
-        for editing.
+        The owning system holds the value, so it is always read live instead of being cached or
+        persisted. Data sources sharing an owner are read once. When an owner cannot be reached
+        the keys are left absent - a data source must stay readable when its owner is down, and
+        absent keys tell the admin portal not to offer those fields for editing.
         """
 
-        targets = [(item, url) for item in items if (url := self._proxy_config_url(item))]
+        targets = [(item, owner) for item in items if (owner := self._external_details_owner(item))]
         if not targets:
             return
 
-        urls = list({url for _, url in targets})
-        results = dict(
-            zip(urls, await asyncio.gather(*(self._fetch_proxy_config(url) for url in urls)))
+        # One representative config per owner: configs sharing a key read the same value.
+        by_key = {key: config for _, (config, key) in targets}
+        keys = list(by_key)
+        results = await asyncio.gather(
+            *(self._load_external_details(by_key[key], key) for key in keys)
         )
+        loaded = dict(zip(keys, results))
 
-        for item, url in targets:
-            fetched, config = results[url]
-            if fetched:
-                item.details[_PROXY_CONFIG_KEY] = config
+        for item, (_, key) in targets:
+            was_loaded, details = loaded[key]
+            if was_loaded:
+                item.details.update(details)
 
     @staticmethod
-    async def _push_proxy_config(config: DataSourceConfig) -> None:
-        """Send the submitted proxy configuration to the config server, if there is one.
+    async def _push_external_details(config: DataSourceConfig) -> None:
+        """Send the externally-owned part of the submitted `details` back to its owner.
 
-        An absent configuration means "leave the config server alone", so a data source can be
-        updated while its config server is unreachable without wiping the stored configuration.
+        An absent value means "leave the owning system alone", so a data source can be updated
+        while its owner is unreachable without wiping the stored value.
         """
 
-        if not isinstance(config, StatGptSdmxProxyDataSourceConfig):
-            return
-        if config.proxy_config is None:
-            return
-
-        url = config.get_config_url()
         try:
-            await push_proxy_config(url, config.proxy_config)
+            await config.push_external_details()
         except ProxyConfigValidationError as e:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(e)
             ) from e
         except ProxyConfigServerError as e:
-            _log.warning("Could not update the SDMX proxy configuration at %s: %s", url, e)
+            _log.warning("Could not update the externally-owned details: %s", e)
 
-    async def get_schema_by_id_with_proxy_config(self, item_id: int) -> schemas.DataSource:
+    async def get_schema_by_id_with_external_details(self, item_id: int) -> schemas.DataSource:
         item = await self.get_schema_by_id(item_id)
-        await self._enrich_with_proxy_config([item])
+        await self._enrich_with_external_details([item])
         return item
 
-    async def get_data_sources_schemas_with_proxy_config(
+    async def get_data_sources_schemas_with_external_details(
         self, limit: int | None, offset: int
     ) -> list[schemas.DataSource]:
         items = await self.get_data_sources_schemas(limit=limit, offset=offset)
-        await self._enrich_with_proxy_config(items)
+        await self._enrich_with_external_details(items)
         return items
 
     @audit_action(entity_type=AuditEntityType.DATA_SOURCE, action_type=AuditActionType.CREATE)
     async def create_data_source(self, data: schemas.DataSourceBase) -> schemas.DataSource:
         parsed_config = await self._parse_details_field(data.type_id, data.details)
-        await self._push_proxy_config(parsed_config)
+        await self._push_external_details(parsed_config)
 
         item = models.DataSource(
             title=data.title,
@@ -167,14 +164,14 @@ class AdminPortalDataSourceService(DataSourceService):
 
         await self._session.refresh(item, attribute_names=["type"])
         result = DataSourceSerializer.db_to_schema(item)
-        await self._enrich_with_proxy_config([result])
+        await self._enrich_with_external_details([result])
         return result
 
     async def export_data_sources(
         self, data_sources: Iterable[schemas.DataSource], res_dir: str
     ) -> None:
         sources = list(data_sources)
-        await self._enrich_with_proxy_config(sources)
+        await self._enrich_with_external_details(sources)
 
         data = [
             source.model_dump(mode='json', include=JobsConfig.DATA_SOURCE_FIELDS)
@@ -210,7 +207,9 @@ class AdminPortalDataSourceService(DataSourceService):
     ) -> dict[str, schemas.DataSource]:
         existing_data_sources = {
             ds.title: ds
-            for ds in await self.get_data_sources_schemas_with_proxy_config(limit=None, offset=0)
+            for ds in await self.get_data_sources_schemas_with_external_details(
+                limit=None, offset=0
+            )
         }
 
         with zip_file.open(JobsConfig.DATA_SOURCES_FILE) as file:
@@ -253,7 +252,7 @@ class AdminPortalDataSourceService(DataSourceService):
 
         if data.details:
             parsed_config = await self._parse_details_field(item.type_id, data.details)
-            await self._push_proxy_config(parsed_config)
+            await self._push_external_details(parsed_config)
             data.details = parsed_config.dump_for_storage()
 
         query = (
@@ -267,7 +266,7 @@ class AdminPortalDataSourceService(DataSourceService):
 
         await self._session.refresh(item, attribute_names=["type"])
         result = DataSourceSerializer.db_to_schema(item)
-        await self._enrich_with_proxy_config([result])
+        await self._enrich_with_external_details([result])
         return result
 
     @audit_action(entity_type=AuditEntityType.DATA_SOURCE, action_type=AuditActionType.DELETE)

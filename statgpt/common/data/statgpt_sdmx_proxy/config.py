@@ -5,6 +5,14 @@ from pydantic import Field, model_validator
 from statgpt.common.config import utils as config_utils
 from statgpt.common.data.base.datasource import DataSourceConfig
 from statgpt.common.data.sdmx.common.config import ProviderDiscoveryMode, SdmxDataSourceConfig
+from statgpt.common.data.statgpt_sdmx_proxy.config_client import (
+    fetch_proxy_config,
+    push_proxy_config,
+)
+
+# Serialization alias of `StatGptSdmxProxyDataSourceConfig.proxy_config`: `details` is stored
+# camelCase, so this is the key the admin portal sees and sends back.
+PROXY_CONFIG_KEY = "proxyConfig"
 
 
 class StatGptSdmxProxyDataSourceConfig(SdmxDataSourceConfig):
@@ -50,3 +58,15 @@ class StatGptSdmxProxyDataSourceConfig(SdmxDataSourceConfig):
             isinstance(stored, StatGptSdmxProxyDataSourceConfig)
             and self.proxy_config == stored.proxy_config
         )
+
+    def external_details_key(self) -> str | None:
+        return self.get_config_url()
+
+    async def load_external_details(self) -> dict[str, Any]:
+        return {PROXY_CONFIG_KEY: await fetch_proxy_config(self.get_config_url())}
+
+    async def push_external_details(self) -> None:
+        if self.proxy_config is None:
+            # The config server owns the value, so an update that does not carry one leaves it be.
+            return
+        await push_proxy_config(self.get_config_url(), self.proxy_config)
