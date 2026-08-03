@@ -84,7 +84,7 @@ async def test_fetch_rejects_an_unresolved_env_placeholder(mock_transport) -> No
         await fetch_proxy_config("$env:{SDMX_PROXY_CONFIG_SERVER_HOST}/api/v0/config")
 
 
-async def test_push_sends_the_configuration_and_returns_what_was_stored(mock_transport) -> None:
+async def test_push_sends_the_configuration(mock_transport) -> None:
     requests: list[httpx.Request] = []
 
     def handler(request: httpx.Request) -> httpx.Response:
@@ -93,7 +93,8 @@ async def test_push_sends_the_configuration_and_returns_what_was_stored(mock_tra
 
     mock_transport(handler)
 
-    assert await push_proxy_config(_URL, _CONFIG) == _CONFIG
+    await push_proxy_config(_URL, _CONFIG)
+
     assert [(r.method, str(r.url)) for r in requests] == [("POST", _URL)]
     assert requests[0].read() == httpx.Request("POST", _URL, json=_CONFIG).read()
 

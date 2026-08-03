@@ -170,7 +170,9 @@ class AdminPortalDataSourceService(DataSourceService):
     async def export_data_sources(
         self, data_sources: Iterable[schemas.DataSource], res_dir: str
     ) -> None:
-        sources = list(data_sources)
+        # Enrichment writes into `details`, and the caller keeps using these models after the
+        # export, so work on copies.
+        sources = [source.model_copy(deep=True) for source in data_sources]
         await self._enrich_with_external_details(sources)
 
         data = [

@@ -5,10 +5,12 @@ from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+import yaml
 from fastapi import HTTPException
 
 import statgpt.common.schemas as schemas
 from statgpt.admin.services.data_source import AdminPortalDataSourceService
+from statgpt.admin.settings.exim import JobsConfig
 from statgpt.common.data.sdmx.common.config import SdmxConfig
 from statgpt.common.data.statgpt_sdmx_proxy.config import StatGptSdmxProxyDataSourceConfig
 from statgpt.common.data.statgpt_sdmx_proxy.config_client import (
@@ -137,11 +139,28 @@ class TestReadEnrichment:
         fetch.assert_not_awaited()
 
 
+class TestExport:
+    async def test_writes_the_live_configuration_without_touching_the_caller_s_models(
+        self, service, mocker, tmp_path
+    ) -> None:
+        """The caller keeps using its data sources after the export, so they must come back intact."""
+        mocker.patch(
+            "statgpt.common.data.statgpt_sdmx_proxy.config.fetch_proxy_config",
+            AsyncMock(return_value=_STORED_CONFIG),
+        )
+        item = _data_source()
+
+        await service.export_data_sources([item], str(tmp_path))
+
+        assert "proxyConfig" not in item.details
+        exported = yaml.safe_load((tmp_path / JobsConfig.DATA_SOURCES_FILE).read_text())
+        assert exported['dataSources'][0]['details']['proxyConfig'] == _STORED_CONFIG
+
+
 class TestWritePush:
     async def test_pushes_a_submitted_configuration(self, service, mocker) -> None:
         push = mocker.patch(
-            "statgpt.common.data.statgpt_sdmx_proxy.config.push_proxy_config",
-            AsyncMock(return_value=_STORED_CONFIG),
+            "statgpt.common.data.statgpt_sdmx_proxy.config.push_proxy_config", AsyncMock()
         )
 
         await service._push_external_details(_proxy_config(proxy_config=_STORED_CONFIG))

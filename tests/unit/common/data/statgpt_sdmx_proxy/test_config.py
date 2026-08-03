@@ -128,15 +128,14 @@ class TestExternalDetails:
             await _proxy_config().load_external_details()
 
     async def test_push_sends_the_submitted_configuration(self, mocker) -> None:
-        stored = {"agencies": [{"name": "IMF"}]}
+        submitted = {"agencies": [{"name": "IMF"}]}
         push = mocker.patch(
-            "statgpt.common.data.statgpt_sdmx_proxy.config.push_proxy_config",
-            AsyncMock(return_value=stored),
+            "statgpt.common.data.statgpt_sdmx_proxy.config.push_proxy_config", AsyncMock()
         )
 
-        await _proxy_config(proxy_config=stored).push_external_details()
+        await _proxy_config(proxy_config=submitted).push_external_details()
 
-        push.assert_awaited_once_with(_URL, stored)
+        push.assert_awaited_once_with(_URL, submitted)
 
     async def test_push_leaves_the_config_server_alone_when_nothing_is_submitted(
         self, mocker
