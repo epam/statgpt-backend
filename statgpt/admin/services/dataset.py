@@ -636,13 +636,13 @@ class AdminPortalDataSetService(DataSetService):
         except ValidationError as e:
             _log.info(e)
             raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail=f"Failed to parse 'details' field: {e}",
             )
         except Exception as e:
             _log.info(e)
             raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail="Failed to parse 'details' field",
             )
         return parsed_config

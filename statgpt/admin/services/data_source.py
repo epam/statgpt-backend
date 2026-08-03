@@ -48,13 +48,13 @@ class AdminPortalDataSourceService(DataSourceService):
         except ValidationError as e:
             _log.info(e)
             raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail=f"Failed to parse 'details' field: {e}",
             )
         except Exception as e:
             _log.info(e)
             raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail="Failed to parse 'details' field",
             )
         return parsed_config
@@ -133,7 +133,7 @@ class AdminPortalDataSourceService(DataSourceService):
             await push_proxy_config(url, config.proxy_config)
         except ProxyConfigValidationError as e:
             raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e)
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(e)
             ) from e
         except ProxyConfigServerError as e:
             _log.warning("Could not update the SDMX proxy configuration at %s: %s", url, e)
