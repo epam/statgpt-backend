@@ -105,7 +105,7 @@ async def test_merge_updates_changed_metadata_for_same_name() -> None:
 
 @pytest.mark.asyncio
 async def test_merge_dedupes_within_archive_by_name() -> None:
-    """Rows sharing a name inside the archive collapse to a single insert (issue #564)."""
+    """Rows sharing a name inside the archive collapse to the last occurrence (issue #564)."""
     service = _make_service(existing=[])
     zip_file = _make_zip([_row("GDP", domain="Econ"), _row("GDP", domain="Trade")])
 
@@ -113,7 +113,7 @@ async def test_merge_dedupes_within_archive_by_name() -> None:
 
     service.add_terms_bulk.assert_awaited_once()
     added = service.add_terms_bulk.await_args.kwargs["data"]
-    assert [(item.term, item.domain) for item in added] == [("GDP", "Econ")]
+    assert [(item.term, item.domain) for item in added] == [("GDP", "Trade")]
 
 
 @pytest.mark.asyncio
@@ -132,7 +132,7 @@ async def test_non_merge_adds_all_without_checking_existing() -> None:
 
 @pytest.mark.asyncio
 async def test_non_merge_dedupes_within_archive_by_name() -> None:
-    """A pre-fix archive with duplicate names collapses before insert (issue #564)."""
+    """A pre-fix archive with duplicate names collapses to the last occurrence (issue #564)."""
     service = _make_service(existing=[])
     zip_file = _make_zip([_row("GDP", domain="Econ"), _row("GDP", domain="Trade")])
 
@@ -140,7 +140,7 @@ async def test_non_merge_dedupes_within_archive_by_name() -> None:
 
     service.add_terms_bulk.assert_awaited_once()
     added = service.add_terms_bulk.await_args.kwargs["data"]
-    assert [(item.term, item.domain) for item in added] == [("GDP", "Econ")]
+    assert [(item.term, item.domain) for item in added] == [("GDP", "Trade")]
 
 
 def _integrity_error(message: str) -> IntegrityError:

@@ -528,15 +528,15 @@ async def _process_glossary(
 
     add_terms: list[dict[str, str]] = []
     update_terms: list[dict[str, Any]] = []
-    seen_terms: set[str] = set()
     found_ids: set[int] = set()
 
+    # Collapse rows duplicated within the CSV itself, keeping the last occurrence
+    # so it matches the migration (which keeps MAX(id), the most recent row).
+    deduped_by_name: dict[str, dict[str, str]] = {}
     for term in terms:
-        name = term["term"]
-        if name in seen_terms:
-            continue  # collapse rows duplicated within the CSV itself
-        seen_terms.add(name)
+        deduped_by_name[term["term"]] = term
 
+    for name, term in deduped_by_name.items():
         existing_term = existing_by_term.get(name)
         if existing_term is None:
             add_terms.append(term)

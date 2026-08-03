@@ -47,21 +47,18 @@ class AdminPortalGlossaryOfTermsService(GlossaryOfTermsService):
     def _dedupe_by_name(
         terms: list[schemas.GlossaryTermBase],
     ) -> list[schemas.GlossaryTermBase]:
-        """Collapse rows that share a term name, keeping the first occurrence.
+        """Collapse rows that share a term name, keeping the last occurrence.
 
         A term name is unique per channel (uq_glossary_terms_channel_id_term), yet
         archives exported before that constraint can legitimately contain duplicate
         names (issue #564). Collapsing here keeps a bulk insert from aborting on
         the constraint.
         """
-        seen: set[str] = set()
-        deduped: list[schemas.GlossaryTermBase] = []
+        deduped_by_name: dict[str, schemas.GlossaryTermBase] = {}
         for term in terms:
-            if term.term in seen:
-                continue
-            seen.add(term.term)
-            deduped.append(term)
+            deduped_by_name[term.term] = term
 
+        deduped = list(deduped_by_name.values())
         collapsed = len(terms) - len(deduped)
         if collapsed:
             _log.info(f"Collapsed {collapsed} duplicate glossary term(s) sharing a name.")
