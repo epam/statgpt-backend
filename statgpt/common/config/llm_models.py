@@ -28,7 +28,7 @@ class VerbosityEnum(StrEnum):
 
 class LLMModelsEnum(StrEnum):
     # Gemini models
-    GEMINI_2_0_FLASH_LITE_001 = "gemini-2.0-flash-lite-001"
+    GEMINI_2_5_FLASH_LITE = "gemini-2.5-flash-lite"
 
     # Legacy models
     # These models are added to the enum temporarily
@@ -55,6 +55,7 @@ class LLMModelsEnum(StrEnum):
 
     # GPT-5 models
     GPT_5_MINI_2025_08_07 = "gpt-5-mini-2025-08-07"
+    GPT_5_NANO_2025_08_07 = "gpt-5-nano-2025-08-07"
     GPT_5_1_2025_11_13 = "gpt-5.1-2025-11-13"
     GPT_5_2_2025_12_11 = "gpt-5.2-2025-12-11"
     GPT_5_4_2026_03_05 = "gpt-5.4-2026-03-05"
