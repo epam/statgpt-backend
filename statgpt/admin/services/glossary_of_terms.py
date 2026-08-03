@@ -3,10 +3,12 @@ import io
 import logging
 import os
 import zipfile
+from collections import Counter
+from collections.abc import Collection, Iterable
 from typing import cast
 
 from fastapi import HTTPException, status
-from sqlalchemy import ColumnElement, delete, func, update
+from sqlalchemy import ColumnElement, delete, func, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -14,34 +16,29 @@ from statgpt.admin.settings.exim import JobsConfig
 from statgpt.common import models, schemas, utils
 from statgpt.common.services import ChannelService, GlossaryOfTermsService
 
+from .exceptions import raise_for_integrity_error
+
 _log = logging.getLogger(__name__)
+
+
+def _quote_terms(terms: Iterable[str]) -> str:
+    return ", ".join(repr(term) for term in sorted(terms))
+
+
+def _terms_conflict_detail(terms: Collection[str | None] = ()) -> str:
+    """Build a 409 detail that names the colliding term(s), so callers need not bisect."""
+    named = {term for term in terms if term}
+    if not named:
+        return "A glossary term with the same name already exists in this channel."
+    if len(named) == 1:
+        return f"Key term={named.pop()!r} already exists in this channel."
+    return f"Glossary terms already exist in this channel: {_quote_terms(named)}."
 
 
 class AdminPortalGlossaryOfTermsService(GlossaryOfTermsService):
 
     def __init__(self, session: AsyncSession) -> None:
         super().__init__(session, None)  # No need for session lock in Admin Portal
-
-    @staticmethod
-    def _raise_for_integrity_error(e: IntegrityError, term: str | None = None) -> None:
-        """Translate a DB integrity failure into an actionable HTTP error.
-
-        A duplicate name hits uq_glossary_terms_channel_id_term; surface it as a
-        409 instead of leaking an asyncpg UniqueViolationError traceback as a 500.
-        """
-        _log.warning(e)
-
-        if "UniqueViolationError" in str(e.orig):
-            detail = (
-                f"Key term={term!r} already exists in this channel."
-                if term is not None
-                else "A glossary term with the same name already exists in this channel."
-            )
-            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=detail)
-
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Unknown db error"
-        )
 
     @staticmethod
     def _dedupe_by_name(
@@ -52,7 +49,8 @@ class AdminPortalGlossaryOfTermsService(GlossaryOfTermsService):
         A term name is unique per channel (uq_glossary_terms_channel_id_term), yet
         archives exported before that constraint can legitimately contain duplicate
         names (issue #564). Collapsing here keeps a bulk insert from aborting on
-        the constraint.
+        the constraint. Exports are ordered by id, so the last occurrence is the most
+        recently inserted row - the same one the migration keeps via MAX(id).
         """
         deduped_by_name: dict[str, schemas.GlossaryTermBase] = {}
         for term in terms:
@@ -61,8 +59,47 @@ class AdminPortalGlossaryOfTermsService(GlossaryOfTermsService):
         deduped = list(deduped_by_name.values())
         collapsed = len(terms) - len(deduped)
         if collapsed:
-            _log.info(f"Collapsed {collapsed} duplicate glossary term(s) sharing a name.")
+            dropped = _quote_terms(
+                name for name, count in Counter(item.term for item in terms).items() if count > 1
+            )
+            _log.warning(
+                f"Collapsed {collapsed} duplicate glossary term(s) sharing a name, "
+                f"keeping the most recent definition of: {dropped}."
+            )
         return deduped
+
+    async def _raise_for_conflicting_terms(
+        self, channel_id: int, data: list[schemas.GlossaryTermBase]
+    ) -> None:
+        """Reject a bulk insert up-front, naming every name that would collide.
+
+        A term name is unique per channel (uq_glossary_terms_channel_id_term). Checking
+        before the insert lets the caller see *which* rows are at fault, instead of
+        getting one opaque constraint violation for the whole batch.
+        """
+        names = [item.term for item in data]
+        if not names:
+            return
+
+        repeated = [name for name, count in Counter(names).items() if count > 1]
+        if repeated:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"The request repeats glossary term(s): {_quote_terms(repeated)}.",
+            )
+
+        query = select(models.GlossaryTerm.term).where(
+            models.GlossaryTerm.channel_id == channel_id,
+            models.GlossaryTerm.term.in_(names),
+        )
+        async with self._lock_session() as session:
+            conflicting = (await session.execute(query)).scalars().all()
+
+        if conflicting:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=_terms_conflict_detail(conflicting),
+            )
 
     async def add_term(
         self, channel_id: int, data: schemas.GlossaryTermBase
@@ -83,7 +120,7 @@ class AdminPortalGlossaryOfTermsService(GlossaryOfTermsService):
             await self._session.commit()
         except IntegrityError as e:
             await self._session.rollback()
-            self._raise_for_integrity_error(e, term=data.term)
+            raise_for_integrity_error(e, _terms_conflict_detail([data.term]))
 
         return schemas.GlossaryTerm.model_validate(term, from_attributes=True)
 
@@ -101,7 +138,7 @@ class AdminPortalGlossaryOfTermsService(GlossaryOfTermsService):
             await self._session.commit()
         except IntegrityError as e:
             await self._session.rollback()
-            self._raise_for_integrity_error(e, term=data.term)
+            raise_for_integrity_error(e, _terms_conflict_detail([data.term]))
 
         return schemas.GlossaryTerm.model_validate(item, from_attributes=True)
 
@@ -120,6 +157,8 @@ class AdminPortalGlossaryOfTermsService(GlossaryOfTermsService):
         channel_service = ChannelService(self._session)
         channel = await channel_service.get_model_by_id(channel_id)
 
+        await self._raise_for_conflicting_terms(channel.id, data)
+
         terms = [
             models.GlossaryTerm(
                 channel_id=channel.id,
@@ -136,7 +175,9 @@ class AdminPortalGlossaryOfTermsService(GlossaryOfTermsService):
             await self._session.commit()
         except IntegrityError as e:
             await self._session.rollback()
-            self._raise_for_integrity_error(e)
+            # The pre-check above names the conflict in the common case; getting here
+            # means a concurrent writer inserted the same name in the meantime.
+            raise_for_integrity_error(e, _terms_conflict_detail())
 
         return [schemas.GlossaryTerm.model_validate(item, from_attributes=True) for item in terms]
 
@@ -173,7 +214,8 @@ class AdminPortalGlossaryOfTermsService(GlossaryOfTermsService):
                 await self._session.commit()
             except IntegrityError as e:
                 await self._session.rollback()
-                self._raise_for_integrity_error(e)
+                # Only a renamed term can collide, so report the names being written.
+                raise_for_integrity_error(e, _terms_conflict_detail([item.term for item in data]))
 
             # `session.refresh()` can only be applied to one element, so it's better to query all update elements.
             existing_terms = [item for item in existing_terms if item.id not in updated_item_ids]

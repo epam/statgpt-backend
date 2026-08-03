@@ -8,7 +8,11 @@ import pytest
 from fastapi import HTTPException, status
 from sqlalchemy.exc import IntegrityError
 
-from statgpt.admin.services.glossary_of_terms import AdminPortalGlossaryOfTermsService
+from statgpt.admin.services.exceptions import raise_for_integrity_error
+from statgpt.admin.services.glossary_of_terms import (
+    AdminPortalGlossaryOfTermsService,
+    _terms_conflict_detail,
+)
 from statgpt.admin.settings.exim import JobsConfig
 
 _FIELDS = ["term", "definition", "domain", "source"]
@@ -143,25 +147,35 @@ async def test_non_merge_dedupes_within_archive_by_name() -> None:
     assert [(item.term, item.domain) for item in added] == [("GDP", "Trade")]
 
 
-def _integrity_error(message: str) -> IntegrityError:
-    return IntegrityError("INSERT ...", {}, Exception(message))
+def _integrity_error(sqlstate: str | None) -> IntegrityError:
+    """An IntegrityError shaped like the one SQLAlchemy's asyncpg adapter raises.
+
+    The adapter copies the driver's `sqlstate` onto the DBAPI error it wraps.
+    """
+    orig = Exception("duplicate key value violates unique constraint")
+    orig.sqlstate = sqlstate  # type: ignore[attr-defined]
+    return IntegrityError("INSERT ...", {}, orig)
 
 
 def test_integrity_error_maps_unique_violation_to_409() -> None:
     """A duplicate name surfaces as an actionable 409, not an asyncpg 500."""
-    err = _integrity_error("<class 'asyncpg.exceptions.UniqueViolationError'>: duplicate key")
-
     with pytest.raises(HTTPException) as exc_info:
-        AdminPortalGlossaryOfTermsService._raise_for_integrity_error(err, term="GDP")
+        raise_for_integrity_error(_integrity_error("23505"), _terms_conflict_detail(["GDP"]))
 
     assert exc_info.value.status_code == status.HTTP_409_CONFLICT
     assert "GDP" in exc_info.value.detail
 
 
 def test_integrity_error_maps_other_errors_to_500() -> None:
-    err = _integrity_error("some other database failure")
-
+    """A non-unique integrity failure (here: not-null violation) stays a 500."""
     with pytest.raises(HTTPException) as exc_info:
-        AdminPortalGlossaryOfTermsService._raise_for_integrity_error(err)
+        raise_for_integrity_error(_integrity_error("23502"), _terms_conflict_detail())
 
     assert exc_info.value.status_code == status.HTTP_500_INTERNAL_SERVER_ERROR
+
+
+def test_conflict_detail_names_every_colliding_term() -> None:
+    """A bulk conflict lists the names, so the caller does not have to bisect the batch."""
+    detail = _terms_conflict_detail(["CPI", "GDP"])
+
+    assert "'CPI'" in detail and "'GDP'" in detail

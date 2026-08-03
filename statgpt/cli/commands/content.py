@@ -35,6 +35,8 @@ from statgpt.common.schemas import (
     DataSource,
     DataSourceBase,
     GlossaryTerm,
+    GlossaryTermBase,
+    GlossaryTermUpdateBulk,
     RAGVersion,
 )
 from statgpt.common.utils import attachments_storage_factory
@@ -458,7 +460,8 @@ async def _process_channels(
         if process_glossaries and glossary_file:
             glossary_path = os.path.join(glossaries_dir, glossary_file)
             if os.path.exists(glossary_path):
-                terms = utils.read_csv_as_dict_list(glossary_path)
+                rows = utils.read_csv_as_dict_list(glossary_path)
+                terms = _parse_glossary_rows(rows, glossary_file)
                 await _process_glossary(client, channel, terms)
                 print_info(f"  Processed glossary: {glossary_file}")
 
@@ -510,10 +513,26 @@ def _add_onboarding_to_channel(
         ch_cfg["details"]["onboarding"] = {k: v for k, v in ob_cfg.items() if k != "channels"}
 
 
+def _parse_glossary_rows(rows: list[dict[str, str]], glossary_file: str) -> list[GlossaryTermBase]:
+    """Validate CSV rows into glossary terms, reporting the offending row on failure.
+
+    `term`, `definition`, `domain` and `source` are all required and NOT NULL in the
+    database, so a missing column has to fail here - with the file and row number -
+    rather than reach the API as a null and come back as an opaque server error.
+    """
+    parsed: list[GlossaryTermBase] = []
+    for number, row in enumerate(rows, start=2):  # row 1 is the CSV header
+        try:
+            parsed.append(GlossaryTermBase.model_validate(row))
+        except ValidationError as exc:
+            raise ValueError(f"{glossary_file}, row {number}: {exc}") from exc
+    return parsed
+
+
 async def _process_glossary(
     client: AdminClient,
     channel: Channel,
-    terms: list[dict[str, str]],
+    terms: list[GlossaryTermBase],
 ) -> None:
     """Process glossary terms for a channel.
 
@@ -522,19 +541,22 @@ async def _process_glossary(
     (definition/domain/source) as updates instead of add-then-delete churn, so
     changing a term's domain or source cannot be misread as a new term and
     violate the constraint (aligns with the merge path in the admin service).
+
+    Unlike a merge import, this is a full sync: terms stored in the channel but absent
+    from the CSV are deleted.
     """
     existing = await client.get_glossary_terms(channel.id)
     existing_by_term: dict[str, GlossaryTerm] = {t.term: t for t in existing}
 
-    add_terms: list[dict[str, str]] = []
-    update_terms: list[dict[str, Any]] = []
+    add_terms: list[GlossaryTermBase] = []
+    update_terms: list[GlossaryTermUpdateBulk] = []
     found_ids: set[int] = set()
 
     # Collapse rows duplicated within the CSV itself, keeping the last occurrence
     # so it matches the migration (which keeps MAX(id), the most recent row).
-    deduped_by_name: dict[str, dict[str, str]] = {}
+    deduped_by_name: dict[str, GlossaryTermBase] = {}
     for term in terms:
-        deduped_by_name[term["term"]] = term
+        deduped_by_name[term.term] = term
 
     for name, term in deduped_by_name.items():
         existing_term = existing_by_term.get(name)
@@ -544,17 +566,17 @@ async def _process_glossary(
 
         found_ids.add(existing_term.id)
         if (
-            term.get("definition") != existing_term.definition
-            or term.get("domain") != existing_term.domain
-            or term.get("source") != existing_term.source
+            term.definition != existing_term.definition
+            or term.domain != existing_term.domain
+            or term.source != existing_term.source
         ):
             update_terms.append(
-                {
-                    "id": existing_term.id,
-                    "definition": term.get("definition"),
-                    "domain": term.get("domain"),
-                    "source": term.get("source"),
-                }
+                GlossaryTermUpdateBulk(
+                    id=existing_term.id,
+                    definition=term.definition,
+                    domain=term.domain,
+                    source=term.source,
+                )
             )
 
     # Delete removed terms before adding, so a renamed term cannot momentarily
