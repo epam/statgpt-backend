@@ -49,7 +49,23 @@ class DataSetHierarchyConfig(BaseModel):
 
 
 class DataSourceConfig(BaseModel, ABC):
-    pass
+    def dump_for_storage(self) -> dict[str, t.Any]:
+        """Serialize the config for persistence in the `data_sources.details` column.
+
+        Subclasses override this to drop fields that are owned by an external system
+        rather than by the database.
+        """
+        return self.model_dump(mode='json', by_alias=True)
+
+    def matches_stored(self, stored: "DataSourceConfig") -> bool:
+        """Whether this incoming config is equivalent to a `stored` one, for change detection.
+
+        Subclasses compare fields owned by an external system only when the incoming config
+        specifies them, so a config that omits them is not reported as changed.
+        """
+        return self.model_dump(mode='json', by_alias=True) == stored.model_dump(
+            mode='json', by_alias=True
+        )
 
 
 DataSourceConfigType = t.TypeVar("DataSourceConfigType", bound=DataSourceConfig)

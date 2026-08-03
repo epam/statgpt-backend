@@ -366,14 +366,20 @@ def _data_source_changed(incoming_cfg: dict[str, Any], existing: DataSource) -> 
 
     try:
         config_class = DataManager.get_config_class(existing.type.name)
-        incoming_details = incoming_cfg['details']
-        normalized_details = config_class.model_validate(incoming_details).model_dump(
-            mode='json',
-            by_alias=True,
+        incoming_config = config_class.model_validate(incoming_cfg['details'])
+        stored_config = config_class.model_validate(existing.details)
+        if not incoming_config.matches_stored(stored_config):
+            return True
+
+        # `details` is compared above, through the config class.
+        exclude_fields = {'details'}
+        incoming_dump = DataSourceBase.model_validate(incoming_cfg).model_dump(
+            mode='json', by_alias=True, exclude=exclude_fields
         )
-        incoming = DataSourceBase.model_validate({**incoming_cfg, 'details': normalized_details})
-        stored = DataSourceBase.model_validate(existing.model_dump(mode='json', by_alias=True))
-        return incoming != stored
+        stored_dump = DataSourceBase.model_validate(
+            existing.model_dump(mode='json', by_alias=True)
+        ).model_dump(mode='json', by_alias=True, exclude=exclude_fields)
+        return incoming_dump != stored_dump
     except (ValidationError, KeyError, AttributeError) as exc:
         title = incoming_cfg.get('title') or existing.title
         _warn_change_detection_skipped('data source', title, exc)

@@ -264,7 +264,9 @@ class AdminPortalDataSetService(DataSetService):
 
         if scope.includes_configs():
             data_sources = self._export_datasets_config(datasets, res_dir)
-            await DataSourceService.export_data_sources(data_sources.values(), res_dir)
+            await DataSourceService(self._session).export_data_sources(
+                data_sources.values(), res_dir
+            )
 
         if not scope.includes_indexes():
             return
