@@ -84,19 +84,34 @@ async def test_fetch_rejects_an_unresolved_env_placeholder(mock_transport) -> No
         await fetch_proxy_config("$env:{SDMX_PROXY_CONFIG_SERVER_HOST}/api/v0/config")
 
 
-async def test_push_sends_the_configuration(mock_transport) -> None:
+async def test_push_sends_the_configuration_and_returns_what_was_stored(mock_transport) -> None:
     requests: list[httpx.Request] = []
+    # The server answers with the submitted configuration normalized by its own schema.
+    normalized = _CONFIG | {"structureFanOutEnabled": False}
 
     def handler(request: httpx.Request) -> httpx.Response:
         requests.append(request)
-        return httpx.Response(200, json=_CONFIG)
+        return httpx.Response(200, json=normalized)
 
     mock_transport(handler)
+    submitted = {"configs": [], "agencies": [{"name": "IMF"}]}
 
-    await push_proxy_config(_URL, _CONFIG)
+    assert await push_proxy_config(_URL, submitted) == normalized
 
     assert [(r.method, str(r.url)) for r in requests] == [("POST", _URL)]
-    assert requests[0].read() == httpx.Request("POST", _URL, json=_CONFIG).read()
+    assert requests[0].read() == httpx.Request("POST", _URL, json=submitted).read()
+
+
+@pytest.mark.parametrize(
+    "response", [httpx.Response(200), httpx.Response(200, text="OK"), httpx.Response(200, json=[])]
+)
+async def test_push_falls_back_to_the_submitted_configuration_when_none_is_echoed(
+    mock_transport, response: httpx.Response
+) -> None:
+    """The configuration was accepted, so an unexpected body must not fail the update."""
+    mock_transport(lambda request: response)
+
+    assert await push_proxy_config(_URL, _CONFIG) == _CONFIG
 
 
 @pytest.mark.parametrize("status", [400, 422])

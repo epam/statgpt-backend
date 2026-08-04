@@ -5,7 +5,8 @@ proxy's registry/agency routing configuration on a single endpoint:
 
 * ``GET`` returns the current configuration, ``404`` when nothing has been stored yet (cold start)
   and ``503`` when its storage backend is unavailable.
-* ``POST`` replaces the configuration, or returns ``400`` when its validator rejects the payload.
+* ``POST`` replaces the configuration and answers with the configuration it stored, or returns
+  ``400``/``422`` when its validator rejects the payload.
 
 The payload is passed through verbatim as a JSON object: its schema is maintained in the proxy
 repository, and the config server is the authority on what is valid.
@@ -90,8 +91,11 @@ async def fetch_proxy_config(config_url: str) -> dict[str, Any] | None:
     return response.json()
 
 
-async def push_proxy_config(config_url: str, config: dict[str, Any]) -> None:
-    """Replace the configuration stored by the config server.
+async def push_proxy_config(config_url: str, config: dict[str, Any]) -> dict[str, Any]:
+    """Replace the configuration stored by the config server, returning what it stored.
+
+    The server answers with the configuration it accepted - the submitted one normalized by its
+    own schema - so the caller knows what took effect without reading it back.
 
     Raises:
         ProxyConfigValidationError: the server rejected the configuration.
@@ -114,3 +118,21 @@ async def push_proxy_config(config_url: str, config: dict[str, Any]) -> None:
         raise ProxyConfigServerError(
             f"The proxy config server returned {response.status_code}: {_error_detail(response)}"
         )
+
+    try:
+        stored = response.json()
+    except ValueError:
+        stored = None
+
+    if not isinstance(stored, dict):
+        # The configuration was accepted, so report the submitted value rather than failing an
+        # update that did go through.
+        _log.warning(
+            "The proxy config server accepted the configuration but did not answer with it: "
+            "POST %s -> %s",
+            config_url,
+            response.status_code,
+        )
+        return config
+
+    return stored

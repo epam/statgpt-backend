@@ -119,21 +119,43 @@ class AdminPortalDataSourceService(DataSourceService):
                 item.details.update(details)
 
     @staticmethod
-    async def _push_external_details(config: DataSourceConfig) -> None:
+    async def _push_external_details(config: DataSourceConfig) -> dict[str, Any] | None:
         """Send the externally-owned part of the submitted `details` back to its owner.
 
-        An absent value means "leave the owning system alone", so a data source can be updated
-        while its owner is unreachable without wiping the stored value.
+        Returns the value the owner confirmed it stored.
+
+        None when the submitted `details` carry no externally-owned value: that means "leave the
+        owning system alone", so a data source can be updated while its owner is unreachable
+        without wiping the stored value. Once a value *is* submitted the owner is the only place
+        it can live, so a failed push fails the whole write rather than dropping it silently.
         """
 
         try:
-            await config.push_external_details()
+            return await config.push_external_details()
         except ProxyConfigValidationError as e:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(e)
             ) from e
         except ProxyConfigServerError as e:
+            # The owning system is a dependency we write through, so its failure is a gateway
+            # failure - not this API being unavailable.
             _log.warning("Could not update the externally-owned details: %s", e)
+            raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(e)) from e
+
+    async def _apply_external_details(
+        self, item: schemas.DataSource, pushed: dict[str, Any] | None
+    ) -> None:
+        """Complete a written data source's `details` with its externally-owned part.
+
+        What the owner confirmed on the write is used as-is: it is what this action set, so
+        neither the response nor its audit record can drift from it through a racing read-back.
+        The owner is only read when the write left it untouched.
+        """
+
+        if pushed is None:
+            await self._enrich_with_external_details([item])
+        else:
+            item.details.update(pushed)
 
     async def get_schema_by_id_with_external_details(self, item_id: int) -> schemas.DataSource:
         item = await self.get_schema_by_id(item_id)
@@ -150,7 +172,7 @@ class AdminPortalDataSourceService(DataSourceService):
     @audit_action(entity_type=AuditEntityType.DATA_SOURCE, action_type=AuditActionType.CREATE)
     async def create_data_source(self, data: schemas.DataSourceBase) -> schemas.DataSource:
         parsed_config = await self._parse_details_field(data.type_id, data.details)
-        await self._push_external_details(parsed_config)
+        pushed_details = await self._push_external_details(parsed_config)
 
         item = models.DataSource(
             title=data.title,
@@ -164,7 +186,7 @@ class AdminPortalDataSourceService(DataSourceService):
 
         await self._session.refresh(item, attribute_names=["type"])
         result = DataSourceSerializer.db_to_schema(item)
-        await self._enrich_with_external_details([result])
+        await self._apply_external_details(result, pushed_details)
         return result
 
     async def export_data_sources(
@@ -252,9 +274,10 @@ class AdminPortalDataSourceService(DataSourceService):
 
         item = await self._get_item_or_raise(item_id)
 
+        pushed_details = None
         if data.details:
             parsed_config = await self._parse_details_field(item.type_id, data.details)
-            await self._push_external_details(parsed_config)
+            pushed_details = await self._push_external_details(parsed_config)
             data.details = parsed_config.dump_for_storage()
 
         query = (
@@ -268,7 +291,7 @@ class AdminPortalDataSourceService(DataSourceService):
 
         await self._session.refresh(item, attribute_names=["type"])
         result = DataSourceSerializer.db_to_schema(item)
-        await self._enrich_with_external_details([result])
+        await self._apply_external_details(result, pushed_details)
         return result
 
     @audit_action(entity_type=AuditEntityType.DATA_SOURCE, action_type=AuditActionType.DELETE)

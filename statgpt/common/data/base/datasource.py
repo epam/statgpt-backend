@@ -83,12 +83,16 @@ class DataSourceConfig(BaseModel, ABC):
         """
         return {}
 
-    async def push_external_details(self) -> None:
+    async def push_external_details(self) -> dict[str, t.Any] | None:
         """Send the externally-owned part of `details` back to the system that owns it.
 
-        A no-op when this config does not specify a value, so an update can leave the
-        external system untouched.
+        Returns the value the owning system confirmed it stored, keyed by serialization alias,
+        so the caller can report what it wrote instead of reading it back.
+
+        None when this config specifies no externally-owned value and the owning system was
+        therefore left untouched, so an update can omit one without wiping the stored value.
         """
+        return None
 
 
 DataSourceConfigType = t.TypeVar("DataSourceConfigType", bound=DataSourceConfig)

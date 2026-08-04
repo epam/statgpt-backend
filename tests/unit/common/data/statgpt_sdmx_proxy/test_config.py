@@ -137,6 +137,20 @@ class TestExternalDetails:
 
         push.assert_awaited_once_with(_URL, submitted)
 
+    async def test_push_reports_the_configuration_the_server_stored(self, mocker) -> None:
+        """The server normalizes what it accepts, so its answer is what actually took effect."""
+        stored = {"agencies": [{"name": "IMF"}], "structureFanOutEnabled": False}
+        mocker.patch(
+            "statgpt.common.data.statgpt_sdmx_proxy.config.push_proxy_config",
+            AsyncMock(return_value=stored),
+        )
+
+        pushed = await _proxy_config(
+            proxy_config={"agencies": [{"name": "IMF"}]}
+        ).push_external_details()
+
+        assert pushed == {"proxyConfig": stored}
+
     async def test_push_leaves_the_config_server_alone_when_nothing_is_submitted(
         self, mocker
     ) -> None:
@@ -144,7 +158,7 @@ class TestExternalDetails:
             "statgpt.common.data.statgpt_sdmx_proxy.config.push_proxy_config", AsyncMock()
         )
 
-        await _proxy_config().push_external_details()
+        assert await _proxy_config().push_external_details() is None
 
         push.assert_not_awaited()
 

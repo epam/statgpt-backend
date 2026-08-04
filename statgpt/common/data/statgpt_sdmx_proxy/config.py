@@ -65,8 +65,9 @@ class StatGptSdmxProxyDataSourceConfig(SdmxDataSourceConfig):
     async def load_external_details(self) -> dict[str, Any]:
         return {PROXY_CONFIG_KEY: await fetch_proxy_config(self.get_config_url())}
 
-    async def push_external_details(self) -> None:
+    async def push_external_details(self) -> dict[str, Any] | None:
         if self.proxy_config is None:
             # The config server owns the value, so an update that does not carry one leaves it be.
-            return
-        await push_proxy_config(self.get_config_url(), self.proxy_config)
+            return None
+        stored = await push_proxy_config(self.get_config_url(), self.proxy_config)
+        return {PROXY_CONFIG_KEY: stored}

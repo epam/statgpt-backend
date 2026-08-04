@@ -160,12 +160,14 @@ class TestExport:
 class TestWritePush:
     async def test_pushes_a_submitted_configuration(self, service, mocker) -> None:
         push = mocker.patch(
-            "statgpt.common.data.statgpt_sdmx_proxy.config.push_proxy_config", AsyncMock()
+            "statgpt.common.data.statgpt_sdmx_proxy.config.push_proxy_config",
+            AsyncMock(return_value=_STORED_CONFIG),
         )
 
-        await service._push_external_details(_proxy_config(proxy_config=_STORED_CONFIG))
+        pushed = await service._push_external_details(_proxy_config(proxy_config=_STORED_CONFIG))
 
         push.assert_awaited_once_with(_URL, _STORED_CONFIG)
+        assert pushed == {"proxyConfig": _STORED_CONFIG}
 
     async def test_leaves_the_config_server_alone_when_nothing_is_submitted(
         self, service, mocker
@@ -174,7 +176,7 @@ class TestWritePush:
             "statgpt.common.data.statgpt_sdmx_proxy.config.push_proxy_config", AsyncMock()
         )
 
-        await service._push_external_details(_proxy_config())
+        assert await service._push_external_details(_proxy_config()) is None
 
         push.assert_not_awaited()
 
@@ -190,16 +192,62 @@ class TestWritePush:
         assert exc.value.status_code == 422
         assert "agency IMF has no registry" in exc.value.detail
 
-    async def test_swallows_an_unreachable_config_server(self, service, mocker, caplog) -> None:
+    async def test_fails_the_write_when_the_config_server_cannot_be_reached(
+        self, service, mocker, caplog
+    ) -> None:
+        """A submitted configuration lives nowhere else, so a dropped push must not read as 200."""
         mocker.patch(
             "statgpt.common.data.statgpt_sdmx_proxy.config.push_proxy_config",
             AsyncMock(side_effect=ProxyConfigServerError("connection refused")),
         )
 
-        with caplog.at_level("WARNING"):
+        with caplog.at_level("WARNING"), pytest.raises(HTTPException) as exc:
             await service._push_external_details(_proxy_config(proxy_config=_STORED_CONFIG))
 
+        assert exc.value.status_code == 502
+        assert "connection refused" in exc.value.detail
         assert "connection refused" in caplog.text
+
+    async def test_an_unconfigured_config_server_url_fails_the_write(self, service, mocker) -> None:
+        """`$env:{...}` stays verbatim in an unconfigured deployment; the client rejects it."""
+        mocker.patch.dict("os.environ", {}, clear=True)
+
+        with pytest.raises(HTTPException) as exc:
+            await service._push_external_details(_proxy_config(proxy_config=_STORED_CONFIG))
+
+        assert exc.value.status_code == 502
+        assert "unresolved environment variable" in exc.value.detail
+
+
+class TestWriteResult:
+    """What a create/update reports - and audits - as the externally-owned details."""
+
+    async def test_reports_what_the_config_server_stored_without_reading_it_back(
+        self, service, mocker
+    ) -> None:
+        fetch = mocker.patch(
+            "statgpt.common.data.statgpt_sdmx_proxy.config.fetch_proxy_config", AsyncMock()
+        )
+        item = _data_source()
+
+        await service._apply_external_details(item, {"proxyConfig": _STORED_CONFIG})
+
+        assert item.details["proxyConfig"] == _STORED_CONFIG
+        fetch.assert_not_awaited()
+
+    async def test_reads_the_config_server_when_the_write_left_it_untouched(
+        self, service, mocker
+    ) -> None:
+        fetch = mocker.patch(
+            "statgpt.common.data.statgpt_sdmx_proxy.config.fetch_proxy_config",
+            AsyncMock(return_value=_STORED_CONFIG),
+        )
+        item = _data_source()
+
+        await service._apply_external_details(item, None)
+
+        assert item.details["proxyConfig"] == _STORED_CONFIG
+        fetch.assert_awaited_once_with(_URL)
 
 
 class TestImportChangeDetection:
