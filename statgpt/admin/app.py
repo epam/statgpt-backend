@@ -24,6 +24,7 @@ except Exception:
 from statgpt.admin.routers import router
 from statgpt.admin.settings.app import APP_SETTINGS
 from statgpt.common.config import multiline_logger as logger
+from statgpt.common.data.statgpt_sdmx_proxy.config_client import proxy_config_http_client
 from statgpt.common.models import DatabaseHealthChecker, optional_msi_token_manager_context
 from statgpt.common.services.data_preloader import preload_data_task_context
 from statgpt.common.utils.elastic import elasticsearch_client_context
@@ -38,6 +39,7 @@ async def app_lifespan(app_: FastAPI):
         optional_msi_token_manager_context(),
         elasticsearch_client_context(),
         shared_http_clients_context(),
+        proxy_config_http_client,
     ):
         # Check resources' availability:
         await DatabaseHealthChecker().check()
