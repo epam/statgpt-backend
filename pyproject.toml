@@ -38,7 +38,7 @@ dependencies = [
     # HTTP & Networking
     'aidial-client (>=0.14.0,<1.0.0)',           # DIAL API client
     'httpx (>=0.28.1,<0.29.0)',                  # HTTP client (used directly in this project)
-    'aiohttp (>=3.14.1,<3.15.0)',                # Async HTTP client/server
+    'aiohttp (>=3.14.3,<3.15.0)',                # Async HTTP client/server
     'requests (>=2.32.5,<3.0.0)',                # HTTP library
 
     # Authentication & Security
