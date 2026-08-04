@@ -230,6 +230,9 @@ class GlossaryTerm(DefaultBase):
     """
 
     __tablename__ = "glossary_terms"
+    __table_args__ = (
+        UniqueConstraint("channel_id", "term", name="uq_glossary_terms_channel_id_term"),
+    )
 
     channel_id: Mapped[int] = mapped_column(ForeignKey("channels.id"))
 
