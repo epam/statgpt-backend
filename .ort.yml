@@ -136,7 +136,7 @@ resolutions:
     - message: ".*PyPI::pyjwt:2\\..*"
       reason: "CANT_FIX_EXCEPTION"
       comment: "MIT License: https://github.com/jpadilla/pyjwt/blob/master/LICENSE"
-    - message: ".*PyPI::cryptography:48\\..*"
+    - message: ".*PyPI::cryptography:50\\..*"
       reason: "CANT_FIX_EXCEPTION"
       comment: "Dual (Apache 2.0 OR BSD 3-Clause): https://github.com/pyca/cryptography/blob/main/LICENSE"
     - message: ".*PyPI::azure-identity:1\\..*"
