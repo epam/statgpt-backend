@@ -27,6 +27,7 @@ class GlossaryOfTermsService(DbServiceBase):
         query = (
             select(models.GlossaryTerm)
             .where(models.GlossaryTerm.channel_id == channel_id)
+            .order_by(models.GlossaryTerm.id)
             .limit(limit)
             .offset(offset)
         )

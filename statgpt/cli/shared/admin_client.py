@@ -20,6 +20,8 @@ from statgpt.common.schemas import (
     DataSourceType,
     DeduplicationJob,
     GlossaryTerm,
+    GlossaryTermBase,
+    GlossaryTermUpdateBulk,
     Job,
 )
 
@@ -296,19 +298,24 @@ class AdminClient:
         return ChannelDatasetBase.model_validate(resp.json())
 
     async def create_glossary_terms_bulk(
-        self, channel_id: int, terms: list[dict[str, Any]]
+        self, channel_id: int, terms: list[GlossaryTermBase]
     ) -> list[GlossaryTerm]:
         """Create multiple glossary terms."""
         resp = await self._client.post(
             self._url(f"/channels/{channel_id}/terms/bulk"),
-            json=terms,
+            json=[term.model_dump(mode="json") for term in terms],
         )
         self._raise_for_status(resp)
         return _glossary_terms_adapter.validate_python(resp.json())
 
-    async def update_glossary_terms_bulk(self, terms: list[dict[str, Any]]) -> list[GlossaryTerm]:
+    async def update_glossary_terms_bulk(
+        self, terms: list[GlossaryTermUpdateBulk]
+    ) -> list[GlossaryTerm]:
         """Update multiple glossary terms."""
-        resp = await self._client.post(self._url("/terms/bulk"), json=terms)
+        resp = await self._client.post(
+            self._url("/terms/bulk"),
+            json=[term.model_dump(mode="json", exclude_unset=True) for term in terms],
+        )
         self._raise_for_status(resp)
         return _glossary_terms_adapter.validate_python(resp.json())
 

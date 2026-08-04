@@ -30,6 +30,7 @@ from statgpt.common.utils.elastic import ElasticSearchFactory
 from statgpt.common.vectorstore import DedupCounts, VectorStoreFactory
 
 from .background_tasks import background_task
+from .exceptions import raise_for_integrity_error
 from .status_recovery import set_failed_status
 
 _log = logging.getLogger(__name__)
@@ -38,22 +39,6 @@ _log = logging.getLogger(__name__)
 class AdminPortalChannelService(ChannelService):
     def __init__(self, session: AsyncSession | None = None) -> None:
         super().__init__(session, None)
-
-    @staticmethod
-    def _parse_integrity_error(
-        data: schemas.ChannelBase | schemas.ChannelUpdate, e: IntegrityError
-    ) -> None:
-        _log.warning(e)
-
-        if "UniqueViolationError" in str(e.orig):
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail=f"Key deployment_id='{data.deployment_id}' already exists.",
-            )
-
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Unknown db error"
-        )
 
     @staticmethod
     async def _export_dial_file_to_folder(
@@ -90,7 +75,9 @@ class AdminPortalChannelService(ChannelService):
             self._session.add(item)
             await self._session.flush()
         except IntegrityError as e:
-            self._parse_integrity_error(data, e)
+            raise_for_integrity_error(
+                e, f"Key deployment_id='{data.deployment_id}' already exists."
+            )
         return item
 
     @audit_action(entity_type=AuditEntityType.CHANNEL, action_type=AuditActionType.CREATE)
@@ -115,7 +102,9 @@ class AdminPortalChannelService(ChannelService):
             item = (await self._session.execute(query)).scalar_one()
             await self._session.flush()
         except IntegrityError as e:
-            self._parse_integrity_error(data, e)
+            raise_for_integrity_error(
+                e, f"Key deployment_id='{data.deployment_id}' already exists."
+            )
 
         return ChannelSerializer.db_to_schema(item)
 
