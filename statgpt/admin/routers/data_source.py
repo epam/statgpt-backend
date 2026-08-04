@@ -59,7 +59,9 @@ async def get_data_sources(
     """Returns a list of data sources"""
 
     service = DataSourceService(session)
-    data_sources = await service.get_data_sources_schemas(limit=limit, offset=offset)
+    data_sources = await service.get_data_sources_schemas_with_external_details(
+        limit=limit, offset=offset
+    )
     data_sources_count = await service.get_data_sources_count()
 
     return schemas.ListResponse[schemas.DataSource](
@@ -87,7 +89,7 @@ async def get_data_source_by_id(
     session: AsyncSession = Depends(models.get_session),
     _=Depends(cancel_on_disconnect),
 ) -> schemas.DataSource:
-    return await DataSourceService(session).get_schema_by_id(item_id)
+    return await DataSourceService(session).get_schema_by_id_with_external_details(item_id)
 
 
 @router.get("/{item_id}/providers")

@@ -264,7 +264,9 @@ class AdminPortalDataSetService(DataSetService):
 
         if scope.includes_configs():
             data_sources = self._export_datasets_config(datasets, res_dir)
-            await DataSourceService.export_data_sources(data_sources.values(), res_dir)
+            await DataSourceService(self._session).export_data_sources(
+                data_sources.values(), res_dir
+            )
 
         if not scope.includes_indexes():
             return
@@ -634,13 +636,13 @@ class AdminPortalDataSetService(DataSetService):
         except ValidationError as e:
             _log.info(e)
             raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail=f"Failed to parse 'details' field: {e}",
             )
         except Exception as e:
             _log.info(e)
             raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail="Failed to parse 'details' field",
             )
         return parsed_config

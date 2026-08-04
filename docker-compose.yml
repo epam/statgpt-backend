@@ -116,6 +116,25 @@ services:
     ports:
       - "3001:8080"
 
+## Uncomment the lines below to test the SDMX proxy configuration locally.
+## It seeds its own default configuration into DIAL Storage on first start, so no config file is
+## needed. Set SDMX_PROXY_CONFIG_SERVER_HOST=http://localhost:8060 for the backend to reach it.
+#  sdmx-proxy-config-server:
+#    image: epam/statgpt-sdmx-proxy-config-server:development
+#    ports:
+#      - "8060:8060"
+#    depends_on:
+#      - ai-dial-core
+#    environment:
+#      # Config Server Source
+#      CONFIG_SERVER_SOURCE_TYPE: "DIAL_STORAGE"
+#      CONFIG_SERVER_SOURCE_CONFIG_PATH: "sdmx-proxy/sdmx_registries_config.json"
+#      # DIAL Storage
+#      DIAL_STORAGE_BASE_URL: "http://ai-dial-core:8080"
+#      DIAL_STORAGE_API_KEY: ${DIAL_API_KEY}
+#      # OpenTelemetry
+#      OTEL_SDK_DISABLED: "true"
+
 volumes:
   postgres-data:
   elastic-data:

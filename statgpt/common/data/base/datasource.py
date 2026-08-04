@@ -49,7 +49,50 @@ class DataSetHierarchyConfig(BaseModel):
 
 
 class DataSourceConfig(BaseModel, ABC):
-    pass
+    def dump_for_storage(self) -> dict[str, t.Any]:
+        """Serialize the config for persistence in the `data_sources.details` column.
+
+        Subclasses override this to drop fields that are owned by an external system
+        rather than by the database.
+        """
+        return self.model_dump(mode='json', by_alias=True)
+
+    def matches_stored(self, stored: "DataSourceConfig") -> bool:
+        """Whether this incoming config is equivalent to a `stored` one, for change detection.
+
+        Subclasses compare fields owned by an external system only when the incoming config
+        specifies them, so a config that omits them is not reported as changed.
+        """
+        return self.model_dump(mode='json', by_alias=True) == stored.model_dump(
+            mode='json', by_alias=True
+        )
+
+    def external_details_key(self) -> str | None:
+        """Identity of the external system that owns part of this config's `details`.
+
+        None when nothing in `details` is externally owned. Configs returning the same key
+        share an owner, so their externally-owned details are loaded once.
+        """
+        return None
+
+    async def load_external_details(self) -> dict[str, t.Any]:
+        """Load the externally-owned part of `details`, keyed by serialization alias.
+
+        Raises whatever domain exception the external system's client raises; callers decide
+        how tolerant to be.
+        """
+        return {}
+
+    async def push_external_details(self) -> dict[str, t.Any] | None:
+        """Send the externally-owned part of `details` back to the system that owns it.
+
+        Returns the value the owning system confirmed it stored, keyed by serialization alias,
+        so the caller can report what it wrote instead of reading it back.
+
+        None when this config specifies no externally-owned value and the owning system was
+        therefore left untouched, so an update can omit one without wiping the stored value.
+        """
+        return None
 
 
 DataSourceConfigType = t.TypeVar("DataSourceConfigType", bound=DataSourceConfig)
