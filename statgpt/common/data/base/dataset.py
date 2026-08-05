@@ -29,6 +29,9 @@ if TYPE_CHECKING:
 class DataResponseStatus(BaseModel):
     request_status: DataRequestStatus = Field(description="status of the data request")
     parsing_status: DataParsingStatus = Field(description="status of data parsing")
+    reason: str | None = Field(
+        default=None, description="human-readable detail, set on request failure"
+    )
 
     def merge(self, other: DataResponseStatus) -> DataResponseStatus:
         if (
