@@ -1,6 +1,7 @@
 import asyncio
 import io
 import os
+import time
 from typing import IO, Any
 
 import httpx
@@ -26,6 +27,15 @@ from statgpt.common.utils.http_pool import get_shared_sdmx_http_client
 
 def init_sdmx(config: SdmxDataSourceConfig):
     sdmx.add_source(config.sdmx_config.to_sdmx1_dict(), override=True)
+
+
+class SdmxRequestTimeoutError(Exception):
+    """Raised when an SDMX HTTP request times out after exhausting retries.
+
+    The message is safe to surface to callers (e.g. as an offline dataset status, or a
+    chat-facing error) so timeouts read as "the data source didn't respond in time"
+    instead of a generic failure.
+    """
 
 
 class AsyncSdmxClient:
@@ -351,6 +361,7 @@ class AsyncSdmxClient:
 
     async def _perform_request(self, req: PreparedRequest, max_retries=3, delay=3) -> Response:
         attempts = 0
+        start = time.monotonic()
         try:
             while True:
                 attempts += 1
@@ -370,19 +381,24 @@ class AsyncSdmxClient:
                             f"Retrying in {delay} seconds...\nRequest: {req.method} {req.url} body={req.body!r}"
                         )
                         await asyncio.sleep(delay)
-                except httpx.ConnectTimeout:
+                except httpx.TimeoutException as e:
                     if attempts == max_retries:
-                        logger.exception(
-                            f"Connection timed out after {attempts} attempts: "
-                            f"{req.method} {req.url} body={req.body!r}"
+                        elapsed = time.monotonic() - start
+                        msg = (
+                            f"SDMX request to {req.method} {req.url} timed out after "
+                            f"{attempts} attempt(s), waited {elapsed:.1f}s total"
                         )
-                        raise
+                        logger.error(f"{msg}\nbody={req.body!r}")
+                        raise SdmxRequestTimeoutError(msg) from e
                     else:
                         logger.error(
-                            f"Connection timed out after {attempts} attempts. Retrying in {delay} seconds..."
+                            f"Request timed out ({type(e).__name__}) after {attempts} attempts. "
+                            f"Retrying in {delay} seconds..."
                             f"\nRequest: {req.method} {req.url} body={req.body!r}\n"
                         )
                         await asyncio.sleep(delay)
+        except SdmxRequestTimeoutError:
+            raise  # already logged above with a specific, actionable message
         except Exception:
             logger.exception(
                 f"Server failed to respond, after {attempts} attempts: "

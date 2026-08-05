@@ -16,6 +16,7 @@ from statgpt.common.data.sdmx.v21.datasource import Sdmx21DataSourceHandler
 from statgpt.common.data.sdmx.v21.dimensions_creator import DimensionsCreator
 from statgpt.common.data.sdmx.v21.ratelimiter import SdmxRateLimiterFactory
 from statgpt.common.data.sdmx.v21.schemas import Urn
+from statgpt.common.data.sdmx.v21.sdmx_client import SdmxRequestTimeoutError
 from statgpt.common.data.sdmx.v21.urn_utils import is_wildcarded_version, lookup_urn
 from statgpt.common.schemas.dataset import Status
 from statgpt.common.settings.sdmx import quanthub_settings
@@ -88,6 +89,16 @@ class QuanthubSdmx21DataSourceHandler(Sdmx21DataSourceHandler):
             )
             dataflow_loader = DataflowLoader(sdmx_client)
             urn, structure_message = await dataflow_loader.load_structure_message(urn, mode="full")
+        except SdmxRequestTimeoutError as e:
+            if allow_offline:
+                msg = (
+                    "The SDMX server timed out while loading the dataflow structures. "
+                    f"urn={dataset_config.urn!r}"
+                )
+                logger.warning(f"{msg} ({e})")
+                status = Status(status='offline', details=msg)
+                return SdmxOfflineDataSet(entity_id, title, dataset_config, self, status)
+            raise
         except Exception:
             if allow_offline:
                 msg = f"Failed to load the dataflow or its associated structures. urn={dataset_config.urn!r}"

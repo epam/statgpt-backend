@@ -18,7 +18,7 @@ from statgpt.common.data.base import (
 )
 from statgpt.common.data.base.enums import InvalidDataSetQueryReasonType
 from statgpt.common.data.base.query import InvalidDataSetQueryReason
-from statgpt.common.schemas.enums import DataParsingStatus, LocaleEnum
+from statgpt.common.schemas.enums import DataParsingStatus, DataRequestStatus, LocaleEnum
 
 from .base import BaseFormatter
 from .dataset_base import DatasetFormatterConfig
@@ -91,6 +91,14 @@ class DatasetQueryFormatter(BaseFormatter):
         if not data_response.visual_dataframe.empty:
             lines.append(
                 f'✅ **{self._("Execution result")}**: {self._("Data received, contains {count} series.").format(count=data_response.get_display_series_count())}'
+            )
+        elif data_response.status.request_status == DataRequestStatus.FAILED:
+            detail = data_response.status.reason or self._("The request to the data source failed.")
+            lines.append(f'❌ **{self._("Execution result")}**: {detail}')
+            lines.append("")
+            lines.append(
+                f'💡 **{self._("Advice")}:** '
+                f'{self._("This looks like a temporary issue with the data source. You may want to retry the query, or try again shortly.")}'
             )
         elif data_response.status.parsing_status in (
             DataParsingStatus.FAILED,
