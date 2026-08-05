@@ -1,6 +1,8 @@
 import asyncio
+import contextlib
 import io
 import os
+import threading
 from typing import IO, Any
 
 import httpx
@@ -26,6 +28,21 @@ from statgpt.common.utils.http_pool import get_shared_sdmx_http_client
 
 def init_sdmx(config: SdmxDataSourceConfig):
     sdmx.add_source(config.sdmx_config.to_sdmx1_dict(), override=True)
+
+
+_PARSE_DSD_LOCK = threading.Lock()
+
+
+def _dsd_parse_lock(dsd: object | None) -> contextlib.AbstractContextManager[Any]:
+    """Serialize dsd-bearing sdmx1 parses that run on worker threads.
+
+    sdmx1 readers mutate a structure passed via ``structure=`` (the XML reader extends the DSD
+    via ``make_key(..., extend=True)``; the v30 proxy JSON reader attaches it as
+    ``msg.dataflow.structure`` and adds components via ``getdefault``), so concurrent dsd-bearing
+    parses must be serialized. Parses with ``dsd is None`` build private structures and stay
+    fully parallel.
+    """
+    return _PARSE_DSD_LOCK if dsd is not None else contextlib.nullcontext()
 
 
 class AsyncSdmxClient:
@@ -347,7 +364,9 @@ class AsyncSdmxClient:
     async def _fetch(self, req: PreparedRequest, tofile: os.PathLike | IO | None = None) -> Message:
         httpx_response = await self._perform_request(req)
         response = self._convert_response(httpx_response, req)
-        return self._parse_response(response, tofile=tofile)
+        # XML parsing is CPU-bound and can take seconds for large data messages;
+        # run it off the event loop so concurrent requests are not stalled.
+        return await asyncio.to_thread(self._parse_response, response, tofile)
 
     async def _perform_request(self, req: PreparedRequest, max_retries=3, delay=3) -> Response:
         attempts = 0
@@ -423,7 +442,8 @@ class AsyncSdmxClient:
         # Instantiate reader from class
         reader = reader_class()
 
-        msg = reader.convert(response_content, structure=dsd)
+        with _dsd_parse_lock(dsd):
+            msg = reader.convert(response_content, structure=dsd)
         msg.response = response
         return msg
 
