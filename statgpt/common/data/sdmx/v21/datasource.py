@@ -49,7 +49,7 @@ from statgpt.common.data.sdmx.v21.dataset import (
     SdmxOfflineDataSet,
 )
 from statgpt.common.data.sdmx.v21.dimensions_creator import DimensionsCreator
-from statgpt.common.data.sdmx.v21.sdmx_client import AsyncSdmxClient
+from statgpt.common.data.sdmx.v21.sdmx_client import AsyncSdmxClient, SdmxRequestTimeoutError
 from statgpt.common.schemas.data_source import Provider
 from statgpt.common.schemas.dataset import Status
 from statgpt.common.utils import crc32_hash
@@ -450,6 +450,17 @@ class Sdmx21DataSourceHandler(
             urn, structure_message = await self._load_dataset_structure_message(
                 urn_ref=dataset_config.urn, auth_context=auth_context
             )
+        except SdmxRequestTimeoutError as e:
+            if allow_offline:
+                msg = (
+                    "The SDMX server timed out while loading the dataflow structures. "
+                    f"urn={dataset_config.urn!r}"
+                )
+                logger.warning(f"{msg} ({e})")
+                status = Status(status='offline', details=msg)
+                return SdmxOfflineDataSet(entity_id, title, dataset_config, self, status)
+            else:
+                raise e
         except Exception as e:
             if allow_offline:
                 msg = f"Failed to load the dataflow or its associated structures. urn={dataset_config.urn!r}"

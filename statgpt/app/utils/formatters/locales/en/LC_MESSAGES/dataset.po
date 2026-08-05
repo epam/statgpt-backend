@@ -6,7 +6,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: statgpt 1.0\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-05-27 20:48+0200\n"
+"POT-Creation-Date: 2026-06-22 12:55+0300\n"
 "PO-Revision-Date: 2024-01-01 00:00+0000\n"
 "Last-Translator: \n"
 "Language-Team: English\n"
@@ -20,7 +20,7 @@ msgid "[Official]"
 msgstr "[Official]"
 
 # Basic labels
-#: dataset_simple.py:30 dataset_query.py:125 dataset_query.py:253
+#: dataset_simple.py:30 dataset_query.py:133 dataset_query.py:258
 #: dataset_availablity_query.py:105
 msgid "ID"
 msgstr "ID"
@@ -172,7 +172,8 @@ msgstr "until **{end}**"
 msgid "on **{date}**"
 msgstr "on **{date}**"
 
-#: dataset_query.py:93 dataset_query.py:100 dataset_query.py:108
+#: dataset_query.py:93 dataset_query.py:97 dataset_query.py:108
+#: dataset_query.py:116
 msgid "Execution result"
 msgstr "Execution result"
 
@@ -181,37 +182,49 @@ msgstr "Execution result"
 msgid "Data received, contains {count} series."
 msgstr "Data received, contains {count} series."
 
-#: dataset_query.py:100
-msgid "The query was executed, but parsing the response failed."
-msgstr "The query was executed, but parsing the response failed."
+#: dataset_query.py:96
+msgid "The request to the data source failed."
+msgstr "The request to the data source failed."
 
-#: dataset_query.py:104
-msgid "Note"
-msgstr "Note"
-
-#: dataset_query.py:104
-msgid ""
-"While the data is not visible to you, user will be able to see it in UI."
-msgstr ""
-"While the data is not visible to you, user will be able to see it in UI."
-
-#: dataset_query.py:104
-msgid ""
-"It is recommended to inform user that you were not able to see the data due "
-"to parsing issues."
-msgstr ""
-"It is recommended to inform user that you were not able to see the data due "
-"to parsing issues."
-
-#: dataset_query.py:108
-msgid "A response was received, but it does not contain any data."
-msgstr "A response was received, but it does not contain any data."
-
-#: dataset_query.py:112
+#: dataset_query.py:100 dataset_query.py:120
 msgid "Advice"
 msgstr "Advice"
 
+#: dataset_query.py:101
+msgid ""
+"This looks like a temporary issue with the data source. You may want to "
+"retry the query, or try again shortly."
+msgstr ""
+"This looks like a temporary issue with the data source. You may want to "
+"retry the query, or try again shortly."
+
+#: dataset_query.py:108
+msgid "The query was executed, but parsing the response failed."
+msgstr "The query was executed, but parsing the response failed."
+
 #: dataset_query.py:112
+msgid "Note"
+msgstr "Note"
+
+#: dataset_query.py:112
+msgid ""
+"While the data is not visible to you, user will be able to see it in UI."
+msgstr ""
+"While the data is not visible to you, user will be able to see it in UI."
+
+#: dataset_query.py:112
+msgid ""
+"It is recommended to inform user that you were not able to see the data due "
+"to parsing issues."
+msgstr ""
+"It is recommended to inform user that you were not able to see the data due "
+"to parsing issues."
+
+#: dataset_query.py:116
+msgid "A response was received, but it does not contain any data."
+msgstr "A response was received, but it does not contain any data."
+
+#: dataset_query.py:120
 msgid ""
 "Most likely, the query is generally correct, but there is no data for the "
 "specified time period."
@@ -219,11 +232,11 @@ msgstr ""
 "Most likely, the query is generally correct, but there is no data for the "
 "specified time period."
 
-#: dataset_query.py:112
+#: dataset_query.py:120
 msgid "You may want to try selecting a different time period."
 msgstr "You may want to try selecting a different time period."
 
-#: dataset_query.py:112
+#: dataset_query.py:120
 msgid ""
 "Another option is to try to find relevant data in other datasets or using "
 "other tools."
@@ -231,66 +244,66 @@ msgstr ""
 "Another option is to try to find relevant data in other datasets or using "
 "other tools."
 
-#: dataset_query.py:117
+#: dataset_query.py:125
 msgid "View data in explorer"
 msgstr "View data in explorer"
 
-#: dataset_query.py:128
+#: dataset_query.py:136
 msgid "Query UUID"
 msgstr "Query UUID"
 
-#: dataset_query.py:131
+#: dataset_query.py:139
 msgid "Query summary"
 msgstr "Query summary"
 
-#: dataset_query.py:136
+#: dataset_query.py:144
 msgid "Factual time period"
 msgstr "Factual time period"
 
-#: dataset_query.py:136
+#: dataset_query.py:144
 msgid "to"
 msgstr "to"
 
-#: dataset_query.py:163
+#: dataset_query.py:171
 msgid "invalid_selected_end_time"
 msgstr ""
 "The selected end date ({value}) is outside the available period (from "
 "{available_start} to {available_end})."
 
-#: dataset_query.py:165
+#: dataset_query.py:173
 msgid "invalid_selected_start_time"
 msgstr ""
 "The selected start date ({value}) is outside the available period (from "
 "{available_start} to {available_end})."
 
-#: dataset_query.py:182
+#: dataset_query.py:190
 msgid "Reason for invalid query"
 msgstr "Reason for invalid query"
 
-#: dataset_query.py:186
+#: dataset_query.py:194
 msgid "(invalid)"
 msgstr " (invalid)"
 
-#: dataset_query.py:187 dataset_availablity_query.py:116
+#: dataset_query.py:195 dataset_availablity_query.py:116
 msgid "Query"
 msgstr "Query"
 
-#: dataset_query.py:214 dataset_availablity_query.py:73
+#: dataset_query.py:219 dataset_availablity_query.py:73
 msgid "Indicator"
 msgstr "Indicator"
 
-#: dataset_query.py:223
+#: dataset_query.py:228
 msgid "default time filter is used, as user did not specify any time filter"
 msgstr "default time filter is used, as user did not specify any time filter"
 
-#: dataset_query.py:227
+#: dataset_query.py:232
 msgid "default"
 msgstr "default"
 
-#: dataset_query.py:250
+#: dataset_query.py:255
 msgid "Missing dimensions"
 msgstr "Missing dimensions"
 
-#: dataset_query.py:272
+#: dataset_query.py:277
 msgid "example values"
 msgstr "example values"
