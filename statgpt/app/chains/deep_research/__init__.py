@@ -1,1 +1,1 @@
-from .deep_research_tool import DeepResearchTool
+from .deep_research_tool import DeepResearchTool, ResumeDeepResearchTool

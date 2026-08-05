@@ -28,6 +28,15 @@ class StatGPTConfiguration(BaseModel):
         "When False, each dataset produces a separate python code attachment.",
         default=False,
     )
+    # Keep in sync with `DeepResearchChannelConfiguration` in services/chat_facade.py, which
+    # advertises this toggle to the frontend only when the Deep Research tool is enabled. This
+    # model parses the value the frontend sends back on each request.
+    deep_research: bool = Field(
+        description="When True, run the request in Deep Research mode: the Supreme Agent is forced "
+        "to start the Deep Research tool. Advertised to the frontend via the deployment "
+        "configuration only when the channel has the Deep Research tool enabled.",
+        default=False,
+    )
 
     @field_validator('timezone')
     @classmethod

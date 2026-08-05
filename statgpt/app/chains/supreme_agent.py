@@ -1,5 +1,6 @@
 import asyncio
 import copy
+import uuid
 from copy import deepcopy
 from datetime import datetime
 from typing import NamedTuple
@@ -17,11 +18,14 @@ from langchain_core.prompts import (
 from langchain_core.runnables import Runnable, RunnablePassthrough
 
 from statgpt.app.chains.data_query.data_query_artifacts_displayer import DataQueryArtifactDisplayer
+from statgpt.app.chains.deep_research import ResumeDeepResearchTool
 from statgpt.app.chains.parameters import ChainParameters
 from statgpt.app.chains.tools import StatGptTool
 from statgpt.app.config import ChainParametersConfig, StateVarsConfig
 from statgpt.app.default_prompts import supreme_agent_default_prompts
 from statgpt.app.schemas import (
+    DEEP_RESEARCH_ERROR_MESSAGE,
+    DeepResearchSession,
     FailedToolArtifact,
     FailedToolMessageState,
     ToolArtifact,
@@ -38,7 +42,7 @@ from statgpt.app.utils.dial_stages import (
 from statgpt.app.utils.message_history import History
 from statgpt.common.auth.auth_context import AuthContext
 from statgpt.common.config import multiline_logger as logger
-from statgpt.common.schemas import ChannelConfig, FakeCall
+from statgpt.common.schemas import ChannelConfig, FakeCall, ToolTypes
 from statgpt.common.utils import InvalidLLMStreamResponse
 from statgpt.common.utils.llm_call_duration_context import get_llm_call_duration_manager
 from statgpt.common.utils.markdown import format_as_markdown_list
@@ -163,8 +167,9 @@ class SupremeAgent:
         auth_context: AuthContext,
         channel_config: ChannelConfig,
         tools: list[StatGptTool],
+        tool_choice: str | None = None,
     ) -> 'SupremeAgent':
-        chain = cls._create_chain(auth_context, channel_config, tools)
+        chain = cls._create_chain(auth_context, channel_config, tools, tool_choice)
         return cls(choice, chain)
 
     async def run(
@@ -222,7 +227,11 @@ class SupremeAgent:
 
     @classmethod
     def _create_chain(
-        cls, auth_context: AuthContext, channel_config: ChannelConfig, tools: list[StatGptTool]
+        cls,
+        auth_context: AuthContext,
+        channel_config: ChannelConfig,
+        tools: list[StatGptTool],
+        tool_choice: str | None = None,
     ) -> Runnable:
         prompt_template = ChatPromptTemplate.from_messages(
             [
@@ -256,7 +265,10 @@ class SupremeAgent:
             api_key=auth_context.api_key,
             model_config=channel_config.supreme_agent.llm_model_config,
         )
-        model_with_tools = model.bind_tools(tools, strict=True)
+        if tool_choice is not None:
+            model_with_tools = model.bind_tools(tools, strict=True, tool_choice=tool_choice)
+        else:
+            model_with_tools = model.bind_tools(tools, strict=True)
 
         return prompt_template | model_with_tools
 
@@ -274,12 +286,46 @@ class SupremeAgentExecutor:
         debug = state.get(StateVarsConfig.SHOW_DEBUG_STAGES, False)
 
         tool_executor = ToolCaller.from_config(self._channel_config)
-        supreme_agent = SupremeAgent.create(
-            choice, auth_context, self._channel_config, tool_executor.tools
-        )
 
         fake_history = await self._fake_tool_calls(tool_executor, inputs, show_stages=debug)
         history.prepend(fake_history)
+
+        # ~~~ Deep Research routing ~~~
+        # `deep_research` is in `tool_executor.tools` only when the channel has the tool enabled;
+        # it is the start tool. Resume is derived from it on demand.
+        deep_research_tool = next(
+            (t for t in tool_executor.tools if t.tool_type == ToolTypes.DEEP_RESEARCH), None
+        )
+        # A session lives in state only while a run is in progress (the tool drops it once the
+        # report is delivered), so its presence is the in-progress signal.
+        session_in_progress = DeepResearchSession.from_state(state) is not None
+
+        # The `deep_research` toggle (advertised to the frontend only where the tool is enabled)
+        # is the single switch for Deep Research: it gates both starting a new session and
+        # resuming an in-progress one. When on, an active session is resumed and otherwise the
+        # start tool is forced via tool_choice; when off, Deep Research is fully unavailable — the
+        # start tool is hidden from the agent and any in-progress session is abandoned.
+        agent_tools = tool_executor.tools
+        tool_choice: str | None = None
+        if deep_research_tool is not None:
+            if configuration.deep_research:
+                if session_in_progress:
+                    # Active session + toggle on: forward the user's next message to Deep Research
+                    # verbatim (no interpretation) and surface its reply as-is. Deterministic
+                    # routing driven by the session flag, so a resume never depends on the LLM
+                    # re-composing the message.
+                    return await self._resume_deep_research(inputs, deep_research_tool)
+                tool_choice = deep_research_tool.name
+            else:
+                agent_tools = [t for t in agent_tools if t.tool_type != ToolTypes.DEEP_RESEARCH]
+                if session_in_progress:
+                    # Toggle turned off mid-session: abandon the run so it can't silently resume,
+                    # or resurrect on a later turn if the user re-enables the toggle in this chat.
+                    DeepResearchSession.drop_from_state(state)
+
+        supreme_agent = SupremeAgent.create(
+            choice, auth_context, self._channel_config, agent_tools, tool_choice=tool_choice
+        )
 
         data_query_artifacts: dict[str, DataQueryArtifact] = {}
         assert self._channel_config.data_query is not None, "data_query must be configured"
@@ -305,14 +351,29 @@ class SupremeAgentExecutor:
             if tool_calls := response.resp.tool_calls:
                 history.add_chunk_as_tool_message(response.resp)
 
-                res: list[ToolMessage] = await asyncio.gather(
-                    *(tool_executor.call_tool(tool_call, inputs) for tool_call in tool_calls)
+                tool_calls_to_run, rejected_messages = self._guard_deep_research_calls(
+                    tool_calls, deep_research_tool
                 )
+                res: list[ToolMessage] = await asyncio.gather(
+                    *(tool_executor.call_tool(tool_call, inputs) for tool_call in tool_calls_to_run)
+                )
+                res.extend(rejected_messages)
 
+                deep_research_msg: ToolMessage | None = None
                 for tool_msg in res:
                     history.add_tool_message(tool_msg)
 
-                    if (artifact := tool_msg.artifact) and isinstance(artifact, DataQueryArtifact):
+                    artifact = tool_msg.artifact
+                    # Capture the first (executed) Deep Research message; any later
+                    # DEEP_RESEARCH message is a rejected duplicate from the guard.
+                    if (
+                        artifact
+                        and artifact.type == ToolTypes.DEEP_RESEARCH
+                        and deep_research_msg is None
+                    ):
+                        deep_research_msg = tool_msg
+
+                    if artifact and isinstance(artifact, DataQueryArtifact):
                         tool_data_query_artifacts.append(artifact)
                         data_query_artifacts[tool_msg.tool_call_id] = artifact
 
@@ -328,6 +389,17 @@ class SupremeAgentExecutor:
                         "Further supreme agent runs are skipped due to tools execution skip"
                     )
                     return ""
+
+                if deep_research_msg is not None:
+                    # Deep Research owns this turn: it streamed its clarifying question / final
+                    # report straight into the conversation, or failed. Either way, end the loop —
+                    # under the forced tool_choice, continuing would just re-invoke Deep Research
+                    # and, on a persistent failure, spin until max_agent_iterations.
+                    if deep_research_msg.status == ToolResponseStatus.ERROR.value:
+                        choice.append_content(DEEP_RESEARCH_ERROR_MESSAGE)
+                        return DEEP_RESEARCH_ERROR_MESSAGE
+                    dr_content = deep_research_msg.content
+                    return dr_content if isinstance(dr_content, str) else str(dr_content)
             elif response.finished:
                 if response.first_token_time is not None:
                     self._log_performance(inputs, response.start_time, response.first_token_time)
@@ -350,6 +422,81 @@ class SupremeAgentExecutor:
         warning_msg = '\n\n[WARNING] Maximum number of agent loop iterations reached. Please enter "continue" to proceed.'
         choice.append_content(warning_msg)
         return warning_msg
+
+    async def _resume_deep_research(self, inputs: dict, start_tool: StatGptTool) -> str:
+        """Forward the user's latest message to the active Deep Research session, verbatim.
+
+        Bypasses the LLM so the message reaches Deep Research exactly as the user wrote it — no
+        paraphrasing, no answering from context (that mediation is the follow-up, #575). The tool
+        streams Deep Research's reply straight to the user and updates the session in `state`."""
+        history = ChainParameters.get_history(inputs)
+        choice = ChainParameters.get_choice(inputs)
+
+        resume_tool = ResumeDeepResearchTool.build(start_tool._tool_config, self._channel_config)
+        user_message = self._last_user_message_text(history)
+        tool_call: ToolCall = {
+            'name': resume_tool.name,
+            'args': {'message': user_message},
+            'id': str(uuid.uuid4()),
+            'type': 'tool_call',
+        }
+        tool_msg = await ToolCaller([resume_tool]).call_tool(tool_call, inputs, show_stage=False)
+        if tool_msg.status == ToolResponseStatus.ERROR.value:
+            choice.append_content(DEEP_RESEARCH_ERROR_MESSAGE)
+            return DEEP_RESEARCH_ERROR_MESSAGE
+        content = tool_msg.content
+        return content if isinstance(content, str) else str(content)
+
+    @staticmethod
+    def _last_user_message_text(history: History) -> str:
+        """The verbatim text of the latest user message (the resume input)."""
+        message = history.get_last_non_tool_message()
+        content = message.content
+        if isinstance(content, str):
+            return content
+        parts: list[str] = []
+        for part in content or []:
+            if text := getattr(part, "text", None):
+                parts.append(text)
+        return "\n".join(parts)
+
+    @staticmethod
+    def _guard_deep_research_calls(
+        tool_calls: list[ToolCall], deep_research_tool: StatGptTool | None
+    ) -> tuple[list[ToolCall], list[ToolMessage]]:
+        """Enforce a single Deep Research run per agent response: if the agent emits more than
+        one Deep Research call in one response, keep the first and reject the rest with an error.
+        Together with the session-flag routing (which sends further turns to resume, never a fresh
+        start), this keeps at most one Deep Research session running in a chat at a time."""
+        if deep_research_tool is None:
+            return tool_calls, []
+
+        kept: list[ToolCall] = []
+        rejected: list[ToolMessage] = []
+        seen = False
+        for tool_call in tool_calls:
+            if tool_call['name'] == deep_research_tool.name:
+                if seen:
+                    rejected.append(
+                        ToolMessage(
+                            content=(
+                                "Only one Deep Research run can be active in a chat. "
+                                "This duplicate call was not executed."
+                            ),
+                            tool_call_id=tool_call['id'],
+                            status=ToolResponseStatus.ERROR.value,
+                            artifact=FailedToolArtifact(
+                                state=FailedToolMessageState(
+                                    type=ToolTypes.DEEP_RESEARCH,
+                                    error="duplicate_deep_research_call",
+                                )
+                            ),
+                        )
+                    )
+                    continue
+                seen = True
+            kept.append(tool_call)
+        return kept, rejected
 
     async def create_chain(self) -> Runnable:
         return RunnablePassthrough.assign(general_response=self.stream_response)
