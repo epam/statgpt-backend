@@ -56,6 +56,7 @@ from statgpt.common.data.sdmx.common import (
     build_data_explorer_url_query,
 )
 from statgpt.common.data.sdmx.python_code import generate_python_query_body
+from statgpt.common.data.sdmx.v21.sdmx_client import SdmxRequestTimeoutError
 from statgpt.common.schemas.dataset import Status
 from statgpt.common.schemas.enums import DataParsingStatus, DataRequestStatus
 from statgpt.common.schemas.query import (
@@ -1250,6 +1251,20 @@ class Sdmx21DataSet(
 
         try:
             data_msg = await self._query_sdmx_data(sdmx_query, auth_context)
+        except SdmxRequestTimeoutError as e:
+            _log.warning(f"Timed out querying dataset '{self.source_id}': {e}")
+            return Sdmx21DataResponse(
+                dataset=self,
+                df=pd.DataFrame(),
+                sdmx_query=sdmx_query,
+                url=None,
+                status=DataResponseStatus(
+                    request_status=DataRequestStatus.FAILED,
+                    parsing_status=DataParsingStatus.NA,
+                    reason=str(e),
+                ),
+                display_series_count=0,
+            )
         except Exception as e:
             _log.exception(e)
             return Sdmx21DataResponse(
