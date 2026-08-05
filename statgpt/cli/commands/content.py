@@ -37,7 +37,6 @@ from statgpt.common.schemas import (
     GlossaryTerm,
     GlossaryTermBase,
     GlossaryTermUpdateBulk,
-    RAGVersion,
 )
 from statgpt.common.utils import attachments_storage_factory
 
@@ -447,7 +446,6 @@ async def _process_channels(
         if deployment_id in existing:
             existing_ch = existing[deployment_id]
             if _channel_changed(ch_cfg, existing_ch):
-                _warn_if_deprecated_rag(ch_cfg)
                 channel = await client.update_channel(existing_ch.id, ch_cfg)
                 print_info(f"  Updated channel: {deployment_id}")
             else:
@@ -455,7 +453,6 @@ async def _process_channels(
                 print_info(f"  Channel unchanged: {deployment_id}")
         else:
             # Create new channel
-            _warn_if_deprecated_rag(ch_cfg)
             channel = await client.create_channel(ch_cfg)
             print_info(f"  Created channel: {deployment_id}")
 
@@ -472,19 +469,6 @@ async def _process_channels(
                 print_info(f"  Processed glossary: {glossary_file}")
 
     return channels
-
-
-def _warn_if_deprecated_rag(ch_cfg: dict[str, Any]) -> None:
-    """Warn if the channel uses the deprecated DIAL file RAG backend."""
-    file_rag = ch_cfg.get("details", {}).get("file_rag")
-    if not file_rag:
-        return
-    version = file_rag.get("details", {}).get("version")
-    if version == RAGVersion.DIAL.value:
-        print_warning(
-            f"The '{RAGVersion.DIAL.value}' file RAG backend is deprecated; "
-            f"use '{RAGVersion.GENERIC.value}' instead."
-        )
 
 
 def _add_tools_to_channel(ch_cfg: dict[str, Any], tools_cfg: dict[str, Any]) -> None:
