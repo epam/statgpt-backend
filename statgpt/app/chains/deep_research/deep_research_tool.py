@@ -147,9 +147,7 @@ class DeepResearchTool(StatGptTool[DeepResearchToolConfig], tool_type=ToolTypes.
             state.get(StateVarsConfig.SHOW_DEBUG_STAGES, False) or details.always_show_stages
         )
 
-        create_kwargs: dict[str, Any] = dict(
-            model=deployment_id, stream=True, messages=messages
-        )
+        create_kwargs: dict[str, Any] = dict(model=deployment_id, stream=True, messages=messages)
         client = openai.get_async_client(api_key=auth_context.api_key)
         time_start = time.monotonic()
         failed = False
