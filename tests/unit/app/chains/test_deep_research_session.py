@@ -3,7 +3,7 @@ from unittest.mock import Mock
 from aidial_sdk.chat_completion import Message as DialMessage
 from aidial_sdk.chat_completion import Role
 
-from statgpt.app.chains.deep_research.deep_research_tool import DeepResearchTool
+from statgpt.app.chains.deep_research.deep_research_tool import DeepResearchRunner
 from statgpt.app.config import StateVarsConfig
 from statgpt.app.schemas import DeepResearchSession
 from statgpt.app.utils import OpenAiToDialStreamer
@@ -18,15 +18,15 @@ class TestResearchStarted:
                 "clarification": {"questions": ["When?", "Where?"]},
             }
         }
-        assert DeepResearchTool._research_started(dr_state) is False
+        assert DeepResearchRunner._research_started(dr_state) is False
 
     def test_started(self):
         dr_state = {"preparation": {"research_started": True, "clarification": None}}
-        assert DeepResearchTool._research_started(dr_state) is True
+        assert DeepResearchRunner._research_started(dr_state) is True
 
     def test_missing_or_empty(self):
-        assert DeepResearchTool._research_started(None) is False
-        assert DeepResearchTool._research_started({}) is False
+        assert DeepResearchRunner._research_started(None) is False
+        assert DeepResearchRunner._research_started({}) is False
 
 
 class TestFromState:
@@ -58,14 +58,14 @@ class TestDropFromState:
 
 class TestLoadSession:
     def test_no_stored_session_starts_fresh(self):
-        session = DeepResearchTool._load_session({})
+        session = DeepResearchRunner._load_session({})
         assert session.messages == []
 
     def test_stored_session_is_resumed(self):
         stored = DeepResearchSession(
             messages=[{"role": "user", "content": "q"}],
         ).model_dump(mode="json")
-        session = DeepResearchTool._load_session({StateVarsConfig.DEEP_RESEARCH_SESSION: stored})
+        session = DeepResearchRunner._load_session({StateVarsConfig.DEEP_RESEARCH_SESSION: stored})
         assert session.messages == [{"role": "user", "content": "q"}]
 
 
@@ -73,7 +73,7 @@ class TestSessionMutationHelpers:
     def test_append_turn_records_user_and_assistant_with_state(self):
         session = DeepResearchSession()
         dr_state = {"preparation": {"research_started": False}}
-        DeepResearchTool._append_turn(session, "my query", "the question", dr_state)
+        DeepResearchRunner._append_turn(session, "my query", "the question", dr_state)
 
         assert session.messages[0] == {"role": "user", "content": "my query"}
         assert session.messages[1]["role"] == "assistant"
@@ -83,7 +83,7 @@ class TestSessionMutationHelpers:
     def test_save_session_serializes_to_state(self):
         state: dict = {}
         session = DeepResearchSession(messages=[{"role": "user", "content": "q"}])
-        DeepResearchTool._save_session(state, session)
+        DeepResearchRunner._save_session(state, session)
 
         stored = DeepResearchSession.model_validate(state[StateVarsConfig.DEEP_RESEARCH_SESSION])
         assert stored.messages == [{"role": "user", "content": "q"}]
@@ -92,25 +92,25 @@ class TestSessionMutationHelpers:
         state: dict = {
             StateVarsConfig.DEEP_RESEARCH_SESSION: DeepResearchSession().model_dump(mode="json")
         }
-        DeepResearchTool._drop_session(state)
+        DeepResearchRunner._drop_session(state)
         assert StateVarsConfig.DEEP_RESEARCH_SESSION not in state
 
     def test_drop_session_is_noop_when_absent(self):
         state: dict = {}
-        DeepResearchTool._drop_session(state)
+        DeepResearchRunner._drop_session(state)
         assert state == {}
 
 
 class TestBuildRequestMessages:
     def test_fresh_session_prepends_system_prompt(self):
-        messages = DeepResearchTool._build_request_messages("SYS", DeepResearchSession(), "hello")
+        messages = DeepResearchRunner._build_request_messages("SYS", DeepResearchSession(), "hello")
         assert messages == [
             {"role": "system", "content": "SYS"},
             {"role": "user", "content": "hello"},
         ]
 
     def test_fresh_session_without_system_prompt(self):
-        messages = DeepResearchTool._build_request_messages(None, DeepResearchSession(), "hello")
+        messages = DeepResearchRunner._build_request_messages(None, DeepResearchSession(), "hello")
         assert messages == [{"role": "user", "content": "hello"}]
 
     def test_continuation_replays_prior_conversation(self):
@@ -119,7 +119,7 @@ class TestBuildRequestMessages:
             {"role": "assistant", "content": "a1", "custom_content": {"state": {}}},
         ]
         session = DeepResearchSession(messages=list(prior))
-        messages = DeepResearchTool._build_request_messages(None, session, "answer")
+        messages = DeepResearchRunner._build_request_messages(None, session, "answer")
         assert messages == prior + [{"role": "user", "content": "answer"}]
 
 

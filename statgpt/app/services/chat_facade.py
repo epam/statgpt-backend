@@ -294,15 +294,10 @@ class ChannelServiceFacade:
     def channel_config(self) -> ChannelConfig:
         return self._channel.details
 
-    def _is_deep_research_available(self) -> bool:
-        """Whether the channel has the Deep Research tool configured and enabled."""
-        tool = self.channel_config.deep_research
-        return tool is not None and tool.enabled
-
     async def get_dial_channel_configuration(self, auth_context: AuthContext) -> dict[str, Any]:
         base_configuration_cls: type[BaseChannelConfiguration] = (
             DeepResearchChannelConfiguration
-            if self._is_deep_research_available()
+            if self.channel_config.is_deep_research_available
             else BaseChannelConfiguration
         )
 

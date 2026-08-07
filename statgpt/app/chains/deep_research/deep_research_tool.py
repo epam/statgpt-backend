@@ -36,20 +36,20 @@ class ResumeDeepResearchArgs(ToolArgs):
     )
 
 
-class DeepResearchTool(StatGptTool[DeepResearchToolConfig], tool_type=ToolTypes.DEEP_RESEARCH):
-    """Starts a Deep Research session from a research question."""
+class DeepResearchRunner:
+    """Runs a single Deep Research turn and owns the persisted session.
 
-    @classmethod
-    def get_mcp_annotations(cls) -> ToolAnnotations:
-        return ToolAnnotations(readOnlyHint=True, destructiveHint=False, openWorldHint=True)
+    Holds the business logic shared by the start (`deep_research`) and resume
+    (`resume_deep_research`) tools: it calls the deployment, streams the output verbatim to the
+    user, and persists or drops the `DeepResearchSession`. Both tools construct a runner and call
+    `run`; the only difference between them is which message they forward and when the agent
+    invokes them."""
 
-    @classmethod
-    def get_args_schema(cls, tool_config: DeepResearchToolConfig) -> type[DeepResearchArgs]:
-        """Return the schema for the arguments that this tool accepts."""
-        return DeepResearchArgs
+    def __init__(self, tool_config: DeepResearchToolConfig):
+        self._tool_config = tool_config
 
-    @classmethod
-    def _load_session(cls, state: dict) -> DeepResearchSession:
+    @staticmethod
+    def _load_session(state: dict) -> DeepResearchSession:
         """Load the active session from state, or start a fresh one.
 
         A finished session is dropped from state (see `_drop_session`), so any session found
@@ -58,9 +58,9 @@ class DeepResearchTool(StatGptTool[DeepResearchToolConfig], tool_type=ToolTypes.
         session = DeepResearchSession.from_state(state)
         return session if session is not None else DeepResearchSession()
 
-    @classmethod
+    @staticmethod
     def _build_request_messages(
-        cls, system_prompt: str | None, session: DeepResearchSession, user_message: str
+        system_prompt: str | None, session: DeepResearchSession, user_message: str
     ) -> list[dict[str, Any]]:
         """The DIAL messages sent to Deep Research: the replayed sub-conversation plus the new
         user input. Deep Research resumes from the `custom_content.state` it stored on the last
@@ -74,8 +74,8 @@ class DeepResearchTool(StatGptTool[DeepResearchToolConfig], tool_type=ToolTypes.
         messages.append({'role': 'user', 'content': user_message})
         return messages
 
-    @classmethod
-    def _research_started(cls, dr_state: dict[str, Any] | None) -> bool:
+    @staticmethod
+    def _research_started(dr_state: dict[str, Any] | None) -> bool:
         """Whether Deep Research has started the investigation, per its persisted state.
 
         CONTRACT: Deep Research sets ``preparation.research_started`` to ``True`` only once the
@@ -86,9 +86,8 @@ class DeepResearchTool(StatGptTool[DeepResearchToolConfig], tool_type=ToolTypes.
         preparation = (dr_state or {}).get('preparation') or {}
         return bool(preparation.get('research_started'))
 
-    @classmethod
+    @staticmethod
     def _append_turn(
-        cls,
         session: DeepResearchSession,
         user_message: str,
         assistant_content: str,
@@ -105,37 +104,29 @@ class DeepResearchTool(StatGptTool[DeepResearchToolConfig], tool_type=ToolTypes.
             }
         )
 
-    @classmethod
-    def _save_session(cls, state: dict, session: DeepResearchSession) -> None:
+    @staticmethod
+    def _save_session(state: dict, session: DeepResearchSession) -> None:
         state[StateVarsConfig.DEEP_RESEARCH_SESSION] = session.model_dump(mode='json')
 
-    @classmethod
-    def _drop_session(cls, state: dict) -> None:
+    @staticmethod
+    def _drop_session(state: dict) -> None:
         # Drop a finished session rather than persisting the (potentially large) report and
         # accumulated state on every later turn — the report already lives in the chat history.
         DeepResearchSession.drop_from_state(state)
 
-    @classmethod
-    async def _run_turn(
-        cls,
-        tool_config: DeepResearchToolConfig,
-        inputs: dict,
-        user_message: str,
-    ) -> str:
+    async def run(self, inputs: dict, user_message: str) -> str:
         """Run one Deep Research turn: call the deployment, stream its output verbatim to the
-        user, persist the session, and drop it once research has started (final report delivered).
-
-        Shared by the start (`deep_research`) and resume (`resume_deep_research`) tools; the only
-        difference between them is which message they forward and when the agent invokes them."""
+        user, persist the session, and drop it once research has started (final report
+        delivered)."""
         auth_context = ChainParameters.get_auth_context(inputs)
         choice = ChainParameters.get_choice(inputs)
         state = ChainParameters.get_state(inputs)
 
-        details = tool_config.details
+        details = self._tool_config.details
         deployment_id = details.get_deployment_id()
 
-        session = cls._load_session(state)
-        messages = cls._build_request_messages(details.system_prompt, session, user_message)
+        session = self._load_session(state)
+        messages = self._build_request_messages(details.system_prompt, session, user_message)
 
         show_debug_stages = (
             state.get(StateVarsConfig.SHOW_DEBUG_STAGES, False) or details.always_show_stages
@@ -180,15 +171,30 @@ class DeepResearchTool(StatGptTool[DeepResearchToolConfig], tool_type=ToolTypes.
             choice.append_content(DEEP_RESEARCH_ERROR_MESSAGE)
             return DEEP_RESEARCH_ERROR_MESSAGE
 
-        cls._append_turn(session, user_message, content, dr_state or {})
-        if cls._research_started(dr_state):
-            cls._drop_session(state)
+        if self._research_started(dr_state):
+            # Final report delivered: drop the session instead of recording this turn — the
+            # report already lives in the chat history and the session is no longer needed.
+            self._drop_session(state)
         else:
-            cls._save_session(state, session)
+            self._append_turn(session, user_message, content, dr_state or {})
+            self._save_session(state, session)
         return content
 
+
+class DeepResearchTool(StatGptTool[DeepResearchToolConfig], tool_type=ToolTypes.DEEP_RESEARCH):
+    """Starts a Deep Research session from a research question."""
+
+    @classmethod
+    def get_mcp_annotations(cls) -> ToolAnnotations:
+        return ToolAnnotations(readOnlyHint=True, destructiveHint=False, openWorldHint=True)
+
+    @classmethod
+    def get_args_schema(cls, tool_config: DeepResearchToolConfig) -> type[DeepResearchArgs]:
+        """Return the schema for the arguments that this tool accepts."""
+        return DeepResearchArgs
+
     async def _arun(self, inputs: dict, query: str, **kwargs) -> tuple[str, ToolArtifact]:
-        content = await self._run_turn(self._tool_config, inputs, query)
+        content = await DeepResearchRunner(self._tool_config).run(inputs, query)
         return content, ToolArtifact(state=ToolMessageState(type=self.tool_type))
 
 
@@ -225,5 +231,5 @@ class ResumeDeepResearchTool(
         )
 
     async def _arun(self, inputs: dict, message: str, **kwargs) -> tuple[str, ToolArtifact]:
-        content = await DeepResearchTool._run_turn(self._tool_config, inputs, message)
+        content = await DeepResearchRunner(self._tool_config).run(inputs, message)
         return content, ToolArtifact(state=ToolMessageState(type=self.tool_type))

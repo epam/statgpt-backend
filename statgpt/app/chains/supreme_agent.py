@@ -297,18 +297,20 @@ class SupremeAgentExecutor:
         history.prepend(fake_history)
 
         # ~~~ Deep Research routing ~~~
-        # `deep_research` is in `tool_executor.tools` only when the channel has the tool enabled;
-        # it is the start tool. Resume is derived from it on demand.
-        deep_research_tool = next(
-            (t for t in tool_executor.tools if t.tool_type == ToolTypes.DEEP_RESEARCH), None
-        )
+        # Deep Research is deliberately excluded from `ChannelConfig.tool_fields`, so it never
+        # appears in `tool_executor.tools`, the MCP server, or the out-of-scope checker. It is
+        # reachable only via the `deep_research` toggle ("button"): we build the (start) tool on
+        # demand from its config, and resume is derived from it in turn.
+        deep_research_tool: StatGptTool | None = None
+        if self._channel_config.is_deep_research_available:
+            dr_config = self._channel_config.deep_research
+            assert dr_config is not None  # guaranteed by is_deep_research_available
+            deep_research_tool = StatGptTool.from_config(dr_config, self._channel_config)
         # A session lives in state only while a run is in progress (the tool drops it once the
         # report is delivered), so its presence is the in-progress signal.
         session_in_progress = DeepResearchSession.from_state(state) is not None
 
-        # Deep Research is never part of the general selectable tool set — it is reachable only
-        # via the `deep_research` toggle ("button"), never chosen by the LLM on its own.
-        agent_tools = [t for t in tool_executor.tools if t.tool_type != ToolTypes.DEEP_RESEARCH]
+        agent_tools = list(tool_executor.tools)
 
         # The `deep_research` toggle (advertised to the frontend only where the tool is enabled)
         # is the single switch for Deep Research: it gates both starting a new session and
