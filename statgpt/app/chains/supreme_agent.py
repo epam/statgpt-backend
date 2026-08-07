@@ -369,26 +369,18 @@ class SupremeAgentExecutor:
             if tool_calls := response.resp.tool_calls:
                 history.add_chunk_as_tool_message(response.resp)
 
-                tool_calls_to_run, rejected_messages = self._guard_deep_research_calls(
-                    tool_calls, deep_research_tool
-                )
                 res: list[ToolMessage] = await asyncio.gather(
-                    *(tool_executor.call_tool(tool_call, inputs) for tool_call in tool_calls_to_run)
+                    *(tool_executor.call_tool(tool_call, inputs) for tool_call in tool_calls)
                 )
-                res.extend(rejected_messages)
 
                 deep_research_msg: ToolMessage | None = None
                 for tool_msg in res:
                     history.add_tool_message(tool_msg)
 
                     artifact = tool_msg.artifact
-                    # Capture the first (executed) Deep Research message; any later
-                    # DEEP_RESEARCH message is a rejected duplicate from the guard.
-                    if (
-                        artifact
-                        and artifact.type == ToolTypes.DEEP_RESEARCH
-                        and deep_research_msg is None
-                    ):
+                    # Deep Research is force-selected as the sole bound tool with
+                    # `parallel_tool_calls=False`, so at most one Deep Research message appears here.
+                    if artifact and artifact.type == ToolTypes.DEEP_RESEARCH:
                         deep_research_msg = tool_msg
 
                     if artifact and isinstance(artifact, DataQueryArtifact):
@@ -464,44 +456,6 @@ class SupremeAgentExecutor:
             return DEEP_RESEARCH_ERROR_MESSAGE
         content = tool_msg.content
         return content if isinstance(content, str) else str(content)
-
-    @staticmethod
-    def _guard_deep_research_calls(
-        tool_calls: list[ToolCall], deep_research_tool: StatGptTool | None
-    ) -> tuple[list[ToolCall], list[ToolMessage]]:
-        """Enforce a single Deep Research run per agent response: if the agent emits more than
-        one Deep Research call in one response, keep the first and reject the rest with an error.
-        Together with the session-flag routing (which sends further turns to resume, never a fresh
-        start), this keeps at most one Deep Research session running in a chat at a time."""
-        if deep_research_tool is None:
-            return tool_calls, []
-
-        kept: list[ToolCall] = []
-        rejected: list[ToolMessage] = []
-        seen = False
-        for tool_call in tool_calls:
-            if tool_call['name'] == deep_research_tool.name:
-                if seen:
-                    rejected.append(
-                        ToolMessage(
-                            content=(
-                                "Only one Deep Research run can be active in a chat. "
-                                "This duplicate call was not executed."
-                            ),
-                            tool_call_id=tool_call['id'],
-                            status=ToolResponseStatus.ERROR.value,
-                            artifact=FailedToolArtifact(
-                                state=FailedToolMessageState(
-                                    type=ToolTypes.DEEP_RESEARCH,
-                                    error="duplicate_deep_research_call",
-                                )
-                            ),
-                        )
-                    )
-                    continue
-                seen = True
-            kept.append(tool_call)
-        return kept, rejected
 
     async def create_chain(self) -> Runnable:
         return RunnablePassthrough.assign(general_response=self.stream_response)

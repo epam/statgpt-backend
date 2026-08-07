@@ -1,19 +1,13 @@
-from types import SimpleNamespace
 from unittest.mock import Mock
 
 from aidial_sdk.chat_completion import Message as DialMessage
 from aidial_sdk.chat_completion import Role
 
 from statgpt.app.chains.deep_research.deep_research_tool import DeepResearchTool
-from statgpt.app.chains.supreme_agent import SupremeAgentExecutor
 from statgpt.app.config import StateVarsConfig
-from statgpt.app.schemas import DeepResearchSession, ToolResponseStatus
+from statgpt.app.schemas import DeepResearchSession
 from statgpt.app.utils import OpenAiToDialStreamer
 from statgpt.app.utils.message_history import History
-
-
-def _tool_call(name: str, id_: str) -> dict:
-    return {"name": name, "id": id_, "args": {}, "type": "tool_call"}
 
 
 class TestResearchStarted:
@@ -150,34 +144,6 @@ class TestStreamerStateCapture:
         streamer = self._streamer()
         streamer._process_custom_content({})
         assert streamer.state is None
-
-
-class TestGuardDeepResearchCalls:
-    def test_no_deep_research_tool_keeps_all(self):
-        calls = [_tool_call("x", "1")]
-        kept, rejected = SupremeAgentExecutor._guard_deep_research_calls(calls, None)
-        assert kept == calls
-        assert rejected == []
-
-    def test_single_call_kept(self):
-        dr = SimpleNamespace(name="deep_research")
-        calls = [_tool_call("deep_research", "1"), _tool_call("other", "2")]
-        kept, rejected = SupremeAgentExecutor._guard_deep_research_calls(calls, dr)
-        assert kept == calls
-        assert rejected == []
-
-    def test_duplicate_calls_rejected(self):
-        dr = SimpleNamespace(name="deep_research")
-        calls = [
-            _tool_call("deep_research", "1"),
-            _tool_call("deep_research", "2"),
-            _tool_call("other", "3"),
-        ]
-        kept, rejected = SupremeAgentExecutor._guard_deep_research_calls(calls, dr)
-        assert [c["id"] for c in kept] == ["1", "3"]
-        assert len(rejected) == 1
-        assert rejected[0].tool_call_id == "2"
-        assert rejected[0].status == ToolResponseStatus.ERROR.value
 
 
 class TestLastUserMessageText:
