@@ -7,7 +7,7 @@ pattern compliance or drafting concrete fixes.
 
 **Do**
 - Keep I/O async end-to-end (`async`/`await`, asyncpg, aiohttp).
-- Parallelize independent awaits with `asyncio.gather` (or bounded semaphores).
+- Parallelize independent awaits with `asyncio.TaskGroup` (or bounded semaphores).
 - Offload truly blocking CPU/sync libraries via `asyncio.to_thread` only when necessary and bounded.
 
 **Avoid**

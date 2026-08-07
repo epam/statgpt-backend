@@ -54,7 +54,7 @@ Scan for issues in this order (highest impact first):
 
 | Priority | Category | Look for |
 |----------|----------|----------|
-| P0 | Blocking / concurrency | Sync I/O in async paths; sequential awaits that could be concurrent; missing `asyncio.gather`; thread-pool misuse; lock contention |
+| P0 | Blocking / concurrency | Sync I/O in async paths; sequential awaits that could be concurrent; missing `asyncio.TaskGroup`; thread-pool misuse; lock contention |
 | P0 | Amplification | N+1 queries/HTTP; per-item LLM/embedding calls; repeated structure/metadata fetches |
 | P1 | Data volume | Unbounded loads; missing pagination/limits; oversized payloads to LLM; full table/vector scans |
 | P1 | Caching | Missing TTL/structure caches; cache stampedes; caching mutable/shared state incorrectly |
