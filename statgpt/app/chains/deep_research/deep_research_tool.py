@@ -21,12 +21,6 @@ from statgpt.common.schemas import ToolTypes
 from statgpt.common.schemas.llm_call_duration import LLMCallDurationItem
 from statgpt.common.utils.llm_call_duration_context import get_llm_call_duration_manager
 
-RESUME_DEEP_RESEARCH_TOOL_NAME = "resume_deep_research"
-RESUME_DEEP_RESEARCH_TOOL_DESCRIPTION = (
-    "Resume the active Deep Research session by forwarding the user's latest message"
-    " (their answer to a clarifying question or their approval of the plan)."
-)
-
 
 class DeepResearchArgs(ToolArgs):
     query: Annotated[str, GuardrailInput] = Field(
@@ -54,8 +48,8 @@ class DeepResearchTool(StatGptTool[DeepResearchToolConfig], tool_type=ToolTypes.
         """Return the schema for the arguments that this tool accepts."""
         return DeepResearchArgs
 
-    @staticmethod
-    def _load_session(state: dict) -> DeepResearchSession:
+    @classmethod
+    def _load_session(cls, state: dict) -> DeepResearchSession:
         """Load the active session from state, or start a fresh one.
 
         A finished session is dropped from state (see `_drop_session`), so any session found
@@ -64,9 +58,9 @@ class DeepResearchTool(StatGptTool[DeepResearchToolConfig], tool_type=ToolTypes.
         session = DeepResearchSession.from_state(state)
         return session if session is not None else DeepResearchSession()
 
-    @staticmethod
+    @classmethod
     def _build_request_messages(
-        system_prompt: str | None, session: DeepResearchSession, user_message: str
+        cls, system_prompt: str | None, session: DeepResearchSession, user_message: str
     ) -> list[dict[str, Any]]:
         """The DIAL messages sent to Deep Research: the replayed sub-conversation plus the new
         user input. Deep Research resumes from the `custom_content.state` it stored on the last
@@ -80,8 +74,8 @@ class DeepResearchTool(StatGptTool[DeepResearchToolConfig], tool_type=ToolTypes.
         messages.append({'role': 'user', 'content': user_message})
         return messages
 
-    @staticmethod
-    def _research_started(dr_state: dict[str, Any] | None) -> bool:
+    @classmethod
+    def _research_started(cls, dr_state: dict[str, Any] | None) -> bool:
         """Whether Deep Research has started the investigation, per its persisted state.
 
         CONTRACT: Deep Research sets ``preparation.research_started`` to ``True`` only once the
@@ -92,8 +86,9 @@ class DeepResearchTool(StatGptTool[DeepResearchToolConfig], tool_type=ToolTypes.
         preparation = (dr_state or {}).get('preparation') or {}
         return bool(preparation.get('research_started'))
 
-    @staticmethod
+    @classmethod
     def _append_turn(
+        cls,
         session: DeepResearchSession,
         user_message: str,
         assistant_content: str,
@@ -110,18 +105,19 @@ class DeepResearchTool(StatGptTool[DeepResearchToolConfig], tool_type=ToolTypes.
             }
         )
 
-    @staticmethod
-    def _save_session(state: dict, session: DeepResearchSession) -> None:
+    @classmethod
+    def _save_session(cls, state: dict, session: DeepResearchSession) -> None:
         state[StateVarsConfig.DEEP_RESEARCH_SESSION] = session.model_dump(mode='json')
 
-    @staticmethod
-    def _drop_session(state: dict) -> None:
+    @classmethod
+    def _drop_session(cls, state: dict) -> None:
         # Drop a finished session rather than persisting the (potentially large) report and
         # accumulated state on every later turn — the report already lives in the chat history.
         DeepResearchSession.drop_from_state(state)
 
-    @staticmethod
+    @classmethod
     async def _run_turn(
+        cls,
         tool_config: DeepResearchToolConfig,
         inputs: dict,
         user_message: str,
@@ -138,10 +134,8 @@ class DeepResearchTool(StatGptTool[DeepResearchToolConfig], tool_type=ToolTypes.
         details = tool_config.details
         deployment_id = details.get_deployment_id()
 
-        session = DeepResearchTool._load_session(state)
-        messages = DeepResearchTool._build_request_messages(
-            details.system_prompt, session, user_message
-        )
+        session = cls._load_session(state)
+        messages = cls._build_request_messages(details.system_prompt, session, user_message)
 
         show_debug_stages = (
             state.get(StateVarsConfig.SHOW_DEBUG_STAGES, False) or details.always_show_stages
@@ -186,11 +180,11 @@ class DeepResearchTool(StatGptTool[DeepResearchToolConfig], tool_type=ToolTypes.
             choice.append_content(DEEP_RESEARCH_ERROR_MESSAGE)
             return DEEP_RESEARCH_ERROR_MESSAGE
 
-        DeepResearchTool._append_turn(session, user_message, content, dr_state or {})
-        if DeepResearchTool._research_started(dr_state):
-            DeepResearchTool._drop_session(state)
+        cls._append_turn(session, user_message, content, dr_state or {})
+        if cls._research_started(dr_state):
+            cls._drop_session(state)
         else:
-            DeepResearchTool._save_session(state, session)
+            cls._save_session(state, session)
         return content
 
     async def _arun(self, inputs: dict, query: str, **kwargs) -> tuple[str, ToolArtifact]:
@@ -203,9 +197,10 @@ class ResumeDeepResearchTool(
 ):
     """Resumes an in-progress Deep Research session with the user's next message.
 
-    Not admin-configurable: built on demand from the `deep_research` tool config and invoked
-    only while a session is in progress. Kept separate from the start tool so each has a clean,
-    single-purpose contract."""
+    Built on demand from the `deep_research` tool config (its name and description come from
+    `details.resume_tool_name` / `details.resume_tool_description`) and invoked only while a
+    session is in progress. Kept separate from the start tool so each has a clean, single-purpose
+    contract."""
 
     @classmethod
     def get_mcp_annotations(cls) -> ToolAnnotations:
@@ -218,13 +213,14 @@ class ResumeDeepResearchTool(
     @classmethod
     def build(cls, tool_config: DeepResearchToolConfig, channel_config: ChannelConfig) -> Self:
         """Construct the resume tool from the (start) Deep Research tool config. The name and
-        description are fixed rather than admin-configured, since this tool is an internal
-        continuation mechanism."""
+        description are taken from the Deep Research tool config (`details.resume_tool_name` /
+        `details.resume_tool_description`) so they stay admin-configurable."""
+        details = tool_config.details
         return cls(
             tool_config=tool_config,
             channel_config=channel_config,
-            name=RESUME_DEEP_RESEARCH_TOOL_NAME,
-            description=RESUME_DEEP_RESEARCH_TOOL_DESCRIPTION,
+            name=details.resume_tool_name,
+            description=details.resume_tool_description,
             args_schema=ResumeDeepResearchArgs,
         )
 

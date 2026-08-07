@@ -183,4 +183,4 @@ class TestGuardDeepResearchCalls:
 class TestLastUserMessageText:
     def test_returns_plain_string_content(self):
         history = History(messages=[DialMessage(role=Role.USER, content="hello there")])
-        assert SupremeAgentExecutor._last_user_message_text(history) == "hello there"
+        assert history.last_user_message_text == "hello there"

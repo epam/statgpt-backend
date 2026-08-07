@@ -3,7 +3,7 @@ import copy
 import uuid
 from copy import deepcopy
 from datetime import datetime
-from typing import NamedTuple
+from typing import Any, NamedTuple
 
 from aidial_sdk.chat_completion import FunctionCall
 from aidial_sdk.chat_completion import Message as DialMessage
@@ -168,8 +168,11 @@ class SupremeAgent:
         channel_config: ChannelConfig,
         tools: list[StatGptTool],
         tool_choice: str | None = None,
+        parallel_tool_calls: bool | None = None,
     ) -> 'SupremeAgent':
-        chain = cls._create_chain(auth_context, channel_config, tools, tool_choice)
+        chain = cls._create_chain(
+            auth_context, channel_config, tools, tool_choice, parallel_tool_calls
+        )
         return cls(choice, chain)
 
     async def run(
@@ -232,6 +235,7 @@ class SupremeAgent:
         channel_config: ChannelConfig,
         tools: list[StatGptTool],
         tool_choice: str | None = None,
+        parallel_tool_calls: bool | None = None,
     ) -> Runnable:
         prompt_template = ChatPromptTemplate.from_messages(
             [
@@ -265,10 +269,12 @@ class SupremeAgent:
             api_key=auth_context.api_key,
             model_config=channel_config.supreme_agent.llm_model_config,
         )
+        bind_kwargs: dict[str, Any] = {'strict': True}
         if tool_choice is not None:
-            model_with_tools = model.bind_tools(tools, strict=True, tool_choice=tool_choice)
-        else:
-            model_with_tools = model.bind_tools(tools, strict=True)
+            bind_kwargs['tool_choice'] = tool_choice
+        if parallel_tool_calls is not None:
+            bind_kwargs['parallel_tool_calls'] = parallel_tool_calls
+        model_with_tools = model.bind_tools(tools, **bind_kwargs)
 
         return prompt_template | model_with_tools
 
@@ -300,13 +306,17 @@ class SupremeAgentExecutor:
         # report is delivered), so its presence is the in-progress signal.
         session_in_progress = DeepResearchSession.from_state(state) is not None
 
+        # Deep Research is never part of the general selectable tool set — it is reachable only
+        # via the `deep_research` toggle ("button"), never chosen by the LLM on its own.
+        agent_tools = [t for t in tool_executor.tools if t.tool_type != ToolTypes.DEEP_RESEARCH]
+
         # The `deep_research` toggle (advertised to the frontend only where the tool is enabled)
         # is the single switch for Deep Research: it gates both starting a new session and
         # resuming an in-progress one. When on, an active session is resumed and otherwise the
-        # start tool is forced via tool_choice; when off, Deep Research is fully unavailable — the
-        # start tool is hidden from the agent and any in-progress session is abandoned.
-        agent_tools = tool_executor.tools
+        # start tool is forced as the only bound tool; when off, Deep Research is fully
+        # unavailable and any in-progress session is abandoned.
         tool_choice: str | None = None
+        parallel_tool_calls: bool | None = None
         if deep_research_tool is not None:
             if configuration.deep_research:
                 if session_in_progress:
@@ -315,16 +325,24 @@ class SupremeAgentExecutor:
                     # routing driven by the session flag, so a resume never depends on the LLM
                     # re-composing the message.
                     return await self._resume_deep_research(inputs, deep_research_tool)
+                # Toggle on, fresh request: force the start tool as the only bound tool, and
+                # disallow parallel calls so the model cannot emit more than one Deep Research
+                # call in a single response.
+                agent_tools = [deep_research_tool]
                 tool_choice = deep_research_tool.name
-            else:
-                agent_tools = [t for t in agent_tools if t.tool_type != ToolTypes.DEEP_RESEARCH]
-                if session_in_progress:
-                    # Toggle turned off mid-session: abandon the run so it can't silently resume,
-                    # or resurrect on a later turn if the user re-enables the toggle in this chat.
-                    DeepResearchSession.drop_from_state(state)
+                parallel_tool_calls = False
+            elif session_in_progress:
+                # Toggle turned off mid-session: abandon the run so it can't silently resume,
+                # or resurrect on a later turn if the user re-enables the toggle in this chat.
+                DeepResearchSession.drop_from_state(state)
 
         supreme_agent = SupremeAgent.create(
-            choice, auth_context, self._channel_config, agent_tools, tool_choice=tool_choice
+            choice,
+            auth_context,
+            self._channel_config,
+            agent_tools,
+            tool_choice=tool_choice,
+            parallel_tool_calls=parallel_tool_calls,
         )
 
         data_query_artifacts: dict[str, DataQueryArtifact] = {}
@@ -433,7 +451,7 @@ class SupremeAgentExecutor:
         choice = ChainParameters.get_choice(inputs)
 
         resume_tool = ResumeDeepResearchTool.build(start_tool._tool_config, self._channel_config)
-        user_message = self._last_user_message_text(history)
+        user_message = history.last_user_message_text
         tool_call: ToolCall = {
             'name': resume_tool.name,
             'args': {'message': user_message},
@@ -446,19 +464,6 @@ class SupremeAgentExecutor:
             return DEEP_RESEARCH_ERROR_MESSAGE
         content = tool_msg.content
         return content if isinstance(content, str) else str(content)
-
-    @staticmethod
-    def _last_user_message_text(history: History) -> str:
-        """The verbatim text of the latest user message (the resume input)."""
-        message = history.get_last_non_tool_message()
-        content = message.content
-        if isinstance(content, str):
-            return content
-        parts: list[str] = []
-        for part in content or []:
-            if text := getattr(part, "text", None):
-                parts.append(text)
-        return "\n".join(parts)
 
     @staticmethod
     def _guard_deep_research_calls(
