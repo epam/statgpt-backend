@@ -11,6 +11,8 @@ from statgpt.cli.commands.base import Command, CommandArg, CommandGroup
 from statgpt.cli.settings import cli_settings
 from statgpt.cli.shared import (
     AdminClient,
+    BatchPartialFailureError,
+    BatchReport,
     confirm_interactive,
     console,
     get_admin_client,
@@ -103,7 +105,7 @@ def _load_available_datasets(client_config_dir: str) -> list[tuple[str, str]]:
         return []
 
     datasets: list[tuple[str, str]] = []
-    for filename in os.listdir(datasets_dir):
+    for filename in sorted(os.listdir(datasets_dir)):
         if not filename.endswith(".yaml"):
             continue
         cfg = utils.read_yaml(os.path.join(datasets_dir, filename))
@@ -122,6 +124,7 @@ async def init_handler(
     datasets: str | None = None,
     only: str | None = None,
     yes: bool = False,
+    verify: bool = False,
 ) -> None:
     """Initialize content (channels, data sources, datasets, glossaries)."""
     config_dir = cli_settings.config_dir
@@ -228,32 +231,50 @@ async def init_handler(
             all_datasets = await client.get_datasets()
             existing_datasets = {str(ds.id_): ds for ds in all_datasets}
 
+        report = BatchReport(title="Content initialization summary")
+
         for client_name in available_clients:
             print_info(f"\nProcessing client: {client_name}")
             client_config_dir = os.path.join(clients_dir, client_name)
+            failures_before = len(report.failed)
 
             try:
                 await _process_client(
                     admin_client=client,
+                    report=report,
                     client_id=client_name,
                     client_config_dir=client_config_dir,
                     existing_datasets=existing_datasets,
                     dataset_ids=dataset_ids,
                     components=components,
+                    verify=verify,
                 )
-                print_success(f"Client {client_name} processed successfully")
             except Exception as e:
+                # A client-level failure (an unreadable or invalid top-level config) must
+                # not abandon the clients after it.
                 print_error(f"Failed to process client {client_name}: {e}")
-                raise
+                report.record_failed("client", client_name, str(e))
+                continue
+
+            if len(report.failed) == failures_before:
+                print_success(f"Client {client_name} processed successfully")
+            else:
+                print_warning(f"Client {client_name} processed with failures")
+
+    report.render()
+    if report.has_failures:
+        raise BatchPartialFailureError("Content initialization completed with failures")
 
 
 async def _process_client(
     admin_client: AdminClient,
+    report: BatchReport,
     client_id: str,
     client_config_dir: str,
     existing_datasets: dict[str, DataSet],
     dataset_ids: set[str] | None,
     components: set[str],
+    verify: bool = False,
 ) -> None:
     """Process a single client configuration."""
     # Load configurations
@@ -276,26 +297,36 @@ async def _process_client(
     if "channels" in components:
         process_glossaries = "glossaries" in components
         channels = await _process_channels(
-            admin_client, channel_cfg, tools_cfg, onboarding_cfg, process_glossaries, glossaries_dir
+            admin_client,
+            report,
+            channel_cfg,
+            tools_cfg,
+            onboarding_cfg,
+            process_glossaries,
+            glossaries_dir,
         )
 
     # Process data sources
     data_sources: dict[str, DataSource] = {}
     if "datasources" in components:
         data_sources_cfg = utils.read_yaml(f"{client_config_dir}/data_sources.yaml")
-        data_sources = await _process_data_sources(admin_client, data_sources_cfg)
+        data_sources = await _process_data_sources(admin_client, report, data_sources_cfg)
 
     # Process datasets
     if "datasets" in components:
-        await _process_datasets(
+        touched = await _process_datasets(
             admin_client,
+            report,
             client_id,
             client_config_dir,
             data_sources,
             channels,
             existing_datasets,
             dataset_ids,
+            link_channels="channels" in components,
         )
+        if verify:
+            await _verify_datasets(admin_client, report, touched)
 
 
 async def _upload_dial_files(dial_files_dir: str) -> None:
@@ -425,51 +456,74 @@ def _dataset_changed(
 
 async def _process_channels(
     client: AdminClient,
+    report: BatchReport,
     channel_cfg: dict[str, Any],
     tools_cfg: dict[str, Any],
     onboarding_cfg: dict[str, Any] | None,
     process_glossaries: bool,
     glossaries_dir: str,
 ) -> dict[str, Channel]:
-    """Process channel configurations."""
+    """Process channel configurations.
+
+    Returns only the channels that are now in place; a channel that failed is left out, so
+    datasets referring to it are recorded as skipped rather than linked to nothing.
+    """
     print_info("Processing channels...")
 
     existing = {ch.deployment_id: ch for ch in await client.get_channels()}
     channels: dict[str, Channel] = {}
 
     for ch_cfg in channel_cfg.get("channels", []):
-        deployment_id = ch_cfg["deployment_id"]
+        deployment_id = ch_cfg.get("deployment_id")
+        if not deployment_id:
+            print_error("  Channel config is missing 'deployment_id'")
+            report.record_failed("channel", "<unnamed>", "config is missing 'deployment_id'")
+            continue
 
-        # Add tools to channel config
-        _add_tools_to_channel(ch_cfg, tools_cfg)
-        _add_onboarding_to_channel(ch_cfg, onboarding_cfg)
+        try:
+            # Add tools to channel config
+            _add_tools_to_channel(ch_cfg, tools_cfg)
+            _add_onboarding_to_channel(ch_cfg, onboarding_cfg)
 
-        if deployment_id in existing:
-            existing_ch = existing[deployment_id]
-            if _channel_changed(ch_cfg, existing_ch):
-                _warn_if_deprecated_rag(ch_cfg)
-                channel = await client.update_channel(existing_ch.id, ch_cfg)
-                print_info(f"  Updated channel: {deployment_id}")
+            if deployment_id in existing:
+                existing_ch = existing[deployment_id]
+                if _channel_changed(ch_cfg, existing_ch):
+                    _warn_if_deprecated_rag(ch_cfg)
+                    channel = await client.update_channel(existing_ch.id, ch_cfg)
+                    print_info(f"  Updated channel: {deployment_id}")
+                    report.record_ok("channel", deployment_id)
+                else:
+                    channel = existing_ch
+                    print_info(f"  Channel unchanged: {deployment_id}")
+                    report.record_unchanged("channel", deployment_id)
             else:
-                channel = existing_ch
-                print_info(f"  Channel unchanged: {deployment_id}")
-        else:
-            # Create new channel
-            _warn_if_deprecated_rag(ch_cfg)
-            channel = await client.create_channel(ch_cfg)
-            print_info(f"  Created channel: {deployment_id}")
+                # Create new channel
+                _warn_if_deprecated_rag(ch_cfg)
+                channel = await client.create_channel(ch_cfg)
+                print_info(f"  Created channel: {deployment_id}")
+                report.record_ok("channel", deployment_id)
+        except Exception as e:
+            print_error(f"  Failed channel {deployment_id}: {e}")
+            report.record_failed("channel", deployment_id, str(e))
+            continue
 
         channels[deployment_id] = channel
 
-        # Process glossary
+        # Process glossary. Isolated from the channel itself: the channel is already in
+        # place, so a malformed CSV must not take it back out of `channels`.
         glossary_file = ch_cfg.get("glossary")
         if process_glossaries and glossary_file:
             glossary_path = os.path.join(glossaries_dir, glossary_file)
             if os.path.exists(glossary_path):
-                rows = utils.read_csv_as_dict_list(glossary_path)
-                terms = _parse_glossary_rows(rows, glossary_file)
-                await _process_glossary(client, channel, terms)
-                print_info(f"  Processed glossary: {glossary_file}")
+                try:
+                    rows = utils.read_csv_as_dict_list(glossary_path)
+                    terms = _parse_glossary_rows(rows, glossary_file)
+                    await _process_glossary(client, channel, terms)
+                    print_info(f"  Processed glossary: {glossary_file}")
+                    report.record_ok("glossary", f"{deployment_id}: {glossary_file}")
+                except Exception as e:
+                    print_error(f"  Failed glossary {glossary_file}: {e}")
+                    report.record_failed("glossary", f"{deployment_id}: {glossary_file}", str(e))
 
     return channels
 
@@ -598,9 +652,14 @@ async def _process_glossary(
 
 async def _process_data_sources(
     client: AdminClient,
+    report: BatchReport,
     data_sources_cfg: dict[str, Any],
 ) -> dict[str, DataSource]:
-    """Process data source configurations."""
+    """Process data source configurations.
+
+    Returns only the data sources that are now in place; datasets referring to a failed
+    one are recorded as skipped rather than registered without a source.
+    """
     print_info("Processing data sources...")
 
     existing = {ds.title: ds for ds in await client.get_data_sources()}
@@ -608,24 +667,36 @@ async def _process_data_sources(
     data_sources: dict[str, DataSource] = {}
 
     for ds_cfg in data_sources_cfg.get("dataSources", []):
-        title = ds_cfg["title"]
+        title = ds_cfg.get("title")
+        if not title:
+            print_error("  Data source config is missing 'title'")
+            report.record_failed("data source", "<unnamed>", "config is missing 'title'")
+            continue
 
-        # Replace type name with type_id
-        type_name = ds_cfg.pop("type", None)
-        if type_name:
-            ds_cfg["type_id"] = ds_types.get(type_name)
+        try:
+            # Replace type name with type_id
+            type_name = ds_cfg.pop("type", None)
+            if type_name:
+                ds_cfg["type_id"] = ds_types.get(type_name)
 
-        if title in existing:
-            existing_ds = existing[title]
-            if _data_source_changed(ds_cfg, existing_ds):
-                ds = await client.update_data_source(existing_ds.id, ds_cfg)
-                print_info(f"  Updated data source: {title}")
+            if title in existing:
+                existing_ds = existing[title]
+                if _data_source_changed(ds_cfg, existing_ds):
+                    ds = await client.update_data_source(existing_ds.id, ds_cfg)
+                    print_info(f"  Updated data source: {title}")
+                    report.record_ok("data source", title)
+                else:
+                    ds = existing_ds
+                    print_info(f"  Data source unchanged: {title}")
+                    report.record_unchanged("data source", title)
             else:
-                ds = existing_ds
-                print_info(f"  Data source unchanged: {title}")
-        else:
-            ds = await client.create_data_source(ds_cfg)
-            print_info(f"  Created data source: {title}")
+                ds = await client.create_data_source(ds_cfg)
+                print_info(f"  Created data source: {title}")
+                report.record_ok("data source", title)
+        except Exception as e:
+            print_error(f"  Failed data source {title}: {e}")
+            report.record_failed("data source", title, str(e))
+            continue
 
         data_sources[title] = ds
 
@@ -663,23 +734,36 @@ def _display_channel_results(results: list[ChannelDatasetUpdateResult]) -> None:
 
 async def _process_datasets(
     client: AdminClient,
+    report: BatchReport,
     client_id: str,
     client_config_dir: str,
     data_sources: dict[str, DataSource],
     channels: dict[str, Channel],
     existing_datasets: dict[str, DataSet],
     dataset_ids: set[str] | None,
-) -> None:
-    """Process dataset configurations."""
+    link_channels: bool = True,
+) -> list[tuple[str, DataSet]]:
+    """Process dataset configurations.
+
+    Each dataset is isolated: one that fails is recorded and the rest still run, so a single
+    unsupported dataset cannot truncate the batch.
+
+    Returns:
+        (label, dataset) for every dataset now in place, for optional verification.
+    """
     print_info("Processing datasets...")
+
+    touched: list[tuple[str, DataSet]] = []
 
     datasets_dir = os.path.join(client_config_dir, "datasets")
     if not os.path.exists(datasets_dir):
         print_warning(f"No datasets directory found: {datasets_dir}")
-        return
+        return touched
 
     datasets_cfg: list[dict[str, Any]] = []
-    for filename in os.listdir(datasets_dir):
+    # Sorted so a re-run of the same configs produces the same report; filesystem order
+    # made the truncation point - and so the set of onboarded datasets - look random.
+    for filename in sorted(os.listdir(datasets_dir)):
         if not filename.endswith(".yaml"):
             continue
         file_path = os.path.join(datasets_dir, filename)
@@ -690,56 +774,97 @@ async def _process_datasets(
     datasets_needing_reindex: dict[str, list[str]] = defaultdict(list)
 
     for ds_cfg in datasets_cfg:
-        urn_data = ds_cfg.get("details", {}).get("urn")
-        urn = UrnReference.model_validate(urn_data).short_urn() if urn_data else None
+        try:
+            # Broad: `details` may be absent, null or not a mapping at all. Any malformed
+            # entry has to be reported against itself, not abort the entries after it.
+            details = ds_cfg.get("details") or {}
+            urn_data = details.get("urn")
+            urn = UrnReference.model_validate(urn_data).short_urn() if urn_data else None
+        except Exception as e:
+            title = ds_cfg.get("title") or ds_cfg.get("id_") or "<unnamed>"
+            print_error(f"  Failed dataset {title}: cannot read config: {e}")
+            report.record_failed("dataset", str(title), f"cannot read config: {e}")
+            continue
 
         # Filter by dataset IDs if specified
         if dataset_ids and urn not in dataset_ids:
             continue
 
+        label = urn or ds_cfg.get("title") or str(ds_cfg.get("id_") or "<unnamed>")
+
         # Link to data source
         ds_name = ds_cfg.pop("dataSource", None)
-        if ds_name and ds_name in data_sources:
+        if ds_name:
+            if ds_name not in data_sources:
+                # Registering the dataset without `data_source_id` would either be rejected
+                # or leave it unusable, so do not attempt it - and say which it was waiting on.
+                reason = f"data source '{ds_name}' is not available (failed or not configured)"
+                print_warning(f"  Skipped dataset {label}: {reason}")
+                report.record_skipped("dataset", label, reason)
+                continue
             ds_cfg["data_source_id"] = data_sources[ds_name].id
 
         dataset_id_str = ds_cfg.get("id_")
 
-        if dataset_id_str and dataset_id_str in existing_datasets:
-            existing_dataset = existing_datasets[dataset_id_str]
-            linked_ds = data_sources.get(ds_name) if ds_name else None
-            if _dataset_changed(ds_cfg, existing_dataset, linked_ds):
-                response = await client.update_dataset(existing_dataset.id, ds_cfg)
-                dataset = response.dataset
-                print_info(f"  Updated dataset: {urn}")
+        try:
+            if dataset_id_str and dataset_id_str in existing_datasets:
+                existing_dataset = existing_datasets[dataset_id_str]
+                linked_ds = data_sources.get(ds_name) if ds_name else None
+                if _dataset_changed(ds_cfg, existing_dataset, linked_ds):
+                    response = await client.update_dataset(existing_dataset.id, ds_cfg)
+                    dataset = response.dataset
+                    print_info(f"  Updated dataset: {urn}")
+                    report.record_ok("dataset", label)
 
-                # Display channel datasets update results
-                _display_channel_results(response.channel_results)
+                    # Display channel datasets update results
+                    _display_channel_results(response.channel_results)
 
-                # Collect datasets needing reindex for summary
-                for r in response.channel_results:
-                    if r.status == ChannelDatasetUpdateStatus.NEEDS_REINDEX:
-                        datasets_needing_reindex[r.channel.deployment_id].append(urn or "None")
+                    # Collect datasets needing reindex for summary
+                    for r in response.channel_results:
+                        if r.status == ChannelDatasetUpdateStatus.NEEDS_REINDEX:
+                            datasets_needing_reindex[r.channel.deployment_id].append(urn or "None")
+                else:
+                    dataset = existing_dataset
+                    print_info(f"  Dataset unchanged: {urn}")
+                    report.record_unchanged("dataset", label)
             else:
-                dataset = existing_dataset
-                print_info(f"  Dataset unchanged: {urn}")
-        else:
-            dataset = await client.create_dataset(ds_cfg)
-            print_info(f"  Created dataset: {urn}")
+                dataset = await client.create_dataset(ds_cfg)
+                print_info(f"  Created dataset: {urn}")
+                report.record_ok("dataset", label)
+        except Exception as e:
+            print_error(f"  Failed dataset {label}: {e}")
+            report.record_failed("dataset", label, str(e))
+            continue
+
+        touched.append((label, dataset))
 
         # Link to channels
+        if not link_channels:
+            continue
+
         for ch_name in ds_cfg.get("channels", []):
             if ch_name not in channels:
+                # Recorded rather than passed over silently: an unlinked dataset is invisible
+                # to the chat backend, which reads as "onboarded but never indexed".
+                reason = f"channel '{ch_name}' is not available (failed or not configured)"
+                print_warning(f"    Not linked to channel {ch_name}: {reason}")
+                report.record_skipped("dataset link", f"{label} -> {ch_name}", reason)
                 continue
+
             channel = channels[ch_name]
             ch_id = channel.id
 
-            if ch_id not in channel_datasets:
-                channel_datasets[ch_id] = await client.get_channel_datasets(ch_id)
+            try:
+                if ch_id not in channel_datasets:
+                    channel_datasets[ch_id] = await client.get_channel_datasets(ch_id)
 
-            # Check if already linked
-            if not any(cd.dataset_id == dataset.id for cd in channel_datasets[ch_id]):
-                await client.add_dataset_to_channel(ch_id, dataset.id)
-                print_info(f"    Linked to channel: {ch_name}")
+                # Check if already linked
+                if not any(cd.dataset_id == dataset.id for cd in channel_datasets[ch_id]):
+                    await client.add_dataset_to_channel(ch_id, dataset.id)
+                    print_info(f"    Linked to channel: {ch_name}")
+            except Exception as e:
+                print_error(f"    Failed to link {label} to channel {ch_name}: {e}")
+                report.record_failed("dataset link", f"{label} -> {ch_name}", str(e))
 
     if datasets_needing_reindex:
         print_info("-" * 50)
@@ -747,6 +872,47 @@ async def _process_datasets(
         for ch_deployment_id, ds_urns in datasets_needing_reindex.items():
             ds_list = ", ".join(ds_urns)
             print_warning(f"    {ch_deployment_id}: {ds_list}")
+
+    return touched
+
+
+async def _verify_datasets(
+    client: AdminClient,
+    report: BatchReport,
+    touched: list[tuple[str, DataSet]],
+) -> None:
+    """Report datasets that are registered but cannot be loaded from their data source.
+
+    A dataset can be created and linked successfully and still be unusable - an
+    incompatible DSD, an unreachable endpoint - in which case it never indexes and never
+    answers a question. The admin API loads datasets tolerantly and reports that as a
+    per-dataset ``status``, so re-reading them turns a silent gap into a summary line.
+
+    This re-loads every dataset from its source server side, so it is opt-in.
+    """
+    if not touched:
+        return
+
+    print_info("Verifying dataset status...")
+
+    try:
+        current = {str(ds.id_): ds for ds in await client.get_datasets()}
+    except Exception as e:
+        print_error(f"Could not verify dataset status: {e}")
+        report.record_failed("verification", "all datasets", str(e))
+        return
+
+    for label, dataset in touched:
+        latest = current.get(str(dataset.id_))
+        if latest is None:
+            report.record_failed("dataset status", label, "dataset is not registered")
+            continue
+        if latest.status.status == "online":
+            continue
+
+        details = latest.status.details or "no details provided"
+        print_error(f"  {label} is {latest.status.status}: {details}")
+        report.record_failed("dataset status", label, f"{latest.status.status}: {details}")
 
 
 init_command = Command(
@@ -771,6 +937,14 @@ init_command = Command(
             name="yes",
             short_name="y",
             description="Skip confirmation prompt",
+            is_flag=True,
+        ),
+        CommandArg(
+            name="verify",
+            description=(
+                "After processing, check that each dataset can be loaded from its data"
+                " source (re-reads every dataset server-side)"
+            ),
             is_flag=True,
         ),
     ],
