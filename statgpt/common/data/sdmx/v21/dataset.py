@@ -71,6 +71,7 @@ from statgpt.common.utils.plotly import PlotlyGraphBuilder, df_2_plotly_grid
 from statgpt.common.utils.time_utils import get_time_period_bounds
 
 from .attribute import Sdmx21Attribute, Sdmx21CodeListAttribute
+from .member_selection import max_bound, member_value_ids, min_bound, time_range_bounds
 from .schemas import Urn
 from .utils import convert_keys_to_str
 
@@ -1104,18 +1105,26 @@ class Sdmx21DataSet(
             raise ValueError("Unexpected quantity of cube-regions in constraint")
         cube_region = constraint.data_content_region[0]
         member_dict = cube_region.member
-        dimension_to_available_values = {
-            dim.id: {v.value for v in selection.values} for dim, selection in member_dict.items()
-        }
-        result = DataSetAvailabilityQuery()  # type: ignore
-        for dimension_id, available_values in dimension_to_available_values.items():
-            result.add_dimension_query(
-                DimensionQuery(
-                    dimension_id=dimension_id,
-                    values=list(available_values),
-                    operator=QueryOperator.IN,
+
+        result = DataSetAvailabilityQuery()
+        for dim, selection in member_dict.items():
+            coded_values = member_value_ids(selection)
+            range_start, range_end = time_range_bounds(selection)
+
+            if range_start is not None:
+                result.time_period_start = min_bound(result.time_period_start, range_start)
+            if range_end is not None:
+                result.time_period_end = max_bound(result.time_period_end, range_end)
+
+            if coded_values or not (range_start or range_end):
+                # A dimension with no members at all still gets an empty IN query, as before.
+                result.add_dimension_query(
+                    DimensionQuery(
+                        dimension_id=dim.id,
+                        values=sorted(coded_values),
+                        operator=QueryOperator.IN,
+                    )
                 )
-            )
         # append virtual dimensions
         for dimension_id, dimension in self._virtual_dimensions.items():
             result.add_dimension_query(

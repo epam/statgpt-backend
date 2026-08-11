@@ -84,7 +84,13 @@ class QuanthubSdmx21DataSet(UpdatedAtMixin, Sdmx21DataSet):
         constraints_iterator = iter(availability_result.constraint.values())
         constraint: ContentConstraint | None = next(constraints_iterator, None)
 
-        if constraint is not None and "TIME_PERIOD" not in result:
+        # Bounds already derived from a `<common:TimeRange>` in the cube region are authoritative:
+        # the annotation fallback must not overwrite them with `None`.
+        derived_from_cube_region = (
+            result.time_period_start is not None or result.time_period_end is not None
+        )
+
+        if constraint is not None and "TIME_PERIOD" not in result and not derived_from_cube_region:
             start, end = self._parse_time_period_from(constraint.annotations)
             result.time_period_start, result.time_period_end = start, end
 
@@ -96,8 +102,13 @@ class QuanthubSdmx21DataSet(UpdatedAtMixin, Sdmx21DataSet):
 
         for annotation in annotations:
             if annotation.id == "time_period_start":
-                start = annotation.value or annotation.title
+                start = _annotation_value(annotation)
             elif annotation.id == "time_period_end":
-                end = annotation.value or annotation.title
+                end = _annotation_value(annotation)
 
         return start, end
+
+
+def _annotation_value(annotation: BaseAnnotation) -> str | None:
+    # `sdmx1` annotations carry the payload in `title`; SDMX 3.0 ones in `value`.
+    return getattr(annotation, "value", None) or annotation.title
