@@ -7,7 +7,8 @@ dateSystemPrompt: >-
     - The query requests information as published up to a certain date (e.g., "as of publications before 2020").
     - The query asks for main takeaways, key points, or summaries for a specific year or period (e.g. "main takeaways of 2024 from sonar", "key points of Economic Outlook reports from this year").
     - The query clearly states a latest period (for example, "publications for the last month", "main insights from the last 5 years"),
-        set start_date to the according date in the past relative to the end_date (if not specified, end date is today: {current_date_yyyymmdd}):
+        set start_date to the according date in the past, counting back from the end date when the query states one,
+        or from today ({current_date_yyyymmdd}) when it does not. Leave "end" empty in the latter case:
             - "last month" -> if "end" is 2026-02-08 then "start" is 2026-01-08
             - "last 5 years" -> if "end" is 2026-02-01 then "start" is 2021-02-01
 
@@ -20,14 +21,17 @@ dateSystemPrompt: >-
     - Use "YYYY-MM-DD"
     - Both start_date and end_date are inclusive
     - End date cannot be in the future
+    - Leave "end" empty unless the query states an explicit cutoff. An end date of today or later
+      filters nothing and is discarded.
 
     Examples:
     - "what are the main takeaways of 2024 from sonar?" → start="2024-01-01", end=""
     - "what are the key points of Economic Outlook reports from this year?" → start="{current_year}-01-01", end=""
     - "what are the main takeaways of 2021 from economic outlook?" -> {{"start": "2021-01-01", "end": ""}}
       Historical facts: requires all publications since that year
-    - "what was the insurance gap forecast according to publications up to 2020?" -> {{"start": "latest", "end": "2020-12-31"}}
-      Analytical content: requires latest perspective up to target year
+    - "what was the insurance gap forecast according to publications up to 2020?" -> {{"start": "", "end": "2020-12-31"}}
+      Analytical content: only the cutoff belongs here. The "latest perspective up to the target year"
+      part is decided by a separate filter, so never put "latest" in a date field.
     - "how is business line defined in publications up to 2019?" -> {{"start": "", "end": "2019-12-31"}}
       Reference content: Explicitly states interest in definitions in publications before a year
     - "how is business line defined in publications?" -> {{"start": "", "end": ""}}
@@ -43,8 +47,8 @@ dateSystemPrompt: >-
     - "what was the most profitable business line according to publications up to 2015?" → start="", end="2015-12-31"
       The cutoff "up to 2015" forces a limit that we must set as end date
 
-    - "what was the most profitable business line according to publications from last 3 months?" → start=..., end={current_date_yyyymmdd}  where ... is 3 months before {current_date_yyyymmdd}
-      e.g.  {{"start": "2026-01-10", "end": "2026-04-10"}} for "end": 2026-04-10
+    - "what was the most profitable business line according to publications from last 3 months?" → start=..., end="" where ... is 3 months before {current_date_yyyymmdd}
+      e.g. if today is 2026-04-10 then {{"start": "2026-01-10", "end": ""}}
       Although "most profitable business line" typically calls for the latest insight, "from last 3 months" part forces a limit.
 
     - "Which were the top 10 costliest natural disasters ever globally, ranked by insured losses" → start="", end=""
@@ -65,8 +69,8 @@ dateSystemPrompt: >-
       The query asks about the expected evolution in 2022, so we use end_date set to the end of 2022.
 
     - "what is the evolution of key risks over the past five years according to publications from the last month?"
-      → start=..., end={current_date_yyyymmdd} where ... is 1 month before {current_date_yyyymmdd}
-      e.g.  {{"start": "2026-01-08", "end": "2026-02-08"}} for "end": 2026-02-08
+      → start=..., end="" where ... is 1 month before {current_date_yyyymmdd}
+      e.g. if today is 2026-02-08 then {{"start": "2026-01-08", "end": ""}}
       User explicitly specified a time period for publications as the last month.
 
     - "What catastrophes incurred losses above 1 billion USD?" → start="", end=""
@@ -112,7 +116,7 @@ dateSystemPrompt: >-
     - "what were the premiums forecast for 2023?" → start="", end="2023-12-31"
       The query asks for the premiums forecast for 2023, so we use end_date set to the end of 2023.
 
-    - "What was Inflation forecast for Germany in year 2019 and what were the underlying drivers?" → start=", end="2019-12-31"
+    - "What was Inflation forecast for Germany in year 2019 and what were the underlying drivers?" → start="", end="2019-12-31"
       The query asks for the inflation forecast for 2019, so we use end_date set to the end of 2019.
 
 latestSystemPrompt: >-
@@ -223,7 +227,7 @@ publicationTypesSystemPrompt: >-
     If the user does not specify a type, leave this field as an empty list.
 
     Examples of queries that should trigger publication_type:
-      - "what are the main takeaways of 2021 from economic outlook?" -> {{"publication_types": ["Economic Outlook"]}}
+      - "what are the main takeaways of 2021 from economic outlook?" -> {{"publication_types": ["Economic outlook"]}}
       - "what are the main takeaways of the last sigma report?" -> {{"publication_types": ["sigma"]}}
 
 lastNPublicationsSystemPrompt: >-
@@ -232,7 +236,7 @@ lastNPublicationsSystemPrompt: >-
 
     Allowed values for last_n_publications:
 
-    * None (default, when not specified)
+    * null (default, when not specified)
     * Positive Integer (e.g. 1, 5, 10)
 
     Common patterns that should trigger last_n_publications:
@@ -248,21 +252,21 @@ lastNPublicationsSystemPrompt: >-
 
     Examples:
     - "What are the last 5 publications on climate change?" -> {{"last_n_publications": 5}}
-    - "What are the latest publications on climate change?" -> {{"last_n_publications": None}}
-    - "What are the publications on climate change from 2023?" -> {{"last_n_publications": None}}
+    - "What are the latest publications on climate change?" -> {{"last_n_publications": null}}
+    - "What are the publications on climate change from 2023?" -> {{"last_n_publications": null}}
     - "How did the last report update the forecast for natural catastrophes in 2025?" -> {{"last_n_publications": 1}}
-    - "What are the top five factors driving insurance market growth worldwide?" -> {{"last_n_publications": None}}
-    - "What are the reasons for revising the premium forecast from last round" -> {{"last_n_publications": None}}
+    - "What are the top five factors driving insurance market growth worldwide?" -> {{"last_n_publications": null}}
+    - "What are the reasons for revising the premium forecast from last round" -> {{"last_n_publications": null}}
       last round in this context means last round of forecasts, but we can't get the last round of forecasts by setting last_n_publications
       We can only get the last publication by that, which might not contain forecasts. So we don't limit the number of publications
-    - "What are the reasons for revising the premium forecast" -> {{"last_n_publications": None}}
+    - "What are the reasons for revising the premium forecast" -> {{"last_n_publications": null}}
       no mention of last publications, therefore we don't limit the number of publications
     - "According to previous three reports how big a risk is financial market instability today?" -> {{"last_n_publications": 3}}
     - "what are the underwriting trends according to the most recent short insights publication?" -> {{"last_n_publications": 1}}
-    - "what are the main takeaways of the last month from sigma reports?" -> {{"last_n_publications": None}}
-    - "How many people lost their lives in natural disasters in last five years" -> {{"last_n_publications": None}}
+    - "what are the main takeaways of the last month from sigma reports?" -> {{"last_n_publications": null}}
+    - "How many people lost their lives in natural disasters in last five years" -> {{"last_n_publications": null}}
       Five years is a period, not a number of publications.
-    - "What are the reasons for revising its GDP forecast for UK from last quarter" -> {{"last_n_publications": None}}
+    - "What are the reasons for revising its GDP forecast for UK from last quarter" -> {{"last_n_publications": null}}
       No mention of last publications, therefore we don't limit the number of publications
-    - "reasons for revising GDP forecast for UK from last quarter" -> {{"last_n_publications": None}}
+    - "reasons for revising GDP forecast for UK from last quarter" -> {{"last_n_publications": null}}
         Same as previous example, but rephrased.
