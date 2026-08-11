@@ -1,5 +1,6 @@
 from .database import (
     SessionMakerSingleton,
+    get_engine,
     get_readonly_session_context_manager,
     get_session,
     get_session_context_manager,

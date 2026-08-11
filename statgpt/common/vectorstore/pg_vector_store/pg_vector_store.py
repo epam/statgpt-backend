@@ -18,13 +18,17 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 from langchain_core.documents import Document
 from sqlalchemy import delete, select
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.ext.asyncio import AsyncConnection, AsyncSession
 from sqlalchemy.schema import CreateTable
 from sqlalchemy.sql import text
 from sqlalchemy.sql.elements import TextClause
 from sqlalchemy.sql.expression import func
 
-from statgpt.common.models import get_readonly_session_context_manager, get_session_context_manager
+from statgpt.common.models import (
+    get_engine,
+    get_readonly_session_context_manager,
+    get_session_context_manager,
+)
 from statgpt.common.schemas.llm_call_duration import LLMCallDurationItem
 from statgpt.common.settings.database import PostgresSettings
 from statgpt.common.settings.document import DimensionValueDocumentMetadataFields
@@ -168,9 +172,29 @@ class PgEmbeddinglessVectorStore(EmbeddinglessVectorStore):
         # Use first 8 bytes to generate a bigint for PostgreSQL advisory lock
         return int.from_bytes(hash_bytes[:8], byteorder='big', signed=True)
 
+    @asynccontextmanager
+    async def _lock_connection(self) -> AsyncIterator[AsyncConnection]:
+        """Opens a connection dedicated to holding advisory locks.
+
+        Advisory locks taken with pg_try_advisory_lock belong to the PostgreSQL connection,
+        not to the AsyncSession that issued them. An AsyncSession returns its connection to
+        the pool on every commit and checks out a possibly different one for the next
+        statement, so a lock acquired before a commit cannot be released afterwards: the
+        unlock lands on another connection, returns false, and the lock stays held by an idle
+        pooled connection until it is recycled. Owning a connection for the whole critical
+        section keeps acquire and release on the same backend.
+
+        AUTOCOMMIT keeps that connection out of an open transaction while it does nothing but
+        hold locks -- advisory locks are independent of transactions, and the acquisition loop
+        would otherwise sit 'idle in transaction' for up to the full timeout.
+        """
+        engine = await get_engine()
+        async with engine.connect() as conn:
+            yield await conn.execution_options(isolation_level="AUTOCOMMIT")
+
     async def _acquire_dataset_lock(
         self,
-        session: AsyncSession,
+        conn: AsyncConnection,
         dataset_id: uuid.UUID,
     ) -> int:
         """Acquires a session-level advisory lock for the given dataset_id within this channel.
@@ -179,19 +203,16 @@ class PgEmbeddinglessVectorStore(EmbeddinglessVectorStore):
         pg_advisory_lock to avoid hanging indefinitely when the lock is contended.
 
         Returns the lock key which should be passed to _release_dataset_lock.
-        This lock persists across multiple transactions until explicitly released.
+        The lock is held by `conn` until explicitly released or `conn` is closed.
         This prevents concurrent modifications to the same dataset within the channel.
         """
         lock_key = self._dataset_lock_key(dataset_id)
-        # Ensure session is in a clean state before acquiring lock
-        if session.in_transaction() and not session.is_active:
-            await session.rollback()
 
         timeout_s = self._postgres_settings.advisory_lock_timeout
         current_interval = 0.1
         deadline = time.monotonic() + timeout_s
         while True:
-            result = await session.execute(
+            result = await conn.execute(
                 text("SELECT pg_try_advisory_lock(:lock_key)"), {"lock_key": lock_key}
             )
             if result.scalar():
@@ -209,56 +230,71 @@ class PgEmbeddinglessVectorStore(EmbeddinglessVectorStore):
             await asyncio.sleep(min(current_interval, remaining))
             current_interval = min(current_interval * 1.5, 5.0)
 
-    async def _release_dataset_lock(self, session: AsyncSession, lock_key: int) -> None:
-        """Releases a session-level advisory lock.
+    async def _release_dataset_lock(self, conn: AsyncConnection, lock_key: int) -> bool:
+        """Releases a session-level advisory lock held by `conn`.
 
-        Handles PendingRollback state to ensure lock is always released.
+        Returns True when the lock was released and `conn` is still usable.
+
+        pg_advisory_unlock returns false rather than raising when the connection does not own
+        the lock, so the result is checked explicitly -- an unnoticed failure would leave the
+        lock held by a pooled connection and block every later operation on the dataset. In
+        that case, and on any error, the connection is discarded instead of being returned to
+        the pool: closing it for real makes PostgreSQL drop every advisory lock it holds.
+
+        Never raises: this runs on the cleanup path, where an exception would mask whatever
+        failure is already propagating.
         """
         try:
-            # Rollback if session is in a failed transaction state
-            if session.in_transaction() and not session.is_active:
-                await session.rollback()
-            await session.execute(
+            released = await conn.scalar(
                 text("SELECT pg_advisory_unlock(:lock_key)"), {"lock_key": lock_key}
             )
-        except Exception as e:
-            _log.error(f"Failed to release advisory lock (key={lock_key}): {e}")
-            # Still try to rollback to clean up the session
-            try:
-                await session.rollback()
-            except Exception:
-                pass
-            raise
+        except Exception:
+            _log.exception(
+                f"Failed to release advisory lock (key={lock_key}). Discarding the connection."
+            )
+            await conn.invalidate()
+            return False
+
+        if not released:
+            _log.error(
+                f"Advisory lock (key={lock_key}) was not held by this connection. "
+                f"Discarding the connection to make sure the lock is not leaked."
+            )
+            await conn.invalidate()
+            return False
+
         _log.debug(f"Released advisory lock (key={lock_key})")
+        return True
 
     @asynccontextmanager
-    async def _dataset_lock(
-        self, session: AsyncSession, dataset_id: uuid.UUID
-    ) -> AsyncIterator[None]:
+    async def _dataset_lock(self, dataset_id: uuid.UUID) -> AsyncIterator[None]:
         """Context manager for acquiring and releasing dataset advisory lock."""
-        lock_key = await self._acquire_dataset_lock(session, dataset_id)
-        try:
+        async with self._dataset_locks([dataset_id]):
             yield
-        finally:
-            await self._release_dataset_lock(session, lock_key)
 
     @asynccontextmanager
-    async def _dataset_locks(
-        self, session: AsyncSession, dataset_ids: list[uuid.UUID]
-    ) -> AsyncIterator[None]:
+    async def _dataset_locks(self, dataset_ids: list[uuid.UUID]) -> AsyncIterator[None]:
         """Context manager for acquiring and releasing multiple dataset advisory locks.
 
-        Sorts dataset_ids to ensure deterministic lock ordering and prevent deadlocks.
+        Sorts dataset_ids to ensure deterministic lock ordering and prevent deadlocks, and
+        deduplicates them so that a key is never locked twice on the same connection.
+
+        Acquisition happens inside the try block so that locks taken before a later one times
+        out are still released.
         """
-        sorted_dataset_ids = sorted(dataset_ids)
-        lock_keys = [
-            await self._acquire_dataset_lock(session, ds_id) for ds_id in sorted_dataset_ids
-        ]
-        try:
-            yield
-        finally:
-            for lock_key in lock_keys:
-                await self._release_dataset_lock(session, lock_key)
+        sorted_dataset_ids = sorted(set(dataset_ids))
+
+        async with self._lock_connection() as conn:
+            lock_keys: list[int] = []
+            try:
+                for ds_id in sorted_dataset_ids:
+                    lock_keys.append(await self._acquire_dataset_lock(conn, ds_id))
+                yield
+            finally:
+                for lock_key in reversed(lock_keys):
+                    if not await self._release_dataset_lock(conn, lock_key):
+                        # The connection was discarded, which drops every lock it held.
+                        break
 
     async def _get_dataset_ids_by_version_ids(
         self, session: AsyncSession, version_ids: list[int]
@@ -288,7 +324,7 @@ class PgEmbeddinglessVectorStore(EmbeddinglessVectorStore):
             else:
                 dataset_ids_to_lock = await self._get_dataset_ids_by_version_ids(session, version_ids)  # type: ignore
 
-            async with self._dataset_locks(session, dataset_ids_to_lock):
+            async with self._dataset_locks(dataset_ids_to_lock):
                 document_ids = await self._remove_dataset_metadata(
                     session, dataset_id=dataset_id, version_ids=version_ids
                 )
@@ -615,9 +651,10 @@ class PgVectorStore(PgEmbeddinglessVectorStore, VectorStore):
             )
             batches_with_embeddings.append((batch, embeddings))
 
-        # Phase 2: DB writes in a single session (advisory lock + inserts)
-        async with get_session_context_manager() as session:
-            async with self._dataset_lock(session, dataset_id):
+        # Phase 2: DB writes under the dataset advisory lock, which is held on its own
+        # connection so that the commits below cannot invalidate it.
+        async with self._dataset_lock(dataset_id):
+            async with get_session_context_manager() as session:
                 document_model: type[BaseDocument] = await self._get_document_model()
                 metadata_model: type[BaseDocumentMetadata] = await self._get_metadata_model()
 
@@ -634,7 +671,7 @@ class PgVectorStore(PgEmbeddinglessVectorStore, VectorStore):
                     ]
 
                     session.add_all(items)
-                    await session.commit()
+                    await session.commit()  # 1
                     _log.info(f"Added {len(items)} documents")
 
                     mappings = [
@@ -647,7 +684,7 @@ class PgVectorStore(PgEmbeddinglessVectorStore, VectorStore):
                         for item, doc in zip(items, batch)
                     ]
                     session.add_all(mappings)
-                    await session.commit()
+                    await session.commit()  # 2
                     _log.info(f"Added {len(mappings)} document mappings")
 
     async def search_with_similarity_score(

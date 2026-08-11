@@ -100,6 +100,12 @@ class SessionMaker:
     def __init__(self, engine_config: dict):
         self._engine_config = engine_config
         self._postgres_settings = PostgresSettings()
+        self._engine: AsyncEngine | None = None
+
+    @property
+    def engine(self) -> AsyncEngine | None:
+        """The engine created by `create()`, or None if `create()` has not been called."""
+        return self._engine
 
     @staticmethod
     async def _test_connection(engine: AsyncEngine) -> bool:
@@ -190,6 +196,7 @@ class SessionMaker:
     async def create(self) -> async_sessionmaker[AsyncSession]:
         _log.debug("Creating session maker")
         engine = await self.create_engine()
+        self._engine = engine
         session_maker = async_sessionmaker(
             engine,
             expire_on_commit=False,
@@ -202,6 +209,7 @@ class SessionMaker:
 
 class SessionMakerSingleton:
     instance: async_sessionmaker[AsyncSession] | None = None
+    engine: AsyncEngine | None = None
     _lock = asyncio.Lock()
 
     @classmethod
@@ -217,7 +225,9 @@ class SessionMakerSingleton:
                 return cls.instance
 
             _log.debug("Creating new SessionMakerSingleton instance")
-            cls.instance = await SessionMaker(SessionMaker.DEFAULT_ENGINE_CONFIG).create()
+            session_maker = SessionMaker(SessionMaker.DEFAULT_ENGINE_CONFIG)
+            cls.instance = await session_maker.create()
+            cls.engine = session_maker.engine
             return cls.instance
 
 
@@ -240,6 +250,21 @@ class ReadOnlySessionMakerSingleton:
             _log.debug("Creating new ReadOnlySessionMakerSingleton instance")
             cls.instance = await SessionMaker(SessionMaker.READONLY_ENGINE_CONFIG).create()
             return cls.instance
+
+
+async def get_engine() -> AsyncEngine:
+    """Returns the engine backing the default sessions, creating it if needed.
+
+    Intended for code that must pin a unit of work to a single connection for its whole
+    duration -- notably session-level advisory locks, which belong to the PostgreSQL
+    connection rather than to the AsyncSession that issued them. An AsyncSession cannot
+    provide that guarantee: it returns its connection to the pool on every commit.
+    """
+    await SessionMakerSingleton.get_or_create()
+    engine = SessionMakerSingleton.engine
+    if engine is None:
+        raise DatabaseConnectionError("Default engine is not available")
+    return engine
 
 
 # Dependency
