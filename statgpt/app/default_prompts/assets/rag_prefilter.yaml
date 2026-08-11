@@ -8,8 +8,8 @@ dateSystemPrompt: >-
     - The query asks for main takeaways, key points, or summaries for a specific year or period (e.g. "main takeaways of 2024 from sonar", "key points of Economic Outlook reports from this year").
     - The query clearly states a latest period (for example, "publications for the last month", "main insights from the last 5 years"),
         set start_date to the according date in the past relative to the end_date (if not specified, end date is today: {current_date_yyyymmdd}):
-            - "last month" -> if "end" is 2025-02-08 then "start" is 2025-01-08
-            - "last 5 years" -> if "end" is 2025-02-01 then "start" is 2020-02-01
+            - "last month" -> if "end" is 2026-02-08 then "start" is 2026-01-08
+            - "last 5 years" -> if "end" is 2026-02-01 then "start" is 2021-02-01
 
     DO NOT set a date filter if:
     - The query refers to the time period of events, facts, or trends, analytics over long period of time (e.g., "evolution of risks over the past five years", "costliest disasters in last 10 years", "losses in 2023"), unless it also specifies publication timing.
@@ -23,7 +23,7 @@ dateSystemPrompt: >-
 
     Examples:
     - "what are the main takeaways of 2024 from sonar?" → start="2024-01-01", end=""
-    - "what are the key points of Economic Outlook reports from this year?" → start="{{current_year}}-01-01", end=""
+    - "what are the key points of Economic Outlook reports from this year?" → start="{current_year}-01-01", end=""
     - "what are the main takeaways of 2021 from economic outlook?" -> {{"start": "2021-01-01", "end": ""}}
       Historical facts: requires all publications since that year
     - "what was the insurance gap forecast according to publications up to 2020?" -> {{"start": "latest", "end": "2020-12-31"}}
@@ -44,7 +44,7 @@ dateSystemPrompt: >-
       The cutoff "up to 2015" forces a limit that we must set as end date
 
     - "what was the most profitable business line according to publications from last 3 months?" → start=..., end={current_date_yyyymmdd}  where ... is 3 months before {current_date_yyyymmdd}
-      e.g.  {{"start": "2025-01-10", "end": "2025-04-10"}} for "end": 2025-04-10
+      e.g.  {{"start": "2026-01-10", "end": "2026-04-10"}} for "end": 2026-04-10
       Although "most profitable business line" typically calls for the latest insight, "from last 3 months" part forces a limit.
 
     - "Which were the top 10 costliest natural disasters ever globally, ranked by insured losses" → start="", end=""
@@ -66,7 +66,7 @@ dateSystemPrompt: >-
 
     - "what is the evolution of key risks over the past five years according to publications from the last month?"
       → start=..., end={current_date_yyyymmdd} where ... is 1 month before {current_date_yyyymmdd}
-      e.g.  {{"start": "2025-01-08", "end": "2025-02-08"}} for "end": 2025-02-08
+      e.g.  {{"start": "2026-01-08", "end": "2026-02-08"}} for "end": 2026-02-08
       User explicitly specified a time period for publications as the last month.
 
     - "What catastrophes incurred losses above 1 billion USD?" → start="", end=""
@@ -104,7 +104,10 @@ dateSystemPrompt: >-
     - "reasons for revising GDP forecast for UK from last quarter" → start="", end=""
         Same as previous example, but rephrased.
 
-    - "What is premium forecast for the the US in year 2025 and what is the rationale for this forecast" → start="", end=""
+    - "What is premium forecast for the US in year {current_year} and what is the rationale for this forecast" → start="", end=""
+      Year {current_year} has not ended yet, so no publication cutoff applies: any publication
+      may carry the forecast. The same holds for any later year, e.g. a forecast for 2030.
+      Once the forecast year is over, set end_date to the end of that year - see the two examples below.
 
     - "what were the premiums forecast for 2023?" → start="", end="2023-12-31"
       The query asks for the premiums forecast for 2023, so we use end_date set to the end of 2023.
