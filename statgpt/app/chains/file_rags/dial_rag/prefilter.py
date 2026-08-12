@@ -91,6 +91,7 @@ class PreFilterBuilder:
             partials={
                 "current_date_long": utils.get_today_date_long(),
                 "current_date_yyyymmdd": utils.get_ts_now_str(ts_format="%Y-%m-%d"),
+                "current_year": utils.get_ts_now_str(ts_format="%Y"),
             },
         )
         latest_chain = SingleFilterChainBuilder.create_chain(
