@@ -8,6 +8,7 @@ real PostgreSQL backend can.
 """
 
 import asyncio
+import time
 import uuid
 from collections.abc import AsyncGenerator
 
@@ -16,6 +17,7 @@ import pytest_asyncio
 from sqlalchemy import text
 
 from statgpt.common.models.database import (
+    SessionMaker,
     SessionMakerSingleton,
     advisory_lock_context_manager,
     get_session_context_manager,
@@ -67,22 +69,17 @@ async def _advisory_lock_count(key: int) -> int:
         return result or 0
 
 
-async def _release_stranded_lock(key: int) -> None:
-    """Frees a lock stranded on a pooled connection, whichever backend ended up holding it."""
-    async with get_session_context_manager() as session:
-        # The pool may well hand us the stranded connection back, in which case the lock is ours
-        # to drop directly -- pg_terminate_backend below deliberately skips the current backend.
-        await session.execute(text("SELECT pg_advisory_unlock_all()"))
-        await session.execute(
-            text(
-                "SELECT pg_terminate_backend(pid) FROM pg_locks "
-                "WHERE locktype = 'advisory' "
-                "AND ((classid::bigint << 32) | objid::bigint) = :key "
-                "AND pid <> pg_backend_pid()"
-            ),
-            {"key": key},
-        )
-        await session.commit()
+async def _wait_until_lock_is_gone(key: int, timeout: float = 5.0) -> None:
+    """Waits for every backend holding `key` to let it go.
+
+    A backend releases its advisory locks as it exits, which is shortly after its socket is
+    closed rather than at the same instant, so this cannot be asserted outright.
+    """
+    deadline = time.monotonic() + timeout
+    while await _advisory_lock_count(key) != 0:
+        if time.monotonic() >= deadline:
+            pytest.fail(f"advisory lock {key} was still held after {timeout}s")
+        await asyncio.sleep(0.05)
 
 
 async def test_lock_survives_commits_and_is_released(lock_key: int) -> None:
@@ -102,28 +99,55 @@ async def test_lock_survives_commits_and_is_released(lock_key: int) -> None:
 
 
 async def test_engine_bound_session_loses_the_lock_on_commit(lock_key: int) -> None:
-    """Documents why the dedicated connection is necessary -- the old shape, still broken."""
-    session_maker = await SessionMakerSingleton.get_or_create()
+    """Documents why the dedicated connection is necessary -- the old shape, still broken.
 
-    async with session_maker() as session:
-        acquired = await session.scalar(
-            text("SELECT pg_try_advisory_lock(:key)"), {"key": lock_key}
-        )
-        assert acquired
+    The engine is local to this test and its pool is primed with two idle connections on purpose.
+    A FIFO pool puts a released connection at the back of the queue, so the one a commit gives
+    back is provably not the one handed out next -- which is what makes the leak reproducible
+    rather than a matter of whatever the pool happened to have idle.
+    """
+    session_maker_factory = SessionMaker(
+        engine_config=dict(pool_size=2, max_overflow=0, pool_use_lifo=False)
+    )
+    session_maker = await session_maker_factory.create()
+    engine = session_maker_factory.engine
+    assert engine is not None
 
-        await session.commit()  # returns the connection, and the lock, to the pool
+    try:
+        async with engine.connect() as first, engine.connect() as second:
+            await first.execute(text("SELECT 1"))
+            await second.execute(text("SELECT 1"))
 
-        released = await session.scalar(text("SELECT pg_advisory_unlock(:key)"), {"key": lock_key})
-        assert released is False, "unlock on a different backend returns false rather than raising"
+        async with session_maker() as session:
+            holder_pid = await session.scalar(text("SELECT pg_backend_pid()"))
+            acquired = await session.scalar(
+                text("SELECT pg_try_advisory_lock(:key)"), {"key": lock_key}
+            )
+            assert acquired
 
-    # The lock is now stranded on a pooled connection -- exactly the leak from #583.
-    assert await _advisory_lock_count(lock_key) == 1
+            await session.commit()  # returns the connection, and the lock, to the pool
 
-    # Clean up. The lock cannot be released from here: it belongs to a backend we can no longer
-    # address, which is the whole point of the bug. Terminating that backend is the only way,
-    # and it is what PostgreSQL would eventually do when the pool recycles the connection.
-    await _release_stranded_lock(lock_key)
-    assert await _advisory_lock_count(lock_key) == 0
+            assert (
+                await session.scalar(text("SELECT pg_backend_pid()")) != holder_pid
+            ), "the commit must have moved the session to another connection"
+
+            released = await session.scalar(
+                text("SELECT pg_advisory_unlock(:key)"), {"key": lock_key}
+            )
+            assert (
+                released is False
+            ), "unlock on a different backend returns false rather than raising"
+
+        # The lock is now stranded on an idle pooled connection -- exactly the leak from #583.
+        # It cannot be released through this pool: it belongs to a backend that no statement can
+        # address any more, which is the whole point of the bug.
+        assert await _advisory_lock_count(lock_key) == 1
+    finally:
+        # Closing the pool closes that connection, and PostgreSQL drops the locks its backend
+        # held -- the same thing that eventually happens when the pool recycles a connection.
+        await engine.dispose()
+
+    await _wait_until_lock_is_gone(lock_key)
 
 
 async def test_second_holder_times_out_while_the_lock_is_held(lock_key: int) -> None:
