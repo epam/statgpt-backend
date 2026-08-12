@@ -22,6 +22,7 @@ dependencies = [
     'plotly (>=5.21.0,<6.0.0)',                  # Data visualization
 
     # Database & Vector storage
+    'sqlalchemy (>=2.0.45,<3.0.0)',              # ORM and async database toolkit
     'asyncpg (>=0.29.0,<0.30.0)',                # Async PostgreSQL driver
     'pgvector (>=0.2.5,<0.3.0)',                 # Vector similarity search
     'alembic (>=1.13.1,<2.0.0)',                 # Database migrations

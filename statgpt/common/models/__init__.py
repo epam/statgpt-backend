@@ -1,5 +1,7 @@
 from .database import (
     SessionMakerSingleton,
+    advisory_lock_context_manager,
+    get_connection_context_manager,
     get_readonly_session_context_manager,
     get_session,
     get_session_context_manager,
