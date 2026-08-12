@@ -5,6 +5,8 @@ from typing import NoReturn
 from fastapi import HTTPException, status
 from sqlalchemy.exc import IntegrityError
 
+from statgpt.common import schemas
+
 _log = logging.getLogger(__name__)
 
 # Postgres SQLSTATE for unique_violation. SQLAlchemy's asyncpg adapter copies the
@@ -57,3 +59,46 @@ class DatasetInUseError(AdminServiceError):
     @property
     def usage_summary(self) -> str:
         return ", ".join(ds.usage for ds in self.blocking_datasets)
+
+
+class DiscoveryPayloadError(AdminServiceError):
+    """A discovery dataset write is structurally unusable, so nothing was saved.
+
+    Carries one problem per offending record rather than a single message, so the caller
+    can see every row at fault instead of fixing them one request at a time.
+    """
+
+    def __init__(self, problems: list[schemas.DiscoveryPayloadProblem], truncated: bool = False):
+        self.problems = problems
+        self.truncated = truncated
+        super().__init__(f"{len(problems)} structural problem(s) in the payload.")
+
+    @property
+    def detail(self) -> schemas.DiscoveryPayloadErrorDetail:
+        count = len(self.problems)
+        suffix = "" if count == 1 else "s"
+        return schemas.DiscoveryPayloadErrorDetail(
+            message=f"The payload has {count} problem{suffix}; nothing was saved.",
+            problems=self.problems,
+            truncated=self.truncated,
+        )
+
+
+class DiscoveryUploadFormatError(AdminServiceError):
+    """An uploaded file could not be read as a discovery workbook or CSV."""
+
+
+class DiscoveryUploadTooLargeError(AdminServiceError):
+    """An uploaded file exceeds the configured byte cap."""
+
+
+class IndexingJobInProgressError(AdminServiceError):
+    """An indexing job for the same channel is already queued or running."""
+
+    def __init__(self, channel_id: int, job_id: int) -> None:
+        self.channel_id = channel_id
+        self.job_id = job_id
+        super().__init__(
+            f"Indexing job {job_id} is already in progress for channel {channel_id}. "
+            f"Wait for it to finish before starting another one."
+        )

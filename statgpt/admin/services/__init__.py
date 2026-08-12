@@ -3,5 +3,7 @@ from .channel import AdminPortalChannelService
 from .data_source import AdminPortalDataSourceService
 from .data_source_deletion import AdminPortalDataSourceDeletionService
 from .dataset import AdminPortalDataSetService
+from .discovery_dataset import AdminPortalDiscoveryDatasetService
+from .discovery_indexing_job import AdminPortalDiscoveryIndexingJobService
 from .glossary_of_terms import AdminPortalGlossaryOfTermsService
 from .import_export_jobs import JobsService

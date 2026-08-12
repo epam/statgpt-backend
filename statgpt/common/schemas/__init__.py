@@ -30,6 +30,17 @@ from .composite import ChannelDatasetUpdateResult, DataSetUpdateResponse
 from .data_query_tool import DataQueryDetails, HybridSearchConfig
 from .data_source import DataSource, DataSourceBase, DataSourceType, DataSourceUpdate, Provider
 from .dataset import DataSet, DataSetBase, DataSetDescriptor, DataSetUpdateRequest, DeletedDataSet
+from .discovery_dataset import (
+    DiscoveryDataset,
+    DiscoveryDatasetBase,
+    DiscoveryDatasetUpdate,
+    DiscoveryDatasetUpdateBulk,
+    DiscoveryPayloadErrorDetail,
+    DiscoveryPayloadProblem,
+    DiscoveryUploadSummary,
+    DiscoveryValidationIssue,
+)
+from .discovery_indexing_job import DiscoveryIndexingJob
 from .enums import (
     AuditActionType,
     AuditEntityType,
@@ -37,6 +48,9 @@ from .enums import (
     ChannelDatasetUpdateStatus,
     ChannelIndexStatusScope,
     DecoderOfLatestEnum,
+    DiscoveryIndexingStatus,
+    DiscoveryUploadMode,
+    DiscoveryValidationStatus,
     ExportScope,
     IndexerVersion,
     IndicatorSelectionVersion,
