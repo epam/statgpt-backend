@@ -7,9 +7,12 @@ held by an idle pooled connection. No test double can reproduce that; only a rea
 real PostgreSQL backend can.
 """
 
+import asyncio
 import uuid
+from collections.abc import AsyncGenerator
 
 import pytest
+import pytest_asyncio
 from sqlalchemy import text
 
 from statgpt.common.models.database import (
@@ -17,6 +20,32 @@ from statgpt.common.models.database import (
     advisory_lock_context_manager,
     get_session_context_manager,
 )
+
+
+def _reset_session_maker_singleton() -> None:
+    SessionMakerSingleton.instance = None
+    SessionMakerSingleton._engine = None
+    # The class-level lock binds itself to the event loop that first awaits it.
+    SessionMakerSingleton._lock = asyncio.Lock()
+
+
+@pytest_asyncio.fixture(autouse=True)
+async def isolated_default_engine() -> AsyncGenerator[None, None]:
+    """Gives each test its own default engine, bound to that test's event loop.
+
+    `SessionMakerSingleton` caches one connection pool per process, while pytest-asyncio runs
+    every test on a fresh event loop. A pooled connection created on an earlier loop fails on
+    checkout with "attached to a different loop", so the singleton is rebuilt for each test and
+    disposed while the loop that created it is still running.
+    """
+    _reset_session_maker_singleton()
+    try:
+        yield
+    finally:
+        engine = SessionMakerSingleton._engine
+        _reset_session_maker_singleton()
+        if engine is not None:
+            await engine.dispose()
 
 
 @pytest.fixture
