@@ -154,6 +154,10 @@ You MUST answer with following JSON instance:
 NOTES:
 - it is allowed to select ONLY SUBSET or even NO parts for a candidate.
 remember to select only RELEVANT parts!
+- however, if only category-like parts of a candidate (business line, peril, product,
+sector, etc) match the user request and user names no specific measure/series,
+ALSO select the candidate's measure/series parts -
+a selection with only category parts and no measure returns no data.
 - you must map EVERY candidate index to list of relevant parts
 - you must NOT skip any relevant parts - we need to ensure 100% recall!
 - first element of each part ids list MUST be a short summary of the candidate.

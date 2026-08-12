@@ -154,6 +154,11 @@ in the summary:
 NOTES:
 - select dimension values ONLY IF THEY WERE REQUIRED by user!
 - DO NOT INCLUDE the dimension if it does not have values explicitly required by user
+- EXCEPTION - a dataset query MUST include its measure/series dimension:
+if the user request matches values only in category-like dimensions of a dataset
+(business line, peril, product, sector, etc) and names no specific measure/series,
+select the matching category values AND ALL provided values of that dataset's
+measure/series dimension. A query with only category values and no measure returns no data.
 - you must maintain high precision and recall!
 - it is FORBIDDEN to include dimension values absent in the provided list of candidates
 
@@ -161,6 +166,11 @@ YOUR RESPONSE MUST NOT INCLUDE ANYTHING ELSE EXCEPT THE REQUIRED JSON INSTANCE.
 
 Example: "currency" dimension filter must be included for the query '"GDP in USD",
 but it MUST NOT BE INCLUDED for "GDP for USA" query since it LACKS EXPLICIT currency specification.
+
+Example: for the query "give me data on catastrophes", where a dataset has a "peril"
+dimension and a "series" dimension (economic losses, victims, number of events, ...):
+select the matching "peril" value AND ALL provided "series" values.
+Selecting only the peril would build a query without any measure, which returns no data.
 '''
 
     USER_PROMPT = '''\
@@ -379,6 +389,10 @@ YOUR TASK is to build queries for indicator dimensions matching user request in 
 - Mind that indicators may consist of multiple dimensions
 - All dimensions provided are indicator dimensions
 - Not all provided dimensions must be filled, fill only those with values explicitly mentioned in the user query.
+- EXCEPTION: if the user request matches values only in category-like dimensions of a dataset
+(business line, peril, product, sector, etc) and names no specific measure/series,
+also fill that dataset's measure/series dimension with ALL its provided values -
+a query with only category values and no measure returns no data.
 - Ignore COUNTRY and FREQUENCY dimensions that could be mentioned in the user query
 
 
