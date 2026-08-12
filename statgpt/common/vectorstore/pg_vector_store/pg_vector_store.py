@@ -1,4 +1,3 @@
-import asyncio
 import hashlib
 import io
 import json
@@ -18,13 +17,17 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 from langchain_core.documents import Document
 from sqlalchemy import delete, select
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.ext.asyncio import AsyncConnection, AsyncSession
 from sqlalchemy.schema import CreateTable
 from sqlalchemy.sql import text
 from sqlalchemy.sql.elements import TextClause
 from sqlalchemy.sql.expression import func
 
-from statgpt.common.models import get_readonly_session_context_manager, get_session_context_manager
+from statgpt.common.models import (
+    advisory_lock_context_manager,
+    get_readonly_session_context_manager,
+    get_session_context_manager,
+)
 from statgpt.common.schemas.llm_call_duration import LLMCallDurationItem
 from statgpt.common.settings.database import PostgresSettings
 from statgpt.common.settings.document import DimensionValueDocumentMetadataFields
@@ -168,135 +171,87 @@ class PgEmbeddinglessVectorStore(EmbeddinglessVectorStore):
         # Use first 8 bytes to generate a bigint for PostgreSQL advisory lock
         return int.from_bytes(hash_bytes[:8], byteorder='big', signed=True)
 
-    async def _acquire_dataset_lock(
-        self,
-        session: AsyncSession,
-        dataset_id: uuid.UUID,
-    ) -> int:
-        """Acquires a session-level advisory lock for the given dataset_id within this channel.
-
-        Uses pg_try_advisory_lock with a polling loop instead of the blocking
-        pg_advisory_lock to avoid hanging indefinitely when the lock is contended.
-
-        Returns the lock key which should be passed to _release_dataset_lock.
-        This lock persists across multiple transactions until explicitly released.
-        This prevents concurrent modifications to the same dataset within the channel.
-        """
-        lock_key = self._dataset_lock_key(dataset_id)
-        # Ensure session is in a clean state before acquiring lock
-        if session.in_transaction() and not session.is_active:
-            await session.rollback()
-
-        timeout_s = self._postgres_settings.advisory_lock_timeout
-        current_interval = 0.1
-        deadline = time.monotonic() + timeout_s
-        while True:
-            result = await session.execute(
-                text("SELECT pg_try_advisory_lock(:lock_key)"), {"lock_key": lock_key}
-            )
-            if result.scalar():
-                _log.debug(
-                    f"Acquired advisory lock for collection={self._collection_name} "
-                    f"dataset={dataset_id} (key={lock_key})"
-                )
-                return lock_key
-            remaining = deadline - time.monotonic()
-            if remaining <= 0:
-                raise TimeoutError(
-                    f"Could not acquire advisory lock for collection={self._collection_name} "
-                    f"dataset={dataset_id} (key={lock_key}) within {timeout_s}s"
-                )
-            await asyncio.sleep(min(current_interval, remaining))
-            current_interval = min(current_interval * 1.5, 5.0)
-
-    async def _release_dataset_lock(self, session: AsyncSession, lock_key: int) -> None:
-        """Releases a session-level advisory lock.
-
-        Handles PendingRollback state to ensure lock is always released.
-        """
-        try:
-            # Rollback if session is in a failed transaction state
-            if session.in_transaction() and not session.is_active:
-                await session.rollback()
-            await session.execute(
-                text("SELECT pg_advisory_unlock(:lock_key)"), {"lock_key": lock_key}
-            )
-        except Exception as e:
-            _log.error(f"Failed to release advisory lock (key={lock_key}): {e}")
-            # Still try to rollback to clean up the session
-            try:
-                await session.rollback()
-            except Exception:
-                pass
-            raise
-        _log.debug(f"Released advisory lock (key={lock_key})")
-
     @asynccontextmanager
-    async def _dataset_lock(
-        self, session: AsyncSession, dataset_id: uuid.UUID
-    ) -> AsyncIterator[None]:
-        """Context manager for acquiring and releasing dataset advisory lock."""
-        lock_key = await self._acquire_dataset_lock(session, dataset_id)
-        try:
-            yield
-        finally:
-            await self._release_dataset_lock(session, lock_key)
+    async def _dataset_lock(self, dataset_id: uuid.UUID) -> AsyncIterator[AsyncConnection]:
+        """Locks the given dataset within this collection, yielding the connection holding it.
 
-    @asynccontextmanager
-    async def _dataset_locks(
-        self, session: AsyncSession, dataset_ids: list[uuid.UUID]
-    ) -> AsyncIterator[None]:
-        """Context manager for acquiring and releasing multiple dataset advisory locks.
-
-        Sorts dataset_ids to ensure deterministic lock ordering and prevent deadlocks.
+        Pass the yielded connection to `get_session_context_manager` so the work runs on the
+        connection that owns the lock; a session bound to the engine instead would return its
+        connection to the pool on the first commit and orphan the lock there.
         """
-        sorted_dataset_ids = sorted(dataset_ids)
-        lock_keys = [
-            await self._acquire_dataset_lock(session, ds_id) for ds_id in sorted_dataset_ids
-        ]
-        try:
-            yield
-        finally:
-            for lock_key in lock_keys:
-                await self._release_dataset_lock(session, lock_key)
+        async with advisory_lock_context_manager(
+            self._dataset_lock_key(dataset_id),
+            timeout=self._postgres_settings.advisory_lock_timeout,
+            description=f"collection={self._collection_name} dataset={dataset_id}",
+        ) as connection:
+            yield connection
 
     async def _get_dataset_ids_by_version_ids(
         self, session: AsyncSession, version_ids: list[int]
     ) -> list[uuid.UUID]:
         """Get all unique dataset_ids associated with given version_ids."""
         model = await self._get_metadata_model()
+        if not await self._check_if_table_exists(session, model.__tablename__):
+            return []
         res = await session.scalars(
             select(model.dataset_id).distinct().where(model.version_id.in_(version_ids))
         )
         return [item for item in res.all()]
+
+    async def _resolve_dataset_id(self, version_ids: list[int]) -> uuid.UUID | None:
+        """Returns the single dataset owning `version_ids`, or None if they match nothing.
+
+        Runs in its own short-lived session so that no connection is held while the caller waits
+        for the dataset lock.
+        """
+        async with get_readonly_session_context_manager() as session:
+            dataset_ids = await self._get_dataset_ids_by_version_ids(session, version_ids)
+
+        if not dataset_ids:
+            return None
+        if len(dataset_ids) > 1:
+            raise ValueError(
+                f"Expected version_ids {version_ids} to belong to a single dataset, "
+                f"got {len(dataset_ids)}: {dataset_ids}"
+            )
+        return dataset_ids[0]
 
     async def remove_documents_by(
         self, *, dataset_id: uuid.UUID | None = None, version_ids: list[int] | None = None
     ) -> None:
         """Removes all documents by dataset_id or version_ids.
 
-        Uses advisory locks to prevent concurrent modifications to the same datasets.
-        All operations (metadata deletion and orphaned document cleanup) are performed
-        in a single transaction to ensure atomicity.
+        The metadata rows are deleted under the dataset's advisory lock, in a single
+        transaction. Documents left unreferenced are then swept in a separate transaction; that
+        sweep spans the whole collection, so it deliberately runs outside the per-dataset lock.
+        A failure between the two leaves unreferenced documents behind, which the next sweep
+        reclaims.
+
+        Only one dataset is supported per call: `version_ids` must all belong to the same
+        dataset, which is what every caller passes.
         """
         if not dataset_id and not version_ids:
             raise ValueError("Either dataset_id or version_ids must be provided")
 
-        async with get_session_context_manager() as session:
-            if dataset_id:
-                dataset_ids_to_lock = [dataset_id]
-            else:
-                dataset_ids_to_lock = await self._get_dataset_ids_by_version_ids(session, version_ids)  # type: ignore
+        if dataset_id is None:
+            dataset_id = await self._resolve_dataset_id(version_ids)  # type: ignore[arg-type]
+            if dataset_id is None:
+                _log.info(f"No documents found for versions {version_ids}. Nothing to remove.")
+                return
 
-            async with self._dataset_locks(session, dataset_ids_to_lock):
+        async with self._dataset_lock(dataset_id) as connection:
+            async with get_session_context_manager(connection=connection) as session:
                 document_ids = await self._remove_dataset_metadata(
                     session, dataset_id=dataset_id, version_ids=version_ids
                 )
                 _log.info(
                     f"Deleted {len(document_ids)} rows from {self._metadata_table_name!r} table"
                 )
-                await self._clear_documents_without_metadata(session)
                 await session.commit()
+
+        async with get_session_context_manager() as session:
+            await self._clear_documents_without_metadata(session)
+            await session.commit()
 
     async def _remove_dataset_metadata(
         self,
@@ -615,9 +570,10 @@ class PgVectorStore(PgEmbeddinglessVectorStore, VectorStore):
             )
             batches_with_embeddings.append((batch, embeddings))
 
-        # Phase 2: DB writes in a single session (advisory lock + inserts)
-        async with get_session_context_manager() as session:
-            async with self._dataset_lock(session, dataset_id):
+        # Phase 2: DB writes on the connection holding the dataset lock, so that the commits
+        # below cannot move the session to another connection and orphan the lock.
+        async with self._dataset_lock(dataset_id) as connection:
+            async with get_session_context_manager(connection=connection) as session:
                 document_model: type[BaseDocument] = await self._get_document_model()
                 metadata_model: type[BaseDocumentMetadata] = await self._get_metadata_model()
 
@@ -633,9 +589,11 @@ class PgVectorStore(PgEmbeddinglessVectorStore, VectorStore):
                         for doc, emb in zip(batch, embeddings)
                     ]
 
+                    # Flush rather than commit: the ids are needed to build the mappings, but
+                    # committing here would briefly publish documents with no metadata, which
+                    # the orphan sweep in `remove_documents_by` would delete.
                     session.add_all(items)
-                    await session.commit()
-                    _log.info(f"Added {len(items)} documents")
+                    await session.flush()
 
                     mappings = [
                         metadata_model(
@@ -648,7 +606,7 @@ class PgVectorStore(PgEmbeddinglessVectorStore, VectorStore):
                     ]
                     session.add_all(mappings)
                     await session.commit()
-                    _log.info(f"Added {len(mappings)} document mappings")
+                    _log.info(f"Added {len(items)} documents and {len(mappings)} mappings")
 
     async def search_with_similarity_score(
         self,
