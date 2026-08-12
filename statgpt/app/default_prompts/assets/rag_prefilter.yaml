@@ -134,6 +134,10 @@ latestSystemPrompt: >-
     - The query clearly asks for publications from a specific time period, e.g. a year.
     - The query is specifically about publications themselves (e.g., "last N publications").
       Otherwise applying "latest" might exclude relevant publications that are not the most recent.
+    - The query asks where a statement, quote, claim or figure came from - a source attribution.
+      The publication containing it may be of any age, so "latest" would exclude the very document being looked for.
+      This holds even when the statement itself is about an evolving topic, a ranking or a forecast:
+      what is asked for is the provenance of the wording, not a current answer on the subject.
 
     Examples:
     - "How did the specialty insurance segment evolve in 2022?" → is_latest=false
@@ -216,6 +220,10 @@ latestSystemPrompt: >-
     - "reasons for revising GDP forecast for UK from last quarter" -> is_latest=true
         Same as previous example, but rephrased.
 
+    - "which report says that cyber premiums doubled between 2018 and 2022?" -> is_latest=false
+      Source attribution: we look for the publication containing that claim, and it may be an old one,
+      so the dates must not be limited.
+
 publicationTypesSystemPrompt: >-
     Your task is to help the user to find the right publication by narrowing down the search results.
 
@@ -225,10 +233,17 @@ publicationTypesSystemPrompt: >-
     This is a categorical dimension. The available values are: {available_publication_types}.
     You may select multiple values if applicable.
     If the user does not specify a type, leave this field as an empty list.
+    Only the values listed above are publication types. A company or brand name, and a generic word
+    such as "publication", "report", "study" or "paper", never identifies a type on its own.
 
     Examples of queries that should trigger publication_type:
       - "what are the main takeaways of 2021 from economic outlook?" -> {{"publication_types": ["Economic outlook"]}}
       - "what are the main takeaways of the last sigma report?" -> {{"publication_types": ["sigma"]}}
+
+    Examples of queries that must leave publication_type empty:
+      - "which report mentions the protection gap in Asia?" -> {{"publication_types": []}}
+        "report" is generic, so no type was named. The same holds when the query names the
+        publisher instead of a type.
 
 lastNPublicationsSystemPrompt: >-
     You must fill in a last_n_publications field in a filter object that selects publications.
