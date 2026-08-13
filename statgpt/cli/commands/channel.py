@@ -6,6 +6,7 @@ import os
 from collections import Counter
 
 import questionary
+from pydantic import ValidationError
 from rich.table import Table
 
 from statgpt.cli.commands.base import Command, CommandArg, CommandGroup
@@ -18,6 +19,7 @@ from statgpt.cli.shared import (
     print_error,
     print_info,
     print_success,
+    print_warning,
     select_item_interactive,
     spinner_status,
 )
@@ -40,7 +42,11 @@ def _get_urn_display(dataset: DataSet | None) -> str:
     urn_data = dataset.details.get("urn")
     if not urn_data:
         return "N/A"
-    return UrnReference.model_validate(urn_data).short_urn()
+    try:
+        return UrnReference.model_validate(urn_data).short_urn()
+    except ValidationError as e:
+        print_warning(str(e))
+        return str(urn_data)
 
 
 def _dataset_label(dataset: DataSet) -> str:

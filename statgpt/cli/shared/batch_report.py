@@ -111,10 +111,6 @@ class BatchReport(BaseModel):
     def has_failures(self) -> bool:
         return any(item.status == BatchItemStatus.FAILED for item in self.items)
 
-    def extend(self, other: "BatchReport") -> None:
-        """Merge another report's items into this one, keeping this report's title."""
-        self.items.extend(other.items)
-
     def counts(self) -> dict[BatchItemStatus, int]:
         counter = Counter(item.status for item in self.items)
         return {status: counter[status] for status in _RENDER_ORDER if counter[status]}

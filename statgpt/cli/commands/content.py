@@ -232,6 +232,7 @@ async def init_handler(
             existing_datasets = {str(ds.id_): ds for ds in all_datasets}
 
         report = BatchReport(title="Content initialization summary")
+        touched: list[tuple[str, DataSet]] = []
 
         for client_name in available_clients:
             print_info(f"\nProcessing client: {client_name}")
@@ -239,15 +240,16 @@ async def init_handler(
             failures_before = len(report.failed)
 
             try:
-                await _process_client(
-                    admin_client=client,
-                    report=report,
-                    client_id=client_name,
-                    client_config_dir=client_config_dir,
-                    existing_datasets=existing_datasets,
-                    dataset_ids=dataset_ids,
-                    components=components,
-                    verify=verify,
+                touched.extend(
+                    await _process_client(
+                        admin_client=client,
+                        report=report,
+                        client_id=client_name,
+                        client_config_dir=client_config_dir,
+                        existing_datasets=existing_datasets,
+                        dataset_ids=dataset_ids,
+                        components=components,
+                    )
                 )
             except Exception as e:
                 # A client-level failure (an unreadable or invalid top-level config) must
@@ -260,6 +262,11 @@ async def init_handler(
                 print_success(f"Client {client_name} processed successfully")
             else:
                 print_warning(f"Client {client_name} processed with failures")
+
+        # Verified once for every client at the end: the extra pass re-reads the whole dataset
+        # list, and doing that per client would repeat it for no extra information.
+        if verify:
+            await _verify_datasets(client, report, touched)
 
     report.render()
     if report.has_failures:
@@ -274,9 +281,12 @@ async def _process_client(
     existing_datasets: dict[str, DataSet],
     dataset_ids: set[str] | None,
     components: set[str],
-    verify: bool = False,
-) -> None:
-    """Process a single client configuration."""
+) -> list[tuple[str, DataSet]]:
+    """Process a single client configuration.
+
+    Returns:
+        (label, dataset) for every dataset now in place, for optional verification.
+    """
     # Load configurations
     tools_cfg = utils.read_yaml(f"{client_config_dir}/tools.yaml")
     channel_cfg = utils.read_yaml(f"{client_config_dir}/channels.yaml")
@@ -288,7 +298,7 @@ async def _process_client(
     # Upload DIAL files
     if "files" in components:
         if os.path.exists(dial_files_dir):
-            await _upload_dial_files(dial_files_dir)
+            await _upload_dial_files(report, client_id, dial_files_dir)
         else:
             print_info(f"No DIAL files directory found at {dial_files_dir}")
 
@@ -313,29 +323,35 @@ async def _process_client(
         data_sources = await _process_data_sources(admin_client, report, data_sources_cfg)
 
     # Process datasets
-    if "datasets" in components:
-        touched = await _process_datasets(
-            admin_client,
-            report,
-            client_id,
-            client_config_dir,
-            data_sources,
-            channels,
-            existing_datasets,
-            dataset_ids,
-            link_channels="channels" in components,
-        )
-        if verify:
-            await _verify_datasets(admin_client, report, touched)
+    if "datasets" not in components:
+        return []
+
+    return await _process_datasets(
+        admin_client,
+        report,
+        client_id,
+        client_config_dir,
+        data_sources,
+        channels,
+        existing_datasets,
+        dataset_ids,
+        link_channels="channels" in components,
+    )
 
 
-async def _upload_dial_files(dial_files_dir: str) -> None:
-    """Upload files to DIAL storage."""
+async def _upload_dial_files(report: BatchReport, client_id: str, dial_files_dir: str) -> None:
+    """Upload files to DIAL storage.
+
+    Each file is isolated and recorded: one that fails does not stop the rest, and the summary
+    accounts for the upload rather than reporting "nothing to do" over the top of it.
+    """
     dial_url = cli_settings.dial_url
     dial_api_key = cli_settings.dial_api_key
 
     if not dial_url or not dial_api_key:
-        print_warning("DIAL credentials not configured, skipping file upload")
+        reason = "DIAL credentials are not configured"
+        print_warning(f"{reason}, skipping file upload")
+        report.record_skipped("files", client_id, reason)
         return
 
     print_info("Uploading files to DIAL...")
@@ -350,11 +366,20 @@ async def _upload_dial_files(dial_files_dir: str) -> None:
                     mime_type = _get_mime_type(file)
                     print_info(f"  Uploading: {dial_path}")
 
-                    with open(file_path, "rb") as f:
-                        content = f.read()
+                    try:
+                        with open(file_path, "rb") as f:
+                            content = f.read()
                         await storage.put_file(dial_path, mime_type, content)
+                    except Exception as e:
+                        print_error(f"  Failed file {dial_path}: {e}")
+                        report.record_failed("file", dial_path, str(e))
+                        continue
+
+                    report.record_ok("file", dial_path)
     except Exception as e:
+        # Reaching DIAL at all failed, so nothing after this point would upload either.
         print_error(f"Failed to connect to DIAL: {e}")
+        report.record_failed("files", client_id, str(e))
         return
 
 

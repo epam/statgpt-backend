@@ -56,20 +56,6 @@ def test_has_failures_is_true_only_for_failures() -> None:
     assert not BatchReport(title="Summary").has_failures
 
 
-def test_extend_aggregates_across_clients_and_keeps_the_title() -> None:
-    first = BatchReport(title="Overall")
-    first.record_ok("dataset", "A")
-
-    second = BatchReport(title="Client 2")
-    second.record_failed("dataset", "D", "boom")
-
-    first.extend(second)
-
-    assert first.title == "Overall"
-    assert [item.item_id for item in first.items] == ["A", "D"]
-    assert first.has_failures
-
-
 def test_render_lists_failures_before_skips_and_omits_successes(capsys) -> None:
     """The table is for items needing action; successes are already logged inline."""
     _report().render()
