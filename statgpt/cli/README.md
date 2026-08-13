@@ -129,6 +129,10 @@ statgpt> channel reindex -c my-channel --mode all
 | `--mode`        | `all`, `channel`, or `dataset`           |
 | `--dataset-urn` | Dataset URN (required when mode=dataset) |
 
+In `all` mode each dataset is submitted independently: a dataset the server rejects is
+reported and the rest are still queued. See [Batch Summaries and Exit
+Codes](#batch-summaries-and-exit-codes).
+
 ### content init
 
 ```
@@ -145,16 +149,49 @@ statgpt> content init --datasets urn1,urn2        # specific datasets only
 | `--datasets`  | Comma-separated dataset URNs to process                                  |
 | `-o, --only`  | Components: `channels`, `datasources`, `datasets`, `glossaries`, `files` |
 | `-y, --yes`   | Skip all confirmation prompts and process ALL available content          |
+| `--verify`    | After processing, check each dataset can be loaded from its data source   |
 
 **Notes:**
 
 - Specifying `datasets` automatically includes `datasources` (dependency)
 - Interactive selectors: arrow keys to navigate, space to toggle, enter to confirm
 - **Important:** Using `-y` without `--datasets` processes ALL available datasets for selected clients
+- `--verify` re-reads every dataset from its source server-side, so it costs an extra pass;
+  it catches datasets that were registered successfully but cannot actually be loaded
+  (incompatible structure, unreachable endpoint) and would otherwise never index
 - For non-interactive use in CI/CD, always specify `--client-id` and optionally `--datasets`:
   ```bash
   statgpt --non-interactive content init --client-id my-client --datasets urn1,urn2 -y
   ```
+
+## Batch Summaries and Exit Codes
+
+`content init` and `channel reindex` process many independent items. A failure in one item
+does not stop the others: each item is isolated, and the command prints a summary at the end
+listing what failed or was skipped, with the reason.
+
+```
+Content initialization summary
+┌───────────┬────────────────┬────────────────────────┬───────────────────────┐
+│ Status    │ Type           │ Item                   │ Details               │
+├───────────┼────────────────┼────────────────────────┼───────────────────────┤
+│ FAILED    │ dataset        │ AG:DF_PRICES(1.0)      │ HTTP 400: unsupporte… │
+│ SKIPPED   │ dataset        │ AG:DF_TRADE(1.0)       │ data source 'oecd' i… │
+└───────────┴────────────────┴────────────────────────┴───────────────────────┘
+✗ 1 failed, 1 skipped, 12 ok, 3 unchanged
+```
+
+- `FAILED` — the item itself could not be processed.
+- `SKIPPED` — not attempted, because something it depends on failed or is missing (for
+  example a dataset whose data source failed: registering it without a source would leave it
+  unusable, so it is not attempted).
+
+**Exit code:** these commands exit `1` when any item failed, and `0` only when none did.
+Successes are still applied — a partial failure does not roll anything back.
+
+> If you have CI that treats exit `0` as "everything was onboarded", note that this was
+> previously unreliable: a batch aborted on its first failure and still exited `0` whenever
+> the failure happened to fall on the last item.
 
 ## Environment Variables
 

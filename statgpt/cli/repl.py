@@ -11,6 +11,7 @@ from statgpt.cli.commands.base import CommandRegistry
 from statgpt.cli.completer import StatGPTCompleter
 from statgpt.cli.settings import cli_runtime, cli_settings
 from statgpt.cli.shared.auth import get_token_info, is_logged_in
+from statgpt.cli.shared.batch_report import BatchPartialFailureError
 from statgpt.cli.shared.console import console, print_banner, print_error
 
 # Prompt style
@@ -146,6 +147,9 @@ class REPL:
                 self._running = False
                 console.print("\n[dim]Goodbye![/dim]")
                 break
+            except BatchPartialFailureError:
+                # The batch summary already lists what failed; nothing to add here.
+                continue
             except Exception as e:
                 print_error(f"Error: {e}")
                 if cli_runtime.debug:
