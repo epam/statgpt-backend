@@ -35,6 +35,10 @@ class AdminServiceError(Exception):
     """Base class for admin service errors mapped to HTTP responses in routers."""
 
 
+def _is_unique_violation(e: IntegrityError) -> bool:
+    return getattr(e.orig, "sqlstate", None) == _UNIQUE_VIOLATION_SQLSTATE
+
+
 def raise_for_integrity_error(e: IntegrityError, conflict_detail: str) -> NoReturn:
     """Translate a DB integrity failure into an actionable HTTP error.
 
@@ -43,12 +47,27 @@ def raise_for_integrity_error(e: IntegrityError, conflict_detail: str) -> NoRetu
     """
     _log.warning(e)
 
-    if getattr(e.orig, "sqlstate", None) == _UNIQUE_VIOLATION_SQLSTATE:
+    if _is_unique_violation(e):
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=conflict_detail)
 
     raise HTTPException(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Unknown db error"
     )
+
+
+def raise_for_conflict(e: IntegrityError, conflict: AdminServiceError) -> NoReturn:
+    """Re-raise a unique-constraint violation as a domain error, mapped to 409 at the edge.
+
+    The domain-error counterpart of `raise_for_integrity_error`, for services that report
+    through `AdminServiceError` rather than by raising `HTTPException` themselves. Any other
+    integrity failure is a bug or an operational fault, so it propagates unchanged.
+    """
+    _log.warning(e)
+
+    if _is_unique_violation(e):
+        raise conflict from e
+
+    raise e
 
 
 @dataclass(frozen=True)
@@ -75,6 +94,28 @@ class DatasetInUseError(AdminServiceError):
     @property
     def usage_summary(self) -> str:
         return ", ".join(ds.usage for ds in self.blocking_datasets)
+
+
+class DiscoveryNotFoundError(AdminServiceError):
+    """A discovery record or indexing job addressed by id does not exist."""
+
+
+class DiscoveryDatasetNotFoundError(DiscoveryNotFoundError):
+    def __init__(self, item_id: int) -> None:
+        super().__init__(f"Discovery dataset with id={item_id} not found.")
+
+
+class DiscoveryIndexingJobNotFoundError(DiscoveryNotFoundError):
+    def __init__(self, job_id: int) -> None:
+        super().__init__(f"Discovery indexing job with id={job_id} not found.")
+
+
+class DiscoveryDatasetConflictError(AdminServiceError):
+    """A discovery dataset with the same natural key already exists in the channel.
+
+    Carries a message naming the colliding record(s) where the caller could work them out,
+    so an admin need not bisect a rejected batch.
+    """
 
 
 class DiscoveryPayloadError(AdminServiceError):
@@ -127,10 +168,15 @@ class DiscoveryUploadTooLargeError(AdminServiceError):
 
 
 class IndexingJobInProgressError(AdminServiceError):
-    """An indexing job for the same channel is already queued or running."""
+    """An indexing job for the same channel is already queued or running.
 
-    def __init__(self, channel_id: int, job_id: int) -> None:
+    `job_id` is optional because the job can also be discovered by losing a race to the
+    unique index, and it may have finished by the time the loser looks for it.
+    """
+
+    def __init__(self, channel_id: int, job_id: int | None = None) -> None:
+        job = f"Indexing job {job_id}" if job_id is not None else "An indexing job"
         super().__init__(
-            f"Indexing job {job_id} is already in progress for channel {channel_id}. "
+            f"{job} is already in progress for channel {channel_id}. "
             f"Wait for it to finish before starting another one."
         )

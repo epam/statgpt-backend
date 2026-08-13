@@ -1,22 +1,22 @@
 import logging
 
-from fastapi import BackgroundTasks, HTTPException, status
+from fastapi import BackgroundTasks
 from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from statgpt.common import models, schemas
-from statgpt.common.schemas import (
-    DiscoveryIndexingStatus,
-    DiscoveryValidationStatus,
-    PreprocessingStatusEnum,
-)
 from statgpt.common.services import ChannelService, DiscoveryDatasetService
 from statgpt.common.services.base import DbServiceBase
 from statgpt.common.utils import format_exception_reason, get_ts_utcnow
 
 from .background_tasks import background_task
 from .discovery_validation import DiscoveryValidator
-from .exceptions import IndexingJobInProgressError
+from .exceptions import (
+    DiscoveryIndexingJobNotFoundError,
+    IndexingJobInProgressError,
+    raise_for_conflict,
+)
 from .status_recovery import set_failed_status
 
 _log = logging.getLogger(__name__)
@@ -28,7 +28,10 @@ The publish stage lands with the Generic RAG ingestion client. Until then a run 
 that nothing was published rather than claiming a record is indexed when it is not.
 """
 
-_ACTIVE_STATUSES = (PreprocessingStatusEnum.QUEUED, PreprocessingStatusEnum.IN_PROGRESS)
+_ACTIVE_STATUSES = (
+    schemas.PreprocessingStatusEnum.QUEUED,
+    schemas.PreprocessingStatusEnum.IN_PROGRESS,
+)
 
 
 class AdminPortalDiscoveryIndexingJobService(DbServiceBase):
@@ -61,17 +64,34 @@ class AdminPortalDiscoveryIndexingJobService(DbServiceBase):
     async def trigger(
         self, background_tasks: BackgroundTasks, channel_id: int
     ) -> schemas.DiscoveryIndexingJob:
-        """Create a job, schedule the run in the background, and return the job."""
+        """Create a job, schedule the run in the background, and return the job.
+
+        The up-front check names the job that is already running; the partial unique index
+        `uq_discovery_indexing_jobs_active` is what actually enforces one active job per
+        channel, so two simultaneous requests cannot both get past this.
+        """
         channel = await ChannelService(self._session).get_model_by_id(channel_id)
 
-        if active := await self._get_active_job(channel.id):
-            raise IndexingJobInProgressError(channel_id=channel.id, job_id=active.id)
+        if active := await self._get_active_job(channel_id):
+            raise IndexingJobInProgressError(channel_id=channel_id, job_id=active.id)
 
         job = models.DiscoveryIndexingJob(
-            channel_id=channel.id, status=PreprocessingStatusEnum.QUEUED
+            channel_id=channel.id, status=schemas.PreprocessingStatusEnum.QUEUED
         )
         self._session.add(job)
-        await self._session.commit()
+        try:
+            await self._session.commit()
+        except IntegrityError as e:
+            await self._session.rollback()
+            # Lost the race against a concurrent trigger. Re-read so the message can name the
+            # job that won, and fall back to an unnamed one if it has since finished.
+            active = await self._get_active_job(channel_id)
+            raise_for_conflict(
+                e,
+                IndexingJobInProgressError(
+                    channel_id=channel_id, job_id=active.id if active else None
+                ),
+            )
         await self._session.refresh(job)
 
         background_tasks.add_task(run_discovery_indexing_in_background_task, job_id=job.id)
@@ -88,10 +108,7 @@ class AdminPortalDiscoveryIndexingJobService(DbServiceBase):
                 models.DiscoveryIndexingJob, job_id
             )
         if job is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Discovery indexing job with id={job_id} not found",
-            )
+            raise DiscoveryIndexingJobNotFoundError(job_id)
         return job
 
     async def get_jobs(
@@ -145,7 +162,7 @@ class AdminPortalDiscoveryIndexingJobService(DbServiceBase):
         """
         async with self._scoped_session() as session:
             job = await self._get_job_model_or_raise(job_id)
-            job.status = PreprocessingStatusEnum.IN_PROGRESS
+            job.status = schemas.PreprocessingStatusEnum.IN_PROGRESS
             await session.commit()
 
             try:
@@ -164,14 +181,14 @@ class AdminPortalDiscoveryIndexingJobService(DbServiceBase):
                     f"Validated {len(records)} record(s): {valid} valid, {invalid} invalid."
                     f" {_PUBLISH_NOT_IMPLEMENTED}"
                 )
-                job.status = PreprocessingStatusEnum.COMPLETED
+                job.status = schemas.PreprocessingStatusEnum.COMPLETED
                 await session.commit()
             except Exception as e:
                 _log.exception(f"Discovery indexing job {job_id} failed")
                 await session.rollback()
                 job = await self._get_job_model_or_raise(job_id)
                 job.reason_for_failure = format_exception_reason(e)
-                job.status = PreprocessingStatusEnum.FAILED
+                job.status = schemas.PreprocessingStatusEnum.FAILED
                 await session.commit()
                 return
 
@@ -192,15 +209,17 @@ class AdminPortalDiscoveryIndexingJobService(DbServiceBase):
             issues = validator.validate(record)
             record.validated_at = evaluated_at
             if issues:
-                record.validation_status = DiscoveryValidationStatus.INVALID
+                record.validation_status = schemas.DiscoveryValidationStatus.INVALID
                 record.validation_issues = [issue.model_dump(mode="json") for issue in issues]
                 # An invalid record is not published at all, so its indexing status is left
-                # as it is rather than being reported as an indexing failure.
+                # as it is rather than being reported as an indexing failure. Once publishing
+                # exists, a record that was published and has since become invalid will need
+                # its document withdrawn here - that is what `documents_deleted` counts.
                 invalid += 1
             else:
-                record.validation_status = DiscoveryValidationStatus.VALID
+                record.validation_status = schemas.DiscoveryValidationStatus.VALID
                 record.validation_issues = None
-                record.indexing_status = DiscoveryIndexingStatus.FAILED
+                record.indexing_status = schemas.DiscoveryIndexingStatus.FAILED
                 record.index_error = _PUBLISH_NOT_IMPLEMENTED
                 valid += 1
 

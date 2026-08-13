@@ -124,9 +124,19 @@ def upgrade() -> None:
         'discovery_indexing_jobs',
         ['channel_id'],
     )
+    # At most one unfinished job per channel, so the 409 the API answers with is enforced by
+    # the database rather than by a check that two concurrent requests both pass.
+    op.create_index(
+        'uq_discovery_indexing_jobs_active',
+        'discovery_indexing_jobs',
+        ['channel_id'],
+        unique=True,
+        postgresql_where=sa.text("status IN ('QUEUED', 'IN_PROGRESS')"),
+    )
 
 
 def downgrade() -> None:
+    op.drop_index('uq_discovery_indexing_jobs_active', table_name='discovery_indexing_jobs')
     op.drop_index('ix_discovery_indexing_jobs_channel_id', table_name='discovery_indexing_jobs')
     op.drop_table('discovery_indexing_jobs')
     op.drop_index('ix_discovery_datasets_channel_id', table_name='discovery_datasets')

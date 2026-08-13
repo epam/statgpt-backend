@@ -7,7 +7,7 @@ import zipfile
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, field
 
-from fastapi import HTTPException, UploadFile, status
+from fastapi import UploadFile
 from pydantic import ValidationError
 from sqlalchemy import ColumnElement, delete, func, select
 from sqlalchemy.exc import IntegrityError
@@ -16,20 +16,20 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from statgpt.admin.settings.discovery import DiscoveryUploadSettings
 from statgpt.admin.settings.exim import JobsConfig
 from statgpt.common import models, schemas, utils
-from statgpt.common.schemas import DiscoveryIndexingStatus, DiscoveryValidationStatus
-from statgpt.common.services import ChannelService, DiscoveryDatasetService
+from statgpt.common.services import ChannelService, DiscoveryDatasetService, RecordKey, record_key
 
 from .discovery_upload import COLUMN_FIELDS, FIELD_LABELS, REQUIRED_FIELDS, parse_discovery_file
 from .exceptions import (
+    DiscoveryDatasetConflictError,
+    DiscoveryDatasetNotFoundError,
     DiscoveryPayloadError,
     DiscoveryUploadTooLargeError,
-    raise_for_integrity_error,
+    raise_for_conflict,
 )
 
 _log = logging.getLogger(__name__)
 
 _UPLOAD_CHUNK_SIZE = 1 << 20
-_UPLOAD_SETTINGS = DiscoveryUploadSettings()
 
 _PYDANTIC_VALUE_ERROR_PREFIX = "Value error, "
 """Pydantic's prefix on a message raised by a validator, stripped for readability."""
@@ -44,18 +44,11 @@ violation of `dataset_id` arrives as ``datasetId``. Everything downstream - the 
 labels, the cell references, the `field` a caller reads - is keyed by field name.
 """
 
-RecordKey = tuple[str, str]
-"""The natural key of a record within its channel: lowercased (agency, dataset_id)."""
+_DESCRIPTIVE_FIELDS = frozenset(COLUMN_FIELDS)
+"""The fields a write may touch. Anything else a payload carries (`id`) is not a column."""
 
-
-def record_key(agency: str, dataset_id: str) -> RecordKey:
-    """Build the key the database compares on.
-
-    ``.lower()``, never ``.casefold()``: the generated `agency_key` / `dataset_id_key`
-    columns hold what PostgreSQL's ``lower()`` produced, and ``casefold()`` is more
-    aggressive (``'ß'`` -> ``'ss'``), so it would miss rows the database considers matches.
-    """
-    return agency.lower(), dataset_id.lower()
+_DiscoveryFields = schemas.DiscoveryDatasetBase | schemas.DiscoveryDatasetUpdate
+"""Either shape a write arrives in: a whole record, or the subset of an edit."""
 
 
 def _quote_key(key: RecordKey) -> str:
@@ -64,7 +57,7 @@ def _quote_key(key: RecordKey) -> str:
 
 
 def _conflict_detail(keys: Iterable[RecordKey] = ()) -> str:
-    """Build a 409 detail naming the colliding record(s), so callers need not bisect."""
+    """Build a conflict message naming the colliding record(s), so callers need not bisect."""
     named = sorted({_quote_key(key) for key in keys})
     if not named:
         return (
@@ -76,8 +69,12 @@ def _conflict_detail(keys: Iterable[RecordKey] = ()) -> str:
     return "Discovery datasets already exist in this channel: " + "; ".join(named) + "."
 
 
+def _conflict(keys: Iterable[RecordKey] = ()) -> DiscoveryDatasetConflictError:
+    return DiscoveryDatasetConflictError(_conflict_detail(keys))
+
+
 @dataclass(frozen=True)
-class DiscoveryCandidate:
+class _DiscoveryCandidate:
     """A record about to be written, with enough context to report a problem against it."""
 
     record: schemas.DiscoveryDatasetBase
@@ -116,7 +113,7 @@ class DiscoveryCandidate:
 
 
 @dataclass(frozen=True)
-class RawRecord:
+class _RawRecord:
     """One record's values as a file supplied them, plus where they came from.
 
     A file's values have not been through the schema yet, so they travel with their location
@@ -135,22 +132,22 @@ class RawRecord:
     """Field name -> cell reference, for a spreadsheet upload."""
 
 
-def build_candidates(
+def _build_candidates(
     data: Sequence[schemas.DiscoveryDatasetBase],
-) -> list[DiscoveryCandidate]:
+) -> list[_DiscoveryCandidate]:
     """Wrap an already-validated JSON payload so problems can be reported by position."""
-    return [DiscoveryCandidate(record=item, index=index) for index, item in enumerate(data)]
+    return [_DiscoveryCandidate(record=item, index=index) for index, item in enumerate(data)]
 
 
-def build_candidates_from_rows(
-    raw: Sequence[RawRecord],
-) -> tuple[list[DiscoveryCandidate], list[schemas.DiscoveryPayloadProblem]]:
+def _build_candidates_from_rows(
+    raw: Sequence[_RawRecord],
+) -> tuple[list[_DiscoveryCandidate], list[schemas.DiscoveryPayloadProblem]]:
     """Validate a file's records against the schema, keeping each problem at its location.
 
     Returns the records that passed and the problems of the ones that did not, rather than
     raising, so a caller can add its own problems and report everything in one response.
     """
-    candidates: list[DiscoveryCandidate] = []
+    candidates: list[_DiscoveryCandidate] = []
     problems: list[schemas.DiscoveryPayloadProblem] = []
 
     for item in raw:
@@ -162,21 +159,21 @@ def build_candidates_from_rows(
             )
             continue
         candidates.append(
-            DiscoveryCandidate(record=record, index=item.index, row=item.row, cells=item.cells)
+            _DiscoveryCandidate(record=record, index=item.index, row=item.row, cells=item.cells)
         )
 
     return candidates, problems
 
 
-def duplicate_problems(
-    candidates: Sequence[DiscoveryCandidate],
+def _duplicate_problems(
+    candidates: Sequence[_DiscoveryCandidate],
 ) -> list[schemas.DiscoveryPayloadProblem]:
     """Report each candidate that lands on a key an earlier candidate already claimed.
 
     Two records that normalize onto one key cannot both be stored, and the payload cannot be
     repaired in the UI, so it is refused rather than half-applied.
 
-    Keys are compared lowercased, exactly like the unique constraint; comparing raw strings
+    Keys are compared folded, exactly like the unique constraint; comparing raw strings
     would let ``'BI'`` and ``'bi '`` through, only to die on an IntegrityError at flush - a
     generic 409 where the point here is a 400 naming the two rows.
 
@@ -185,7 +182,7 @@ def duplicate_problems(
     the bulk update endpoint, whose ids are global, leaves duplicates to the database.
     """
     problems: list[schemas.DiscoveryPayloadProblem] = []
-    seen: dict[RecordKey, DiscoveryCandidate] = {}
+    seen: dict[RecordKey, _DiscoveryCandidate] = {}
 
     for candidate in candidates:
         first = seen.get(candidate.key)
@@ -203,7 +200,7 @@ def duplicate_problems(
     return problems
 
 
-def raise_for_problems(
+def _raise_for_problems(
     problems: Sequence[schemas.DiscoveryPayloadProblem], max_problems: int
 ) -> None:
     """Refuse a structurally unusable payload, capping how many problems are reported."""
@@ -250,7 +247,13 @@ def _problems_from_validation_error(
 
 
 class AdminPortalDiscoveryDatasetService(DiscoveryDatasetService):
-    """Write access to the discovery dataset records of a channel."""
+    """Write access to the discovery dataset records of a channel.
+
+    Also the layer that turns an unknown id into a domain error: the read service in `common`
+    reports an absent record by returning `None`.
+    """
+
+    _UPLOAD_SETTINGS = DiscoveryUploadSettings()
 
     def __init__(self, session: AsyncSession) -> None:
         super().__init__(session, None)  # No need for session lock in Admin Portal
@@ -263,8 +266,8 @@ class AdminPortalDiscoveryDatasetService(DiscoveryDatasetService):
     ) -> models.DiscoveryDataset:
         return models.DiscoveryDataset(
             channel_id=channel_id,
-            validation_status=DiscoveryValidationStatus.NOT_VALIDATED,
-            indexing_status=DiscoveryIndexingStatus.NEW,
+            validation_status=schemas.DiscoveryValidationStatus.NOT_VALIDATED,
+            indexing_status=schemas.DiscoveryIndexingStatus.NEW,
             **record.model_dump(),
         )
 
@@ -281,13 +284,13 @@ class AdminPortalDiscoveryDatasetService(DiscoveryDatasetService):
         goes back to awaiting its first attempt. That keeps the invariant the UI relies on:
         `index_error` is set exactly while `indexing_status` is FAILED.
         """
-        item.validation_status = DiscoveryValidationStatus.NOT_VALIDATED
+        item.validation_status = schemas.DiscoveryValidationStatus.NOT_VALIDATED
         item.validation_issues = None
         item.validated_at = None
-        if item.indexing_status is DiscoveryIndexingStatus.INDEXED:
-            item.indexing_status = DiscoveryIndexingStatus.OUTDATED
-        elif item.indexing_status is DiscoveryIndexingStatus.FAILED:
-            item.indexing_status = DiscoveryIndexingStatus.NEW
+        if item.indexing_status is schemas.DiscoveryIndexingStatus.INDEXED:
+            item.indexing_status = schemas.DiscoveryIndexingStatus.OUTDATED
+        elif item.indexing_status is schemas.DiscoveryIndexingStatus.FAILED:
+            item.indexing_status = schemas.DiscoveryIndexingStatus.NEW
             item.index_error = None
         item.updated_at = func.now()  # type: ignore[assignment]
 
@@ -295,10 +298,17 @@ class AdminPortalDiscoveryDatasetService(DiscoveryDatasetService):
     def _apply_values(
         cls,
         item: models.DiscoveryDataset,
-        values: dict[str, str],
+        data: _DiscoveryFields,
         ignore_key_case: bool,
     ) -> bool:
-        """Write the changed descriptive fields onto a stored record.
+        """Write the changed descriptive fields of `data` onto a stored record.
+
+        Only the fields the payload actually carries are written. `exclude_unset` is what
+        draws that line: a file may legitimately hold a subset of the columns - an agency
+        correcting one of them - and the fields it does not mention must survive. Comparing
+        against the defaults instead would blank them, and `exclude_defaults` cannot tell an
+        absent column from a cell the submitter deliberately cleared. On an edit, `None`
+        means "not provided" too, so it is dropped rather than written.
 
         With `ignore_key_case`, a key field differing only in case is left as it is: a
         workbook resubmitting 'bi' against a stored 'BI' describes the same dataset, and
@@ -306,7 +316,9 @@ class AdminPortalDiscoveryDatasetService(DiscoveryDatasetService):
         A deliberate single-record edit is a correction, so it does rewrite the casing.
         """
         changed = False
-        for name, new_value in values.items():
+        for name, new_value in data.model_dump(exclude_unset=True).items():
+            if name not in _DESCRIPTIVE_FIELDS or new_value is None:
+                continue
             current = getattr(item, name)
             if ignore_key_case and name in REQUIRED_FIELDS and current.lower() == new_value.lower():
                 continue
@@ -318,12 +330,18 @@ class AdminPortalDiscoveryDatasetService(DiscoveryDatasetService):
             cls._reset_derived_state(item)
         return changed
 
+    async def _get_item_or_raise(self, item_id: int) -> models.DiscoveryDataset:
+        item = await self.get_record_model_by_id(item_id)
+        if item is None:
+            raise DiscoveryDatasetNotFoundError(item_id)
+        return item
+
     async def _existing_by_key(self, channel_id: int) -> dict[RecordKey, models.DiscoveryDataset]:
         records = await self.get_record_models_by_channel(channel_id, limit=None, offset=0)
         return {record_key(item.agency, item.dataset_id): item for item in records}
 
     async def _raise_for_conflicting_records(
-        self, channel_id: int, candidates: Sequence[DiscoveryCandidate]
+        self, channel_id: int, candidates: Sequence[_DiscoveryCandidate]
     ) -> None:
         """Reject an insert up-front, naming every key that would collide."""
         keys = {candidate.key for candidate in candidates}
@@ -340,11 +358,12 @@ class AdminPortalDiscoveryDatasetService(DiscoveryDatasetService):
             (agency, dataset_id) for agency, dataset_id in stored if (agency, dataset_id) in keys
         ]
         if conflicting:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT, detail=_conflict_detail(conflicting)
-            )
+            raise _conflict(conflicting)
 
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~ single record ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+    async def get_record_schema_by_id(self, item_id: int) -> schemas.DiscoveryDataset:
+        return self._serialize(await self._get_item_or_raise(item_id))
 
     async def add_record(
         self, channel_id: int, data: schemas.DiscoveryDatasetBase
@@ -357,19 +376,16 @@ class AdminPortalDiscoveryDatasetService(DiscoveryDatasetService):
             await self._session.commit()
         except IntegrityError as e:
             await self._session.rollback()
-            raise_for_integrity_error(
-                e, _conflict_detail([record_key(data.agency, data.dataset_id)])
-            )
+            raise_for_conflict(e, _conflict([record_key(data.agency, data.dataset_id)]))
 
-        return self.serialize(item)
+        return self._serialize(item)
 
     async def update(
         self, item_id: int, data: schemas.DiscoveryDatasetUpdate
     ) -> schemas.DiscoveryDataset:
         item = await self._get_item_or_raise(item_id)
-        values: dict[str, str] = data.model_dump(exclude_unset=True, exclude_none=True)
 
-        if self._apply_values(item, values, ignore_key_case=False):
+        if self._apply_values(item, data, ignore_key_case=False):
             # Read before the commit: a rollback expires the instance, and re-reading an
             # expired attribute in an async session raises instead of lazy-loading.
             key = record_key(item.agency, item.dataset_id)
@@ -377,10 +393,10 @@ class AdminPortalDiscoveryDatasetService(DiscoveryDatasetService):
                 await self._session.commit()
             except IntegrityError as e:
                 await self._session.rollback()
-                raise_for_integrity_error(e, _conflict_detail([key]))
+                raise_for_conflict(e, _conflict([key]))
             await self._session.refresh(item)
 
-        return self.serialize(item)
+        return self._serialize(item)
 
     async def delete(self, item_id: int) -> None:
         item = await self._get_item_or_raise(item_id)
@@ -396,8 +412,10 @@ class AdminPortalDiscoveryDatasetService(DiscoveryDatasetService):
     ) -> list[schemas.DiscoveryDataset]:
         channel = await ChannelService(self._session).get_model_by_id(channel_id)
 
-        candidates = build_candidates(data)
-        raise_for_problems(duplicate_problems(candidates), _UPLOAD_SETTINGS.max_reported_problems)
+        candidates = _build_candidates(data)
+        _raise_for_problems(
+            _duplicate_problems(candidates), self._UPLOAD_SETTINGS.max_reported_problems
+        )
         await self._raise_for_conflicting_records(channel.id, candidates)
 
         items = [self._new_model(channel.id, candidate.record) for candidate in candidates]
@@ -408,9 +426,9 @@ class AdminPortalDiscoveryDatasetService(DiscoveryDatasetService):
             await self._session.rollback()
             # The pre-check above names the conflict in the common case; getting here means
             # a concurrent writer inserted the same key in the meantime.
-            raise_for_integrity_error(e, _conflict_detail())
+            raise_for_conflict(e, _conflict())
 
-        return [self.serialize(item) for item in items]
+        return [self._serialize(item) for item in items]
 
     async def update_records_bulk(
         self, data: Sequence[schemas.DiscoveryDatasetUpdateBulk]
@@ -423,14 +441,8 @@ class AdminPortalDiscoveryDatasetService(DiscoveryDatasetService):
         for update_request in data:
             item = existing.get(update_request.id)
             if item is None:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail=f"DiscoveryDataset with id {update_request.id} not found.",
-                )
-            values: dict[str, str] = update_request.model_dump(
-                exclude={"id"}, exclude_unset=True, exclude_none=True
-            )
-            if self._apply_values(item, values, ignore_key_case=False):
+                raise DiscoveryDatasetNotFoundError(update_request.id)
+            if self._apply_values(item, update_request, ignore_key_case=False):
                 updated_ids.append(update_request.id)
 
         if updated_ids:
@@ -439,13 +451,13 @@ class AdminPortalDiscoveryDatasetService(DiscoveryDatasetService):
                 await self._session.commit()
             except IntegrityError as e:
                 await self._session.rollback()
-                raise_for_integrity_error(e, _conflict_detail())
+                raise_for_conflict(e, _conflict())
             refreshed = {item.id: item for item in await self.get_record_models_by_ids(updated_ids)}
             existing.update(refreshed)
         else:
             _log.info(f"All {len(data)} discovery datasets are up-to-date.")
 
-        return [self.serialize(existing[item.id]) for item in data]
+        return [self._serialize(existing[item.id]) for item in data]
 
     async def delete_records_bulk(
         self, item_ids: list[int] | None = None, channel_id: int | None = None
@@ -467,37 +479,30 @@ class AdminPortalDiscoveryDatasetService(DiscoveryDatasetService):
         deleted = (await self._session.execute(query)).scalars().all()
         await self._session.commit()
         _log.info(f"Deleted {len(deleted)} discovery datasets.")
-        return [self.serialize(item) for item in deleted]
+        return [self._serialize(item) for item in deleted]
 
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~ upsert ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
     async def _upsert(
         self,
         channel_id: int,
-        candidates: Sequence[DiscoveryCandidate],
+        candidates: Sequence[_DiscoveryCandidate],
         delete_absent: bool,
     ) -> schemas.DiscoveryUploadSummary:
         """Reconcile a payload with what the channel already holds.
 
         Unchanged records are not written at all, so an unedited resubmission keeps its
         statuses instead of being reported as deleted-and-recreated.
-
-        Only the fields the payload actually carries are written. `exclude_unset` is what
-        draws that line: a file may legitimately hold a subset of the columns - an agency
-        correcting one of them - and the fields it does not mention must survive. Comparing
-        against the defaults instead would blank them, and `exclude_defaults` cannot tell an
-        absent column from a cell the submitter deliberately cleared.
         """
         existing = await self._existing_by_key(channel_id)
         summary = schemas.DiscoveryUploadSummary()
 
         for candidate in candidates:
-            values = candidate.record.model_dump(exclude_unset=True)
             item = existing.get(candidate.key)
             if item is None:
                 self._session.add(self._new_model(channel_id, candidate.record))
                 summary.created += 1
-            elif self._apply_values(item, values, ignore_key_case=True):
+            elif self._apply_values(item, candidate.record, ignore_key_case=True):
                 summary.updated += 1
             else:
                 summary.unchanged += 1
@@ -518,7 +523,7 @@ class AdminPortalDiscoveryDatasetService(DiscoveryDatasetService):
             await self._session.commit()
         except IntegrityError as e:
             await self._session.rollback()
-            raise_for_integrity_error(e, _conflict_detail())
+            raise_for_conflict(e, _conflict())
 
         # The row counts belong to parsing and are filled in by the caller, so they are
         # left out here rather than logged as zero.
@@ -533,10 +538,12 @@ class AdminPortalDiscoveryDatasetService(DiscoveryDatasetService):
     async def read_upload(self, file: UploadFile) -> bytes:
         """Read an upload into memory, refusing anything over the configured cap.
 
-        Streamed rather than read whole so an oversized file is rejected without first
-        being buffered in full.
+        Read in chunks so an oversized file is refused without a second full copy of it in
+        memory. Note that this is not a limit on what crosses the wire: by the time a handler
+        runs, Starlette's multipart parser has already received the whole body and spooled it
+        to a temporary file. Bounding the transfer itself belongs at the ingress.
         """
-        limit = _UPLOAD_SETTINGS.max_file_size_bytes
+        limit = self._UPLOAD_SETTINGS.max_file_size_bytes
         buffer = bytearray()
         while chunk := await file.read(_UPLOAD_CHUNK_SIZE):
             buffer.extend(chunk)
@@ -557,10 +564,10 @@ class AdminPortalDiscoveryDatasetService(DiscoveryDatasetService):
         channel = await ChannelService(self._session).get_model_by_id(channel_id)
 
         parsed = await asyncio.to_thread(
-            parse_discovery_file, data, filename, _UPLOAD_SETTINGS.max_rows
+            parse_discovery_file, data, filename, self._UPLOAD_SETTINGS.max_rows
         )
         raw = [
-            RawRecord(
+            _RawRecord(
                 values=row.values,
                 row=row.row_number,
                 cells={
@@ -571,9 +578,9 @@ class AdminPortalDiscoveryDatasetService(DiscoveryDatasetService):
             )
             for row in parsed.rows
         ]
-        candidates, problems = build_candidates_from_rows(raw)
-        problems.extend(duplicate_problems(candidates))
-        raise_for_problems(problems, _UPLOAD_SETTINGS.max_reported_problems)
+        candidates, problems = _build_candidates_from_rows(raw)
+        problems.extend(_duplicate_problems(candidates))
+        _raise_for_problems(problems, self._UPLOAD_SETTINGS.max_reported_problems)
 
         summary = await self._upsert(
             channel.id,
@@ -624,15 +631,15 @@ class AdminPortalDiscoveryDatasetService(DiscoveryDatasetService):
 
         _log.info("Importing discovery datasets from zip file.")
         with zip_file.open(JobsConfig.DISCOVERY_DATASETS_FILE) as file:
-            reader = csv.DictReader(io.TextIOWrapper(file, encoding='utf-8', newline=''))
-            raw = [RawRecord(values=row, index=index) for index, row in enumerate(reader)]
+            reader = csv.DictReader(io.TextIOWrapper(file, encoding="utf-8", newline=""))
+            raw = [_RawRecord(values=row, index=index) for index, row in enumerate(reader)]
 
         # Validated row by row rather than in a comprehension: an archive whose CSV was edited
         # by hand still has to say which row is at fault, in the failure reason of the import
         # job. A raw pydantic dump there is not something an operator can act on.
-        candidates, problems = build_candidates_from_rows(raw)
-        problems.extend(duplicate_problems(candidates))
-        raise_for_problems(problems, _UPLOAD_SETTINGS.max_reported_problems)
+        candidates, problems = _build_candidates_from_rows(raw)
+        problems.extend(_duplicate_problems(candidates))
+        _raise_for_problems(problems, self._UPLOAD_SETTINGS.max_reported_problems)
 
         summary = await self._upsert(channel_id, candidates, delete_absent=False)
         _log.info(f"Imported {summary.created + summary.updated} discovery datasets.")

@@ -9,6 +9,8 @@ Records are shaped like glossary terms: the channel-scoped routes below cover a 
 collection, while a single record is addressed globally under `/discovery-datasets`.
 """
 
+from typing import Any
+
 from fastapi import APIRouter, BackgroundTasks, Depends, UploadFile, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -30,6 +32,15 @@ discovery_datasets_router = APIRouter(
     tags=["discovery_datasets"],
     dependencies=[Depends(require_jwt_auth)],
 )
+
+_PAYLOAD_ERROR_RESPONSE: dict[int | str, dict[str, Any]] = {
+    status.HTTP_400_BAD_REQUEST: {"model": schemas.DiscoveryPayloadErrorResponse}
+}
+"""Declared so the per-cell error report reaches the OpenAPI schema.
+
+The point of refusing a write with one entry per offending record is that a caller can act
+on it; a generated client cannot unless the shape is advertised.
+"""
 
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~ channel-scoped ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -74,13 +85,14 @@ async def add_discovery_dataset_to_channel(
 ) -> schemas.DiscoveryDataset:
     """Add a single discovery dataset to the channel.
 
-    Returns 400 when the agency or dataset id is empty, and 409 when the channel already
-    holds a record with the same key.
+    Returns 422 when the agency or dataset id is empty - that is a schema violation, so it
+    arrives in pydantic's shape - and 409 when the channel already holds a record with the
+    same key.
     """
     return await DiscoveryDatasetService(session).add_record(channel_id, data)
 
 
-@channel_discovery_datasets_router.post("/bulk")
+@channel_discovery_datasets_router.post("/bulk", responses=_PAYLOAD_ERROR_RESPONSE)
 async def add_discovery_datasets_bulk(
     channel_id: int,
     data: list[schemas.DiscoveryDatasetBase],
@@ -88,8 +100,9 @@ async def add_discovery_datasets_bulk(
 ) -> list[schemas.DiscoveryDataset]:
     """Add multiple discovery datasets to the channel.
 
-    All or nothing: a payload with an empty key, or with two records that describe the
-    same dataset, is refused with 400 and nothing is saved.
+    All or nothing: nothing is saved unless every record can be. Two records describing the
+    same dataset are refused with 400, naming the offending positions; an empty key is a
+    schema violation and is refused with 422, carrying the item's position in `loc`.
     """
     return await DiscoveryDatasetService(session).add_records_bulk(channel_id, data)
 
@@ -103,7 +116,7 @@ async def clear_channel_discovery_datasets(
     return await DiscoveryDatasetService(session).delete_records_bulk(channel_id=channel_id)
 
 
-@channel_discovery_datasets_router.post("/upload")
+@channel_discovery_datasets_router.post("/upload", responses=_PAYLOAD_ERROR_RESPONSE)
 async def upload_discovery_datasets(
     channel_id: int,
     file: UploadFile,
@@ -125,7 +138,7 @@ async def upload_discovery_datasets(
     return await service.upload(channel_id, data, file.filename, mode)
 
 
-@channel_discovery_datasets_router.post(path="/indexing-jobs", status_code=status.HTTP_202_ACCEPTED)
+@channel_discovery_datasets_router.post("/indexing-jobs", status_code=status.HTTP_202_ACCEPTED)
 async def trigger_discovery_indexing(
     background_tasks: BackgroundTasks,
     channel_id: int,

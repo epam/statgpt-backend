@@ -1,5 +1,6 @@
 from collections.abc import Sequence
 from types import SimpleNamespace
+from typing import cast
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -7,24 +8,26 @@ from pydantic import ValidationError
 
 from statgpt.admin.services.discovery_dataset import (
     AdminPortalDiscoveryDatasetService,
-    DiscoveryCandidate,
-    RawRecord,
-    build_candidates,
-    build_candidates_from_rows,
-    duplicate_problems,
-    raise_for_problems,
-    record_key,
+    _build_candidates,
+    _build_candidates_from_rows,
+    _DiscoveryCandidate,
+    _duplicate_problems,
+    _raise_for_problems,
+    _RawRecord,
 )
 from statgpt.admin.services.discovery_upload import COLUMN_FIELDS
 from statgpt.admin.services.exceptions import DiscoveryPayloadError
+from statgpt.common import models
 from statgpt.common.schemas import (
     DiscoveryDatasetBase,
     DiscoveryDatasetUpdate,
+    DiscoveryDatasetUpdateBulk,
     DiscoveryIndexingStatus,
     DiscoveryUploadMode,
     DiscoveryUploadSummary,
     DiscoveryValidationStatus,
 )
+from statgpt.common.services import DiscoveryDatasetService, normalize_key_part, record_key
 
 _MAX_PROBLEMS = 200
 
@@ -39,8 +42,12 @@ def _record(
 
 def _stored(
     agency: str = "Bank Indonesia (BI)", dataset_id: str = "TABEL1_1", **overrides: object
-) -> SimpleNamespace:
-    """A stand-in for a stored row: the columns the service reads and writes."""
+) -> models.DiscoveryDataset:
+    """A stand-in for a stored row: the columns the service reads and writes.
+
+    Cast rather than built, so the service's own signatures still type-check at the call
+    sites below; constructing a real mapped instance would need a session.
+    """
     values: dict[str, object] = {name: "" for name in COLUMN_FIELDS}
     values.update(agency=agency, dataset_id=dataset_id)
     values.update(overrides)
@@ -51,7 +58,7 @@ def _stored(
     values.setdefault("indexing_status", DiscoveryIndexingStatus.INDEXED)
     values.setdefault("index_error", None)
     values.setdefault("updated_at", None)
-    return SimpleNamespace(**values)
+    return cast(models.DiscoveryDataset, SimpleNamespace(**values))
 
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~ the natural key ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -108,13 +115,34 @@ def test_an_edit_may_correct_the_key_but_not_clear_it(field_name: str) -> None:
         DiscoveryDatasetUpdate.model_validate({field_name: ""})
 
 
+@pytest.mark.parametrize(
+    "submitted",
+    [
+        "Bank Indonesia (BI)",
+        "bank indonesia (bi)",
+        "  Bank  Indonesia (BI) ",
+        "Bank\xa0Indonesia (BI)",
+    ],
+)
+def test_the_agency_filter_folds_exactly_like_the_stored_key(submitted: str) -> None:
+    """The read filter and the write path have to agree, or a list request silently returns
+    nothing for a value the UI itself displays."""
+    stored_key = record_key("  Bank  Indonesia (BI) ", "TABEL1_1")[0]
+
+    clause = DiscoveryDatasetService._filters(channel_id=1, agency=submitted)[-1]
+    rendered = str(clause.compile(compile_kwargs={"literal_binds": True}))
+
+    assert normalize_key_part(submitted) == stored_key
+    assert f"'{stored_key}'" in rendered
+
+
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~ structural validation ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 
 def test_a_complete_payload_passes() -> None:
-    candidates = build_candidates([_record(), _record(dataset_id="TABEL1_2")])
+    candidates = _build_candidates([_record(), _record(dataset_id="TABEL1_2")])
 
-    assert duplicate_problems(candidates) == []
+    assert _duplicate_problems(candidates) == []
 
 
 def test_duplicate_keys_within_one_payload_are_rejected_naming_both_rows() -> None:
@@ -122,7 +150,7 @@ def test_duplicate_keys_within_one_payload_are_rejected_naming_both_rows() -> No
     payload = [_record(agency="IMF"), _record(agency="imf ")]
 
     with pytest.raises(DiscoveryPayloadError) as exc_info:
-        raise_for_problems(duplicate_problems(build_candidates(payload)), _MAX_PROBLEMS)
+        _raise_for_problems(_duplicate_problems(_build_candidates(payload)), _MAX_PROBLEMS)
 
     problem = exc_info.value.problems[0]
     assert problem.index == 1
@@ -133,7 +161,7 @@ def test_problem_list_is_capped_and_marked_truncated() -> None:
     payload = [_record() for _ in range(6)]  # five duplicates of item 0
 
     with pytest.raises(DiscoveryPayloadError) as exc_info:
-        raise_for_problems(duplicate_problems(build_candidates(payload)), max_problems=2)
+        _raise_for_problems(_duplicate_problems(_build_candidates(payload)), max_problems=2)
 
     assert len(exc_info.value.problems) == 2
     assert exc_info.value.truncated is True
@@ -141,10 +169,10 @@ def test_problem_list_is_capped_and_marked_truncated() -> None:
 
 
 def test_file_problems_carry_row_and_cell_references() -> None:
-    candidate = DiscoveryCandidate(record=_record(), row=14, cells={"dataset_id": "E14"})
-    duplicate = DiscoveryCandidate(record=_record(), row=15, cells={"dataset_id": "E15"})
+    candidate = _DiscoveryCandidate(record=_record(), row=14, cells={"dataset_id": "E14"})
+    duplicate = _DiscoveryCandidate(record=_record(), row=15, cells={"dataset_id": "E15"})
 
-    problems = duplicate_problems([candidate, duplicate])
+    problems = _duplicate_problems([candidate, duplicate])
 
     assert [(p.row, p.cell, p.index) for p in problems] == [(15, "E15", None)]
 
@@ -165,10 +193,10 @@ def test_an_empty_key_in_a_file_is_reported_against_its_cell(
     values = {"agency": "Bank Indonesia (BI)", "dataset_id": "TABEL1_1"}
     values[field_name] = "   "
     raw = [
-        RawRecord(values=values, row=14, cells={"agency": "D14", "dataset_id": "E14"}),
+        _RawRecord(values=values, row=14, cells={"agency": "D14", "dataset_id": "E14"}),
     ]
 
-    candidates, problems = build_candidates_from_rows(raw)
+    candidates, problems = _build_candidates_from_rows(raw)
 
     assert candidates == []
     assert len(problems) == 1
@@ -177,8 +205,8 @@ def test_an_empty_key_in_a_file_is_reported_against_its_cell(
 
 
 def test_a_row_missing_a_key_column_is_reported_as_missing() -> None:
-    candidates, problems = build_candidates_from_rows(
-        [RawRecord(values={"agency": "IMF"}, index=3)]
+    candidates, problems = _build_candidates_from_rows(
+        [_RawRecord(values={"agency": "IMF"}, index=3)]
     )
 
     assert candidates == []
@@ -189,12 +217,12 @@ def test_a_row_missing_a_key_column_is_reported_as_missing() -> None:
 
 def test_the_exception_message_names_the_offending_records() -> None:
     """`str(exc)` is what reaches a log line and an import job's `reason_for_failure`."""
-    _, problems = build_candidates_from_rows(
-        [RawRecord(values={"agency": "", "dataset_id": "X"}, row=14, cells={"agency": "D14"})]
+    _, problems = _build_candidates_from_rows(
+        [_RawRecord(values={"agency": "", "dataset_id": "X"}, row=14, cells={"agency": "D14"})]
     )
 
     with pytest.raises(DiscoveryPayloadError) as exc_info:
-        raise_for_problems(problems, _MAX_PROBLEMS)
+        _raise_for_problems(problems, _MAX_PROBLEMS)
 
     assert "D14: Agency / organization must not be empty." in str(exc_info.value)
 
@@ -202,7 +230,7 @@ def test_the_exception_message_names_the_offending_records() -> None:
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~ upsert reconciliation ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 
-def _service(existing: list[SimpleNamespace]) -> AdminPortalDiscoveryDatasetService:
+def _service(existing: list[models.DiscoveryDataset]) -> AdminPortalDiscoveryDatasetService:
     service = AdminPortalDiscoveryDatasetService(session=MagicMock())
     service._session.commit = AsyncMock()  # type: ignore[method-assign]
     service._session.execute = AsyncMock()  # type: ignore[method-assign]
@@ -217,7 +245,7 @@ async def _upload(
 ) -> DiscoveryUploadSummary:
     return await service._upsert(
         channel_id=1,
-        candidates=build_candidates(records),
+        candidates=_build_candidates(records),
         delete_absent=mode is DiscoveryUploadMode.REPLACE,
     )
 
@@ -345,6 +373,63 @@ async def test_upsert_keeps_records_the_file_does_not_mention() -> None:
     summary = await _upload(service, [_record()], DiscoveryUploadMode.UPSERT)
 
     assert (summary.created, summary.deleted) == (1, 0)
+
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~ edits ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# `_apply_values` takes the payload model, so these cover the shape an edit arrives in:
+# a subset of the fields, where `null` means "not provided" rather than "clear this".
+
+
+def test_an_edit_writes_only_the_fields_it_carries() -> None:
+    stored = _stored(description="old", name="Broad Money")
+
+    changed = AdminPortalDiscoveryDatasetService._apply_values(
+        stored, DiscoveryDatasetUpdate.model_validate({"description": "new"}), ignore_key_case=False
+    )
+
+    assert changed is True
+    assert (stored.description, stored.name) == ("new", "Broad Money")
+    assert stored.indexing_status is DiscoveryIndexingStatus.OUTDATED
+
+
+def test_an_explicit_null_in_an_edit_is_not_a_cleared_field() -> None:
+    """`null` is how a partial JSON body says "not provided"; only `""` clears a field."""
+    stored = _stored(description="old")
+
+    changed = AdminPortalDiscoveryDatasetService._apply_values(
+        stored, DiscoveryDatasetUpdate.model_validate({"description": None}), ignore_key_case=False
+    )
+
+    assert changed is False
+    assert stored.description == "old"
+    assert stored.validation_status is DiscoveryValidationStatus.VALID
+
+
+def test_a_bulk_edit_does_not_write_the_id_it_addresses() -> None:
+    """`id` rides along in the bulk payload but is not a descriptive column."""
+    stored = _stored(description="old")
+
+    AdminPortalDiscoveryDatasetService._apply_values(
+        stored,
+        DiscoveryDatasetUpdateBulk.model_validate({"id": 99, "description": "new"}),
+        ignore_key_case=False,
+    )
+
+    assert (stored.id, stored.description) == (1, "new")
+
+
+def test_an_edit_rewrites_the_key_casing() -> None:
+    """Unlike an upload, a single-record edit of the key is a deliberate correction."""
+    stored = _stored(agency="Bank Indonesia (BI)")
+
+    changed = AdminPortalDiscoveryDatasetService._apply_values(
+        stored,
+        DiscoveryDatasetUpdate.model_validate({"agency": "BANK INDONESIA (BI)"}),
+        ignore_key_case=False,
+    )
+
+    assert changed is True
+    assert stored.agency == "BANK INDONESIA (BI)"
 
 
 @pytest.mark.asyncio

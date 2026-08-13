@@ -1,8 +1,8 @@
 import pytest
 
 from statgpt.admin.services.discovery_validation import (
+    _FREQUENCY_VOCABULARY,
     DEFAULT_CHECKS,
-    FREQUENCY_VOCABULARY,
     DiscoveryCheck,
     DiscoveryRecord,
     DiscoveryValidator,
@@ -25,7 +25,7 @@ def test_a_well_filled_record_is_valid() -> None:
     assert DiscoveryValidator().validate(_record()) == []
 
 
-@pytest.mark.parametrize("frequency", FREQUENCY_VOCABULARY)
+@pytest.mark.parametrize("frequency", _FREQUENCY_VOCABULARY)
 def test_every_vocabulary_frequency_is_accepted(frequency: str) -> None:
     assert DiscoveryValidator().validate(_record(frequency_coverage=frequency)) == []
 

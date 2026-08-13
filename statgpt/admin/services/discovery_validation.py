@@ -23,7 +23,7 @@ from statgpt.common.schemas import DiscoveryValidationIssue
 
 _log = logging.getLogger(__name__)
 
-FREQUENCY_VOCABULARY: tuple[str, ...] = (
+_FREQUENCY_VOCABULARY: tuple[str, ...] = (
     "Daily",
     "Business daily",
     "Weekly",
@@ -35,7 +35,7 @@ FREQUENCY_VOCABULARY: tuple[str, ...] = (
 )
 """The frequencies the discovery template tells submitters to choose from (column J)."""
 
-_FREQUENCY_LOOKUP = {value.casefold(): value for value in FREQUENCY_VOCABULARY}
+_FREQUENCY_LOOKUP = {value.casefold(): value for value in _FREQUENCY_VOCABULARY}
 _ALLOWED_URL_SCHEMES = ("http", "https")
 
 
@@ -43,33 +43,58 @@ class DiscoveryRecord(Protocol):
     """The descriptive half of a discovery dataset record.
 
     A narrow read-only view, so a check can be run against a stored row, an unsaved
-    schema, or a test stub alike.
+    schema, or a test stub alike. The members are properties rather than attributes so the
+    protocol stays covariant: a mutable attribute would be invariant, and a mapped column
+    typed `Mapped[str]` would not satisfy it.
     """
 
-    reference_area: str
-    regional_coverage: str
-    excluded_regional_values: str
-    agency: str
-    dataset_id: str
-    name: str
-    description: str
-    url: str
-    time_coverage: str
-    frequency_coverage: str
-    indicators_coverage: str
-    missing_indicators: str
+    @property
+    def reference_area(self) -> str: ...
+
+    @property
+    def regional_coverage(self) -> str: ...
+
+    @property
+    def excluded_regional_values(self) -> str: ...
+
+    @property
+    def agency(self) -> str: ...
+
+    @property
+    def dataset_id(self) -> str: ...
+
+    @property
+    def name(self) -> str: ...
+
+    @property
+    def description(self) -> str: ...
+
+    @property
+    def url(self) -> str: ...
+
+    @property
+    def time_coverage(self) -> str: ...
+
+    @property
+    def frequency_coverage(self) -> str: ...
+
+    @property
+    def indicators_coverage(self) -> str: ...
+
+    @property
+    def missing_indicators(self) -> str: ...
 
 
-CheckFn = Callable[[DiscoveryRecord], Iterable[DiscoveryValidationIssue]]
+_CheckFn = Callable[[DiscoveryRecord], Iterable[DiscoveryValidationIssue]]
 
 
 @dataclass(frozen=True)
 class DiscoveryCheck:
     name: str
-    run: CheckFn
+    run: _CheckFn
 
 
-def check_frequency_coverage(record: DiscoveryRecord) -> Iterable[DiscoveryValidationIssue]:
+def _check_frequency_coverage(record: DiscoveryRecord) -> Iterable[DiscoveryValidationIssue]:
     """Every ';'-separated token of column J must come from the template's vocabulary.
 
     An empty cell is not an issue: absent information does not make a record unfit to
@@ -78,7 +103,7 @@ def check_frequency_coverage(record: DiscoveryRecord) -> Iterable[DiscoveryValid
     if not record.frequency_coverage:
         return
 
-    allowed = "; ".join(FREQUENCY_VOCABULARY)
+    allowed = "; ".join(_FREQUENCY_VOCABULARY)
     for token in record.frequency_coverage.split(";"):
         value = token.strip()
         if value and value.casefold() not in _FREQUENCY_LOOKUP:
@@ -88,7 +113,7 @@ def check_frequency_coverage(record: DiscoveryRecord) -> Iterable[DiscoveryValid
             )
 
 
-def check_url(record: DiscoveryRecord) -> Iterable[DiscoveryValidationIssue]:
+def _check_url(record: DiscoveryRecord) -> Iterable[DiscoveryValidationIssue]:
     """Column H must be a web address, since referring a user to it is the record's purpose.
 
     ``http`` is accepted alongside ``https``: an invalid record is not published, so
@@ -107,8 +132,8 @@ def check_url(record: DiscoveryRecord) -> Iterable[DiscoveryValidationIssue]:
 
 
 DEFAULT_CHECKS: tuple[DiscoveryCheck, ...] = (
-    DiscoveryCheck(name="frequency_coverage", run=check_frequency_coverage),
-    DiscoveryCheck(name="url", run=check_url),
+    DiscoveryCheck(name="frequency_coverage", run=_check_frequency_coverage),
+    DiscoveryCheck(name="url", run=_check_url),
 )
 """The check set as it stands.
 

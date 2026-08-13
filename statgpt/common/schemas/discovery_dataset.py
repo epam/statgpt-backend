@@ -179,13 +179,25 @@ class DiscoveryPayloadErrorDetail(BaseYamlModel):
     model_config = ConfigDict(use_attribute_docstrings=True)
 
     message: str
-    """Summary naming how many problems were found."""
+    """What is wrong, naming how many problems were found when they can be itemized."""
 
     problems: list[DiscoveryPayloadProblem]
-    """The problems, capped by the configured limit."""
+    """The problems, capped by the configured limit. Empty when the file was unreadable."""
 
     truncated: bool = False
     """True when more problems were found than are reported here."""
+
+
+class DiscoveryPayloadErrorResponse(BaseYamlModel):
+    """The 400 response body, declared so the per-cell report reaches the OpenAPI schema.
+
+    FastAPI's own error shape carries a string in `detail`; this one carries an object, so a
+    generated client only knows about it if the endpoints advertise this model.
+    """
+
+    model_config = ConfigDict(use_attribute_docstrings=True)
+
+    detail: DiscoveryPayloadErrorDetail
 
 
 class DiscoveryUploadSummary(BaseYamlModel):

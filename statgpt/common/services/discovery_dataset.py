@@ -1,18 +1,41 @@
 import asyncio
 
-from fastapi import HTTPException, status
 from sqlalchemy import ColumnElement, Select, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from statgpt.common import models, schemas
 from statgpt.common.services.base import DbServiceBase
+from statgpt.common.utils import normalize_whitespace
+
+RecordKey = tuple[str, str]
+"""The natural key of a record within its channel: folded (agency, dataset_id)."""
+
+
+def normalize_key_part(value: str) -> str:
+    """Fold one half of the natural key the way the database's generated column does.
+
+    ``.lower()``, never ``.casefold()``: the generated `agency_key` / `dataset_id_key`
+    columns hold what PostgreSQL's ``lower()`` produced, and ``casefold()`` is more
+    aggressive (``'ß'`` -> ``'ss'``), so it would miss rows the database considers matches.
+
+    Whitespace is normalized first, because that is what the write path stored: a value
+    only stripped at the ends would not match a stored one whose internal runs were
+    collapsed.
+    """
+    return normalize_whitespace(value).lower()
+
+
+def record_key(agency: str, dataset_id: str) -> RecordKey:
+    """Build the key the database compares on."""
+    return normalize_key_part(agency), normalize_key_part(dataset_id)
 
 
 class DiscoveryDatasetService(DbServiceBase):
     """Read access to the discovery dataset records of a channel.
 
     Lives in `common` because the read side is shared: the chat application needs the
-    same records the admin portal writes, and `common` cannot import from `admin`.
+    same records the admin portal writes, and `common` cannot import from `admin`. Nothing
+    here raises on a missing record - the caller decides what an absent id means.
     """
 
     def __init__(self, session: AsyncSession, session_lock: asyncio.Lock | None = None) -> None:
@@ -31,9 +54,10 @@ class DiscoveryDatasetService(DbServiceBase):
         if indexing_status is not None:
             clauses.append(models.DiscoveryDataset.indexing_status == indexing_status)
         if agency is not None:
-            # Matched through the generated key, so the filter is case-insensitive in the
-            # same way the natural key is.
-            clauses.append(models.DiscoveryDataset.agency_key == agency.strip().lower())
+            # Matched through the generated key, and folded by the same helper the write
+            # path uses, so the filter is case- and whitespace-insensitive in exactly the
+            # way the natural key is.
+            clauses.append(models.DiscoveryDataset.agency_key == normalize_key_part(agency))
         return clauses
 
     def _select_by_channel(
@@ -93,7 +117,7 @@ class DiscoveryDatasetService(DbServiceBase):
         records = await self.get_record_models_by_channel(
             channel_id, limit, offset, validation_status, indexing_status, agency
         )
-        return [self.serialize(item) for item in records]
+        return [self._serialize(item) for item in records]
 
     async def get_record_models_by_ids(self, item_ids: list[int]) -> list[models.DiscoveryDataset]:
         query = select(models.DiscoveryDataset).where(models.DiscoveryDataset.id.in_(item_ids))
@@ -101,21 +125,10 @@ class DiscoveryDatasetService(DbServiceBase):
             q_result = await session.execute(query)
         return list(q_result.scalars().all())
 
-    async def _get_item_or_raise(self, item_id: int) -> models.DiscoveryDataset:
+    async def get_record_model_by_id(self, item_id: int) -> models.DiscoveryDataset | None:
         async with self._lock_session() as session:
-            item: models.DiscoveryDataset | None = await session.get(
-                models.DiscoveryDataset, item_id
-            )
-        if not item:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"DiscoveryDataset with id={item_id} not found",
-            )
-        return item
-
-    async def get_record_schema_by_id(self, item_id: int) -> schemas.DiscoveryDataset:
-        return self.serialize(await self._get_item_or_raise(item_id))
+            return await session.get(models.DiscoveryDataset, item_id)
 
     @staticmethod
-    def serialize(item: models.DiscoveryDataset) -> schemas.DiscoveryDataset:
+    def _serialize(item: models.DiscoveryDataset) -> schemas.DiscoveryDataset:
         return schemas.DiscoveryDataset.model_validate(item, from_attributes=True)

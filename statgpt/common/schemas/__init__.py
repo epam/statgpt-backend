@@ -36,6 +36,7 @@ from .discovery_dataset import (
     DiscoveryDatasetUpdate,
     DiscoveryDatasetUpdateBulk,
     DiscoveryPayloadErrorDetail,
+    DiscoveryPayloadErrorResponse,
     DiscoveryPayloadProblem,
     DiscoveryUploadSummary,
     DiscoveryValidationIssue,

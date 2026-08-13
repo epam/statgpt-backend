@@ -23,7 +23,7 @@ import openpyxl
 from openpyxl import Workbook
 from openpyxl.utils import get_column_letter
 from openpyxl.utils.exceptions import InvalidFileException
-from openpyxl.worksheet.worksheet import Worksheet
+from openpyxl.worksheet._read_only import ReadOnlyWorksheet
 
 from statgpt.common.utils import normalize_whitespace
 
@@ -282,7 +282,8 @@ def _column_letters(headers: dict[int, str]) -> dict[str, str]:
     return {name: get_column_letter(index + 1) for index, name in headers.items()}
 
 
-def _get_worksheet(workbook: Workbook) -> Worksheet:
+def _get_worksheet(workbook: Workbook) -> ReadOnlyWorksheet:
+    """Pick the sheet holding the records."""
     worksheet = None
     for sheet_name in workbook.sheetnames:
         if sheet_name.strip().casefold() == _DATASETS_SHEET_NAME:
@@ -310,7 +311,7 @@ def _parse_workbook(data: bytes, max_rows: int) -> ParsedFile:
     try:
         worksheet = _get_worksheet(workbook)
 
-        rows_iter = worksheet.iter_rows(values_only=True)
+        rows_iter = worksheet.values
         try:
             header_cells = list(next(rows_iter))
         except StopIteration as e:

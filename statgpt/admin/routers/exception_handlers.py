@@ -11,13 +11,31 @@ from fastapi import FastAPI, Request, status
 from fastapi.responses import JSONResponse
 
 from statgpt.admin.services.exceptions import (
+    DiscoveryDatasetConflictError,
+    DiscoveryNotFoundError,
     DiscoveryPayloadError,
     DiscoveryUploadFormatError,
     DiscoveryUploadTooLargeError,
     IndexingJobInProgressError,
 )
+from statgpt.common import schemas
 
 _log = logging.getLogger(__name__)
+
+
+def _payload_error_response(detail: schemas.DiscoveryPayloadErrorDetail) -> JSONResponse:
+    """Render the one 400 body shape the discovery endpoints use.
+
+    A file that could not be read and a file whose cells are wrong are the same thing to a
+    caller - the write was refused - so they share a shape and differ only in whether
+    `problems` is populated. One shape is also what makes the 400 declarable in OpenAPI.
+    """
+    return JSONResponse(
+        status_code=status.HTTP_400_BAD_REQUEST,
+        content=schemas.DiscoveryPayloadErrorResponse(detail=detail).model_dump(
+            mode="json", by_alias=True
+        ),
+    )
 
 
 def register_exception_handlers(app: FastAPI) -> None:
@@ -25,21 +43,30 @@ def register_exception_handlers(app: FastAPI) -> None:
     async def _payload_error(_: Request, exc: DiscoveryPayloadError) -> JSONResponse:
         """A structurally unusable payload: 400, with one entry per offending record."""
         _log.info(f"Rejected discovery payload: {exc}")
-        return JSONResponse(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            content={"detail": exc.detail.model_dump(mode="json", by_alias=True)},
-        )
+        return _payload_error_response(exc.detail)
 
     @app.exception_handler(DiscoveryUploadFormatError)
     async def _format_error(_: Request, exc: DiscoveryUploadFormatError) -> JSONResponse:
+        """An unreadable file: 400, with nothing to itemize."""
         _log.info(f"Rejected discovery upload: {exc}")
-        return JSONResponse(status_code=status.HTTP_400_BAD_REQUEST, content={"detail": str(exc)})
+        return _payload_error_response(
+            schemas.DiscoveryPayloadErrorDetail(message=str(exc), problems=[])
+        )
 
     @app.exception_handler(DiscoveryUploadTooLargeError)
     async def _too_large(_: Request, exc: DiscoveryUploadTooLargeError) -> JSONResponse:
         return JSONResponse(
-            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, content={"detail": str(exc)}
+            status_code=status.HTTP_413_CONTENT_TOO_LARGE, content={"detail": str(exc)}
         )
+
+    @app.exception_handler(DiscoveryNotFoundError)
+    async def _not_found(_: Request, exc: DiscoveryNotFoundError) -> JSONResponse:
+        """Registered on the base class, so every discovery id lookup maps to 404."""
+        return JSONResponse(status_code=status.HTTP_404_NOT_FOUND, content={"detail": str(exc)})
+
+    @app.exception_handler(DiscoveryDatasetConflictError)
+    async def _conflict(_: Request, exc: DiscoveryDatasetConflictError) -> JSONResponse:
+        return JSONResponse(status_code=status.HTTP_409_CONFLICT, content={"detail": str(exc)})
 
     @app.exception_handler(IndexingJobInProgressError)
     async def _job_in_progress(_: Request, exc: IndexingJobInProgressError) -> JSONResponse:
