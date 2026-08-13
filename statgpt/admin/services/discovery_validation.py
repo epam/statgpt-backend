@@ -125,10 +125,6 @@ class DiscoveryValidator:
     def __init__(self, checks: Sequence[DiscoveryCheck] = DEFAULT_CHECKS) -> None:
         self._checks = tuple(checks)
 
-    @property
-    def check_names(self) -> tuple[str, ...]:
-        return tuple(check.name for check in self._checks)
-
     def validate(self, record: DiscoveryRecord) -> list[DiscoveryValidationIssue]:
         """Return every issue found. An empty list means the record may be published.
 

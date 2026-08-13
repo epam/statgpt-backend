@@ -14,15 +14,18 @@ import datetime
 import io
 import logging
 import zipfile
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, field
 from enum import StrEnum, auto
 from typing import Any
 
 import openpyxl
+from openpyxl import Workbook
 from openpyxl.utils import get_column_letter
 from openpyxl.utils.exceptions import InvalidFileException
+from openpyxl.worksheet.worksheet import Worksheet
 
-from statgpt.common.utils.misc import normalize_whitespace
+from statgpt.common.utils import normalize_whitespace
 
 from .exceptions import DiscoveryUploadFormatError
 
@@ -98,14 +101,14 @@ def _build_header_aliases() -> dict[str, str]:
     return {key.casefold(): value for key, value in aliases.items()}
 
 
-HEADER_ALIASES: dict[str, str] = _build_header_aliases()
+_HEADER_ALIASES: dict[str, str] = _build_header_aliases()
 
-DATASETS_SHEET_NAME = "datasets"
-_XLSX_MAGIC = b"PK\x03\x04"
-_XLS_MAGIC = b"\xd0\xcf\x11\xe0"
+_DATASETS_SHEET_NAME: str = "datasets"
+_XLSX_SIGNATURE = b"PK\x03\x04"
+_XLS_SIGNATURE = b"\xd0\xcf\x11\xe0"
 
 
-class DiscoveryFileFormat(StrEnum):
+class _DiscoveryFileFormat(StrEnum):
     XLSX = auto()
     CSV = auto()
 
@@ -136,11 +139,11 @@ class ParsedFile:
         return f"{letter}{row_number}" if letter else None
 
 
-def detect_format(data: bytes, filename: str | None = None) -> DiscoveryFileFormat:
-    """Classify an upload by magic bytes, falling back to the filename extension."""
-    if data[:4] == _XLSX_MAGIC:
-        return DiscoveryFileFormat.XLSX
-    if data[:4] == _XLS_MAGIC:
+def _detect_format(data: bytes, filename: str | None = None) -> _DiscoveryFileFormat:
+    """Classify an upload by its signature bytes, falling back to the filename extension."""
+    if data[:4] == _XLSX_SIGNATURE:
+        return _DiscoveryFileFormat.XLSX
+    if data[:4] == _XLS_SIGNATURE:
         raise DiscoveryUploadFormatError(
             "The file is a legacy Excel workbook (.xls). Open it in Excel and re-save it"
             " as .xlsx, or export it as CSV."
@@ -148,7 +151,7 @@ def detect_format(data: bytes, filename: str | None = None) -> DiscoveryFileForm
 
     name = (filename or "").casefold()
     if name.endswith(".csv") or name.endswith(".txt"):
-        return DiscoveryFileFormat.CSV
+        return _DiscoveryFileFormat.CSV
     if name.endswith(".xlsx") or name.endswith(".xlsm"):
         raise DiscoveryUploadFormatError(
             "The file is named like an Excel workbook but is not one. Re-save it as .xlsx."
@@ -194,7 +197,7 @@ def _resolve_headers(header_cells: list[Any]) -> dict[int, str]:
         text = normalize_whitespace(_coerce_cell(cell))
         if not text:
             continue
-        field_name = HEADER_ALIASES.get(text.casefold())
+        field_name = _HEADER_ALIASES.get(text.casefold())
         if field_name is None:
             continue
         if field_name in seen:
@@ -241,10 +244,17 @@ def _resolve_headers_or_positional(header_cells: list[Any]) -> dict[int, str]:
 
 
 def _build_rows(
-    data_rows: list[tuple[int, list[Any]]],
+    data_rows: Iterable[tuple[int, Sequence[Any]]],
     headers: dict[int, str],
     max_rows: int,
 ) -> tuple[list[ParsedRow], int]:
+    """Normalize the data rows of a file, stopping as soon as the row cap is exceeded.
+
+    Takes an iterable rather than a list so the cap bounds memory: a sheet is streamed and
+    refused while it is being read, instead of after it has been materialized in full. The
+    byte cap on the upload is no substitute - xlsx is compressed XML, so a small file can
+    expand by orders of magnitude.
+    """
     rows: list[ParsedRow] = []
     skipped = 0
 
@@ -272,6 +282,22 @@ def _column_letters(headers: dict[int, str]) -> dict[str, str]:
     return {name: get_column_letter(index + 1) for index, name in headers.items()}
 
 
+def _get_worksheet(workbook: Workbook) -> Worksheet:
+    worksheet = None
+    for sheet_name in workbook.sheetnames:
+        if sheet_name.strip().casefold() == _DATASETS_SHEET_NAME:
+            worksheet = workbook[sheet_name]
+            break
+    if worksheet is None:
+        if len(workbook.sheetnames) < 2:
+            raise DiscoveryUploadFormatError(
+                f"The workbook has no {_DATASETS_SHEET_NAME.title()!r} sheet and no second"
+                f" sheet to read instead. Upload the filled discovery template."
+            )
+        worksheet = workbook[workbook.sheetnames[1]]
+    return worksheet
+
+
 def _parse_workbook(data: bytes, max_rows: int) -> ParsedFile:
     try:
         workbook = openpyxl.load_workbook(io.BytesIO(data), read_only=True, data_only=True)
@@ -282,31 +308,21 @@ def _parse_workbook(data: bytes, max_rows: int) -> ParsedFile:
         ) from e
 
     try:
-        worksheet = None
-        for sheet_name in workbook.sheetnames:
-            if sheet_name.strip().casefold() == DATASETS_SHEET_NAME:
-                worksheet = workbook[sheet_name]
-                break
-        if worksheet is None:
-            if len(workbook.sheetnames) < 2:
-                raise DiscoveryUploadFormatError(
-                    f"The workbook has no {DATASETS_SHEET_NAME.title()!r} sheet and no second"
-                    f" sheet to read instead. Upload the filled discovery template."
-                )
-            worksheet = workbook[workbook.sheetnames[1]]
+        worksheet = _get_worksheet(workbook)
 
         rows_iter = worksheet.iter_rows(values_only=True)
         try:
             header_cells = list(next(rows_iter))
-        except StopIteration:
-            raise DiscoveryUploadFormatError("The sheet is empty.")
+        except StopIteration as e:
+            raise DiscoveryUploadFormatError("The sheet is empty.") from e
 
         headers = _resolve_headers_or_positional(header_cells)
-        data_rows = [(number, list(cells)) for number, cells in enumerate(rows_iter, start=2)]
+        # Consumed here, inside the `try`: streaming is what makes `max_rows` bound memory,
+        # and the rows cannot be read once the `finally` below has closed the workbook.
+        rows, skipped = _build_rows(enumerate(rows_iter, start=2), headers, max_rows)
     finally:
         workbook.close()
 
-    rows, skipped = _build_rows(data_rows, headers, max_rows)
     return ParsedFile(rows=rows, rows_skipped=skipped, column_letters=_column_letters(headers))
 
 
@@ -336,13 +352,11 @@ def _parse_csv(data: bytes, max_rows: int) -> ParsedFile:
 
     try:
         header_cells = next(reader)
-    except StopIteration:
-        raise DiscoveryUploadFormatError("The CSV file is empty.")
+    except StopIteration as e:
+        raise DiscoveryUploadFormatError("The CSV file is empty.") from e
 
     headers = _resolve_headers_or_positional(header_cells)
-    data_rows = [(number, list(cells)) for number, cells in enumerate(reader, start=2)]
-
-    rows, skipped = _build_rows(data_rows, headers, max_rows)
+    rows, skipped = _build_rows(enumerate(reader, start=2), headers, max_rows)
     # A CSV has no spreadsheet coordinates, so problems are reported by row only.
     return ParsedFile(rows=rows, rows_skipped=skipped)
 
@@ -353,9 +367,9 @@ def parse_discovery_file(data: bytes, filename: str | None, max_rows: int) -> Pa
     Raises `DiscoveryUploadFormatError` for anything that is not a readable discovery
     file - the caller maps that to a 400.
     """
-    file_format = detect_format(data, filename)
+    file_format = _detect_format(data, filename)
     _log.info(f"Parsing discovery upload {filename!r} as {file_format}.")
 
-    if file_format is DiscoveryFileFormat.XLSX:
+    if file_format is _DiscoveryFileFormat.XLSX:
         return _parse_workbook(data, max_rows)
     return _parse_csv(data, max_rows)

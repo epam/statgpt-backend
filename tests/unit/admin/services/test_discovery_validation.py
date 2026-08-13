@@ -4,6 +4,7 @@ from statgpt.admin.services.discovery_validation import (
     DEFAULT_CHECKS,
     FREQUENCY_VOCABULARY,
     DiscoveryCheck,
+    DiscoveryRecord,
     DiscoveryValidator,
 )
 from statgpt.common.schemas import DiscoveryDatasetBase, DiscoveryValidationIssue
@@ -92,17 +93,16 @@ def test_all_issues_are_collected_not_just_the_first() -> None:
 def test_the_check_set_is_pluggable() -> None:
     """The metadata guidelines are still being written, so the set must be replaceable."""
 
-    def always_fails(record) -> list[DiscoveryValidationIssue]:
+    def always_fails(record: DiscoveryRecord) -> list[DiscoveryValidationIssue]:
         return [DiscoveryValidationIssue(field="name", message="Nope.")]
 
     validator = DiscoveryValidator(checks=[DiscoveryCheck(name="custom", run=always_fails)])
 
     assert [issue.message for issue in validator.validate(_record())] == ["Nope."]
-    assert validator.check_names == ("custom",)
 
 
 def test_a_broken_check_becomes_an_issue_rather_than_aborting_the_run() -> None:
-    def explodes(record) -> list[DiscoveryValidationIssue]:
+    def explodes(record: DiscoveryRecord) -> list[DiscoveryValidationIssue]:
         raise RuntimeError("boom")
 
     checks = [DiscoveryCheck(name="explodes", run=explodes), *DEFAULT_CHECKS]

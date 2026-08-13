@@ -17,10 +17,11 @@ from statgpt.common.utils import format_exception_reason, get_ts_utcnow
 from .background_tasks import background_task
 from .discovery_validation import DiscoveryValidator
 from .exceptions import IndexingJobInProgressError
+from .status_recovery import set_failed_status
 
 _log = logging.getLogger(__name__)
 
-PUBLISH_NOT_IMPLEMENTED = "Publishing to the discovery RAG is not implemented yet."
+_PUBLISH_NOT_IMPLEMENTED = "Publishing to the discovery RAG is not implemented yet."
 """Why a record that passed validation still ends a run unindexed.
 
 The publish stage lands with the Generic RAG ingestion client. Until then a run reports
@@ -116,6 +117,24 @@ class AdminPortalDiscoveryIndexingJobService(DbServiceBase):
         async with self._lock_session() as session:
             return (await session.execute(query)).scalar_one()
 
+    async def set_failed_status_for_stuck_discovery_indexing_jobs(self) -> None:
+        """Sets the status of all stuck DiscoveryIndexingJob records to FAILED.
+
+        Reuses the recovery helper the other background-job types use, so discovery runs
+        follow identical fix_statuses semantics (including the 12-hour staleness guard).
+
+        This is the only thing that clears a job abandoned mid-run - a cancelled task never
+        reaches the failure handler in `process_job` - and until it does, `trigger` keeps
+        answering 409 for the channel.
+        """
+        await set_failed_status(
+            self._session,
+            models.DiscoveryIndexingJob,
+            models.DiscoveryIndexingJob.status,
+            "status",
+        )
+        await self._session.commit()
+
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~ the run ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
     async def process_job(self, job_id: int) -> None:
@@ -143,7 +162,7 @@ class AdminPortalDiscoveryIndexingJobService(DbServiceBase):
                 job.documents_deleted = 0
                 job.details = (
                     f"Validated {len(records)} record(s): {valid} valid, {invalid} invalid."
-                    f" {PUBLISH_NOT_IMPLEMENTED}"
+                    f" {_PUBLISH_NOT_IMPLEMENTED}"
                 )
                 job.status = PreprocessingStatusEnum.COMPLETED
                 await session.commit()
@@ -182,7 +201,7 @@ class AdminPortalDiscoveryIndexingJobService(DbServiceBase):
                 record.validation_status = DiscoveryValidationStatus.VALID
                 record.validation_issues = None
                 record.indexing_status = DiscoveryIndexingStatus.FAILED
-                record.index_error = PUBLISH_NOT_IMPLEMENTED
+                record.index_error = _PUBLISH_NOT_IMPLEMENTED
                 valid += 1
 
         return valid, invalid

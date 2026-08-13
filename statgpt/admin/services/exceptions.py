@@ -14,6 +14,22 @@ _log = logging.getLogger(__name__)
 # driver versions - unlike matching on the formatted exception message.
 _UNIQUE_VIOLATION_SQLSTATE = "23505"
 
+_PROBLEMS_IN_MESSAGE = 5
+"""How many problems a one-line message names before falling back to a count."""
+
+
+def _render_problem(problem: schemas.DiscoveryPayloadProblem) -> str:
+    """Render a problem as `<where>: <what>`, using the most precise location it carries."""
+    if problem.cell:
+        where = problem.cell
+    elif problem.row is not None:
+        where = f"row {problem.row}"
+    elif problem.index is not None:
+        where = f"item {problem.index}"
+    else:
+        return problem.message
+    return f"{where}: {problem.message}"
+
 
 class AdminServiceError(Exception):
     """Base class for admin service errors mapped to HTTP responses in routers."""
@@ -68,10 +84,28 @@ class DiscoveryPayloadError(AdminServiceError):
     can see every row at fault instead of fixing them one request at a time.
     """
 
-    def __init__(self, problems: list[schemas.DiscoveryPayloadProblem], truncated: bool = False):
+    def __init__(
+        self, problems: list[schemas.DiscoveryPayloadProblem], truncated: bool = False
+    ) -> None:
         self.problems = problems
         self.truncated = truncated
-        super().__init__(f"{len(problems)} structural problem(s) in the payload.")
+        super().__init__(self._message())
+
+    def _message(self) -> str:
+        """Summarize the problems inline.
+
+        The structured `detail` below only reaches an HTTP caller. Everywhere else - a log
+        line, or the `reason_for_failure` of an import job that carried a bad archive - it is
+        ``str(exc)`` that survives, so it has to name a few of the offending records rather
+        than only counting them.
+        """
+        summary = f"{len(self.problems)} structural problem(s) in the payload"
+        shown = [_render_problem(problem) for problem in self.problems[:_PROBLEMS_IN_MESSAGE]]
+        if not shown:
+            return f"{summary}."
+        remaining = len(self.problems) - len(shown)
+        listed = "; ".join(shown) + (f"; and {remaining} more" if remaining > 0 else "")
+        return f"{summary}: {listed}."
 
     @property
     def detail(self) -> schemas.DiscoveryPayloadErrorDetail:
@@ -96,8 +130,6 @@ class IndexingJobInProgressError(AdminServiceError):
     """An indexing job for the same channel is already queued or running."""
 
     def __init__(self, channel_id: int, job_id: int) -> None:
-        self.channel_id = channel_id
-        self.job_id = job_id
         super().__init__(
             f"Indexing job {job_id} is already in progress for channel {channel_id}. "
             f"Wait for it to finish before starting another one."

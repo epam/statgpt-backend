@@ -15,6 +15,26 @@ Applied by construction rather than by each service remembering to call the help
 """
 
 
+def _require_non_empty(value: str) -> str:
+    if not value:
+        raise ValueError("must not be empty")
+    return value
+
+
+NormalizedKey = Annotated[
+    str, AfterValidator(normalize_whitespace), AfterValidator(_require_non_empty)
+]
+"""Half of the natural key: normalized, and never empty.
+
+A record with no key cannot be matched against what a channel already holds, so every write
+path has to refuse one. Enforcing it here means no service can forget to.
+
+The order is load-bearing. Annotated metadata applies left to right, so the emptiness check
+must follow the normalizer - reversed, `'   '` passes as a three-character string and is then
+normalized to `''` on its way into the database.
+"""
+
+
 class DiscoveryValidationIssue(BaseYamlModel):
     """One reason a discovery dataset record cannot be indexed."""
 
@@ -51,10 +71,10 @@ class DiscoveryDatasetBase(BaseYamlModel):
     excluded_regional_values: NormalizedStr = ""
     """Column C. Sub-national values a user could expect but the dataset does not contain."""
 
-    agency: NormalizedStr
+    agency: NormalizedKey
     """Column D. Official English name of the publisher + acronym. Half of the natural key."""
 
-    dataset_id: NormalizedStr
+    dataset_id: NormalizedKey
     """Column E. The source's own dataset identifier, verbatim. Half of the natural key."""
 
     name: NormalizedStr = ""
@@ -109,13 +129,16 @@ class DiscoveryDatasetUpdate(BaseYamlModel):
     A record cannot change channel, so there is no `channel_id` here. Omitted fields are
     left as they are; every supplied field is whitespace-normalized. To clear a field,
     send an empty string - `null` means "not provided".
+
+    The two halves of the natural key are the exception: they can be corrected but not
+    cleared, since a record with no key cannot be matched against a channel's contents.
     """
 
     reference_area: NormalizedStr | None = None
     regional_coverage: NormalizedStr | None = None
     excluded_regional_values: NormalizedStr | None = None
-    agency: NormalizedStr | None = None
-    dataset_id: NormalizedStr | None = None
+    agency: NormalizedKey | None = None
+    dataset_id: NormalizedKey | None = None
     name: NormalizedStr | None = None
     description: NormalizedStr | None = None
     url: NormalizedStr | None = None

@@ -1,6 +1,7 @@
 import csv
 import datetime
 import io
+from typing import Any
 
 import openpyxl
 import pytest
@@ -40,8 +41,8 @@ _ROW = [
 
 
 def _workbook(
-    rows: list[list],
-    headers: list | None = None,
+    rows: list[list[Any]],
+    headers: list[Any] | None = None,
     sheet_name: str = "Datasets",
     extra_sheet_first: bool = True,
 ) -> bytes:
@@ -66,7 +67,7 @@ def _workbook(
     return buffer.getvalue()
 
 
-def _csv_bytes(rows: list[dict], fieldnames: list[str], delimiter: str = ",") -> bytes:
+def _csv_bytes(rows: list[dict[str, Any]], fieldnames: list[str], delimiter: str = ",") -> bytes:
     buffer = io.StringIO()
     writer = csv.DictWriter(buffer, fieldnames=fieldnames, delimiter=delimiter)
     writer.writeheader()
