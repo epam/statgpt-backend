@@ -19,6 +19,8 @@ from .models import (
     DataSource,
     DataSourceType,
     DeduplicationJob,
+    DiscoveryDataset,
+    DiscoveryIndexingJob,
     GlossaryTerm,
     Job,
 )
