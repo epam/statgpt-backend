@@ -2,23 +2,25 @@ services:
 
   #----- StatGPT services -----#
 
-  gtdc-portal:
-    image: epam/statgpt-global-trusted-data-commons:development
-    ports:
-      - "4300:3000"
-    depends_on:
-      - ai-dial-core
-    environment:
-      APPLICATION_ORIGIN: "http://localhost:4300"
-      DIAL_API_URL: "http://ai-dial-core:8080"
-      DIAL_API_KEY: ${DIAL_API_KEY}
-      DIAL_API_VERSION : "2025-01-01-preview"
-      EN_MODEL: ${STATGPT_DEV_DEPLOYMENT}
-      DEFAULT_MODEL: ${STATGPT_DEV_DEPLOYMENT}
-      SDMX_API_URL: "https://api.imf.org/external"
-      CONSTRAINS_SDMX_API_URL: "https://data.imf.org/platform/rest/v1/registry/"
-      NEXTAUTH_SECRET: "placeholder"
-      NEXTAUTH_URL: "placeholder"
+#  gtdc-portal:
+#    image: epam/statgpt-global-trusted-data-commons:development
+#    ports:
+#      - "4300:3000"
+#    depends_on:
+#      - ai-dial-core
+#    environment:
+#      APPLICATION_ORIGIN: "http://localhost:4300"
+#      DIAL_API_URL: "http://ai-dial-core:8080"
+#      DIAL_API_KEY: ${DIAL_API_KEY}
+#      DIAL_API_VERSION : "2025-01-01-preview"
+#      EN_MODEL: ${STATGPT_DEV_DEPLOYMENT}
+#      DEFAULT_MODEL: ${STATGPT_DEV_DEPLOYMENT}
+## Leave SDMX_API_URL unset so the portal falls back to DIAL proxy mode
+## (http://ai-dial-core:8080/statgpt/sdmx-proxy/api/v0).
+##      SDMX_API_URL: ${SDMX_PROXY_HOST}
+##      CONSTRAINS_SDMX_API_URL: "https://data.imf.org/platform/rest/v1/registry/"
+#      NEXTAUTH_SECRET: "placeholder"
+#      NEXTAUTH_URL: "http://localhost:4300"
 
   #----- Data & storage services -----#
 
@@ -109,12 +111,36 @@ services:
       DIAL_API_KEY: ${DIAL_API_KEY}
       ENABLED_FEATURES: "conversations-section,prompts-section,top-settings,top-clear-conversation,top-chat-info,top-chat-model-settings,empty-chat-settings,header,footer,request-api-key,report-an-issue,likes,conversations-sharing,input-files,attachments-manager,prompts-sharing,prompts-publishing,conversations-publishing,custom-logo,input-links,custom-applications,message-templates,marketplace,quick-apps,code-apps,applications-sharing,marketplace-table-view"
       KEEP_ALIVE_TIMEOUT: ${CHAT_KEEP_ALIVE_TIMEOUT:-20000}
-      AUTH_DISABLED: "true"
+
+      AUTH_DISABLED: "false"
+      AUTH_AZURE_AD_CLIENT_ID: '22cf1b3f-2609-494a-8736-98dd32ac392f'
+      AUTH_AZURE_AD_NAME: 'Ai.Dial.Auth.Client'
+      AUTH_AZURE_AD_SCOPE: 'openid profile 22cf1b3f-2609-494a-8736-98dd32ac392f/.default email offline_access'
+      AUTH_AZURE_AD_SECRET: ${AUTH_AZURE_AD_SECRET}
+      AUTH_AZURE_AD_TENANT_ID: 'b41b72d0-4e9f-4c26-8a69-f949f367c91d'
+
 
   ai-dial-themes:
     image: epam/ai-dial-chat-themes:latest
     ports:
       - "3001:8080"
+
+  admin-ui:
+    image: epam/statgpt-admin-frontend:development
+    ports:
+      - "4100:3000"
+    environment:
+#      API_URL: "http://host.docker.internal:8000/admin"
+      API_URL: "http://172.17.0.1:8000/admin"
+      NEXTAUTH_URL: "http://localhost:4100/"
+
+      NEXTAUTH_SECRET: "00000000000000000000000000000000012"
+      AUTH_AZURE_AD_CLIENT_ID: "464eff6d-0ce2-4974-ac40-e883594eb8f6"
+      AUTH_AZURE_AD_NAME: "AI.TTYD.Clients.SPA.Admin"
+      AUTH_AZURE_AD_SCOPE: "openid profile ff68c66a-fb6a-4a7f-ac52-31e971030b14/Admin.Login email offline_access"
+      AUTH_AZURE_AD_TENANT_ID: "b41b72d0-4e9f-4c26-8a69-f949f367c91d"
+      AUTH_AZURE_AUTHORITY_URL: "https://login.microsoftonline.com/"
+      AUTH_AZURE_AD_SECRET: ${ADMIN_UI_AUTH_AZURE_AD_SECRET}
 
 ## Uncomment the lines below to test the SDMX proxy configuration locally.
 ## It seeds its own default configuration into DIAL Storage on first start, so no config file is

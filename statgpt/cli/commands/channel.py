@@ -6,17 +6,20 @@ import os
 from collections import Counter
 
 import questionary
+from pydantic import ValidationError
 from rich.table import Table
 
 from statgpt.cli.commands.base import Command, CommandArg, CommandGroup
 from statgpt.cli.settings import cli_runtime, cli_settings
 from statgpt.cli.shared import (
+    BatchPartialFailureError,
     NonInteractiveError,
     console,
     get_admin_client,
     print_error,
     print_info,
     print_success,
+    print_warning,
     select_item_interactive,
     spinner_status,
 )
@@ -39,7 +42,17 @@ def _get_urn_display(dataset: DataSet | None) -> str:
     urn_data = dataset.details.get("urn")
     if not urn_data:
         return "N/A"
-    return UrnReference.model_validate(urn_data).short_urn()
+    try:
+        return UrnReference.model_validate(urn_data).short_urn()
+    except ValidationError as e:
+        print_warning(str(e))
+        return str(urn_data)
+
+
+def _dataset_label(dataset: DataSet) -> str:
+    """Name a dataset for a summary line, falling back to its title when it has no URN."""
+    urn = _get_urn_display(dataset)
+    return dataset.title if urn == "N/A" else urn
 
 
 async def import_handler(
@@ -588,11 +601,22 @@ async def reindex_handler(
             msg = "Reindexing all datasets in channel..."
 
         with spinner_status(msg):
-            await client.reload_channel_indicators(
+            report = await client.reload_channel_indicators(
                 channel_id=selected_channel.id,
                 dataset_ids=dataset_ids,
                 max_n_embeddings=max_embeddings,
+                labels={ds.id: _dataset_label(ds) for ds in datasets},
             )
+
+        report.render()
+
+        if report.has_failures:
+            print_info(
+                "Reindexing was not started for the datasets listed above; the rest are"
+                " queued. Check progress with"
+                f" [cyan]channel status -c {selected_channel.deployment_id}[/cyan]"
+            )
+            raise BatchPartialFailureError("Reindexing failed to start for some datasets")
 
         print_success("Reindex operation started")
 
