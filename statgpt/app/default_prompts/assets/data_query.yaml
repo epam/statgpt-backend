@@ -223,7 +223,7 @@ namedEntitiesPrompt: >-
   6. Add FREQUENCY type entities ONLY IF data frequency is EXPLICITLY mentioned in the input.
   If frequency is not explicitly mentioned, do not add FREQUENCY type entities.
 
-  Format your response as JSON: {format_instructions}
+  Format your response as JSON.
 indicatorsSelectionSystemPrompt: >-
   You are an expert in Economics and Statistics helping user to select relevant indicators.
   You are provided with the user query and a list of candidates extracted from the database.

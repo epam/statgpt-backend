@@ -2,16 +2,18 @@ import time
 from typing import Annotated, Any, Self
 
 from mcp.types import ToolAnnotations
+from openai import OpenAIError
 from pydantic import Field
 
 from statgpt.app.chains.parameters import ChainParameters
 from statgpt.app.chains.tools import GuardrailInput, StatGptTool, ToolArgs
 from statgpt.app.config import StateVarsConfig
 from statgpt.app.schemas import (
-    DEEP_RESEARCH_ERROR_MESSAGE,
     DeepResearchSession,
+    DeepResearchTurn,
     ToolArtifact,
     ToolMessageState,
+    surface_deep_research_error,
 )
 from statgpt.app.utils import OpenAiToDialStreamer, openai
 from statgpt.common.config import multiline_logger as logger
@@ -64,13 +66,21 @@ class DeepResearchRunner:
     ) -> list[dict[str, Any]]:
         """The DIAL messages sent to Deep Research: the replayed sub-conversation plus the new
         user input. Deep Research resumes from the `custom_content.state` it stored on the last
-        assistant message."""
+        assistant message, so the DIAL shape is rebuilt here from the persisted turns."""
         messages: list[dict[str, Any]] = []
         # Deep Research reads its own system prompt from its app properties and skips the
         # system role on input; we still forward the configured prompt for parity.
         if system_prompt:
             messages.append({'role': 'system', 'content': system_prompt})
-        messages.extend(session.messages)
+        for turn in session.turns:
+            messages.append({'role': 'user', 'content': turn.user_message})
+            messages.append(
+                {
+                    'role': 'assistant',
+                    'content': turn.assistant_content,
+                    'custom_content': {'state': turn.dr_state},
+                }
+            )
         messages.append({'role': 'user', 'content': user_message})
         return messages
 
@@ -93,15 +103,14 @@ class DeepResearchRunner:
         assistant_content: str,
         dr_state: dict[str, Any],
     ) -> None:
-        """Record a user/assistant exchange (assistant carrying Deep Research's state) so the
+        """Record a user/assistant exchange (with Deep Research's own state) so the
         sub-conversation can be replayed on the next call/turn."""
-        session.messages.append({'role': 'user', 'content': user_message})
-        session.messages.append(
-            {
-                'role': 'assistant',
-                'content': assistant_content,
-                'custom_content': {'state': dr_state},
-            }
+        session.turns.append(
+            DeepResearchTurn(
+                user_message=user_message,
+                assistant_content=assistant_content,
+                dr_state=dr_state,
+            )
         )
 
     @staticmethod
@@ -126,6 +135,17 @@ class DeepResearchRunner:
         deployment_id = details.get_deployment_id()
 
         session = self._load_session(state)
+        if len(session.turns) >= details.max_clarification_turns:
+            # The deployment never signalled that research started within the clarification budget,
+            # so the session would otherwise grow (and be replayed) without bound. Abandon it; a
+            # later toggle-on request starts a fresh investigation.
+            logger.warning(
+                f"Deep Research session exceeded {details.max_clarification_turns} clarification"
+                " turns without starting research; abandoning it."
+            )
+            self._drop_session(state)
+            return surface_deep_research_error(choice)
+
         messages = self._build_request_messages(details.system_prompt, session, user_message)
 
         show_debug_stages = (
@@ -146,13 +166,19 @@ class DeepResearchRunner:
                 stream_content=True,
                 show_debug_stages=show_debug_stages,
                 stages_config=details.stages_config,
+                # Deep Research echoes the forwarded query as a leading `Query: "..."` line ahead
+                # of the plan/clarification; drop it from the display so the user sees only the
+                # actual response.
+                strip_leading_query=True,
             )
             with dial_streamer:
                 try:
                     stream = await client.chat.completions.create(**create_kwargs)
                     async for chunk in stream:
                         dial_streamer.send_chunk(chunk)
-                except Exception as e:
+                except OpenAIError as e:
+                    # Catch deployment-call failures (connection/timeout/status/stream errors)
+                    # and surface a friendly message; let programming errors propagate.
                     logger.exception(e)
                     failed = True
 
@@ -168,8 +194,7 @@ class DeepResearchRunner:
         if failed:
             # Deep Research owns this turn and is force-selected, so surface a friendly message
             # and leave the session untouched so the user can retry.
-            choice.append_content(DEEP_RESEARCH_ERROR_MESSAGE)
-            return DEEP_RESEARCH_ERROR_MESSAGE
+            return surface_deep_research_error(choice)
 
         if self._research_started(dr_state):
             # Final report delivered: drop the session instead of recording this turn — the

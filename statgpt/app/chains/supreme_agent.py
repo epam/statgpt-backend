@@ -24,13 +24,13 @@ from statgpt.app.chains.tools import StatGptTool
 from statgpt.app.config import ChainParametersConfig, StateVarsConfig
 from statgpt.app.default_prompts import supreme_agent_default_prompts
 from statgpt.app.schemas import (
-    DEEP_RESEARCH_ERROR_MESSAGE,
     DeepResearchSession,
     FailedToolArtifact,
     FailedToolMessageState,
     ToolArtifact,
     ToolMessageState,
     ToolResponseStatus,
+    surface_deep_research_error,
 )
 from statgpt.app.schemas.dial_app_configuration import StatGPTConfiguration
 from statgpt.app.schemas.tool_artifact import DataQueryArtifact
@@ -42,7 +42,9 @@ from statgpt.app.utils.dial_stages import (
 from statgpt.app.utils.message_history import History
 from statgpt.common.auth.auth_context import AuthContext
 from statgpt.common.config import multiline_logger as logger
-from statgpt.common.schemas import ChannelConfig, FakeCall, ToolTypes
+from statgpt.common.schemas import ChannelConfig
+from statgpt.common.schemas import DeepResearchTool as DeepResearchToolConfig
+from statgpt.common.schemas import FakeCall, ToolTypes
 from statgpt.common.utils import InvalidLLMStreamResponse
 from statgpt.common.utils.llm_call_duration_context import get_llm_call_duration_manager
 from statgpt.common.utils.markdown import format_as_markdown_list
@@ -299,40 +301,46 @@ class SupremeAgentExecutor:
         # ~~~ Deep Research routing ~~~
         # Deep Research is deliberately excluded from `ChannelConfig.tool_fields`, so it never
         # appears in `tool_executor.tools`, the MCP server, or the out-of-scope checker. It is
-        # reachable only via the `deep_research` toggle ("button"): we build the (start) tool on
-        # demand from its config, and resume is derived from it in turn.
-        deep_research_tool: StatGptTool | None = None
-        if self._channel_config.is_deep_research_available:
-            dr_config = self._channel_config.deep_research
-            assert dr_config is not None  # guaranteed by is_deep_research_available
-            deep_research_tool = StatGptTool.from_config(dr_config, self._channel_config)
+        # reachable only via the `deep_research` toggle ("button"): the start tool is built on
+        # demand from its config (below), and the resume tool is derived from that config in turn.
+        #
         # A session lives in state only while a run is in progress (the tool drops it once the
         # report is delivered), so its presence is the in-progress signal.
         session_in_progress = DeepResearchSession.from_state(state) is not None
 
         agent_tools = list(tool_executor.tools)
+        # Dispatcher for the tool calls the model emits. Defaults to the config-scoped executor;
+        # only the forced-Deep-Research branch below swaps in a dispatcher that can resolve the
+        # Deep Research tool, leaving every other path on `tool_executor` unchanged.
+        tool_caller: ToolCaller = tool_executor
+        tool_choice: str | None = None
+        parallel_tool_calls: bool | None = None
 
         # The `deep_research` toggle (advertised to the frontend only where the tool is enabled)
         # is the single switch for Deep Research: it gates both starting a new session and
         # resuming an in-progress one. When on, an active session is resumed and otherwise the
         # start tool is forced as the only bound tool; when off, Deep Research is fully
         # unavailable and any in-progress session is abandoned.
-        tool_choice: str | None = None
-        parallel_tool_calls: bool | None = None
-        if deep_research_tool is not None:
+        if self._channel_config.is_deep_research_available:
             if configuration.deep_research:
                 if session_in_progress:
                     # Active session + toggle on: forward the user's next message to Deep Research
                     # verbatim (no interpretation) and surface its reply as-is. Deterministic
                     # routing driven by the session flag, so a resume never depends on the LLM
                     # re-composing the message.
-                    return await self._resume_deep_research(inputs, deep_research_tool)
+                    return await self._resume_deep_research(inputs)
                 # Toggle on, fresh request: force the start tool as the only bound tool, and
                 # disallow parallel calls so the model cannot emit more than one Deep Research
                 # call in a single response.
+                deep_research_tool = StatGptTool.from_config(
+                    self._deep_research_config(), self._channel_config
+                )
                 agent_tools = [deep_research_tool]
                 tool_choice = deep_research_tool.name
                 parallel_tool_calls = False
+                # Deep Research is excluded from `tool_executor` (config-scoped), so dispatch the
+                # forced call through a caller that knows the bound tool.
+                tool_caller = ToolCaller(agent_tools)
             elif session_in_progress:
                 # Toggle turned off mid-session: abandon the run so it can't silently resume,
                 # or resurrect on a later turn if the user re-enables the toggle in this chat.
@@ -372,7 +380,7 @@ class SupremeAgentExecutor:
                 history.add_chunk_as_tool_message(response.resp)
 
                 res: list[ToolMessage] = await asyncio.gather(
-                    *(tool_executor.call_tool(tool_call, inputs) for tool_call in tool_calls)
+                    *(tool_caller.call_tool(tool_call, inputs) for tool_call in tool_calls)
                 )
 
                 deep_research_msg: ToolMessage | None = None
@@ -408,8 +416,7 @@ class SupremeAgentExecutor:
                     # under the forced tool_choice, continuing would just re-invoke Deep Research
                     # and, on a persistent failure, spin until max_agent_iterations.
                     if deep_research_msg.status == ToolResponseStatus.ERROR.value:
-                        choice.append_content(DEEP_RESEARCH_ERROR_MESSAGE)
-                        return DEEP_RESEARCH_ERROR_MESSAGE
+                        return surface_deep_research_error(choice)
                     dr_content = deep_research_msg.content
                     return dr_content if isinstance(dr_content, str) else str(dr_content)
             elif response.finished:
@@ -435,7 +442,13 @@ class SupremeAgentExecutor:
         choice.append_content(warning_msg)
         return warning_msg
 
-    async def _resume_deep_research(self, inputs: dict, start_tool: StatGptTool) -> str:
+    def _deep_research_config(self) -> DeepResearchToolConfig:
+        """The channel's Deep Research config. Callers must gate on `is_deep_research_available`."""
+        dr_config = self._channel_config.deep_research
+        assert dr_config is not None  # guaranteed by is_deep_research_available
+        return dr_config
+
+    async def _resume_deep_research(self, inputs: dict) -> str:
         """Forward the user's latest message to the active Deep Research session, verbatim.
 
         Bypasses the LLM so the message reaches Deep Research exactly as the user wrote it — no
@@ -444,7 +457,9 @@ class SupremeAgentExecutor:
         history = ChainParameters.get_history(inputs)
         choice = ChainParameters.get_choice(inputs)
 
-        resume_tool = ResumeDeepResearchTool.build(start_tool._tool_config, self._channel_config)
+        resume_tool = ResumeDeepResearchTool.build(
+            self._deep_research_config(), self._channel_config
+        )
         user_message = history.last_user_message_text
         tool_call: ToolCall = {
             'name': resume_tool.name,
@@ -454,8 +469,7 @@ class SupremeAgentExecutor:
         }
         tool_msg = await ToolCaller([resume_tool]).call_tool(tool_call, inputs, show_stage=False)
         if tool_msg.status == ToolResponseStatus.ERROR.value:
-            choice.append_content(DEEP_RESEARCH_ERROR_MESSAGE)
-            return DEEP_RESEARCH_ERROR_MESSAGE
+            return surface_deep_research_error(choice)
         content = tool_msg.content
         return content if isinstance(content, str) else str(content)
 

@@ -1,4 +1,9 @@
-from .deep_research import DEEP_RESEARCH_ERROR_MESSAGE, DeepResearchSession
+from .deep_research import (
+    DEEP_RESEARCH_ERROR_MESSAGE,
+    DeepResearchSession,
+    DeepResearchTurn,
+    surface_deep_research_error,
+)
 from .file_rags import DialRagState
 from .query import AppJsonQuery, AppJsonQueryWithMetadata
 from .selection_candidates import (
