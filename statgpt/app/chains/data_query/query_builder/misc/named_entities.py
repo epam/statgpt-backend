@@ -1,4 +1,3 @@
-from langchain_core.output_parsers import PydanticOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.runnables import Runnable, RunnablePassthrough
 
@@ -32,25 +31,24 @@ class NamedEntitiesChain:
     def create_chain(self, inputs: dict) -> Runnable:
         auth_context = ChainParameters.get_auth_context(inputs)
 
-        parser: PydanticOutputParser[NamedEntitiesResponse] = PydanticOutputParser(
-            pydantic_object=NamedEntitiesResponse
-        )
+        # ``format_instructions`` is partialed to an empty string so channel-custom
+        # prompts that still reference the placeholder keep rendering; json_schema
+        # structured output now enforces the shape, so the instructions are redundant.
         prompt_template = ChatPromptTemplate.from_messages(
             [
                 ("system", self._system_prompt),
                 ("human", "{normalized_query}"),
             ],
-        ).partial(format_instructions=parser.get_format_instructions())
+        ).partial(format_instructions="")
+
+        llm = get_chat_model(
+            api_key=auth_context.api_key,
+            azure_endpoint=self._llm_api_base,
+            model_config=self._llm_model_config,
+        ).with_structured_output(NamedEntitiesResponse, method='json_schema')
 
         chain = (
-            RunnablePassthrough.assign(entity_types=self.get_entity_types)
-            | prompt_template
-            | get_chat_model(
-                api_key=auth_context.api_key,
-                azure_endpoint=self._llm_api_base,
-                model_config=self._llm_model_config,
-            )
-            | parser
+            RunnablePassthrough.assign(entity_types=self.get_entity_types) | prompt_template | llm
         )
         logger.info(
             f"{self.__class__.__name__} using LLM model: {self._llm_model_config.deployment.deployment_id}"
