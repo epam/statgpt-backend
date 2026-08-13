@@ -9,7 +9,7 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from statgpt.admin.routers.exception_handlers import register_exception_handlers
+from statgpt.admin.exception_handlers import register_exception_handlers
 from statgpt.admin.services.exceptions import (
     AdminServiceError,
     DiscoveryDatasetConflictError,
