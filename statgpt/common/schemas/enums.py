@@ -155,6 +155,39 @@ class ChannelDatasetUpdateStatus(StrEnum):
     INDEXING_IN_PROGRESS = "indexing_in_progress"
 
 
+class DiscoveryValidationStatus(StrEnum):
+    """Whether a discovery dataset record has passed the indexing-time check set."""
+
+    NOT_VALIDATED = "NOT_VALIDATED"
+    """No indexing job has evaluated the record since it was last written."""
+
+    VALID = "VALID"
+    INVALID = "INVALID"
+
+
+class DiscoveryIndexingStatus(StrEnum):
+    """Whether a discovery dataset record is published to the discovery index."""
+
+    NEW = "NEW"
+    """Never published."""
+
+    OUTDATED = "OUTDATED"
+    """Published, then edited: the indexed document is stale."""
+
+    INDEXED = "INDEXED"
+    FAILED = "FAILED"
+
+
+class DiscoveryUploadMode(StrEnum):
+    """How an uploaded file is reconciled with the records a channel already holds."""
+
+    UPSERT = "upsert"
+    """Insert new records, update changed ones, keep records absent from the file."""
+
+    REPLACE = "replace"
+    """Same as upsert, and delete the records absent from the file."""
+
+
 class AuditEntityType(StrEnum):
     CHANNEL = "channel"
     DATASET = "dataset"

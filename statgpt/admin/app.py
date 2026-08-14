@@ -21,6 +21,7 @@ try:
 except Exception:
     pass
 
+from statgpt.admin.exception_handlers import register_exception_handlers
 from statgpt.admin.routers import router
 from statgpt.admin.settings.app import APP_SETTINGS
 from statgpt.common.config import multiline_logger as logger
@@ -98,6 +99,7 @@ init_telemetry(
 )
 
 app.include_router(router)
+register_exception_handlers(app)
 
 
 @app.get("/health", status_code=status.HTTP_200_OK)

@@ -46,7 +46,7 @@ class SystemMessageInterceptor(BaseMessageInterceptor):
                         AppJsonQuery.model_validate_json(attachment.data)
                     except ValidationError as e:
                         raise InvalidRequestError(
-                            "Failed to parse system message attachment data as a JSON query"
+                            f"Failed to parse system message attachment data as a JSON query: {e}"
                         ) from e
                 elif attachment.type == MediaTypes.MARKDOWN:
                     continue
