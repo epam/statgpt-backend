@@ -17,6 +17,7 @@ dependencies = [
     # SDMX & Data processing
     'sdmx1 (>=2.26.0,<3.0.0)',                   # SDMX data format support
     'pandas (>=2.2.3,<3.0.0)',                   # Data manipulation
+    'openpyxl (>=3.1.5,<4.0.0)',                 # Excel reading (discovery dataset uploads)
     'numpy (>=1.26.4,<2.0.0)',                   # Pinned to 1.x: CVE-2018-1999024 is a false positive (MathJax XSS); avoid breaking 2.x major
     'plotly (>=5.21.0,<6.0.0)',                  # Data visualization
 
@@ -179,6 +180,7 @@ pandas-stubs = "^2.2.1.240316"
 plotly-stubs = "^0.1.2"
 pyarrow-stubs = "^20.0.0.20251215"
 types-aiofiles = "^25.1.0.20251011"
+types-openpyxl = "^3.1.5.20260807"
 types-python-dateutil = "^2.9.0.20240316"
 types-pyyaml = "^6.0.12.20240311"
 types-requests = "^2.31.0.20240406"

@@ -39,6 +39,7 @@ from .misc import (
     crc32_hash_incremental_async,
     create_base64_uuid,
     get_last_commit_hash_for,
+    normalize_whitespace,
     secret_2_safe_str,
     str2bool,
     string_split_snowball,

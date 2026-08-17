@@ -43,6 +43,7 @@ class JobsConfig:
     DATA_SOURCES_FILE = 'data_sources.yaml'
     VERSIONS_FILE = 'versions.yaml'
     GLOSSARY_TERMS_FILE = 'glossary_terms.csv'
+    DISCOVERY_DATASETS_FILE = 'discovery_datasets.csv'
     DIAL_FILES_FOLDER = 'dial_files'
 
     # Elasticsearch index folders:
