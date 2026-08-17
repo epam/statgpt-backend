@@ -7,6 +7,7 @@ from statgpt.cli.commands import create_registry
 from statgpt.cli.commands.base import CommandRegistry
 from statgpt.cli.repl import run_repl
 from statgpt.cli.settings import cli_runtime
+from statgpt.cli.shared.batch_report import BatchPartialFailureError
 from statgpt.cli.shared.console import console, print_error
 from statgpt.cli.shared.logging import setup_logging
 
@@ -65,6 +66,10 @@ async def _execute_direct(registry: CommandRegistry, args: list[str]) -> int:
             console.print("[dim]Run 'statgpt help' for available commands.[/dim]")
             return 1
         return 0
+    except BatchPartialFailureError:
+        # Some items in a batch failed. The summary is already on screen; report it through
+        # the exit code so a pipeline cannot read a truncated run as a complete one.
+        return 1
     except Exception as e:
         print_error(f"Command failed: {e}")
         if cli_runtime.debug:

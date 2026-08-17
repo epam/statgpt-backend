@@ -1,10 +1,13 @@
 import asyncio
 import base64
 import itertools
+import re
 import subprocess
 import uuid
 import zlib
 from collections.abc import Generator, Iterable
+
+_WHITESPACE_RE = re.compile(r"\s+")
 
 
 def batched(iterable: Iterable, n: int):
@@ -68,6 +71,19 @@ async def crc32_hash_incremental_async(values: list[str]) -> int:
         CRC32 hash as a positive integer
     """
     return await asyncio.to_thread(crc32_hash_incremental, values)
+
+
+def normalize_whitespace(value: str) -> str:
+    """Collapse whitespace so values that look equal compare equal.
+
+    Non-breaking spaces, tabs and newlines become plain spaces, internal runs collapse
+    to one space, and the ends are stripped. Free-text cells pasted from web pages
+    routinely carry those, and a natural key built from them is a duplicate record.
+
+    This is normalization, not validation: it never rejects anything. A cell holding
+    only whitespace becomes an empty string, which callers may then reject.
+    """
+    return _WHITESPACE_RE.sub(" ", value).strip()
 
 
 def str2bool(var: str) -> bool:

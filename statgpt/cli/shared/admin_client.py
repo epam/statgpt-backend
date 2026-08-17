@@ -9,6 +9,7 @@ from pydantic import TypeAdapter
 
 from statgpt.cli.settings import cli_settings
 from statgpt.cli.shared.auth import get_cached_token
+from statgpt.cli.shared.batch_report import BatchReport
 from statgpt.common.schemas import (
     Channel,
     ChannelDatasetBase,
@@ -53,6 +54,41 @@ class AuthenticationRequired(Exception):
 
     def __init__(self) -> None:
         super().__init__("Authentication required. Run 'auth login' first.")
+
+
+def _detail_text(detail: Any) -> str | None:
+    """Human-readable text from a FastAPI ``detail`` payload, whatever shape it has.
+
+    The reindex endpoints answer with ``InvalidConfigurationError.to_dict()`` - a dict
+    carrying ``error`` - either on its own or inside a list, while validation errors use
+    ``msg`` and plain aborts use a string.
+    """
+    if isinstance(detail, str):
+        return detail or None
+    if isinstance(detail, dict):
+        for key in ("error", "msg", "message"):
+            value = detail.get(key)
+            if isinstance(value, str) and value:
+                return value
+        return None
+    if isinstance(detail, list):
+        parts = [text for text in (_detail_text(item) for item in detail) if text]
+        return "; ".join(parts) or None
+    return None
+
+
+def _describe_error(resp: httpx.Response) -> str:
+    """One-line reason for a failed response, preferring the API's ``detail`` field."""
+    prefix = f"HTTP {resp.status_code}"
+    try:
+        payload = resp.json()
+    except ValueError:
+        payload = None
+
+    text = _detail_text(payload.get("detail")) if isinstance(payload, dict) else None
+    if not text:
+        text = resp.text.strip()
+    return f"{prefix}: {text}" if text else prefix
 
 
 class AdminClient:
@@ -215,23 +251,59 @@ class AdminClient:
         channel_id: int,
         dataset_ids: list[int] | None = None,
         max_n_embeddings: int | None = None,
-    ) -> None:
-        """Reload indicators for channel or specific datasets."""
+        labels: dict[int, str] | None = None,
+    ) -> BatchReport:
+        """Reload indicators for a channel or for specific datasets.
+
+        Per-dataset rejections are recorded and do not stop the datasets after them: the
+        endpoint answers 400 for a dataset whose configuration cannot be loaded, and one
+        such dataset must not block a bulk reindex.
+
+        Authentication failures still raise, since they are not a per-dataset problem and
+        would otherwise be reported once per dataset.
+
+        Args:
+            channel_id: Channel to reindex.
+            dataset_ids: Datasets to reindex, or None to reindex the whole channel.
+            max_n_embeddings: Debugging cap on the number of documents embedded.
+            labels: Dataset id -> display name (a URN), so the summary is readable.
+
+        Returns:
+            One result per submitted dataset.
+        """
         params: dict[str, Any] = {}
         if max_n_embeddings is not None:
             params["max_n_embeddings"] = max_n_embeddings
+
+        report = BatchReport(title="Reindex summary")
 
         if dataset_ids is None:
             # Reload all datasets in channel
             url = self._url(f"/channels/{channel_id}/datasets/reload-indicators")
             resp = await self._client.post(url, params=params)
-            self._raise_for_status(resp)
-        else:
-            # Reload specific datasets
-            for dataset_id in dataset_ids:
-                url = self._url(f"/channels/{channel_id}/datasets/{dataset_id}/reload-indicators")
-                resp = await self._client.post(url, params=params)
+            if resp.is_success:
+                report.record_ok("channel", str(channel_id))
+            else:
+                report.record_failed("channel", str(channel_id), _describe_error(resp))
+            return report
+
+        # Reload specific datasets
+        for dataset_id in dataset_ids:
+            label = (labels or {}).get(dataset_id) or str(dataset_id)
+            url = self._url(f"/channels/{channel_id}/datasets/{dataset_id}/reload-indicators")
+            resp = await self._client.post(url, params=params)
+
+            if resp.is_success:
+                report.record_ok("dataset", label)
+                continue
+            if resp.status_code in (401, 403):
                 self._raise_for_status(resp)
+
+            detail = _describe_error(resp)
+            _log.warning("Reindex rejected for dataset %s: %s", label, detail)
+            report.record_failed("dataset", label, detail)
+
+        return report
 
     async def deduplicate_channel(self, channel_id: int) -> DeduplicationJob:
         """Trigger channel deduplication; returns the created job for polling."""
