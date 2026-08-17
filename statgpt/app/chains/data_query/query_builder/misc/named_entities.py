@@ -31,15 +31,12 @@ class NamedEntitiesChain:
     def create_chain(self, inputs: dict) -> Runnable:
         auth_context = ChainParameters.get_auth_context(inputs)
 
-        # ``format_instructions`` is partialed to an empty string so channel-custom
-        # prompts that still reference the placeholder keep rendering; json_schema
-        # structured output now enforces the shape, so the instructions are redundant.
         prompt_template = ChatPromptTemplate.from_messages(
             [
                 ("system", self._system_prompt),
                 ("human", "{normalized_query}"),
             ],
-        ).partial(format_instructions="")
+        )
 
         llm = get_chat_model(
             api_key=auth_context.api_key,
