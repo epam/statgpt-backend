@@ -71,7 +71,7 @@ from statgpt.common.utils.plotly import PlotlyGraphBuilder, df_2_plotly_grid
 from statgpt.common.utils.time_utils import get_time_period_bounds
 
 from .attribute import Sdmx21Attribute, Sdmx21CodeListAttribute
-from .member_selection import max_bound, member_value_ids, min_bound, time_range_bounds
+from .member_selection import read_member_selection
 from .schemas import Urn
 from .utils import convert_keys_to_str
 
@@ -1107,21 +1107,29 @@ class Sdmx21DataSet(
         member_dict = cube_region.member
 
         result = DataSetAvailabilityQuery()
+        time_dimension_id = self.config.time_period_dimension_id
         for dim, selection in member_dict.items():
-            coded_values = member_value_ids(selection)
-            range_start, range_end = time_range_bounds(selection)
+            values = read_member_selection(selection)
 
-            if range_start is not None:
-                result.time_period_start = min_bound(result.time_period_start, range_start)
-            if range_end is not None:
-                result.time_period_end = max_bound(result.time_period_end, range_end)
+            if values.has_time_range:
+                if dim.id == time_dimension_id:
+                    result.time_period_start = values.time_range_start
+                    result.time_period_end = values.time_range_end
+                else:
+                    # Only the time dimension can legitimately carry a `<common:TimeRange>`.
+                    # Anywhere else it is a provider quirk, and letting it through would widen
+                    # the dataset's availability bounds with an unrelated dimension's range.
+                    _log.warning(
+                        f"Ignoring the time range of non-time dimension {dim.id!r}"
+                        " in the availability response"
+                    )
 
-            if coded_values or not (range_start or range_end):
+            if values.coded_values or not values.has_time_range:
                 # A dimension with no members at all still gets an empty IN query, as before.
                 result.add_dimension_query(
                     DimensionQuery(
                         dimension_id=dim.id,
-                        values=sorted(coded_values),
+                        values=sorted(values.coded_values),
                         operator=QueryOperator.IN,
                     )
                 )

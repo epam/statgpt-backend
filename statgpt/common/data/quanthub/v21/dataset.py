@@ -102,13 +102,8 @@ class QuanthubSdmx21DataSet(UpdatedAtMixin, Sdmx21DataSet):
 
         for annotation in annotations:
             if annotation.id == "time_period_start":
-                start = _annotation_value(annotation)
+                start = annotation.value or annotation.title
             elif annotation.id == "time_period_end":
-                end = _annotation_value(annotation)
+                end = annotation.value or annotation.title
 
         return start, end
-
-
-def _annotation_value(annotation: BaseAnnotation) -> str | None:
-    # `sdmx1` annotations carry the payload in `title`; SDMX 3.0 ones in `value`.
-    return getattr(annotation, "value", None) or annotation.title

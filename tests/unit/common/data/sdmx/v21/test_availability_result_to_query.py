@@ -1,11 +1,13 @@
 """Tests for converting an SDMX 2.1 availability response into a `DataSetAvailabilityQuery`."""
 
+import logging
 import os
+from dataclasses import dataclass
 from datetime import datetime
 
 import sdmx
 from sdmx.message import StructureMessage
-from sdmx.model.common import Dimension, EndPeriod, StartPeriod
+from sdmx.model.common import BaseAnnotation, BaseSelectionValue, Dimension, EndPeriod, StartPeriod
 from sdmx.model.v21 import (
     Annotation,
     ConstraintRole,
@@ -27,14 +29,32 @@ OECD_FIXTURE = os.path.join(
 )
 
 
-def _dataset(cls=Sdmx21DataSet):
+@dataclass
+class _Config:
+    """The only part of the dataset config `_availability_result_to_query` reads."""
+
+    time_period_dimension_id: str = "TIME_PERIOD"
+
+
+def _dataset(cls: type[Sdmx21DataSet] = Sdmx21DataSet) -> Sdmx21DataSet:
     """A dataset stub carrying only what `_availability_result_to_query` reads."""
     dataset = cls.__new__(cls)
+    dataset._config = _Config()  # type: ignore[assignment]
     dataset._virtual_dimensions = {}
     return dataset
 
 
-def _availability_message(*, members: dict, annotations: list | None = None) -> StructureMessage:
+def _oecd_message() -> StructureMessage:
+    message = sdmx.read_sdmx(OECD_FIXTURE)
+    assert isinstance(message, StructureMessage)
+    return message
+
+
+def _availability_message(
+    *,
+    members: dict[str, list[BaseSelectionValue]],
+    annotations: list[BaseAnnotation] | None = None,
+) -> StructureMessage:
     constraint = ContentConstraint(
         id="CC",
         role=ConstraintRole(role=ConstraintRoleType.actual),
@@ -65,24 +85,24 @@ def _range(start: str, end: str) -> RangePeriod:
 class TestOecdTimeRangeFixture:
     """The reported crash: OECD returns `<common:TimeRange>` for `TIME_PERIOD`."""
 
-    def test_conversion_succeeds(self):
-        message = sdmx.read_sdmx(OECD_FIXTURE)
+    def test_conversion_succeeds(self) -> None:
+        message = _oecd_message()
 
         result = _dataset()._availability_result_to_query(message)
 
         assert result.time_period_start == "1914-01-01"
         assert result.time_period_end == "2026-07-31"
 
-    def test_time_period_stays_out_of_the_dimension_queries(self):
-        message = sdmx.read_sdmx(OECD_FIXTURE)
+    def test_time_period_stays_out_of_the_dimension_queries(self) -> None:
+        message = _oecd_message()
 
         result = _dataset()._availability_result_to_query(message)
 
         assert "TIME_PERIOD" not in result
 
-    def test_other_dimensions_survive_the_time_range(self):
+    def test_other_dimensions_survive_the_time_range(self) -> None:
         """The core symptom: one unreadable member used to take down the whole cube region."""
-        message = sdmx.read_sdmx(OECD_FIXTURE)
+        message = _oecd_message()
 
         result = _dataset()._availability_result_to_query(message)
 
@@ -103,7 +123,7 @@ class TestOecdTimeRangeFixture:
 
 
 class TestCodedDimensions:
-    def test_values_are_sorted(self):
+    def test_values_are_sorted(self) -> None:
         message = _availability_message(
             members={"FREQ": [MemberValue(value="Q"), MemberValue(value="A")]}
         )
@@ -112,7 +132,7 @@ class TestCodedDimensions:
 
         assert result.dimensions_queries_dict["FREQ"].values == ["A", "Q"]
 
-    def test_dimension_without_members_still_gets_an_empty_query(self):
+    def test_dimension_without_members_still_gets_an_empty_query(self) -> None:
         message = _availability_message(members={"FREQ": []})
 
         result = _dataset()._availability_result_to_query(message)
@@ -120,7 +140,7 @@ class TestCodedDimensions:
         assert result.dimensions_queries_dict["FREQ"].values == []
         assert result.dimensions_queries_dict["FREQ"].operator == QueryOperator.IN
 
-    def test_no_constraints_yields_an_empty_query(self):
+    def test_no_constraints_yields_an_empty_query(self) -> None:
         result = _dataset()._availability_result_to_query(StructureMessage())
 
         assert result.dimensions_queries_dict == {}
@@ -128,10 +148,36 @@ class TestCodedDimensions:
         assert result.time_period_end is None
 
 
+class TestTimeRangeOutsideTheTimeDimension:
+    """Only the configured time dimension may contribute availability bounds."""
+
+    def test_range_on_another_dimension_is_ignored_and_logged(self, caplog) -> None:
+        message = _availability_message(
+            members={"REF_AREA": [_range("1914-01-01T00:00:00", "2026-07-31T00:00:00")]}
+        )
+
+        with caplog.at_level(logging.WARNING):
+            result = _dataset()._availability_result_to_query(message)
+
+        assert result.time_period_start is None
+        assert result.time_period_end is None
+        assert "REF_AREA" in caplog.text
+
+    def test_range_on_the_time_dimension_sets_the_bounds(self) -> None:
+        message = _availability_message(
+            members={"TIME_PERIOD": [_range("1914-01-01T00:00:00", "2026-07-31T00:00:00")]}
+        )
+
+        result = _dataset()._availability_result_to_query(message)
+
+        assert result.time_period_start == "1914-01-01"
+        assert result.time_period_end == "2026-07-31"
+
+
 class TestQuanthubAnnotationOverride:
     """The QuantHub subclass falls back to vendor annotations only when nothing was derived."""
 
-    def test_derived_time_range_wins_over_annotations(self):
+    def test_derived_time_range_wins_over_annotations(self) -> None:
         message = _availability_message(
             members={
                 "FREQ": [MemberValue(value="A")],
@@ -148,7 +194,7 @@ class TestQuanthubAnnotationOverride:
         assert result.time_period_start == "1914-01-01"
         assert result.time_period_end == "2026-07-31"
 
-    def test_annotations_are_still_used_when_no_range_is_present(self):
+    def test_annotations_are_still_used_when_no_range_is_present(self) -> None:
         message = _availability_message(
             members={"FREQ": [MemberValue(value="A")]},
             annotations=[

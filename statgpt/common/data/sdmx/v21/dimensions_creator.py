@@ -9,7 +9,7 @@ from statgpt.common.data.sdmx.common import (
     SdmxTimeDimension,
 )
 from statgpt.common.data.sdmx.common.codelist import BaseSdmxCodeList
-from statgpt.common.data.sdmx.v21.member_selection import member_value_ids
+from statgpt.common.data.sdmx.v21.member_selection import read_member_selection
 from statgpt.common.data.sdmx.v21.schemas import StructureMessage21, Urn
 from statgpt.common.data.sdmx.v21.urn_utils import lookup_urn
 
@@ -237,6 +237,13 @@ class DimensionsCreator:
         member_dict = cube_region.member
         if dimension.id not in member_dict.keys():
             raise ValueError(f"Missing dimension({dimension.id}) value in data content constraint")
-        # This is only called for non-time code-list dimensions, so a time range here would be a
-        # provider quirk: `member_value_ids` warns and returns an empty set instead of raising.
-        return member_value_ids(member_dict[dimension.id])  # type: ignore[index]
+        selection = read_member_selection(member_dict[dimension.id])  # type: ignore[index]
+        if selection.has_time_range:
+            # This is only called for non-time code-list dimensions, so a time range here is a
+            # provider quirk. The codes it stands for are unknowable, so the dimension ends up
+            # with no availability filter at all and falls back to its whole codelist.
+            logger.warning(
+                f"Ignoring the time range of code-list dimension {dimension.id!r}"
+                " in the data content constraint"
+            )
+        return selection.coded_values
