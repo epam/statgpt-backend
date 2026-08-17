@@ -71,6 +71,7 @@ from statgpt.common.utils.plotly import PlotlyGraphBuilder, df_2_plotly_grid
 from statgpt.common.utils.time_utils import get_time_period_bounds
 
 from .attribute import Sdmx21Attribute, Sdmx21CodeListAttribute
+from .member_selection import read_member_selection
 from .schemas import Urn
 from .utils import convert_keys_to_str
 
@@ -1094,18 +1095,34 @@ class Sdmx21DataSet(
             raise ValueError("Unexpected quantity of cube-regions in constraint")
         cube_region = constraint.data_content_region[0]
         member_dict = cube_region.member
-        dimension_to_available_values = {
-            dim.id: {v.value for v in selection.values} for dim, selection in member_dict.items()
-        }
-        result = DataSetAvailabilityQuery()  # type: ignore
-        for dimension_id, available_values in dimension_to_available_values.items():
-            result.add_dimension_query(
-                DimensionQuery(
-                    dimension_id=dimension_id,
-                    values=list(available_values),
-                    operator=QueryOperator.IN,
+
+        result = DataSetAvailabilityQuery()
+        time_dimension_id = self.config.time_period_dimension_id
+        for dim, selection in member_dict.items():
+            values = read_member_selection(selection)
+
+            if values.has_time_range:
+                if dim.id == time_dimension_id:
+                    result.time_period_start = values.time_range_start
+                    result.time_period_end = values.time_range_end
+                else:
+                    # Only the time dimension can legitimately carry a `<common:TimeRange>`.
+                    # Anywhere else it is a provider quirk, and letting it through would widen
+                    # the dataset's availability bounds with an unrelated dimension's range.
+                    _log.warning(
+                        f"Ignoring the time range of non-time dimension {dim.id!r}"
+                        " in the availability response"
+                    )
+
+            if values.coded_values or not values.has_time_range:
+                # A dimension with no members at all still gets an empty IN query, as before.
+                result.add_dimension_query(
+                    DimensionQuery(
+                        dimension_id=dim.id,
+                        values=sorted(values.coded_values),
+                        operator=QueryOperator.IN,
+                    )
                 )
-            )
         # append virtual dimensions
         for dimension_id, dimension in self._virtual_dimensions.items():
             result.add_dimension_query(
