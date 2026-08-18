@@ -1,4 +1,5 @@
 from operator import itemgetter
+from typing import Any, cast
 
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.runnables import Runnable, RunnableLambda, RunnablePassthrough
@@ -67,14 +68,18 @@ class CandidatesSelectionMappingChainFactory(BatchedSelectionInnerChainFactory):
             ],
         )
 
+        structured_llm = cast(
+            Runnable[Any, CandidatesRelevancyMapping],
+            get_chat_model(
+                api_key=auth_context.api_key,
+                model_config=self._llm_model_config,
+            ).with_structured_output(CandidatesRelevancyMapping, method='json_schema'),
+        )
         chain = (
             RunnablePassthrough.assign(selection_candidates_formatted=self._format_candidates)
             | RunnablePassthrough.assign(
                 parsed_response=prompt_template
-                | get_chat_model(
-                    api_key=auth_context.api_key,
-                    model_config=self._llm_model_config,
-                ).with_structured_output(CandidatesRelevancyMapping, method='json_schema')
+                | structured_llm
                 | self._complex_indicator_indicator_fix
             )
             | self._remove_hallucinations
