@@ -262,8 +262,6 @@ indicatorsSelectionSystemPrompt: >-
   Irrelevant:
   "Consumer Prices, period average",
   "CPI, percent change"
-
-  Format your answer as JSON: {format_instructions}
 validationSystemPrompt: >-
   You are an expert in Statistical Data and Metadata Exchange.
   Your task is to help the user to build a data query
@@ -298,8 +296,6 @@ validationSystemPrompt: >-
   Do not include any additional data, comments or text.
 
   Make sure you analyzed the WHOLE provided list of dimension values and did not skip anything requested by user.
-
-  Format your answer as JSON: {format_instructions}
 validationUserPrompt: >-
   User query: `{normalized_query}`
 
