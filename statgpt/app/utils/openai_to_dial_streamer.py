@@ -1,5 +1,4 @@
 import json
-import re
 from typing import Any
 
 from aidial_sdk.chat_completion import Stage
@@ -9,11 +8,6 @@ from statgpt.app.utils.dial_stages import ChoiceI
 from statgpt.common.schemas import StagesConfig
 from statgpt.common.schemas.token_usage import TokenUsageItem
 from statgpt.common.utils.token_usage_context import get_token_usage_manager
-
-# Deep Research echoes the forwarded query as a leading, fully quoted `Query: "..."` line. Match
-# that exact shape (not any `query:`-prefixed line) so a legitimate response that merely opens with
-# "Query: ..." is never clipped from the display.
-_LEADING_QUERY_ECHO_RE = re.compile(r'^query:\s*".*"$', re.IGNORECASE)
 
 
 class OpenAiToDialStreamer:
@@ -25,7 +19,6 @@ class OpenAiToDialStreamer:
         show_debug_stages: bool,
         stages_config: StagesConfig,
         stream_content: bool = True,
-        strip_leading_query: bool = False,
     ) -> None:
         """Creates a streamer that processes OpenAI ChatCompletionChunks and sends them to Dial.
 
@@ -35,9 +28,6 @@ class OpenAiToDialStreamer:
             deployment: Deployment id or name that will be used to track token usage.
             stream_content: If True, the content will be appended to the `target` as it is received.
             stream_stages: If True, the stages will be created with the content and attachments from the chunks.
-            strip_leading_query: If True, a leading ``Query: "..."`` echo line is dropped from the
-                displayed content. Only the live display is filtered; ``content`` still returns the
-                deployment's output verbatim.
         """
 
         self._target = target
@@ -46,22 +36,16 @@ class OpenAiToDialStreamer:
         self._show_debug_stages = show_debug_stages
         self._stages_config = stages_config
         self._stream_content = stream_content
-        self._strip_leading_query = strip_leading_query
 
         self._content = ""
         self._stages: dict[int, Stage] = {}
         self._attachments: list[dict[str, Any]] = []
         self._state: dict[str, Any] | None = None
-        # Display-only buffer for the leading `Query: "..."` echo strip. Holds the very first
-        # streamed chunks until the first line is complete, so it can be dropped if it is an echo.
-        self._leading_resolved = not strip_leading_query
-        self._leading_buffer = ""
 
     def __enter__(self):
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        self._flush_leading_buffer()
         self._exit_opened_stages(exc_type, exc_val, exc_tb)
         return False
 
@@ -110,43 +94,11 @@ class OpenAiToDialStreamer:
             self._update_token_usage(usages)
 
     def _process_content(self, content: str) -> None:
-        # `_content` is always the deployment's verbatim output (used for state/session replay);
-        # only the live display is filtered.
+        # `_content` is always the deployment's verbatim output (used for state/session replay).
         self._content += content
 
         if self._stream_content:
-            self._append_display(content)
-
-    def _append_display(self, content: str) -> None:
-        """Append streamed content to the display target, dropping a leading ``Query: "..."``
-        echo when `strip_leading_query` is set."""
-        if not self._leading_resolved:
-            self._leading_buffer += content
-            # Wait until the first non-empty line is fully received (a newline follows it),
-            # so a chunk boundary can't split the `Query:` line mid-decision.
-            if "\n" not in self._leading_buffer.lstrip():
-                return
-            content = self._take_leading_buffer()
-
-        if content:
             self._target.append_content(content)
-
-    def _take_leading_buffer(self) -> str:
-        """Resolve the buffered first line: drop it (and the blank line after it) if it is a
-        ``Query: "..."`` echo, then return the remaining buffered content to display."""
-        self._leading_resolved = True
-        buffer, self._leading_buffer = self._leading_buffer, ""
-        first_line, _, remainder = buffer.lstrip().partition("\n")
-        if _LEADING_QUERY_ECHO_RE.match(first_line.strip()):
-            return remainder.lstrip("\n")
-        return buffer
-
-    def _flush_leading_buffer(self) -> None:
-        """Emit any content still buffered for the leading-query strip when the stream ends
-        without a trailing newline (e.g. a one-line message)."""
-        if self._stream_content and not self._leading_resolved and self._leading_buffer:
-            if content := self._take_leading_buffer():
-                self._target.append_content(content)
 
     def _process_custom_content(self, custom_content: dict[str, Any]) -> None:
         if (state := custom_content.get('state')) is not None:

@@ -4,7 +4,7 @@ from zoneinfo import ZoneInfo
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from statgpt.app.settings.dial_app import dial_app_settings
+from statgpt.app.settings.dial_app import DEEP_RESEARCH_TOGGLE_DEFAULT, dial_app_settings
 
 
 class StatGPTConfiguration(BaseModel):
@@ -30,12 +30,13 @@ class StatGPTConfiguration(BaseModel):
     )
     # Keep in sync with `DeepResearchChannelConfiguration` in services/chat_facade.py, which
     # advertises this toggle to the frontend only when the Deep Research tool is enabled. This
-    # model parses the value the frontend sends back on each request.
+    # model parses the value the frontend sends back on each request. The default is shared via
+    # `DEEP_RESEARCH_TOGGLE_DEFAULT`.
     deep_research: bool = Field(
         description="When True, run the request in Deep Research mode: the Supreme Agent is forced "
         "to start the Deep Research tool. Advertised to the frontend via the deployment "
         "configuration only when the channel has the Deep Research tool enabled.",
-        default=False,
+        default=DEEP_RESEARCH_TOGGLE_DEFAULT,
     )
 
     @field_validator('timezone')

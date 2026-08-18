@@ -264,15 +264,6 @@ class DeepResearchDetails(BaseToolDetails):
             "Description of the internal tool that resumes an in-progress Deep Research session."
         ),
     )
-    max_clarification_turns: int = Field(
-        default=10,
-        ge=1,
-        description=(
-            "Safety cap on how many clarification/plan turns a single Deep Research session may"
-            " accumulate before it is abandoned. Guards against unbounded DIAL-state growth and"
-            " cost if the deployment never signals that research has started."
-        ),
-    )
 
     def get_deployment_id(self) -> str:
         return config_utils.replace_env(self.deployment_id_raw)

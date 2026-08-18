@@ -13,7 +13,6 @@ from statgpt.app.schemas import (
     DeepResearchTurn,
     ToolArtifact,
     ToolMessageState,
-    surface_deep_research_error,
 )
 from statgpt.app.utils import OpenAiToDialStreamer, openai
 from statgpt.common.config import multiline_logger as logger
@@ -22,6 +21,8 @@ from statgpt.common.schemas import DeepResearchTool as DeepResearchToolConfig
 from statgpt.common.schemas import ToolTypes
 from statgpt.common.schemas.llm_call_duration import LLMCallDurationItem
 from statgpt.common.utils.llm_call_duration_context import get_llm_call_duration_manager
+
+from .errors import surface_deep_research_error
 
 
 class DeepResearchArgs(ToolArgs):
@@ -51,7 +52,7 @@ class DeepResearchRunner:
         self._tool_config = tool_config
 
     @staticmethod
-    def _load_session(state: dict) -> DeepResearchSession:
+    def _load_session(state: dict[str, Any]) -> DeepResearchSession:
         """Load the active session from state, or start a fresh one.
 
         A finished session is dropped from state (see `_drop_session`), so any session found
@@ -78,14 +79,14 @@ class DeepResearchRunner:
                 {
                     'role': 'assistant',
                     'content': turn.assistant_content,
-                    'custom_content': {'state': turn.dr_state},
+                    'custom_content': {'state': turn.deep_research_state},
                 }
             )
         messages.append({'role': 'user', 'content': user_message})
         return messages
 
     @staticmethod
-    def _research_started(dr_state: dict[str, Any] | None) -> bool:
+    def _research_started(deep_research_state: dict[str, Any] | None) -> bool:
         """Whether Deep Research has started the investigation, per its persisted state.
 
         CONTRACT: Deep Research sets ``preparation.research_started`` to ``True`` only once the
@@ -93,7 +94,7 @@ class DeepResearchRunner:
         We rely on that to treat the session as finished; if the deployment ever emits
         ``research_started`` before the report is delivered, the session would be closed
         prematurely and the report never resumed."""
-        preparation = (dr_state or {}).get('preparation') or {}
+        preparation = (deep_research_state or {}).get('preparation') or {}
         return bool(preparation.get('research_started'))
 
     @staticmethod
@@ -101,7 +102,7 @@ class DeepResearchRunner:
         session: DeepResearchSession,
         user_message: str,
         assistant_content: str,
-        dr_state: dict[str, Any],
+        deep_research_state: dict[str, Any],
     ) -> None:
         """Record a user/assistant exchange (with Deep Research's own state) so the
         sub-conversation can be replayed on the next call/turn."""
@@ -109,16 +110,16 @@ class DeepResearchRunner:
             DeepResearchTurn(
                 user_message=user_message,
                 assistant_content=assistant_content,
-                dr_state=dr_state,
+                deep_research_state=deep_research_state,
             )
         )
 
     @staticmethod
-    def _save_session(state: dict, session: DeepResearchSession) -> None:
+    def _save_session(state: dict[str, Any], session: DeepResearchSession) -> None:
         state[StateVarsConfig.DEEP_RESEARCH_SESSION] = session.model_dump(mode='json')
 
     @staticmethod
-    def _drop_session(state: dict) -> None:
+    def _drop_session(state: dict[str, Any]) -> None:
         # Drop a finished session rather than persisting the (potentially large) report and
         # accumulated state on every later turn — the report already lives in the chat history.
         DeepResearchSession.drop_from_state(state)
@@ -135,17 +136,6 @@ class DeepResearchRunner:
         deployment_id = details.get_deployment_id()
 
         session = self._load_session(state)
-        if len(session.turns) >= details.max_clarification_turns:
-            # The deployment never signalled that research started within the clarification budget,
-            # so the session would otherwise grow (and be replayed) without bound. Abandon it; a
-            # later toggle-on request starts a fresh investigation.
-            logger.warning(
-                f"Deep Research session exceeded {details.max_clarification_turns} clarification"
-                " turns without starting research; abandoning it."
-            )
-            self._drop_session(state)
-            return surface_deep_research_error(choice)
-
         messages = self._build_request_messages(details.system_prompt, session, user_message)
 
         show_debug_stages = (
@@ -166,10 +156,6 @@ class DeepResearchRunner:
                 stream_content=True,
                 show_debug_stages=show_debug_stages,
                 stages_config=details.stages_config,
-                # Deep Research echoes the forwarded query as a leading `Query: "..."` line ahead
-                # of the plan/clarification; drop it from the display so the user sees only the
-                # actual response.
-                strip_leading_query=True,
             )
             with dial_streamer:
                 try:
@@ -183,7 +169,7 @@ class DeepResearchRunner:
                     failed = True
 
             content = dial_streamer.content
-            dr_state = dial_streamer.state
+            deep_research_state = dial_streamer.state
 
         duration_s = time.monotonic() - time_start
         if (duration_manager := get_llm_call_duration_manager()) is not None:
@@ -196,12 +182,12 @@ class DeepResearchRunner:
             # and leave the session untouched so the user can retry.
             return surface_deep_research_error(choice)
 
-        if self._research_started(dr_state):
+        if self._research_started(deep_research_state):
             # Final report delivered: drop the session instead of recording this turn — the
             # report already lives in the chat history and the session is no longer needed.
             self._drop_session(state)
         else:
-            self._append_turn(session, user_message, content, dr_state or {})
+            self._append_turn(session, user_message, content, deep_research_state or {})
             self._save_session(state, session)
         return content
 

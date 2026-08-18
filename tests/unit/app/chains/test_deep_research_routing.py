@@ -21,7 +21,7 @@ from statgpt.app.chains import supreme_agent as supreme_agent_module
 from statgpt.app.chains.deep_research import deep_research_tool as deep_research_module
 from statgpt.app.chains.supreme_agent import SupremeAgentExecutor
 from statgpt.app.config import ChainParametersConfig, StateVarsConfig
-from statgpt.app.schemas import DEEP_RESEARCH_ERROR_MESSAGE, DeepResearchSession, DeepResearchTurn
+from statgpt.app.schemas import DeepResearchSession, DeepResearchTurn
 from statgpt.app.schemas.dial_app_configuration import StatGPTConfiguration
 from statgpt.app.utils.dial_stages import NullChoice
 from statgpt.app.utils.message_history import History
@@ -151,7 +151,7 @@ async def test_forced_start_dispatches_dr_and_saves_session(monkeypatch):
     # carries Deep Research's own state for the next turn to resume from.
     assert len(session.turns) == 1
     assert session.turns[0].user_message == "q"
-    assert session.turns[0].dr_state == {"preparation": {"research_started": False}}
+    assert session.turns[0].deep_research_state == {"preparation": {"research_started": False}}
     # Regression: the persisted session must not embed a `custom_content` key, which the DIAL
     # chat client strips from message-shaped objects while round-tripping state.
     assert "custom_content" not in json.dumps(state[StateVarsConfig.DEEP_RESEARCH_SESSION])
@@ -176,7 +176,7 @@ async def test_resume_forwards_latest_message_verbatim(monkeypatch):
             DeepResearchTurn(
                 user_message="give me US GDP",
                 assistant_content="plan?",
-                dr_state={},
+                deep_research_state={},
             )
         ]
     )
@@ -198,40 +198,4 @@ async def test_resume_forwards_latest_message_verbatim(monkeypatch):
         {"role": "user", "content": "plan looks good"},
     ]
     # Research started -> the finished session is dropped from state.
-    assert DeepResearchSession.from_state(state) is None
-
-
-async def test_resume_at_turn_cap_abandons_session(monkeypatch):
-    """A session that reaches the configured clarification-turn cap is abandoned on the next resume
-    — without calling the deployment — so state can't grow (and be replayed) without bound."""
-    _patch_supreme_agent_forced_dr(monkeypatch)  # must NOT be used on the resume path
-    captured: dict = {}
-    _patch_deep_research_client(monkeypatch, [], captured)
-
-    channel_config = ChannelConfig(
-        supreme_agent=SupremeAgentConfig(name="X", domain="d", terminology_domain="t"),
-        deep_research=DeepResearchTool(
-            name="deep_research",
-            description="DR",
-            enabled=True,
-            details={"deployment_id": "dr-app", "max_clarification_turns": 1},
-        ),
-        data_query=DataQueryTool(name="data_query", description="DQ", enabled=True, details={}),
-    )
-    prior = DeepResearchSession(
-        turns=[DeepResearchTurn(user_message="q", assistant_content="plan?", dr_state={})]
-    )
-    state = {
-        StateVarsConfig.SHOW_DEBUG_STAGES: False,
-        StateVarsConfig.DEEP_RESEARCH_SESSION: prior.model_dump(mode="json"),
-    }
-
-    content = await SupremeAgentExecutor(channel_config).stream_response(
-        _inputs(state, "plan looks good")
-    )
-
-    assert content == DEEP_RESEARCH_ERROR_MESSAGE
-    # The cap is enforced before the deployment call, so it must not be invoked.
-    assert "messages" not in captured
-    # The over-budget session is dropped from state.
     assert DeepResearchSession.from_state(state) is None

@@ -14,7 +14,7 @@ from pydantic import BaseModel, ConfigDict, Field, computed_field
 import statgpt.common.models as models
 import statgpt.common.schemas as schemas
 from statgpt.app import utils
-from statgpt.app.settings.dial_app import dial_app_settings
+from statgpt.app.settings.dial_app import DEEP_RESEARCH_TOGGLE_DEFAULT, dial_app_settings
 from statgpt.common.auth.auth_context import AuthContext
 from statgpt.common.data.base import (
     BaseIndicator,
@@ -224,7 +224,7 @@ class DeepResearchChannelConfiguration(BaseChannelConfiguration):
     deep_research: bool = DialField(
         title="Deep research",
         description="Run the request in Deep Research mode.",
-        default=False,
+        default=DEEP_RESEARCH_TOGGLE_DEFAULT,
     )
 
 

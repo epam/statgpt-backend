@@ -29,7 +29,7 @@ class TestBuildRequestMessages:
                 DeepResearchTurn(
                     user_message="q1",
                     assistant_content="a1",
-                    dr_state={"preparation": {"research_started": False}},
+                    deep_research_state={"preparation": {"research_started": False}},
                 )
             ]
         )
@@ -117,7 +117,7 @@ class TestSessionMutationHelpers:
         turn = session.turns[0]
         assert turn.user_message == "my query"
         assert turn.assistant_content == "the question"
-        assert turn.dr_state == dr_state
+        assert turn.deep_research_state == dr_state
 
     def test_save_session_serializes_to_state(self):
         state: dict = {}
@@ -173,95 +173,3 @@ class TestLastUserMessageText:
     def test_returns_plain_string_content(self):
         history = History(messages=[DialMessage(role=Role.USER, content="hello there")])
         assert history.last_user_message_text == "hello there"
-
-
-class _CollectingTarget:
-    """Minimal `append_content` sink that records what the streamer displays."""
-
-    def __init__(self) -> None:
-        self.chunks: list[str] = []
-
-    def append_content(self, content: str) -> None:
-        self.chunks.append(content)
-
-    @property
-    def displayed(self) -> str:
-        return "".join(self.chunks)
-
-
-class TestStreamerLeadingQueryStrip:
-    def _streamer(self, target, strip_leading_query: bool) -> OpenAiToDialStreamer:
-        return OpenAiToDialStreamer(
-            target,
-            Mock(),
-            deployment="d",
-            show_debug_stages=False,
-            stages_config=Mock(),
-            stream_content=True,
-            strip_leading_query=strip_leading_query,
-        )
-
-    def _feed(self, streamer: OpenAiToDialStreamer, *chunks: str) -> None:
-        for chunk in chunks:
-            streamer._process_content(chunk)
-        streamer._flush_leading_buffer()
-
-    def test_strips_leading_query_echo_across_chunk_boundary(self):
-        target = _CollectingTarget()
-        streamer = self._streamer(target, strip_leading_query=True)
-        # The `Query:` line is split across chunks to prove the display waits for a full line.
-        self._feed(streamer, 'Query: "Retriev', 'e US GDP."\n\nPlan:\n', '1. do it\n')
-
-        assert target.displayed == "Plan:\n1. do it\n"
-        # `content` stays verbatim so Deep Research session replay is unaffected.
-        assert streamer.content == 'Query: "Retrieve US GDP."\n\nPlan:\n1. do it\n'
-
-    def test_keeps_content_without_query_echo(self):
-        target = _CollectingTarget()
-        streamer = self._streamer(target, strip_leading_query=True)
-        self._feed(streamer, "Here is the plan\n\n1. step")
-
-        assert target.displayed == "Here is the plan\n\n1. step"
-        assert streamer.content == "Here is the plan\n\n1. step"
-
-    def test_keeps_leading_query_line_without_quotes(self):
-        target = _CollectingTarget()
-        streamer = self._streamer(target, strip_leading_query=True)
-        # A natural-language line that merely starts with "Query:" (no quoted echo) must be kept:
-        # only the exact `Query: "..."` echo shape is stripped.
-        self._feed(streamer, "Query: which country did you mean?\n\nPlan:")
-
-        assert target.displayed == "Query: which country did you mean?\n\nPlan:"
-        assert streamer.content == "Query: which country did you mean?\n\nPlan:"
-
-    def test_strip_disabled_streams_query_echo_verbatim(self):
-        target = _CollectingTarget()
-        streamer = self._streamer(target, strip_leading_query=False)
-        self._feed(streamer, 'Query: "x"\n\nPlan:\n')
-
-        assert target.displayed == 'Query: "x"\n\nPlan:\n'
-        assert streamer.content == 'Query: "x"\n\nPlan:\n'
-
-    def test_flush_emits_single_line_without_trailing_newline(self):
-        target = _CollectingTarget()
-        streamer = self._streamer(target, strip_leading_query=True)
-        self._feed(streamer, "What frequency?")
-
-        assert target.displayed == "What frequency?"
-        assert streamer.content == "What frequency?"
-
-    def test_pure_echo_line_without_newline_shows_nothing(self):
-        target = _CollectingTarget()
-        streamer = self._streamer(target, strip_leading_query=True)
-        self._feed(streamer, 'Query: "x"')
-
-        assert target.displayed == ""
-        assert streamer.content == 'Query: "x"'
-
-    def test_strips_echo_with_leading_newline(self):
-        target = _CollectingTarget()
-        streamer = self._streamer(target, strip_leading_query=True)
-        self._feed(streamer, '\nQuery: "x"', '\n\nPlan:')
-
-        assert target.displayed == "Plan:"
-        assert streamer.content == '\nQuery: "x"\n\nPlan:'

@@ -3,7 +3,7 @@ import typing as t
 from collections.abc import Sequence
 
 from aidial_sdk.chat_completion import Message as DialMessage
-from aidial_sdk.chat_completion import MessageContentPart, Role
+from aidial_sdk.chat_completion import MessageContentPart, MessageContentTextPart, Role
 from aidial_sdk.chat_completion import ToolCall as DialToolCall
 from langchain_core.messages import (
     AIMessage,
@@ -193,8 +193,8 @@ class History:
             return content
         parts: list[str] = []
         for part in content or []:
-            if text := getattr(part, "text", None):
-                parts.append(text)
+            if isinstance(part, MessageContentTextPart) and part.text:
+                parts.append(part.text)
         return "\n".join(parts)
 
     def get_ai_messages(self) -> list[DialMessage]:
