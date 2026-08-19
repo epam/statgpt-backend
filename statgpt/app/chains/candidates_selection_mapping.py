@@ -1,6 +1,6 @@
 from operator import itemgetter
+from typing import Any, cast
 
-from langchain_core.output_parsers import PydanticOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.runnables import Runnable, RunnableLambda, RunnablePassthrough
 
@@ -61,25 +61,25 @@ class CandidatesSelectionMappingChainFactory(BatchedSelectionInnerChainFactory):
 
         auth_context = ChainParameters.get_auth_context(inputs)
 
-        parser: PydanticOutputParser[CandidatesRelevancyMapping] = PydanticOutputParser(
-            pydantic_object=CandidatesRelevancyMapping
-        )
         prompt_template = ChatPromptTemplate.from_messages(
             [
                 ("system", self._system_prompt),
                 ("human", self._user_prompt),
             ],
-        ).partial(format_instructions=parser.get_format_instructions())
+        )
 
+        structured_llm = cast(
+            Runnable[Any, CandidatesRelevancyMapping],
+            get_chat_model(
+                api_key=auth_context.api_key,
+                model_config=self._llm_model_config,
+            ).with_structured_output(CandidatesRelevancyMapping, method='json_schema'),
+        )
         chain = (
             RunnablePassthrough.assign(selection_candidates_formatted=self._format_candidates)
             | RunnablePassthrough.assign(
                 parsed_response=prompt_template
-                | get_chat_model(
-                    api_key=auth_context.api_key,
-                    model_config=self._llm_model_config,
-                )
-                | parser
+                | structured_llm
                 | self._complex_indicator_indicator_fix
             )
             | self._remove_hallucinations

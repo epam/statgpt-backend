@@ -222,8 +222,6 @@ namedEntitiesPrompt: >-
 
   6. Add FREQUENCY type entities ONLY IF data frequency is EXPLICITLY mentioned in the input.
   If frequency is not explicitly mentioned, do not add FREQUENCY type entities.
-
-  Format your response as JSON: {format_instructions}
 indicatorsSelectionSystemPrompt: >-
   You are an expert in Economics and Statistics helping user to select relevant indicators.
   You are provided with the user query and a list of candidates extracted from the database.
@@ -264,8 +262,6 @@ indicatorsSelectionSystemPrompt: >-
   Irrelevant:
   "Consumer Prices, period average",
   "CPI, percent change"
-
-  Format your answer as JSON: {format_instructions}
 validationSystemPrompt: >-
   You are an expert in Statistical Data and Metadata Exchange.
   Your task is to help the user to build a data query
@@ -300,8 +296,6 @@ validationSystemPrompt: >-
   Do not include any additional data, comments or text.
 
   Make sure you analyzed the WHOLE provided list of dimension values and did not skip anything requested by user.
-
-  Format your answer as JSON: {format_instructions}
 validationUserPrompt: >-
   User query: `{normalized_query}`
 

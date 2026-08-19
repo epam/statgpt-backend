@@ -1,6 +1,10 @@
 """Tests for SDMX 2.1 dimension creation, in particular representation precedence."""
 
+import logging
+from datetime import datetime
+
 from sdmx.model import common
+from sdmx.model.common import BaseSelectionValue
 from sdmx.model.v21 import (
     ContentConstraint,
     CubeRegion,
@@ -8,6 +12,7 @@ from sdmx.model.v21 import (
     DataStructureDefinition,
     MemberSelection,
     MemberValue,
+    RangePeriod,
 )
 
 from statgpt.common.data.sdmx.common import SdmxCodeListDimension
@@ -36,7 +41,9 @@ def _codelist(version: str, code_ids: list[str]) -> common.Codelist:
 
 
 def _build_message(
-    local_codelist: common.Codelist | None, core_codelist: common.Codelist
+    local_codelist: common.Codelist | None,
+    core_codelist: common.Codelist,
+    measure_values: list[BaseSelectionValue] | None = None,
 ) -> tuple[StructureMessage21, Urn]:
     agency = common.Agency(id=AGENCY)
 
@@ -87,10 +94,14 @@ def _build_message(
                 member={
                     measure_dim: MemberSelection(
                         values_for=measure_dim,
-                        values=[
-                            MemberValue(value=CODE_IN_BOTH),
-                            MemberValue(value=CODE_IN_LOCAL_ONLY),
-                        ],
+                        values=(
+                            measure_values
+                            if measure_values is not None
+                            else [
+                                MemberValue(value=CODE_IN_BOTH),
+                                MemberValue(value=CODE_IN_LOCAL_ONLY),
+                            ]
+                        ),
                     )
                 },
             )
@@ -108,9 +119,11 @@ def _build_message(
 
 
 def _create_measure_dimension(
-    local_codelist: common.Codelist | None, core_codelist: common.Codelist
+    local_codelist: common.Codelist | None,
+    core_codelist: common.Codelist,
+    measure_values: list[BaseSelectionValue] | None = None,
 ) -> SdmxCodeListDimension:
-    message, urn = _build_message(local_codelist, core_codelist)
+    message, urn = _build_message(local_codelist, core_codelist, measure_values)
     creator = DimensionsCreator(message, urn, LOCALE, aliases={})
     dimensions = creator._create_dimensions()
 
@@ -149,3 +162,23 @@ def test_core_representation_used_when_no_local_representation() -> None:
 
     assert measure.code_list.code_list.version == CORE_VERSION
     assert CODE_IN_BOTH in measure.code_list
+
+
+def test_time_range_on_a_code_list_dimension_is_logged(caplog) -> None:
+    """A time range outside the time dimension yields no codes - say so out loud.
+
+    It must not raise: one provider quirk used to abort the whole dataset. But the dimension is
+    then left without an availability filter, so it cannot pass unnoticed either.
+    """
+    core_codelist = _codelist(CORE_VERSION, [CODE_IN_BOTH])
+    time_range = RangePeriod(
+        start=common.StartPeriod(is_inclusive=True, period=datetime(1914, 1, 1)),
+        end=common.EndPeriod(is_inclusive=True, period=datetime(2026, 7, 31)),
+    )
+
+    with caplog.at_level(logging.WARNING):
+        measure = _create_measure_dimension(None, core_codelist, measure_values=[time_range])
+
+    # No availability to narrow by, so the dimension falls back to its whole codelist.
+    assert {value.query_id for value in measure.available_values} == {CODE_IN_BOTH}
+    assert "MEASURE" in caplog.text
