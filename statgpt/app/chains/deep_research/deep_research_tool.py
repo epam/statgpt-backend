@@ -2,7 +2,6 @@ import time
 from typing import Annotated, Any, Self
 
 from mcp.types import ToolAnnotations
-from openai import OpenAIError
 from pydantic import Field
 
 from statgpt.app.chains.parameters import ChainParameters
@@ -15,14 +14,11 @@ from statgpt.app.schemas import (
     ToolMessageState,
 )
 from statgpt.app.utils import OpenAiToDialStreamer, openai
-from statgpt.common.config import multiline_logger as logger
 from statgpt.common.schemas import ChannelConfig
 from statgpt.common.schemas import DeepResearchTool as DeepResearchToolConfig
 from statgpt.common.schemas import ToolTypes
 from statgpt.common.schemas.llm_call_duration import LLMCallDurationItem
 from statgpt.common.utils.llm_call_duration_context import get_llm_call_duration_manager
-
-from .errors import surface_deep_research_error
 
 
 class DeepResearchArgs(ToolArgs):
@@ -127,7 +123,11 @@ class DeepResearchRunner:
     async def run(self, inputs: dict, user_message: str) -> str:
         """Run one Deep Research turn: call the deployment, stream its output verbatim to the
         user, persist the session, and drop it once research has started (final report
-        delivered)."""
+        delivered).
+
+        Request/stream failures are not surfaced here: they propagate so `ToolCaller.call_tool`
+        records the error in the tool state (an ERROR tool message) and the Supreme Agent surfaces
+        the standard failure message once. The session is left untouched so the user can retry."""
         auth_context = ChainParameters.get_auth_context(inputs)
         choice = ChainParameters.get_choice(inputs)
         state = ChainParameters.get_state(inputs)
@@ -145,51 +145,43 @@ class DeepResearchRunner:
         create_kwargs: dict[str, Any] = dict(model=deployment_id, stream=True, messages=messages)
         client = openai.get_async_client(api_key=auth_context.api_key)
         time_start = time.monotonic()
-        failed = False
-        async with client:
-            # Stream verbatim: whatever Deep Research returns (clarifying questions, plan for
-            # approval, or the final report) is surfaced to the user as-is, token by token.
-            dial_streamer = OpenAiToDialStreamer(
-                choice,
-                choice,
-                deployment=deployment_id,
-                stream_content=True,
-                show_debug_stages=show_debug_stages,
-                stages_config=details.stages_config,
-            )
-            with dial_streamer:
-                try:
+        try:
+            async with client:
+                # Stream verbatim: whatever Deep Research returns (clarifying questions, plan for
+                # approval, or the final report) is surfaced to the user as-is, token by token.
+                dial_streamer = OpenAiToDialStreamer(
+                    choice,
+                    choice,
+                    deployment=deployment_id,
+                    stream_content=True,
+                    show_debug_stages=show_debug_stages,
+                    stages_config=details.stages_config,
+                )
+                with dial_streamer:
+                    # Let request/stream failures propagate: `ToolCaller.call_tool` turns them into
+                    # an ERROR tool message carrying the error in its state, and the Supreme Agent
+                    # surfaces the standard failure message once. Programming errors propagate the
+                    # same way.
                     stream = await client.chat.completions.create(**create_kwargs)
                     async for chunk in stream:
                         dial_streamer.send_chunk(chunk)
-                except OpenAIError as e:
-                    # Catch deployment-call failures (connection/timeout/status/stream errors)
-                    # and surface a friendly message; let programming errors propagate.
-                    logger.exception(e)
-                    failed = True
+                content = dial_streamer.content
+                deep_research_state = dial_streamer.state
 
-            content = dial_streamer.content
-            deep_research_state = dial_streamer.state
-
-        duration_s = time.monotonic() - time_start
-        if (duration_manager := get_llm_call_duration_manager()) is not None:
-            duration_manager.add_duration(
-                LLMCallDurationItem(deployment=deployment_id, duration_s=duration_s)
-            )
-
-        if failed:
-            # Deep Research owns this turn and is force-selected, so surface a friendly message
-            # and leave the session untouched so the user can retry.
-            return surface_deep_research_error(choice)
-
-        if self._research_started(deep_research_state):
-            # Final report delivered: drop the session instead of recording this turn — the
-            # report already lives in the chat history and the session is no longer needed.
-            self._drop_session(state)
-        else:
-            self._append_turn(session, user_message, content, deep_research_state or {})
-            self._save_session(state, session)
-        return content
+            if self._research_started(deep_research_state):
+                # Final report delivered: drop the session instead of recording this turn — the
+                # report already lives in the chat history and the session is no longer needed.
+                self._drop_session(state)
+            else:
+                self._append_turn(session, user_message, content, deep_research_state or {})
+                self._save_session(state, session)
+            return content
+        finally:
+            duration_s = time.monotonic() - time_start
+            if (duration_manager := get_llm_call_duration_manager()) is not None:
+                duration_manager.add_duration(
+                    LLMCallDurationItem(deployment=deployment_id, duration_s=duration_s)
+                )
 
 
 class DeepResearchTool(StatGptTool[DeepResearchToolConfig], tool_type=ToolTypes.DEEP_RESEARCH):

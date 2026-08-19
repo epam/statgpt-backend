@@ -15,9 +15,11 @@ from aidial_sdk.chat_completion import Message as DialMessage
 from aidial_sdk.chat_completion import Role
 from langchain_core.messages import AIMessageChunk
 from langchain_core.runnables import RunnableLambda
+from openai import OpenAIError
 from openai.types.chat import ChatCompletionChunk
 
 from statgpt.app.chains import supreme_agent as supreme_agent_module
+from statgpt.app.chains.deep_research import DEEP_RESEARCH_ERROR_MESSAGE
 from statgpt.app.chains.deep_research import deep_research_tool as deep_research_module
 from statgpt.app.chains.supreme_agent import SupremeAgentExecutor
 from statgpt.app.config import ChainParametersConfig, StateVarsConfig
@@ -112,10 +114,21 @@ def _patch_deep_research_client(monkeypatch, chunks: list[ChatCompletionChunk], 
     )
 
 
-def _inputs(state: dict, user_text: str) -> dict:
+class _RecordingChoice(NullChoice):
+    """A NullChoice that records what is streamed to the user, to assert the failure message is
+    surfaced exactly once (not double-appended by both the tool and the Supreme Agent)."""
+
+    def __init__(self) -> None:
+        self.appended: list[str] = []
+
+    def append_content(self, content: str) -> None:
+        self.appended.append(content)
+
+
+def _inputs(state: dict, user_text: str, choice=None) -> dict:
     return {
         ChainParametersConfig.STATE: state,
-        ChainParametersConfig.CHOICE: NullChoice(),
+        ChainParametersConfig.CHOICE: choice if choice is not None else NullChoice(),
         ChainParametersConfig.AUTH_CONTEXT: MagicMock(api_key="k"),
         ChainParametersConfig.HISTORY: History(
             messages=[DialMessage(role=Role.USER, content=user_text)]
@@ -199,3 +212,52 @@ async def test_resume_forwards_latest_message_verbatim(monkeypatch):
     ]
     # Research started -> the finished session is dropped from state.
     assert DeepResearchSession.from_state(state) is None
+
+
+def _patch_deep_research_client_raises(monkeypatch, error: Exception) -> None:
+    class _RaisingCompletions:
+        async def create(self, **kwargs):
+            raise error
+
+    class _RaisingClient:
+        chat = type("_Chat", (), {"completions": _RaisingCompletions()})()
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *exc):
+            return False
+
+    monkeypatch.setattr(
+        deep_research_module.openai, "get_async_client", lambda api_key=None, **k: _RaisingClient()
+    )
+
+
+async def test_forced_start_error_is_recorded_in_state_and_surfaced_once(monkeypatch):
+    """A request/stream failure on the forced-start turn must propagate to `call_tool` (which
+    records the error in the tool state) rather than being surfaced by the tool itself. The Supreme
+    Agent then surfaces the standard message exactly once, and the failed turn leaves no session."""
+    _patch_supreme_agent_forced_dr(monkeypatch)
+    _patch_deep_research_client_raises(monkeypatch, OpenAIError("deployment down"))
+
+    choice = _RecordingChoice()
+    state = {StateVarsConfig.SHOW_DEBUG_STAGES: False}
+    inputs = _inputs(state, "give me US GDP", choice=choice)
+    content = await SupremeAgentExecutor(_channel_config()).stream_response(inputs)
+
+    assert content == DEEP_RESEARCH_ERROR_MESSAGE
+    # Surfaced exactly once: the tool no longer streams the error itself, so there is no second
+    # append from the Supreme Agent's ERROR handling.
+    assert choice.appended == [DEEP_RESEARCH_ERROR_MESSAGE]
+    # The failed turn is left untouched so the user can retry: no session is persisted.
+    assert DeepResearchSession.from_state(state) is None
+    # The error is recorded in the tool state (an ERROR tool message), not swallowed.
+    history = inputs[ChainParametersConfig.HISTORY]
+    history.dump_state(state)
+    dr_states = [
+        msg["custom_content"]["state"]
+        for msg in state[StateVarsConfig.TOOL_MESSAGES]
+        if msg.get("custom_content", {}).get("state", {}).get("type") == "DEEP_RESEARCH"
+    ]
+    assert dr_states, "the failed Deep Research turn must record a tool state"
+    assert dr_states[0].get("error"), "the recorded tool state must carry the error"
