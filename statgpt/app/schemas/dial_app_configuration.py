@@ -4,7 +4,7 @@ from zoneinfo import ZoneInfo
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from statgpt.app.settings.dial_app import dial_app_settings
+from statgpt.app.settings.dial_app import DEEP_RESEARCH_TOGGLE_DEFAULT, dial_app_settings
 
 
 class StatGPTConfiguration(BaseModel):
@@ -27,6 +27,12 @@ class StatGPTConfiguration(BaseModel):
         description="When True, multiple python code snippets are merged into a single attachment. "
         "When False, each dataset produces a separate python code attachment.",
         default=False,
+    )
+    deep_research: bool = Field(
+        description="When True, run the request in Deep Research mode: the Supreme Agent is forced "
+        "to start the Deep Research tool. Advertised to the frontend via the deployment "
+        "configuration only when the channel has the Deep Research tool enabled.",
+        default=DEEP_RESEARCH_TOGGLE_DEFAULT,
     )
 
     @field_validator('timezone')

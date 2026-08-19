@@ -249,6 +249,21 @@ class DeepResearchDetails(BaseToolDetails):
             " Otherwise, they will be displayed depending on the conversation debug flag."
         ),
     )
+    resume_tool_name: str = Field(
+        default="resume_deep_research",
+        description=(
+            "Name of the internal tool that resumes an in-progress Deep Research session."
+        ),
+    )
+    resume_tool_description: str = Field(
+        default=(
+            "Resume the active Deep Research session by forwarding the user's latest message"
+            " (their answer to a clarifying question or their approval of the plan)."
+        ),
+        description=(
+            "Description of the internal tool that resumes an in-progress Deep Research session."
+        ),
+    )
 
     def get_deployment_id(self) -> str:
         return config_utils.replace_env(self.deployment_id_raw)

@@ -54,6 +54,9 @@ class ToolTypes(StrEnum):
     WEB_SEARCH = "WEB_SEARCH"
     WEB_SEARCH_AGENT = "WEB_SEARCH_AGENT"
     DEEP_RESEARCH = "DEEP_RESEARCH"
+    # Continues an active Deep Research session. Not admin-configurable: derived from the
+    # DEEP_RESEARCH tool config and invoked only to resume the persisted session.
+    RESUME_DEEP_RESEARCH = "RESUME_DEEP_RESEARCH"
 
 
 class McpResourceTypes(StrEnum):

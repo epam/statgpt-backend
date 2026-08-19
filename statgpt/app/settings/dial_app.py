@@ -1,6 +1,13 @@
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+# Default for the `deep_research` request toggle, shared by both models that declare it — the
+# parse side (`StatGPTConfiguration` in schemas/dial_app_configuration.py) and the advertise side
+# (`DeepResearchChannelConfiguration` in services/chat_facade.py) — so the two cannot drift. It
+# lives here, in a dependency-free module both packages already import, to avoid an import cycle.
+# The field must also keep the name `deep_research` on both for the round-trip to line up.
+DEEP_RESEARCH_TOGGLE_DEFAULT = False
+
 
 class DialAppSettings(BaseSettings):
     """
