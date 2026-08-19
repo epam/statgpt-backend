@@ -65,8 +65,6 @@ class DeepResearchRunner:
         user input. Deep Research resumes from the `custom_content.state` it stored on the last
         assistant message, so the DIAL shape is rebuilt here from the persisted turns."""
         messages: list[dict[str, Any]] = []
-        # Deep Research reads its own system prompt from its app properties and skips the
-        # system role on input; we still forward the configured prompt for parity.
         if system_prompt:
             messages.append({'role': 'system', 'content': system_prompt})
         for turn in session.turns:
@@ -158,10 +156,6 @@ class DeepResearchRunner:
                     stages_config=details.stages_config,
                 )
                 with dial_streamer:
-                    # Let request/stream failures propagate: `ToolCaller.call_tool` turns them into
-                    # an ERROR tool message carrying the error in its state, and the Supreme Agent
-                    # surfaces the standard failure message once. Programming errors propagate the
-                    # same way.
                     stream = await client.chat.completions.create(**create_kwargs)
                     async for chunk in stream:
                         dial_streamer.send_chunk(chunk)
@@ -169,8 +163,7 @@ class DeepResearchRunner:
                 deep_research_state = dial_streamer.state
 
             if self._research_started(deep_research_state):
-                # Final report delivered: drop the session instead of recording this turn — the
-                # report already lives in the chat history and the session is no longer needed.
+                # Final report delivered: drop the session instead of recording this turn
                 self._drop_session(state)
             else:
                 self._append_turn(session, user_message, content, deep_research_state or {})

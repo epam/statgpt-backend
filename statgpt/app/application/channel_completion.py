@@ -248,8 +248,7 @@ class ChannelCompletion(ChatCompletion):
                 if (show_debug_stages := state.get(StateVarsConfig.SHOW_DEBUG_STAGES)) is not None:
                     defaults[StateVarsConfig.SHOW_DEBUG_STAGES] = show_debug_stages
                 # Carry the Deep Research clarification session across turns so the Supreme
-                # Agent can resume the in-progress Deep Research run. A completed session is
-                # dropped by the tool, so only in-progress sessions round-trip here.
+                # Agent can resume the in-progress Deep Research run.
                 if (dr_session := state.get(StateVarsConfig.DEEP_RESEARCH_SESSION)) is not None:
                     defaults[StateVarsConfig.DEEP_RESEARCH_SESSION] = dr_session
 

@@ -327,9 +327,6 @@ class SupremeAgentExecutor:
             return await self._resume_deep_research(inputs)
 
         if not routing.is_forced_start:
-            # Fake tool calls only seed context for the general agent's own tools. When Deep
-            # Research is forced as the sole bound tool nothing can consume that context, so skip
-            # the (real, billable) fake calls entirely.
             fake_history = await self._fake_tool_calls(tool_executor, inputs, show_stages=debug)
             history.prepend(fake_history)
 
@@ -399,9 +396,7 @@ class SupremeAgentExecutor:
 
                 if deep_research_msg is not None:
                     # Deep Research owns this turn: it streamed its clarifying question / final
-                    # report straight into the conversation, or failed. Either way, end the loop —
-                    # under the forced tool_choice, continuing would just re-invoke Deep Research
-                    # and, on a persistent failure, spin until max_agent_iterations.
+                    # report straight into the conversation, or failed.
                     if deep_research_msg.status == ToolResponseStatus.ERROR.value:
                         return surface_deep_research_error(choice)
                     return _content_to_str(deep_research_msg.content)
@@ -455,13 +450,9 @@ class SupremeAgentExecutor:
         if configuration.deep_research:
             if session_in_progress:
                 # Active session + toggle on: forward the user's next message to Deep Research
-                # verbatim. Deterministic routing driven by the session flag, so a resume never
-                # depends on the LLM re-composing the message.
+                # verbatim.
                 return normal._replace(resume=True)
-            # Toggle on, fresh request: force the start tool as the only bound tool, and disallow
-            # parallel calls so the model cannot emit more than one Deep Research call in a single
-            # response. Deep Research is excluded from `tool_executor` (config-scoped), so dispatch
-            # the forced call through a caller that knows the bound tool.
+            # Toggle on, fresh request: force the start tool.
             deep_research_tool = StatGptTool.from_config(
                 self._deep_research_config(), self._channel_config
             )

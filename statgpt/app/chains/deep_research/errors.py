@@ -1,8 +1,6 @@
 from statgpt.app.utils.dial_stages import ChoiceI
 
-# User-facing message shown when a Deep Research turn fails. Surfaced by the Supreme Agent, where
-# every failure lands as an ERROR tool message — the tool's own request/stream errors and
-# framework-level errors alike — so all failure paths share identical wording.
+# User-facing message shown when a Deep Research turn fails, Surfaced by the Supreme Agent.
 DEEP_RESEARCH_ERROR_MESSAGE = "\n\nDeep Research could not complete this request. Please try again."
 
 
