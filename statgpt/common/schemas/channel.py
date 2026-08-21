@@ -77,6 +77,13 @@ class SupremeAgentConfig(BaseYamlModel):
             " If empty, the default content is used."
         ),
     )
+    user_ui_context_section: str = Field(
+        default="",
+        description=(
+            "Custom content for the 'User UI Context' section of the system prompt."
+            " If empty, the default content is used."
+        ),
+    )
 
 
 class OutOfScopeConfig(BaseYamlModel):

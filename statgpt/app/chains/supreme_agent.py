@@ -221,10 +221,8 @@ class SupremeAgent:
         return template
 
     @classmethod
-    def _create_chain(
-        cls, auth_context: AuthContext, channel_config: ChannelConfig, tools: list[StatGptTool]
-    ) -> Runnable:
-        prompt_template = ChatPromptTemplate.from_messages(
+    def _create_prompt_template(cls, channel_config: ChannelConfig) -> ChatPromptTemplate:
+        return ChatPromptTemplate.from_messages(
             [
                 SystemMessagePromptTemplate.from_template(
                     cls._create_system_prompt(channel_config)
@@ -251,7 +249,17 @@ class SupremeAgent:
                 channel_config.supreme_agent.no_calculations_section
                 or supreme_agent_default_prompts.default_no_calculations_section
             ),
+            user_ui_context_section=(
+                channel_config.supreme_agent.user_ui_context_section
+                or supreme_agent_default_prompts.default_user_ui_context_section
+            ),
         )
+
+    @classmethod
+    def _create_chain(
+        cls, auth_context: AuthContext, channel_config: ChannelConfig, tools: list[StatGptTool]
+    ) -> Runnable:
+        prompt_template = cls._create_prompt_template(channel_config)
         model = get_chat_model(
             api_key=auth_context.api_key,
             model_config=channel_config.supreme_agent.llm_model_config,
