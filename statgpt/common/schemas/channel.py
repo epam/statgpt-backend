@@ -79,6 +79,14 @@ class SupremeAgentConfig(BaseYamlModel):
             " If empty, the default content is used."
         ),
     )
+    user_ui_context_section: str = Field(
+        default="",
+        description=(
+            "Custom content for the 'User UI Context' section of the system prompt."
+            " If empty, the default content is used. The default describes the interactive"
+            " data widget, so channels whose UI has no widget must override this section."
+        ),
+    )
 
 
 class OutOfScopeConfig(BaseYamlModel):
