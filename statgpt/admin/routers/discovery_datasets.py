@@ -147,13 +147,13 @@ async def trigger_discovery_indexing(
 
     Creates a job, schedules the work in the background, and returns the job immediately
     with 202 Accepted. Poll it via `GET /discovery-datasets/indexing-jobs/{job_id}`.
-    Returns 409 while a job for the channel is already queued or running.
+    Returns 409 while a job for the channel is already queued or running, and 409 when the
+    channel has no discovery RAG application configured.
 
-    Publishing to the discovery RAG is not implemented yet: a run evaluates the check set
-    over every record and stores the verdict, a record found invalid is not published, and
-    a record that passed ends the run with `indexing_status=FAILED` explaining that the
-    publish stage is missing. The document counts stay at 0, so nothing claims to be
-    indexed when it is not.
+    A run evaluates the check set over every record, then reconciles the channel's Generic
+    RAG documents with the verdicts: a valid record is published (or republished, if it was
+    edited since), an invalid one has its document withdrawn, and a document no record
+    claims any more is removed. A record already indexed and unchanged is left alone.
     """
     async with get_session_context_manager() as session:
         return await IndexingJobService(session).trigger(

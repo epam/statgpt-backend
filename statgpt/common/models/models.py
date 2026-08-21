@@ -353,7 +353,7 @@ class DiscoveryIndexingJob(DefaultBase):
     """Execution status of the job."""
 
     details: Mapped[str | None] = mapped_column(default=None)
-    """What the run did, including stages that are not implemented yet."""
+    """What the run did, as a one-line summary of the result counts."""
 
     reason_for_failure: Mapped[str | None] = mapped_column(default=None)
 

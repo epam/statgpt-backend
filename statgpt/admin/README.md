@@ -35,3 +35,30 @@ the [common README file](../common/README.md).
 | DISCOVERY_UPLOAD_MAX_REPORTED_PROBLEMS |                                   No                                    | Cap on the problems listed in a rejected upload's response; beyond it the response is marked as truncated                                                                                                                              |                  | `200`                   |
 | OTEL_APP_SERVICE_NAME                  |                                   No                                    | OpenTelemetry service name for the admin application                                                                                                                                                                                   |                  | `statgpt-admin-backend` |
 | BETA_MCP_ENABLED                       |                                   No                                    | Enables MCP support for StatGPT(dataset config generation/test creation). Requires `mcp` dependencies to be installed.                                                                                                                 | `true`, `false`  | `false`                 |
+
+## Discovery indexing (Grade C)
+
+A discovery indexing job publishes a channel's discovery dataset records into a Generic RAG
+channel, so the channel configuration has to say which one:
+
+```jsonc
+{
+  "discoveryRag": { "applicationId": "statgpt-generic-rag-grade-b-and-c" }
+}
+```
+
+`applicationId` is the DIAL application fronting the RAG channel; `$env:{VAR}` is supported.
+Triggering a job on a channel without this block returns 409. Requests are authenticated with
+`DIAL_API_KEY`, since a background job has no user token.
+
+The application's own configuration owns the document metadata schema. It is generated from
+`DiscoveryDocumentMetadata`, so it never has to be written by hand:
+
+```
+python scripts/print_discovery_metadata_schema.py [--patch dial/core/config/config.json]
+```
+
+A run reads the application's schema back and refuses to publish if any field the model
+declares filterable is missing - discovery search pre-filters by `agency` and
+`reference_area`, and `grade` / `statgpt_channel` are what let several channels and both
+discovery grades share one application without overwriting each other's documents.

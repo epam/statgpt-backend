@@ -6,27 +6,23 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from statgpt.common import models, schemas
-from statgpt.common.services import ChannelService, DiscoveryDatasetService
+from statgpt.common.services import ChannelSerializer, ChannelService, DiscoveryDatasetService
 from statgpt.common.services.base import DbServiceBase
+from statgpt.common.services.generic_rag import GenericRagIngestionClient
 from statgpt.common.utils import format_exception_reason, get_ts_utcnow
 
 from .background_tasks import background_task
+from .discovery_publisher import DiscoveryPublisher, PublishCounts
 from .discovery_validation import DiscoveryValidator
 from .exceptions import (
     DiscoveryIndexingJobNotFoundError,
+    DiscoveryRagNotConfiguredError,
     IndexingJobInProgressError,
     raise_for_conflict,
 )
 from .status_recovery import set_failed_status
 
 _log = logging.getLogger(__name__)
-
-_PUBLISH_NOT_IMPLEMENTED = "Publishing to the discovery RAG is not implemented yet."
-"""Why a record that passed validation still ends a run unindexed.
-
-The publish stage lands with the Generic RAG ingestion client. Until then a run reports
-that nothing was published rather than claiming a record is indexed when it is not.
-"""
 
 _ACTIVE_STATUSES = (
     schemas.PreprocessingStatusEnum.QUEUED,
@@ -37,8 +33,9 @@ _ACTIVE_STATUSES = (
 class AdminPortalDiscoveryIndexingJobService(DbServiceBase):
     """Creates, reports on, and runs indexing jobs over a channel's discovery datasets.
 
-    Owns the run's stages - validate, then publish - so adding a real publisher later
-    changes neither the API nor the schemas.
+    Owns the run's two stages: validate every record, then reconcile the channel's Generic
+    RAG documents with them. Only the sequencing lives here - what a record becomes, and
+    what happens to its document, belongs to `DiscoveryPublisher`.
     """
 
     def __init__(self, session: AsyncSession | None = None) -> None:
@@ -47,6 +44,14 @@ class AdminPortalDiscoveryIndexingJobService(DbServiceBase):
     @staticmethod
     def _serialize(job: models.DiscoveryIndexingJob) -> schemas.DiscoveryIndexingJob:
         return schemas.DiscoveryIndexingJob.model_validate(job, from_attributes=True)
+
+    @staticmethod
+    def _rag_config(channel: models.Channel) -> schemas.DiscoveryRagConfig:
+        """The channel's publish target, or a domain error naming what is missing."""
+        config = ChannelSerializer.db_to_schema(channel).details.discovery_rag
+        if config is None:
+            raise DiscoveryRagNotConfiguredError(channel.id)
+        return config
 
     async def _get_active_job(self, channel_id: int) -> models.DiscoveryIndexingJob | None:
         query = (
@@ -71,6 +76,10 @@ class AdminPortalDiscoveryIndexingJobService(DbServiceBase):
         channel, so two simultaneous requests cannot both get past this.
         """
         channel = await ChannelService(self._session).get_model_by_id(channel_id)
+
+        # Fail here rather than inside the run: a channel with nowhere to publish to is a
+        # configuration mistake the caller can fix, not a job worth recording.
+        self._rag_config(channel)
 
         if active := await self._get_active_job(channel_id):
             raise IndexingJobInProgressError(channel_id=channel_id, job_id=active.id)
@@ -166,6 +175,7 @@ class AdminPortalDiscoveryIndexingJobService(DbServiceBase):
             await session.commit()
 
             try:
+                channel = await ChannelService(session).get_model_by_id(job.channel_id)
                 records = await DiscoveryDatasetService(session).get_record_models_by_channel(
                     job.channel_id, limit=None, offset=0
                 )
@@ -174,12 +184,19 @@ class AdminPortalDiscoveryIndexingJobService(DbServiceBase):
                 job.records_total = len(records)
                 job.records_valid = valid
                 job.records_invalid = invalid
-                # The publish stage is not implemented, so nothing is claimed to be indexed.
-                job.documents_upserted = 0
-                job.documents_deleted = 0
+                # Commit the verdicts before the network stage: they are established, and a
+                # publish stage that dies should not take them down with it.
+                await session.commit()
+
+                counts = await self._publish_records(channel, records)
+
+                job.documents_upserted = counts.upserted
+                job.documents_deleted = counts.deleted
                 job.details = (
                     f"Validated {len(records)} record(s): {valid} valid, {invalid} invalid."
-                    f" {_PUBLISH_NOT_IMPLEMENTED}"
+                    f" Published {counts.upserted}, withdrew or removed {counts.deleted}"
+                    f" document(s), skipped {counts.skipped} already indexed,"
+                    f" failed {counts.failed}."
                 )
                 job.status = schemas.PreprocessingStatusEnum.COMPLETED
                 await session.commit()
@@ -211,19 +228,28 @@ class AdminPortalDiscoveryIndexingJobService(DbServiceBase):
             if issues:
                 record.validation_status = schemas.DiscoveryValidationStatus.INVALID
                 record.validation_issues = [issue.model_dump(mode="json") for issue in issues]
-                # An invalid record is not published at all, so its indexing status is left
-                # as it is rather than being reported as an indexing failure. Once publishing
-                # exists, a record that was published and has since become invalid will need
-                # its document withdrawn here - that is what `documents_deleted` counts.
                 invalid += 1
             else:
                 record.validation_status = schemas.DiscoveryValidationStatus.VALID
                 record.validation_issues = None
-                record.indexing_status = schemas.DiscoveryIndexingStatus.FAILED
-                record.index_error = _PUBLISH_NOT_IMPLEMENTED
                 valid += 1
 
         return valid, invalid
+
+    async def _publish_records(
+        self, channel: models.Channel, records: list[models.DiscoveryDataset]
+    ) -> PublishCounts:
+        """Reconcile the channel's RAG documents with the records, in place.
+
+        The indexing status of each record is written by the publisher; this only owns the
+        client's lifetime, so the connection pool is closed when the run ends rather than
+        held for as long as the process lives.
+        """
+        config = self._rag_config(channel)
+        async with GenericRagIngestionClient.for_application(config.get_application_id()) as client:
+            publisher = DiscoveryPublisher(client, channel=channel.deployment_id)
+            await publisher.verify_metadata_schema()
+            return await publisher.publish(records)
 
 
 @background_task

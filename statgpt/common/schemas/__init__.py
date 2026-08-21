@@ -9,6 +9,7 @@ from .channel import (
     ChannelUpdate,
     DeduplicationJob,
     DeduplicationStatus,
+    DiscoveryRagConfig,
     McpConfig,
     McpResourceConfig,
     ProxiedResourceConfig,
@@ -49,6 +50,7 @@ from .enums import (
     ChannelDatasetUpdateStatus,
     ChannelIndexStatusScope,
     DecoderOfLatestEnum,
+    DiscoveryGrade,
     DiscoveryIndexingStatus,
     DiscoveryUploadMode,
     DiscoveryValidationStatus,
@@ -59,6 +61,13 @@ from .enums import (
     PreprocessingStatusEnum,
     RAGVersion,
     ToolTypes,
+)
+from .generic_rag import (
+    DiscoveryDocumentMetadata,
+    GenericRagDocument,
+    GenericRagDocumentPage,
+    GenericRagDocumentStatus,
+    GenericRagMetadataSchema,
 )
 from .glossary_of_terms import (
     GlossaryTerm,

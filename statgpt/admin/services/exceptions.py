@@ -1,4 +1,5 @@
 import logging
+from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import NoReturn
 
@@ -165,6 +166,40 @@ class DiscoveryUploadFormatError(AdminServiceError):
 
 class DiscoveryUploadTooLargeError(AdminServiceError):
     """An uploaded file exceeds the configured byte cap."""
+
+
+class DiscoveryRagNotConfiguredError(AdminServiceError):
+    """The channel does not say where its discovery records should be published.
+
+    Reported when an indexing job is triggered, not from inside the run: an administrator
+    who has not configured the target should be told so by the request, rather than by a job
+    that accepts the trigger and then fails.
+    """
+
+    def __init__(self, channel_id: int) -> None:
+        super().__init__(
+            f"Channel {channel_id} has no discovery RAG configuration, so its discovery"
+            f" datasets cannot be published. Set the Generic RAG application id in the"
+            f" channel configuration (`details.discoveryRag.applicationId`) and try again."
+        )
+
+
+class DiscoveryMetadataSchemaError(AdminServiceError):
+    """The target RAG channel cannot filter on the metadata discovery search relies on.
+
+    Its metadata schema is configured on the DIAL application, outside this codebase, so a
+    run reports what is missing instead of publishing documents that search could never
+    narrow down.
+    """
+
+    def __init__(self, missing_fields: Sequence[str]) -> None:
+        self.missing_fields = list(missing_fields)
+        fields = ", ".join(self.missing_fields)
+        super().__init__(
+            f"The discovery RAG channel does not declare these metadata field(s) as"
+            f" filterable: {fields}. Add them to the Generic RAG application's"
+            f" `metadata_schema` with `enable_filtering` set, then run the job again."
+        )
 
 
 class IndexingJobInProgressError(AdminServiceError):

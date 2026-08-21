@@ -16,6 +16,7 @@ from statgpt.admin.services.exceptions import (
     DiscoveryDatasetNotFoundError,
     DiscoveryIndexingJobNotFoundError,
     DiscoveryPayloadError,
+    DiscoveryRagNotConfiguredError,
     DiscoveryUploadFormatError,
     DiscoveryUploadTooLargeError,
     IndexingJobInProgressError,
@@ -46,6 +47,7 @@ def _problem(**kwargs: object) -> schemas.DiscoveryPayloadProblem:
         (DiscoveryDatasetConflictError("already exists"), 409),
         (IndexingJobInProgressError(channel_id=1, job_id=2), 409),
         (IndexingJobInProgressError(channel_id=1), 409),
+        (DiscoveryRagNotConfiguredError(channel_id=1), 409),
         (DiscoveryUploadTooLargeError("too big"), 413),
         (DiscoveryUploadFormatError("unreadable"), 400),
         (DiscoveryPayloadError(problems=[]), 400),
@@ -90,6 +92,13 @@ def test_an_unreadable_file_shares_the_payload_error_shape() -> None:
     assert body == {
         "detail": {"message": "The sheet is empty.", "problems": [], "truncated": False}
     }
+
+
+def test_an_unconfigured_channel_says_what_to_configure() -> None:
+    """The 409 has to be actionable: an administrator sees only this message."""
+    body = _client(DiscoveryRagNotConfiguredError(channel_id=3)).get("/boom").json()
+
+    assert "discoveryRag.applicationId" in body["detail"]
 
 
 def test_a_conflict_names_the_colliding_record() -> None:
