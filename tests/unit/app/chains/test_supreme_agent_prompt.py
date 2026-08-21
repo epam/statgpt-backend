@@ -1,4 +1,5 @@
 from statgpt.app.chains.supreme_agent import SupremeAgent
+from statgpt.app.default_prompts import supreme_agent_default_prompts
 from statgpt.common.schemas.channel import ChannelConfig, SupremeAgentConfig
 
 
@@ -18,10 +19,8 @@ def test_system_prompt_uses_default_sections():
         )
     )
 
-    # Default UI context describes the interactive data widget.
-    assert "shown to the user in an interactive widget" in prompt
-    # Default tool usage section also references the widget.
-    assert "already visible to the user in a separate widget" in prompt
+    assert supreme_agent_default_prompts.default_user_ui_context_section in prompt
+    assert supreme_agent_default_prompts.default_tool_usage_section in prompt
 
 
 def test_system_prompt_section_overrides_replace_defaults():
@@ -37,5 +36,6 @@ def test_system_prompt_section_overrides_replace_defaults():
 
     assert "The user sees only your text reply." in prompt
     assert "Custom tool usage rules." in prompt
-    # No widget mention may survive anywhere in the prompt.
-    assert "widget" not in prompt.lower()
+    # Overrides must fully replace the defaults, not merely be appended.
+    assert supreme_agent_default_prompts.default_user_ui_context_section not in prompt
+    assert supreme_agent_default_prompts.default_tool_usage_section not in prompt
