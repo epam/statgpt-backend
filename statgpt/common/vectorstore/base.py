@@ -35,7 +35,13 @@ class EmbeddinglessVectorStore(ABC):
     async def remove_documents_by(
         self, *, dataset_id: uuid.UUID | None = None, version_ids: list[int] | None = None
     ) -> None:
-        """Removes all documents by dataset_id or version_ids."""
+        """Removes all documents by dataset_id or version_ids.
+
+        Only one dataset is removed per call: `version_ids` must all belong to the same dataset,
+        since implementations may serialize the removal per dataset.
+
+        Raises ValueError if neither argument is given, or if `version_ids` span several datasets.
+        """
 
     @abstractmethod
     async def deduplicate_by_document_content(self) -> DedupCounts:

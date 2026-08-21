@@ -40,6 +40,7 @@ class OpenAiToDialStreamer:
         self._content = ""
         self._stages: dict[int, Stage] = {}
         self._attachments: list[dict[str, Any]] = []
+        self._state: dict[str, Any] | None = None
 
     def __enter__(self):
         return self
@@ -55,6 +56,11 @@ class OpenAiToDialStreamer:
     @property
     def attachments(self) -> list[dict[str, Any]]:
         return self._attachments
+
+    @property
+    def state(self) -> dict[str, Any] | None:
+        """The `custom_content.state` set by the downstream deployment, if any."""
+        return self._state
 
     @property
     def attachments_metadata(self) -> str:
@@ -88,12 +94,16 @@ class OpenAiToDialStreamer:
             self._update_token_usage(usages)
 
     def _process_content(self, content: str) -> None:
+        # `_content` is always the deployment's verbatim output (used for state/session replay).
         self._content += content
 
         if self._stream_content:
             self._target.append_content(content)
 
     def _process_custom_content(self, custom_content: dict[str, Any]) -> None:
+        if (state := custom_content.get('state')) is not None:
+            self._state = state
+
         if attachments := custom_content.get('attachments'):
             for attachment in attachments:
                 self._process_attachment(attachment)

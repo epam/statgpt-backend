@@ -20,3 +20,6 @@ class StateVarsConfig:
     OUT_OF_SCOPE = "out_of_scope"
     OUT_OF_SCOPE_REASONING = "out_of_scope_reasoning"
     TOOL_MESSAGES = "tool_messages"
+
+    # Supreme Agent <-> Deep Research clarification session, carried across turns.
+    DEEP_RESEARCH_SESSION = "deep_research_session"

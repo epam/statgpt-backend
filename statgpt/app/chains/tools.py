@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from collections.abc import MutableMapping
-from typing import Annotated, Any, Generic, Literal, TypeVar
+from typing import Annotated, Any, ClassVar, Generic, Literal, TypeVar
 
 from langchain_core.tools import BaseTool, InjectedToolArg
 from mcp.types import ToolAnnotations
@@ -109,7 +109,7 @@ ToolConfigType = TypeVar('ToolConfigType', bound=BaseToolConfig)
 
 class StatGptTool(BaseTool, ABC, Generic[ToolConfigType]):
     response_format: Literal['content', 'content_and_artifact'] = "content_and_artifact"
-    tool_type: ToolTypes  # Set dynamically in __init_subclass__
+    tool_type: ClassVar[ToolTypes]  # Set dynamically in __init_subclass__
 
     def __init_subclass__(cls, **kwargs):
         tool_type = kwargs.pop('tool_type', None)

@@ -6,7 +6,11 @@ Sets failed status for any records that were left in a non-final state.
 import asyncio
 import logging
 
-from statgpt.admin.services import AdminPortalChannelService, AdminPortalDataSetService
+from statgpt.admin.services import (
+    AdminPortalChannelService,
+    AdminPortalDataSetService,
+    AdminPortalDiscoveryIndexingJobService,
+)
 from statgpt.common.models import get_session_context_manager, optional_msi_token_manager_context
 
 _log = logging.getLogger(__name__)
@@ -48,12 +52,22 @@ async def _fix_deduplication_jobs() -> None:
         _log.exception("Error fixing deduplication job statuses:")
 
 
+async def _fix_discovery_indexing_jobs() -> None:
+    try:
+        async with get_session_context_manager() as session:
+            service = AdminPortalDiscoveryIndexingJobService(session)
+            await service.set_failed_status_for_stuck_discovery_indexing_jobs()
+    except Exception:
+        _log.exception("Error fixing discovery indexing job statuses:")
+
+
 async def fix_statuses() -> None:
     """Fix statuses from previous runs by setting failed status for stuck records."""
     await _fix_channel_dataset_versions()
     await _fix_jobs()
     await _fix_auto_update_jobs()
     await _fix_deduplication_jobs()
+    await _fix_discovery_indexing_jobs()
 
 
 async def main():
