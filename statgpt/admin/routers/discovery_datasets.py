@@ -142,6 +142,7 @@ async def upload_discovery_datasets(
 async def trigger_discovery_indexing(
     background_tasks: BackgroundTasks,
     channel_id: int,
+    force: bool = False,
 ) -> schemas.DiscoveryIndexingJob:
     """Re-validate and re-publish every discovery dataset of the channel.
 
@@ -154,10 +155,16 @@ async def trigger_discovery_indexing(
     RAG documents with the verdicts: a valid record is published (or republished, if it was
     edited since), an invalid one has its document withdrawn, and a document no record
     claims any more is removed. A record already indexed and unchanged is left alone.
+
+    `force` republishes every valid record even if nothing about it has changed, rebuilding
+    each document from scratch. Use it when the documents are stale for a reason no record
+    records - the document format changed, or the RAG channel was reconfigured. It is not a
+    fix for a broken index: it rebuilds documents from records, and every rebuilt record is
+    briefly absent from the channel while its document is replaced.
     """
     async with get_session_context_manager() as session:
         return await IndexingJobService(session).trigger(
-            background_tasks=background_tasks, channel_id=channel_id
+            background_tasks=background_tasks, channel_id=channel_id, force=force
         )
 
 

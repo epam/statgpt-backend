@@ -1,11 +1,13 @@
 """Tests for publishing discovery dataset records into a Generic RAG channel."""
 
+import asyncio
 from types import SimpleNamespace
 from typing import cast
 from unittest.mock import AsyncMock
 
 import pytest
 
+from statgpt.admin.services import discovery_publisher as publisher_module
 from statgpt.admin.services.discovery_publisher import (
     DiscoveryPublisher,
     build_metadata,
@@ -69,10 +71,20 @@ def _document(
     grade: str = DiscoveryGrade.C,
     channel: str = _CHANNEL,
     status: str = "ready",
+    display_name: str | None = None,
 ) -> GenericRagDocument:
+    """A document as the channel would return it.
+
+    Its display name defaults to the one the publisher would generate for the matching
+    record, since that is what decides whether a refresh can happen in place.
+    """
     return GenericRagDocument(
         id=document_id,
-        display_name=f"{agency} - {dataset_id}.md",
+        display_name=(
+            display_name
+            if display_name is not None
+            else document_filename(_record(agency=agency, dataset_id=dataset_id), channel, grade)
+        ),
         status=status,
         metadata={
             "grade": grade,
@@ -87,20 +99,30 @@ def _client(documents: list[GenericRagDocument] | None = None) -> AsyncMock:
     client = AsyncMock(spec=GenericRagIngestionClient)
     client.list_documents.return_value = list(documents or [])
     client.upload_document.return_value = _document(document_id=99)
+    client.update_document.side_effect = lambda document_id, **_: _document(document_id=document_id)
     client.get_metadata_schema.return_value = GenericRagMetadataSchema(
         schema=DiscoveryDocumentMetadata.channel_json_schema(), dimensions={}
     )
     return client
 
 
-def _publisher(client: AsyncMock) -> DiscoveryPublisher:
+def _publisher(client: AsyncMock, force: bool = False) -> DiscoveryPublisher:
     return DiscoveryPublisher(
-        cast(GenericRagIngestionClient, client), channel=_CHANNEL, grade=DiscoveryGrade.C
+        cast(GenericRagIngestionClient, client),
+        channel=_CHANNEL,
+        grade=DiscoveryGrade.C,
+        force=force,
+        settle_interval_seconds=0,
     )
 
 
 def _deleted_ids(client: AsyncMock) -> list[int]:
-    return [call.args[0] for call in client.delete_document.call_args_list]
+    """Sorted, because the records are published concurrently."""
+    return sorted(call.args[0] for call in client.delete_document.call_args_list)
+
+
+def _updated_ids(client: AsyncMock) -> list[int]:
+    return sorted(call.args[0] for call in client.update_document.call_args_list)
 
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~ the document ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -270,17 +292,31 @@ async def test_a_new_record_is_uploaded_and_marked_indexed() -> None:
     assert record.index_error is None
 
 
-async def test_an_edited_record_is_deleted_and_uploaded_again() -> None:
-    """The channel API can replace neither content nor metadata."""
+async def test_an_edited_record_is_refreshed_in_place() -> None:
+    """Its document keeps its id, and is never briefly missing from the channel."""
     client = _client([_document(document_id=10)])
+    record = _record(indexing_status=DiscoveryIndexingStatus.OUTDATED)
+
+    counts = await _publisher(client).publish([record])
+
+    assert _updated_ids(client) == [10]
+    assert client.delete_document.await_count == 0
+    assert client.upload_document.await_count == 0
+    assert (counts.upserted, counts.deleted, counts.skipped) == (1, 0, 0)
+    assert record.indexing_status is DiscoveryIndexingStatus.INDEXED
+
+
+async def test_a_record_whose_label_changed_is_rebuilt_under_the_new_name() -> None:
+    """An update cannot rename, so the document would keep the old label for good."""
+    client = _client([_document(document_id=10, display_name="Bank Indonesia (BI) - OLD.md")])
     record = _record(indexing_status=DiscoveryIndexingStatus.OUTDATED)
 
     counts = await _publisher(client).publish([record])
 
     assert _deleted_ids(client) == [10]
     assert client.upload_document.await_count == 1
-    assert (counts.upserted, counts.deleted, counts.skipped) == (1, 1, 0)
-    assert record.indexing_status is DiscoveryIndexingStatus.INDEXED
+    assert client.update_document.await_count == 0
+    assert (counts.upserted, counts.deleted) == (1, 1)
 
 
 async def test_an_indexed_record_with_a_healthy_document_is_skipped() -> None:
@@ -301,7 +337,7 @@ async def test_an_indexed_record_whose_document_failed_is_published_again() -> N
 
     counts = await _publisher(client).publish([record])
 
-    assert client.upload_document.await_count == 1
+    assert client.update_document.await_count == 1
     assert counts.upserted == 1
 
 
@@ -451,7 +487,7 @@ async def test_one_failing_record_does_not_stop_the_others() -> None:
 
 
 async def test_a_failed_upload_after_a_successful_delete_leaves_nothing_indexed() -> None:
-    client = _client([_document(document_id=10)])
+    client = _client([_document(document_id=10, display_name="renamed.md")])
     record = _record(indexing_status=DiscoveryIndexingStatus.OUTDATED)
     client.upload_document.side_effect = GenericRagIngestionError("document upload", "boom", 503)
 
@@ -460,3 +496,254 @@ async def test_a_failed_upload_after_a_successful_delete_leaves_nothing_indexed(
     assert _deleted_ids(client) == [10]
     assert (counts.upserted, counts.failed, counts.deleted) == (0, 1, 1)
     assert record.indexing_status is DiscoveryIndexingStatus.FAILED
+
+
+async def test_a_failed_refresh_is_recorded_on_the_record() -> None:
+    client = _client([_document(document_id=10)])
+    record = _record(indexing_status=DiscoveryIndexingStatus.OUTDATED)
+    client.update_document.side_effect = GenericRagIngestionError("document update", "boom", 503)
+
+    counts = await _publisher(client).publish([record])
+
+    assert (counts.upserted, counts.failed, counts.deleted) == (0, 1, 0)
+    assert record.indexing_status is DiscoveryIndexingStatus.FAILED
+    assert "document update" in (record.index_error or "")
+
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~ forced rebuilds ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
+async def test_a_forced_run_republishes_a_record_it_would_have_skipped() -> None:
+    """The only way to pick up a change no record's status records."""
+    client = _client([_document(document_id=10)])
+    record = _record(indexing_status=DiscoveryIndexingStatus.INDEXED)
+
+    counts = await _publisher(client, force=True).publish([record])
+
+    assert (counts.upserted, counts.skipped) == (1, 0)
+    assert record.indexing_status is DiscoveryIndexingStatus.INDEXED
+
+
+async def test_a_forced_run_rebuilds_rather_than_refreshes() -> None:
+    """An update would send identical bytes, and the channel would re-index nothing."""
+    client = _client([_document(document_id=10)])
+    record = _record(indexing_status=DiscoveryIndexingStatus.INDEXED)
+
+    counts = await _publisher(client, force=True).publish([record])
+
+    assert _deleted_ids(client) == [10]
+    assert client.upload_document.await_count == 1
+    assert client.update_document.await_count == 0
+    assert counts.deleted == 1
+
+
+async def test_a_forced_run_still_withdraws_an_invalid_record() -> None:
+    client = _client([_document(document_id=10)])
+    record = _record(
+        validation_status=DiscoveryValidationStatus.INVALID,
+        indexing_status=DiscoveryIndexingStatus.INDEXED,
+    )
+
+    counts = await _publisher(client, force=True).publish([record])
+
+    assert _deleted_ids(client) == [10]
+    assert (counts.upserted, counts.deleted) == (0, 1)
+    assert record.indexing_status is DiscoveryIndexingStatus.NEW
+
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~ settling ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+# A channel that indexes in the background answers the upload long before the document is
+# retrievable, so an upload response saying '201' is not evidence that anything was indexed.
+
+
+def _settling_client(*passes: list[GenericRagDocument]) -> AsyncMock:
+    """A channel whose upload leaves the document mid-flight.
+
+    Each argument is what `list_documents` returns on one settle pass; the first listing,
+    which happens before anything is published, always finds the channel empty.
+    """
+    client = _client()
+    client.upload_document.return_value = _document(document_id=99, status="created")
+    client.list_documents.side_effect = [[], *passes]
+    return client
+
+
+async def test_a_document_that_ends_in_error_fails_its_record_in_the_same_run() -> None:
+    client = _settling_client([_document(document_id=99, status="error")])
+    record = _record()
+
+    counts = await _publisher(client).publish([record])
+
+    assert (counts.upserted, counts.failed) == (0, 1)
+    assert record.indexing_status is DiscoveryIndexingStatus.FAILED
+    assert "parse or index" in (record.index_error or "")
+
+
+async def test_a_settled_failure_keeps_the_time_the_record_was_uploaded() -> None:
+    """It says when the record was last uploaded, which the failure does not undo."""
+    client = _settling_client([_document(document_id=99, status="error")])
+    record = _record()
+
+    await _publisher(client).publish([record])
+
+    assert record.indexed_at is not None
+
+
+async def test_a_document_that_reaches_ready_leaves_its_record_indexed() -> None:
+    client = _settling_client(
+        [_document(document_id=99, status="indexing")],
+        [_document(document_id=99, status="ready")],
+    )
+    record = _record()
+
+    counts = await _publisher(client).publish([record])
+
+    assert (counts.upserted, counts.failed) == (1, 0)
+    assert record.indexing_status is DiscoveryIndexingStatus.INDEXED
+    assert client.list_documents.await_count == 3
+
+
+async def test_a_document_still_indexing_at_the_deadline_is_left_to_the_next_run() -> None:
+    client = _settling_client([_document(document_id=99, status="processing")])
+    record = _record()
+
+    publisher = DiscoveryPublisher(
+        cast(GenericRagIngestionClient, client),
+        channel=_CHANNEL,
+        settle_timeout_seconds=0.0001,
+        settle_interval_seconds=0,
+    )
+    counts = await publisher.publish([record])
+
+    assert (counts.upserted, counts.failed) == (1, 0)
+    assert record.indexing_status is DiscoveryIndexingStatus.INDEXED
+
+
+async def test_settling_is_skipped_when_the_channel_indexes_before_it_answers() -> None:
+    """Nothing to wait for, so not one extra request."""
+    client = _client()
+
+    await _publisher(client).publish([_record()])
+
+    assert client.list_documents.await_count == 1
+
+
+async def test_a_listing_that_fails_while_settling_leaves_the_publish_results_alone() -> None:
+    client = _settling_client()
+    client.list_documents.side_effect = [
+        [],
+        GenericRagIngestionError("document listing", "boom", 503),
+    ]
+    record = _record()
+
+    counts = await _publisher(client).publish([record])
+
+    assert (counts.upserted, counts.failed) == (1, 0)
+    assert record.indexing_status is DiscoveryIndexingStatus.INDEXED
+
+
+async def test_a_document_that_disappears_while_settling_is_left_to_the_next_run() -> None:
+    client = _settling_client([])
+    record = _record()
+
+    counts = await _publisher(client).publish([record])
+
+    assert (counts.upserted, counts.failed) == (1, 0)
+    assert record.indexing_status is DiscoveryIndexingStatus.INDEXED
+
+
+async def test_the_settle_interval_backs_off_to_its_maximum(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Quick at first, for the common case, then patient rather than chatty."""
+    slept: list[float] = []
+
+    async def record_sleep(seconds: float) -> None:
+        slept.append(seconds)
+
+    monkeypatch.setattr(publisher_module.asyncio, "sleep", record_sleep)
+    client = _settling_client(*[[_document(document_id=99, status="indexing")]] * 5)
+    client.list_documents.side_effect = [
+        *client.list_documents.side_effect,
+        [_document(document_id=99, status="ready")],
+    ]
+
+    publisher = DiscoveryPublisher(
+        cast(GenericRagIngestionClient, client), channel=_CHANNEL, grade=DiscoveryGrade.C
+    )
+    counts = await publisher.publish([_record()])
+
+    assert counts.upserted == 1
+    assert slept == [1.0, 2.0, 4.0, 5.0, 5.0]
+
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~ concurrency ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
+async def test_records_are_published_concurrently() -> None:
+    in_flight = peak = 0
+
+    async def upload(**_: object) -> GenericRagDocument:
+        nonlocal in_flight, peak
+        in_flight += 1
+        peak = max(peak, in_flight)
+        await asyncio.sleep(0)
+        in_flight -= 1
+        return _document(document_id=99)
+
+    client = _client()
+    client.upload_document.side_effect = upload
+    records = [_record(id=i, dataset_id=f"TABEL{i}") for i in range(6)]
+
+    counts = await _publisher(client).publish(records)
+
+    assert counts.upserted == 6
+    assert peak > 1
+
+
+async def test_concurrency_is_bounded() -> None:
+    in_flight = peak = 0
+
+    async def upload(**_: object) -> GenericRagDocument:
+        nonlocal in_flight, peak
+        in_flight += 1
+        peak = max(peak, in_flight)
+        await asyncio.sleep(0)
+        in_flight -= 1
+        return _document(document_id=99)
+
+    client = _client()
+    client.upload_document.side_effect = upload
+    records = [_record(id=i, dataset_id=f"TABEL{i}") for i in range(10)]
+
+    publisher = DiscoveryPublisher(
+        cast(GenericRagIngestionClient, client), channel=_CHANNEL, concurrency=2
+    )
+    await publisher.publish(records)
+
+    assert peak <= 2
+
+
+async def test_one_records_failure_does_not_cancel_the_others() -> None:
+    """The turns share a task group, so an escaping exception would take the run down."""
+    client = _client()
+    records = [_record(id=i, dataset_id=f"TABEL{i}") for i in range(5)]
+
+    async def upload(*, filename: str, **_: object) -> GenericRagDocument:
+        if "TABEL2" in filename:
+            raise GenericRagIngestionError("document upload", "boom", 503)
+        return _document(document_id=99)
+
+    client.upload_document.side_effect = upload
+
+    counts = await _publisher(client).publish(records)
+
+    assert (counts.upserted, counts.failed) == (4, 1)
+    assert [r.indexing_status is DiscoveryIndexingStatus.INDEXED for r in records] == [
+        True,
+        True,
+        False,
+        True,
+        True,
+    ]

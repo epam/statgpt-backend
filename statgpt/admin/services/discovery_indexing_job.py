@@ -67,13 +67,16 @@ class AdminPortalDiscoveryIndexingJobService(DbServiceBase):
             return (await session.execute(query)).scalar_one_or_none()
 
     async def trigger(
-        self, background_tasks: BackgroundTasks, channel_id: int
+        self, background_tasks: BackgroundTasks, channel_id: int, force: bool = False
     ) -> schemas.DiscoveryIndexingJob:
         """Create a job, schedule the run in the background, and return the job.
 
         The up-front check names the job that is already running; the partial unique index
         `uq_discovery_indexing_jobs_active` is what actually enforces one active job per
         channel, so two simultaneous requests cannot both get past this.
+
+        `force` travels with the scheduled task rather than on the job row: nothing re-reads
+        a job to resume it, so there is nothing for a column to be read back by.
         """
         channel = await ChannelService(self._session).get_model_by_id(channel_id)
 
@@ -103,7 +106,9 @@ class AdminPortalDiscoveryIndexingJobService(DbServiceBase):
             )
         await self._session.refresh(job)
 
-        background_tasks.add_task(run_discovery_indexing_in_background_task, job_id=job.id)
+        background_tasks.add_task(
+            run_discovery_indexing_in_background_task, job_id=job.id, force=force
+        )
 
         return self._serialize(job)
 
@@ -163,11 +168,14 @@ class AdminPortalDiscoveryIndexingJobService(DbServiceBase):
 
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~ the run ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-    async def process_job(self, job_id: int) -> None:
+    async def process_job(self, job_id: int, force: bool = False) -> None:
         """Run a job to completion: validate every record, then publish the valid ones.
 
         A per-record failure never aborts the run; it is recorded on the record. Only a
         failure of the run itself marks the job FAILED.
+
+        `force` republishes every valid record, including those already indexed and
+        unchanged - see `DiscoveryPublisher`.
         """
         async with self._scoped_session() as session:
             job = await self._get_job_model_or_raise(job_id)
@@ -188,15 +196,15 @@ class AdminPortalDiscoveryIndexingJobService(DbServiceBase):
                 # publish stage that dies should not take them down with it.
                 await session.commit()
 
-                counts = await self._publish_records(channel, records)
+                counts = await self._publish_records(channel, records, force=force)
 
                 job.documents_upserted = counts.upserted
                 job.documents_deleted = counts.deleted
                 job.details = (
+                    f"{'Forced rebuild. ' if force else ''}"
                     f"Validated {len(records)} record(s): {valid} valid, {invalid} invalid."
-                    f" Published {counts.upserted}, withdrew or removed {counts.deleted}"
-                    f" document(s), skipped {counts.skipped} already indexed,"
-                    f" failed {counts.failed}."
+                    f" Published {counts.upserted}, removed {counts.deleted} document(s),"
+                    f" skipped {counts.skipped} already indexed, failed {counts.failed}."
                 )
                 job.status = schemas.PreprocessingStatusEnum.COMPLETED
                 await session.commit()
@@ -237,7 +245,7 @@ class AdminPortalDiscoveryIndexingJobService(DbServiceBase):
         return valid, invalid
 
     async def _publish_records(
-        self, channel: models.Channel, records: list[models.DiscoveryDataset]
+        self, channel: models.Channel, records: list[models.DiscoveryDataset], force: bool
     ) -> PublishCounts:
         """Reconcile the channel's RAG documents with the records, in place.
 
@@ -247,14 +255,14 @@ class AdminPortalDiscoveryIndexingJobService(DbServiceBase):
         """
         config = self._rag_config(channel)
         async with GenericRagIngestionClient.for_application(config.get_application_id()) as client:
-            publisher = DiscoveryPublisher(client, channel=channel.deployment_id)
+            publisher = DiscoveryPublisher(client, channel=channel.deployment_id, force=force)
             await publisher.verify_metadata_schema()
             return await publisher.publish(records)
 
 
 @background_task
-async def run_discovery_indexing_in_background_task(job_id: int) -> None:
+async def run_discovery_indexing_in_background_task(job_id: int, force: bool = False) -> None:
     try:
-        await AdminPortalDiscoveryIndexingJobService().process_job(job_id=job_id)
+        await AdminPortalDiscoveryIndexingJobService().process_job(job_id=job_id, force=force)
     except Exception:
         _log.exception(f"Failed to run discovery indexing (job_id={job_id})")

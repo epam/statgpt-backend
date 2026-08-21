@@ -192,6 +192,49 @@ async def test_upload_asks_to_overwrite_only_when_told_to(overwrite: bool, expec
     assert requests[0].url.params.get("overwrite") == expected
 
 
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~ update ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
+async def test_update_replaces_the_content_and_the_metadata_of_one_document() -> None:
+    requests: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        return httpx.Response(200, json=_document(7))
+
+    async with _client(handler) as client:
+        document = await client.update_document(
+            7,
+            filename="Bank Indonesia (BI) - TABEL1_1.md",
+            content=b"# I.1. Broad Money",
+            mime_type="text/markdown",
+            metadata=_Metadata(agency="Bank Indonesia (BI)", statgpt_channel="statgpt-gtdc"),
+        )
+
+    assert document.id == 7
+    (request,) = requests
+    body = request.content.decode()
+    assert request.method == "PUT"
+    assert request.url.path == "/v1/deployments/generic-rag-app/route/channel/documents/7"
+    assert "# I.1. Broad Money" in body
+    assert '{"agency":"Bank Indonesia (BI)","statgpt_channel":"statgpt-gtdc"}' in body
+
+
+async def test_a_failed_update_names_that_operation() -> None:
+    """The reason is written to the record, so it has to say which call failed."""
+    async with _client(lambda _: httpx.Response(404, text="no such document")) as client:
+        with pytest.raises(GenericRagIngestionError, match="document update") as caught:
+            await client.update_document(
+                7,
+                filename="x.md",
+                content=b"x",
+                mime_type="text/markdown",
+                metadata=_Metadata(agency="a", statgpt_channel="c"),
+            )
+
+    assert caught.value.status_code == 404
+
+
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~ metadata schema ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 

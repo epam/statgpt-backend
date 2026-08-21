@@ -60,6 +60,16 @@ class GenericRagDocument(BaseModel):
         """
         return self.status == GenericRagDocumentStatus.ERROR
 
+    @property
+    def is_terminal(self) -> bool:
+        """True when the service has finished with this document, one way or the other.
+
+        Everything else - `created`, `processing`, `processed`, `indexing` - means parsing
+        or indexing is still under way, so the document's fate is not yet decided and a
+        publisher that needs to know has to look again later.
+        """
+        return self.status in (GenericRagDocumentStatus.READY, GenericRagDocumentStatus.ERROR)
+
 
 class GenericRagDocumentPage(BaseModel):
     """One page of `GET /channel/documents`."""

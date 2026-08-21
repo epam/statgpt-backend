@@ -157,7 +157,40 @@ class GenericRagIngestionClient:
         )
         return self._parse(GenericRagDocument, response, "document upload")
 
+    async def update_document(
+        self,
+        document_id: int,
+        *,
+        filename: str,
+        content: bytes,
+        mime_type: str,
+        metadata: BaseModel,
+    ) -> GenericRagDocument:
+        """Replace a document's content and metadata, keeping the document itself.
+
+        The closest thing to an in-place refresh the channel offers, and the reason to prefer
+        it over deleting and re-uploading: the document keeps its id, and it is never briefly
+        absent from the channel.
+
+        What it cannot do is rename. The service writes the new content to the url the
+        document already has and leaves `display_name` alone, so `filename` travels only as
+        the multipart part name. A caller that needs the stored name to change has to delete
+        and upload instead.
+
+        The content is re-indexed only if it actually differs - the service compares etags -
+        so refreshing an unchanged record is cheap.
+        """
+        response = await self._request(
+            "document update",
+            "PUT",
+            f"/documents/{document_id}",
+            files={"attachment": (filename, content, mime_type)},
+            data={"metadata": metadata.model_dump_json()},
+        )
+        return self._parse(GenericRagDocument, response, "document update")
+
     async def delete_document(self, document_id: int) -> None:
+        """Remove a document, its file, its chunks and its entries in every index."""
         await self._request("document deletion", "DELETE", f"/documents/{document_id}")
 
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~ transport ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
