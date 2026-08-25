@@ -6,10 +6,7 @@ import httpx
 import pytest
 from pydantic import BaseModel, SecretStr
 
-from statgpt.common.services.generic_rag.ingestion import (
-    GenericRagIngestionClient,
-    GenericRagIngestionError,
-)
+from statgpt.common.services import GenericRagIngestionClient, GenericRagIngestionError
 
 _BASE_URL = "http://core:8080/v1/deployments/generic-rag-app/route"
 
@@ -29,7 +26,7 @@ def _client(handler: Handler) -> GenericRagIngestionClient:
     return client
 
 
-def _document(document_id: int, **metadata: object) -> dict:
+def _document(document_id: int, **metadata: object) -> dict[str, object]:
     return {
         "id": document_id,
         "url": f"files/doc{document_id}.md",
@@ -41,7 +38,7 @@ def _document(document_id: int, **metadata: object) -> dict:
     }
 
 
-def _page(results: list[dict], total_count: int, offset: int = 0) -> dict:
+def _page(results: list[dict[str, object]], total_count: int, offset: int = 0) -> dict[str, object]:
     return {"total_count": total_count, "offset": offset, "limit": 500, "results": results}
 
 
@@ -71,7 +68,7 @@ async def test_for_application_builds_the_dial_route(monkeypatch: pytest.MonkeyP
 
     client = ingestion.GenericRagIngestionClient.for_application("generic-rag-app")
 
-    assert client._base_url == "http://core:8080/v1/deployments/generic-rag-app/route"
+    assert client.base_url == "http://core:8080/v1/deployments/generic-rag-app/route"
 
 
 async def test_for_application_supports_a_custom_application_path(
@@ -84,7 +81,7 @@ async def test_for_application_supports_a_custom_application_path(
 
     client = ingestion.GenericRagIngestionClient.for_application("applications/bucket42/rag")
 
-    assert client._base_url == ("http://core:8080/v1/deployments/applications/bucket42/rag/route")
+    assert client.base_url == "http://core:8080/v1/deployments/applications/bucket42/rag/route"
 
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~ listing ~~~~~~~~~~~~~~~~~~~~~~~~~~~~

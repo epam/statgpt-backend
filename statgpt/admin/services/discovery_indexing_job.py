@@ -6,9 +6,13 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from statgpt.common import models, schemas
-from statgpt.common.services import ChannelSerializer, ChannelService, DiscoveryDatasetService
+from statgpt.common.services import (
+    ChannelSerializer,
+    ChannelService,
+    DiscoveryDatasetService,
+    GenericRagIngestionClient,
+)
 from statgpt.common.services.base import DbServiceBase
-from statgpt.common.services.generic_rag import GenericRagIngestionClient
 from statgpt.common.utils import format_exception_reason, get_ts_utcnow
 
 from .background_tasks import background_task

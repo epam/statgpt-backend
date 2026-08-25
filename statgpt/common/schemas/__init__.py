@@ -42,6 +42,7 @@ from .discovery_dataset import (
     DiscoveryUploadSummary,
     DiscoveryValidationIssue,
 )
+from .discovery_document import DiscoveryDocumentMetadata
 from .discovery_indexing_job import DiscoveryIndexingJob
 from .enums import (
     AuditActionType,
@@ -62,13 +63,7 @@ from .enums import (
     RAGVersion,
     ToolTypes,
 )
-from .generic_rag import (
-    DiscoveryDocumentMetadata,
-    GenericRagDocument,
-    GenericRagDocumentPage,
-    GenericRagDocumentStatus,
-    GenericRagMetadataSchema,
-)
+from .generic_rag import GenericRagDocument, GenericRagDocumentPage, GenericRagMetadataSchema
 from .glossary_of_terms import (
     GlossaryTerm,
     GlossaryTermBase,

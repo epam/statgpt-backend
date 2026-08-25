@@ -10,7 +10,7 @@ import from `admin`.
 """
 
 import logging
-from typing import Self, TypeVar
+from typing import Any, Self, TypeVar
 
 import httpx
 from pydantic import BaseModel, SecretStr
@@ -53,7 +53,7 @@ class GenericRagIngestionError(Exception):
     """
 
     def __init__(self, operation: str, detail: str, status_code: int | None = None) -> None:
-        self.operation = operation
+        self._operation = operation
         self.detail = detail
         self.status_code = status_code
         code = f" with HTTP {status_code}" if status_code is not None else ""
@@ -78,6 +78,11 @@ class GenericRagIngestionClient:
         self._api_key = api_key
         self._http = ManagedHttpClient(_HTTP_TIMEOUT)
 
+    @property
+    def base_url(self) -> str:
+        """The channel route this client is bound to, without a trailing slash."""
+        return self._base_url
+
     @classmethod
     def for_application(cls, application_id: str) -> Self:
         """Target the channel of a DIAL application, by application id.
@@ -95,7 +100,7 @@ class GenericRagIngestionClient:
     async def __aenter__(self) -> Self:
         return self
 
-    async def __aexit__(self, *exc_info) -> None:
+    async def __aexit__(self, *exc_info: object) -> None:
         await self.aclose()
 
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~ endpoints ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -195,7 +200,9 @@ class GenericRagIngestionClient:
 
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~ transport ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-    async def _request(self, operation: str, method: str, path: str, **kwargs) -> httpx.Response:
+    async def _request(
+        self, operation: str, method: str, path: str, **kwargs: Any
+    ) -> httpx.Response:
         url = f"{self._base_url}/channel{path}"
         try:
             response = await self._http.client.request(

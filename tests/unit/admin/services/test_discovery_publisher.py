@@ -1,6 +1,7 @@
 """Tests for publishing discovery dataset records into a Generic RAG channel."""
 
 import asyncio
+from collections.abc import Callable
 from types import SimpleNamespace
 from typing import cast
 from unittest.mock import AsyncMock
@@ -242,7 +243,7 @@ def test_a_documents_key_is_folded_like_the_natural_key() -> None:
     "metadata",
     [{}, {"agency": "BI"}, {"agency": "BI", "dataset_id": ""}, {"agency": 7, "dataset_id": "X"}],
 )
-def test_a_document_without_a_usable_key_claims_none(metadata: dict) -> None:
+def test_a_document_without_a_usable_key_claims_none(metadata: dict[str, object]) -> None:
     document = GenericRagDocument(id=1, metadata=metadata)
 
     assert document_key(document) is None
@@ -331,14 +332,18 @@ async def test_an_indexed_record_with_a_healthy_document_is_skipped() -> None:
     assert record.indexing_status is DiscoveryIndexingStatus.INDEXED
 
 
-async def test_an_indexed_record_whose_document_failed_is_published_again() -> None:
+async def test_an_indexed_record_whose_document_failed_is_rebuilt_not_refreshed() -> None:
+    """A refresh sends the same bytes, the etag matches, and the parse is never retried."""
     client = _client([_document(status="error")])
     record = _record(indexing_status=DiscoveryIndexingStatus.INDEXED)
 
     counts = await _publisher(client).publish([record])
 
-    assert client.update_document.await_count == 1
-    assert counts.upserted == 1
+    assert client.update_document.await_count == 0
+    assert _deleted_ids(client) == [10]
+    assert client.upload_document.await_count == 1
+    assert (counts.upserted, counts.deleted) == (1, 1)
+    assert record.indexing_status is DiscoveryIndexingStatus.INDEXED
 
 
 async def test_an_indexed_record_whose_document_vanished_is_published_again() -> None:
@@ -562,11 +567,25 @@ def _settling_client(*passes: list[GenericRagDocument]) -> AsyncMock:
 
     Each argument is what `list_documents` returns on one settle pass; the first listing,
     which happens before anything is published, always finds the channel empty.
+
+    The last pass then repeats for as long as it is asked for. A finite list would raise
+    once exhausted, `_settle` would swallow that as a failed confirmation, and a test
+    expecting the deadline to be reached would pass without ever reaching it.
     """
     client = _client()
     client.upload_document.return_value = _document(document_id=99, status="created")
-    client.list_documents.side_effect = [[], *passes]
+    client.list_documents.side_effect = _listings([], *passes)
     return client
+
+
+def _listings(*passes: list[GenericRagDocument]) -> Callable[[], list[GenericRagDocument]]:
+    """Answer each listing from `passes` in turn, repeating the last one forever."""
+    remaining = list(passes)
+
+    def next_listing() -> list[GenericRagDocument]:
+        return remaining.pop(0) if len(remaining) > 1 else remaining[0]
+
+    return next_listing
 
 
 async def test_a_document_that_ends_in_error_fails_its_record_in_the_same_run() -> None:
@@ -618,6 +637,9 @@ async def test_a_document_still_indexing_at_the_deadline_is_left_to_the_next_run
 
     assert (counts.upserted, counts.failed) == (1, 0)
     assert record.indexing_status is DiscoveryIndexingStatus.INDEXED
+    # The listing never stops reporting the document as in flight, so the loop can only have
+    # ended by reaching the deadline.
+    assert client.list_documents.await_count >= 2
 
 
 async def test_settling_is_skipped_when_the_channel_indexes_before_it_answers() -> None:
@@ -663,11 +685,12 @@ async def test_the_settle_interval_backs_off_to_its_maximum(
         slept.append(seconds)
 
     monkeypatch.setattr(publisher_module.asyncio, "sleep", record_sleep)
-    client = _settling_client(*[[_document(document_id=99, status="indexing")]] * 5)
-    client.list_documents.side_effect = [
-        *client.list_documents.side_effect,
+    client = _settling_client()
+    client.list_documents.side_effect = _listings(
+        [],
+        *[[_document(document_id=99, status="indexing")]] * 5,
         [_document(document_id=99, status="ready")],
-    ]
+    )
 
     publisher = DiscoveryPublisher(
         cast(GenericRagIngestionClient, client), channel=_CHANNEL, grade=DiscoveryGrade.C

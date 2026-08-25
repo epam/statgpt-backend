@@ -23,11 +23,12 @@ import argparse
 import json
 import sys
 from pathlib import Path
+from typing import Any
 
 from statgpt.common.schemas import DiscoveryDocumentMetadata
 
 
-def _patch(config_path: Path, application: str, schema: dict) -> None:
+def _patch(config_path: Path, application: str, schema: dict[str, Any]) -> None:
     config = json.loads(config_path.read_text(encoding="utf-8"))
     applications = config.get("applications", {})
     if application not in applications:

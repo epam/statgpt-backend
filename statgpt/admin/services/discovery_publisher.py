@@ -14,6 +14,7 @@ import logging
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, field
 from time import monotonic
+from typing import NamedTuple
 
 from statgpt.admin.settings.discovery import DiscoveryPublishSettings
 from statgpt.common import models, schemas
@@ -31,22 +32,30 @@ from .exceptions import DiscoveryMetadataSchemaError
 
 _log = logging.getLogger(__name__)
 
-_SUMMARY_FIELDS: tuple[tuple[str, str], ...] = (
-    ("Agency / organization", "agency"),
-    ("Dataset ID", "dataset_id"),
-    ("Reference area / country", "reference_area"),
-    ("Regional coverage", "regional_coverage"),
-    ("Excluded regional values", "excluded_regional_values"),
-    ("Time coverage", "time_coverage"),
-    ("Frequency coverage", "frequency_coverage"),
-    ("Dataset URL", "url"),
+
+class _RenderedField(NamedTuple):
+    """One `DiscoveryRecord` field and the heading it is rendered under."""
+
+    label: str
+    attribute: str
+
+
+_SUMMARY_FIELDS: tuple[_RenderedField, ...] = (
+    _RenderedField("Agency / organization", "agency"),
+    _RenderedField("Dataset ID", "dataset_id"),
+    _RenderedField("Reference area / country", "reference_area"),
+    _RenderedField("Regional coverage", "regional_coverage"),
+    _RenderedField("Excluded regional values", "excluded_regional_values"),
+    _RenderedField("Time coverage", "time_coverage"),
+    _RenderedField("Frequency coverage", "frequency_coverage"),
+    _RenderedField("Dataset URL", "url"),
 )
 """Fields rendered as the document's leading bullet list, in workbook order."""
 
-_SECTION_FIELDS: tuple[tuple[str, str], ...] = (
-    ("Description", "description"),
-    ("Indicators coverage", "indicators_coverage"),
-    ("Relevant indicators not present in the dataset", "missing_indicators"),
+_SECTION_FIELDS: tuple[_RenderedField, ...] = (
+    _RenderedField("Description", "description"),
+    _RenderedField("Indicators coverage", "indicators_coverage"),
+    _RenderedField("Relevant indicators not present in the dataset", "missing_indicators"),
 )
 """Fields rendered as their own section, being prose or long ';'-separated lists."""
 
@@ -86,13 +95,13 @@ def render_document_body(record: DiscoveryRecord) -> str:
     """
     lines = [f"# {record.name or record.dataset_id}", ""]
     lines.extend(
-        f"- **{label}:** {value}"
-        for label, attribute in _SUMMARY_FIELDS
-        if (value := getattr(record, attribute))
+        f"- **{rendered.label}:** {value}"
+        for rendered in _SUMMARY_FIELDS
+        if (value := getattr(record, rendered.attribute))
     )
-    for label, attribute in _SECTION_FIELDS:
-        if value := getattr(record, attribute):
-            lines.extend(["", f"## {label}", "", value])
+    for rendered in _SECTION_FIELDS:
+        if value := getattr(record, rendered.attribute):
+            lines.extend(["", f"## {rendered.label}", "", value])
     return "\n".join(lines) + "\n"
 
 
@@ -114,8 +123,9 @@ def document_filename(record: DiscoveryRecord, channel: str, grade: schemas.Disc
     digest = hashlib.sha256(
         "\0".join([grade, channel, *record_key(record.agency, record.dataset_id)]).encode()
     ).hexdigest()[:_FILENAME_DIGEST_CHARS]
-    label = escape_invalid_filename_chars(f"{record.agency} - {record.dataset_id}").strip()
-    return f"{label[:_MAX_FILENAME_STEM] or _FALLBACK_FILENAME_STEM} [{digest}].md"
+    label = escape_invalid_filename_chars(f"{record.agency} - {record.dataset_id}")
+    stem = label[:_MAX_FILENAME_STEM].strip() or _FALLBACK_FILENAME_STEM
+    return f"{stem} [{digest}].md"
 
 
 @dataclass(frozen=True)
@@ -477,14 +487,19 @@ class DiscoveryPublisher:
     def _replaces_in_place(self, document: schemas.GenericRagDocument, filename: str) -> bool:
         """Whether this record's document can be refreshed rather than rebuilt.
 
-        Two things rule it out. A forced run wants the document built again from nothing,
-        which only deleting it achieves: an update sends the same bytes for a record that has
-        not changed, the service compares etags, and nothing is re-parsed under whatever the
-        channel is configured with now. And an update cannot rename - the service keeps the
-        document's display name - so a record whose label has changed would carry the old one
-        for as long as the document lives.
+        Three things rule it out, and they share one cause: an update is only ever a content
+        refresh, so anything that needs the document itself rebuilt has to delete it.
+
+        A forced run wants the document built again from nothing - an update sends the same
+        bytes for a record that has not changed, the service compares etags, and nothing is
+        re-parsed under whatever the channel is configured with now. A document already in
+        `error` needs exactly that re-parse, and for an unchanged record the etag match would
+        deny it: the record would keep failing every run, with only a forced run able to clear
+        it. And an update cannot rename - the service keeps the document's display name - so a
+        record whose label has changed would carry the old one for as long as the document
+        lives.
         """
-        return not self._force and document.display_name == filename
+        return not self._force and not document.is_failed and document.display_name == filename
 
     @staticmethod
     def _mark_index_failure(record: models.DiscoveryDataset) -> None:

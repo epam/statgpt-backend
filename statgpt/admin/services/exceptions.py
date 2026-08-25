@@ -193,8 +193,7 @@ class DiscoveryMetadataSchemaError(AdminServiceError):
     """
 
     def __init__(self, missing_fields: Sequence[str]) -> None:
-        self.missing_fields = list(missing_fields)
-        fields = ", ".join(self.missing_fields)
+        fields = ", ".join(missing_fields)
         super().__init__(
             f"The discovery RAG channel does not declare these metadata field(s) as"
             f" filterable: {fields}. Add them to the Generic RAG application's"
