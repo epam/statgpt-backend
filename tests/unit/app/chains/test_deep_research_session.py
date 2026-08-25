@@ -1,14 +1,10 @@
 import json
 from unittest.mock import Mock
 
-from aidial_sdk.chat_completion import Message as DialMessage
-from aidial_sdk.chat_completion import Role
-
 from statgpt.app.chains.deep_research.deep_research_tool import DeepResearchRunner
 from statgpt.app.config import StateVarsConfig
 from statgpt.app.schemas import DeepResearchSession, DeepResearchTurn
 from statgpt.app.utils import OpenAiToDialStreamer
-from statgpt.app.utils.message_history import History
 
 
 class TestBuildRequestMessages:
@@ -169,7 +165,39 @@ class TestStreamerStateCapture:
         assert streamer.state is None
 
 
-class TestLastUserMessageText:
-    def test_returns_plain_string_content(self):
-        history = History(messages=[DialMessage(role=Role.USER, content="hello there")])
-        assert history.last_user_message_text == "hello there"
+class _RecordingChoice:
+    def __init__(self) -> None:
+        self.content = ""
+        self.attachments: list[dict] = []
+
+    def append_content(self, content: str) -> None:
+        self.content += content
+
+    def add_attachment(self, **kwargs) -> None:
+        self.attachments.append(kwargs)
+
+
+class TestDeliverReport:
+    def test_delivers_content_and_attachments_verbatim(self):
+        choice = _RecordingChoice()
+        attachment = {"type": "text/markdown", "title": "Report.md", "data": "# Report"}
+        DeepResearchRunner._deliver_report(choice, "Final report body.", [attachment])
+
+        assert choice.content == "Final report body."
+        assert choice.attachments == [
+            {
+                "type": "text/markdown",
+                "title": "Report.md",
+                "data": "# Report",
+                "url": None,
+                "reference_url": None,
+                "reference_type": None,
+            }
+        ]
+
+    def test_no_attachments_appends_only_content(self):
+        choice = _RecordingChoice()
+        DeepResearchRunner._deliver_report(choice, "Just text.", [])
+
+        assert choice.content == "Just text."
+        assert choice.attachments == []

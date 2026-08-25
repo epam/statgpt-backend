@@ -3,7 +3,7 @@ import typing as t
 from collections.abc import Sequence
 
 from aidial_sdk.chat_completion import Message as DialMessage
-from aidial_sdk.chat_completion import MessageContentPart, MessageContentTextPart, Role
+from aidial_sdk.chat_completion import MessageContentPart, Role
 from aidial_sdk.chat_completion import ToolCall as DialToolCall
 from langchain_core.messages import (
     AIMessage,
@@ -99,6 +99,18 @@ class History:
     def create_empty(cls) -> 'History':
         return cls(messages=[])
 
+    def fork_for_subsession(self) -> 'History':
+        """A fork that shares the user-facing conversation but starts with an empty tool-message
+        buffer.
+
+        Used to run a self-contained sub-conversation (e.g. the Supreme Agent <-> Deep Research
+        clarification exchange) whose tool calls/responses must not leak into the cross-turn tool
+        state: they accumulate on the fork and are discarded when the turn ends, while
+        ``dump_state`` runs against the original history. The DIAL message list is copied so the
+        fork cannot mutate the original; prior turns' tool messages remain reachable because they
+        are reconstructed from those messages' ``custom_content.state``."""
+        return History(messages=list(self._messages))
+
     @classmethod
     async def from_dial_with_interceptors(
         cls,
@@ -184,18 +196,6 @@ class History:
 
     def get_last_non_tool_message(self) -> DialMessage:
         return self._messages[-1]
-
-    @property
-    def last_user_message_text(self) -> str:
-        """The verbatim text of the latest non-tool message."""
-        content = self.get_last_non_tool_message().content
-        if isinstance(content, str):
-            return content
-        parts: list[str] = []
-        for part in content or []:
-            if isinstance(part, MessageContentTextPart) and part.text:
-                parts.append(part.text)
-        return "\n".join(parts)
 
     def get_ai_messages(self) -> list[DialMessage]:
         return [msg for msg in self._messages if msg.role == Role.ASSISTANT]

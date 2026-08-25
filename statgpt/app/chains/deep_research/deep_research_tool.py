@@ -1,5 +1,5 @@
 import time
-from typing import Annotated, Any, Self
+from typing import Annotated, Any, NamedTuple, Self
 
 from mcp.types import ToolAnnotations
 from pydantic import Field
@@ -8,12 +8,13 @@ from statgpt.app.chains.parameters import ChainParameters
 from statgpt.app.chains.tools import GuardrailInput, StatGptTool, ToolArgs
 from statgpt.app.config import StateVarsConfig
 from statgpt.app.schemas import (
+    DeepResearchArtifact,
     DeepResearchSession,
+    DeepResearchToolMessageState,
     DeepResearchTurn,
-    ToolArtifact,
-    ToolMessageState,
 )
 from statgpt.app.utils import OpenAiToDialStreamer, openai
+from statgpt.app.utils.dial_stages import ChoiceI
 from statgpt.common.schemas import ChannelConfig
 from statgpt.common.schemas import DeepResearchTool as DeepResearchToolConfig
 from statgpt.common.schemas import ToolTypes
@@ -28,10 +29,35 @@ class DeepResearchArgs(ToolArgs):
 
 
 class ResumeDeepResearchArgs(ToolArgs):
-    message: Annotated[str, GuardrailInput] = Field(
+    # No `GuardrailInput`: this message is composed by the Supreme Agent while mediating the session,
+    # not free-text typed by the user. (Deep Research is never exposed via the MCP server, the only
+    # place the input guardrail runs, so the marker was inert here regardless.)
+    message: str = Field(
         description=(
-            "The user's latest message, forwarded verbatim to the active Deep Research session."
+            "The message to send to the active Deep Research session: the user's answers to its"
+            " clarifying questions (answered from context where possible) or their approval of the"
+            " plan."
         )
+    )
+
+
+class DeepResearchTurnResult(NamedTuple):
+    """Outcome of a single Deep Research turn.
+
+    ``report_delivered`` is True only when the deployment delivered its final report (research
+    complete). The report is already streamed to the user verbatim, so the Supreme Agent must end
+    the turn without repeating it. Otherwise ``content`` is a clarification / plan-for-approval that
+    the Supreme Agent mediates."""
+
+    content: str
+    report_delivered: bool
+
+
+def _build_deep_research_artifact(
+    tool_type: ToolTypes, result: DeepResearchTurnResult
+) -> DeepResearchArtifact:
+    return DeepResearchArtifact(
+        state=DeepResearchToolMessageState(type=tool_type, report_delivered=result.report_delivered)
     )
 
 
@@ -39,10 +65,10 @@ class DeepResearchRunner:
     """Runs a single Deep Research turn and owns the persisted session.
 
     Holds the business logic shared by the start (`deep_research`) and resume
-    (`resume_deep_research`) tools: it calls the deployment, streams the output verbatim to the
-    user, and persists or drops the `DeepResearchSession`. Both tools construct a runner and call
-    `run`; the only difference between them is which message they forward and when the agent
-    invokes them."""
+    (`resume_deep_research`) tools: it calls the deployment, hands a clarification / plan back to the
+    Supreme Agent (buffered, not shown to the user) or delivers the final report verbatim, and
+    persists or drops the `DeepResearchSession`. Both tools construct a runner and call `run`; the
+    only difference between them is which message they forward and when the agent invokes them."""
 
     def __init__(self, tool_config: DeepResearchToolConfig):
         self._tool_config = tool_config
@@ -118,10 +144,30 @@ class DeepResearchRunner:
         # accumulated state on every later turn — the report already lives in the chat history.
         DeepResearchSession.drop_from_state(state)
 
-    async def run(self, inputs: dict, user_message: str) -> str:
-        """Run one Deep Research turn: call the deployment, stream its output verbatim to the
-        user, persist the session, and drop it once research has started (final report
-        delivered).
+    @staticmethod
+    def _deliver_report(choice: ChoiceI, content: str, attachments: list[dict[str, Any]]) -> None:
+        """Stream Deep Research's final report to the user verbatim.
+
+        Delivered straight from the deployment output (content plus any attachments, e.g. a Canvas
+        document) so no tokens are re-spent and nothing is paraphrased. Content was buffered during
+        the run (see `run`), so it is appended here in one shot."""
+        if content:
+            choice.append_content(content)
+        for attachment in attachments:
+            choice.add_attachment(
+                type=attachment.get('type'),
+                title=attachment.get('title'),
+                data=attachment.get('data'),
+                url=attachment.get('url'),
+                reference_url=attachment.get('reference_url'),
+                reference_type=attachment.get('reference_type'),
+            )
+
+    async def run(self, inputs: dict, user_message: str) -> DeepResearchTurnResult:
+        """Run one Deep Research turn: call the deployment, then either hand a clarification / plan
+        back to the Supreme Agent (buffered, not shown to the user) or deliver the final report to
+        the user verbatim once research has started. Persist the session between clarifications and
+        drop it once the report is delivered.
 
         Request/stream failures are not surfaced here: they propagate so `ToolCaller.call_tool`
         records the error in the tool state (an ERROR tool message) and the Supreme Agent surfaces
@@ -145,13 +191,14 @@ class DeepResearchRunner:
         time_start = time.monotonic()
         try:
             async with client:
-                # Stream verbatim: whatever Deep Research returns (clarifying questions, plan for
-                # approval, or the final report) is surfaced to the user as-is, token by token.
+                # Buffer content (`stream_content=False`): a clarification / plan is handed back to
+                # the Supreme Agent to mediate, never shown to the user as-is. Progress stages still
+                # stream live. The final report is delivered to the user below, verbatim.
                 dial_streamer = OpenAiToDialStreamer(
                     choice,
                     choice,
                     deployment=deployment_id,
-                    stream_content=True,
+                    stream_content=False,
                     show_debug_stages=show_debug_stages,
                     stages_config=details.stages_config,
                 )
@@ -163,12 +210,17 @@ class DeepResearchRunner:
                 deep_research_state = dial_streamer.state
 
             if self._research_started(deep_research_state):
-                # Final report delivered: drop the session instead of recording this turn
+                # Final report delivered: stream it to the user verbatim, then drop the session
+                # instead of recording this turn.
+                self._deliver_report(choice, content, dial_streamer.attachments)
                 self._drop_session(state)
-            else:
-                self._append_turn(session, user_message, content, deep_research_state or {})
-                self._save_session(state, session)
-            return content
+                return DeepResearchTurnResult(content=content, report_delivered=True)
+
+            # Clarification / plan-for-approval: hand the content back to the Supreme Agent and keep
+            # the session so the next call can resume from Deep Research's own state.
+            self._append_turn(session, user_message, content, deep_research_state or {})
+            self._save_session(state, session)
+            return DeepResearchTurnResult(content=content, report_delivered=False)
         finally:
             duration_s = time.monotonic() - time_start
             if (duration_manager := get_llm_call_duration_manager()) is not None:
@@ -189,9 +241,9 @@ class DeepResearchTool(StatGptTool[DeepResearchToolConfig], tool_type=ToolTypes.
         """Return the schema for the arguments that this tool accepts."""
         return DeepResearchArgs
 
-    async def _arun(self, inputs: dict, query: str, **kwargs) -> tuple[str, ToolArtifact]:
-        content = await DeepResearchRunner(self._tool_config).run(inputs, query)
-        return content, ToolArtifact(state=ToolMessageState(type=self.tool_type))
+    async def _arun(self, inputs: dict, query: str, **kwargs) -> tuple[str, DeepResearchArtifact]:
+        result = await DeepResearchRunner(self._tool_config).run(inputs, query)
+        return result.content, _build_deep_research_artifact(self.tool_type, result)
 
 
 class ResumeDeepResearchTool(
@@ -226,6 +278,6 @@ class ResumeDeepResearchTool(
             args_schema=ResumeDeepResearchArgs,
         )
 
-    async def _arun(self, inputs: dict, message: str, **kwargs) -> tuple[str, ToolArtifact]:
-        content = await DeepResearchRunner(self._tool_config).run(inputs, message)
-        return content, ToolArtifact(state=ToolMessageState(type=self.tool_type))
+    async def _arun(self, inputs: dict, message: str, **kwargs) -> tuple[str, DeepResearchArtifact]:
+        result = await DeepResearchRunner(self._tool_config).run(inputs, message)
+        return result.content, _build_deep_research_artifact(self.tool_type, result)
