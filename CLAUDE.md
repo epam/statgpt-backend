@@ -78,7 +78,9 @@ See `statgpt/cli/README.md` for full documentation.
 | `channel status` | Show dataset preprocessing status |
 | `channel deduplicate` | Deduplicate embeddings for a channel |
 | `channel reindex` | Reindex dataset embeddings for a channel |
-| `content init` | Initialize channels, data sources, datasets, glossaries |
+| `discovery upload` | Upload discovery datasets (Grade C) to a channel |
+| `discovery reindex` | Reindex a channel's discovery datasets |
+| `content init` | Initialize channels, data sources, datasets, glossaries, discovery datasets |
 | `settings` | Show current CLI settings |
 
 ## Architecture Overview

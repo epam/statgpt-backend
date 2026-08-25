@@ -429,6 +429,49 @@ async def select_clients_interactive(available_clients: list[str]) -> set[str] |
     return set(selected)
 
 
+async def select_components_interactive(
+    components: list[tuple[str, str]],
+    all_components: set[str],
+) -> set[str]:
+    """
+    Interactive component selection with an "all" option.
+
+    Nothing starts checked, so an empty result means the user chose nothing and the caller
+    must treat the run as cancelled.
+
+    Args:
+        components: List of (value, display_label) tuples, in display order
+        all_components: Every component value, returned when "all" is checked
+
+    Returns:
+        Set of selected component values (empty if nothing was selected)
+
+    Raises:
+        NonInteractiveError: If non-interactive mode is enabled
+    """
+    if cli_runtime.non_interactive:
+        raise NonInteractiveError(
+            "Interactive component selection required but --non-interactive mode is enabled.\n"
+            "  Use -o/--only to specify components.\n"
+            "  Usage: statgpt content init --only <component1,component2,...>"
+        )
+    items = [("__all__", "All components")] + components
+
+    selected = await select_items_interactive(
+        items,
+        title="Select Components",
+        filter_enabled=False,
+    )
+
+    if not selected:
+        return set()  # Cancelled
+
+    if "__all__" in selected:
+        return set(all_components)
+
+    return set(selected)
+
+
 async def select_datasets_interactive(
     datasets: list[tuple[str, str]],
 ) -> set[str]:

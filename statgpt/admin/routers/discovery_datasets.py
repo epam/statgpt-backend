@@ -77,6 +77,20 @@ async def get_channel_discovery_datasets(
     )
 
 
+@channel_discovery_datasets_router.get("/stats")
+async def get_channel_discovery_dataset_stats(
+    channel_id: int,
+    session: AsyncSession = Depends(models.get_session),
+    _=Depends(cancel_on_disconnect),
+) -> schemas.DiscoveryDatasetStats:
+    """Returns how many of the channel's discovery datasets sit in each status.
+
+    Both breakdowns carry every status, zeros included, so a caller can render the whole
+    picture from one request instead of counting per status.
+    """
+    return await DiscoveryDatasetService(session).get_stats(channel_id)
+
+
 @channel_discovery_datasets_router.post("")
 async def add_discovery_dataset_to_channel(
     channel_id: int,

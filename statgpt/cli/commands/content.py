@@ -13,15 +13,20 @@ from statgpt.cli.shared import (
     AdminClient,
     BatchPartialFailureError,
     BatchReport,
+    DiscoveryPayloadError,
     confirm_interactive,
     console,
     get_admin_client,
+    is_upload_file,
     print_error,
     print_info,
     print_success,
     print_warning,
+    render_payload_problems,
     select_clients_interactive,
+    select_components_interactive,
     select_datasets_interactive,
+    summary_line,
 )
 from statgpt.common import utils
 from statgpt.common.data import DataManager
@@ -36,6 +41,7 @@ from statgpt.common.schemas import (
     DataSetBase,
     DataSource,
     DataSourceBase,
+    DiscoveryUploadMode,
     GlossaryTerm,
     GlossaryTermBase,
     GlossaryTermUpdateBulk,
@@ -43,7 +49,17 @@ from statgpt.common.schemas import (
 )
 from statgpt.common.utils import attachments_storage_factory
 
-VALID_COMPONENTS = {"channels", "datasources", "datasets", "glossaries", "files"}
+VALID_COMPONENTS = {"channels", "datasources", "datasets", "glossaries", "files", "discovery"}
+
+COMPONENT_LABELS: list[tuple[str, str]] = [
+    ("files", "Files (DIAL uploads)"),
+    ("channels", "Channels"),
+    ("glossaries", "Glossaries"),
+    ("discovery", "Discovery datasets"),
+    ("datasources", "Data sources"),
+    ("datasets", "Datasets"),
+]
+"""Components in the order they are processed, which is the order they are offered in."""
 
 
 def _parse_components(only: str | None) -> set[str]:
@@ -68,18 +84,10 @@ def _parse_components(only: str | None) -> set[str]:
 
 
 def _confirm_full_init(clients: list[str], components: set[str]) -> bool:
-    """Show confirmation dialog for full content initialization."""
-    component_lines = []
-    if "files" in components:
-        component_lines.append("  • Files (DIAL uploads)")
-    if "channels" in components:
-        component_lines.append("  • Channels")
-    if "glossaries" in components:
-        component_lines.append("  • Glossaries")
-    if "datasources" in components:
-        component_lines.append("  • Data sources")
-    if "datasets" in components:
-        component_lines.append("  • Datasets")
+    """Show the review dialog listing what is about to be initialized."""
+    component_lines = [
+        f"  • {label}" for component, label in COMPONENT_LABELS if component in components
+    ]
 
     content = (
         "[bold]You are about to initialize:[/bold]\n\n"
@@ -89,13 +97,32 @@ def _confirm_full_init(clients: list[str], components: set[str]) -> bool:
     console.print(Panel(content, title="Content Initialization", border_style="yellow"))
     return confirm_interactive(
         "Proceed?",
-        default=False,
+        default=True,
         error_message=(
             "Full initialization requires confirmation.\n"
             "  Use -y/--yes to skip confirmation.\n"
             "  Usage: statgpt content init -y"
         ),
     )
+
+
+async def _resolve_components(only: str | None, yes: bool) -> set[str] | None:
+    """Decide which components a run covers, asking first when nothing says otherwise.
+
+    Returns None when the run is cancelled - which is what selecting nothing means.
+    """
+    if only:
+        return _parse_components(only)
+    if yes:
+        return VALID_COMPONENTS.copy()
+
+    selected = await select_components_interactive(COMPONENT_LABELS, VALID_COMPONENTS)
+    if not selected:
+        return None
+    # datasets implies datasources, exactly as `--only` treats it
+    if "datasets" in selected:
+        selected.add("datasources")
+    return selected
 
 
 def _load_available_datasets(client_config_dir: str) -> list[tuple[str, str]]:
@@ -126,7 +153,7 @@ async def init_handler(
     yes: bool = False,
     verify: bool = False,
 ) -> None:
-    """Initialize content (channels, data sources, datasets, glossaries)."""
+    """Initialize content (channels, data sources, datasets, glossaries, discovery)."""
     config_dir = cli_settings.config_dir
     if not config_dir:
         print_error("STATGPT_CLI_CONFIG_DIR environment variable is not set")
@@ -136,12 +163,16 @@ async def init_handler(
         print_error(f"Config directory not found: {config_dir}")
         return
 
-    # Parse components
+    # Components come first: everything after this only makes sense for a known selection
     try:
-        components = _parse_components(only)
+        selected_components = await _resolve_components(only, yes)
     except ValueError as e:
         print_error(str(e))
         return
+    if selected_components is None:
+        print_info("No components selected. Aborted.")
+        return
+    components = selected_components
 
     # Find available clients
     clients_dir = os.path.join(config_dir, "clients")
@@ -294,6 +325,7 @@ async def _process_client(
 
     glossaries_dir = f"{client_config_dir}/glossaries"
     dial_files_dir = f"{client_config_dir}/dial_files"
+    discovery_dir = f"{client_config_dir}/discovery_datasets"
 
     # Upload DIAL files
     if "files" in components:
@@ -316,6 +348,16 @@ async def _process_client(
             glossaries_dir,
         )
 
+    # Upload discovery datasets. After the channels block, so a channel created by this run
+    # can already receive its records.
+    if "discovery" in components:
+        if os.path.exists(discovery_dir):
+            await _upload_discovery_datasets(
+                admin_client, report, channel_cfg, channels, discovery_dir
+            )
+        else:
+            print_info(f"No discovery datasets directory found at {discovery_dir}")
+
     # Process data sources
     data_sources: dict[str, DataSource] = {}
     if "datasources" in components:
@@ -337,6 +379,94 @@ async def _process_client(
         dataset_ids,
         link_channels="channels" in components,
     )
+
+
+async def _resolve_config_channels(
+    admin_client: AdminClient,
+    channel_cfg: dict[str, Any],
+    channels: dict[str, Channel],
+    report: BatchReport,
+) -> list[Channel]:
+    """The channels this client's config declares, as they exist server-side.
+
+    `channels` holds what this run put in place; it is empty when channels were not part of
+    the selection, so the rest is looked up. A declared channel that does not exist yet is
+    reported rather than skipped silently - its records have nowhere to go.
+    """
+    declared = [
+        ch_cfg["deployment_id"]
+        for ch_cfg in channel_cfg.get("channels", [])
+        if ch_cfg.get("deployment_id")
+    ]
+    missing = [deployment_id for deployment_id in declared if deployment_id not in channels]
+
+    existing: dict[str, Channel] = {}
+    if missing:
+        existing = {ch.deployment_id: ch for ch in await admin_client.get_channels()}
+
+    resolved: list[Channel] = []
+    for deployment_id in declared:
+        channel = channels.get(deployment_id) or existing.get(deployment_id)
+        if channel is None:
+            print_error(f"  Channel does not exist: {deployment_id}")
+            report.record_skipped("discovery", deployment_id, "channel does not exist")
+            continue
+        resolved.append(channel)
+    return resolved
+
+
+async def _upload_discovery_datasets(
+    admin_client: AdminClient,
+    report: BatchReport,
+    channel_cfg: dict[str, Any],
+    channels: dict[str, Channel],
+    discovery_dir: str,
+) -> None:
+    """Upload every discovery file of a client to every channel the client declares.
+
+    Upserted, so a folder holding one file per agency accumulates into one collection per
+    channel and a file that is unchanged leaves its records' statuses alone. Each file is
+    isolated and recorded: one that is refused does not stop the rest.
+    """
+    files = sorted(f for f in os.listdir(discovery_dir) if is_upload_file(f))
+    if not files:
+        print_info(f"No discovery dataset files found in {discovery_dir}")
+        return
+
+    target_channels = await _resolve_config_channels(admin_client, channel_cfg, channels, report)
+    if not target_channels:
+        return
+
+    print_info("Uploading discovery datasets...")
+
+    for channel in target_channels:
+        uploaded = 0
+        for filename in files:
+            path = os.path.join(discovery_dir, filename)
+            label = f"{channel.deployment_id}: {filename}"
+            try:
+                summary = await admin_client.upload_discovery_datasets(
+                    channel.id, path, DiscoveryUploadMode.UPSERT
+                )
+            except DiscoveryPayloadError as e:
+                print_error(f"  Failed discovery file {filename}: {e}")
+                render_payload_problems(e.detail)
+                report.record_failed("discovery", label, str(e))
+                continue
+            except Exception as e:
+                print_error(f"  Failed discovery file {filename}: {e}")
+                report.record_failed("discovery", label, str(e))
+                continue
+
+            uploaded += 1
+            print_info(f"  Uploaded {filename}: {summary_line(summary)}")
+            report.record_ok("discovery", label)
+
+        if uploaded:
+            print_info(
+                f"  Run: [cyan]discovery reindex -c {channel.deployment_id}[/cyan]"
+                f" to publish the records"
+            )
 
 
 async def _upload_dial_files(report: BatchReport, client_id: str, dial_files_dir: str) -> None:
@@ -942,7 +1072,7 @@ async def _verify_datasets(
 
 init_command = Command(
     name="init",
-    description="Initialize content (channels, data sources, datasets, glossaries)",
+    description="Initialize content (channels, data sources, datasets, glossaries, discovery)",
     handler=init_handler,
     args=[
         CommandArg(
@@ -956,7 +1086,11 @@ init_command = Command(
         CommandArg(
             name="only",
             short_name="o",
-            description="Components to process: channels,datasources,datasets,glossaries,files",
+            description=(
+                "Components to process:"
+                " channels,datasources,datasets,glossaries,files,discovery."
+                " Omit to select them interactively"
+            ),
         ),
         CommandArg(
             name="yes",

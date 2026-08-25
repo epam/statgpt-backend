@@ -72,18 +72,20 @@ This is useful for troubleshooting and reporting bugs.
 
 ## Commands
 
-| Command               | Description                           |
-|-----------------------|---------------------------------------|
-| `auth login`          | Authenticate with admin API           |
-| `auth logout`         | Clear cached authentication token     |
-| `auth status`         | Show current authentication status    |
-| `channel list`        | List all available channels           |
-| `channel import`      | Import channel from zip archive       |
-| `channel status`      | Show dataset preprocessing status     |
-| `channel reindex`     | Reindex dataset embeddings            |
-| `channel deduplicate` | Deduplicate embeddings for a channel  |
-| `content init`        | Initialize content from config files  |
-| `settings`            | Show current CLI settings and sources |
+| Command               | Description                            |
+|-----------------------|----------------------------------------|
+| `auth login`          | Authenticate with admin API            |
+| `auth logout`         | Clear cached authentication token      |
+| `auth status`         | Show current authentication status     |
+| `channel list`        | List all available channels            |
+| `channel import`      | Import channel from zip archive        |
+| `channel status`      | Show dataset preprocessing status      |
+| `channel reindex`     | Reindex dataset embeddings             |
+| `channel deduplicate` | Deduplicate embeddings for a channel   |
+| `discovery upload`    | Upload discovery datasets to a channel |
+| `discovery reindex`   | Reindex a channel's discovery datasets |
+| `content init`        | Initialize content from config files   |
+| `settings`            | Show current CLI settings and sources  |
 
 ### auth login
 
@@ -117,6 +119,12 @@ statgpt> channel status -c my-deployment-id -o report.csv
 | `-c, --channel`     | Channel deployment ID (interactive if omitted) |
 | `-o, --output-path` | Export status report to CSV file               |
 
+Besides the per-dataset table, the report prints the channel's vector store index status and,
+for a channel that does Grade C work, a **Discovery Datasets (Grade C)** block: how many
+records sit in each validation and indexing status, plus the `discovery reindex` command to
+run when any of them is still `NOT_VALIDATED`, `NEW`, `OUTDATED` or `FAILED`. The CSV export
+covers the datasets only.
+
 ### channel reindex
 
 ```
@@ -133,26 +141,69 @@ In `all` mode each dataset is submitted independently: a dataset the server reje
 reported and the rest are still queued. See [Batch Summaries and Exit
 Codes](#batch-summaries-and-exit-codes).
 
+### discovery upload
+
+Loads a filled discovery workbook (`.xlsx`) or its CSV equivalent into a channel's Grade C
+records. Records are matched on agency and dataset ID, ignoring case and spacing.
+
+```
+statgpt> discovery upload -c my-channel --file records.xlsx
+```
+
+| Option          | Description                                                                   |
+|-----------------|-------------------------------------------------------------------------------|
+| `-c, --channel` | Channel deployment ID (interactive if omitted)                                |
+| `-f, --file`    | Path to the `.xlsx` or `.csv` file (prompts if omitted)                       |
+| `--mode`        | `upsert` (default) keeps records absent from the file; `replace` deletes them |
+
+Uploading does not publish anything: run `discovery reindex` afterwards. A file whose cells
+cannot be read is refused in full - nothing is saved - and every offending row is listed with
+its cell reference, with a non-zero exit code. See [Batch Summaries and Exit
+Codes](#batch-summaries-and-exit-codes).
+
+### discovery reindex
+
+Re-validates every discovery record of a channel and reconciles the channel's documents in its
+Generic RAG application: valid records are published, invalid ones withdrawn, and documents no
+record claims any more removed. Polls the job to completion and prints its counts.
+
+```
+statgpt> discovery reindex -c my-channel
+```
+
+| Option          | Description                                                                                          |
+|-----------------|------------------------------------------------------------------------------------------------------|
+| `-c, --channel` | Channel deployment ID (interactive if omitted)                                                       |
+| `--force`       | Rebuild every document even if nothing changed; each rebuilt record is briefly absent from the index |
+
+Requires a `discoveryRag` block in the channel configuration, and refuses to start while
+another job for the channel is running.
+
 ### content init
 
 ```
-statgpt> content init                             # interactive client selection
+statgpt> content init                             # interactive component and client selection
 statgpt> content init --client-id my-client       # specific client
-statgpt> content init --only channels,glossaries  # specific components
+statgpt> content init --only channels,glossaries  # specific components, no component prompt
 statgpt> content init -y                          # skip all prompts, process ALL datasets
 statgpt> content init --datasets urn1,urn2        # specific datasets only
 ```
 
-| Option        | Description                                                              |
-|---------------|--------------------------------------------------------------------------|
-| `--client-id` | Comma-separated client IDs (interactive selection if omitted)            |
-| `--datasets`  | Comma-separated dataset URNs to process                                  |
-| `-o, --only`  | Components: `channels`, `datasources`, `datasets`, `glossaries`, `files` |
-| `-y, --yes`   | Skip all confirmation prompts and process ALL available content          |
-| `--verify`    | After processing, check each dataset can be loaded from its data source   |
+| Option        | Description                                                                           |
+|---------------|---------------------------------------------------------------------------------------|
+| `--client-id` | Comma-separated client IDs (interactive selection if omitted)                         |
+| `--datasets`  | Comma-separated dataset URNs to process                                               |
+| `-o, --only`  | Components: `channels`, `datasources`, `datasets`, `glossaries`, `files`, `discovery` |
+| `-y, --yes`   | Skip all confirmation prompts and process ALL available content                       |
+| `--verify`    | After processing, check each dataset can be loaded from its data source               |
 
 **Notes:**
 
+- Without `--only` or `-y`, the run starts by asking which components to process. Nothing is
+  pre-selected: check `All components` for a full run, and selecting nothing cancels
+- `discovery` uploads every `.xlsx` and `.csv` file in the client's `discovery_datasets/`
+  folder to every channel that client's `channels.yaml` declares, in `upsert` mode. It does
+  not publish them - run `discovery reindex` for that
 - Specifying `datasets` automatically includes `datasources` (dependency)
 - Interactive selectors: arrow keys to navigate, space to toggle, enter to confirm
 - **Important:** Using `-y` without `--datasets` processes ALL available datasets for selected clients
