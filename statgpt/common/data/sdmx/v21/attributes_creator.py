@@ -8,6 +8,7 @@ from statgpt.common.data.sdmx.v21.attribute import (
     Sdmx21CodeListAttribute,
     Sdmx21StringAttribute,
 )
+from statgpt.common.data.sdmx.v21.representation import resolve_representation
 from statgpt.common.data.sdmx.v21.schemas import StructureMessage21, Urn
 from statgpt.common.data.sdmx.v21.urn_utils import lookup_urn
 
@@ -51,11 +52,7 @@ class Sdmx21AttributesCreator:
 
     def _create_attribute_from_concept(self, attribute: common.DataAttribute) -> Sdmx21Attribute:
         concept = self._get_concept_for(attribute)
-        representation = concept.core_representation
-        if not representation:
-            representation = attribute.local_representation
-            if not representation:
-                raise ValueError(f"Concept {concept} has neither core nor local representation")
+        representation = resolve_representation(attribute, concept)
 
         name = concept.name[self._locale]
         description = concept.description.localizations.get(self._locale)
@@ -66,7 +63,7 @@ class Sdmx21AttributesCreator:
             # so that we see which representations are used for each attribute.
             # But get_dataset() is called often when answering the user query (by chat facade).
             # TODO: either control when to produce this log depending on the context, or remove it.
-            # logger.info(f"Creating code list attribute from core_representation for {attribute=}")
+            # logger.info(f"Creating code list attribute from {representation=} for {attribute=}")
             result_attribute = self._create_code_list_attribute(
                 code_list_ref=representation.enumerated,
                 attribute=attribute,
