@@ -1,8 +1,9 @@
 import asyncio
 import copy
+import uuid
 from copy import deepcopy
 from datetime import datetime
-from typing import NamedTuple
+from typing import Any, NamedTuple, Self
 
 from aidial_sdk.chat_completion import FunctionCall
 from aidial_sdk.chat_completion import Message as DialMessage
@@ -17,11 +18,13 @@ from langchain_core.prompts import (
 from langchain_core.runnables import Runnable, RunnablePassthrough
 
 from statgpt.app.chains.data_query.data_query_artifacts_displayer import DataQueryArtifactDisplayer
+from statgpt.app.chains.deep_research import ResumeDeepResearchTool, surface_deep_research_error
 from statgpt.app.chains.parameters import ChainParameters
 from statgpt.app.chains.tools import StatGptTool
 from statgpt.app.config import ChainParametersConfig, StateVarsConfig
 from statgpt.app.default_prompts import supreme_agent_default_prompts
 from statgpt.app.schemas import (
+    DeepResearchSession,
     FailedToolArtifact,
     FailedToolMessageState,
     ToolArtifact,
@@ -38,7 +41,9 @@ from statgpt.app.utils.dial_stages import (
 from statgpt.app.utils.message_history import History
 from statgpt.common.auth.auth_context import AuthContext
 from statgpt.common.config import multiline_logger as logger
-from statgpt.common.schemas import ChannelConfig, FakeCall
+from statgpt.common.schemas import ChannelConfig
+from statgpt.common.schemas import DeepResearchTool as DeepResearchToolConfig
+from statgpt.common.schemas import FakeCall, ToolTypes
 from statgpt.common.utils import InvalidLLMStreamResponse
 from statgpt.common.utils.llm_call_duration_context import get_llm_call_duration_manager
 from statgpt.common.utils.markdown import format_as_markdown_list
@@ -163,8 +168,12 @@ class SupremeAgent:
         auth_context: AuthContext,
         channel_config: ChannelConfig,
         tools: list[StatGptTool],
-    ) -> 'SupremeAgent':
-        chain = cls._create_chain(auth_context, channel_config, tools)
+        tool_choice: str | None = None,
+        parallel_tool_calls: bool | None = None,
+    ) -> Self:
+        chain = cls._create_chain(
+            auth_context, channel_config, tools, tool_choice, parallel_tool_calls
+        )
         return cls(choice, chain)
 
     async def run(
@@ -221,10 +230,8 @@ class SupremeAgent:
         return template
 
     @classmethod
-    def _create_chain(
-        cls, auth_context: AuthContext, channel_config: ChannelConfig, tools: list[StatGptTool]
-    ) -> Runnable:
-        prompt_template = ChatPromptTemplate.from_messages(
+    def _create_prompt_template(cls, channel_config: ChannelConfig) -> ChatPromptTemplate:
+        return ChatPromptTemplate.from_messages(
             [
                 SystemMessagePromptTemplate.from_template(
                     cls._create_system_prompt(channel_config)
@@ -251,14 +258,60 @@ class SupremeAgent:
                 channel_config.supreme_agent.no_calculations_section
                 or supreme_agent_default_prompts.default_no_calculations_section
             ),
+            user_ui_context_section=(
+                channel_config.supreme_agent.user_ui_context_section
+                or supreme_agent_default_prompts.default_user_ui_context_section
+            ),
         )
+
+    @classmethod
+    def _create_chain(
+        cls,
+        auth_context: AuthContext,
+        channel_config: ChannelConfig,
+        tools: list[StatGptTool],
+        tool_choice: str | None = None,
+        parallel_tool_calls: bool | None = None,
+    ) -> Runnable:
+        prompt_template = cls._create_prompt_template(channel_config)
         model = get_chat_model(
             api_key=auth_context.api_key,
             model_config=channel_config.supreme_agent.llm_model_config,
         )
-        model_with_tools = model.bind_tools(tools, strict=True)
+        bind_kwargs: dict[str, Any] = {'strict': True}
+        if tool_choice is not None:
+            bind_kwargs['tool_choice'] = tool_choice
+        if parallel_tool_calls is not None:
+            bind_kwargs['parallel_tool_calls'] = parallel_tool_calls
+        model_with_tools = model.bind_tools(tools, **bind_kwargs)
 
         return prompt_template | model_with_tools
+
+
+def _content_to_str(content: Any) -> str:
+    """Coerce message content (a ``str`` or a list of content parts) to a plain string."""
+    return content if isinstance(content, str) else str(content)
+
+
+class _DeepResearchRouting(NamedTuple):
+    """How the current turn is routed with respect to Deep Research.
+
+    ``resume`` short-circuits the agent loop entirely (the user's message is forwarded to the
+    active session). Otherwise the fields configure the agent run: a forced start binds the single
+    Deep Research tool with a forced ``tool_choice``; a normal turn carries the config-scoped
+    executor unchanged.
+    """
+
+    resume: bool
+    agent_tools: list[StatGptTool]
+    tool_caller: ToolCaller
+    tool_choice: str | None
+    parallel_tool_calls: bool | None
+
+    @property
+    def is_forced_start(self) -> bool:
+        """Deep Research forced as the sole bound tool for a fresh (non-resume) turn."""
+        return self.tool_choice is not None
 
 
 class SupremeAgentExecutor:
@@ -274,12 +327,25 @@ class SupremeAgentExecutor:
         debug = state.get(StateVarsConfig.SHOW_DEBUG_STAGES, False)
 
         tool_executor = ToolCaller.from_config(self._channel_config)
-        supreme_agent = SupremeAgent.create(
-            choice, auth_context, self._channel_config, tool_executor.tools
-        )
 
-        fake_history = await self._fake_tool_calls(tool_executor, inputs, show_stages=debug)
-        history.prepend(fake_history)
+        routing = self._resolve_deep_research_routing(inputs, tool_executor)
+        if routing.resume:
+            # Resume bypasses the agent loop (and the fake-tool-call prelude) entirely: the user's
+            # message is forwarded to the active Deep Research session verbatim.
+            return await self._resume_deep_research(inputs)
+
+        if not routing.is_forced_start:
+            fake_history = await self._fake_tool_calls(tool_executor, inputs, show_stages=debug)
+            history.prepend(fake_history)
+
+        supreme_agent = SupremeAgent.create(
+            choice,
+            auth_context,
+            self._channel_config,
+            routing.agent_tools,
+            tool_choice=routing.tool_choice,
+            parallel_tool_calls=routing.parallel_tool_calls,
+        )
 
         data_query_artifacts: dict[str, DataQueryArtifact] = {}
         assert self._channel_config.data_query is not None, "data_query must be configured"
@@ -306,13 +372,20 @@ class SupremeAgentExecutor:
                 history.add_chunk_as_tool_message(response.resp)
 
                 res: list[ToolMessage] = await asyncio.gather(
-                    *(tool_executor.call_tool(tool_call, inputs) for tool_call in tool_calls)
+                    *(routing.tool_caller.call_tool(tool_call, inputs) for tool_call in tool_calls)
                 )
 
+                deep_research_msg: ToolMessage | None = None
                 for tool_msg in res:
                     history.add_tool_message(tool_msg)
 
-                    if (artifact := tool_msg.artifact) and isinstance(artifact, DataQueryArtifact):
+                    artifact = tool_msg.artifact
+                    # Deep Research is force-selected as the sole bound tool with
+                    # `parallel_tool_calls=False`, so at most one Deep Research message appears here.
+                    if artifact and artifact.type == ToolTypes.DEEP_RESEARCH:
+                        deep_research_msg = tool_msg
+
+                    if artifact and isinstance(artifact, DataQueryArtifact):
                         tool_data_query_artifacts.append(artifact)
                         data_query_artifacts[tool_msg.tool_call_id] = artifact
 
@@ -328,6 +401,13 @@ class SupremeAgentExecutor:
                         "Further supreme agent runs are skipped due to tools execution skip"
                     )
                     return ""
+
+                if deep_research_msg is not None:
+                    # Deep Research owns this turn: it streamed its clarifying question / final
+                    # report straight into the conversation, or failed.
+                    if deep_research_msg.status == ToolResponseStatus.ERROR.value:
+                        return surface_deep_research_error(choice)
+                    return _content_to_str(deep_research_msg.content)
             elif response.finished:
                 if response.first_token_time is not None:
                     self._log_performance(inputs, response.start_time, response.first_token_time)
@@ -335,13 +415,7 @@ class SupremeAgentExecutor:
                 if data_query_artifacts:
                     await data_displayer.display(data_query_artifacts)
 
-                # Handle response content - can be str or list
-                resp_content = response.resp.content
-                if isinstance(resp_content, str):
-                    return resp_content
-                else:
-                    # Convert list content to string
-                    return str(resp_content)
+                return _content_to_str(response.resp.content)
             else:
                 # Not finished due to error and no tool calls
                 # Let's add the chunk to history and try again (if retries are left)
@@ -350,6 +424,88 @@ class SupremeAgentExecutor:
         warning_msg = '\n\n[WARNING] Maximum number of agent loop iterations reached. Please enter "continue" to proceed.'
         choice.append_content(warning_msg)
         return warning_msg
+
+    def _resolve_deep_research_routing(
+        self, inputs: dict, tool_executor: ToolCaller
+    ) -> _DeepResearchRouting:
+        """Decide how Deep Research shapes this turn.
+
+        Deep Research is deliberately excluded from `ChannelConfig.tool_fields`, so it never
+        appears in `tool_executor.tools`, the MCP server, or the out-of-scope checker. It is
+        reachable only via the `deep_research` toggle ("button"): the start tool is built on demand
+        from its config, and the resume tool is derived from that config in turn.
+
+        A session lives in state only while a run is in progress (the tool drops it once the report
+        is delivered), so its presence is the in-progress signal. The toggle gates both starting a
+        new session and resuming an in-progress one: when on, an active session is resumed and
+        otherwise the start tool is forced as the only bound tool; when off, Deep Research is fully
+        unavailable and any in-progress session is abandoned.
+        """
+        normal = _DeepResearchRouting(
+            resume=False,
+            agent_tools=list(tool_executor.tools),
+            tool_caller=tool_executor,
+            tool_choice=None,
+            parallel_tool_calls=None,
+        )
+        if not self._channel_config.is_deep_research_available:
+            return normal
+
+        state = ChainParameters.get_state(inputs)
+        configuration = ChainParameters.get_configuration(inputs)
+        session_in_progress = DeepResearchSession.from_state(state) is not None
+
+        if configuration.deep_research:
+            if session_in_progress:
+                # Active session + toggle on: forward the user's next message to Deep Research
+                # verbatim.
+                return normal._replace(resume=True)
+            # Toggle on, fresh request: force the start tool.
+            deep_research_tool = StatGptTool.from_config(
+                self._deep_research_config(), self._channel_config
+            )
+            return _DeepResearchRouting(
+                resume=False,
+                agent_tools=[deep_research_tool],
+                tool_caller=ToolCaller([deep_research_tool]),
+                tool_choice=deep_research_tool.name,
+                parallel_tool_calls=False,
+            )
+        if session_in_progress:
+            # Toggle turned off mid-session: abandon the run so it can't silently resume, or
+            # resurrect on a later turn if the user re-enables the toggle in this chat.
+            DeepResearchSession.drop_from_state(state)
+        return normal
+
+    def _deep_research_config(self) -> DeepResearchToolConfig:
+        """The channel's Deep Research config. Callers must gate on `is_deep_research_available`."""
+        dr_config = self._channel_config.deep_research
+        assert dr_config is not None  # guaranteed by is_deep_research_available
+        return dr_config
+
+    async def _resume_deep_research(self, inputs: dict) -> str:
+        """Forward the user's latest message to the active Deep Research session, verbatim.
+
+        Bypasses the LLM so the message reaches Deep Research exactly as the user wrote it — no
+        paraphrasing, no answering from context (that mediation is the follow-up, #575). The tool
+        streams Deep Research's reply straight to the user and updates the session in `state`."""
+        history = ChainParameters.get_history(inputs)
+        choice = ChainParameters.get_choice(inputs)
+
+        resume_tool = ResumeDeepResearchTool.build(
+            self._deep_research_config(), self._channel_config
+        )
+        user_message = history.last_user_message_text
+        tool_call: ToolCall = {
+            'name': resume_tool.name,
+            'args': {'message': user_message},
+            'id': str(uuid.uuid4()),
+            'type': 'tool_call',
+        }
+        tool_msg = await ToolCaller([resume_tool]).call_tool(tool_call, inputs)
+        if tool_msg.status == ToolResponseStatus.ERROR.value:
+            return surface_deep_research_error(choice)
+        return _content_to_str(tool_msg.content)
 
     async def create_chain(self) -> Runnable:
         return RunnablePassthrough.assign(general_response=self.stream_response)

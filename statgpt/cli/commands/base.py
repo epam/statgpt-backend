@@ -4,6 +4,7 @@ import shlex
 from dataclasses import dataclass, field
 from typing import Any, Callable, Coroutine
 
+from statgpt.cli.shared.batch_report import BatchPartialFailureError
 from statgpt.cli.shared.console import console, print_error
 
 
@@ -181,6 +182,10 @@ class Command:
         except ValueError as e:
             print_error(str(e))
             console.print(f"\n{self.get_help()}")
+        except BatchPartialFailureError:
+            # The batch summary already lists what failed; re-raise quietly so the entry
+            # point can set a non-zero exit code without repeating it.
+            raise
         except Exception as e:
             print_error(f"Command failed: {e}")
             raise

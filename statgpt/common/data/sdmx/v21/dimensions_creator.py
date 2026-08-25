@@ -9,6 +9,7 @@ from statgpt.common.data.sdmx.common import (
     SdmxTimeDimension,
 )
 from statgpt.common.data.sdmx.common.codelist import BaseSdmxCodeList
+from statgpt.common.data.sdmx.v21.member_selection import read_member_selection
 from statgpt.common.data.sdmx.v21.schemas import StructureMessage21, Urn
 from statgpt.common.data.sdmx.v21.urn_utils import lookup_urn
 
@@ -94,11 +95,11 @@ class DimensionsCreator:
         self, dimension: common.DimensionComponent, time_dimension: bool
     ) -> SdmxDimension:
         concept = self._get_concept_for(dimension)
-        representation = concept.core_representation
+        representation = dimension.local_representation
         if not representation:
-            representation = dimension.local_representation
+            representation = concept.core_representation
             if not representation:
-                raise ValueError(f"Concept {concept} has neither core nor local representation")
+                raise ValueError(f"Concept {concept} has neither local nor core representation")
 
         name = concept.name[self._locale]
         description = concept.description.localizations.get(self._locale)
@@ -123,7 +124,7 @@ class DimensionsCreator:
             # so that we see which representations are used for each dimension.
             # But get_dataset() is called often when answering the user query (by chat facade).
             # TODO: either control when to produce this log depending on the context, or remove it.
-            # logger.info(f"Creating code list dimension from core_representation for {dimension=}")
+            # logger.info(f"Creating code list dimension from {representation=} for {dimension=}")
             result_dimension = self._create_code_list_dimension(
                 code_list_ref=representation.enumerated,
                 dimension=dimension,
@@ -135,19 +136,21 @@ class DimensionsCreator:
             facet = facets[0]  # for now, only the first facet is processed
 
             if facet.value_type == common.FacetValueType.string:
+                # Some registries declare an uncoded local representation while the concept's core
+                # representation is coded. Fall back to the core representation's codelist.
                 # TODO: same note as for log above
                 # logger.warning(
-                #     f"Creating code list dimension from local_representation for {dimension=}"
+                #     f"Creating code list dimension from core_representation for {dimension=}"
                 # )
-                if local_representation := dimension.local_representation:
+                if core_representation := concept.core_representation:
                     result_dimension = self._create_code_list_dimension(
-                        code_list_ref=local_representation.enumerated,
+                        code_list_ref=core_representation.enumerated,
                         dimension=dimension,
                         name=name,
                         description=description,
                     )
                 else:
-                    raise ValueError(f"Dimension {dimension} has no local representation")
+                    raise ValueError(f"Dimension {dimension} has no core representation")
             else:
                 raise ValueError(
                     f"Failed to build SdmxDimension for {dimension=}. {facet.value_type=}"
@@ -234,4 +237,13 @@ class DimensionsCreator:
         member_dict = cube_region.member
         if dimension.id not in member_dict.keys():
             raise ValueError(f"Missing dimension({dimension.id}) value in data content constraint")
-        return set([item.value for item in member_dict[dimension.id].values])  # type: ignore
+        selection = read_member_selection(member_dict[dimension.id])  # type: ignore[index]
+        if selection.has_time_range:
+            # This is only called for non-time code-list dimensions, so a time range here is a
+            # provider quirk. The codes it stands for are unknowable, so the dimension ends up
+            # with no availability filter at all and falls back to its whole codelist.
+            logger.warning(
+                f"Ignoring the time range of code-list dimension {dimension.id!r}"
+                " in the data content constraint"
+            )
+        return selection.coded_values

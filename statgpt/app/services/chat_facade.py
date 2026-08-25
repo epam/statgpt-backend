@@ -14,7 +14,7 @@ from pydantic import BaseModel, ConfigDict, Field, computed_field
 import statgpt.common.models as models
 import statgpt.common.schemas as schemas
 from statgpt.app import utils
-from statgpt.app.settings.dial_app import dial_app_settings
+from statgpt.app.settings.dial_app import DEEP_RESEARCH_TOGGLE_DEFAULT, dial_app_settings
 from statgpt.common.auth.auth_context import AuthContext
 from statgpt.common.data.base import (
     BaseIndicator,
@@ -224,7 +224,7 @@ class DeepResearchChannelConfiguration(BaseChannelConfiguration):
     deep_research: bool = DialField(
         title="Deep research",
         description="Run the request in Deep Research mode.",
-        default=False,
+        default=DEEP_RESEARCH_TOGGLE_DEFAULT,
     )
 
 
@@ -294,15 +294,10 @@ class ChannelServiceFacade:
     def channel_config(self) -> ChannelConfig:
         return self._channel.details
 
-    def _is_deep_research_available(self) -> bool:
-        """Whether the channel has the Deep Research tool configured and enabled."""
-        tool = self.channel_config.deep_research
-        return tool is not None and tool.enabled
-
     async def get_dial_channel_configuration(self, auth_context: AuthContext) -> dict[str, Any]:
         base_configuration_cls: type[BaseChannelConfiguration] = (
             DeepResearchChannelConfiguration
-            if self._is_deep_research_available()
+            if self.channel_config.is_deep_research_available
             else BaseChannelConfiguration
         )
 

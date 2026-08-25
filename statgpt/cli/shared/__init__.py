@@ -17,6 +17,12 @@ from statgpt.cli.shared.auth import (
     login,
     register_provider,
 )
+from statgpt.cli.shared.batch_report import (
+    BatchItemResult,
+    BatchItemStatus,
+    BatchPartialFailureError,
+    BatchReport,
+)
 from statgpt.cli.shared.console import (
     SpinnerStatus,
     console,
@@ -68,6 +74,11 @@ __all__ = [
     "AdminClient",
     "AuthenticationRequired",
     "get_admin_client",
+    # Batch reporting
+    "BatchItemResult",
+    "BatchItemStatus",
+    "BatchPartialFailureError",
+    "BatchReport",
     # Logging
     "setup_logging",
     "get_logger",

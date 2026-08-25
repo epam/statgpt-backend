@@ -79,6 +79,13 @@ class SupremeAgentConfig(BaseYamlModel):
             " If empty, the default content is used."
         ),
     )
+    user_ui_context_section: str = Field(
+        default="",
+        description=(
+            "Custom content for the 'User UI Context' section of the system prompt."
+            " If empty, the default content is used."
+        ),
+    )
 
 
 class OutOfScopeConfig(BaseYamlModel):
@@ -355,7 +362,6 @@ class ChannelConfig(BaseYamlModel):
             'term_definitions',
             'web_search',
             'web_search_agent',
-            'deep_research',
         ]
 
     @property
@@ -375,6 +381,11 @@ class ChannelConfig(BaseYamlModel):
         agent-facing consumer (e.g. the out-of-scope checker).
         """
         return [tool for tool in self.tools if not tool.mcp_only]
+
+    @property
+    def is_deep_research_available(self) -> bool:
+        """Whether the channel has the Deep Research tool configured and enabled."""
+        return self.deep_research is not None and self.deep_research.enabled
 
     def list_named_entity_types(self) -> list[str]:
         return [

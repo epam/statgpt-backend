@@ -34,6 +34,7 @@ from statgpt.common.utils import (
 
 from .channel import AdminPortalChannelService as ChannelService
 from .dataset import AdminPortalDataSetService as DataSetService
+from .discovery_dataset import AdminPortalDiscoveryDatasetService as DiscoveryDatasetService
 from .glossary_of_terms import AdminPortalGlossaryOfTermsService as GlossaryOfTermsService
 
 _log = logging.getLogger(__name__)
@@ -255,6 +256,9 @@ class JobsService:
                 glossary_service = GlossaryOfTermsService(session)
                 await glossary_service.export_glossary_to_folder(channel_db, data_dir)
 
+                discovery_service = DiscoveryDatasetService(session)
+                await discovery_service.export_discovery_datasets_to_folder(channel_db, data_dir)
+
             dataset_service = DataSetService(session)
             await dataset_service.export_datasets(
                 channel_db, data_dir, scope=scope, auth_context=auth_context
@@ -410,6 +414,9 @@ class JobsService:
                 await glossary_service.import_glossary_from_zip(
                     zip_file, channel_db.id, merge=is_merge
                 )
+
+                discovery_service = DiscoveryDatasetService(session)
+                await discovery_service.import_discovery_datasets_from_zip(zip_file, channel_db.id)
 
             dataset_service = DataSetService(session)
             await dataset_service.import_datasets_and_data_sources_from_zip(
