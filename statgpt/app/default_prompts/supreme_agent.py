@@ -15,6 +15,7 @@ class SupremeAgentDefaultPrompts(DefaltPromptsBase):
     default_tool_usage_section: str
     default_no_calculations_section: str
     deep_research_section: str
+    default_user_ui_context_section: str
 
 
 fp = os.path.join(os.path.dirname(os.path.realpath(__file__)), "assets", "supreme_agent.yaml")
