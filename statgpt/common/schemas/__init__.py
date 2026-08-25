@@ -34,6 +34,7 @@ from .dataset import DataSet, DataSetBase, DataSetDescriptor, DataSetUpdateReque
 from .discovery_dataset import (
     DiscoveryDataset,
     DiscoveryDatasetBase,
+    DiscoveryDatasetStats,
     DiscoveryDatasetUpdate,
     DiscoveryDatasetUpdateBulk,
     DiscoveryPayloadErrorDetail,

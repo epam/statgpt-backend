@@ -5,3 +5,4 @@ This folder contains sample configuration files for StatGPT, including:
 - datasets
 - channels
 - glossary terms
+- discovery datasets (Grade C records, in `discovery_datasets/`)
