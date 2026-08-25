@@ -7,10 +7,9 @@ from .enums import PreprocessingStatusEnum
 class DiscoveryIndexingJob(BaseYamlModel, DbDefaultBase):
     """A job record for tracking an indexing run over a channel's discovery datasets.
 
-    A run re-validates every record of the channel and then publishes the valid ones.
-    Publishing to the discovery RAG is not implemented yet, so a valid record ends the
-    run with ``indexing_status=FAILED`` and an explanatory ``index_error``, and the
-    document counts below stay at 0.
+    A run re-validates every record of the channel, then reconciles the channel's discovery
+    RAG documents with the verdicts: valid records are published, invalid ones have their
+    documents withdrawn, and documents no record claims any more are removed.
     """
 
     model_config = ConfigDict(use_attribute_docstrings=True)
@@ -21,7 +20,7 @@ class DiscoveryIndexingJob(BaseYamlModel, DbDefaultBase):
     """Job execution status (QUEUED, IN_PROGRESS, COMPLETED, FAILED)."""
 
     details: str | None = None
-    """What the run did, including stages that are not implemented yet."""
+    """What the run did, as a one-line summary of the counts below."""
 
     reason_for_failure: str | None = None
     """Why the run itself failed. Per-record failures do not fail the run."""
@@ -39,4 +38,8 @@ class DiscoveryIndexingJob(BaseYamlModel, DbDefaultBase):
     """Documents published to the discovery index."""
 
     documents_deleted: int | None = None
-    """Documents removed from the discovery index."""
+    """Documents removed from the discovery index.
+
+    Counts every removal: an invalid record's document being withdrawn, the old document of
+    a record that was republished, and one no record claims any more.
+    """

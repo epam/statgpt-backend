@@ -299,6 +299,27 @@ class ConversationStartersConfig(BaseYamlModel):
     )
 
 
+class DiscoveryRagConfig(BaseYamlModel):
+    """Where this channel's discovery dataset records are published.
+
+    The indexing job needs the target before it can publish anything, so a channel without
+    this block cannot be indexed - which is reported when the job is triggered rather than
+    discovered by a background run that fails.
+    """
+
+    application_id_raw: str = Field(
+        validation_alias=AliasChoices("application_id", "applicationId"),
+        serialization_alias="applicationId",
+        description=(
+            "The DIAL application id of the Generic RAG channel holding this channel's"
+            " discovery records. Supports $env:{VAR} syntax."
+        ),
+    )
+
+    def get_application_id(self) -> str:
+        return config_utils.replace_env(self.application_id_raw)
+
+
 class ChannelConfig(BaseYamlModel):
     locale: LocaleEnum = Field(default=LocaleEnum.EN, description="The locale of the channel")
     conversation_starters: ConversationStartersConfig | None = Field(
@@ -327,6 +348,13 @@ class ChannelConfig(BaseYamlModel):
             "Whether this channel requires bearer token forwarding to external APIs. "
             "When True and no bearer token is present, system user context will be used "
             "if the user has an allowed role."
+        ),
+    )
+    discovery_rag: DiscoveryRagConfig | None = Field(
+        default=None,
+        description=(
+            "The Generic RAG channel this channel's discovery dataset records are published"
+            " to. Required to run a discovery indexing job."
         ),
     )
 

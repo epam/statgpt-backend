@@ -116,6 +116,35 @@ services:
     ports:
       - "3001:8080"
 
+## Uncomment the lines below to test Grade C discovery datasets locally.
+## This is the Generic RAG channel a discovery indexing job publishes into; point a channel at it
+## with `details.discoveryRag.applicationId`.
+#  generic-rag:
+#    image: epam/ai-dial-generic-rag-backend:development
+#    depends_on:
+#      - vectordb
+#      - elasticsearch
+#    ports:
+#      - "5000:5000"
+#    environment:
+#      # DIAL
+#      DIAL_URL: "http://ai-dial-core:8080"
+#      DIAL_API_KEY: ${DIAL_API_KEY}  # index in the background, as a deployment does
+#      # PGVector
+#      DB_HOST: "vectordb"
+#      DB_PORT: "5432"
+#      DB_NAME: "statgpt_generic_rag"
+#      DB_USERNAME: ${PGVECTOR_USER}
+#      DB_PASSWORD: ${PGVECTOR_PASSWORD}
+#      DB_MSI_ENABLED: "false"
+#      # Elastic
+#      ELASTICSEARCH_URL: "http://elasticsearch:9200"
+#      ELASTICSEARCH_INDEX_PREFIX: "statgpt-generic-rag"
+#      ELASTICSEARCH_USERNAME: ${ELASTIC_AUTH_USER}
+#      ELASTICSEARCH_PASSWORD: ${ELASTIC_AUTH_PASSWORD}
+#      # misc
+#      ENABLE_DEBUG_STAGES: "true"
+
 ## Uncomment the lines below to test the SDMX proxy configuration locally.
 ## It seeds its own default configuration into DIAL Storage on first start, so no config file is
 ## needed. Set SDMX_PROXY_CONFIG_SERVER_HOST=http://localhost:8060 for the backend to reach it.

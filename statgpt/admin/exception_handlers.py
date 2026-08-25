@@ -14,6 +14,7 @@ from statgpt.admin.services.exceptions import (
     DiscoveryDatasetConflictError,
     DiscoveryNotFoundError,
     DiscoveryPayloadError,
+    DiscoveryRagNotConfiguredError,
     DiscoveryUploadFormatError,
     DiscoveryUploadTooLargeError,
     IndexingJobInProgressError,
@@ -70,4 +71,14 @@ def register_exception_handlers(app: FastAPI) -> None:
 
     @app.exception_handler(IndexingJobInProgressError)
     async def _job_in_progress(_: Request, exc: IndexingJobInProgressError) -> JSONResponse:
+        return JSONResponse(status_code=status.HTTP_409_CONFLICT, content={"detail": str(exc)})
+
+    @app.exception_handler(DiscoveryRagNotConfiguredError)
+    async def _rag_not_configured(_: Request, exc: DiscoveryRagNotConfiguredError) -> JSONResponse:
+        """A channel with nowhere to publish to: 409, naming what to configure.
+
+        A conflict rather than a 400, for the same reason a job already in progress is: the
+        request is well-formed, the channel is just not in a state that can serve it.
+        """
+        _log.info(f"Refused a discovery indexing job: {exc}")
         return JSONResponse(status_code=status.HTTP_409_CONFLICT, content={"detail": str(exc)})

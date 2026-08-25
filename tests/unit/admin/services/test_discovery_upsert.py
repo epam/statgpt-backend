@@ -355,7 +355,7 @@ async def test_editing_a_failed_record_clears_the_publish_error() -> None:
     stored = _stored(
         description="old",
         indexing_status=DiscoveryIndexingStatus.FAILED,
-        index_error="Publishing to the discovery RAG is not implemented yet.",
+        index_error="Generic RAG document upload failed with HTTP 503: upstream unavailable",
     )
     service = _service(existing=[stored])
 

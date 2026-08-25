@@ -43,3 +43,5 @@ channels:
             text: "What is the IMF WEO projection for US GDP for next 2 years?"
           - title: "What is CPI?"
             text: "What is CPI, how is it related to to inflation, and how is it used in economy and statistics?"
+      discoveryRag:
+        applicationId: "statgpt-generic-rag-grade-b-and-c"
