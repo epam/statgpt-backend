@@ -10,21 +10,13 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict, Field
 
 
-def _flags(*, filterable: bool = False, retrievable: bool = False) -> dict[str, Any]:
-    """Build the `json_schema_extra` marking what the RAG channel may do with a field.
+def _filterable() -> dict[str, Any]:
+    """The `json_schema_extra` letting a retrieval request pre-filter documents by a field.
 
     A fresh dict per field: Pydantic keeps whatever it is given on the `FieldInfo`, and a
     shared one would be the same object on every field that carries it.
-
-    `filterable` lets a retrieval request pre-filter documents by the field; `retrievable`
-    returns it alongside a retrieved chunk.
     """
-    extra: dict[str, Any] = {}
-    if filterable:
-        extra["enable_filtering"] = True
-    if retrievable:
-        extra["enable_in_mcp_retrieve_chunks"] = True
-    return extra
+    return {"enable_filtering": True}
 
 
 class DiscoveryDocumentMetadata(BaseModel):
@@ -45,7 +37,7 @@ class DiscoveryDocumentMetadata(BaseModel):
 
     model_config = ConfigDict(use_attribute_docstrings=True)
 
-    grade: str = Field(json_schema_extra=_flags(filterable=True))
+    grade: str = Field(json_schema_extra=_filterable())
     """Which discovery grade produced the record - see `DiscoveryGrade`.
 
     Typed as `str` rather than as the enum on purpose: this model renders the JSON-schema an
@@ -53,7 +45,7 @@ class DiscoveryDocumentMetadata(BaseModel):
     into a `$defs` block, which is a needlessly brittle thing to ask a deployment to carry.
     """
 
-    statgpt_channel: str = Field(json_schema_extra=_flags(filterable=True))
+    statgpt_channel: str = Field(json_schema_extra=_filterable())
     """Deployment id of the StatGPT channel the record belongs to.
 
     Scopes reconciliation: several channels, and both grades, can share one RAG channel, so a
@@ -62,19 +54,17 @@ class DiscoveryDocumentMetadata(BaseModel):
     environments.
     """
 
-    agency: str = Field(json_schema_extra=_flags(filterable=True, retrievable=True))
+    agency: str = Field(json_schema_extra=_filterable())
     """Publisher. A search pre-filter key."""
 
-    reference_area: str = Field(
-        default="", json_schema_extra=_flags(filterable=True, retrievable=True)
-    )
+    reference_area: str = Field(default="", json_schema_extra=_filterable())
     """Countries covered. A search pre-filter key."""
 
-    frequency_coverage: str = Field(default="", json_schema_extra=_flags(filterable=True))
+    frequency_coverage: str = Field(default="", json_schema_extra=_filterable())
     """The frequencies the dataset publishes at."""
 
-    dataset_id: str = Field(default="", json_schema_extra=_flags(retrievable=True))
-    name: str = Field(default="", json_schema_extra=_flags(retrievable=True))
+    dataset_id: str = ""
+    name: str = ""
     url: str = ""
     regional_coverage: str = ""
     excluded_regional_values: str = ""

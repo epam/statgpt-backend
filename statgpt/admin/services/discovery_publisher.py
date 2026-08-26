@@ -6,6 +6,11 @@ the records say it should hold. Run by an indexing job, after validation.
 Nothing here derives, paraphrases or summarizes: the document carries the submitted metadata
 verbatim, so how discoverable a dataset is stays a property of the source's own metadata
 rather than of an algorithm here.
+
+The split between the document's body and its metadata is decided by how the application
+indexes them: its indexes are document-level and span the metadata fields alongside the
+content, so every field is searchable from where it is carried. The body is therefore the
+description alone, and repeating a field in it would only index the same text twice.
 """
 
 import asyncio
@@ -14,7 +19,6 @@ import logging
 from collections.abc import Collection, Iterable, Sequence
 from dataclasses import dataclass, field
 from time import monotonic
-from typing import NamedTuple
 
 from statgpt.admin.settings.discovery import DiscoveryPublishSettings
 from statgpt.common import models, schemas
@@ -34,32 +38,6 @@ _log = logging.getLogger(__name__)
 
 _SETTINGS = DiscoveryPublishSettings()
 
-
-class _RenderedField(NamedTuple):
-    """One `DiscoveryRecord` field and the heading it is rendered under."""
-
-    label: str
-    attribute: str
-
-
-_SUMMARY_FIELDS: tuple[_RenderedField, ...] = (
-    _RenderedField("Agency / organization", "agency"),
-    _RenderedField("Dataset ID", "dataset_id"),
-    _RenderedField("Reference area / country", "reference_area"),
-    _RenderedField("Regional coverage", "regional_coverage"),
-    _RenderedField("Excluded regional values", "excluded_regional_values"),
-    _RenderedField("Time coverage", "time_coverage"),
-    _RenderedField("Frequency coverage", "frequency_coverage"),
-    _RenderedField("Dataset URL", "url"),
-)
-"""Fields rendered as the document's leading bullet list, in workbook order."""
-
-_SECTION_FIELDS: tuple[_RenderedField, ...] = (
-    _RenderedField("Description", "description"),
-    _RenderedField("Indicators coverage", "indicators_coverage"),
-    _RenderedField("Relevant indicators not present in the dataset", "missing_indicators"),
-)
-"""Fields rendered as their own section, being prose or long ';'-separated lists."""
 
 _MAX_FILENAME_STEM = 100
 _FALLBACK_FILENAME_STEM = "discovery-dataset"
@@ -85,26 +63,17 @@ _INDEXING_FAILED = (
 
 
 def render_document_body(record: DiscoveryRecord) -> str:
-    """Render a record as the markdown document the RAG channel indexes.
+    """Render a record as the document the RAG channel indexes: its description.
 
-    Every workbook field goes in, including the ones that also travel as metadata: metadata
-    is what search filters on, the body is what it retrieves over. Leaving `name` or
-    `indicators_coverage` out of the body would hide from search exactly what a user's
-    question matches on.
+    The one field that is prose, and the only one the body carries. Everything else travels
+    as metadata, which the application's document-level indexes cover in its own right, so
+    rendering it here as well would index the same text twice and dilute what a question
+    matches against.
 
-    An empty field is omitted rather than rendered as an empty label, so a sparse record
-    does not fill the index with headings.
+    A record is only published once it validates, and validation requires a description, so
+    this is never empty for a document that reaches the channel.
     """
-    lines = [f"# {record.name or record.dataset_id}", ""]
-    lines.extend(
-        f"- **{rendered.label}:** {value}"
-        for rendered in _SUMMARY_FIELDS
-        if (value := getattr(record, rendered.attribute))
-    )
-    for rendered in _SECTION_FIELDS:
-        if value := getattr(record, rendered.attribute):
-            lines.extend(["", f"## {rendered.label}", "", value])
-    return "\n".join(lines) + "\n"
+    return record.description
 
 
 def document_filename(record: DiscoveryRecord, channel: str, grade: schemas.DiscoveryGrade) -> str:
@@ -127,7 +96,7 @@ def document_filename(record: DiscoveryRecord, channel: str, grade: schemas.Disc
     ).hexdigest()[:_FILENAME_DIGEST_CHARS]
     label = escape_invalid_filename_chars(f"{record.agency} - {record.dataset_id}")
     stem = label[:_MAX_FILENAME_STEM].strip() or _FALLBACK_FILENAME_STEM
-    return f"{stem} [{digest}].md"
+    return f"{stem} [{digest}].txt"
 
 
 @dataclass(frozen=True)
@@ -144,14 +113,14 @@ def render_document(
 ) -> DocumentFile:
     """Render a record as the file the RAG channel ingests.
 
-    The one place the document's format is decided. The channel parses what it is given with
-    `unstructured`, whose `by_title` chunking follows the markdown headings below, so the
-    record arrives as the sections it was written as.
+    The one place the document's format is decided. Plain text, because the body is one
+    field of prose: there is no structure left in it for a parser to recover, and the
+    application is configured with no parser at all.
     """
     return DocumentFile(
         filename=document_filename(record, channel, grade),
         content=render_document_body(record).encode("utf-8"),
-        mime_type=MediaTypes.MARKDOWN,
+        mime_type=MediaTypes.PLAIN_TEXT,
     )
 
 
@@ -160,8 +129,8 @@ def build_metadata(
 ) -> schemas.DiscoveryDocumentMetadata:
     """Build the document metadata: every workbook field except the description.
 
-    The description is the one field left out - it is prose, it is in the body, and it is
-    nothing search would filter on.
+    The description is the one field left out, because it is the body. Everything else is
+    carried here and nowhere else, and the application's indexes reach it here.
     """
     return schemas.DiscoveryDocumentMetadata(
         grade=grade,

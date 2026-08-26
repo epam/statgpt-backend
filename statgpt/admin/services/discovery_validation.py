@@ -131,7 +131,22 @@ def _check_url(record: DiscoveryRecord) -> Iterable[DiscoveryValidationIssue]:
         )
 
 
+def _check_description(record: DiscoveryRecord) -> Iterable[DiscoveryValidationIssue]:
+    """Column G must say something, because it is the whole of the published document.
+
+    Every other field travels as document metadata; the description is the document's
+    content. A record without one is published as an empty document, which retrieval can
+    return but nothing in it can be read - so it is not fit to be indexed.
+    """
+    if not record.description:
+        yield DiscoveryValidationIssue(
+            field="description",
+            message="A description is required: it is the content of the published document.",
+        )
+
+
 DEFAULT_CHECKS: tuple[DiscoveryCheck, ...] = (
+    DiscoveryCheck(name="description", run=_check_description),
     DiscoveryCheck(name="frequency_coverage", run=_check_frequency_coverage),
     DiscoveryCheck(name="url", run=_check_url),
 )
@@ -141,6 +156,9 @@ Deliberately minimal. There is no severity axis, so a check must only emit an is
 the record genuinely should not be indexed - an advisory nitpick has nowhere to live and
 would silently make records unindexable. `reference_area` is therefore not checked against
 ISO codes: the template explicitly allows group labels such as 'Euro area' or 'World'.
+
+An absent description clears that bar rather than being a nitpick: the published document
+has nothing else in it.
 """
 
 
