@@ -84,6 +84,7 @@ This is useful for troubleshooting and reporting bugs.
 | `channel deduplicate` | Deduplicate embeddings for a channel   |
 | `discovery upload`    | Upload discovery datasets to a channel |
 | `discovery reindex`   | Reindex a channel's discovery datasets |
+| `discovery clear`     | Delete a channel's discovery datasets  |
 | `content init`        | Initialize content from config files   |
 | `settings`            | Show current CLI settings and sources  |
 
@@ -156,7 +157,9 @@ statgpt> discovery upload -c my-channel --file records.xlsx
 | `-f, --file`    | Path to the `.xlsx` or `.csv` file (prompts if omitted)                       |
 | `--mode`        | `upsert` (default) keeps records absent from the file; `replace` deletes them |
 
-Uploading does not publish anything: run `discovery reindex` afterwards. A file whose cells
+Uploading does not publish anything: run `discovery reindex` afterwards. That goes for what
+`--mode replace` deletes too - its documents are withdrawn by the next indexing run, not by
+the upload. Only an explicit `discovery clear` withdraws documents itself. A file whose cells
 cannot be read is refused in full - nothing is saved - and every offending row is listed with
 its cell reference, with a non-zero exit code. See [Batch Summaries and Exit
 Codes](#batch-summaries-and-exit-codes).
@@ -178,6 +181,26 @@ statgpt> discovery reindex -c my-channel
 
 Requires a `discoveryRag` block in the channel configuration, and refuses to start while
 another job for the channel is running.
+
+### discovery clear
+
+Deletes every discovery record of a channel, and the documents they published to the Generic
+RAG application. Asks for confirmation, naming the channel and how many records would go.
+
+```
+statgpt> discovery clear -c my-channel
+statgpt> discovery clear -c my-channel -y        # scripted, no prompt
+```
+
+| Option          | Description                                    |
+|-----------------|------------------------------------------------|
+| `-c, --channel` | Channel deployment ID (interactive if omitted) |
+| `-y, --yes`     | Skip the confirmation prompt                   |
+
+No reindex is needed afterwards: the documents are withdrawn as part of the delete. If the RAG
+application cannot be reached the command fails and nothing is deleted, so a record never
+outlives its document. A channel with no `discoveryRag` block simply has its records deleted -
+it never published anything.
 
 ### content init
 
