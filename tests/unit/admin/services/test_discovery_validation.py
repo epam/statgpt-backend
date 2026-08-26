@@ -14,6 +14,7 @@ def _record(**overrides: str) -> DiscoveryDatasetBase:
     values: dict[str, str] = {
         "agency": "Bank Indonesia (BI)",
         "dataset_id": "TABEL1_1",
+        "description": "Money and Banking table.",
         "frequency_coverage": "Monthly",
         "url": "https://www.bi.go.id/SEKI/tabel/TABEL1_1.xls",
     }
@@ -77,6 +78,14 @@ def test_a_value_that_is_not_a_web_address_is_reported(url: str) -> None:
 
 def test_an_empty_url_is_not_an_issue() -> None:
     assert DiscoveryValidator().validate(_record(url="")) == []
+
+
+def test_a_record_without_a_description_is_reported() -> None:
+    """The description is the published document's only content."""
+    issues = DiscoveryValidator().validate(_record(description=""))
+
+    assert len(issues) == 1
+    assert issues[0].field == "description"
 
 
 def test_group_reference_areas_are_not_flagged() -> None:

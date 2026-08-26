@@ -14,6 +14,7 @@ from statgpt.admin.services.discovery_publisher import (
     build_metadata,
     document_filename,
     document_key,
+    render_document,
     render_document_body,
     withdraw_documents,
 )
@@ -130,27 +131,26 @@ def _updated_ids(client: AsyncMock) -> list[int]:
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~ the document ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 
-def test_the_body_carries_every_field_including_those_sent_as_metadata() -> None:
-    """Metadata is what search filters on; the body is what it retrieves over."""
+def test_the_body_is_the_description() -> None:
+    assert render_document_body(_record()) == "Money and Banking table."
+
+
+def test_the_body_carries_no_field_that_travels_as_metadata() -> None:
+    """The application's indexes span the metadata, so the body must not repeat it."""
     body = render_document_body(_record())
 
-    assert body.startswith("# I.1. Broad Money and its Affecting Factors\n")
-    assert "- **Agency / organization:** Bank Indonesia (BI)" in body
-    assert "- **Dataset URL:** https://www.bi.go.id/SEKI/tabel/TABEL1_1.xls" in body
-    assert "## Description\n\nMoney and Banking table." in body
-    assert "## Indicators coverage\n\nbroad money (M2) (Rp billions)" in body
-    assert body.endswith("\n")
+    assert "I.1. Broad Money and its Affecting Factors" not in body
+    assert "Bank Indonesia (BI)" not in body
+    assert "https://www.bi.go.id/SEKI/tabel/TABEL1_1.xls" not in body
+    assert "broad money (M2) (Rp billions)" not in body
 
 
-def test_the_body_omits_empty_fields() -> None:
-    body = render_document_body(_record(missing_indicators="", regional_coverage=""))
+def test_the_document_is_uploaded_as_plain_text() -> None:
+    document = render_document(_record(), _CHANNEL, DiscoveryGrade.C)
 
-    assert "Relevant indicators not present" not in body
-    assert "Regional coverage" not in body
-
-
-def test_the_body_falls_back_to_the_dataset_id_when_unnamed() -> None:
-    assert render_document_body(_record(name="")).startswith("# TABEL1_1\n")
+    assert document.mime_type == "text/plain"
+    assert document.filename.endswith(".txt")
+    assert document.content == b"Money and Banking table."
 
 
 def _filename(record, channel: str = _CHANNEL) -> str:
@@ -165,14 +165,14 @@ def test_the_filename_escapes_path_characters() -> None:
     name = _filename(_record(agency="A/B", dataset_id="C:D"))
 
     assert "/" not in name
-    assert name.endswith(".md")
+    assert name.endswith(".txt")
 
 
 def test_the_readable_part_of_the_filename_is_capped() -> None:
     name = _filename(_record(agency="A" * 200))
 
     assert name.startswith("A" * 100 + " [")
-    assert name.endswith(".md")
+    assert name.endswith(".txt")
 
 
 def test_the_filename_is_stable_for_one_record() -> None:
@@ -185,7 +185,7 @@ def test_respelling_a_record_only_changes_the_readable_label() -> None:
     original = _filename(_record())
 
     assert respelled != original
-    assert respelled[-16:] == original[-16:]  # ' [<digest>].md'
+    assert respelled[-17:] == original[-17:]  # ' [<digest>].txt'
 
 
 # The service derives a document's storage path from its name alone, so any two records that
@@ -310,7 +310,7 @@ async def test_an_edited_record_is_refreshed_in_place() -> None:
 
 async def test_a_record_whose_label_changed_is_rebuilt_under_the_new_name() -> None:
     """An update cannot rename, so the document would keep the old label for good."""
-    client = _client([_document(document_id=10, display_name="Bank Indonesia (BI) - OLD.md")])
+    client = _client([_document(document_id=10, display_name="Bank Indonesia (BI) - OLD.txt")])
     record = _record(indexing_status=DiscoveryIndexingStatus.OUTDATED)
 
     counts = await _publisher(client).publish([record])
@@ -493,7 +493,7 @@ async def test_one_failing_record_does_not_stop_the_others() -> None:
 
 
 async def test_a_failed_upload_after_a_successful_delete_leaves_nothing_indexed() -> None:
-    client = _client([_document(document_id=10, display_name="renamed.md")])
+    client = _client([_document(document_id=10, display_name="renamed.txt")])
     record = _record(indexing_status=DiscoveryIndexingStatus.OUTDATED)
     client.upload_document.side_effect = GenericRagIngestionError("document upload", "boom", 503)
 
