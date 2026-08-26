@@ -9,7 +9,8 @@ Deep Research is excluded from ``ChannelConfig.tool_fields`` and is reachable on
 - the agent answers from context via the resume tool and surfaces only the remainder;
 - the final report is delivered to the user **verbatim** by the tool, and the turn ends without the
   agent repeating it;
-- the Deep Research <-> agent exchange is turn-local and must not pollute the cross-turn tool state.
+- the Deep Research <-> agent exchange runs on the main history, so it is persisted into the
+  cross-turn tool state and stays visible to later turns.
 
 These tests pin that behaviour and the deterministic toggle/session routing.
 """
@@ -31,7 +32,7 @@ from statgpt.app.chains.supreme_agent import SupremeAgentExecutor, _DeepResearch
 from statgpt.app.config import ChainParametersConfig, StateVarsConfig
 from statgpt.app.schemas import DeepResearchSession, DeepResearchTurn
 from statgpt.app.schemas.dial_app_configuration import StatGPTConfiguration
-from statgpt.app.utils.dial_stages import NullChoice
+from statgpt.app.utils.dial_stages import DummyStage, NullChoice
 from statgpt.app.utils.message_history import History
 from statgpt.common.schemas.channel import ChannelConfig, SupremeAgentConfig
 from statgpt.common.schemas.tools import DataQueryTool, DeepResearchTool
@@ -67,6 +68,29 @@ class _RecordingChoice(NullChoice):
     @property
     def content(self) -> str:
         return "".join(self.appended)
+
+
+class _StageRecordingChoice(_RecordingChoice):
+    """A recording choice whose created stages also record their content, so we can assert Deep
+    Research's clarification is surfaced to a stage (like other tools) rather than the main answer.
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.stage_content: list[str] = []
+
+    def create_stage(self, *args, **kwargs):
+        sink = self.stage_content
+
+        class _RecordingStage(DummyStage):
+            def append_content(self, content: str) -> None:
+                sink.append(content)
+
+            def __bool__(self) -> bool:
+                # A real DIAL stage is truthy; `DelayedStage.append_content` gates on it.
+                return True
+
+        return _RecordingStage()
 
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~ Supreme Agent (LLM) fake ~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -446,9 +470,9 @@ async def test_forced_start_error_is_surfaced_once_and_session_untouched(monkeyp
     assert DeepResearchSession.from_state(state) is None
 
 
-async def test_deep_research_exchange_does_not_pollute_cross_turn_tool_state(monkeypatch):
-    """The Deep Research <-> agent tool exchange is turn-local: it is not persisted to the
-    cross-turn tool-message state (only the separate session is)."""
+async def test_deep_research_exchange_is_persisted_to_cross_turn_tool_state(monkeypatch):
+    """The Deep Research <-> agent tool exchange runs on the main history, so its tool calls/responses
+    are persisted into the cross-turn tool-message state and stay visible to later turns."""
     _patch_scripted_agent(
         monkeypatch,
         [
@@ -463,10 +487,18 @@ async def test_deep_research_exchange_does_not_pollute_cross_turn_tool_state(mon
     inputs = _inputs(state, "research US GDP")
     await SupremeAgentExecutor(_channel_config()).stream_response(inputs)
 
-    # The main history was forked for the mediation, so dumping it records no tool messages.
+    # The mediation ran on the main history, so dumping it records the DR tool exchange.
     history = inputs[ChainParametersConfig.HISTORY]
     history.dump_state(state)
-    assert state[StateVarsConfig.TOOL_MESSAGES] == []
+    tool_messages = state[StateVarsConfig.TOOL_MESSAGES]
+    # The forced-start tool call is retained...
+    assert any(
+        msg.get("type") == "ai"
+        and any(tc["name"] == "deep_research" for tc in msg.get("tool_calls", []))
+        for msg in tool_messages
+    )
+    # ...together with its buffered clarification response.
+    assert any(msg.get("type") == "tool" for msg in tool_messages)
     # Regression: the persisted session must not embed a `custom_content` key, which the DIAL
     # chat client strips from message-shaped objects while round-tripping state.
     assert "custom_content" not in json.dumps(state[StateVarsConfig.DEEP_RESEARCH_SESSION])
@@ -554,9 +586,9 @@ async def test_mediation_loop_safety_cap_surfaces_error(monkeypatch):
 
 
 async def test_mediation_surfaces_agent_preamble_alongside_tool_call(monkeypatch):
-    """If the agent prefixes a tool call with user-facing content, that preamble is surfaced rather
-    than lost: the mediation agent streams to a null choice, so unlike the main loop nothing else
-    would show it to the user."""
+    """If the agent prefixes a tool call with user-facing content, that preamble reaches the user:
+    the mediation agent streams to the user-facing choice (as in the main loop), so the content is
+    surfaced as it is produced, then the report follows."""
     _patch_scripted_agent(
         monkeypatch,
         [
@@ -581,3 +613,62 @@ async def test_mediation_surfaces_agent_preamble_alongside_tool_call(monkeypatch
     assert content == "Final report."
     # Preamble is surfaced first, then the report; both reach the user, in order.
     assert choice.appended == ["One moment while I continue the research.", "Final report."]
+
+
+async def test_clarification_is_surfaced_to_a_stage(monkeypatch):
+    """A Deep Research clarification is shown to the user in the tool-result stage (like other
+    tools), not in the main answer; the agent still mediates it into the main answer."""
+    _patch_scripted_agent(
+        monkeypatch,
+        [
+            _tool_call_chunk("deep_research", {"query": "US GDP"}),
+            _text_chunk("Which region?"),
+        ],
+    )
+    captured: dict = {}
+    _patch_dr_deployment(
+        monkeypatch, [_clarification("Please specify countries and frequency.")], captured
+    )
+
+    choice = _StageRecordingChoice()
+    state = {StateVarsConfig.SHOW_DEBUG_STAGES: False}
+    await SupremeAgentExecutor(_channel_config()).stream_response(
+        _inputs(state, "research US GDP", choice=choice)
+    )
+
+    # The raw clarification is surfaced to a stage...
+    assert "Please specify countries and frequency." in "".join(choice.stage_content)
+    # ...not to the main answer, which carries only the agent's mediated question.
+    assert choice.appended == ["Which region?"]
+    assert "Please specify" not in choice.content
+
+
+async def test_deep_research_turn_runs_fake_tool_prelude(monkeypatch):
+    """The fake-tool-call prelude runs for Deep Research turns too, so its tool results are in the
+    agent's context and can help answer Deep Research's clarifying questions from context."""
+    _patch_scripted_agent(
+        monkeypatch,
+        [
+            _tool_call_chunk("deep_research", {"query": "US GDP"}),
+            _text_chunk("Which region?"),
+        ],
+    )
+    captured: dict = {}
+    _patch_dr_deployment(monkeypatch, [_clarification("Which region?")], captured)
+
+    # Stub the prelude so the test needs no real tool; assert it is prepended to the history the
+    # Deep Research turn runs on.
+    async def _fake_prelude(self, tool_executor, inputs, show_stages):
+        prelude = History.create_empty()
+        prelude.add_dial_message(DialMessage(role=Role.ASSISTANT, content="FAKE_PRELUDE_MARKER"))
+        return prelude
+
+    monkeypatch.setattr(SupremeAgentExecutor, "_fake_tool_calls", _fake_prelude)
+
+    state = {StateVarsConfig.SHOW_DEBUG_STAGES: False}
+    inputs = _inputs(state, "research US GDP")
+    await SupremeAgentExecutor(_channel_config()).stream_response(inputs)
+
+    history = inputs[ChainParametersConfig.HISTORY]
+    messages = history.get_langchain_messages(include_tool_messages=False)
+    assert any(getattr(m, "content", "") == "FAKE_PRELUDE_MARKER" for m in messages)

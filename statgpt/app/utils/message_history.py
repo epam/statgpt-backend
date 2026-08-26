@@ -99,18 +99,6 @@ class History:
     def create_empty(cls) -> 'History':
         return cls(messages=[])
 
-    def fork_for_subsession(self) -> 'History':
-        """A fork that shares the user-facing conversation but starts with an empty tool-message
-        buffer.
-
-        Used to run a self-contained sub-conversation (e.g. the Supreme Agent <-> Deep Research
-        clarification exchange) whose tool calls/responses must not leak into the cross-turn tool
-        state: they accumulate on the fork and are discarded when the turn ends, while
-        ``dump_state`` runs against the original history. The DIAL message list is copied so the
-        fork cannot mutate the original; prior turns' tool messages remain reachable because they
-        are reconstructed from those messages' ``custom_content.state``."""
-        return History(messages=list(self._messages))
-
     @classmethod
     async def from_dial_with_interceptors(
         cls,

@@ -174,6 +174,7 @@ class DeepResearchRunner:
         the standard failure message once. The session is left untouched so the user can retry."""
         auth_context = ChainParameters.get_auth_context(inputs)
         choice = ChainParameters.get_choice(inputs)
+        target = ChainParameters.get_target(inputs)
         state = ChainParameters.get_state(inputs)
 
         details = self._tool_config.details
@@ -191,9 +192,12 @@ class DeepResearchRunner:
         time_start = time.monotonic()
         try:
             async with client:
-                # Buffer content (`stream_content=False`): a clarification / plan is handed back to
-                # the Supreme Agent to mediate, never shown to the user as-is. Progress stages still
-                # stream live. The final report is delivered to the user below, verbatim.
+                # Buffer content (`stream_content=False`) so it can be routed once the run ends:
+                # a clarification / plan is shown in the tool-result stage (like other tools) and
+                # handed back to the Supreme Agent to mediate, while the final report is delivered to
+                # the user's main answer verbatim. The two are indistinguishable until the deployment
+                # signals `research_started` (only after the report has streamed), so we cannot stream
+                # straight to a single target. Progress stages still stream live throughout.
                 dial_streamer = OpenAiToDialStreamer(
                     choice,
                     choice,
@@ -210,14 +214,16 @@ class DeepResearchRunner:
                 deep_research_state = dial_streamer.state
 
             if self._research_started(deep_research_state):
-                # Final report delivered: stream it to the user verbatim, then drop the session
-                # instead of recording this turn.
+                # Final report delivered: deliver it to the user's main answer verbatim, then drop
+                # the session instead of recording this turn.
                 self._deliver_report(choice, content, dial_streamer.attachments)
                 self._drop_session(state)
                 return DeepResearchTurnResult(content=content, report_delivered=True)
 
-            # Clarification / plan-for-approval: hand the content back to the Supreme Agent and keep
-            # the session so the next call can resume from Deep Research's own state.
+            # Clarification / plan-for-approval: show it in the tool-result stage (like other tools)
+            # and hand the content back to the Supreme Agent, keeping the session so the next call can
+            # resume from Deep Research's own state.
+            target.append_content(content)
             self._append_turn(session, user_message, content, deep_research_state or {})
             self._save_session(state, session)
             return DeepResearchTurnResult(content=content, report_delivered=False)

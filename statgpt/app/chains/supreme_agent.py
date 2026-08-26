@@ -36,7 +36,6 @@ from statgpt.app.schemas.dial_app_configuration import StatGPTConfiguration
 from statgpt.app.schemas.tool_artifact import DataQueryArtifact
 from statgpt.app.utils.dial_stages import (
     ChoiceI,
-    NullChoice,
     optional_delayed_timed_stage,
     optional_timed_stage,
 )
@@ -337,17 +336,19 @@ class SupremeAgentExecutor:
         configuration = ChainParameters.get_configuration(inputs)
         debug = state.get(StateVarsConfig.SHOW_DEBUG_STAGES, False)
 
+        tool_executor = ToolCaller.from_config(self._channel_config)
+
+        # The fake-tool-call prelude runs for every turn, including Deep Research, so its tool
+        # results are in the agent's context and can help answer Deep Research's clarifying questions.
+        fake_history = await self._fake_tool_calls(tool_executor, inputs, show_stages=debug)
+        history.prepend(fake_history)
+
         if (dr_mode := self._resolve_deep_research_mode(inputs)) is not None:
             # A Deep Research turn is mediated in its own loop, bound only to the Deep Research
-            # tools; it never runs the general agent below or the fake-tool-call prelude.
+            # tools; it never runs the general agent below.
             return await self._run_deep_research_turn(
                 inputs, start=dr_mode is _DeepResearchMode.START
             )
-
-        tool_executor = ToolCaller.from_config(self._channel_config)
-
-        fake_history = await self._fake_tool_calls(tool_executor, inputs, show_stages=debug)
-        history.prepend(fake_history)
 
         supreme_agent = SupremeAgent.create(
             choice,
@@ -461,16 +462,17 @@ class SupremeAgentExecutor:
     async def _run_deep_research_turn(self, inputs: dict, *, start: bool) -> str:
         """Run one Deep Research turn with the Supreme Agent mediating the clarification flow.
 
-        The agent is bound only to the Deep Research tools. A clarification / plan is returned to the
-        agent as a tool response (never shown to the user as-is); the agent answers the clarifying
-        questions it can settle from the conversation context via the resume tool, surfaces the
-        remaining questions, and presents any plan to the user verbatim for approval (it never
-        approves a plan itself). The final report is delivered to the user verbatim by the tool, so
-        the turn then ends without the agent repeating it.
+        The agent is bound only to the Deep Research tools. A clarification / plan is surfaced in the
+        tool-result stage (like other tools) and returned to the agent as a tool response; the agent
+        answers the clarifying questions it can settle from the conversation context via the resume
+        tool, surfaces the remaining questions, and presents any plan to the user verbatim for
+        approval (it never approves a plan itself). The final report is delivered to the user's main
+        answer verbatim by the tool, so the turn then ends without the agent repeating it.
 
-        The Deep Research <-> agent exchange is held in a turn-local history fork so it does not leak
-        into the cross-turn agent context, and the agent's LLM calls run against a null choice so only
-        the final user-facing text and the tool's own output (progress stages, report) reach the user.
+        The agent's LLM calls stream to the user-facing choice, like a normal turn, so its mediation
+        (the surfaced questions / plan / focus reminder) is shown as it is produced. The Deep Research
+        <-> agent tool exchange runs on the main history, so it is persisted into the cross-turn
+        tool-message state and stays visible to later turns.
 
         `start=True` forces the first call to the start tool (the #574 button contract) and then lets
         the agent resume within the same turn; `start=False` lets the agent decide from the first call
@@ -485,12 +487,12 @@ class SupremeAgentExecutor:
         resume_tool = ResumeDeepResearchTool.build(dr_config, self._channel_config)
         tool_caller = ToolCaller([start_tool, resume_tool])
 
-        # Keep the Deep Research <-> agent tool exchange out of the cross-turn tool state.
-        history = ChainParameters.get_history(inputs).fork_for_subsession()
+        # The Deep Research <-> agent tool exchange runs on the main history, so it is persisted into
+        # the cross-turn tool state (via `dump_state`) and stays available to later turns.
+        history = ChainParameters.get_history(inputs)
 
-        silent_choice = NullChoice()
         free_agent = SupremeAgent.create(
-            silent_choice,
+            choice,
             auth_context,
             self._channel_config,
             [resume_tool],
@@ -499,7 +501,7 @@ class SupremeAgentExecutor:
         )
         forced_agent = (
             SupremeAgent.create(
-                silent_choice,
+                choice,
                 auth_context,
                 self._channel_config,
                 [start_tool],
@@ -525,15 +527,13 @@ class SupremeAgentExecutor:
                 logger.info(f"Deep Research mediation response: {response.resp!r}")
 
             if tool_calls := response.resp.tool_calls:
-                if preamble := _content_to_str(response.resp.content):
-                    # A well-behaved agent emits either a tool call or user-facing text (see the
-                    # Deep Research prompt), never both. If it does prefix a tool call with content,
-                    # surface it rather than lose it: the mediation agent streams to a null choice,
-                    # so unlike the main loop nothing else would show this to the user.
-                    choice.append_content(preamble)
+                # Any user-facing preamble on a tool-call response already streamed to the choice via
+                # `agent.run` (as in the main loop); it is retained by `add_chunk_as_tool_message`.
                 history.add_chunk_as_tool_message(response.resp)
                 for tool_call in tool_calls:
-                    tool_msg = await tool_caller.call_tool(tool_call, inputs, show_stage=debug)
+                    # `show_stage=True`: Deep Research runs its output into the visible tool-result
+                    # stage (a clarification / plan), like other tools — not only in debug mode.
+                    tool_msg = await tool_caller.call_tool(tool_call, inputs, show_stage=True)
                     history.add_tool_message(tool_msg)
                     if tool_msg.status == ToolResponseStatus.ERROR.value:
                         return surface_deep_research_error(choice)
@@ -543,11 +543,10 @@ class SupremeAgentExecutor:
                         return _content_to_str(tool_msg.content)
                 # Clarification recorded: loop so the agent can absorb it / surface the remainder.
             elif response.finished:
-                # The agent answered the user directly: the questions it could not resolve from
-                # context, the plan presented verbatim for approval, or a keep-focused reminder.
-                text = _content_to_str(response.resp.content)
-                choice.append_content(text)
-                return text
+                # The agent answered the user directly, already streamed via `agent.run`: the
+                # questions it could not resolve from context, the plan presented verbatim for
+                # approval, or a keep-focused reminder.
+                return _content_to_str(response.resp.content)
             else:
                 history.add_chunk_as_tool_message(response.resp)
 
