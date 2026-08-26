@@ -18,7 +18,12 @@ from typing import NamedTuple
 
 from statgpt.admin.settings.discovery import DiscoveryPublishSettings
 from statgpt.common import models, schemas
-from statgpt.common.services import GenericRagIngestionClient, RecordKey, record_key
+from statgpt.common.services import (
+    GenericRagIngestionClient,
+    RecordKey,
+    parse_reference_area,
+    record_key,
+)
 from statgpt.common.utils import (
     MediaTypes,
     async_utils,
@@ -160,12 +165,18 @@ def build_metadata(
 
     The description is the one field left out - it is prose, it is in the body, and it is
     nothing search would filter on.
+
+    `reference_area` travels twice: verbatim for display, and parsed into
+    `reference_area_values` for the country pre-filter to match on. Splitting the cell is not
+    deriving content - the workbook prescribes the format - and the verbatim value is kept, so
+    nothing a submitter wrote is lost or rewritten.
     """
     return schemas.DiscoveryDocumentMetadata(
         grade=grade,
         statgpt_channel=channel,
         agency=record.agency,
         reference_area=record.reference_area,
+        reference_area_values=parse_reference_area(record.reference_area),
         dataset_id=record.dataset_id,
         name=record.name,
         url=record.url,

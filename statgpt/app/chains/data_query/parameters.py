@@ -5,3 +5,6 @@ class DataQueryParameters:
     MCP_PAYLOAD = "data_query_mcp_payload"
     EVAL_ATTACHMENT = "data_query_eval_attachment"
     DATASET_CHOICES = "dataset_choices"
+    # Assigned by the search-preparation chain, and read again by the discovery fallback so it
+    # does not have to extract the request's countries a second time.
+    COUNTRY_NAMED_ENTITIES = "country_named_entities"

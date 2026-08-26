@@ -4,6 +4,8 @@ from langchain_core.runnables import Runnable
 from mcp.types import ToolAnnotations
 from pydantic import Field
 
+from statgpt.app.chains.discovery.fallback import refer_to_discovery
+from statgpt.app.chains.parameters import ChainParameters
 from statgpt.app.chains.tools import GuardrailInput, StatGptTool, ToolArgs
 from statgpt.app.config import ChainParametersConfig
 from statgpt.app.schemas.data_query_outcome import DataQueryMcpPayload
@@ -62,9 +64,41 @@ class DataQueryTool(StatGptTool[DataQueryToolConfig], tool_type=ToolTypes.DATA_Q
             DataQueryParameters.EVAL_ATTACHMENT, DataQueryEvalAttachment()
         )
 
+        if referral := await self._discovery_referral(res, state, query):
+            # Appended rather than woven in: the pipeline's own no-data message stays exactly as
+            # configured, and a channel with the fallback off produces a byte-identical response.
+            response_str = f"{response_str}\n\n{referral}"
+            ChainParameters.get_target(res).append_content(f"\n\n{referral}")
+
         return response_str, DataQueryArtifact(
             data_responses=data_responses,
             state=state,
             mcp_payload=mcp_payload,
             eval_attachment=eval_attachment,
+        )
+
+    async def _discovery_referral(
+        self, res: dict, state: QueryBuilderAgentState, query: str
+    ) -> str:
+        """Refer to Grade C discovery datasets when the pipeline found no data.
+
+        Hooked here rather than inside the pipeline because the pipeline reaches its no-data
+        conclusion from two distant places, and stamps the outcome on its state either way. One
+        hook covers both, and whatever branch is added next.
+
+        The countries come from the run that just failed: named entity recognition already
+        extracted them, so the fallback needs no country prompt of its own.
+        """
+        countries = [
+            entity.entity
+            for entity in res.get(DataQueryParameters.COUNTRY_NAMED_ENTITIES, [])
+            if entity.entity
+        ]
+        return await refer_to_discovery(
+            question=query,
+            status=state.status,
+            countries=countries,
+            config=self._tool_config.details.discovery_fallback,
+            data_service=ChainParameters.get_data_service(res),
+            auth_context=ChainParameters.get_auth_context(res),
         )

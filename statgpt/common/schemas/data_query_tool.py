@@ -15,6 +15,7 @@ from statgpt.common.config.utils import replace_env
 
 from .base import BaseYamlModel, SystemUserPrompt
 from .enums import (
+    DiscoveryGrade,
     IndexerVersion,
     IndicatorSelectionVersion,
     SpecialDimensionsProcessorType,
@@ -68,6 +69,53 @@ class DataQueryMessages(BaseYamlModel):
     invalid_time_period: str | None = Field(
         default=None,
         description="Message when all built queries have time periods that are out of range.",
+    )
+
+
+class DiscoveryFallbackConfig(BaseYamlModel):
+    """Referring to Grade C discovery datasets when the data query finds no data.
+
+    Off unless enabled. The fallback also needs the channel to name its discovery RAG
+    application in `details.discoveryRag.applicationId`, which it already does to be indexed, so
+    a channel holding no discovery records behaves exactly as it does without this block.
+    """
+
+    enabled: bool = Field(
+        default=False,
+        description=(
+            "Search the discovery index and refer the user to candidate datasets when the data"
+            " query pipeline finds no data."
+        ),
+    )
+    on_executed_no_data: bool = Field(
+        default=True,
+        description=(
+            "Also refer when a query was built and executed but returned no observations, not"
+            " only when no query survived. A cut StatGPT cannot serve is still a cut another"
+            " official source may publish."
+        ),
+    )
+    judge_model_config: LLMModelConfig = Field(
+        default_factory=LLMModelConfig,
+        description="Model that decides which retrieved datasets are worth referring to.",
+    )
+    max_candidates: PositiveInt = Field(
+        default=30,
+        description=(
+            "Cap on the datasets handed to the judge. Retrieval is deliberately wide, since the"
+            " judge can discard extras but cannot recover a dataset that was never retrieved."
+        ),
+    )
+    max_referrals: PositiveInt = Field(
+        default=5,
+        description=(
+            "Cap on the datasets a referral presents. On a fallback the user asked for data, not"
+            " for a catalog."
+        ),
+    )
+    grade: DiscoveryGrade = Field(
+        default=DiscoveryGrade.C,
+        description="Which discovery grade to search. Grade B reuses this path once it exists.",
     )
 
 
@@ -398,6 +446,13 @@ class DataQueryDetails(BaseToolDetails):
     messages: DataQueryMessages = Field(default_factory=DataQueryMessages)  # type: ignore
     attachments: DataQueryAttachments = Field(default_factory=DataQueryAttachments)  # type: ignore
     pipeline_stage_names: DataQueryStageNames = Field(default_factory=DataQueryStageNames)
+    discovery_fallback: DiscoveryFallbackConfig = Field(
+        default_factory=DiscoveryFallbackConfig,
+        description=(
+            "Refer the user to Grade C discovery datasets when this tool finds no data."
+            " Disabled by default."
+        ),
+    )
     allow_auto_update: bool = Field(
         default=False,
         description="Whether datasets in this channel should be auto-updated by the batch auto-update script.",

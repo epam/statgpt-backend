@@ -255,10 +255,10 @@ def test_a_document_without_a_usable_key_claims_none(metadata: dict[str, object]
 async def test_a_channel_that_cannot_filter_is_refused() -> None:
     client = _client()
     schema = DiscoveryDocumentMetadata.channel_json_schema()
-    del schema["properties"]["reference_area"]["enable_filtering"]
+    del schema["properties"]["reference_area_values"]["enable_filtering"]
     client.get_metadata_schema.return_value = GenericRagMetadataSchema(schema=schema, dimensions={})
 
-    with pytest.raises(DiscoveryMetadataSchemaError, match="reference_area"):
+    with pytest.raises(DiscoveryMetadataSchemaError, match="reference_area_values"):
         await _publisher(client).verify_metadata_schema()
 
 
@@ -269,7 +269,18 @@ async def test_the_generated_schema_declares_everything_a_run_requires() -> None
     ).filterable_fields
 
     assert declared == DiscoveryDocumentMetadata.filterable_fields()
-    assert {"agency", "reference_area", "grade", "statgpt_channel"} <= declared
+    assert {"agency", "reference_area_values", "grade", "statgpt_channel"} <= declared
+
+
+async def test_the_country_axis_is_filterable_and_the_verbatim_cell_is_not() -> None:
+    """`reference_area` is free text - one country, a ';'-separated list, or a group label - so
+    equality against the whole cell never matches a question about one member of a multi-country
+    dataset. `reference_area_values` is the axis a filter can match, and the cell is kept for
+    display only."""
+    filterable = DiscoveryDocumentMetadata.filterable_fields()
+
+    assert "reference_area_values" in filterable
+    assert "reference_area" not in filterable
 
 
 async def test_a_channel_declaring_the_required_filters_is_accepted() -> None:
