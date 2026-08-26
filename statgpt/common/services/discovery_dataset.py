@@ -1,4 +1,5 @@
 import asyncio
+from collections.abc import Iterable
 
 from sqlalchemy import ColumnElement, Select, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -28,6 +29,26 @@ def normalize_key_part(value: str) -> str:
 def record_key(agency: str, dataset_id: str) -> RecordKey:
     """Build the key the database compares on."""
     return normalize_key_part(agency), normalize_key_part(dataset_id)
+
+
+StatsRow = tuple[schemas.DiscoveryValidationStatus, schemas.DiscoveryIndexingStatus, int]
+"""One row of the grouped count query: (validation status, indexing status, count)."""
+
+
+def fold_stats(rows: Iterable[StatsRow]) -> schemas.DiscoveryDatasetStats:
+    """Fold grouped counts into the two breakdowns, seeded with every status at zero.
+
+    Kept out of the service so the folding can be exercised without a session.
+    """
+    stats = schemas.DiscoveryDatasetStats(
+        by_validation_status={status: 0 for status in schemas.DiscoveryValidationStatus},
+        by_indexing_status={status: 0 for status in schemas.DiscoveryIndexingStatus},
+    )
+    for validation_status, indexing_status, count in rows:
+        stats.total += count
+        stats.by_validation_status[validation_status] += count
+        stats.by_indexing_status[indexing_status] += count
+    return stats
 
 
 class DiscoveryDatasetService(DbServiceBase):
@@ -85,6 +106,28 @@ class DiscoveryDatasetService(DbServiceBase):
         )
         async with self._lock_session() as session:
             return (await session.execute(query)).scalar_one()
+
+    async def get_stats(self, channel_id: int) -> schemas.DiscoveryDatasetStats:
+        """Count the channel's records per validation and indexing status.
+
+        One grouped query rather than a count per status: the caller wants the whole
+        breakdown, and the alternative is a round trip per enum member.
+        """
+        query = (
+            select(
+                models.DiscoveryDataset.validation_status,
+                models.DiscoveryDataset.indexing_status,
+                func.count("*"),
+            )
+            .where(*self._filters(channel_id))
+            .group_by(
+                models.DiscoveryDataset.validation_status,
+                models.DiscoveryDataset.indexing_status,
+            )
+        )
+        async with self._lock_session() as session:
+            rows = (await session.execute(query)).tuples().all()
+        return fold_stats(rows)
 
     async def get_record_models_by_channel(
         self,

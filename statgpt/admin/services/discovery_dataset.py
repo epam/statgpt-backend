@@ -4,6 +4,7 @@ import io
 import logging
 import os
 import zipfile
+from collections import defaultdict
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, field
 
@@ -16,8 +17,16 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from statgpt.admin.settings.discovery import DiscoveryUploadSettings
 from statgpt.admin.settings.exim import JobsConfig
 from statgpt.common import models, schemas, utils
-from statgpt.common.services import ChannelService, DiscoveryDatasetService, RecordKey, record_key
+from statgpt.common.services import (
+    ChannelSerializer,
+    ChannelService,
+    DiscoveryDatasetService,
+    GenericRagIngestionClient,
+    RecordKey,
+    record_key,
+)
 
+from .discovery_publisher import withdraw_documents
 from .discovery_upload import COLUMN_FIELDS, FIELD_LABELS, REQUIRED_FIELDS, parse_discovery_file
 from .exceptions import (
     DiscoveryDatasetConflictError,
@@ -402,6 +411,7 @@ class AdminPortalDiscoveryDatasetService(DiscoveryDatasetService):
         item = await self._get_item_or_raise(item_id)
         _log.info(f"Deleting {item}")
 
+        await self._withdraw_documents([item])
         await self._session.delete(item)
         await self._session.commit()
 
@@ -473,13 +483,57 @@ class AdminPortalDiscoveryDatasetService(DiscoveryDatasetService):
         else:
             raise RuntimeError("Either item_ids or channel_id must be provided.")
 
-        query = (
-            delete(models.DiscoveryDataset).where(where_clause).returning(models.DiscoveryDataset)
-        )
-        deleted = (await self._session.execute(query)).scalars().all()
+        # Read the rows before deleting them rather than using `DELETE ... RETURNING`: their
+        # documents have to be withdrawn while the records that name them still exist, and the
+        # response has to be built while the instances are still readable.
+        query = select(models.DiscoveryDataset).where(where_clause)
+        doomed = list((await self._session.execute(query)).scalars().all())
+        if not doomed:
+            return []
+
+        # Serialized up front: the commit below expires the instances, and reading an expired
+        # attribute in an async session raises instead of lazy-loading.
+        deleted = [self._serialize(item) for item in doomed]
+
+        await self._withdraw_documents(doomed)
+        await self._session.execute(delete(models.DiscoveryDataset).where(where_clause))
         await self._session.commit()
         _log.info(f"Deleted {len(deleted)} discovery datasets.")
-        return [self._serialize(item) for item in deleted]
+        return deleted
+
+    async def _withdraw_documents(self, records: Sequence[models.DiscoveryDataset]) -> None:
+        """Remove the RAG documents of records that are about to be deleted.
+
+        The documents go first and the rows second, for the reason `DiscoveryPublisher._withdraw`
+        gives: a crash in between leaves a record with no document behind it, which the next
+        indexing run repairs, while the opposite order strands a live document that nothing
+        points at any more and only an orphan sweep would ever find.
+
+        A failure is not swallowed. Deleting the record while its document survives is exactly
+        what this exists to prevent, so the caller is left to fail with the rows intact.
+        """
+        by_channel: dict[int, list[models.DiscoveryDataset]] = defaultdict(list)
+        for record in records:
+            by_channel[record.channel_id].append(record)
+
+        channels = ChannelService(self._session)
+        for channel_id, group in by_channel.items():
+            channel = await channels.get_model_by_id(channel_id)
+            config = ChannelSerializer.db_to_schema(channel).details.discovery_rag
+            if config is None:
+                # No publish target, so nothing was ever published. Refusing the delete here
+                # would block it over a document that cannot exist.
+                continue
+
+            keys = {record_key(record.agency, record.dataset_id) for record in group}
+            async with GenericRagIngestionClient.for_application(
+                config.get_application_id()
+            ) as client:
+                withdrawn = await withdraw_documents(client, channel.deployment_id, keys)
+            _log.info(
+                f"Withdrew {withdrawn} discovery document(s) of channel"
+                f" {channel.deployment_id} for {len(group)} record(s) being deleted."
+            )
 
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~ upsert ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 

@@ -1,11 +1,12 @@
 """Admin API client for CLI commands."""
 
 import logging
+import os
 from contextlib import asynccontextmanager
 from typing import Any, AsyncGenerator
 
 import httpx
-from pydantic import TypeAdapter
+from pydantic import TypeAdapter, ValidationError
 
 from statgpt.cli.settings import cli_settings
 from statgpt.cli.shared.auth import get_cached_token
@@ -20,6 +21,12 @@ from statgpt.common.schemas import (
     DataSource,
     DataSourceType,
     DeduplicationJob,
+    DiscoveryDataset,
+    DiscoveryDatasetStats,
+    DiscoveryIndexingJob,
+    DiscoveryPayloadErrorDetail,
+    DiscoveryUploadMode,
+    DiscoveryUploadSummary,
     GlossaryTerm,
     GlossaryTermBase,
     GlossaryTermUpdateBulk,
@@ -39,6 +46,7 @@ _channel_datasets_adapter = TypeAdapter(list[ChannelDatasetExpanded])
 _data_sources_adapter = TypeAdapter(list[DataSource])
 _data_source_types_adapter = TypeAdapter(list[DataSourceType])
 _glossary_terms_adapter = TypeAdapter(list[GlossaryTerm])
+_discovery_datasets_adapter = TypeAdapter(list[DiscoveryDataset])
 
 
 class AdminAPIError(Exception):
@@ -54,6 +62,18 @@ class AuthenticationRequired(Exception):
 
     def __init__(self) -> None:
         super().__init__("Authentication required. Run 'auth login' first.")
+
+
+class DiscoveryPayloadError(AdminAPIError):
+    """Raised when a discovery write is refused as structurally unusable.
+
+    Carries the per-cell report the API answers with, so a command can show which rows need
+    fixing instead of printing a JSON body.
+    """
+
+    def __init__(self, detail: DiscoveryPayloadErrorDetail):
+        self.detail = detail
+        super().__init__(detail.message, status_code=400)
 
 
 def _detail_text(detail: Any) -> str | None:
@@ -89,6 +109,21 @@ def _describe_error(resp: httpx.Response) -> str:
     if not text:
         text = resp.text.strip()
     return f"{prefix}: {text}" if text else prefix
+
+
+def _payload_error(resp: httpx.Response) -> AdminAPIError:
+    """Turn a refused discovery write into a `DiscoveryPayloadError`, when it is one.
+
+    A 400 from these endpoints carries the per-cell report, but not every 400 has to: an error
+    raised before the handler runs keeps FastAPI's own shape, so an unparseable body falls back
+    to the generic one-line error.
+    """
+    try:
+        payload = resp.json()
+        detail = DiscoveryPayloadErrorDetail.model_validate(payload["detail"])
+    except (ValueError, KeyError, TypeError, ValidationError):
+        return AdminAPIError(_describe_error(resp), status_code=resp.status_code)
+    return DiscoveryPayloadError(detail)
 
 
 class AdminClient:
@@ -316,6 +351,76 @@ class AdminClient:
         resp = await self._client.get(self._url(f"/channels/deduplication-jobs/{job_id}"))
         self._raise_for_status(resp)
         return DeduplicationJob.model_validate(resp.json())
+
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~ discovery datasets ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+    async def get_discovery_stats(self, channel_id: int) -> DiscoveryDatasetStats:
+        """Fetch the channel's discovery record counts per validation and indexing status."""
+        resp = await self._client.get(self._url(f"/channels/{channel_id}/discovery-datasets/stats"))
+        self._raise_for_status(resp)
+        return DiscoveryDatasetStats.model_validate(resp.json())
+
+    async def upload_discovery_datasets(
+        self,
+        channel_id: int,
+        file_path: str,
+        mode: DiscoveryUploadMode = DiscoveryUploadMode.UPSERT,
+    ) -> DiscoveryUploadSummary:
+        """Load a discovery workbook (.xlsx) or CSV into a channel.
+
+        The API classifies the file by its signature bytes and, failing that, its name, so the
+        real basename travels with the upload and no format detection happens here.
+
+        A refused write comes back as `DiscoveryPayloadError` carrying one entry per offending
+        record; every other failure keeps the generic error.
+        """
+        with open(file_path, "rb") as f:
+            files = {"file": (os.path.basename(file_path), f, "application/octet-stream")}
+            resp = await self._client.post(
+                self._url(f"/channels/{channel_id}/discovery-datasets/upload"),
+                params={"mode": mode.value},
+                files=files,
+            )
+
+        if resp.status_code == 400:
+            raise _payload_error(resp)
+        self._raise_for_status(resp)
+        return DiscoveryUploadSummary.model_validate(resp.json())
+
+    async def clear_discovery_datasets(self, channel_id: int) -> list[DiscoveryDataset]:
+        """Delete every discovery dataset of a channel, and its published document.
+
+        The API answers with the deleted records themselves as a bare list, not the
+        `{"data": [...]}` envelope the paginated `get_*` endpoints use.
+        """
+        resp = await self._client.delete(
+            self._url(f"/channels/{channel_id}/discovery-datasets/bulk")
+        )
+        self._raise_for_status(resp)
+        return _discovery_datasets_adapter.validate_python(resp.json())
+
+    async def trigger_discovery_indexing(
+        self, channel_id: int, force: bool = False
+    ) -> DiscoveryIndexingJob:
+        """Trigger a discovery indexing job; returns the created job for polling.
+
+        A 409 - a job is already running, or the channel has no discovery RAG application -
+        is answered with the API's own one-line reason rather than a dump of the response.
+        """
+        resp = await self._client.post(
+            self._url(f"/channels/{channel_id}/discovery-datasets/indexing-jobs"),
+            params={"force": str(force).lower()},
+        )
+        if resp.status_code == 409:
+            raise AdminAPIError(_describe_error(resp), status_code=resp.status_code)
+        self._raise_for_status(resp)
+        return DiscoveryIndexingJob.model_validate(resp.json())
+
+    async def get_discovery_indexing_job(self, job_id: int) -> DiscoveryIndexingJob:
+        """Get a discovery indexing job by ID for polling status."""
+        resp = await self._client.get(self._url(f"/discovery-datasets/indexing-jobs/{job_id}"))
+        self._raise_for_status(resp)
+        return DiscoveryIndexingJob.model_validate(resp.json())
 
     async def create_channel(self, channel_data: dict[str, Any]) -> Channel:
         """Create a new channel."""

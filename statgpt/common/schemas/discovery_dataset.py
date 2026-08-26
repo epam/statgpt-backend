@@ -152,6 +152,25 @@ class DiscoveryDatasetUpdateBulk(DiscoveryDatasetUpdate):
     id: int = Field(description="The ID of the record to update.")
 
 
+class DiscoveryDatasetStats(BaseYamlModel):
+    """How many of a channel's discovery dataset records sit in each status.
+
+    Both maps carry every member of their enum, zeros included, so a caller can render the
+    whole breakdown without deciding what an absent key means.
+    """
+
+    model_config = ConfigDict(use_attribute_docstrings=True)
+
+    total: int = 0
+    """Records the channel holds."""
+
+    by_validation_status: dict[DiscoveryValidationStatus, int] = Field(default_factory=dict)
+    """Record count per validation verdict."""
+
+    by_indexing_status: dict[DiscoveryIndexingStatus, int] = Field(default_factory=dict)
+    """Record count per indexing state."""
+
+
 class DiscoveryPayloadProblem(BaseYamlModel):
     """One structural problem that kept a payload from being saved."""
 

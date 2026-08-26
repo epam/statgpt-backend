@@ -155,6 +155,20 @@ class ChannelDatasetUpdateStatus(StrEnum):
     INDEXING_IN_PROGRESS = "indexing_in_progress"
 
 
+class DiscoveryGrade(StrEnum):
+    """How a dataset's metadata reached the discovery index.
+
+    Travels with every indexed document, because one RAG channel can hold both grades and a
+    reconciliation pass must only touch the documents its own grade published.
+    """
+
+    B = "B"
+    """Crawled from an SDMX registry."""
+
+    C = "C"
+    """Filled in by the publishing agency and uploaded as a workbook."""
+
+
 class DiscoveryValidationStatus(StrEnum):
     """Whether a discovery dataset record has passed the indexing-time check set."""
 

@@ -2,8 +2,11 @@
 
 import asyncio
 import csv
+import logging
 import os
 from collections import Counter
+from collections.abc import Mapping
+from typing import Any
 
 import questionary
 from pydantic import ValidationError
@@ -12,6 +15,7 @@ from rich.table import Table
 from statgpt.cli.commands.base import Command, CommandArg, CommandGroup
 from statgpt.cli.settings import cli_runtime, cli_settings
 from statgpt.cli.shared import (
+    AdminClient,
     BatchPartialFailureError,
     NonInteractiveError,
     console,
@@ -20,6 +24,7 @@ from statgpt.cli.shared import (
     print_info,
     print_success,
     print_warning,
+    select_channel,
     select_item_interactive,
     spinner_status,
 )
@@ -29,8 +34,13 @@ from statgpt.common.schemas import (
     ChannelDatasetExpanded,
     ChannelDatasetVersion,
     DataSet,
+    DiscoveryDatasetStats,
+    DiscoveryIndexingStatus,
+    DiscoveryValidationStatus,
     PreprocessingStatusEnum,
 )
+
+_log = logging.getLogger(__name__)
 
 POLL_INTERVAL = 1  # seconds
 
@@ -149,35 +159,6 @@ async def import_handler(
                 raise
 
 
-async def _select_channel_interactive(channels: list[Channel]) -> Channel | None:
-    """Interactive channel selection with filtering."""
-    channel_map = {ch.deployment_id: ch for ch in channels}
-    items = [
-        (ch.deployment_id, f"{ch.deployment_id} - {ch.title}")
-        for ch in sorted(channels, key=lambda ch: ch.deployment_id)
-    ]
-
-    try:
-        selected = await select_item_interactive(
-            items,
-            title="Select Channel (type to filter)",
-            filter_enabled=True,
-        )
-    except NonInteractiveError:
-        available = ", ".join(
-            ch.deployment_id for ch in sorted(channels, key=lambda c: c.deployment_id)
-        )
-        raise NonInteractiveError(
-            f"Missing required parameter: -c/--channel\n"
-            f"  Available channels: {available}\n"
-            f"  Usage: statgpt channel <command> -c <channel>"
-        ) from None
-
-    if not selected:
-        return None
-    return channel_map.get(selected)
-
-
 def _get_status_style(status: str) -> str:
     """Get Rich style for status."""
     status_styles = {
@@ -186,6 +167,13 @@ def _get_status_style(status: str) -> str:
         "PENDING": "blue",
         "FAILED": "red",
         "UNKNOWN": "dim",
+        # Discovery dataset statuses
+        "VALID": "green",
+        "INDEXED": "green",
+        "INVALID": "red",
+        "OUTDATED": "yellow",
+        "NEW": "blue",
+        "NOT_VALIDATED": "blue",
     }
     return status_styles.get(status, "white")
 
@@ -244,37 +232,80 @@ def _export_status_csv(
             writer.writerow(row)
 
 
+_DISCOVERY_ACTION_NEEDED = (
+    DiscoveryIndexingStatus.NEW,
+    DiscoveryIndexingStatus.OUTDATED,
+    DiscoveryIndexingStatus.FAILED,
+)
+"""Indexing states a reindex would move: a hint is only worth printing for these."""
+
+
+async def _fetch_discovery_stats(
+    client: AdminClient, channel: Channel
+) -> DiscoveryDatasetStats | None:
+    """Grade C record counts for the channel, or None when they cannot be read.
+
+    A channel status report must not fail because of the discovery section - a channel that
+    does no Grade C work is the common case, not an error.
+    """
+    try:
+        return await client.get_discovery_stats(channel.id)
+    except Exception as e:
+        _log.debug("Failed to fetch discovery stats for channel %s: %s", channel.id, e)
+        return None
+
+
+def _format_status_counts(counts: Mapping[Any, int]) -> str:
+    """Render a status breakdown as coloured `STATUS: n` pairs, in enum order."""
+    return "   ".join(
+        f"[{_get_status_style(str(status))}]{status}[/{_get_status_style(str(status))}]: {count}"
+        for status, count in counts.items()
+    )
+
+
+def _print_discovery_stats(channel: Channel, stats: DiscoveryDatasetStats | None) -> None:
+    """Print the Grade C breakdown, when the channel has anything to show.
+
+    A channel with neither records nor a publish target does no Grade C work, so it gets no
+    section rather than an empty one.
+    """
+    if stats is None:
+        return
+    if not stats.total and channel.details.discovery_rag is None:
+        return
+
+    console.print("\n[bold cyan]Discovery Datasets (Grade C)[/bold cyan]")
+    console.print(f"  [dim]Total:[/dim] {stats.total}")
+
+    if not stats.total:
+        return
+
+    console.print(f"  [dim]Validation:[/dim] {_format_status_counts(stats.by_validation_status)}")
+    console.print(f"  [dim]Indexing:[/dim]   {_format_status_counts(stats.by_indexing_status)}")
+
+    pending = sum(stats.by_indexing_status.get(status, 0) for status in _DISCOVERY_ACTION_NEEDED)
+    pending += stats.by_validation_status.get(DiscoveryValidationStatus.NOT_VALIDATED, 0)
+    if pending:
+        console.print(
+            f"  [dim]Run:[/dim] [cyan]discovery reindex -c {channel.deployment_id}[/cyan]"
+        )
+
+
 async def status_handler(
     channel: str | None = None,
     output_path: str | None = None,
 ) -> None:
     """Show preprocessing status of datasets for a channel."""
     async with get_admin_client() as client:
-        if not await client.health_check():
-            print_error("Admin API is not available.")
+        selected_channel = await select_channel(client, channel)
+        if not selected_channel:
             return
-
-        # Fetch channels
-        channels = await client.get_channels()
-        if not channels:
-            print_error("No channels found.")
-            return
-
-        # Select channel
-        if channel:
-            selected_channel = next((ch for ch in channels if ch.deployment_id == channel), None)
-            if not selected_channel:
-                print_error(f"Channel not found: {channel}")
-                return
-        else:
-            selected_channel = await _select_channel_interactive(channels)
-            if not selected_channel:
-                return
 
         # Fetch datasets for channel
         with spinner_status("Fetching data..."):
             ch_datasets = await client.get_channel_datasets(selected_channel.id)
             index_status = await client.get_channel_index_status(selected_channel.id)
+            discovery_stats = await _fetch_discovery_stats(client, selected_channel)
 
         # Print channel info
         console.print(f"\n[bold cyan]Channel:[/bold cyan] {selected_channel.title}")
@@ -361,6 +392,8 @@ async def status_handler(
         except Exception as e:
             print_error(f"Failed to fetch index status: {e}")
 
+        _print_discovery_stats(selected_channel, discovery_stats)
+
         # Export to CSV if requested
         if output_path:
             _export_status_csv(selected_channel, ch_datasets, output_path)
@@ -415,26 +448,9 @@ async def list_handler() -> None:
 async def deduplicate_handler(channel: str | None = None) -> None:
     """Deduplicate embeddings for a channel."""
     async with get_admin_client() as client:
-        if not await client.health_check():
-            print_error("Admin API is not available.")
+        selected_channel = await select_channel(client, channel)
+        if not selected_channel:
             return
-
-        # Fetch channels
-        channels = await client.get_channels()
-        if not channels:
-            print_error("No channels found.")
-            return
-
-        # Select channel
-        if channel:
-            selected_channel = next((ch for ch in channels if ch.deployment_id == channel), None)
-            if not selected_channel:
-                print_error(f"Channel not found: {channel}")
-                return
-        else:
-            selected_channel = await _select_channel_interactive(channels)
-            if not selected_channel:
-                return
 
         print_info(f"Deduplicating channel: {selected_channel.title}")
 
@@ -540,26 +556,9 @@ async def reindex_handler(
 ) -> None:
     """Reindex dataset embeddings for a channel."""
     async with get_admin_client() as client:
-        if not await client.health_check():
-            print_error("Admin API is not available.")
+        selected_channel = await select_channel(client, channel)
+        if not selected_channel:
             return
-
-        # Fetch channels
-        channels = await client.get_channels()
-        if not channels:
-            print_error("No channels found.")
-            return
-
-        # Select channel
-        if channel:
-            selected_channel = next((ch for ch in channels if ch.deployment_id == channel), None)
-            if not selected_channel:
-                print_error(f"Channel not found: {channel}")
-                return
-        else:
-            selected_channel = await _select_channel_interactive(channels)
-            if not selected_channel:
-                return
 
         print_info(f"Selected channel: {selected_channel.title}")
 
