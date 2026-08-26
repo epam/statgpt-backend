@@ -65,10 +65,26 @@ class DiscoveryDocumentMetadata(BaseModel):
     agency: str = Field(json_schema_extra=_flags(filterable=True, retrievable=True))
     """Publisher. A search pre-filter key."""
 
-    reference_area: str = Field(
-        default="", json_schema_extra=_flags(filterable=True, retrievable=True)
+    reference_area: str = Field(default="", json_schema_extra=_flags(retrievable=True))
+    """Countries covered, verbatim as submitted. Displayed in a referral.
+
+    Not the filter axis. The cell is free text - one country, a ';'-separated list, or a group
+    label - so equality against the whole string never matches a question about one member of a
+    multi-country dataset. `reference_area_values` carries the axis a filter can match.
+    """
+
+    reference_area_values: list[str] = Field(
+        default_factory=list, json_schema_extra=_flags(filterable=True)
     )
-    """Countries covered. A search pre-filter key."""
+    """The country pre-filter axis: `reference_area` split into its entries.
+
+    An array rather than a string because the service matches an array field by containment, so
+    one filter value reaches every dataset whose list holds it - which is what makes a
+    multi-country dataset findable from a question about one of its countries.
+
+    Built by `parse_reference_area`, which also stamps the sentinel that keeps a record with no
+    country scope reachable from any country's question.
+    """
 
     frequency_coverage: str = Field(default="", json_schema_extra=_flags(filterable=True))
     """The frequencies the dataset publishes at."""
