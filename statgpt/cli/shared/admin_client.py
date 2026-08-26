@@ -21,6 +21,7 @@ from statgpt.common.schemas import (
     DataSource,
     DataSourceType,
     DeduplicationJob,
+    DiscoveryDataset,
     DiscoveryDatasetStats,
     DiscoveryIndexingJob,
     DiscoveryPayloadErrorDetail,
@@ -45,6 +46,7 @@ _channel_datasets_adapter = TypeAdapter(list[ChannelDatasetExpanded])
 _data_sources_adapter = TypeAdapter(list[DataSource])
 _data_source_types_adapter = TypeAdapter(list[DataSourceType])
 _glossary_terms_adapter = TypeAdapter(list[GlossaryTerm])
+_discovery_datasets_adapter = TypeAdapter(list[DiscoveryDataset])
 
 
 class AdminAPIError(Exception):
@@ -384,6 +386,18 @@ class AdminClient:
             raise _payload_error(resp)
         self._raise_for_status(resp)
         return DiscoveryUploadSummary.model_validate(resp.json())
+
+    async def clear_discovery_datasets(self, channel_id: int) -> list[DiscoveryDataset]:
+        """Delete every discovery dataset of a channel, and its published document.
+
+        The API answers with the deleted records themselves as a bare list, not the
+        `{"data": [...]}` envelope the paginated `get_*` endpoints use.
+        """
+        resp = await self._client.delete(
+            self._url(f"/channels/{channel_id}/discovery-datasets/bulk")
+        )
+        self._raise_for_status(resp)
+        return _discovery_datasets_adapter.validate_python(resp.json())
 
     async def trigger_discovery_indexing(
         self, channel_id: int, force: bool = False

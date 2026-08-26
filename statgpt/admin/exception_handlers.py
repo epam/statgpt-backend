@@ -20,6 +20,7 @@ from statgpt.admin.services.exceptions import (
     IndexingJobInProgressError,
 )
 from statgpt.common import schemas
+from statgpt.common.services import GenericRagIngestionError
 
 _log = logging.getLogger(__name__)
 
@@ -82,3 +83,15 @@ def register_exception_handlers(app: FastAPI) -> None:
         """
         _log.info(f"Refused a discovery indexing job: {exc}")
         return JSONResponse(status_code=status.HTTP_409_CONFLICT, content={"detail": str(exc)})
+
+    @app.exception_handler(GenericRagIngestionError)
+    async def _rag_unreachable(_: Request, exc: GenericRagIngestionError) -> JSONResponse:
+        """The RAG channel would not serve a call this request depends on: 502.
+
+        Reachable since deleting a record withdraws its document synchronously. Everywhere
+        else this error is raised inside an indexing job, which records it on the job row and
+        never lets it near a response - so without this it would surface as a bare 500 and a
+        caller could not tell a RAG channel that is down from a bug here.
+        """
+        _log.warning(f"Generic RAG call failed while serving a request: {exc}")
+        return JSONResponse(status_code=status.HTTP_502_BAD_GATEWAY, content={"detail": str(exc)})

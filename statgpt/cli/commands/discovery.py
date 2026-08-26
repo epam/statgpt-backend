@@ -153,6 +153,38 @@ async def reindex_handler(channel: str | None = None, force: bool = False) -> No
         print_success("Discovery indexing completed")
 
 
+async def clear_handler(channel: str | None = None, yes: bool = False) -> None:
+    """Delete every discovery dataset of a channel, and its published documents."""
+    async with get_admin_client() as client:
+        selected_channel = await select_channel(client, channel)
+        if not selected_channel:
+            return
+
+        stats = await client.get_discovery_stats(selected_channel.id)
+        if not stats.total:
+            print_info(f"{selected_channel.deployment_id} holds no discovery datasets.")
+            return
+
+        if not yes and not confirm_interactive(
+            f"Delete all {stats.total} discovery dataset(s) of"
+            f" {selected_channel.deployment_id} and their published documents?",
+            default=False,
+            error_message=(
+                "Deleting a channel's discovery datasets requires confirmation.\n"
+                "  Use -y/--yes to skip it.\n"
+                "  Usage: statgpt discovery clear -c <channel> -y"
+            ),
+        ):
+            print_info("Aborted.")
+            return
+
+        # Not instant: the records' documents are withdrawn from the RAG channel first.
+        with spinner_status(f"Deleting discovery datasets of {selected_channel.title}..."):
+            deleted = await client.clear_discovery_datasets(selected_channel.id)
+
+        print_success(f"Deleted {len(deleted)} record(s) and their published documents")
+
+
 upload_command = Command(
     name="upload",
     description="Upload a discovery datasets workbook (.xlsx) or CSV to a channel",
@@ -202,6 +234,26 @@ reindex_command = Command(
 )
 
 
+clear_command = Command(
+    name="clear",
+    description="Delete all discovery datasets of a channel and their published documents",
+    handler=clear_handler,
+    args=[
+        CommandArg(
+            name="channel",
+            short_name="c",
+            description="Channel deployment ID",
+        ),
+        CommandArg(
+            name="yes",
+            short_name="y",
+            description="Skip confirmation prompt",
+            is_flag=True,
+        ),
+    ],
+)
+
+
 # Command group
 discovery_group = CommandGroup(
     name="discovery",
@@ -209,3 +261,4 @@ discovery_group = CommandGroup(
 )
 discovery_group.add_command(upload_command)
 discovery_group.add_command(reindex_command)
+discovery_group.add_command(clear_command)

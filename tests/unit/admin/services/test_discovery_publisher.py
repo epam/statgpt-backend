@@ -15,6 +15,7 @@ from statgpt.admin.services.discovery_publisher import (
     document_filename,
     document_key,
     render_document_body,
+    withdraw_documents,
 )
 from statgpt.admin.services.discovery_upload import COLUMN_FIELDS
 from statgpt.admin.services.exceptions import DiscoveryMetadataSchemaError
@@ -27,7 +28,7 @@ from statgpt.common.schemas import (
     GenericRagDocument,
     GenericRagMetadataSchema,
 )
-from statgpt.common.services import GenericRagIngestionClient
+from statgpt.common.services import GenericRagIngestionClient, record_key
 from statgpt.common.services.generic_rag.ingestion import GenericRagIngestionError
 
 _CHANNEL = "statgpt-gtdc"
@@ -770,3 +771,52 @@ async def test_one_records_failure_does_not_cancel_the_others() -> None:
         True,
         True,
     ]
+
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~ withdraw_documents ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
+_KEY = record_key("Bank Indonesia (BI)", "TABEL1_1")
+
+
+async def test_withdraw_deletes_only_the_documents_claiming_the_given_keys() -> None:
+    """A withdrawal reconciles nothing: another record's document is not its business."""
+    wanted = _document(document_id=10)
+    other_record = _document(document_id=11, dataset_id="TABEL2_1")
+    other_channel = _document(document_id=12, channel="statgpt-other")
+    other_grade = _document(document_id=13, grade=DiscoveryGrade.B)
+    keyless = _document(document_id=14)
+    keyless.metadata.pop("dataset_id")
+    client = _client([wanted, other_record, other_channel, other_grade, keyless])
+
+    withdrawn = await withdraw_documents(client, _CHANNEL, {_KEY})
+
+    assert withdrawn == 1
+    assert [call.args[0] for call in client.delete_document.await_args_list] == [10]
+
+
+async def test_withdraw_deletes_every_document_claiming_one_key() -> None:
+    """A duplicated key leaves the record retrievable unless both documents go.
+
+    The publisher keeps the highest id and sweeps the rest as orphans on the next run. Here
+    there is no next run to rely on - the record is being deleted.
+    """
+    client = _client([_document(document_id=10), _document(document_id=20)])
+
+    withdrawn = await withdraw_documents(client, _CHANNEL, {_KEY})
+
+    assert withdrawn == 2
+    assert sorted(call.args[0] for call in client.delete_document.await_args_list) == [10, 20]
+
+
+async def test_withdraw_propagates_a_failed_deletion() -> None:
+    """The caller is about to drop the last row pointing at the document."""
+    client = _client([_document(document_id=10)])
+    client.delete_document.side_effect = GenericRagIngestionError("document deletion", "boom", 503)
+
+    with pytest.raises(GenericRagIngestionError):
+        await withdraw_documents(client, _CHANNEL, {_KEY})
+
+
+async def test_withdraw_without_keys_does_not_call_the_channel() -> None:
+    assert await withdraw_documents(_client([_document()]), _CHANNEL, set()) == 0

@@ -138,3 +138,38 @@ async def test_a_conflict_reports_the_reason_the_api_gave() -> None:
 
     assert "indexing job 3 is already running" in str(excinfo.value)
     assert "Response body" not in str(excinfo.value)
+
+
+@pytest.mark.asyncio
+async def test_clear_deletes_the_channels_records_and_parses_the_bare_list() -> None:
+    """The endpoint answers with the deleted records themselves, not a `data` envelope."""
+    record = {
+        "id": 1,
+        "channelId": _CHANNEL_ID,
+        "agency": "Bank Indonesia (BI)",
+        "datasetId": "TABEL1_1",
+        "validationStatus": "VALID",
+        "indexingStatus": "INDEXED",
+        "createdAt": "2026-08-26T00:00:00Z",
+        "updatedAt": "2026-08-26T00:00:00Z",
+    }
+    client, requests = _client(lambda request: httpx.Response(200, json=[record]))
+
+    deleted = await client.clear_discovery_datasets(_CHANNEL_ID)
+
+    assert requests[0].method == "DELETE"
+    assert requests[0].url.path == "/admin/api/v1/channels/7/discovery-datasets/bulk"
+    assert [item.dataset_id for item in deleted] == ["TABEL1_1"]
+
+
+@pytest.mark.asyncio
+async def test_clear_reports_a_rag_channel_that_would_not_serve_the_withdrawal() -> None:
+    """Deleting withdraws documents, so an unreachable RAG channel fails the call."""
+    client, _ = _client(
+        lambda request: httpx.Response(502, json={"detail": "Generic RAG document deletion failed"})
+    )
+
+    with pytest.raises(AdminAPIError) as exc_info:
+        await client.clear_discovery_datasets(_CHANNEL_ID)
+
+    assert exc_info.value.status_code == 502

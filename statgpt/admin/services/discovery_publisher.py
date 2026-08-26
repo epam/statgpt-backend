@@ -11,7 +11,7 @@ rather than of an algorithm here.
 import asyncio
 import hashlib
 import logging
-from collections.abc import Iterable, Sequence
+from collections.abc import Collection, Iterable, Sequence
 from dataclasses import dataclass, field
 from time import monotonic
 from typing import NamedTuple
@@ -31,6 +31,8 @@ from .discovery_validation import DiscoveryRecord
 from .exceptions import DiscoveryMetadataSchemaError
 
 _log = logging.getLogger(__name__)
+
+_SETTINGS = DiscoveryPublishSettings()
 
 
 class _RenderedField(NamedTuple):
@@ -192,6 +194,72 @@ def document_key(document: schemas.GenericRagDocument) -> RecordKey | None:
     return key if all(key) else None
 
 
+def is_channel_document(
+    document: schemas.GenericRagDocument, channel: str, grade: schemas.DiscoveryGrade
+) -> bool:
+    """Whether this document was published by this grade, for this channel.
+
+    The channel is identified by its deployment id rather than its row id, so a document stays
+    recognizable as this channel's after the channel is moved to another environment, where the
+    row id would differ.
+    """
+    metadata = document.metadata
+    return metadata.get("grade") == grade and metadata.get("statgpt_channel") == channel
+
+
+async def withdraw_documents(
+    client: GenericRagIngestionClient,
+    channel: str,
+    keys: Collection[RecordKey],
+    *,
+    grade: schemas.DiscoveryGrade = schemas.DiscoveryGrade.C,
+    concurrency: int | None = None,
+) -> int:
+    """Delete this channel's documents for `keys`, returning how many went.
+
+    What a record's deletion needs, as opposed to what an indexing run needs. It reconciles
+    nothing: a key not in `keys` is left alone, whatever state it is in, so removing one record
+    cannot disturb another one's document.
+
+    Two differences from the reconciliation the publisher does, both following from that:
+
+    Every document claiming one of the keys goes, not one per key. `_load_documents` keeps the
+    highest id of a duplicated key and treats the rest as orphans for the run to sweep; here
+    there is no run to follow, and a leftover duplicate would keep serving a record that was
+    deleted - which is the whole point of withdrawing.
+
+    A failure propagates. `_delete_orphan` swallows one because an orphan belongs to no record
+    and the next run retries it; here the caller is about to drop the row that is the last
+    thing pointing at the document, so it has to learn that the document is still there.
+    """
+    if not keys:
+        return 0
+
+    documents = [
+        document
+        for document in await client.list_documents()
+        if is_channel_document(document, channel, grade) and document_key(document) in keys
+    ]
+    try:
+        await async_utils.gather_with_concurrency(
+            concurrency if concurrency is not None else _SETTINGS.concurrency,
+            *(client.delete_document(document.id) for document in documents),
+        )
+    except BaseExceptionGroup as group:
+        # The group is an artifact of the task group inside `gather_with_concurrency`, and it
+        # matches neither an `except GenericRagIngestionError` nor an exception handler
+        # registered on it. The remaining leaves are the same outage counted once per document.
+        raise _first_leaf(group) from group
+    return len(documents)
+
+
+def _first_leaf(exc: BaseException) -> BaseException:
+    """The first real exception inside a possibly nested exception group."""
+    while isinstance(exc, BaseExceptionGroup):
+        exc = exc.exceptions[0]
+    return exc
+
+
 @dataclass
 class PublishCounts:
     """What a publish stage did. Reported on the job row."""
@@ -243,8 +311,6 @@ class DiscoveryPublisher:
     error - and leaves persisting them to the caller.
     """
 
-    _SETTINGS = DiscoveryPublishSettings()
-
     def __init__(
         self,
         client: GenericRagIngestionClient,
@@ -266,9 +332,9 @@ class DiscoveryPublisher:
         self._channel = channel
         self._grade = grade
         self._force = force
-        self._concurrency = concurrency if concurrency is not None else self._SETTINGS.concurrency
+        self._concurrency = concurrency if concurrency is not None else _SETTINGS.concurrency
         self._settle_timeout = (
-            self._SETTINGS.settle_timeout_seconds
+            _SETTINGS.settle_timeout_seconds
             if settle_timeout_seconds is None
             else settle_timeout_seconds
         )
@@ -353,17 +419,8 @@ class DiscoveryPublisher:
         return by_key, unclaimed
 
     def _is_ours(self, document: schemas.GenericRagDocument) -> bool:
-        """Whether this document was published by this grade, for this channel.
-
-        The channel is identified by its deployment id rather than its row id, so a document
-        stays recognizable as this channel's after the channel is moved to another
-        environment, where the row id would differ.
-        """
-        metadata = document.metadata
-        return (
-            metadata.get("grade") == self._grade
-            and metadata.get("statgpt_channel") == self._channel
-        )
+        """Whether this document was published by this grade, for this channel."""
+        return is_channel_document(document, self._channel, self._grade)
 
     async def _apply_safely(
         self, record: models.DiscoveryDataset, document: schemas.GenericRagDocument | None
