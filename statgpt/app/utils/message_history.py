@@ -3,7 +3,7 @@ import typing as t
 from collections.abc import Sequence
 
 from aidial_sdk.chat_completion import Message as DialMessage
-from aidial_sdk.chat_completion import MessageContentPart, MessageContentTextPart, Role
+from aidial_sdk.chat_completion import MessageContentPart, Role
 from aidial_sdk.chat_completion import ToolCall as DialToolCall
 from langchain_core.messages import (
     AIMessage,
@@ -184,18 +184,6 @@ class History:
 
     def get_last_non_tool_message(self) -> DialMessage:
         return self._messages[-1]
-
-    @property
-    def last_user_message_text(self) -> str:
-        """The verbatim text of the latest non-tool message."""
-        content = self.get_last_non_tool_message().content
-        if isinstance(content, str):
-            return content
-        parts: list[str] = []
-        for part in content or []:
-            if isinstance(part, MessageContentTextPart) and part.text:
-                parts.append(part.text)
-        return "\n".join(parts)
 
     def get_ai_messages(self) -> list[DialMessage]:
         return [msg for msg in self._messages if msg.role == Role.ASSISTANT]

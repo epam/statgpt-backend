@@ -7,7 +7,7 @@ from .data_query_outcome import DataQueryMcpPayload
 from .file_rags import BaseRagState, DialRagState
 from .query_builder import DataQueryEvalAttachment, QueryBuilderAgentState
 from .service import ChannelDatasetsMetadataResponse
-from .tool_states import FailedToolMessageState, ToolMessageState
+from .tool_states import DeepResearchToolMessageState, FailedToolMessageState, ToolMessageState
 
 
 class ToolArtifact(BaseModel):
@@ -22,6 +22,13 @@ class ToolArtifact(BaseModel):
 
 class FailedToolArtifact(ToolArtifact):
     state: FailedToolMessageState
+
+
+class DeepResearchArtifact(ToolArtifact):
+    """Carries whether the Deep Research turn delivered its final report, so the Supreme Agent
+    can end the turn without repeating the report (the tool streams it to the user directly)."""
+
+    state: DeepResearchToolMessageState
 
 
 class DataQueryArtifact(ToolArtifact):

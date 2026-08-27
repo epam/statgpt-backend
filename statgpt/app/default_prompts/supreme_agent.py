@@ -14,6 +14,7 @@ class SupremeAgentDefaultPrompts(DefaltPromptsBase):
     default_general_section: str
     default_tool_usage_section: str
     default_no_calculations_section: str
+    deep_research_section: str
     default_user_ui_context_section: str
 
 
