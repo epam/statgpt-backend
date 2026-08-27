@@ -18,6 +18,7 @@ from statgpt.app.schemas.data_query_outcome import (
 )
 from statgpt.app.schemas.query import AppJsonQueryWithMetadata
 from statgpt.app.schemas.tool_artifact import DataQueryArtifact
+from statgpt.common.schemas.data_query_tool import DataQueryMcpResources, McpResource
 from statgpt.common.schemas.query import (
     JsonComponentQuery,
     JsonQueryMetadata,
@@ -89,21 +90,39 @@ def _response(
     df: pd.DataFrame,
     created_at: datetime = _FIXED_TS,
     json_query: JsonQueryWithMetadata | None = None,
+    component_names: dict[str, str] | None = None,
 ) -> SimpleNamespace:
     return SimpleNamespace(
         resource_path=resource_path,
+        dataset_name=f"CPI [{resource_path}]",
         visual_dataframe=df,
         csv_dataframe=df,
+        component_names=component_names or {},
+        is_empty=df.empty,
         created_at=created_at,
         json_query=json_query,
     )
+
+
+def _resources(artifact: DataQueryArtifact, csv: bool = True, markdown: bool = False):
+    config = DataQueryMcpResources(
+        csv=McpResource(enabled_str=str(csv)),
+        markdown_table=McpResource(enabled_str=str(markdown)),
+    )
+    return data_query_artifact_to_resources(artifact, config)
+
+
+def _markdown_text(artifact: DataQueryArtifact) -> str:
+    resources = _resources(artifact, csv=False, markdown=True)
+    assert len(resources) == 1
+    return resources[0].resource.text
 
 
 def test_single_dataset_produces_one_csv_resource():
     df = pd.DataFrame({"country": ["FR", "DE"], "value": [1, 2]})
     artifact = _make_artifact({"ds1": _response("IMF:CPI(2.0.0)", df)})
 
-    resources = data_query_artifact_to_resources(artifact)
+    resources = _resources(artifact)
 
     assert len(resources) == 1
     resource = resources[0].resource
@@ -124,7 +143,7 @@ def test_multiple_datasets_preserve_insertion_order():
         }
     )
 
-    resources = data_query_artifact_to_resources(artifact)
+    resources = _resources(artifact)
 
     assert [str(r.resource.uri) for r in resources] == [
         f"statgpt://data_query/IMF%3ACPI%281.0.0%29/{_FIXED_TS_STR}.csv",
@@ -142,7 +161,7 @@ def test_each_response_uses_its_own_created_at():
         }
     )
 
-    resources = data_query_artifact_to_resources(artifact)
+    resources = _resources(artifact)
 
     assert [str(r.resource.uri) for r in resources] == [
         "statgpt://data_query/IMF%3ACPI%281.0.0%29/20260101T000000Z.csv",
@@ -158,7 +177,7 @@ def test_empty_dataframes_are_skipped():
         }
     )
 
-    resources = data_query_artifact_to_resources(artifact)
+    resources = _resources(artifact)
 
     assert len(resources) == 1
     assert (
@@ -170,7 +189,176 @@ def test_empty_dataframes_are_skipped():
 def test_no_responses_returns_empty_list():
     artifact = _make_artifact({})
 
-    assert data_query_artifact_to_resources(artifact) == []
+    assert _resources(artifact) == []
+
+
+def test_csv_disabled_produces_no_resources():
+    artifact = _make_artifact({"ds1": _response("IMF:CPI(1.0.0)", pd.DataFrame({"x": [1]}))})
+
+    assert _resources(artifact, csv=False) == []
+
+
+def test_both_payloads_enabled_are_emitted_per_response():
+    artifact = _make_artifact(
+        {
+            "ds1": _response("IMF:CPI(1.0.0)", pd.DataFrame({"x": [1]})),
+            "ds2": _response("BIS:IR(2.1.0)", pd.DataFrame({"y": [2]})),
+        }
+    )
+
+    resources = _resources(artifact, csv=True, markdown=True)
+
+    assert [(r.resource.mimeType, str(r.resource.uri)) for r in resources] == [
+        ("text/csv", f"statgpt://data_query/IMF%3ACPI%281.0.0%29/{_FIXED_TS_STR}.csv"),
+        ("text/markdown", f"statgpt://data_query/IMF%3ACPI%281.0.0%29/{_FIXED_TS_STR}.md"),
+        ("text/csv", f"statgpt://data_query/BIS%3AIR%282.1.0%29/{_FIXED_TS_STR}.csv"),
+        ("text/markdown", f"statgpt://data_query/BIS%3AIR%282.1.0%29/{_FIXED_TS_STR}.md"),
+    ]
+
+
+def test_markdown_resource_is_annotated_for_the_user():
+    df = pd.DataFrame({"REF_AREA": ["FR"], "2024": [1.5]})
+    artifact = _make_artifact({"ds1": _response("IMF:CPI(1.0.0)", df)})
+
+    resources = _resources(artifact, csv=False, markdown=True)
+
+    assert len(resources) == 1
+    assert resources[0].annotations is not None
+    assert resources[0].annotations.audience == ["user"]
+    assert resources[0].resource.mimeType == "text/markdown"
+    assert str(resources[0].resource.uri).endswith(f"{_FIXED_TS_STR}.md")
+
+
+def test_markdown_table_uses_display_names_and_drops_codes():
+    df = pd.DataFrame(
+        {
+            "REF_AREA": ["FR", "DE"],
+            "REF_AREA_Name": ["France", "Germany"],
+            "INDICATOR": ["CPI", "CPI"],
+            "INDICATOR_Name": ["Consumer price index", "Consumer price index"],
+            "2024": [1.5, 2.5],
+        }
+    )
+    artifact = _make_artifact(
+        {
+            "ds1": _response(
+                "IMF:CPI(1.0.0)",
+                df,
+                component_names={"REF_AREA": "Reference area", "INDICATOR": "Indicator"},
+            )
+        }
+    )
+
+    text = _markdown_text(artifact)
+
+    assert text.startswith("### CPI [IMF:CPI(1.0.0)]\n\n")
+    header = text.splitlines()[2]
+    assert [cell.strip() for cell in header.strip("|").split("|")] == [
+        "Reference area",
+        "Indicator",
+        "2024",
+    ]
+    assert "France" in text
+    assert "| FR " not in text
+
+
+def test_markdown_table_keeps_ids_without_display_names():
+    df = pd.DataFrame({"REF_AREA": ["FR"], "REF_AREA_Name": ["France"], "2024": [1.0]})
+    artifact = _make_artifact({"ds1": _response("IMF:CPI(1.0.0)", df)})
+
+    header = _markdown_text(artifact).splitlines()[2]
+
+    assert [cell.strip() for cell in header.strip("|").split("|")] == ["REF_AREA", "2024"]
+
+
+def test_markdown_table_keeps_id_when_display_name_collides():
+    df = pd.DataFrame({"FREQ": ["A"], "REF_AREA": ["FR"], "2024": [1.0]})
+    artifact = _make_artifact(
+        {
+            "ds1": _response(
+                "IMF:CPI(1.0.0)",
+                df,
+                # Both components claim the same display name: the first one gets it.
+                component_names={"FREQ": "Frequency", "REF_AREA": "Frequency"},
+            )
+        }
+    )
+
+    header = _markdown_text(artifact).splitlines()[2]
+
+    assert [cell.strip() for cell in header.strip("|").split("|")] == [
+        "Frequency",
+        "REF_AREA",
+        "2024",
+    ]
+
+
+def test_markdown_table_is_not_padded():
+    df = pd.DataFrame({"REF_AREA": ["FR"], "REF_AREA_Name": ["France"], "2024": [1.5]})
+    artifact = _make_artifact(
+        {"ds1": _response("IMF:CPI(1.0.0)", df, component_names={"REF_AREA": "Reference area"})}
+    )
+
+    lines = _markdown_text(artifact).splitlines()
+
+    assert lines[2] == "| Reference area | 2024 |"
+    # Numeric columns are right-aligned, everything else left-aligned, at minimum rule width.
+    assert lines[3] == "|:---|---:|"
+    assert lines[4] == "| France | 1.5 |"
+
+
+def test_markdown_table_escapes_pipes_in_values():
+    df = pd.DataFrame({"INDICATOR": ["GDP | current prices"], "2024": [1.5]})
+    artifact = _make_artifact({"ds1": _response("IMF:CPI(1.0.0)", df)})
+
+    row = _markdown_text(artifact).splitlines()[4]
+
+    assert row == "| GDP \\| current prices | 1.5 |"
+
+
+def test_markdown_table_drops_trailing_zero_of_whole_floats():
+    df = pd.DataFrame({"REF_AREA": ["FR", "DE", "IT"], "2024": [123.0, 4.5, 1e14]})
+    artifact = _make_artifact({"ds1": _response("IMF:CPI(1.0.0)", df)})
+
+    rows = _markdown_text(artifact).splitlines()[4:]
+
+    assert rows == ["| FR | 123 |", "| DE | 4.5 |", "| IT | 100000000000000 |"]
+
+
+def test_markdown_table_keeps_textual_values_verbatim():
+    # A `.0` in a value that arrived as text may be part of a code, so it is left alone.
+    df = pd.DataFrame({"VERSION": ["1.0"], "2024": ["7.0"]})
+    artifact = _make_artifact({"ds1": _response("IMF:CPI(1.0.0)", df)})
+
+    assert _markdown_text(artifact).splitlines()[4] == "| 1.0 | 7.0 |"
+
+
+def test_markdown_table_preserves_full_float_precision():
+    df = pd.DataFrame({"REF_AREA": ["FR"], "2024": [112.345678901234]})
+    artifact = _make_artifact({"ds1": _response("IMF:CPI(1.0.0)", df)})
+
+    assert "112.345678901234" in _markdown_text(artifact)
+
+
+def test_markdown_table_renders_missing_values_as_na():
+    df = pd.DataFrame({"REF_AREA": ["FR", "DE"], "2024": [1.5, None]})
+    artifact = _make_artifact({"ds1": _response("IMF:CPI(1.0.0)", df)})
+
+    assert "NA" in _markdown_text(artifact)
+
+
+def test_markdown_table_skips_empty_responses():
+    artifact = _make_artifact(
+        {
+            "empty": _response("IMF:EMPTY(1.0.0)", pd.DataFrame()),
+            "ok": _response("IMF:OK(1.0.0)", pd.DataFrame({"x": [1]})),
+        }
+    )
+
+    resources = _resources(artifact, csv=False, markdown=True)
+
+    assert len(resources) == 1
+    assert str(resources[0].resource.uri).startswith("statgpt://data_query/IMF%3AOK%281.0.0%29/")
 
 
 def _app_query(urn: str) -> AppJsonQueryWithMetadata:

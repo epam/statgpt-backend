@@ -1,8 +1,10 @@
 from langchain_core.runnables import RunnablePassthrough
 
 from statgpt.app.chains.data_query.parameters import DataQueryParameters
+from statgpt.app.chains.parameters import ChainParameters
 from statgpt.app.schemas.query_builder import ChainState
 from statgpt.app.utils.formatters import DatasetQueryFormatter, DatasetQueryFormatterConfig
+from statgpt.common.schemas.data_query_tool import DataQueryMessages
 
 
 class InvalidSelectedTimePeriodChain:
@@ -14,8 +16,14 @@ class InvalidSelectedTimePeriodChain:
         "\n\n## Constructed queries for datasets"
     )
 
-    def __init__(self, message: str | None):
-        self._message: str = message or self._DEFAULT_MESSAGE
+    def __init__(self, messages: DataQueryMessages):
+        self._messages = messages
+
+    def _get_message(self, inputs: dict) -> str:
+        configured = self._messages.get_invalid_time_period(
+            ChainParameters.get_invocation_source(inputs)
+        )
+        return configured or self._DEFAULT_MESSAGE
 
     async def _get_response_content(self, inputs: dict) -> str:
         chain_state = ChainState.model_validate(inputs)
@@ -35,7 +43,7 @@ class InvalidSelectedTimePeriodChain:
             datasets_dict=chain_state.datasets_dict,
             availability_queries=chain_state.strong_availability,  # type: ignore[arg-type]
         )
-        result: str = self._message + '\n\n' + formatted_queries
+        result: str = self._get_message(inputs) + '\n\n' + formatted_queries
         chain_state.target.append_content(result)
         return result
 

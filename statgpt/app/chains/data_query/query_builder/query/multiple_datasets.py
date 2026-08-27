@@ -7,12 +7,13 @@ from statgpt.app.schemas.query_builder import ChainState
 from statgpt.app.services.chat_facade import VersionedDataSet
 from statgpt.app.utils.formatters import DatasetQueryFormatter, DatasetQueryFormatterConfig
 from statgpt.common.data.base import DataSetQuery
+from statgpt.common.schemas.data_query_tool import DataQueryMessages
 
 
 class MultipleDatasetsChain:
 
-    def __init__(self, agent_only_message: str | None = None):
-        self._agent_only_message = agent_only_message
+    def __init__(self, messages: DataQueryMessages):
+        self._messages = messages
 
     async def _get_datasets_list(self, inputs: dict) -> str:
         chain_state = ChainState.model_validate(inputs)
@@ -47,8 +48,11 @@ class MultipleDatasetsChain:
             "or ask user to select one of the datasets to proceed with query execution. When user selected something, "
             "call the same tool mentioning the dataset name or id in the tool call arguments."
         )
-        if self._agent_only_message:
-            content += f"\n\n{self._agent_only_message}"
+        agent_only_message = self._messages.get_multiple_datasets(
+            ChainParameters.get_invocation_source(inputs)
+        )
+        if agent_only_message:
+            content += f"\n\n{agent_only_message}"
         return content
 
     @staticmethod

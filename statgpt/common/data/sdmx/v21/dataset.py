@@ -183,6 +183,13 @@ class Sdmx21DataResponse(DataResponse):
     def attribute_ids(self) -> set[str]:
         return {a.entity_id for a in self.dataset.attributes()}
 
+    @cached_property
+    def component_names(self) -> dict[str, str]:
+        return {
+            component.entity_id: component.name
+            for component in (*self.dataset.dimensions(), *self.dataset.attributes())
+        }
+
     def get_display_series_count(self) -> int:
         """Number of series in the data message (set when the query is executed)."""
         return self._display_series_count

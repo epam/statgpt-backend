@@ -28,7 +28,7 @@ from .channel_dataset import (
     StructureChange,
 )
 from .composite import ChannelDatasetUpdateResult, DataSetUpdateResponse
-from .data_query_tool import DataQueryDetails, HybridSearchConfig
+from .data_query_tool import DataQueryDetails, DataQueryMcpResources, HybridSearchConfig
 from .data_source import DataSource, DataSourceBase, DataSourceType, DataSourceUpdate, Provider
 from .dataset import DataSet, DataSetBase, DataSetDescriptor, DataSetUpdateRequest, DeletedDataSet
 from .discovery_dataset import (
@@ -59,6 +59,7 @@ from .enums import (
     ExportScope,
     IndexerVersion,
     IndicatorSelectionVersion,
+    InvocationSource,
     JobType,
     PreprocessingStatusEnum,
     RAGVersion,

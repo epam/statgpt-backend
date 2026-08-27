@@ -17,6 +17,7 @@ from .base import BaseYamlModel, SystemUserPrompt
 from .enums import (
     IndexerVersion,
     IndicatorSelectionVersion,
+    InvocationSource,
     SpecialDimensionsProcessorType,
     TimePeriodStrategy,
 )
@@ -46,7 +47,23 @@ class DataQueryPrompts(BaseYamlModel):
     summarize_queries_prompt: str | None = Field(default=None)
 
 
+_MCP_ONLY_SUFFIX = (
+    " Used only when the tool is invoked via MCP; falls back to the non-MCP message when unset."
+    " Note that `*_agent_only` means 'sent to the model, never shown to the user', while"
+    " `*_mcp_only` means 'used only on the MCP path' - the two suffixes are unrelated."
+)
+
+
 class DataQueryMessages(BaseYamlModel):
+    """Configurable data query messages, with optional MCP-specific variants.
+
+    The Supreme Agent and an MCP client show the user the query result on different
+    surfaces (DIAL attachments vs. the UI widget), so the wording that tells the model
+    where the data is displayed has to differ per audience. Every message therefore has
+    an optional `*_mcp_only` twin; when it is not configured the non-MCP message is used
+    for both flows, which keeps existing configs working unchanged.
+    """
+
     no_data_for_country: str | None = Field(
         default=None,
         description="Message for the no data for country response, can contain {country_details} placeholder",
@@ -70,16 +87,61 @@ class DataQueryMessages(BaseYamlModel):
         description="Message when all built queries have time periods that are out of range.",
     )
 
+    no_data_for_country_mcp_only: str | None = Field(
+        default=None,
+        description="MCP variant of `no_data_for_country`, can contain {country_details} placeholder."
+        + _MCP_ONLY_SUFFIX,
+    )
+    no_data_mcp_only: str | None = Field(
+        default=None,
+        description="MCP variant of `no_data`." + _MCP_ONLY_SUFFIX,
+    )
+    data_query_executed_mcp_only: str | None = Field(
+        default=None,
+        description="MCP variant of `data_query_executed_agent_only`." + _MCP_ONLY_SUFFIX,
+    )
+    multiple_datasets_mcp_only: str | None = Field(
+        default=None,
+        description="MCP variant of `multiple_datasets_agent_only`." + _MCP_ONLY_SUFFIX,
+    )
+    invalid_time_period_mcp_only: str | None = Field(
+        default=None,
+        description="MCP variant of `invalid_time_period`." + _MCP_ONLY_SUFFIX,
+    )
 
-class ToolAttachment(BaseYamlModel):
+    @staticmethod
+    def _pick(base: str | None, mcp: str | None, source: InvocationSource) -> str | None:
+        """Return the message for `source`, falling back to `base` when `mcp` is blank."""
+        return (mcp or base) if source is InvocationSource.MCP else base
+
+    def get_no_data_for_country(self, source: InvocationSource) -> str | None:
+        return self._pick(self.no_data_for_country, self.no_data_for_country_mcp_only, source)
+
+    def get_no_data(self, source: InvocationSource) -> str | None:
+        return self._pick(self.no_data, self.no_data_mcp_only, source)
+
+    def get_data_query_executed(self, source: InvocationSource) -> str | None:
+        return self._pick(
+            self.data_query_executed_agent_only, self.data_query_executed_mcp_only, source
+        )
+
+    def get_multiple_datasets(self, source: InvocationSource) -> str | None:
+        return self._pick(
+            self.multiple_datasets_agent_only, self.multiple_datasets_mcp_only, source
+        )
+
+    def get_invalid_time_period(self, source: InvocationSource) -> str | None:
+        return self._pick(self.invalid_time_period, self.invalid_time_period_mcp_only, source)
+
+
+class ToggleableConfig(BaseYamlModel):
+    """A config block with an on/off flag that may reference an environment variable."""
+
     enabled_str: str = Field(
         description=(
-            "Whether the tool should return this attachment."
+            "Whether the feature is enabled."
             " The value can be a reference to an environment variable."
         )
-    )
-    name: str | None = Field(
-        default=None, description="Attachment name template, may be None if disabled."
     )
 
     @field_validator('enabled_str', mode='after')
@@ -92,6 +154,22 @@ class ToolAttachment(BaseYamlModel):
             raise ValueError(f"Invalid value for enabled_str: {enabled}. Error: {e}")
         return enabled
 
+    @property
+    def enabled(self) -> bool:
+        return bool_from_str(self.enabled_str)
+
+
+class ToolAttachment(ToggleableConfig):
+    enabled_str: str = Field(
+        description=(
+            "Whether the tool should return this attachment."
+            " The value can be a reference to an environment variable."
+        )
+    )
+    name: str | None = Field(
+        default=None, description="Attachment name template, may be None if disabled."
+    )
+
     @field_validator("name", mode="after")
     def validate_name(cls, name: str | None, info: FieldValidationInfo) -> str | None:
         """Validate the `name` field to ensure it is not empty if `enabled` is True."""
@@ -99,10 +177,6 @@ class ToolAttachment(BaseYamlModel):
         if enabled_str and bool_from_str(enabled_str) and not name:
             raise ValueError("Attachment name must be provided if the attachment is enabled.")
         return name
-
-    @property
-    def enabled(self) -> bool:
-        return bool_from_str(self.enabled_str)
 
 
 class DataQueryAttachments(BaseYamlModel):
@@ -136,6 +210,41 @@ class DataQueryAttachments(BaseYamlModel):
     )
     merged_python_code: ToolAttachment = Field(
         default_factory=lambda: ToolAttachment(enabled_str="False", name="Python Code")
+    )
+
+
+class McpResource(ToggleableConfig):
+    """A payload the MCP data query response can carry as an inline resource."""
+
+    enabled_str: str = Field(
+        default="False",
+        description=(
+            "Whether the MCP data query response should carry this payload."
+            " The value can be a reference to an environment variable."
+        ),
+    )
+
+
+class DataQueryMcpResources(BaseYamlModel):
+    """Payloads the MCP data query response carries, each toggleable independently.
+
+    The defaults reproduce the behavior that predates this config: the CSV resource only.
+    """
+
+    csv: McpResource = Field(
+        default_factory=lambda: McpResource(enabled_str="True"),
+        description=(
+            "Observation-level `text/csv` resource, one per dataset. Machine-readable;"
+            " not meant to be shown to the user as-is."
+        ),
+    )
+    markdown_table: McpResource = Field(
+        default_factory=McpResource,
+        description=(
+            "Human-readable `text/markdown` table, one per dataset, with time periods as"
+            " columns. Configure together with the `dataQueryExecutedMcpOnly` message, which"
+            " is what instructs the model to reproduce the table for the user."
+        ),
     )
 
 
@@ -397,6 +506,7 @@ class DataQueryDetails(BaseToolDetails):
     prompts: DataQueryPrompts = Field(default_factory=DataQueryPrompts)  # type: ignore
     messages: DataQueryMessages = Field(default_factory=DataQueryMessages)  # type: ignore
     attachments: DataQueryAttachments = Field(default_factory=DataQueryAttachments)  # type: ignore
+    mcp_resources: DataQueryMcpResources = Field(default_factory=DataQueryMcpResources)
     pipeline_stage_names: DataQueryStageNames = Field(default_factory=DataQueryStageNames)
     allow_auto_update: bool = Field(
         default=False,

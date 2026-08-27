@@ -25,6 +25,7 @@ from statgpt.app.utils.message_history import (
     InvalidHistoryError,
     dump_dial_messages,
 )
+from statgpt.common.schemas.enums import InvocationSource
 from statgpt.common.schemas.token_usage import TokenUsagePricedItem
 from statgpt.common.settings.application import application_settings
 from statgpt.common.settings.dial import dial_settings
@@ -136,6 +137,7 @@ class ChannelCompletion(ChatCompletion):
                 ParamsConfig.SKIP_OUT_OF_SCOPE_CHECK: dial_app_settings.skip_out_of_scope_check,
                 ParamsConfig.START_OF_REQUEST: start_time,
                 ParamsConfig.CONFIGURATION: configuration,
+                ParamsConfig.INVOCATION_SOURCE: InvocationSource.AGENT,
             }
 
             callbacks: list = []

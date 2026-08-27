@@ -64,6 +64,21 @@ class McpResourceTypes(StrEnum):
     """A resource whose content is proxied verbatim from an external HTTP endpoint."""
 
 
+class InvocationSource(StrEnum):
+    """How a tool was invoked, so its response can be tailored to the audience.
+
+    The two flows surface data differently: the Supreme Agent renders it as DIAL
+    attachments, while an MCP client renders it in the UI widget. The model has to be
+    told which surface the user is looking at to respond correctly.
+    """
+
+    AGENT = "agent"
+    """Supreme Agent, in the DIAL chat completion flow."""
+
+    MCP = "mcp"
+    """MCP client, via the MCP server."""
+
+
 class RAGVersion(StrEnum):
     DIAL = "DIAL"
     """DIAL RAG PgVector.

@@ -115,6 +115,11 @@ tools:
         mergedPythonCode:
           enabledStr: "True"
           name: "Python Code"
+      mcpResources:
+        csv:
+          enabledStr: "False"
+        markdownTable:
+          enabledStr: "True"
       stagesConfig:
         debugOnly: true
         toolCallName: "Searching for data: {query}"
@@ -139,6 +144,14 @@ tools:
           If the executed query is only remotely related to the user query, you must mention that fact to the user,
           to not mislead them. It is recommended to search in other sources using tools available.
           Result of the executed query is shown to the user in the table attachment.
+        dataQueryExecutedMcpOnly: |-
+          If the executed query is only remotely related to the user query, you must mention that fact to the user,
+          to not mislead them. It is recommended to search in other sources using tools available.
+          By default the result is rendered as an interactive widget, which in the inline mode shows only the charts,
+          without any data. In most cases you should therefore reproduce the returned Markdown table verbatim, exactly
+          as provided, without reformatting, rounding, summarizing, or omitting any rows or columns.
+          You may also advise the user to open the full mode of the app, where the complete table, the charts and the
+          Python code snippet for retrieving the data are available.
         multipleDatasetsAgentOnly: |-
           If the executed query is only remotely related to the user query, it is recommended to mention that fact to
           the user, instead of suggesting user to choose one of the datasets. Other tools might be used to search for
