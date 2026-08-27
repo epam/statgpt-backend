@@ -59,6 +59,7 @@ from .enums import (
     ExportScope,
     IndexerVersion,
     IndicatorSelectionVersion,
+    InvocationSource,
     JobType,
     PreprocessingStatusEnum,
     RAGVersion,

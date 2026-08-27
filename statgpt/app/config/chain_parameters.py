@@ -19,6 +19,7 @@ class ChainParametersConfig:
     SKIP_OUT_OF_SCOPE_CHECK = "skip_out_of_scope_check"
     START_OF_REQUEST = "start_of_request"
     CONFIGURATION = "configuration"
+    INVOCATION_SOURCE = "invocation_source"
 
     TARGET_PREFILTER = "target_prefilter"
     DATASETS_DICT = "datasets_dict"

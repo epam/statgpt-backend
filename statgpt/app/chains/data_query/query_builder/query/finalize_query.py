@@ -59,23 +59,17 @@ class FinalizeQueryChainFactory:
         self._execute_query_chain = ExecuteQueryChain(
             stages_config=self._config.stages_config,
             stage=self._config.pipeline_stage_names.executing_data_query,
-            executed_message_agent_only=messages.data_query_executed_agent_only,
+            messages=messages,
             summarize_queries_chain=self._summarize_queries_chain,
         )
-        self._no_data_chain = NoDataChain(
-            message=messages.no_data,
-        )
-        self._multiple_datasets_chain = MultipleDatasetsChain(
-            agent_only_message=messages.multiple_datasets_agent_only,
-        )
+        self._no_data_chain = NoDataChain(messages=messages)
+        self._multiple_datasets_chain = MultipleDatasetsChain(messages=messages)
         self._incomplete_queries_chain = IncompleteQueriesChain(
             llm_model_config=self._config.llm_models.incomplete_queries_model_config,
             system_prompt=prompts.incomplete_queries_prompt
             or data_query_default_prompts.incomplete_queries_prompt,
         )
-        self._invalid_time_period_chain = InvalidSelectedTimePeriodChain(
-            message=messages.invalid_time_period
-        )
+        self._invalid_time_period_chain = InvalidSelectedTimePeriodChain(messages=messages)
 
     async def _format_dataset_queries(self, inputs: dict) -> str:
         chain_state = ChainState(**inputs)

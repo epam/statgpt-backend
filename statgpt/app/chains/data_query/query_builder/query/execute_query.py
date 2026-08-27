@@ -19,6 +19,7 @@ from statgpt.app.utils.formatters import DatasetQueryFormatter, DatasetQueryForm
 from statgpt.common.auth.auth_context import AuthContext
 from statgpt.common.data.base import DataResponse, DataSetQuery
 from statgpt.common.schemas import StagesConfig
+from statgpt.common.schemas.data_query_tool import DataQueryMessages
 from statgpt.common.schemas.enums import DataParsingStatus, DataRequestStatus
 from statgpt.common.schemas.tool_details import StageDescriptor
 
@@ -30,12 +31,12 @@ class ExecuteQueryChain:
         self,
         stages_config: StagesConfig,
         stage: StageDescriptor,
-        executed_message_agent_only: str | None,
+        messages: DataQueryMessages,
         summarize_queries_chain: SummarizeQueriesChain,
     ):
         self._stages_config = stages_config
         self._stage = stage
-        self._executed_message_agent_only = executed_message_agent_only
+        self._messages = messages
         self._summarize_queries_chain = summarize_queries_chain
 
     async def summarize_dataset_queries(self, inputs: dict) -> dict:
@@ -67,9 +68,14 @@ class ExecuteQueryChain:
 
         response_content = "The following queries were executed:\n\n" + formatted_queries
         target.append_content(response_content)
-        # append message to be shown to agent only (not to user) if it's configured
-        if self._executed_message_agent_only:
-            response_content += f"\n\n{self._executed_message_agent_only}"
+        # append message to be shown to agent only (not to user) if it's configured.
+        # the wording differs per audience: the agent shows the data in DIAL attachments,
+        # an MCP client shows it in the UI widget.
+        executed_message = self._messages.get_data_query_executed(
+            ChainParameters.get_invocation_source(inputs)
+        )
+        if executed_message:
+            response_content += f"\n\n{executed_message}"
 
         timestamp = configuration.get_current_timestamp()
         response_content += f"\n[Data Query executed at {timestamp}]"

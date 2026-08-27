@@ -17,6 +17,7 @@ from .base import BaseYamlModel, SystemUserPrompt
 from .enums import (
     IndexerVersion,
     IndicatorSelectionVersion,
+    InvocationSource,
     SpecialDimensionsProcessorType,
     TimePeriodStrategy,
 )
@@ -46,7 +47,23 @@ class DataQueryPrompts(BaseYamlModel):
     summarize_queries_prompt: str | None = Field(default=None)
 
 
+_MCP_ONLY_SUFFIX = (
+    " Used only when the tool is invoked via MCP; falls back to the non-MCP message when unset."
+    " Note that `*_agent_only` means 'sent to the model, never shown to the user', while"
+    " `*_mcp_only` means 'used only on the MCP path' - the two suffixes are unrelated."
+)
+
+
 class DataQueryMessages(BaseYamlModel):
+    """Configurable data query messages, with optional MCP-specific variants.
+
+    The Supreme Agent and an MCP client show the user the query result on different
+    surfaces (DIAL attachments vs. the UI widget), so the wording that tells the model
+    where the data is displayed has to differ per audience. Every message therefore has
+    an optional `*_mcp_only` twin; when it is not configured the non-MCP message is used
+    for both flows, which keeps existing configs working unchanged.
+    """
+
     no_data_for_country: str | None = Field(
         default=None,
         description="Message for the no data for country response, can contain {country_details} placeholder",
@@ -69,6 +86,52 @@ class DataQueryMessages(BaseYamlModel):
         default=None,
         description="Message when all built queries have time periods that are out of range.",
     )
+
+    no_data_for_country_mcp_only: str | None = Field(
+        default=None,
+        description="MCP variant of `no_data_for_country`, can contain {country_details} placeholder."
+        + _MCP_ONLY_SUFFIX,
+    )
+    no_data_mcp_only: str | None = Field(
+        default=None,
+        description="MCP variant of `no_data`." + _MCP_ONLY_SUFFIX,
+    )
+    data_query_executed_mcp_only: str | None = Field(
+        default=None,
+        description="MCP variant of `data_query_executed_agent_only`." + _MCP_ONLY_SUFFIX,
+    )
+    multiple_datasets_mcp_only: str | None = Field(
+        default=None,
+        description="MCP variant of `multiple_datasets_agent_only`." + _MCP_ONLY_SUFFIX,
+    )
+    invalid_time_period_mcp_only: str | None = Field(
+        default=None,
+        description="MCP variant of `invalid_time_period`." + _MCP_ONLY_SUFFIX,
+    )
+
+    @staticmethod
+    def _pick(base: str | None, mcp: str | None, source: InvocationSource) -> str | None:
+        """Return the message for `source`, falling back to `base` when `mcp` is blank."""
+        return (mcp or base) if source is InvocationSource.MCP else base
+
+    def get_no_data_for_country(self, source: InvocationSource) -> str | None:
+        return self._pick(self.no_data_for_country, self.no_data_for_country_mcp_only, source)
+
+    def get_no_data(self, source: InvocationSource) -> str | None:
+        return self._pick(self.no_data, self.no_data_mcp_only, source)
+
+    def get_data_query_executed(self, source: InvocationSource) -> str | None:
+        return self._pick(
+            self.data_query_executed_agent_only, self.data_query_executed_mcp_only, source
+        )
+
+    def get_multiple_datasets(self, source: InvocationSource) -> str | None:
+        return self._pick(
+            self.multiple_datasets_agent_only, self.multiple_datasets_mcp_only, source
+        )
+
+    def get_invalid_time_period(self, source: InvocationSource) -> str | None:
+        return self._pick(self.invalid_time_period, self.invalid_time_period_mcp_only, source)
 
 
 class ToolAttachment(BaseYamlModel):

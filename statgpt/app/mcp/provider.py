@@ -39,7 +39,12 @@ from statgpt.app.security import DialAuthCredentials, create_auth_context
 from statgpt.app.services.chat_facade import ChannelServiceFacade
 from statgpt.app.utils.dial_stages import DummyStage, NullChoice
 from statgpt.common.auth.auth_context import AuthContext
-from statgpt.common.schemas import BaseToolConfig, ChannelConfig, ProxiedResourceConfig
+from statgpt.common.schemas import (
+    BaseToolConfig,
+    ChannelConfig,
+    InvocationSource,
+    ProxiedResourceConfig,
+)
 
 _log = logging.getLogger(__name__)
 
@@ -73,6 +78,7 @@ def _build_mcp_inputs(
         ChainParametersConfig.CONFIGURATION: configuration,
         ChainParametersConfig.TARGET: DummyStage(),
         ChainParametersConfig.START_OF_REQUEST: datetime.now(configuration.tzinfo),
+        ChainParametersConfig.INVOCATION_SOURCE: InvocationSource.MCP,
     }
 
 

@@ -136,10 +136,14 @@ class DimensionSearchChainFactory(DimensionSearchChainFactoryBase):
             country_names = [ne.entity for ne in country_entities]
             data_service = chain_state.data_service
             country_named_entity_type = data_service.get_country_named_entity_type()
-            if self._config.messages.no_data_for_country:
-                message = self._config.messages.no_data_for_country
-            else:
-                message = "No data was found for {country_details}. Try to change the query."
+            configured = self._config.messages.get_no_data_for_country(
+                ChainParameters.get_invocation_source(inputs)
+            )
+            message = (
+                configured
+                if configured
+                else "No data was found for {country_details}. Try to change the query."
+            )
             try:
                 country_details = f"{country_named_entity_type} {', '.join(country_names)}"
                 message = message.format(country_details=country_details)

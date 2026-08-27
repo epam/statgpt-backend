@@ -11,6 +11,7 @@ from statgpt.app.utils.dial_stages import ChoiceI
 from statgpt.app.utils.message_history import History
 from statgpt.common.auth.auth_context import AuthContext
 from statgpt.common.data.base import DataResponse, DataSetQuery, DimensionQuery
+from statgpt.common.schemas.enums import InvocationSource
 
 
 class ChainParameters:
@@ -33,6 +34,15 @@ class ChainParameters:
     @staticmethod
     def get_configuration(data: dict) -> StatGPTConfiguration:
         return data[ChainParametersConfig.CONFIGURATION]
+
+    @staticmethod
+    def get_invocation_source(data: dict) -> InvocationSource:
+        """Which flow the current tool call belongs to.
+
+        Defaults to ``AGENT`` so entry points that predate this key (e.g. direct tool
+        calls) keep the chat-completion behavior.
+        """
+        return data.get(ChainParametersConfig.INVOCATION_SOURCE, InvocationSource.AGENT)
 
     @staticmethod
     def get_query(data: dict) -> str:
