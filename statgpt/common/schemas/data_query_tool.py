@@ -134,15 +134,14 @@ class DataQueryMessages(BaseYamlModel):
         return self._pick(self.invalid_time_period, self.invalid_time_period_mcp_only, source)
 
 
-class ToolAttachment(BaseYamlModel):
+class ToggleableConfig(BaseYamlModel):
+    """A config block with an on/off flag that may reference an environment variable."""
+
     enabled_str: str = Field(
         description=(
-            "Whether the tool should return this attachment."
+            "Whether the feature is enabled."
             " The value can be a reference to an environment variable."
         )
-    )
-    name: str | None = Field(
-        default=None, description="Attachment name template, may be None if disabled."
     )
 
     @field_validator('enabled_str', mode='after')
@@ -155,6 +154,22 @@ class ToolAttachment(BaseYamlModel):
             raise ValueError(f"Invalid value for enabled_str: {enabled}. Error: {e}")
         return enabled
 
+    @property
+    def enabled(self) -> bool:
+        return bool_from_str(self.enabled_str)
+
+
+class ToolAttachment(ToggleableConfig):
+    enabled_str: str = Field(
+        description=(
+            "Whether the tool should return this attachment."
+            " The value can be a reference to an environment variable."
+        )
+    )
+    name: str | None = Field(
+        default=None, description="Attachment name template, may be None if disabled."
+    )
+
     @field_validator("name", mode="after")
     def validate_name(cls, name: str | None, info: FieldValidationInfo) -> str | None:
         """Validate the `name` field to ensure it is not empty if `enabled` is True."""
@@ -162,10 +177,6 @@ class ToolAttachment(BaseYamlModel):
         if enabled_str and bool_from_str(enabled_str) and not name:
             raise ValueError("Attachment name must be provided if the attachment is enabled.")
         return name
-
-    @property
-    def enabled(self) -> bool:
-        return bool_from_str(self.enabled_str)
 
 
 class DataQueryAttachments(BaseYamlModel):
@@ -199,6 +210,41 @@ class DataQueryAttachments(BaseYamlModel):
     )
     merged_python_code: ToolAttachment = Field(
         default_factory=lambda: ToolAttachment(enabled_str="False", name="Python Code")
+    )
+
+
+class McpResource(ToggleableConfig):
+    """A payload the MCP data query response can carry as an inline resource."""
+
+    enabled_str: str = Field(
+        default="False",
+        description=(
+            "Whether the MCP data query response should carry this payload."
+            " The value can be a reference to an environment variable."
+        ),
+    )
+
+
+class DataQueryMcpResources(BaseYamlModel):
+    """Payloads the MCP data query response carries, each toggleable independently.
+
+    The defaults reproduce the behavior that predates this config: the CSV resource only.
+    """
+
+    csv: McpResource = Field(
+        default_factory=lambda: McpResource(enabled_str="True"),
+        description=(
+            "Observation-level `text/csv` resource, one per dataset. Machine-readable;"
+            " not meant to be shown to the user as-is."
+        ),
+    )
+    markdown_table: McpResource = Field(
+        default_factory=McpResource,
+        description=(
+            "Human-readable `text/markdown` table, one per dataset, with time periods as"
+            " columns. Configure together with the `dataQueryExecutedMcpOnly` message, which"
+            " is what instructs the model to reproduce the table for the user."
+        ),
     )
 
 
@@ -460,6 +506,7 @@ class DataQueryDetails(BaseToolDetails):
     prompts: DataQueryPrompts = Field(default_factory=DataQueryPrompts)  # type: ignore
     messages: DataQueryMessages = Field(default_factory=DataQueryMessages)  # type: ignore
     attachments: DataQueryAttachments = Field(default_factory=DataQueryAttachments)  # type: ignore
+    mcp_resources: DataQueryMcpResources = Field(default_factory=DataQueryMcpResources)
     pipeline_stage_names: DataQueryStageNames = Field(default_factory=DataQueryStageNames)
     allow_auto_update: bool = Field(
         default=False,

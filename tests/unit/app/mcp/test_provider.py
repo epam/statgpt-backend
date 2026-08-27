@@ -21,17 +21,31 @@ from statgpt.app.schemas.tool_artifact import (
 )
 from statgpt.app.schemas.tool_states import ToolMessageState
 from statgpt.common.schemas import ToolTypes
+from statgpt.common.schemas.data_query_tool import DataQueryMcpResources, McpResource
 from statgpt.common.schemas.query import JsonQueryMetadata, JsonQueryWithMetadata
 from statgpt.common.schemas.tool_details import SdmxQueryAppDetails
 from statgpt.common.schemas.tools import (
     AvailableDatasetsTool,
+    BaseToolConfig,
+    DataQueryTool,
     DatasetsMetadataAppTool,
     SdmxQueryAppTool,
 )
 
 
+def _data_query_config(**mcp_resources) -> DataQueryTool:
+    config = DataQueryTool(name="fake_tool", description="Query data")
+    if mcp_resources:
+        config.details.mcp_resources = DataQueryMcpResources(
+            **{key: McpResource(enabled_str=str(value)) for key, value in mcp_resources.items()}
+        )
+    return config
+
+
 def _build_adapter(
-    result, sdmx_query_app=SimpleNamespace(name="sdmx_query_app")
+    result,
+    sdmx_query_app=SimpleNamespace(name="sdmx_query_app"),
+    tool_config: BaseToolConfig | None = None,
 ) -> _McpToolAdapter:
     tool = SimpleNamespace(name="fake_tool", ainvoke=AsyncMock(return_value=result))
     return _McpToolAdapter(
@@ -41,6 +55,7 @@ def _build_adapter(
         channel_config=SimpleNamespace(  # type: ignore[arg-type]
             out_of_scope=None, sdmx_query_app=sdmx_query_app
         ),
+        tool_config=tool_config or _data_query_config(),
         auth_context=SimpleNamespace(),  # type: ignore[arg-type]
         name="fake_tool",
         parameters={},
@@ -63,15 +78,21 @@ def _state(status: DataQueryStatus = DataQueryStatus.DATA_AVAILABLE) -> SimpleNa
     return SimpleNamespace(status=status)
 
 
-async def test_data_query_artifact_adds_csv_resources():
-    df = pd.DataFrame({"x": [1, 2]})
-    response = SimpleNamespace(
+def _data_response(df: pd.DataFrame) -> SimpleNamespace:
+    return SimpleNamespace(
         resource_path="IMF:CPI(1.0.0)",
+        dataset_name="CPI [IMF:CPI]",
         visual_dataframe=df,
         csv_dataframe=df,
+        component_names={},
+        is_empty=df.empty,
         created_at=datetime(2026, 4, 20, 15, 30, 0, tzinfo=timezone.utc),
         json_query=_json_query("IMF:CPI(1.0.0)"),
     )
+
+
+async def test_data_query_artifact_adds_csv_resources():
+    response = _data_response(pd.DataFrame({"x": [1, 2]}))
     artifact = DataQueryArtifact.model_construct(data_responses={"ds1": response}, state=_state())
     result = SimpleNamespace(content="answer", artifact=artifact)
     adapter = _build_adapter(result)
@@ -107,15 +128,22 @@ async def test_data_query_no_data_returns_status_and_message():
     assert structured["queries"] == []
 
 
-async def test_data_query_structured_content_omits_sdmx_proxy_when_unconfigured():
-    df = pd.DataFrame({"x": [1]})
-    response = SimpleNamespace(
-        resource_path="IMF:CPI(1.0.0)",
-        visual_dataframe=df,
-        csv_dataframe=df,
-        created_at=datetime(2026, 4, 20, 15, 30, 0, tzinfo=timezone.utc),
-        json_query=_json_query("IMF:CPI(1.0.0)"),
+async def test_data_query_markdown_resource_is_added_when_configured():
+    response = _data_response(pd.DataFrame({"REF_AREA": ["FR"], "2024": [1.5]}))
+    artifact = DataQueryArtifact.model_construct(data_responses={"ds1": response}, state=_state())
+    adapter = _build_adapter(
+        SimpleNamespace(content="answer", artifact=artifact),
+        tool_config=_data_query_config(csv=False, markdown_table=True),
     )
+
+    tool_result = await adapter.run({})
+
+    resources = [c for c in tool_result.content if isinstance(c, EmbeddedResource)]
+    assert [r.resource.mimeType for r in resources] == ["text/markdown"]
+
+
+async def test_data_query_structured_content_omits_sdmx_proxy_when_unconfigured():
+    response = _data_response(pd.DataFrame({"x": [1]}))
     artifact = DataQueryArtifact.model_construct(data_responses={"ds1": response}, state=_state())
     adapter = _build_adapter(
         SimpleNamespace(content="answer", artifact=artifact), sdmx_query_app=None
@@ -189,6 +217,7 @@ async def test_tool_failure_raises_tool_error():
         langchain_tool=tool,  # type: ignore[arg-type]
         inputs={},
         channel_config=SimpleNamespace(out_of_scope=None),  # type: ignore[arg-type]
+        tool_config=_data_query_config(),
         auth_context=SimpleNamespace(),  # type: ignore[arg-type]
         name="fake_tool",
         parameters={},
@@ -245,6 +274,7 @@ async def test_run_blocks_out_of_scope_query(monkeypatch):
         langchain_tool=tool,  # type: ignore[arg-type]
         inputs={},
         channel_config=_guardrail_channel_config(),  # type: ignore[arg-type]
+        tool_config=_data_query_config(),
         auth_context=SimpleNamespace(api_key="key"),  # type: ignore[arg-type]
         name="data_query",
         parameters={},

@@ -129,6 +129,11 @@ class DataResponse(ABC):
     def attribute_ids(self) -> set[str]:
         """Entity ids of the dataset's attributes."""
 
+    @property
+    @abstractmethod
+    def component_names(self) -> dict[str, str]:
+        """Display names of the dataset's dimensions and attributes, by entity id."""
+
     @abstractmethod
     def enrich_attachment_name(self, value: str) -> str:
         """Replace placeholders in the attachment name with actual values."""

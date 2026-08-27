@@ -42,6 +42,8 @@ from statgpt.common.auth.auth_context import AuthContext
 from statgpt.common.schemas import (
     BaseToolConfig,
     ChannelConfig,
+    DataQueryMcpResources,
+    DataQueryTool,
     InvocationSource,
     ProxiedResourceConfig,
 )
@@ -88,6 +90,7 @@ class _McpToolAdapter(Tool):
     _langchain_tool: StatGptTool = PrivateAttr()
     _inputs: dict[str, Any] = PrivateAttr()
     _channel_config: ChannelConfig = PrivateAttr()
+    _tool_config: BaseToolConfig = PrivateAttr()
     _auth_context: AuthContext = PrivateAttr()
 
     def __init__(
@@ -95,6 +98,7 @@ class _McpToolAdapter(Tool):
         langchain_tool: StatGptTool,
         inputs: dict[str, Any],
         channel_config: ChannelConfig,
+        tool_config: BaseToolConfig,
         auth_context: AuthContext,
         **kwargs: Any,
     ):
@@ -102,6 +106,7 @@ class _McpToolAdapter(Tool):
         self._langchain_tool = langchain_tool
         self._inputs = inputs
         self._channel_config = channel_config
+        self._tool_config = tool_config
         self._auth_context = auth_context
 
     async def run(self, arguments: dict[str, Any]) -> ToolResult:
@@ -142,8 +147,16 @@ class _McpToolAdapter(Tool):
             | None
         ) = None
         if isinstance(result.artifact, DataQueryArtifact):
-            # to_csv is CPU-bound and can block on large dataframes; offload to a worker thread.
-            resources = await asyncio.to_thread(data_query_artifact_to_resources, result.artifact)
+            mcp_resources = (
+                self._tool_config.details.mcp_resources
+                if isinstance(self._tool_config, DataQueryTool)
+                else DataQueryMcpResources()
+            )
+            # The CSV and Markdown conversions are CPU-bound and can block on large
+            # dataframes; offload them to a worker thread.
+            resources = await asyncio.to_thread(
+                data_query_artifact_to_resources, result.artifact, mcp_resources
+            )
             content.extend(resources)
             structured_content = data_query_artifact_to_structured_content(
                 result.artifact, self._channel_config, message=text or None
@@ -196,6 +209,7 @@ class ChannelToolProvider(Provider):
             langchain_tool=langchain_tool,
             inputs=inputs,
             channel_config=channel_config,
+            tool_config=tool_config,
             auth_context=auth_context,
             name=channel_config.mcp.tool_name_prefix + tool_config.effective_mcp_name,
             description=tool_config.effective_mcp_description,
