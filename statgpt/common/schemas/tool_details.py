@@ -257,8 +257,9 @@ class DeepResearchDetails(BaseToolDetails):
     )
     resume_tool_description: str = Field(
         default=(
-            "Resume the active Deep Research session by forwarding the user's latest message"
-            " (their answer to a clarifying question or their approval of the plan)."
+            "Resume the active Deep Research session by sending it the answers to its clarifying"
+            " questions (answered from the conversation context where you can) or the user's"
+            " approval of the plan. Do not invent answers the user has not provided."
         ),
         description=(
             "Description of the internal tool that resumes an in-progress Deep Research session."

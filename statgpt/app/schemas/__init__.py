@@ -19,9 +19,15 @@ from .tool_artifact import (
     BaseFileRagArtifact,
     DataQueryArtifact,
     DatasetsMetadataAppArtifact,
+    DeepResearchArtifact,
     DialRagArtifact,
     FailedToolArtifact,
     SdmxQueryAppArtifact,
     ToolArtifact,
 )
-from .tool_states import FailedToolMessageState, ToolMessageState, ToolResponseStatus
+from .tool_states import (
+    DeepResearchToolMessageState,
+    FailedToolMessageState,
+    ToolMessageState,
+    ToolResponseStatus,
+)
