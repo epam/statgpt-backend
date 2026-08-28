@@ -52,9 +52,7 @@ channel, so the channel configuration has to say which one:
     "details": {
       "applicationId": "statgpt-generic-rag-grade-b-and-c",
       "templates": {
-        "wrapper": "### Other datasets that may be relevant
-
-{items}",
+        "wrapper": "### Other datasets that may be relevant\n\n{items}",
         "item": "- **{name}** ({agency}) - {url}"
       }
     }
@@ -72,8 +70,7 @@ before it is surfaced to users.
 
 Note that `details.templates` is required even for a channel that only wants indexing: one block
 owns both halves of the feature, so a channel with `enabled: false` still has to carry templates
-it does not use. Give it the example above and forget about it — nothing renders them until the
-lookup is switched on.
+nothing will render.
 
 One RAG channel can serve several StatGPT channels and both discovery grades. Documents are
 tagged with the publishing channel's deployment id, and both the indexing job and the chat-time

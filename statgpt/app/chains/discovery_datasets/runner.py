@@ -1,12 +1,8 @@
 """The chat-time lookup over a channel's published discovery datasets.
 
 Runs concurrently with the data query pipeline and contributes a block of relevant discovery
-datasets to its response. Deliberately not a `StatGptTool` and not a LangChain chain: nothing
-calls it but the data query tool, and it has one entry point, so a plain class is both what the
-call site needs and the smallest thing to wrap in a tool later.
-
-It is decoration on someone else's answer, so it never fails the turn. Every failure is recorded
-on the eval attachment and in the debug stage, and produces no block.
+datasets to its response. It is decoration on someone else's answer, so it never fails the turn:
+every failure is recorded on the eval attachment and in the debug stage, and produces no block.
 """
 
 import logging
@@ -26,6 +22,7 @@ from statgpt.app.schemas.discovery_datasets import (
     DiscoveryRelevanceResponse,
     SelectedDiscoveryDataset,
 )
+from statgpt.app.settings.dial_app import dial_app_settings
 from statgpt.app.utils.dial_stages import DummyStage, StageI, delayed_timed_stage
 from statgpt.common.auth.auth_context import AuthContext
 from statgpt.common.schemas import ChannelConfig, DiscoveryDocumentMetadata, GenericRagDocument
@@ -39,13 +36,6 @@ from .templates import render_block
 
 _log = logging.getLogger(__name__)
 
-_DOWNLOAD_CONCURRENCY = 8
-"""How many document bodies to fetch at once.
-
-They are short plain-text descriptions against one service, so this is about not opening a
-connection per candidate rather than about protecting the service.
-"""
-
 
 class DiscoveryDatasetsRunner:
     """Retrieve, judge and render a channel's discovery datasets for one query."""
@@ -58,7 +48,7 @@ class DiscoveryDatasetsRunner:
         """A runner for this channel, or `None` when the lookup is not configured for it."""
         if not channel_config.is_discovery_lookup_available:
             return None
-        assert channel_config.discovery_datasets is not None  # implied by the check above
+        assert channel_config.discovery_datasets is not None
         return cls(channel_config.discovery_datasets.details)
 
     async def run(self, query: str, inputs: dict) -> DiscoveryDatasetsOutcome:
@@ -123,7 +113,7 @@ class DiscoveryDatasetsRunner:
                 return []
 
             descriptions = await gather_with_concurrency(
-                _DOWNLOAD_CONCURRENCY,
+                dial_app_settings.discovery_datasets_download_concurrency,
                 *(self._download(client, document.id) for document, _ in records),
             )
 
@@ -146,13 +136,10 @@ class DiscoveryDatasetsRunner:
     ) -> list[tuple[GenericRagDocument, DiscoveryDocumentMetadata]]:
         """The hits this channel published, each paired with its parsed metadata.
 
-        One RAG channel is shared - by both discovery grades and by several StatGPT channels -
-        so a search returns documents this channel did not publish. Two kinds are dropped here:
-        a hit whose metadata is not a discovery record at all, and a hit that is one but belongs
-        to another StatGPT channel. `statgpt_channel` is what the indexing job scopes publishing
-        and withdrawal by, so it is the same identity on both sides.
-
-        Filtered before the bodies are downloaded, so a foreign document costs no round trip.
+        One RAG channel is shared by both discovery grades and by several StatGPT channels, so a
+        search also returns documents this channel did not publish: hits whose metadata is not a
+        discovery record, and hits belonging to another `statgpt_channel`, are dropped here -
+        before the bodies are downloaded, so a foreign document costs no round trip.
         """
         records = []
         for document in documents:
@@ -179,8 +166,7 @@ class DiscoveryDatasetsRunner:
     async def _download(client: GenericRagSearchClient, document_id: int) -> str:
         """The document's body, or an empty string if it could not be read.
 
-        A candidate with no description is still worth judging on its metadata, which is where
-        most of a discovery record lives, so one unreadable body does not cost the whole lookup.
+        A candidate with no description is still worth judging on its metadata.
         """
         try:
             return await client.download_document(document_id)
@@ -205,7 +191,7 @@ class DiscoveryDatasetsRunner:
         response = await chain.ainvoke(
             {"query": query, "candidates": self._format_candidates(candidates)}
         )
-        assert isinstance(response, DiscoveryRelevanceResponse)  # narrows the structured output
+        assert isinstance(response, DiscoveryRelevanceResponse)
         return response
 
     @classmethod
@@ -216,12 +202,10 @@ class DiscoveryDatasetsRunner:
     def _select(
         candidates: list[DiscoveryCandidate], response: DiscoveryRelevanceResponse
     ) -> list[SelectedDiscoveryDataset]:
-        """The candidates the model kept, in rank order.
+        """The candidates the model kept, in the search's rank order rather than the model's.
 
-        Verdicts on ids that were never offered are dropped: the model is asked to echo
-        `document_id`s back, and one it invented must not be able to put a dataset in front of a
-        user. Rank order rather than the model's order, so the list a user reads is the search's
-        own ordering.
+        Verdicts on ids that were never offered are dropped: an id the model invented must not
+        be able to put a dataset in front of a user.
         """
         by_id = {candidate.document_id: candidate for candidate in candidates}
         reasons: dict[int, str] = {}
@@ -249,9 +233,8 @@ class DiscoveryDatasetsRunner:
         """A stage of this lookup's own, as if it were a tool the agent had called.
 
         Held open across the run so each step can report as soon as it has something to say.
-        Safe to run beside the data query pipeline: a stage is its own slot in the choice, so
-        only content written to the *same* stage can interleave. Delayed, so a lookup that
-        reports nothing never opens an empty stage.
+        Safe beside the data query pipeline: only content written to the *same* stage can
+        interleave. Delayed, so a lookup that reports nothing never opens an empty stage.
         """
         state = ChainParameters.get_state(inputs)
         choice = ChainParameters.get_choice(inputs)

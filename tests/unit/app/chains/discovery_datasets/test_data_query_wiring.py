@@ -220,6 +220,5 @@ async def test_a_failed_pipeline_raises_unwrapped_and_cancels_the_lookup(
     with pytest.raises(RuntimeError, match="pipeline exploded"):
         await _tool(with_discovery=True)._arun({}, "gdp")
 
-    # No yielding to the loop first: the tool awaits the cancellation before it re-raises, so
-    # the lookup is already finished by the time its caller sees the error.
+    # No yielding to the loop first: the tool awaits the cancellation before it re-raises.
     assert runner.cancelled is True

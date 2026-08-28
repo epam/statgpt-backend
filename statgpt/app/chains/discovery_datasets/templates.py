@@ -1,9 +1,8 @@
 """Rendering the datasets the relevance judge kept.
 
 Templates come from channel configuration, so a placeholder the config author typed and this
-code does not provide must not break a chat turn: it renders empty instead. `str.format_map`
-over a defaulting mapping is what buys that, and it is also why the templates are plain
-`str.format` and not Jinja - there is nothing here worth a template engine.
+code does not provide must not break a chat turn: `format_map` over a defaulting mapping
+renders it empty instead.
 """
 
 from typing import Any
@@ -14,10 +13,7 @@ from statgpt.common.schemas.discovery_datasets_tool import DiscoveryDatasetsTemp
 _ITEM_SEPARATOR = "\n"
 
 _ITEMS_PLACEHOLDER = "items"
-"""The wrapper's own placeholder, and this module's alone to define.
-
-Dropped from the item context so an item template cannot recurse into it.
-"""
+"""The wrapper's own placeholder. Dropped from the item context so items cannot recurse."""
 
 
 class _BlankDefaultingContext(dict[str, Any]):
@@ -39,8 +35,8 @@ def render_block(
 ) -> str | None:
     """The block to append to the data query response, or `None` when there is nothing to say.
 
-    `selected` is in the order the items should appear - the caller keeps rank order. An empty
-    selection renders nothing at all rather than a header with no rows under it.
+    `selected` is already in the order the items should appear. An empty selection renders
+    nothing at all rather than a header with no rows under it.
     """
     if not selected:
         return None

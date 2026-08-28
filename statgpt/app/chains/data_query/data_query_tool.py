@@ -70,10 +70,9 @@ class DataQueryTool(StatGptTool[DataQueryToolConfig], tool_type=ToolTypes.DATA_Q
         if discovery_block and ChainParameters.get_invocation_source(inputs) is (
             InvocationSource.AGENT
         ):
-            # The agent reads one string, so the block is appended to it. An MCP client reads a
-            # list of content blocks and a structured payload, and gets the block as a block of
-            # its own - see the provider - so folding it in here would duplicate it there and
-            # leave markdown in the `message` field a widget parses.
+            # Agent only: an MCP client gets the block as a content block of its own (see the
+            # provider), so folding it in here would duplicate it and leave markdown in the
+            # `message` field a widget parses.
             response_str = f"{response_str}\n\n{discovery_block}"
 
         return response_str, DataQueryArtifact(
@@ -92,27 +91,22 @@ class DataQueryTool(StatGptTool[DataQueryToolConfig], tool_type=ToolTypes.DATA_Q
     ) -> tuple[dict, DiscoveryDatasetsOutcome | None]:
         """Run the query pipeline and, when configured, the discovery lookup beside it.
 
-        The lookup searches a different service on the raw tool argument and shares nothing with
-        the pipeline, so running it concurrently costs no wall clock. It only reads from
-        ``inputs`` - the pipeline is the sole writer - and it never raises, so a failure there
-        cannot cost the user their data.
+        The lookup shares nothing with the pipeline - it only reads from ``inputs`` - and it
+        never raises, so a failure there cannot cost the user their data.
         """
         runner = DiscoveryDatasetsRunner.from_channel_config(self._channel_config)
         if runner is None:
             return await chain.ainvoke(inputs), None
 
-        # Not a TaskGroup: it would wrap a pipeline failure in an ExceptionGroup, and what the
-        # tool raises on a failed data query is not this feature's business to change. Awaiting
-        # the lookup only after the pipeline has succeeded gives the same sibling cancellation
-        # without touching the exception.
+        # Not a TaskGroup: it would wrap a pipeline failure in an ExceptionGroup, changing what
+        # the tool raises on a failed data query.
         discovery_task = asyncio.create_task(runner.run(query, inputs))
         try:
             res = await chain.ainvoke(inputs)
         except BaseException:
             discovery_task.cancel()
-            # Awaited, not just cancelled: `cancel()` only schedules the CancelledError, so
-            # without this the lookup could still be writing to the choice after the tool has
-            # raised and the choice is being torn down.
+            # Awaited, not just cancelled: `cancel()` only schedules the CancelledError, and
+            # the lookup must not still be writing to the choice as it is torn down.
             await asyncio.gather(discovery_task, return_exceptions=True)
             raise
         return res, await discovery_task

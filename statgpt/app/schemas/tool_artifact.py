@@ -51,9 +51,8 @@ class DataQueryArtifact(ToolArtifact):
         default=None,
         description=(
             "The rendered discovery datasets block, or `None` when there was nothing to show."
-            " Carried here as well as in the response so each audience can place it itself: the"
-            " agent gets it appended to the response string, an MCP client gets it as a content"
-            " block of its own."
+            " Carried here as well as in the response string so an MCP client can place it as a"
+            " content block of its own."
         ),
     )
     discovery_datasets_eval_attachment: DiscoveryDatasetsEvalAttachment | None = Field(

@@ -95,8 +95,7 @@ class DataQueryArtifactDisplayer:
         if response is not None:
             self._choice.add_attachment(**response)
 
-        # The discovery datasets lookup runs beside the query, so what it did is reported beside
-        # it too, in its own file rather than folded into the query's own eval data.
+        # The discovery lookup runs beside the query, so it reports in a file of its own.
         discovery = artifact.discovery_datasets_eval_attachment
         if discovery is None:
             return

@@ -351,8 +351,7 @@ class ChannelConfig(BaseYamlModel):
         description=(
             "Discovery datasets: the Generic RAG channel this channel's discovery records are"
             " published to, and the chat-time lookup over them. Required to run a discovery"
-            " indexing job. Deliberately absent from `tool_fields`: the Supreme Agent never"
-            " calls it."
+            " indexing job. Absent from `tool_fields`: the Supreme Agent never calls it."
         ),
     )
 
@@ -401,9 +400,8 @@ class ChannelConfig(BaseYamlModel):
     def discovery_application_id(self) -> str | None:
         """Where this channel's discovery records are published, or `None` if nowhere.
 
-        Ignores `enabled` on purpose: that flag gates the chat-time lookup, while publishing,
-        reindexing and withdrawing are administrative and must keep working for a channel whose
-        discovery data is indexed but not yet surfaced to users.
+        Ignores `enabled` on purpose: that flag gates only the chat-time lookup, while
+        publishing, reindexing and withdrawing are administrative and must keep working.
         """
         if self.discovery_datasets is None:
             return None

@@ -1,9 +1,7 @@
 """Configuration of a channel's discovery datasets.
 
 One block owns both halves of the feature: where the channel's discovery records are published,
-and how the published documents are surfaced during a chat turn. Written as a tool config even
-though the Supreme Agent never calls it - the chat-time lookup runs inside the data query tool -
-so promoting it to a tool of its own later is a matter of registering a `StatGptTool` for it.
+and how the published documents are surfaced during a chat turn.
 """
 
 from pydantic import AliasChoices, Field, PositiveInt

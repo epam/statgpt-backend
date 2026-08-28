@@ -1,9 +1,8 @@
 """What the chat-time discovery datasets lookup works with and reports.
 
 A candidate is one retrieved document reassembled into a whole record: the metadata the search
-endpoint returns plus the description it does not. The eval attachment is everything a reviewer
-needs to judge a run - what was retrieved, what the model made of it, and what the user saw -
-and is deliberately not part of the tool state, which is echoed back on every later turn.
+endpoint returns plus the description it does not. The eval attachment is what a reviewer needs
+to judge a run, and is deliberately not part of the tool state echoed back on later turns.
 """
 
 from typing import Any
@@ -15,17 +14,15 @@ from statgpt.common.schemas import DiscoveryDocumentMetadata
 _PUBLISHING_METADATA_FIELDS = frozenset({"grade", "statgpt_channel"})
 """Metadata that scopes publishing rather than describing a dataset.
 
-Kept out of both the prompt and the template context: they say which run owns a document, which
-is the indexing job's business and means nothing to either the relevance judge or a reader.
+Kept out of both the prompt and the template context: it means nothing to a judge or a reader.
 """
 
 
 class DiscoveryCandidateForLlm(BaseModel):
     """One candidate as the relevance prompt sees it.
 
-    A model rather than a hand-built dict so the prompt's contract is typed and declared once:
-    the default relevance prompt names these keys, and they are what the YAML handed to the
-    judge contains.
+    These keys are the prompt's contract: the default relevance prompt names them, and they are
+    what the YAML handed to the judge contains.
     """
 
     model_config = ConfigDict(use_attribute_docstrings=True)
@@ -54,9 +51,8 @@ class DiscoveryCandidate(BaseModel):
     rank: int
     """1-based position among the documents this channel published.
 
-    The only relevance signal the endpoint gives: it fuses the ranks of every index it searched
-    and returns no scores. Counted over the hits that survived retrieval, so the numbers a user
-    reads have no gaps.
+    The only relevance signal the endpoint gives - it returns no scores. Counted over the hits
+    that survived retrieval, so the numbers a user reads have no gaps.
     """
 
     display_name: str = ""
@@ -110,7 +106,7 @@ class DiscoveryRelevanceItem(BaseModel):
     model_config = ConfigDict(use_attribute_docstrings=True)
 
     document_id: int = Field(description="`document_id` of the candidate being judged.")
-    reason: str = Field(  # Not shown to the user by default.
+    reason: str = Field(
         default="",
         description="One sentence explaining why this document may or may not answer the user's question.",
     )

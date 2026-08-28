@@ -115,10 +115,8 @@ class DataQueryTool(BaseToolConfig):
 class DiscoveryDatasetsTool(BaseToolConfig):
     """Discovery datasets: the publish target, and the chat-time lookup over what was published.
 
-    Not listed in `ChannelConfig.tool_fields`, so the Supreme Agent and the MCP server never see
-    it - the lookup is run by the data query tool, alongside the query it was called for.
-    `enabled` therefore gates only that lookup; the publish target is read straight off the block
-    so an administrator can index discovery data before surfacing it in chat.
+    Not listed in `ChannelConfig.tool_fields` - the lookup is run by the data query tool, not the
+    Supreme Agent - so `enabled` gates only that lookup, never publishing or indexing.
     """
 
     type: ToolTypes = ToolTypes.DISCOVERY_DATASETS

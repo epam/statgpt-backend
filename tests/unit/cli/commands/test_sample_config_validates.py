@@ -1,9 +1,9 @@
 """The shipped sample client configuration must survive the merge `content init` performs.
 
 `_add_tools_to_channel` keys each `tools.yaml` entry by its `type`, which is the *channel config
-field name* - and `ChannelConfig` ignores unknown keys. So a tool written at the wrong nesting
-level, or under the `ToolTypes` value instead of the field name, is dropped in silence: the
-config loads, the tool is simply absent. These tests are what turns that into a failure.
+field name*, and `ChannelConfig` ignores unknown keys - so a tool at the wrong nesting level, or
+under the `ToolTypes` value instead of the field name, is dropped in silence. These tests turn
+that into a failure.
 """
 
 from pathlib import Path

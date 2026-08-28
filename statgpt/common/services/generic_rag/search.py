@@ -1,8 +1,7 @@
 """Read access to the documents of a Generic RAG channel.
 
-What a chat-time lookup needs: rank documents against a query, then read the body of the ones
-it keeps. The ranking endpoint returns documents without their content - our discovery documents
-carry the description as the body and everything else as metadata - so the two calls together
+What a chat-time lookup needs: rank documents against a query, then read the body of the ones it
+keeps. The ranking endpoint returns documents without their content, so the two calls together
 are what reconstitutes a full record.
 
 Authenticates with the caller's own DIAL key: this runs inside a chat turn, on behalf of a user.
@@ -22,9 +21,8 @@ from .client import BaseGenericRagChannelClient
 class _DocumentList(RootModel[list[GenericRagDocument]]):
     """The bare JSON array `POST /channel/documents/search` answers with.
 
-    `_parse` validates one model against a body, and a list is not one, so the array is given a
-    model of its own - a body that is not an array then fails as a failure of the search call
-    rather than as a `TypeError` somewhere downstream.
+    A model of its own so `_parse` can validate it, reporting a non-array body as a failure of
+    the search call rather than a `TypeError` downstream.
     """
 
 
@@ -48,8 +46,7 @@ class GenericRagSearchClient(BaseGenericRagChannelClient):
     ) -> list[GenericRagDocument]:
         """Documents relevant to `query`, best first.
 
-        The service fuses the ranks of every index it searched, so the position in this list is
-        the only relevance signal available - no scores are returned.
+        Position in this list is the only relevance signal available - no scores are returned.
         """
         request = GenericRagDocumentSearchRequest(query=query, limit=limit, indexes=indexes)
         response = await self._request(
@@ -61,11 +58,7 @@ class GenericRagSearchClient(BaseGenericRagChannelClient):
         return self._parse(_DocumentList, response, "document search").root
 
     async def download_document(self, document_id: int) -> str:
-        """The document's body as text.
-
-        Discovery documents are plain UTF-8 text, so this is decoded here rather than handed
-        back as bytes for every caller to decode identically.
-        """
+        """The document's body as text. Discovery documents are plain UTF-8."""
         response: httpx.Response = await self._request(
             "document download", "GET", f"/documents/{document_id}/download"
         )
