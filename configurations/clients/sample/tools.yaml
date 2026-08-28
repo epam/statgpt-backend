@@ -173,9 +173,21 @@ tools:
         wrapper: |
           ### Other datasets that may be relevant
 
+          These datasets are not onboarded into this application, so they cannot be queried here.
+          If the data you were looking for was not found among the onboarded datasets, or is only
+          partially covered by the results above, consider consulting the sources below directly.
+
           {items}
         item: |
           - **{name}** ({agency}) - {url}
+            - Dataset ID: {dataset_id}
+            - Reference area: {reference_area}
+            - Regional coverage: {regional_coverage}
+            - Excluded regional values: {excluded_regional_values}
+            - Time coverage: {time_coverage}
+            - Frequency coverage: {frequency_coverage}
+            - Indicators coverage: {indicators_coverage}
+            - Missing indicators: {missing_indicators}
 
   - type: sdmx_query_app
     <<: *shared_settings
