@@ -519,16 +519,16 @@ class AdminPortalDiscoveryDatasetService(DiscoveryDatasetService):
         channels = ChannelService(self._session)
         for channel_id, group in by_channel.items():
             channel = await channels.get_model_by_id(channel_id)
-            config = ChannelSerializer.db_to_schema(channel).details.discovery_rag
-            if config is None:
+            application_id = ChannelSerializer.db_to_schema(
+                channel
+            ).details.discovery_application_id
+            if application_id is None:
                 # No publish target, so nothing was ever published. Refusing the delete here
                 # would block it over a document that cannot exist.
                 continue
 
             keys = {record_key(record.agency, record.dataset_id) for record in group}
-            async with GenericRagIngestionClient.for_application(
-                config.get_application_id()
-            ) as client:
+            async with GenericRagIngestionClient.for_application(application_id) as client:
                 withdrawn = await withdraw_documents(client, channel.deployment_id, keys)
             _log.info(
                 f"Withdrew {withdrawn} discovery document(s) of channel"

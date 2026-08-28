@@ -94,6 +94,23 @@ class DataQueryArtifactDisplayer:
         )
         self._choice.add_attachment(**response)
 
+        # The discovery datasets lookup runs beside the query, so what it did is reported beside
+        # it too, in its own file rather than folded into the query's own eval data.
+        discovery = artifact.discovery_datasets_eval_attachment
+        if discovery is None:
+            return
+        discovery_response = await self._attach_json_file(
+            attachments_storage=attachments_storage,
+            data=discovery.model_dump(mode="json"),
+            filename=f"discovery_datasets_eval_attachment_{tool_call_id}.json",
+            title=f"Discovery Datasets Eval data: {tool_call_id}",
+            indent=2,
+        )
+        # `_attach_json_file` swallows its own failures and returns None; debug data is not worth
+        # failing the response over.
+        if discovery_response is not None:
+            self._choice.add_attachment(**discovery_response)
+
     def _get_system_message_content(self, response: DataResponse) -> str | None:
         if response.status.parsing_status == DataParsingStatus.FAILED:
             return None

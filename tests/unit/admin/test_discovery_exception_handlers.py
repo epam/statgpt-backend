@@ -98,7 +98,7 @@ def test_an_unconfigured_channel_says_what_to_configure() -> None:
     """The 409 has to be actionable: an administrator sees only this message."""
     body = _client(DiscoveryRagNotConfiguredError(channel_id=3)).get("/boom").json()
 
-    assert "discoveryRag.applicationId" in body["detail"]
+    assert "discoveryDatasets.details.applicationId" in body["detail"]
 
 
 def test_a_conflict_names_the_colliding_record() -> None:

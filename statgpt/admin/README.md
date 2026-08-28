@@ -45,13 +45,24 @@ channel, so the channel configuration has to say which one:
 
 ```jsonc
 {
-  "discoveryRag": { "applicationId": "statgpt-generic-rag-grade-b-and-c" }
+  "discoveryDatasets": {
+    "type": "DISCOVERY_DATASETS",
+    "name": "discovery_datasets",
+    "description": "Discovery datasets surfaced alongside data query results.",
+    "details": {
+      "applicationId": "statgpt-generic-rag-grade-b-and-c"
+    }
+  }
 }
 ```
 
 `applicationId` is the DIAL application fronting the RAG channel; `$env:{VAR}` is supported.
 Triggering a job on a channel without this block returns 409. Requests are authenticated with
 `DIAL_API_KEY`, since a background job has no user token.
+
+The same block also configures the chat-time lookup over what was published. `enabled: false`
+switches that lookup off while leaving indexing available, so discovery data can be indexed
+before it is surfaced to users.
 
 The application's own configuration owns the document metadata schema. It is generated from
 `DiscoveryDocumentMetadata`, so it never has to be written by hand:

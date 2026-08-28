@@ -1,12 +1,15 @@
+import asyncio
 from typing import Annotated
 
 from langchain_core.runnables import Runnable
 from mcp.types import ToolAnnotations
 from pydantic import Field
 
+from statgpt.app.chains.discovery_datasets import DiscoveryDatasetsRunner
 from statgpt.app.chains.tools import GuardrailInput, StatGptTool, ToolArgs
 from statgpt.app.config import ChainParametersConfig
 from statgpt.app.schemas.data_query_outcome import DataQueryMcpPayload
+from statgpt.app.schemas.discovery_datasets import DiscoveryDatasetsOutcome
 from statgpt.app.schemas.query_builder import DataQueryEvalAttachment, QueryBuilderAgentState
 from statgpt.app.schemas.tool_artifact import DataQueryArtifact
 from statgpt.common.config import multiline_logger as logger
@@ -45,7 +48,7 @@ class DataQueryTool(StatGptTool[DataQueryToolConfig], tool_type=ToolTypes.DATA_Q
 
         chain: Runnable = await factory.create_chain(inputs)
 
-        res: dict = await chain.ainvoke(inputs)
+        res, discovery = await self._run_with_discovery(chain, inputs, query)
         logger.info(f"DataQueryTool result: {res!r}")
 
         response_str: str = res[DataQueryParameters.RESPONSE_FIELD]
@@ -62,9 +65,41 @@ class DataQueryTool(StatGptTool[DataQueryToolConfig], tool_type=ToolTypes.DATA_Q
             DataQueryParameters.EVAL_ATTACHMENT, DataQueryEvalAttachment()
         )
 
+        if discovery is not None and discovery.rendered:
+            response_str = f"{response_str}\n\n{discovery.rendered}"
+
         return response_str, DataQueryArtifact(
             data_responses=data_responses,
             state=state,
             mcp_payload=mcp_payload,
             eval_attachment=eval_attachment,
+            discovery_datasets_eval_attachment=(
+                discovery.eval_attachment if discovery is not None else None
+            ),
         )
+
+    async def _run_with_discovery(
+        self, chain: Runnable, inputs: dict, query: str
+    ) -> tuple[dict, DiscoveryDatasetsOutcome | None]:
+        """Run the query pipeline and, when configured, the discovery lookup beside it.
+
+        The lookup searches a different service on the raw tool argument and shares nothing with
+        the pipeline, so running it concurrently costs no wall clock. It only reads from
+        ``inputs`` - the pipeline is the sole writer - and it never raises, so a failure there
+        cannot cost the user their data.
+        """
+        runner = DiscoveryDatasetsRunner.from_channel_config(self._channel_config)
+        if runner is None:
+            return await chain.ainvoke(inputs), None
+
+        # Not a TaskGroup: it would wrap a pipeline failure in an ExceptionGroup, and what the
+        # tool raises on a failed data query is not this feature's business to change. Awaiting
+        # the lookup only after the pipeline has succeeded gives the same sibling cancellation
+        # without touching the exception.
+        discovery_task = asyncio.create_task(runner.run(query, inputs))
+        try:
+            res = await chain.ainvoke(inputs)
+        except BaseException:
+            discovery_task.cancel()
+            raise
+        return res, await discovery_task

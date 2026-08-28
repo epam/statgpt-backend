@@ -9,7 +9,6 @@ from .channel import (
     ChannelUpdate,
     DeduplicationJob,
     DeduplicationStatus,
-    DiscoveryRagConfig,
     McpConfig,
     McpResourceConfig,
     ProxiedResourceConfig,
@@ -43,6 +42,11 @@ from .discovery_dataset import (
     DiscoveryUploadSummary,
     DiscoveryValidationIssue,
 )
+from .discovery_datasets_tool import (
+    DiscoveryDatasetsDetails,
+    DiscoveryDatasetsPrompts,
+    DiscoveryDatasetsTemplates,
+)
 from .discovery_document import DiscoveryDocumentMetadata
 from .discovery_indexing_job import DiscoveryIndexingJob
 from .enums import (
@@ -65,7 +69,12 @@ from .enums import (
     RAGVersion,
     ToolTypes,
 )
-from .generic_rag import GenericRagDocument, GenericRagDocumentPage, GenericRagMetadataSchema
+from .generic_rag import (
+    GenericRagDocument,
+    GenericRagDocumentPage,
+    GenericRagDocumentSearchRequest,
+    GenericRagMetadataSchema,
+)
 from .glossary_of_terms import (
     GlossaryTerm,
     GlossaryTermBase,
@@ -84,6 +93,7 @@ from .tools import (
     DatasetsMetadataTool,
     DatasetStructureTool,
     DeepResearchTool,
+    DiscoveryDatasetsTool,
     FileRagTool,
     PlainContentTool,
     SdmxQueryAppTool,

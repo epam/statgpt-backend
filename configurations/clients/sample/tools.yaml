@@ -157,6 +157,25 @@ tools:
           the user, instead of suggesting user to choose one of the datasets. Other tools might be used to search for
           the data.
 
+  # Never called by the Supreme Agent or exposed over MCP: the data query tool runs this
+  # lookup alongside the query it was called for. The block also names the Generic RAG
+  # application the channel's discovery records are published to, which is what the
+  # discovery indexing job needs; `enabled: false` would switch off the chat-time lookup
+  # while leaving indexing available.
+  - type: discovery_datasets
+    <<: *shared_settings
+    name: "Discovery_Datasets"
+    description: "Discovery datasets surfaced alongside data query results."
+    details:
+      applicationId: "statgpt-generic-rag-grade-b-and-c"
+      topN: 10
+      templates:
+        wrapper: |
+          ### Other datasets that may be relevant
+
+          {items}
+        item: |
+          - **{name}** ({agency}) - {url}
 
   - type: sdmx_query_app
     <<: *shared_settings

@@ -118,3 +118,31 @@ class GenericRagMetadataSchema(BaseModel):
             for name, definition in properties.items()
             if isinstance(definition, dict) and definition.get("enable_filtering")
         }
+
+
+class GenericRagDocumentSearchRequest(BaseModel):
+    """The body of `POST /channel/documents/search`.
+
+    The service builds this schema dynamically per channel - the filterable metadata fields
+    become typed keys of the `matcher` filters - so this is the static subset StatGPT sends.
+    `matcher` is deliberately absent: pre-filtering discovery documents is a separate change.
+    """
+
+    model_config = ConfigDict(use_attribute_docstrings=True)
+
+    query: str
+    """Free text the indexes are searched with."""
+
+    limit: int = 5
+    """Upper bound on results.
+
+    Applied by the service both per index and to the rank-fused list, so it is a ceiling
+    rather than a target count.
+    """
+
+    indexes: list[str] | None = None
+    """Which document indexes to search, in the order the stages run.
+
+    `None` leaves the choice to the channel, which uses every index flagged
+    `include_in_hybrid`.
+    """
