@@ -7,6 +7,7 @@ import httpx
 import pytest
 from pydantic import SecretStr
 
+from statgpt.common.schemas import GenericRagDocumentFilter, GenericRagDocumentMatcher
 from statgpt.common.services import GenericRagChannelError, GenericRagSearchClient
 
 _BASE_URL = "http://core:8080/v1/deployments/generic-rag-app/route"
@@ -68,6 +69,26 @@ async def test_indexes_are_sent_only_when_configured() -> None:
 
     assert "indexes" not in json.loads(bodies[0])
     assert json.loads(bodies[1])["indexes"] == ["semantic"]
+
+
+async def test_the_matcher_is_sent_as_a_metadata_filter() -> None:
+    """The channel scoping is a pre-filter on the request, not a filter on the results."""
+    bodies: list[bytes] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        bodies.append(request.content)
+        return httpx.Response(200, json=[])
+
+    matcher = GenericRagDocumentMatcher(
+        filters=[GenericRagDocumentFilter(statgpt_channel="statgpt-gtdc")]
+    )
+    async with _client(handler) as client:
+        await client.search_documents("q", limit=1)
+        await client.search_documents("q", limit=1, matcher=matcher)
+
+    assert "matcher" not in json.loads(bodies[0])
+    # Unset filter fields are omitted: the service rejects a field it cannot filter on.
+    assert json.loads(bodies[1])["matcher"] == {"filters": [{"statgpt_channel": "statgpt-gtdc"}]}
 
 
 async def test_search_returns_the_documents_in_the_order_the_service_gave_them() -> None:

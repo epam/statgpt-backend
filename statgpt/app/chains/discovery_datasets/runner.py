@@ -25,7 +25,13 @@ from statgpt.app.schemas.discovery_datasets import (
 from statgpt.app.settings.dial_app import dial_app_settings
 from statgpt.app.utils.dial_stages import DummyStage, StageI, delayed_timed_stage
 from statgpt.common.auth.auth_context import AuthContext
-from statgpt.common.schemas import ChannelConfig, DiscoveryDocumentMetadata, GenericRagDocument
+from statgpt.common.schemas import (
+    ChannelConfig,
+    DiscoveryDocumentMetadata,
+    GenericRagDocument,
+    GenericRagDocumentFilter,
+    GenericRagDocumentMatcher,
+)
 from statgpt.common.schemas.discovery_datasets_tool import DiscoveryDatasetsDetails
 from statgpt.common.services.generic_rag import GenericRagSearchClient
 from statgpt.common.utils import write_yaml_to_stream
@@ -106,9 +112,12 @@ class DiscoveryDatasetsRunner:
             self._config.get_application_id(), auth_context
         ) as client:
             documents = await client.search_documents(
-                query, limit=self._config.top_n, indexes=self._config.indexes
+                query,
+                limit=self._config.top_n,
+                indexes=self._config.indexes,
+                matcher=self._own_documents_matcher(channel),
             )
-            records = self._own_records(documents, channel)
+            records = self._discovery_records(documents)
             if not records:
                 return []
 
@@ -131,15 +140,28 @@ class DiscoveryDatasetsRunner:
         ]
 
     @staticmethod
-    def _own_records(
-        documents: list[GenericRagDocument], channel: str
-    ) -> list[tuple[GenericRagDocument, DiscoveryDocumentMetadata]]:
-        """The hits this channel published, each paired with its parsed metadata.
+    def _own_documents_matcher(channel: str) -> GenericRagDocumentMatcher:
+        """Restrict the search to the documents this channel published.
 
-        One RAG channel is shared by both discovery grades and by several StatGPT channels, so a
-        search also returns documents this channel did not publish: hits whose metadata is not a
-        discovery record, and hits belonging to another `statgpt_channel`, are dropped here -
-        before the bodies are downloaded, so a foreign document costs no round trip.
+        One RAG channel is shared by both discovery grades and by several StatGPT channels, so
+        the scope has to be narrowed somewhere. Asking the service to do it beats dropping
+        foreign hits afterwards: the filter is applied before ranking, so `top_n` counts this
+        channel's own documents rather than everyone's.
+        """
+        return GenericRagDocumentMatcher(
+            filters=[GenericRagDocumentFilter(statgpt_channel=channel)]
+        )
+
+    @staticmethod
+    def _discovery_records(
+        documents: list[GenericRagDocument],
+    ) -> list[tuple[GenericRagDocument, DiscoveryDocumentMetadata]]:
+        """The hits that are discovery records, each paired with its parsed metadata.
+
+        A shared RAG channel can also hold documents that are not discovery records at all, and
+        the matcher cannot tell those apart: it filters on one field, while being a record means
+        satisfying the whole model. They are dropped here - before the bodies are downloaded, so
+        such a document costs no round trip.
         """
         records = []
         for document in documents:
@@ -149,13 +171,6 @@ class DiscoveryDatasetsRunner:
                 _log.warning(
                     f"Skipping discovery search hit {document.id}"
                     f" ({document.display_name!r}): unexpected metadata: {e}"
-                )
-                continue
-
-            if metadata.statgpt_channel != channel:
-                _log.debug(
-                    f"Skipping discovery search hit {document.id}: published by channel"
-                    f" {metadata.statgpt_channel!r}, not {channel!r}"
                 )
                 continue
 

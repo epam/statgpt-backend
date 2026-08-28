@@ -20,6 +20,8 @@ from statgpt.app.schemas.discovery_datasets import (
 from statgpt.common.schemas import (
     ChannelConfig,
     GenericRagDocument,
+    GenericRagDocumentFilter,
+    GenericRagDocumentMatcher,
     SupremeAgentConfig,
     SystemUserPrompt,
 )
@@ -37,6 +39,13 @@ _SUPREME_AGENT = SupremeAgentConfig(
     name="T", domain="D", terminology_domain="T", language_instructions=["i"]
 )
 
+_SearchCall = tuple[str, int, list[str] | None, GenericRagDocumentMatcher | None]
+
+
+def _matcher(channel: str = _CHANNEL) -> GenericRagDocumentMatcher:
+    """The pre-filter a search is expected to carry: this channel's own documents."""
+    return GenericRagDocumentMatcher(filters=[GenericRagDocumentFilter(statgpt_channel=channel)])
+
 
 def _channel_config(**overrides: Any) -> ChannelConfig:
     return ChannelConfig.model_validate({"supremeAgent": _SUPREME_AGENT, **overrides})
@@ -52,9 +61,7 @@ def _details(**overrides: Any) -> DiscoveryDatasetsDetails:
     return DiscoveryDatasetsDetails(**fields)
 
 
-def _document(
-    document_id: int, name: str, agency: str = "IMF", channel: str = _CHANNEL
-) -> GenericRagDocument:
+def _document(document_id: int, name: str, agency: str = "IMF") -> GenericRagDocument:
     return GenericRagDocument(
         id=document_id,
         url=f"files/doc{document_id}.txt",
@@ -63,11 +70,18 @@ def _document(
         size=10,
         metadata={
             "grade": "C",
-            "statgpt_channel": channel,
+            "statgpt_channel": _CHANNEL,
             "agency": agency,
             "name": name,
         },
         status="ready",
+    )
+
+
+def _non_record(document_id: int) -> GenericRagDocument:
+    """A hit the matcher cannot exclude: in the channel, but not a discovery record."""
+    return GenericRagDocument(
+        id=document_id, display_name=f"other{document_id}.pdf", metadata={"unrelated": "yes"}
     )
 
 
@@ -84,7 +98,7 @@ class _FakeClient:
         self._documents = documents or []
         self._search_error = search_error
         self._download_error = download_error
-        self.search_calls: list[tuple[str, int, list[str] | None]] = []
+        self.search_calls: list[_SearchCall] = []
         self.downloaded: list[int] = []
 
     async def __aenter__(self) -> Self:
@@ -94,9 +108,13 @@ class _FakeClient:
         return None
 
     async def search_documents(
-        self, query: str, limit: int, indexes: list[str] | None = None
+        self,
+        query: str,
+        limit: int,
+        indexes: list[str] | None = None,
+        matcher: GenericRagDocumentMatcher | None = None,
     ) -> list[GenericRagDocument]:
-        self.search_calls.append((query, limit, indexes))
+        self.search_calls.append((query, limit, indexes, matcher))
         if self._search_error is not None:
             raise self._search_error
         return self._documents
@@ -215,7 +233,7 @@ async def test_relevant_datasets_are_rendered_in_rank_order(
 
     assert outcome.rendered == "### Datasets\n\n- Alpha\n- Gamma"
     assert outcome.eval_attachment.selected_document_ids == [1, 3]
-    assert client.search_calls == [("gdp", 5, None)]
+    assert client.search_calls == [("gdp", 5, None, _matcher())]
 
 
 async def test_the_eval_attachment_carries_the_whole_run(
@@ -250,7 +268,7 @@ async def test_configured_top_n_and_indexes_reach_the_search(
 
     await DiscoveryDatasetsRunner(_details(top_n=12, indexes=["semantic"])).run("q", inputs)
 
-    assert client.search_calls == [("q", 12, ["semantic"])]
+    assert client.search_calls == [("q", 12, ["semantic"], _matcher())]
 
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~ nothing to show ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -292,10 +310,10 @@ async def test_a_hit_whose_metadata_is_not_a_discovery_record_is_skipped(
     monkeypatch: pytest.MonkeyPatch, inputs: dict[str, Any]
 ) -> None:
     """One RAG channel can hold documents that are not discovery records at all."""
-    foreign = GenericRagDocument(id=2, display_name="other.pdf", metadata={"unrelated": "yes"})
-    _install(
+    client = _FakeClient([_document(1, "Alpha"), _non_record(2)])
+    judge = _install(
         monkeypatch,
-        _FakeClient([_document(1, "Alpha"), foreign]),
+        client,
         _Judge(
             DiscoveryRelevanceResponse(
                 items=[DiscoveryRelevanceItem(document_id=1, relevant=True, reason="ok")]
@@ -307,47 +325,35 @@ async def test_a_hit_whose_metadata_is_not_a_discovery_record_is_skipped(
 
     assert outcome.rendered == "### Datasets\n\n- Alpha"
     assert [candidate.document_id for candidate in outcome.eval_attachment.candidates] == [1]
+    # The judge is never even offered it, nor is its body downloaded.
+    assert judge.calls == [("q", [1])]
+    assert client.downloaded == [1]
 
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~ channel scoping ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 
-async def test_another_channels_document_is_never_surfaced(
+async def test_the_search_is_scoped_to_the_channel_that_published_the_records(
     monkeypatch: pytest.MonkeyPatch, inputs: dict[str, Any]
 ) -> None:
-    """Several StatGPT channels can share one RAG channel; each sees only its own records."""
-    client = _FakeClient(
-        [_document(1, "Alpha"), _document(2, "Beta", channel="statgpt-other-tenant")]
-    )
-    judge = _install(
-        monkeypatch,
-        client,
-        _Judge(
-            DiscoveryRelevanceResponse(
-                items=[
-                    DiscoveryRelevanceItem(document_id=1, relevant=True, reason="ok"),
-                    DiscoveryRelevanceItem(document_id=2, relevant=True, reason="ok"),
-                ]
-            )
-        ),
-    )
+    """Several StatGPT channels can share one RAG channel; each sees only its own records.
 
-    outcome = await DiscoveryDatasetsRunner(_details()).run("q", inputs)
+    Asked of the service as a pre-filter rather than applied to the results, so `top_n` is
+    spent on this channel's own documents.
+    """
+    client = _FakeClient([])
+    _install(monkeypatch, client)
+    inputs["data_service"] = _DataService("statgpt-other-tenant")
 
-    assert outcome.rendered == "### Datasets\n\n- Alpha"
-    assert outcome.eval_attachment.selected_document_ids == [1]
-    # The judge is never even offered the foreign document.
-    assert judge.calls == [("q", [1])]
-    # Nor is its body downloaded: the filter reads the metadata the search already returned.
-    assert client.downloaded == [1]
+    await DiscoveryDatasetsRunner(_details()).run("q", inputs)
+
+    assert client.search_calls == [("q", 5, None, _matcher("statgpt-other-tenant"))]
 
 
-async def test_only_foreign_documents_skips_the_judge_entirely(
+async def test_only_non_records_skips_the_judge_entirely(
     monkeypatch: pytest.MonkeyPatch, inputs: dict[str, Any]
 ) -> None:
-    judge = _install(
-        monkeypatch, _FakeClient([_document(1, "Alpha", channel="statgpt-other-tenant")])
-    )
+    judge = _install(monkeypatch, _FakeClient([_non_record(1)]))
 
     outcome = await DiscoveryDatasetsRunner(_details()).run("q", inputs)
 
@@ -363,13 +369,7 @@ async def test_ranks_have_no_gaps_after_filtering(
     """Rank is the position a user reads, so it counts the documents that survived."""
     _install(
         monkeypatch,
-        _FakeClient(
-            [
-                _document(1, "Alpha"),
-                _document(2, "Beta", channel="statgpt-other-tenant"),
-                _document(3, "Gamma"),
-            ]
-        ),
+        _FakeClient([_document(1, "Alpha"), _non_record(2), _document(3, "Gamma")]),
     )
 
     outcome = await DiscoveryDatasetsRunner(_details()).run("q", inputs)

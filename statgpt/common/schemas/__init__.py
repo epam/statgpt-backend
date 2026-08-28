@@ -71,6 +71,8 @@ from .enums import (
 )
 from .generic_rag import (
     GenericRagDocument,
+    GenericRagDocumentFilter,
+    GenericRagDocumentMatcher,
     GenericRagDocumentPage,
     GenericRagDocumentSearchRequest,
     GenericRagMetadataSchema,

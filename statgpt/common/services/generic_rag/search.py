@@ -13,7 +13,11 @@ import httpx
 from pydantic import RootModel, SecretStr
 
 from statgpt.common.auth.auth_context import AuthContext
-from statgpt.common.schemas.generic_rag import GenericRagDocument, GenericRagDocumentSearchRequest
+from statgpt.common.schemas.generic_rag import (
+    GenericRagDocument,
+    GenericRagDocumentMatcher,
+    GenericRagDocumentSearchRequest,
+)
 
 from .client import BaseGenericRagChannelClient
 
@@ -42,13 +46,21 @@ class GenericRagSearchClient(BaseGenericRagChannelClient):
         )
 
     async def search_documents(
-        self, query: str, limit: int, indexes: list[str] | None = None
+        self,
+        query: str,
+        limit: int,
+        indexes: list[str] | None = None,
+        matcher: GenericRagDocumentMatcher | None = None,
     ) -> list[GenericRagDocument]:
         """Documents relevant to `query`, best first.
 
         Position in this list is the only relevance signal available - no scores are returned.
+        A `matcher` narrows what the search may consider before it ranks, so `limit` is spent
+        on matching documents rather than on the channel's whole population.
         """
-        request = GenericRagDocumentSearchRequest(query=query, limit=limit, indexes=indexes)
+        request = GenericRagDocumentSearchRequest(
+            query=query, limit=limit, indexes=indexes, matcher=matcher
+        )
         response = await self._request(
             "document search",
             "POST",
