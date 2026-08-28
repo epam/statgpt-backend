@@ -92,7 +92,8 @@ class DataQueryArtifactDisplayer:
             title=f"Data Query Eval data: {tool_call_id}",
             indent=2,
         )
-        self._choice.add_attachment(**response)
+        if response is not None:
+            self._choice.add_attachment(**response)
 
         # The discovery datasets lookup runs beside the query, so what it did is reported beside
         # it too, in its own file rather than folded into the query's own eval data.
@@ -106,8 +107,6 @@ class DataQueryArtifactDisplayer:
             title=f"Discovery Datasets Eval data: {tool_call_id}",
             indent=2,
         )
-        # `_attach_json_file` swallows its own failures and returns None; debug data is not worth
-        # failing the response over.
         if discovery_response is not None:
             self._choice.add_attachment(**discovery_response)
 

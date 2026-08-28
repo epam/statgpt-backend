@@ -6,6 +6,7 @@ from mcp.types import ToolAnnotations
 from pydantic import Field
 
 from statgpt.app.chains.discovery_datasets import DiscoveryDatasetsRunner
+from statgpt.app.chains.parameters import ChainParameters
 from statgpt.app.chains.tools import GuardrailInput, StatGptTool, ToolArgs
 from statgpt.app.config import ChainParametersConfig
 from statgpt.app.schemas.data_query_outcome import DataQueryMcpPayload
@@ -15,7 +16,7 @@ from statgpt.app.schemas.tool_artifact import DataQueryArtifact
 from statgpt.common.config import multiline_logger as logger
 from statgpt.common.data.base import DataResponse
 from statgpt.common.schemas import DataQueryTool as DataQueryToolConfig
-from statgpt.common.schemas.enums import ToolTypes
+from statgpt.common.schemas.enums import InvocationSource, ToolTypes
 
 from .parameters import DataQueryParameters
 from .query_builder.factory import QueryBuilderFactory
@@ -65,14 +66,22 @@ class DataQueryTool(StatGptTool[DataQueryToolConfig], tool_type=ToolTypes.DATA_Q
             DataQueryParameters.EVAL_ATTACHMENT, DataQueryEvalAttachment()
         )
 
-        if discovery is not None and discovery.rendered:
-            response_str = f"{response_str}\n\n{discovery.rendered}"
+        discovery_block = discovery.rendered if discovery is not None else None
+        if discovery_block and ChainParameters.get_invocation_source(inputs) is (
+            InvocationSource.AGENT
+        ):
+            # The agent reads one string, so the block is appended to it. An MCP client reads a
+            # list of content blocks and a structured payload, and gets the block as a block of
+            # its own - see the provider - so folding it in here would duplicate it there and
+            # leave markdown in the `message` field a widget parses.
+            response_str = f"{response_str}\n\n{discovery_block}"
 
         return response_str, DataQueryArtifact(
             data_responses=data_responses,
             state=state,
             mcp_payload=mcp_payload,
             eval_attachment=eval_attachment,
+            discovery_datasets_block=discovery_block,
             discovery_datasets_eval_attachment=(
                 discovery.eval_attachment if discovery is not None else None
             ),
@@ -101,5 +110,9 @@ class DataQueryTool(StatGptTool[DataQueryToolConfig], tool_type=ToolTypes.DATA_Q
             res = await chain.ainvoke(inputs)
         except BaseException:
             discovery_task.cancel()
+            # Awaited, not just cancelled: `cancel()` only schedules the CancelledError, so
+            # without this the lookup could still be writing to the choice after the tool has
+            # raised and the choice is being torn down.
+            await asyncio.gather(discovery_task, return_exceptions=True)
             raise
         return res, await discovery_task

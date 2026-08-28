@@ -161,6 +161,11 @@ class _McpToolAdapter(Tool):
             structured_content = data_query_artifact_to_structured_content(
                 result.artifact, self._channel_config, message=text or None
             )
+            # A content block of its own rather than a suffix on the response: the response is
+            # also reported as `message`, which a client parses, and these datasets are an aside
+            # a client is free to render separately or not at all.
+            if discovery_block := result.artifact.discovery_datasets_block:
+                content.append(TextContent(type="text", text=discovery_block))
         elif isinstance(result.artifact, SdmxQueryAppArtifact):
             # Surface the upstream HTTP metadata so the MCP-App can distinguish success from
             # error responses and know the body's media type. The raw body stays in the text

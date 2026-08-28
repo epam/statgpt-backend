@@ -10,6 +10,11 @@ on the eval attachment and in the debug stage, and produces no block.
 """
 
 import logging
+from collections.abc import Iterator, Sequence
+from contextlib import contextmanager
+from typing import Self
+
+from pydantic import BaseModel
 
 from statgpt.app.chains.parameters import ChainParameters
 from statgpt.app.config import StateVarsConfig
@@ -19,7 +24,9 @@ from statgpt.app.schemas.discovery_datasets import (
     DiscoveryDatasetsEvalAttachment,
     DiscoveryDatasetsOutcome,
     DiscoveryRelevanceResponse,
+    SelectedDiscoveryDataset,
 )
+from statgpt.app.utils.dial_stages import DummyStage, StageI, delayed_timed_stage
 from statgpt.common.auth.auth_context import AuthContext
 from statgpt.common.schemas import ChannelConfig, DiscoveryDocumentMetadata, GenericRagDocument
 from statgpt.common.schemas.discovery_datasets_tool import DiscoveryDatasetsDetails
@@ -47,7 +54,7 @@ class DiscoveryDatasetsRunner:
         self._config = config
 
     @classmethod
-    def from_channel_config(cls, channel_config: ChannelConfig) -> "DiscoveryDatasetsRunner | None":
+    def from_channel_config(cls, channel_config: ChannelConfig) -> Self | None:
         """A runner for this channel, or `None` when the lookup is not configured for it."""
         if not channel_config.is_discovery_lookup_available:
             return None
@@ -60,37 +67,50 @@ class DiscoveryDatasetsRunner:
         Never raises: a failure is reported through the outcome, whose `rendered` is then `None`.
         """
         attachment = DiscoveryDatasetsEvalAttachment(query=query)
-        try:
-            rendered = await self._run(query, inputs, attachment)
-        except Exception as e:
-            _log.exception("Discovery datasets lookup failed")
-            attachment.error = f"{type(e).__name__}: {e}"
-            rendered = None
+        with self._debug_stage(inputs) as stage:
+            try:
+                rendered = await self._run(query, inputs, attachment, stage)
+            except Exception as e:
+                _log.exception("Discovery datasets lookup failed")
+                error = f"{type(e).__name__}: {e}"
+                attachment.error = error
+                self._report(stage, "## Error", error)
+                rendered = None
 
         attachment.rendered = rendered
-        self._write_debug_stage(inputs, attachment)
         return DiscoveryDatasetsOutcome(rendered=rendered, eval_attachment=attachment)
 
     async def _run(
-        self, query: str, inputs: dict, attachment: DiscoveryDatasetsEvalAttachment
+        self,
+        query: str,
+        inputs: dict,
+        attachment: DiscoveryDatasetsEvalAttachment,
+        stage: StageI,
     ) -> str | None:
         auth_context = ChainParameters.get_auth_context(inputs)
+        channel = ChainParameters.get_data_service(inputs).deployment_id
 
-        candidates = await self._retrieve(query, auth_context)
+        candidates = await self._retrieve(query, auth_context, channel)
         attachment.candidates = candidates
+        self._report(stage, "## Retrieved documents", self._as_yaml(candidates))
         if not candidates:
             return None
 
         response = await self._judge(query, candidates, auth_context)
         attachment.llm_response = response
+        self._report(stage, "## Relevance verdicts", self._as_yaml(response.items))
 
         selected = self._select(candidates, response)
-        attachment.selected_document_ids = [candidate.document_id for candidate, _ in selected]
-        return render_block(self._config.templates, selected)
+        attachment.selected_document_ids = [item.candidate.document_id for item in selected]
+        rendered = render_block(self._config.templates, selected)
+        self._report(stage, "## Rendered block", rendered or "_nothing was rendered_")
+        return rendered
 
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~ retrieval ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-    async def _retrieve(self, query: str, auth_context: AuthContext) -> list[DiscoveryCandidate]:
+    async def _retrieve(
+        self, query: str, auth_context: AuthContext, channel: str
+    ) -> list[DiscoveryCandidate]:
         """Rank the channel's documents, then fill in the descriptions the ranking omits."""
         async with GenericRagSearchClient.for_application(
             self._config.get_application_id(), auth_context
@@ -98,20 +118,62 @@ class DiscoveryDatasetsRunner:
             documents = await client.search_documents(
                 query, limit=self._config.top_n, indexes=self._config.indexes
             )
-            if not documents:
+            records = self._own_records(documents, channel)
+            if not records:
                 return []
 
             descriptions = await gather_with_concurrency(
                 _DOWNLOAD_CONCURRENCY,
-                *(self._download(client, document.id) for document in documents),
+                *(self._download(client, document.id) for document, _ in records),
             )
 
-        candidates = []
-        for rank, (document, description) in enumerate(zip(documents, descriptions), start=1):
-            candidate = self._to_candidate(document, rank, description)
-            if candidate is not None:
-                candidates.append(candidate)
-        return candidates
+        return [
+            DiscoveryCandidate(
+                document_id=document.id,
+                rank=rank,
+                display_name=document.display_name,
+                metadata=metadata,
+                description=description,
+            )
+            for rank, ((document, metadata), description) in enumerate(
+                zip(records, descriptions), start=1
+            )
+        ]
+
+    @staticmethod
+    def _own_records(
+        documents: list[GenericRagDocument], channel: str
+    ) -> list[tuple[GenericRagDocument, DiscoveryDocumentMetadata]]:
+        """The hits this channel published, each paired with its parsed metadata.
+
+        One RAG channel is shared - by both discovery grades and by several StatGPT channels -
+        so a search returns documents this channel did not publish. Two kinds are dropped here:
+        a hit whose metadata is not a discovery record at all, and a hit that is one but belongs
+        to another StatGPT channel. `statgpt_channel` is what the indexing job scopes publishing
+        and withdrawal by, so it is the same identity on both sides.
+
+        Filtered before the bodies are downloaded, so a foreign document costs no round trip.
+        """
+        records = []
+        for document in documents:
+            try:
+                metadata = DiscoveryDocumentMetadata.model_validate(document.metadata)
+            except ValueError as e:
+                _log.warning(
+                    f"Skipping discovery search hit {document.id}"
+                    f" ({document.display_name!r}): unexpected metadata: {e}"
+                )
+                continue
+
+            if metadata.statgpt_channel != channel:
+                _log.debug(
+                    f"Skipping discovery search hit {document.id}: published by channel"
+                    f" {metadata.statgpt_channel!r}, not {channel!r}"
+                )
+                continue
+
+            records.append((document, metadata))
+        return records
 
     @staticmethod
     async def _download(client: GenericRagSearchClient, document_id: int) -> str:
@@ -125,33 +187,6 @@ class DiscoveryDatasetsRunner:
         except Exception:
             _log.exception(f"Failed to download discovery document {document_id}")
             return ""
-
-    @staticmethod
-    def _to_candidate(
-        document: GenericRagDocument, rank: int, description: str
-    ) -> DiscoveryCandidate | None:
-        """One search hit as a candidate, or `None` if its metadata is not a discovery record.
-
-        The RAG channel can hold documents this channel did not publish - both discovery grades
-        and several StatGPT channels may share one - so a hit whose metadata does not fit is
-        skipped rather than treated as a malformed discovery dataset.
-        """
-        try:
-            metadata = DiscoveryDocumentMetadata.model_validate(document.metadata)
-        except ValueError as e:
-            _log.warning(
-                f"Skipping discovery search hit {document.id}"
-                f" ({document.display_name!r}): unexpected metadata: {e}"
-            )
-            return None
-
-        return DiscoveryCandidate(
-            document_id=document.id,
-            rank=rank,
-            display_name=document.display_name,
-            metadata=metadata,
-            description=description,
-        )
 
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~ judging ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -173,14 +208,14 @@ class DiscoveryDatasetsRunner:
         assert isinstance(response, DiscoveryRelevanceResponse)  # narrows the structured output
         return response
 
-    @staticmethod
-    def _format_candidates(candidates: list[DiscoveryCandidate]) -> str:
-        return write_yaml_to_stream([candidate.to_llm_dict() for candidate in candidates])
+    @classmethod
+    def _format_candidates(cls, candidates: list[DiscoveryCandidate]) -> str:
+        return cls._as_yaml([candidate.for_llm() for candidate in candidates])
 
     @staticmethod
     def _select(
         candidates: list[DiscoveryCandidate], response: DiscoveryRelevanceResponse
-    ) -> list[tuple[DiscoveryCandidate, str]]:
+    ) -> list[SelectedDiscoveryDataset]:
         """The candidates the model kept, in rank order.
 
         Verdicts on ids that were never offered are dropped: the model is asked to echo
@@ -202,31 +237,40 @@ class DiscoveryDatasetsRunner:
             reasons[item.document_id] = item.reason
 
         return [
-            (candidate, reasons[candidate.document_id])
+            SelectedDiscoveryDataset(candidate=candidate, reason=reasons[candidate.document_id])
             for candidate in candidates
             if candidate.document_id in reasons
         ]
 
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~ debug stage ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-    def _write_debug_stage(self, inputs: dict, attachment: DiscoveryDatasetsEvalAttachment) -> None:
-        """Report the whole run in one stage, opened only after the work is done.
+    @contextmanager
+    def _debug_stage(self, inputs: dict) -> Iterator[StageI]:
+        """A stage of this lookup's own, as if it were a tool the agent had called.
 
-        Opened at the end rather than around the work because this runs concurrently with the
-        data query pipeline: a stage held open across the lookup would interleave with the
-        pipeline's own stages in the user's view.
+        Held open across the run so each step can report as soon as it has something to say.
+        Safe to run beside the data query pipeline: a stage is its own slot in the choice, so
+        only content written to the *same* stage can interleave. Delayed, so a lookup that
+        reports nothing never opens an empty stage.
         """
         state = ChainParameters.get_state(inputs)
-        if not state.get(StateVarsConfig.SHOW_DEBUG_STAGES):
-            return
-
         choice = ChainParameters.get_choice(inputs)
-        if choice is None:
+        if not state.get(StateVarsConfig.SHOW_DEBUG_STAGES) or choice is None:
+            yield DummyStage()
             return
 
-        content = attachment.model_dump_json(indent=2)
+        with delayed_timed_stage(choice, name=f"[DEBUG] {self._config.debug_stage_name}") as stage:
+            yield stage
+
+    @staticmethod
+    def _report(stage: StageI, heading: str, content: str) -> None:
+        """Add one section to the debug stage, without letting the stage cost the lookup."""
         try:
-            with choice.create_stage(name=f"[DEBUG] {self._config.debug_stage_name}") as stage:
-                stage.append_content(f"```json\n{content}\n```")
+            stage.append_content(f"{heading}\n\n{content}\n\n")
         except Exception:
             _log.exception("Failed to write the discovery datasets debug stage")
+
+    @staticmethod
+    def _as_yaml(models: Sequence[BaseModel]) -> str:
+        dumped = write_yaml_to_stream([model.model_dump(mode="json") for model in models])
+        return f"```yaml\n{dumped}```"

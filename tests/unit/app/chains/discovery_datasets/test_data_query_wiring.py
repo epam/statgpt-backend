@@ -12,6 +12,7 @@ import pytest
 from statgpt.app.chains.data_query import data_query_tool as tool_module
 from statgpt.app.chains.data_query.data_query_tool import DataQueryTool
 from statgpt.app.chains.data_query.parameters import DataQueryParameters
+from statgpt.app.config import ChainParametersConfig
 from statgpt.app.schemas.discovery_datasets import (
     DiscoveryDatasetsEvalAttachment,
     DiscoveryDatasetsOutcome,
@@ -19,6 +20,7 @@ from statgpt.app.schemas.discovery_datasets import (
 from statgpt.common.schemas import ChannelConfig
 from statgpt.common.schemas import DataQueryTool as DataQueryToolConfig
 from statgpt.common.schemas import SupremeAgentConfig
+from statgpt.common.schemas.enums import InvocationSource
 
 _SUPREME_AGENT = SupremeAgentConfig(
     name="T", domain="D", terminology_domain="T", language_instructions=["i"]
@@ -132,8 +134,26 @@ async def test_the_rendered_block_is_appended_to_the_tool_response(
     response, artifact = await _tool(with_discovery=True)._arun({}, "gdp")
 
     assert response == "Here is your data.\n\n### Datasets\n\n- Alpha"
+    assert artifact.discovery_datasets_block == "### Datasets\n\n- Alpha"
     assert artifact.discovery_datasets_eval_attachment is not None
     assert artifact.discovery_datasets_eval_attachment.query == "gdp"
+
+
+async def test_an_mcp_call_carries_the_block_on_the_artifact_instead(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An MCP client gets it as a content block of its own, so folding it in would duplicate it.
+
+    It also keeps markdown out of the response the provider reports as `message`, which a
+    client parses rather than reads.
+    """
+    _install(monkeypatch, _Chain("Here is your data."), _Runner())
+    inputs = {ChainParametersConfig.INVOCATION_SOURCE: InvocationSource.MCP}
+
+    response, artifact = await _tool(with_discovery=True)._arun(inputs, "gdp")
+
+    assert response == "Here is your data."
+    assert artifact.discovery_datasets_block == "### Datasets\n\n- Alpha"
 
 
 async def test_a_lookup_that_found_nothing_leaves_the_response_untouched(
@@ -145,6 +165,7 @@ async def test_a_lookup_that_found_nothing_leaves_the_response_untouched(
     response, artifact = await _tool(with_discovery=True)._arun({}, "gdp")
 
     assert response == "Here is your data."
+    assert artifact.discovery_datasets_block is None
     assert artifact.discovery_datasets_eval_attachment is not None
 
 
@@ -199,7 +220,6 @@ async def test_a_failed_pipeline_raises_unwrapped_and_cancels_the_lookup(
     with pytest.raises(RuntimeError, match="pipeline exploded"):
         await _tool(with_discovery=True)._arun({}, "gdp")
 
-    # Let the cancellation land before asserting on it.
-    for _ in range(3):
-        await asyncio.sleep(0)
+    # No yielding to the loop first: the tool awaits the cancellation before it re-raises, so
+    # the lookup is already finished by the time its caller sees the error.
     assert runner.cancelled is True

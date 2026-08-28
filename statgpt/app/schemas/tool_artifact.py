@@ -47,6 +47,15 @@ class DataQueryArtifact(ToolArtifact):
     eval_attachment: DataQueryEvalAttachment = Field(
         description="Attachment containing additional information for evaluation."
     )
+    discovery_datasets_block: str | None = Field(
+        default=None,
+        description=(
+            "The rendered discovery datasets block, or `None` when there was nothing to show."
+            " Carried here as well as in the response so each audience can place it itself: the"
+            " agent gets it appended to the response string, an MCP client gets it as a content"
+            " block of its own."
+        ),
+    )
     discovery_datasets_eval_attachment: DiscoveryDatasetsEvalAttachment | None = Field(
         default=None,
         description=(

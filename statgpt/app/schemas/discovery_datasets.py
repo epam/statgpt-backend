@@ -6,12 +6,41 @@ needs to judge a run - what was retrieved, what the model made of it, and what t
 and is deliberately not part of the tool state, which is echoed back on every later turn.
 """
 
+from typing import Any
+
 from pydantic import BaseModel, ConfigDict, Field
 
 from statgpt.common.schemas import DiscoveryDocumentMetadata
 
-_TEMPLATE_ONLY_KEYS = ("items",)
-"""Placeholders the item template must not claim: `{items}` belongs to the wrapper."""
+_PUBLISHING_METADATA_FIELDS = frozenset({"grade", "statgpt_channel"})
+"""Metadata that scopes publishing rather than describing a dataset.
+
+Kept out of both the prompt and the template context: they say which run owns a document, which
+is the indexing job's business and means nothing to either the relevance judge or a reader.
+"""
+
+
+class DiscoveryCandidateForLlm(BaseModel):
+    """One candidate as the relevance prompt sees it.
+
+    A model rather than a hand-built dict so the prompt's contract is typed and declared once:
+    the default relevance prompt names these keys, and they are what the YAML handed to the
+    judge contains.
+    """
+
+    model_config = ConfigDict(use_attribute_docstrings=True)
+
+    document_id: int
+    """What the model refers to a candidate by, and echoes back in its verdict."""
+
+    name: str
+    agency: str
+    reference_area: str
+    time_coverage: str
+    frequency_coverage: str
+    indicators_coverage: str
+    missing_indicators: str
+    description: str
 
 
 class DiscoveryCandidate(BaseModel):
@@ -23,10 +52,11 @@ class DiscoveryCandidate(BaseModel):
     """The RAG channel's own id. What the model refers to a candidate by."""
 
     rank: int
-    """1-based position in the search result.
+    """1-based position among the documents this channel published.
 
     The only relevance signal the endpoint gives: it fuses the ranks of every index it searched
-    and returns no scores.
+    and returns no scores. Counted over the hits that survived retrieval, so the numbers a user
+    reads have no gaps.
     """
 
     display_name: str = ""
@@ -34,28 +64,29 @@ class DiscoveryCandidate(BaseModel):
     description: str = ""
     """The document body. Empty when its download failed - the candidate is still judged."""
 
-    def to_llm_dict(self) -> dict[str, object]:
+    def for_llm(self) -> DiscoveryCandidateForLlm:
         """The candidate as the relevance prompt sees it."""
-        return {
-            "document_id": self.document_id,
-            "name": self.metadata.name or self.display_name,
-            "agency": self.metadata.agency,
-            "reference_area": self.metadata.reference_area,
-            "time_coverage": self.metadata.time_coverage,
-            "frequency_coverage": self.metadata.frequency_coverage,
-            "indicators_coverage": self.metadata.indicators_coverage,
-            "missing_indicators": self.metadata.missing_indicators,
-            "description": self.description,
-        }
+        return DiscoveryCandidateForLlm(
+            document_id=self.document_id,
+            name=self.metadata.name or self.display_name,
+            agency=self.metadata.agency,
+            reference_area=self.metadata.reference_area,
+            time_coverage=self.metadata.time_coverage,
+            frequency_coverage=self.metadata.frequency_coverage,
+            indicators_coverage=self.metadata.indicators_coverage,
+            missing_indicators=self.metadata.missing_indicators,
+            description=self.description,
+        )
 
-    def template_context(self, reason: str = "") -> dict[str, object]:
+    def template_context(self, reason: str = "") -> dict[str, Any]:
         """Placeholders available to the item template.
 
-        Every metadata field, plus what only the retrieval knows. Metadata is spread first so a
-        field can never shadow `description` or `rank`, and `{items}` is dropped so an item
-        template cannot recurse into the wrapper's placeholder.
+        Every metadata field that describes the dataset, plus what only the retrieval knows.
+        Metadata is spread first so a field can never shadow `description` or `rank`.
         """
-        context: dict[str, object] = self.metadata.model_dump(mode="json")
+        context: dict[str, Any] = self.metadata.model_dump(
+            mode="json", exclude=set(_PUBLISHING_METADATA_FIELDS)
+        )
         context.update(
             document_id=self.document_id,
             rank=self.rank,
@@ -63,9 +94,14 @@ class DiscoveryCandidate(BaseModel):
             description=self.description,
             reason=reason,
         )
-        for key in _TEMPLATE_ONLY_KEYS:
-            context.pop(key, None)
         return context
+
+
+class SelectedDiscoveryDataset(BaseModel):
+    """A candidate the relevance judge kept, with the reason it gave for keeping it."""
+
+    candidate: DiscoveryCandidate
+    reason: str = ""
 
 
 class DiscoveryRelevanceItem(BaseModel):

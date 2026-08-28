@@ -50,7 +50,13 @@ channel, so the channel configuration has to say which one:
     "name": "discovery_datasets",
     "description": "Discovery datasets surfaced alongside data query results.",
     "details": {
-      "applicationId": "statgpt-generic-rag-grade-b-and-c"
+      "applicationId": "statgpt-generic-rag-grade-b-and-c",
+      "templates": {
+        "wrapper": "### Other datasets that may be relevant
+
+{items}",
+        "item": "- **{name}** ({agency}) - {url}"
+      }
     }
   }
 }
@@ -63,6 +69,16 @@ Triggering a job on a channel without this block returns 409. Requests are authe
 The same block also configures the chat-time lookup over what was published. `enabled: false`
 switches that lookup off while leaving indexing available, so discovery data can be indexed
 before it is surfaced to users.
+
+Note that `details.templates` is required even for a channel that only wants indexing: one block
+owns both halves of the feature, so a channel with `enabled: false` still has to carry templates
+it does not use. Give it the example above and forget about it — nothing renders them until the
+lookup is switched on.
+
+One RAG channel can serve several StatGPT channels and both discovery grades. Documents are
+tagged with the publishing channel's deployment id, and both the indexing job and the chat-time
+lookup filter on it, so a channel never publishes over, withdraws, or surfaces another
+channel's records.
 
 The application's own configuration owns the document metadata schema. It is generated from
 `DiscoveryDocumentMetadata`, so it never has to be written by hand:

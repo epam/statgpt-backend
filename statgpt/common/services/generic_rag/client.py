@@ -37,7 +37,7 @@ class GenericRagChannelError(Exception):
     """
 
     def __init__(self, operation: str, detail: str, status_code: int | None = None) -> None:
-        self._operation = operation
+        self.operation = operation
         self.detail = detail
         self.status_code = status_code
         code = f" with HTTP {status_code}" if status_code is not None else ""

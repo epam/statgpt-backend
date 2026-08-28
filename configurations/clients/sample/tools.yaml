@@ -164,7 +164,7 @@ tools:
   # while leaving indexing available.
   - type: discovery_datasets
     <<: *shared_settings
-    name: "Discovery_Datasets"
+    name: "discovery_datasets"
     description: "Discovery datasets surfaced alongside data query results."
     details:
       applicationId: "statgpt-generic-rag-grade-b-and-c"

@@ -5,12 +5,14 @@ something goes wrong: it must never raise, and it must never put a dataset in fr
 that the search did not return.
 """
 
-from typing import Any
+from typing import Any, Self
 
 import pytest
+from langchain_core.runnables import RunnableLambda
 
 from statgpt.app.chains.discovery_datasets import DiscoveryDatasetsRunner
 from statgpt.app.chains.discovery_datasets import runner as runner_module
+from statgpt.app.config import StateVarsConfig
 from statgpt.app.schemas.discovery_datasets import (
     DiscoveryRelevanceItem,
     DiscoveryRelevanceResponse,
@@ -29,6 +31,7 @@ from statgpt.common.schemas.discovery_datasets_tool import (
 from statgpt.common.services.generic_rag import GenericRagChannelError
 
 _APPLICATION = "generic-rag-app"
+_CHANNEL = "statgpt-gtdc"
 
 _SUPREME_AGENT = SupremeAgentConfig(
     name="T", domain="D", terminology_domain="T", language_instructions=["i"]
@@ -49,7 +52,9 @@ def _details(**overrides: Any) -> DiscoveryDatasetsDetails:
     return DiscoveryDatasetsDetails(**fields)
 
 
-def _document(document_id: int, name: str, agency: str = "IMF") -> GenericRagDocument:
+def _document(
+    document_id: int, name: str, agency: str = "IMF", channel: str = _CHANNEL
+) -> GenericRagDocument:
     return GenericRagDocument(
         id=document_id,
         url=f"files/doc{document_id}.txt",
@@ -58,7 +63,7 @@ def _document(document_id: int, name: str, agency: str = "IMF") -> GenericRagDoc
         size=10,
         metadata={
             "grade": "C",
-            "statgpt_channel": "statgpt-gtdc",
+            "statgpt_channel": channel,
             "agency": agency,
             "name": name,
         },
@@ -82,7 +87,7 @@ class _FakeClient:
         self.search_calls: list[tuple[str, int, list[str] | None]] = []
         self.downloaded: list[int] = []
 
-    async def __aenter__(self) -> "_FakeClient":
+    async def __aenter__(self) -> Self:
         return self
 
     async def __aexit__(self, *_: object) -> None:
@@ -120,14 +125,26 @@ class _Judge:
         return self._response
 
 
+class _AuthContext:
+    api_key: str = "user-key"
+
+
+class _DataService:
+    """Stands in for `ChannelServiceFacade`, which the runner reads the channel id from."""
+
+    def __init__(self, deployment_id: str = _CHANNEL) -> None:
+        self.deployment_id = deployment_id
+
+
 @pytest.fixture
 def inputs() -> dict[str, Any]:
-    """The chain inputs the runner reads: an auth context, no choice, no debug stages."""
-    return {"auth_context": _AuthContext(), "state": {}, "choice": None}
-
-
-class _AuthContext:
-    api_key = "user-key"
+    """The chain inputs the runner reads: an auth context, a channel, no debug stages."""
+    return {
+        "auth_context": _AuthContext(),
+        "data_service": _DataService(),
+        "state": {},
+        "choice": None,
+    }
 
 
 def _install(
@@ -274,7 +291,7 @@ async def test_nothing_judged_relevant_renders_nothing(
 async def test_a_hit_whose_metadata_is_not_a_discovery_record_is_skipped(
     monkeypatch: pytest.MonkeyPatch, inputs: dict[str, Any]
 ) -> None:
-    """One RAG channel can hold documents this channel never published."""
+    """One RAG channel can hold documents that are not discovery records at all."""
     foreign = GenericRagDocument(id=2, display_name="other.pdf", metadata={"unrelated": "yes"})
     _install(
         monkeypatch,
@@ -290,6 +307,75 @@ async def test_a_hit_whose_metadata_is_not_a_discovery_record_is_skipped(
 
     assert outcome.rendered == "### Datasets\n\n- Alpha"
     assert [candidate.document_id for candidate in outcome.eval_attachment.candidates] == [1]
+
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~ channel scoping ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
+async def test_another_channels_document_is_never_surfaced(
+    monkeypatch: pytest.MonkeyPatch, inputs: dict[str, Any]
+) -> None:
+    """Several StatGPT channels can share one RAG channel; each sees only its own records."""
+    client = _FakeClient(
+        [_document(1, "Alpha"), _document(2, "Beta", channel="statgpt-other-tenant")]
+    )
+    judge = _install(
+        monkeypatch,
+        client,
+        _Judge(
+            DiscoveryRelevanceResponse(
+                items=[
+                    DiscoveryRelevanceItem(document_id=1, relevant=True, reason="ok"),
+                    DiscoveryRelevanceItem(document_id=2, relevant=True, reason="ok"),
+                ]
+            )
+        ),
+    )
+
+    outcome = await DiscoveryDatasetsRunner(_details()).run("q", inputs)
+
+    assert outcome.rendered == "### Datasets\n\n- Alpha"
+    assert outcome.eval_attachment.selected_document_ids == [1]
+    # The judge is never even offered the foreign document.
+    assert judge.calls == [("q", [1])]
+    # Nor is its body downloaded: the filter reads the metadata the search already returned.
+    assert client.downloaded == [1]
+
+
+async def test_only_foreign_documents_skips_the_judge_entirely(
+    monkeypatch: pytest.MonkeyPatch, inputs: dict[str, Any]
+) -> None:
+    judge = _install(
+        monkeypatch, _FakeClient([_document(1, "Alpha", channel="statgpt-other-tenant")])
+    )
+
+    outcome = await DiscoveryDatasetsRunner(_details()).run("q", inputs)
+
+    assert outcome.rendered is None
+    assert judge.calls == []
+    assert outcome.eval_attachment.candidates == []
+    assert outcome.eval_attachment.error is None
+
+
+async def test_ranks_have_no_gaps_after_filtering(
+    monkeypatch: pytest.MonkeyPatch, inputs: dict[str, Any]
+) -> None:
+    """Rank is the position a user reads, so it counts the documents that survived."""
+    _install(
+        monkeypatch,
+        _FakeClient(
+            [
+                _document(1, "Alpha"),
+                _document(2, "Beta", channel="statgpt-other-tenant"),
+                _document(3, "Gamma"),
+            ]
+        ),
+    )
+
+    outcome = await DiscoveryDatasetsRunner(_details()).run("q", inputs)
+
+    candidates = outcome.eval_attachment.candidates
+    assert [(item.document_id, item.rank) for item in candidates] == [(1, 1), (3, 2)]
 
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~ hallucinations ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -374,15 +460,144 @@ async def test_a_failed_judge_yields_no_block_and_records_the_error(
     assert outcome.eval_attachment.candidates != []
 
 
-async def test_a_missing_auth_context_is_reported_rather_than_raised(
-    monkeypatch: pytest.MonkeyPatch,
+@pytest.mark.parametrize("missing", ["auth_context", "data_service"])
+async def test_a_missing_chain_input_is_reported_rather_than_raised(
+    monkeypatch: pytest.MonkeyPatch, inputs: dict[str, Any], missing: str
 ) -> None:
     _install(monkeypatch, _FakeClient([]))
+    del inputs[missing]
 
-    outcome = await DiscoveryDatasetsRunner(_details()).run("q", {"state": {}})
+    outcome = await DiscoveryDatasetsRunner(_details()).run("q", inputs)
 
     assert outcome.rendered is None
     assert outcome.eval_attachment.error is not None
+
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~ the debug stage ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
+class _Stage:
+    """Records what a stage was told, and when it was opened and closed."""
+
+    def __init__(self) -> None:
+        self.content: list[str] = []
+        self.closed = False
+
+    def append_content(self, content: str) -> None:
+        self.content.append(content)
+
+    def append_name(self, name: str) -> None:
+        return None
+
+    def close(self, *_: Any, **__: Any) -> None:
+        self.closed = True
+
+    def open(self) -> None:
+        return None
+
+    def __enter__(self) -> Self:
+        return self
+
+    def __exit__(self, *_: object) -> None:
+        self.closed = True
+
+
+class _Choice:
+    """A choice that hands out one recording stage, as `create_stage` is used here."""
+
+    def __init__(self) -> None:
+        self.stage = _Stage()
+        self.stage_names: list[str] = []
+
+    def create_stage(self, name: str = "", **_: Any) -> _Stage:
+        self.stage_names.append(name)
+        return self.stage
+
+
+@pytest.fixture
+def debug_inputs(inputs: dict[str, Any]) -> dict[str, Any]:
+    inputs["state"] = {StateVarsConfig.SHOW_DEBUG_STAGES: True}
+    inputs["choice"] = _Choice()
+    return inputs
+
+
+async def test_each_step_reports_to_the_debug_stage_as_it_finishes(
+    monkeypatch: pytest.MonkeyPatch, debug_inputs: dict[str, Any]
+) -> None:
+    """The stage is the lookup's own, and it fills up as the run goes rather than at the end."""
+    _install(
+        monkeypatch,
+        _FakeClient([_document(1, "Alpha")]),
+        _Judge(
+            DiscoveryRelevanceResponse(
+                items=[DiscoveryRelevanceItem(document_id=1, relevant=True, reason="covers it")]
+            )
+        ),
+    )
+
+    await DiscoveryDatasetsRunner(_details()).run("gdp", debug_inputs)
+
+    choice: _Choice = debug_inputs["choice"]
+    assert choice.stage_names == ["[DEBUG] Discovery Datasets Lookup"]
+    sections = "".join(choice.stage.content)
+    assert "## Retrieved documents" in sections
+    assert "## Relevance verdicts" in sections
+    assert "## Rendered block" in sections
+    assert "covers it" in sections
+    assert choice.stage.closed is True
+
+
+async def test_a_failure_is_reported_on_the_debug_stage_too(
+    monkeypatch: pytest.MonkeyPatch, debug_inputs: dict[str, Any]
+) -> None:
+    _install(
+        monkeypatch,
+        _FakeClient(search_error=GenericRagChannelError("document search", "forbidden", 403)),
+    )
+
+    await DiscoveryDatasetsRunner(_details()).run("gdp", debug_inputs)
+
+    sections = "".join(debug_inputs["choice"].stage.content)
+    assert "## Error" in sections
+    assert "403" in sections
+
+
+async def test_no_stage_is_opened_without_debug_stages(
+    monkeypatch: pytest.MonkeyPatch, inputs: dict[str, Any]
+) -> None:
+    """The lookup has no user-facing progress to report, so it is debug-only."""
+    choice = _Choice()
+    inputs["choice"] = choice
+    _install(monkeypatch, _FakeClient([_document(1, "Alpha")]))
+
+    await DiscoveryDatasetsRunner(_details()).run("gdp", inputs)
+
+    assert choice.stage_names == []
+    assert choice.stage.content == []
+
+
+async def test_a_broken_stage_does_not_cost_the_lookup_its_block(
+    monkeypatch: pytest.MonkeyPatch, debug_inputs: dict[str, Any]
+) -> None:
+    """Reporting is the least important thing the lookup does."""
+    _install(
+        monkeypatch,
+        _FakeClient([_document(1, "Alpha")]),
+        _Judge(
+            DiscoveryRelevanceResponse(
+                items=[DiscoveryRelevanceItem(document_id=1, relevant=True, reason="ok")]
+            )
+        ),
+    )
+    stage = debug_inputs["choice"].stage
+    monkeypatch.setattr(
+        stage, "append_content", lambda _: (_ for _ in ()).throw(RuntimeError("stream closed"))
+    )
+
+    outcome = await DiscoveryDatasetsRunner(_details()).run("gdp", debug_inputs)
+
+    assert outcome.rendered == "### Datasets\n\n- Alpha"
+    assert outcome.eval_attachment.error is None
 
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~ the relevance prompt ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -395,8 +610,6 @@ class _FakeLlm:
         self._sink = sink
 
     def with_structured_output(self, schema: Any, method: str) -> Any:
-        from langchain_core.runnables import RunnableLambda
-
         assert schema is DiscoveryRelevanceResponse
         assert method == "json_schema"
 
