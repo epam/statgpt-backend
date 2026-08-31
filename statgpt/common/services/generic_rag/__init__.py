@@ -1,1 +1,3 @@
+from .client import BaseGenericRagChannelClient, GenericRagChannelError
 from .ingestion import GenericRagIngestionClient, GenericRagIngestionError
+from .search import GenericRagSearchClient

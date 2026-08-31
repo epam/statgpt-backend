@@ -4,6 +4,7 @@ from statgpt.common.data.base import DataResponse
 from statgpt.common.schemas import ToolTypes
 
 from .data_query_outcome import DataQueryMcpPayload
+from .discovery_datasets import DiscoveryDatasetsEvalAttachment
 from .file_rags import BaseRagState, DialRagState
 from .query_builder import DataQueryEvalAttachment, QueryBuilderAgentState
 from .service import ChannelDatasetsMetadataResponse
@@ -45,6 +46,21 @@ class DataQueryArtifact(ToolArtifact):
     )
     eval_attachment: DataQueryEvalAttachment = Field(
         description="Attachment containing additional information for evaluation."
+    )
+    discovery_datasets_block: str | None = Field(
+        default=None,
+        description=(
+            "The rendered discovery datasets block, or `None` when there was nothing to show."
+            " Carried here as well as in the response string so an MCP client can place it as a"
+            " content block of its own."
+        ),
+    )
+    discovery_datasets_eval_attachment: DiscoveryDatasetsEvalAttachment | None = Field(
+        default=None,
+        description=(
+            "What the discovery datasets lookup did on this call, for evaluation. `None` when"
+            " the lookup is not configured for the channel."
+        ),
     )
 
 

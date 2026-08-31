@@ -271,7 +271,7 @@ def _print_discovery_stats(channel: Channel, stats: DiscoveryDatasetStats | None
     """
     if stats is None:
         return
-    if not stats.total and channel.details.discovery_rag is None:
+    if not stats.total and channel.details.discovery_application_id is None:
         return
 
     console.print("\n[bold cyan]Discovery Datasets (Grade C)[/bold cyan]")

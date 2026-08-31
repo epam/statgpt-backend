@@ -180,7 +180,8 @@ class DiscoveryRagNotConfiguredError(AdminServiceError):
         super().__init__(
             f"Channel {channel_id} has no discovery RAG configuration, so its discovery"
             f" datasets cannot be published. Set the Generic RAG application id in the"
-            f" channel configuration (`details.discoveryRag.applicationId`) and try again."
+            f" channel configuration (`details.discoveryDatasets.details.applicationId`) and"
+            f" try again."
         )
 
 

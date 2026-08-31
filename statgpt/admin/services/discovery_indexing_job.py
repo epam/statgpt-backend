@@ -50,12 +50,12 @@ class AdminPortalDiscoveryIndexingJobService(DbServiceBase):
         return schemas.DiscoveryIndexingJob.model_validate(job, from_attributes=True)
 
     @staticmethod
-    def _rag_config(channel: models.Channel) -> schemas.DiscoveryRagConfig:
+    def _rag_application_id(channel: models.Channel) -> str:
         """The channel's publish target, or a domain error naming what is missing."""
-        config = ChannelSerializer.db_to_schema(channel).details.discovery_rag
-        if config is None:
+        application_id = ChannelSerializer.db_to_schema(channel).details.discovery_application_id
+        if application_id is None:
             raise DiscoveryRagNotConfiguredError(channel.id)
-        return config
+        return application_id
 
     async def _get_active_job(self, channel_id: int) -> models.DiscoveryIndexingJob | None:
         query = (
@@ -86,7 +86,7 @@ class AdminPortalDiscoveryIndexingJobService(DbServiceBase):
 
         # Fail here rather than inside the run: a channel with nowhere to publish to is a
         # configuration mistake the caller can fix, not a job worth recording.
-        self._rag_config(channel)
+        self._rag_application_id(channel)
 
         if active := await self._get_active_job(channel_id):
             raise IndexingJobInProgressError(channel_id=channel_id, job_id=active.id)
@@ -257,8 +257,8 @@ class AdminPortalDiscoveryIndexingJobService(DbServiceBase):
         client's lifetime, so the connection pool is closed when the run ends rather than
         held for as long as the process lives.
         """
-        config = self._rag_config(channel)
-        async with GenericRagIngestionClient.for_application(config.get_application_id()) as client:
+        application_id = self._rag_application_id(channel)
+        async with GenericRagIngestionClient.for_application(application_id) as client:
             publisher = DiscoveryPublisher(client, channel=channel.deployment_id, force=force)
             await publisher.verify_metadata_schema()
             return await publisher.publish(records)

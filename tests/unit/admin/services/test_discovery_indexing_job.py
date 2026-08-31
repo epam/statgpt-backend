@@ -35,10 +35,18 @@ _BASE_DETAILS = schemas.ChannelConfig(
 ).model_dump(mode="json", by_alias=True, exclude_none=True)
 
 
-def _channel(*, discovery_rag: bool = True) -> models.Channel:
+def _channel(*, discovery_datasets: bool = True) -> models.Channel:
     details = dict(_BASE_DETAILS)
-    if discovery_rag:
-        details["discoveryRag"] = {"applicationId": _APPLICATION}
+    if discovery_datasets:
+        details["discoveryDatasets"] = {
+            "type": "DISCOVERY_DATASETS",
+            "name": "discovery_datasets",
+            "description": "Discovery datasets.",
+            "details": {
+                "applicationId": _APPLICATION,
+                "templates": {"wrapper": "{items}", "item": "- {name}"},
+            },
+        }
     return models.Channel(
         id=7,
         title="Channel",
@@ -210,10 +218,12 @@ async def test_a_channel_without_a_publish_target_is_refused(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Refused at the request, so an administrator is not told by a job that failed later."""
-    service, session = _trigger_service(monkeypatch, _channel(discovery_rag=False))
+    service, session = _trigger_service(monkeypatch, _channel(discovery_datasets=False))
     background_tasks = MagicMock()
 
-    with pytest.raises(DiscoveryRagNotConfiguredError, match="discoveryRag.applicationId"):
+    with pytest.raises(
+        DiscoveryRagNotConfiguredError, match="discoveryDatasets.details.applicationId"
+    ):
         await service.trigger(background_tasks=background_tasks, channel_id=7)
 
     session.add.assert_not_called()
@@ -225,7 +235,7 @@ async def test_a_missing_publish_target_is_reported_before_a_running_job(
 ) -> None:
     """The fixable misconfiguration outranks the transient conflict."""
     service, _ = _trigger_service(
-        monkeypatch, _channel(discovery_rag=False), active_job=SimpleNamespace(id=9)
+        monkeypatch, _channel(discovery_datasets=False), active_job=SimpleNamespace(id=9)
     )
 
     with pytest.raises(DiscoveryRagNotConfiguredError):
@@ -346,10 +356,10 @@ async def test_a_run_on_a_channel_that_lost_its_target_fails_the_job(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """The configuration can be removed between the trigger and the run."""
-    spy = _Spy(monkeypatch, channel=_channel(discovery_rag=False))
+    spy = _Spy(monkeypatch, channel=_channel(discovery_datasets=False))
 
     await spy.service.process_job(job_id=42)
 
     assert spy.job.status is schemas.PreprocessingStatusEnum.FAILED
     assert spy.job.reason_for_failure is not None
-    assert "discoveryRag" in spy.job.reason_for_failure
+    assert "discoveryDatasets" in spy.job.reason_for_failure

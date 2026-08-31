@@ -92,7 +92,22 @@ class DataQueryArtifactDisplayer:
             title=f"Data Query Eval data: {tool_call_id}",
             indent=2,
         )
-        self._choice.add_attachment(**response)
+        if response is not None:
+            self._choice.add_attachment(**response)
+
+        # The discovery lookup runs beside the query, so it reports in a file of its own.
+        discovery = artifact.discovery_datasets_eval_attachment
+        if discovery is None:
+            return
+        discovery_response = await self._attach_json_file(
+            attachments_storage=attachments_storage,
+            data=discovery.model_dump(mode="json"),
+            filename=f"discovery_datasets_eval_attachment_{tool_call_id}.json",
+            title=f"Discovery Datasets Eval data: {tool_call_id}",
+            indent=2,
+        )
+        if discovery_response is not None:
+            self._choice.add_attachment(**discovery_response)
 
     def _get_system_message_content(self, response: DataResponse) -> str | None:
         if response.status.parsing_status == DataParsingStatus.FAILED:

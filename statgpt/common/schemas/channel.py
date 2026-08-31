@@ -23,6 +23,7 @@ from .tools import (
     DatasetsMetadataTool,
     DatasetStructureTool,
     DeepResearchTool,
+    DiscoveryDatasetsTool,
     FileRagTool,
     PlainContentTool,
     SdmxQueryAppTool,
@@ -299,27 +300,6 @@ class ConversationStartersConfig(BaseYamlModel):
     )
 
 
-class DiscoveryRagConfig(BaseYamlModel):
-    """Where this channel's discovery dataset records are published.
-
-    The indexing job needs the target before it can publish anything, so a channel without
-    this block cannot be indexed - which is reported when the job is triggered rather than
-    discovered by a background run that fails.
-    """
-
-    application_id_raw: str = Field(
-        validation_alias=AliasChoices("application_id", "applicationId"),
-        serialization_alias="applicationId",
-        description=(
-            "The DIAL application id of the Generic RAG channel holding this channel's"
-            " discovery records. Supports $env:{VAR} syntax."
-        ),
-    )
-
-    def get_application_id(self) -> str:
-        return config_utils.replace_env(self.application_id_raw)
-
-
 class ChannelConfig(BaseYamlModel):
     locale: LocaleEnum = Field(default=LocaleEnum.EN, description="The locale of the channel")
     conversation_starters: ConversationStartersConfig | None = Field(
@@ -350,13 +330,6 @@ class ChannelConfig(BaseYamlModel):
             "if the user has an allowed role."
         ),
     )
-    discovery_rag: DiscoveryRagConfig | None = Field(
-        default=None,
-        description=(
-            "The Generic RAG channel this channel's discovery dataset records are published"
-            " to. Required to run a discovery indexing job."
-        ),
-    )
 
     # ~~~ Tools: ~~~
     available_datasets: AvailableDatasetsTool | None = Field(None)
@@ -373,6 +346,14 @@ class ChannelConfig(BaseYamlModel):
     web_search: WebSearchTool | None = Field(None)
     web_search_agent: WebSearchAgentTool | None = Field(None)
     deep_research: DeepResearchTool | None = Field(None)
+    discovery_datasets: DiscoveryDatasetsTool | None = Field(
+        default=None,
+        description=(
+            "Discovery datasets: the Generic RAG channel this channel's discovery records are"
+            " published to, and the chat-time lookup over them. Required to run a discovery"
+            " indexing job. Absent from `tool_fields`: the Supreme Agent never calls it."
+        ),
+    )
 
     @property
     def tool_fields(self) -> list[str]:
@@ -414,6 +395,22 @@ class ChannelConfig(BaseYamlModel):
     def is_deep_research_available(self) -> bool:
         """Whether the channel has the Deep Research tool configured and enabled."""
         return self.deep_research is not None and self.deep_research.enabled
+
+    @property
+    def discovery_application_id(self) -> str | None:
+        """Where this channel's discovery records are published, or `None` if nowhere.
+
+        Ignores `enabled` on purpose: that flag gates only the chat-time lookup, while
+        publishing, reindexing and withdrawing are administrative and must keep working.
+        """
+        if self.discovery_datasets is None:
+            return None
+        return self.discovery_datasets.details.get_application_id()
+
+    @property
+    def is_discovery_lookup_available(self) -> bool:
+        """Whether the chat-time discovery datasets lookup runs for this channel."""
+        return self.discovery_datasets is not None and self.discovery_datasets.enabled
 
     def list_named_entity_types(self) -> list[str]:
         return [
