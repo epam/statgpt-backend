@@ -1,3 +1,4 @@
+import logging
 from datetime import datetime, timezone
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
@@ -9,6 +10,7 @@ from fastmcp.exceptions import ToolError
 from langchain_core.messages import AIMessage
 from langchain_core.runnables import Runnable, RunnableLambda
 from mcp.types import EmbeddedResource, TextContent
+from pydantic import BaseModel, ValidationError
 
 from statgpt.app.chains.out_of_scope_checker import OutOfScopeCheckerResponse
 from statgpt.app.mcp.provider import ChannelToolProvider, _McpToolAdapter, _tool_app_config
@@ -225,6 +227,36 @@ async def test_tool_failure_raises_tool_error():
 
     with pytest.raises(ToolError):
         await adapter.run({})
+
+
+async def test_invalid_arguments_are_not_logged_verbatim(caplog):
+    # A pydantic ValidationError's string representation echoes the submitted value;
+    # the handler must log only the field location/type, never the value itself.
+    class _Args(BaseModel):
+        limit: int
+
+    try:
+        _Args(limit="super-secret-value")
+    except ValidationError as exc:
+        validation_error = exc
+
+    tool = SimpleNamespace(name="fake_tool", ainvoke=AsyncMock(side_effect=validation_error))
+    adapter = _McpToolAdapter(
+        langchain_tool=tool,  # type: ignore[arg-type]
+        inputs={},
+        channel_config=SimpleNamespace(out_of_scope=None),  # type: ignore[arg-type]
+        tool_config=_data_query_config(),
+        auth_context=SimpleNamespace(),  # type: ignore[arg-type]
+        name="fake_tool",
+        parameters={},
+    )
+
+    with caplog.at_level(logging.INFO, logger="statgpt.app.mcp.provider"):
+        with pytest.raises(ToolError, match="Invalid arguments"):
+            await adapter.run({"limit": "super-secret-value"})
+
+    assert "super-secret-value" not in caplog.text
+    assert "limit" in caplog.text
 
 
 class _FakeChatModel(Runnable):
