@@ -28,7 +28,11 @@ from statgpt.app.mcp.exceptions import MissingDeploymentIdError
 from statgpt.app.mcp.guardrails import enforce_input_guardrail
 from statgpt.app.mcp.widget_resource import WidgetResource
 from statgpt.app.schemas.dial_app_configuration import StatGPTConfiguration
-from statgpt.app.schemas.mcp import DataQueryStructuredContent, SdmxProxyStructuredContent
+from statgpt.app.schemas.mcp import (
+    DataQueryStructuredContent,
+    SdmxProxyStructuredContent,
+    TextToolStructuredContent,
+)
 from statgpt.app.schemas.service import ChannelDatasetsMetadataResponse
 from statgpt.app.schemas.tool_artifact import (
     DataQueryArtifact,
@@ -144,6 +148,7 @@ class _McpToolAdapter(Tool):
             DataQueryStructuredContent
             | SdmxProxyStructuredContent
             | ChannelDatasetsMetadataResponse
+            | TextToolStructuredContent
             | None
         ) = None
         if isinstance(result.artifact, DataQueryArtifact):
@@ -177,6 +182,11 @@ class _McpToolAdapter(Tool):
             # Surface the datasets metadata payload as structured content so the UI widget can
             # consume it directly (the JSON body is also in the text content block above).
             structured_content = result.artifact.response
+        elif self.output_schema is not None:
+            # Text-only tools: their declared output schema is the text envelope, so mirror the
+            # text rendering as structured content to satisfy the contract. Gated on a declared
+            # schema so a tool that opts out of structured output stays text-only.
+            structured_content = TextToolStructuredContent(text=text)
         _log.info(
             "Sending MCP tool %s response: %d content block(s), structured_content=%s",
             self._langchain_tool.name,
@@ -218,6 +228,7 @@ class ChannelToolProvider(Provider):
             name=channel_config.mcp.tool_name_prefix + tool_config.effective_mcp_name,
             description=tool_config.effective_mcp_description,
             parameters=langchain_tool.get_public_args_schema(),
+            output_schema=langchain_tool.get_mcp_output_schema(),
             annotations=langchain_tool.get_mcp_annotations(),
             meta={"ui": app_config_to_meta_dict(app_config)} if app_config else None,
         )

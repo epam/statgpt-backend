@@ -9,6 +9,22 @@ from statgpt.app.schemas.query import AppJsonQueryWithMetadata
 from statgpt.common.schemas.base import BaseYamlModel
 
 
+class TextToolStructuredContent(BaseYamlModel):
+    """MCP structured content for tools whose result is a single text/Markdown rendering.
+
+    These tools (glossary, publications, web search, plain content, ...) have no richer
+    machine-readable shape than their conversational answer, so the structured content mirrors
+    that text. This still gives the platform a typed, inspectable payload — a declared field with
+    a known type, not a bare ``object`` — satisfying the output-schema contract without inventing
+    structure the tool does not actually produce. It is the default output model for a tool that
+    does not override ``get_mcp_output_model``.
+    """
+
+    text: str = Field(
+        description="The tool's text/Markdown response, identical to the text content block."
+    )
+
+
 class DataQueryToolsInfo(BaseYamlModel):
     """Names of companion MCP tools the caller can use to act on the queries."""
 

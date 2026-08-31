@@ -299,6 +299,7 @@ def fake_statgpt_tool(monkeypatch) -> SimpleNamespace:
     langchain_tool = SimpleNamespace(
         name="query_data",
         get_public_args_schema=lambda: {},
+        get_mcp_output_schema=lambda: None,
         get_mcp_annotations=lambda: None,
     )
     monkeypatch.setattr(

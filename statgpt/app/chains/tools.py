@@ -7,6 +7,7 @@ from mcp.types import ToolAnnotations
 from pydantic import BaseModel, Field
 
 from statgpt.app.schemas import ToolArtifact
+from statgpt.app.schemas.mcp import TextToolStructuredContent
 from statgpt.common.schemas import BaseToolConfig, ChannelConfig, ToolTypes
 
 
@@ -174,6 +175,31 @@ class StatGptTool(BaseTool, ABC, Generic[ToolConfigType]):
         """MCP tool hints may be used by clients for UX decisions (e.g. skipping
         confirmation prompts for read-only tools, flagging open-world tools).
         Advisory only — clients must not rely on them for security."""
+
+    @classmethod
+    def get_mcp_output_model(cls) -> type[BaseModel] | None:
+        """The Pydantic model describing this tool's MCP ``structuredContent``.
+
+        Defaults to the text envelope (``TextToolStructuredContent``): a tool that returns only a
+        text rendering still declares a typed output schema and emits its text as structured
+        content. Tools with a richer machine-readable result override this to return the model they
+        build in the MCP provider, which both declares the output schema (``get_mcp_output_schema``)
+        and pins the response shape so the two cannot drift (guarded in tests). Overriding to
+        ``None`` opts a tool out of structured output entirely (text only)."""
+        return TextToolStructuredContent
+
+    @classmethod
+    def get_mcp_output_schema(cls) -> dict[str, Any] | None:
+        """JSON Schema advertised as this tool's MCP output schema, or ``None`` when the tool opts
+        out of structured output (``get_mcp_output_model`` returns ``None``)."""
+        model = cls.get_mcp_output_model()
+        if model is None:
+            return None
+        # Imported lazily: the helper pulls in fastmcp, which lives in the optional ``mcp`` extra
+        # and is only ever needed when serving tools through the MCP provider.
+        from statgpt.app.mcp.output_schema import model_to_output_schema
+
+        return model_to_output_schema(model)
 
     @staticmethod
     def from_config(tool_config: ToolConfigType, channel_config: ChannelConfig) -> 'StatGptTool':
