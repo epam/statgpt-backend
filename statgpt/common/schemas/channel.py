@@ -191,6 +191,14 @@ class ProxiedResourceConfig(McpResourceConfig):
             " type 'text/html;profile=mcp-app' (ext-apps 2026-01-26)."
         ),
     )
+    prefers_border: bool = Field(
+        default=True,
+        description=(
+            "Whether the widget prefers a visible border when rendered inline; exposed to the"
+            " host as `_meta.ui.prefersBorder`. In borderless mode the host removes padding, so"
+            " the widget must honor safe-area insets itself. Defaults to bordered."
+        ),
+    )
 
     def get_origin(self) -> str:
         return config_utils.replace_env(self.origin_raw).rstrip("/")

@@ -66,7 +66,10 @@ class WidgetResource(Resource):
             mime_type=config.mime_type,
             meta={
                 "ui": app_config_to_meta_dict(
-                    AppConfig(csp=ResourceCSP(resource_domains=[config.get_origin()]))
+                    AppConfig(
+                        csp=ResourceCSP(resource_domains=[config.get_origin()]),
+                        prefers_border=config.prefers_border,
+                    )
                 )
             },
             html_url=config.get_html_url(),
