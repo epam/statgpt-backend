@@ -127,6 +127,7 @@ class _McpToolAdapter(Tool):
             # Argument-schema validation failures (e.g. missing required field, bad enum
             # value). Surface a concise message instead of the generic failure.
             _log.debug("Invalid arguments for MCP tool %s: %s", self._langchain_tool.name, e)
+            raise ToolError(f"Invalid arguments for {self._langchain_tool.name}: {e}") from e
         except ToolUpstreamError as e:
             # Upstream dependency failure (connection/timeout): surface the specific message.
             _log.warning("Upstream error in MCP tool %s: %s", self._langchain_tool.name, e)
