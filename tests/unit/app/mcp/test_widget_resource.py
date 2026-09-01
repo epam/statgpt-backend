@@ -49,8 +49,22 @@ class TestFromConfig:
             _config(origin="https://widget.example/", mime_type=MediaTypes.HTML_MCP_APP)
         )
         assert resource.mime_type == MediaTypes.HTML_MCP_APP
-        assert resource.meta == {"ui": {"csp": {"resourceDomains": ["https://widget.example"]}}}
+        assert resource.meta == {
+            "ui": {
+                "csp": {"resourceDomains": ["https://widget.example"]},
+                "prefersBorder": True,
+            }
+        }
         assert str(resource.uri) == _URI
+
+    def test_prefers_border_can_be_disabled(self):
+        resource = WidgetResource.from_config(_config(prefers_border=False))
+        assert resource.meta == {
+            "ui": {
+                "csp": {"resourceDomains": ["https://widget.example"]},
+                "prefersBorder": False,
+            }
+        }
 
 
 class TestRead:
