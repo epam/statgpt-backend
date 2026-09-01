@@ -124,15 +124,47 @@ class GenericRagDocumentFilter(BaseModel):
     """One entry of a matcher's `filters`: a document matches when every field set here matches.
 
     The service builds this model per channel out of the metadata fields declared
-    `enable_filtering`, and rejects a field that is not one of them, so only fields
-    `DiscoveryDocumentMetadata` marks filterable may be added here. A field left `None` is
-    omitted from the request rather than sent as a null.
+    `enable_filtering`, and rejects a field that is not one of them, so only fields the target
+    channel's metadata model marks filterable may be set here. A field left `None` is omitted
+    from the request rather than sent as a null, which is what lets one model serve channels
+    that declare different fields.
+
+    Two properties of the service's model decide the shape of everything built out of this:
+
+    Each field takes a *single* value, not a list - an array field matches when any element of
+    the *document's* array equals it. Several values on one axis therefore mean several entries.
+
+    The accepted values are exactly the ones the channel currently holds, since the service
+    types each field as a `Literal` over its dimensions. A value outside them fails the whole
+    request rather than matching nothing, so every value set here has to be grounded against
+    the channel's `dimensions` first.
     """
 
     model_config = ConfigDict(use_attribute_docstrings=True)
 
     statgpt_channel: str | None = None
     """Deployment id of the StatGPT channel that published the document."""
+
+    kind: str | None = None
+    """What the document is. Only the reference-area vocabulary channel declares this."""
+
+    roles: str | None = None
+    """One role a reference-area vocabulary entry is used in - see `ReferenceAreaRole`.
+
+    An array on the document, so this matches an entry naming this role among others.
+    """
+
+    agency: str | None = None
+    """Publisher of the discovery record."""
+
+    parsed_reference_areas: str | None = None
+    """One subject reference area the record covers."""
+
+    parsed_partner_reference_areas: str | None = None
+    """One partner reference area the record covers."""
+
+    parsed_frequencies: str | None = None
+    """One frequency the record publishes at."""
 
 
 class GenericRagDocumentMatcher(BaseModel):

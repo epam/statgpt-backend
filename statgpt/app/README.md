@@ -26,6 +26,7 @@ the [common README file](../common/README.md).
 | TTYD_TOOL_PLAIN_CONTENT_*               |    No    | Environment variables for the Plain Content tool to replace in the files content. Replace `*` with the variable name.                                                                                                                                |                                              |                     |
 | INDICATORS_TOTAL_CACHE_TTL              |    No    | TTL in seconds for the in-process cache of the per-channel indicators total (used to substitute the `{indicators_total}` token in conversation-starter texts). The figure is non-transactional; staleness within this window is acceptable.          | integer (seconds)                            | `60`                |
 | DISCOVERY_DATASETS_DOWNLOAD_CONCURRENCY |    No    | How many discovery document bodies the discovery datasets lookup fetches at once                                                                                                                                                                     | integer                                      | `8`                 |
+| DISCOVERY_PREFILTER_DIMENSIONS_TTL_SECONDS |  No    | How long the discovery pre-filter caches a channel's filterable values. A stale entry costs one rejected search, which falls back to an unfiltered one - so this trades that against a metadata read on every turn                                    | integer (seconds)                            | `300`               |
 
 ## MCP Server
 

@@ -93,6 +93,67 @@ class DiscoveryCandidate(BaseModel):
         return context
 
 
+class DiscoveryAxisSelection(BaseModel):
+    """One pre-filter sub-chain's structured output: the values the query names on its axis."""
+
+    model_config = ConfigDict(use_attribute_docstrings=True)
+
+    values: list[str] = Field(
+        default_factory=list,
+        description=(
+            "Values from the provided list that the user's query asks for on this axis, copied"
+            " exactly. Empty when the query does not restrict this axis."
+        ),
+    )
+
+
+class DiscoveryPreFilterAxisReport(BaseModel):
+    """What one axis of the pre-filter offered, chose and kept.
+
+    All three lists are recorded, because they answer different questions: `offered` says what
+    the model could have picked, `selected` what it did pick, and `grounded` what the discovery
+    channel actually holds - a value that appears in `selected` alone is one that would have
+    failed the search request had it been sent.
+    """
+
+    model_config = ConfigDict(use_attribute_docstrings=True)
+
+    axis: str
+    offered: list[str] = Field(default_factory=list)
+    selected: list[str] = Field(default_factory=list)
+    grounded: list[str] = Field(default_factory=list)
+    error: str | None = None
+    """Why this axis had nothing to offer: unconfigured, or a vocabulary that could not be read.
+
+    Not set when the axis was offered a vocabulary and the query simply named none of it - that
+    is the ordinary case, and `selected` already says so.
+    """
+
+
+class DiscoveryPreFilterReport(BaseModel):
+    """What the pre-filter did to one lookup's search.
+
+    Emitted whether or not the search was narrowed, so a turn that fell back is as visible as
+    one that filtered.
+    """
+
+    model_config = ConfigDict(use_attribute_docstrings=True)
+
+    enabled: bool = True
+    """Whether the channel asks for a pre-filter at all."""
+
+    axes: list[DiscoveryPreFilterAxisReport] = Field(default_factory=list)
+
+    filters: int = 0
+    """How many filter entries the matcher carried: the product of the surviving axes."""
+
+    applied: bool = False
+    """Whether the documents the judge saw came from the narrowed search or from the fallback."""
+
+    fallback_reason: str | None = None
+    """Why the lookup fell back to searching every document this channel published."""
+
+
 class SelectedDiscoveryDataset(BaseModel):
     """A candidate the relevance judge kept, with the reason it gave for keeping it."""
 
@@ -132,6 +193,9 @@ class DiscoveryDatasetsEvalAttachment(BaseModel):
 
     query: str = ""
     """The data query tool argument the lookup searched with."""
+
+    pre_filter: DiscoveryPreFilterReport | None = None
+    """How the search was narrowed, or `None` when the lookup never got that far."""
 
     candidates: list[DiscoveryCandidate] = Field(default_factory=list)
     """Retrieved documents in rank order, descriptions included."""

@@ -91,7 +91,14 @@ def _rag(
     def db_to_schema(channel: Any) -> Any:
         # Channel 2 stands for one with no publish target configured.
         application_id = None if channel.id == 2 else f"{_APPLICATION}-{channel.id}"
-        return SimpleNamespace(details=SimpleNamespace(discovery_application_id=application_id))
+        return SimpleNamespace(
+            details=SimpleNamespace(
+                discovery_application_id=application_id,
+                discovery_reference_area_application_id=(
+                    None if application_id is None else f"{application_id}-areas"
+                ),
+            )
+        )
 
     async def withdraw(client: Any, channel: str, keys: Any, **_: Any) -> int:
         calls.append(f"withdraw:{channel}")
@@ -108,6 +115,15 @@ def _rag(
         classmethod(lambda cls, application_id: rag_client),
     )
     monkeypatch.setattr(service_module, "withdraw_documents", withdraw)
+
+    def publisher(_client: Any, channel: str) -> Any:
+        async def clear() -> int:
+            calls.append(f"clear-areas:{channel}")
+            return 3
+
+        return SimpleNamespace(clear=clear)
+
+    monkeypatch.setattr(service_module, "ReferenceAreaPublisher", publisher)
 
 
 def _service(
@@ -139,7 +155,13 @@ async def test_documents_are_withdrawn_before_the_rows_are_deleted(calls: list[s
 
     await service.delete_records_bulk(channel_id=1)
 
-    assert calls == ["select", "withdraw:channel-1", "delete", "commit"]
+    assert calls == [
+        "select",
+        "withdraw:channel-1",
+        "clear-areas:channel-1",
+        "delete",
+        "commit",
+    ]
 
 
 async def test_deleted_records_are_returned_after_the_commit_expired_them(
@@ -192,6 +214,34 @@ async def test_a_channel_with_no_publish_target_still_deletes_its_records(
     assert len(deleted) == 1
     assert calls == ["select", "delete", "commit"]
     rag_client.__aenter__.assert_not_awaited()
+
+
+async def test_clearing_a_channel_clears_its_reference_area_vocabulary(
+    calls: list[str],
+) -> None:
+    """Nothing is left to derive the vocabulary from, so nothing would ever prune it."""
+    service = _service(calls, [_stored()])
+
+    await service.delete_records_bulk(channel_id=1)
+
+    assert "clear-areas:channel-1" in calls
+
+
+async def test_deleting_records_by_id_leaves_the_vocabulary_alone(
+    calls: list[str], withdrawn: list[tuple[str, set[tuple[str, str]]]]
+) -> None:
+    """Which labels a partial deletion leaves behind depends on every record that remains.
+
+    Pruning one would mean reconciling the whole vocabulary inside this transaction, and a
+    label left over only widens the list the pre-filter offers a model - the next indexing run
+    removes it.
+    """
+    service = _service(calls, [_stored(item_id=1), _stored(item_id=2, dataset_id="TABEL2")])
+
+    await service.delete_records_bulk(item_ids=[1, 2])
+
+    assert [call for call in calls if call.startswith("clear-areas")] == []
+    assert withdrawn
 
 
 async def test_a_failed_withdrawal_leaves_the_rows_in_place(

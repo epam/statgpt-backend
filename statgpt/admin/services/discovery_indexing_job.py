@@ -16,6 +16,7 @@ from statgpt.common.services.base import DbServiceBase
 from statgpt.common.utils import format_exception_reason, get_ts_utcnow
 
 from .background_tasks import background_task
+from .discovery_area_publisher import ReferenceAreaPublisher
 from .discovery_publisher import DiscoveryPublisher, PublishCounts
 from .discovery_validation import DiscoveryValidator
 from .exceptions import (
@@ -56,6 +57,18 @@ class AdminPortalDiscoveryIndexingJobService(DbServiceBase):
         if application_id is None:
             raise DiscoveryRagNotConfiguredError(channel.id)
         return application_id
+
+    @staticmethod
+    def _reference_area_application_id(channel: models.Channel) -> str | None:
+        """Where the channel's reference-area vocabulary goes, or `None` if nowhere.
+
+        Optional, unlike the records' target: a channel that publishes no vocabulary simply
+        loses the reference-area axis of the chat-time pre-filter, which then narrows on the
+        other axes. So an unset id skips the stage rather than failing the job.
+        """
+        return ChannelSerializer.db_to_schema(
+            channel
+        ).details.discovery_reference_area_application_id
 
     async def _get_active_job(self, channel_id: int) -> models.DiscoveryIndexingJob | None:
         query = (
@@ -200,7 +213,7 @@ class AdminPortalDiscoveryIndexingJobService(DbServiceBase):
                 # publish stage that dies should not take them down with it.
                 await session.commit()
 
-                counts = await self._publish_records(channel, records, force=force)
+                counts, vocabulary = await self._publish_records(channel, records, force=force)
 
                 job.documents_upserted = counts.upserted
                 job.documents_deleted = counts.deleted
@@ -209,6 +222,7 @@ class AdminPortalDiscoveryIndexingJobService(DbServiceBase):
                     f"Validated {len(records)} record(s): {valid} valid, {invalid} invalid."
                     f" Published {counts.upserted}, removed {counts.deleted} document(s),"
                     f" skipped {counts.skipped} already indexed, failed {counts.failed}."
+                    f"{_vocabulary_details(vocabulary)}"
                 )
                 job.status = schemas.PreprocessingStatusEnum.COMPLETED
                 await session.commit()
@@ -250,8 +264,11 @@ class AdminPortalDiscoveryIndexingJobService(DbServiceBase):
 
     async def _publish_records(
         self, channel: models.Channel, records: list[models.DiscoveryDataset], force: bool
-    ) -> PublishCounts:
+    ) -> tuple[PublishCounts, PublishCounts | None]:
         """Reconcile the channel's RAG documents with the records, in place.
+
+        Returns the documents' counts and the vocabulary's, the latter `None` when the channel
+        publishes no vocabulary.
 
         The indexing status of each record is written by the publisher; this only owns the
         client's lifetime, so the connection pool is closed when the run ends rather than
@@ -261,7 +278,42 @@ class AdminPortalDiscoveryIndexingJobService(DbServiceBase):
         async with GenericRagIngestionClient.for_application(application_id) as client:
             publisher = DiscoveryPublisher(client, channel=channel.deployment_id, force=force)
             await publisher.verify_metadata_schema()
+            counts = await publisher.publish(records)
+
+        return counts, await self._publish_reference_areas(channel, records, force=force)
+
+    async def _publish_reference_areas(
+        self, channel: models.Channel, records: list[models.DiscoveryDataset], force: bool
+    ) -> PublishCounts | None:
+        """Reconcile the channel's reference-area vocabulary with its records.
+
+        After the documents, and never in place of them: the vocabulary describes what the
+        discovery channel holds, so publishing it first would offer a label for a document
+        that does not exist yet.
+
+        A failure here fails the job. The records are published either way - their statuses
+        were committed by the publisher - but a vocabulary that does not match them silently
+        narrows queries away from datasets that do cover what was asked, and that is not
+        something a completed job should hide.
+        """
+        application_id = self._reference_area_application_id(channel)
+        if application_id is None:
+            return None
+
+        async with GenericRagIngestionClient.for_application(application_id) as client:
+            publisher = ReferenceAreaPublisher(client, channel=channel.deployment_id, force=force)
+            await publisher.verify_metadata_schema()
             return await publisher.publish(records)
+
+
+def _vocabulary_details(counts: PublishCounts | None) -> str:
+    """What the run did to the reference-area vocabulary, or nothing if it publishes none."""
+    if counts is None:
+        return ""
+    return (
+        f" Reference-area vocabulary: published {counts.upserted},"
+        f" removed {counts.deleted}, unchanged {counts.skipped}."
+    )
 
 
 @background_task

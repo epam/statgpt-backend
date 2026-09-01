@@ -166,7 +166,14 @@ tools:
     description: "Discovery datasets surfaced alongside data query results."
     details:
       applicationId: "statgpt-generic-rag-grade-b-and-c"
+      # The vocabulary the pre-filter resolves a query's reference areas against, published by
+      # the same indexing job. Leave it out and the reference-area axis is simply unavailable.
+      referenceAreaApplicationId: "statgpt-generic-rag-reference-areas"
       topN: 10
+      preFilter:
+        enabled: true
+        axes: ["reference_area", "partner_reference_area", "frequency", "agency"]
+        referenceAreaTopN: 20
       templates:
         wrapper: |
           ### Other datasets that may be relevant

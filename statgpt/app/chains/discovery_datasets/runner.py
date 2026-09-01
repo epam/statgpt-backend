@@ -38,6 +38,7 @@ from statgpt.common.utils import write_yaml_to_stream
 from statgpt.common.utils.async_utils import gather_with_concurrency
 from statgpt.common.utils.models import get_chat_model
 
+from .prefilter import DiscoveryPreFilter, DiscoveryPreFilterBuilder
 from .templates import render_block
 
 _log = logging.getLogger(__name__)
@@ -86,8 +87,17 @@ class DiscoveryDatasetsRunner:
         auth_context = ChainParameters.get_auth_context(inputs)
         channel = ChainParameters.get_data_service(inputs).deployment_id
 
-        candidates = await self._retrieve(query, auth_context, channel)
+        pre_filter = await DiscoveryPreFilterBuilder(self._config).build(
+            query, auth_context, channel
+        )
+        # Attached before the search rather than after it: the report is mutated as the search
+        # runs, and a failure of the search itself must not take the account of the pre-filter
+        # down with it.
+        attachment.pre_filter = pre_filter.report
+
+        candidates = await self._retrieve(query, auth_context, channel, pre_filter)
         attachment.candidates = candidates
+        self._report(stage, "## Pre-filter", self._as_yaml([pre_filter.report]))
         self._report(stage, "## Retrieved documents", self._as_yaml(candidates))
         if not candidates:
             return None
@@ -105,18 +115,17 @@ class DiscoveryDatasetsRunner:
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~ retrieval ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
     async def _retrieve(
-        self, query: str, auth_context: AuthContext, channel: str
+        self,
+        query: str,
+        auth_context: AuthContext,
+        channel: str,
+        pre_filter: DiscoveryPreFilter,
     ) -> list[DiscoveryCandidate]:
         """Rank the channel's documents, then fill in the descriptions the ranking omits."""
         async with GenericRagSearchClient.for_application(
             self._config.get_application_id(), auth_context
         ) as client:
-            documents = await client.search_documents(
-                query,
-                limit=self._config.top_n,
-                indexes=self._config.indexes,
-                matcher=self._own_documents_matcher(channel),
-            )
+            documents = await self._search(client, query, channel, pre_filter)
             records = self._discovery_records(documents)
             if not records:
                 return []
@@ -138,6 +147,41 @@ class DiscoveryDatasetsRunner:
                 zip(records, descriptions), start=1
             )
         ]
+
+    async def _search(
+        self,
+        client: GenericRagSearchClient,
+        query: str,
+        channel: str,
+        pre_filter: DiscoveryPreFilter,
+    ) -> list[GenericRagDocument]:
+        """Rank the documents the pre-filter allows, falling back to the channel's own.
+
+        A narrowed search can be rejected outright rather than simply matching nothing: the
+        service validates a filter value against the values the channel currently holds, and a
+        cached list of them can be a few minutes behind. So a rejection is retried unnarrowed
+        instead of being reported as a failed lookup - the pre-filter is an optimization, and a
+        stale cache must not cost a user their results.
+        """
+        if pre_filter.matcher is not None:
+            try:
+                documents = await self._search_with(client, query, pre_filter.matcher)
+                pre_filter.report.applied = True
+                return documents
+            except Exception as e:
+                _log.exception("The pre-filtered discovery search failed; retrying unfiltered")
+                pre_filter.report.fallback_reason = (
+                    f"the narrowed search failed: {type(e).__name__}: {e}"
+                )
+
+        return await self._search_with(client, query, self._own_documents_matcher(channel))
+
+    async def _search_with(
+        self, client: GenericRagSearchClient, query: str, matcher: GenericRagDocumentMatcher
+    ) -> list[GenericRagDocument]:
+        return await client.search_documents(
+            query, limit=self._config.top_n, indexes=self._config.indexes, matcher=matcher
+        )
 
     @staticmethod
     def _own_documents_matcher(channel: str) -> GenericRagDocumentMatcher:

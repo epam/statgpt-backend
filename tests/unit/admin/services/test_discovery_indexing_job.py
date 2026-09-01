@@ -27,6 +27,7 @@ from statgpt.common import models, schemas
 from statgpt.common.utils import get_ts_utcnow
 
 _APPLICATION = "statgpt-generic-rag-grade-b-and-c"
+_AREA_APPLICATION = "statgpt-generic-rag-reference-areas"
 
 _BASE_DETAILS = schemas.ChannelConfig(
     supreme_agent=schemas.SupremeAgentConfig(
@@ -35,17 +36,20 @@ _BASE_DETAILS = schemas.ChannelConfig(
 ).model_dump(mode="json", by_alias=True, exclude_none=True)
 
 
-def _channel(*, discovery_datasets: bool = True) -> models.Channel:
+def _channel(*, discovery_datasets: bool = True, reference_areas: bool = False) -> models.Channel:
     details = dict(_BASE_DETAILS)
     if discovery_datasets:
+        tool_details: dict[str, Any] = {
+            "applicationId": _APPLICATION,
+            "templates": {"wrapper": "{items}", "item": "- {name}"},
+        }
+        if reference_areas:
+            tool_details["referenceAreaApplicationId"] = _AREA_APPLICATION
         details["discoveryDatasets"] = {
             "type": "DISCOVERY_DATASETS",
             "name": "discovery_datasets",
             "description": "Discovery datasets.",
-            "details": {
-                "applicationId": _APPLICATION,
-                "templates": {"wrapper": "{items}", "item": "- {name}"},
-            },
+            "details": tool_details,
         }
     return models.Channel(
         id=7,
@@ -107,13 +111,18 @@ class _Spy:
         records: list[models.DiscoveryDataset] | None = None,
         counts: PublishCounts | None = None,
         publish_error: Exception | None = None,
+        area_counts: PublishCounts | None = None,
+        area_error: Exception | None = None,
         channel: models.Channel | None = None,
     ) -> None:
         self.job = _job()
         self.records = records if records is not None else [_record()]
         self.counts = counts or PublishCounts(upserted=1)
+        self.area_counts = area_counts or PublishCounts(upserted=2, deleted=1, skipped=3)
         self.commits: list[dict[str, Any]] = []
         self.published: list[dict[str, Any]] = []
+        self.stages: list[str] = []
+        self.applications: list[str] = []
         self.closed = False
 
         channel = channel if channel is not None else _channel()
@@ -127,10 +136,12 @@ class _Spy:
             lambda _: SimpleNamespace(get_record_models_by_channel=self._get_records),
         )
         monkeypatch.setattr(job_module, "DiscoveryPublisher", self._publisher)
+        monkeypatch.setattr(job_module, "ReferenceAreaPublisher", self._area_publisher)
         monkeypatch.setattr(
             job_module.GenericRagIngestionClient, "for_application", self._for_application
         )
         self._publish_error = publish_error
+        self._area_error = area_error
 
         self.session = AsyncMock()
         self.session.commit.side_effect = self._on_commit
@@ -147,6 +158,7 @@ class _Spy:
 
     def _for_application(self, application_id: str) -> Any:
         self.application_id = application_id
+        self.applications.append(application_id)
         spy = self
 
         class _Client:
@@ -170,9 +182,21 @@ class _Spy:
         if self._publish_error is not None:
             raise self._publish_error
         self.published.append({"count": len(records)})
+        self.stages.append("documents")
         for record in records:
             record.indexing_status = schemas.DiscoveryIndexingStatus.INDEXED
         return self.counts
+
+    def _area_publisher(self, client: Any, *, channel: str, force: bool) -> Any:
+        self.area_publisher_channel = channel
+        self.area_publisher_force = force
+        return SimpleNamespace(verify_metadata_schema=self._verify, publish=self._publish_areas)
+
+    async def _publish_areas(self, records: list[models.DiscoveryDataset]) -> PublishCounts:
+        if self._area_error is not None:
+            raise self._area_error
+        self.stages.append("reference-areas")
+        return self.area_counts
 
     async def _on_commit(self) -> None:
         self.commits.append(
@@ -363,3 +387,56 @@ async def test_a_run_on_a_channel_that_lost_its_target_fails_the_job(
     assert spy.job.status is schemas.PreprocessingStatusEnum.FAILED
     assert spy.job.reason_for_failure is not None
     assert "discoveryDatasets" in spy.job.reason_for_failure
+
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~ the reference-area vocabulary ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
+async def test_the_vocabulary_is_published_after_the_documents(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """It describes what the channel holds, so publishing it first would describe nothing."""
+    spy = _Spy(monkeypatch, channel=_channel(reference_areas=True))
+
+    await spy.service.process_job(job_id=42, force=True)
+
+    assert spy.stages == ["documents", "reference-areas"]
+    assert spy.applications == [_APPLICATION, _AREA_APPLICATION]
+    assert spy.area_publisher_channel == "statgpt-gtdc"
+    assert spy.area_publisher_force is True
+    assert spy.job.status is schemas.PreprocessingStatusEnum.COMPLETED
+    assert spy.job.details is not None
+    assert "Reference-area vocabulary: published 2, removed 1, unchanged 3." in spy.job.details
+
+
+async def test_a_channel_without_a_vocabulary_skips_the_stage(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The axis is simply unavailable at chat time; the records are published either way."""
+    spy = _Spy(monkeypatch)
+
+    await spy.service.process_job(job_id=42)
+
+    assert spy.stages == ["documents"]
+    assert spy.applications == [_APPLICATION]
+    assert spy.job.status is schemas.PreprocessingStatusEnum.COMPLETED
+    assert spy.job.details is not None
+    assert "Reference-area vocabulary" not in spy.job.details
+
+
+async def test_a_failed_vocabulary_fails_the_job(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A vocabulary that does not match the records narrows queries away from real answers."""
+    spy = _Spy(
+        monkeypatch,
+        channel=_channel(reference_areas=True),
+        area_error=RuntimeError("vocabulary channel unreachable"),
+    )
+
+    await spy.service.process_job(job_id=42)
+
+    assert spy.job.status is schemas.PreprocessingStatusEnum.FAILED
+    assert spy.job.reason_for_failure is not None
+    assert "vocabulary channel unreachable" in spy.job.reason_for_failure
+    # The records were published all the same, and their statuses were committed.
+    assert spy.stages == ["documents"]
+    assert spy.records[0].indexing_status is schemas.DiscoveryIndexingStatus.INDEXED

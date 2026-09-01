@@ -26,6 +26,7 @@ from statgpt.common.services import (
     record_key,
 )
 
+from .discovery_area_publisher import ReferenceAreaPublisher
 from .discovery_publisher import withdraw_documents
 from .discovery_upload import COLUMN_FIELDS, FIELD_LABELS, REQUIRED_FIELDS, parse_discovery_file
 from .exceptions import (
@@ -496,10 +497,37 @@ class AdminPortalDiscoveryDatasetService(DiscoveryDatasetService):
         deleted = [self._serialize(item) for item in doomed]
 
         await self._withdraw_documents(doomed)
+        if channel_id is not None:
+            await self._clear_reference_areas(channel_id)
         await self._session.execute(delete(models.DiscoveryDataset).where(where_clause))
         await self._session.commit()
         _log.info(f"Deleted {len(deleted)} discovery datasets.")
         return deleted
+
+    async def _clear_reference_areas(self, channel_id: int) -> None:
+        """Delete the channel's whole reference-area vocabulary.
+
+        Only the whole-channel path does this, and it does it wholesale rather than by label.
+        A label belongs to the channel's records as a set: which labels a partial deletion
+        leaves behind depends on every record that remains, so pruning one would mean
+        reconciling the entire vocabulary inside this transaction.
+
+        Not worth it, because a label left over only widens the list the chat-time pre-filter
+        offers a model, and a value the discovery channel no longer holds is dropped before it
+        can reach a search. The next indexing run removes it. Clearing a channel is different:
+        no record remains to derive anything from, so nothing would ever prune it.
+        """
+        channel_db = await ChannelService(self._session).get_model_by_id(channel_id)
+        channel_sc = ChannelSerializer.db_to_schema(channel_db)
+        application_id = channel_sc.details.discovery_reference_area_application_id
+        if application_id is None:
+            return
+
+        async with GenericRagIngestionClient.for_application(application_id) as client:
+            cleared = await ReferenceAreaPublisher(client, channel=channel_db.deployment_id).clear()
+        _log.info(
+            f"Cleared {cleared} reference-area document(s) of channel {channel_db.deployment_id}."
+        )
 
     async def _withdraw_documents(self, records: Sequence[models.DiscoveryDataset]) -> None:
         """Remove the RAG documents of records that are about to be deleted.

@@ -408,6 +408,17 @@ class ChannelConfig(BaseYamlModel):
         return self.discovery_datasets.details.get_application_id()
 
     @property
+    def discovery_reference_area_application_id(self) -> str | None:
+        """Where this channel's reference-area vocabulary is published, or `None` if nowhere.
+
+        Ignores `enabled` for the same reason `discovery_application_id` does: publishing the
+        vocabulary is administrative, and only the chat-time lookup is gated by that flag.
+        """
+        if self.discovery_datasets is None:
+            return None
+        return self.discovery_datasets.details.get_reference_area_application_id()
+
+    @property
     def is_discovery_lookup_available(self) -> bool:
         """Whether the chat-time discovery datasets lookup runs for this channel."""
         return self.discovery_datasets is not None and self.discovery_datasets.enabled

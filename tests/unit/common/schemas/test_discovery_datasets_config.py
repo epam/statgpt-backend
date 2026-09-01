@@ -7,14 +7,23 @@ independently: `enabled` must gate the chat lookup without taking indexing down 
 import pytest
 from pydantic import ValidationError
 
-from statgpt.common.schemas import ChannelConfig, SupremeAgentConfig, ToolTypes
+from statgpt.common.schemas import (
+    ChannelConfig,
+    DiscoveryPreFilterAxis,
+    SupremeAgentConfig,
+    ToolTypes,
+)
 
 _SUPREME_AGENT = SupremeAgentConfig(
     name="T", domain="D", terminology_domain="T", language_instructions=["i"]
 )
 
 
-def _config(application_id: str = "generic-rag-app", **overrides: object) -> ChannelConfig:
+def _config(
+    application_id: str = "generic-rag-app",
+    details: dict[str, object] | None = None,
+    **overrides: object,
+) -> ChannelConfig:
     block: dict[str, object] = {
         "type": "DISCOVERY_DATASETS",
         "name": "discovery_datasets",
@@ -22,6 +31,7 @@ def _config(application_id: str = "generic-rag-app", **overrides: object) -> Cha
         "details": {
             "applicationId": application_id,
             "templates": {"wrapper": "{items}", "item": "- {name}"},
+            **(details or {}),
         },
     }
     block.update(overrides)
@@ -76,3 +86,55 @@ def test_templates_are_required() -> None:
                 },
             }
         )
+
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~ the pre-filter ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
+def test_the_pre_filter_is_on_by_default_with_every_axis() -> None:
+    """A channel that says nothing about it gets the narrowing, on every axis.
+
+    Partner areas included: a record covering a country as a counterpart is still an answer to
+    a query naming it, and the two area axes are alternatives rather than an extra requirement.
+    """
+    pre_filter = _config().discovery_datasets.details.pre_filter  # type: ignore[union-attr]
+
+    assert pre_filter.enabled is True
+    assert pre_filter.axes == list(DiscoveryPreFilterAxis)
+    assert DiscoveryPreFilterAxis.PARTNER_REFERENCE_AREA in pre_filter.axes
+
+
+def test_a_channel_without_a_vocabulary_has_no_reference_area_application() -> None:
+    """The axis is then unavailable, which the pre-filter reports and works around."""
+    assert _config().discovery_reference_area_application_id is None
+
+
+def test_the_vocabulary_application_id_resolves_environment_variables(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("DISCOVERY_AREAS_APP", "areas-rag")
+    config = _config(details={"referenceAreaApplicationId": "$env:{DISCOVERY_AREAS_APP}"})
+
+    assert config.discovery_reference_area_application_id == "areas-rag"
+
+
+def test_disabling_the_lookup_leaves_the_vocabulary_publishable() -> None:
+    """Publishing is administrative; only the chat-time lookup is gated by `enabled`."""
+    config = _config(details={"referenceAreaApplicationId": "areas-rag"}, enabled=False)
+
+    assert config.is_discovery_lookup_available is False
+    assert config.discovery_reference_area_application_id == "areas-rag"
+
+
+def test_the_axes_can_be_narrowed_to_one() -> None:
+    config = _config(details={"preFilter": {"axes": ["agency"], "referenceAreaTopN": 5}})
+    pre_filter = config.discovery_datasets.details.pre_filter  # type: ignore[union-attr]
+
+    assert pre_filter.axes == [DiscoveryPreFilterAxis.AGENCY]
+    assert pre_filter.reference_area_top_n == 5
+
+
+def test_an_unknown_axis_is_rejected() -> None:
+    """A misspelled axis would otherwise silently narrow nothing."""
+    with pytest.raises(ValidationError, match="axes"):
+        _config(details={"preFilter": {"axes": ["reference_areas"]}})
