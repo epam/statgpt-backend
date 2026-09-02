@@ -20,6 +20,57 @@ class HealthCheckFilter(logging.Filter):
         return not re.search(r"(\s+)/health(\s+)", record.getMessage())
 
 
+class RedactingFilter(logging.Filter):
+    """Scrub secrets and PII from every log record before it is written.
+
+    This is a last-resort boundary: if a payload is ever logged by accident — or by a
+    third-party library, or inside an exception traceback — bearer tokens, JWTs,
+    inline base64 images and email addresses are replaced before the record reaches a
+    handler, so raw secrets/PII are never persisted.
+    """
+
+    _PATTERNS: tuple[tuple[re.Pattern[str], str], ...] = (
+        (re.compile(r"\bBearer\s+[A-Za-z0-9._\-]+", re.IGNORECASE), "Bearer <redacted>"),
+        (
+            re.compile(r"\beyJ[A-Za-z0-9_\-]+\.[A-Za-z0-9_\-]+\.[A-Za-z0-9_\-]+"),
+            "<redacted-jwt>",
+        ),
+        (re.compile(r"(data:image/\w+;base64,)[^\s\"']+"), r"\1<base64_image>"),
+        (
+            re.compile(r"[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}"),
+            "<redacted-email>",
+        ),
+    )
+
+    @classmethod
+    def _redact(cls, text: str) -> str:
+        for pattern, replacement in cls._PATTERNS:
+            text = pattern.sub(replacement, text)
+        return text
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        try:
+            message = record.getMessage()
+        except Exception:
+            # A %-format/args mismatch makes getMessage() raise. Filters run before
+            # emit()'s guarded block, so raising here would crash the log caller instead
+            # of hitting logging's handleError(). Fail open and let emit() handle it.
+            return True
+        redacted = self._redact(message)
+        if redacted != message:
+            record.msg = redacted
+            record.args = ()
+        if record.exc_info:
+            # Render the traceback now and scrub it, so secrets/PII carried by an
+            # exception's string representation are not emitted verbatim.
+            record.exc_text = self._redact(logging.Formatter().formatException(record.exc_info))
+            record.exc_info = None
+        return True
+
+
+_redaction_filter = RedactingFilter()
+
+
 class LoggingConfig:
 
     LOGGING_SETTINGS = LoggingSettings()
@@ -81,6 +132,14 @@ class LoggingConfig:
             console_single_line_handler.setFormatter(single_line_formatter)
             statgpt_ml_logger.handlers = [console_single_line_handler]
             statgpt_ml_logger.propagate = False
+
+        # Attach the redaction filter at the write boundary. Every record reaching
+        # these handlers is scrubbed of secrets/PII. statgpt-ml uses its own handlers
+        # with propagation disabled, so it must be covered explicitly.
+        for handler in root.handlers:
+            handler.addFilter(_redaction_filter)
+        for handler in logging.getLogger("statgpt-ml").handlers:
+            handler.addFilter(_redaction_filter)
 
 
 LoggingConfig.configure_logging()

@@ -66,7 +66,6 @@ class QuanthubAuthorizer(IAuthorizer):
                 token = await self._dial_user_authorizer.authorize(config)
                 return token.access_token
             except AuthorizationError as e:
-                logger.debug(f"DIAL access token: {dial_token}")
                 logger.exception("Failed to authorize with dial token")
                 raise e
 
