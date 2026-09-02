@@ -1,9 +1,24 @@
+from statgpt.app.schemas.mcp import AvailableDatasetsStructuredContent, DatasetRecord
 from statgpt.app.utils.formatters import CitationFormatterConfig, DatasetFormatterConfig
+from statgpt.common.data.base import DataSet
 from statgpt.common.schemas.enums import (
     AvailableDatasetsHeaderFormat,
     AvailableDatasetsVersion,
     LocaleEnum,
 )
+
+
+def datasets_to_structured_content(
+    datasets: list[DataSet],
+) -> AvailableDatasetsStructuredContent:
+    """Build the MCP structured content shared by the available-datasets and datasets-metadata
+    tools: each dataset as a record keyed by its stable URN (source id)."""
+    return AvailableDatasetsStructuredContent(
+        datasets=[
+            DatasetRecord(id=ds.source_id, name=ds.name, url=ds.dataset_url) for ds in datasets
+        ],
+        count=len(datasets),
+    )
 
 
 def _create_formatter_config(

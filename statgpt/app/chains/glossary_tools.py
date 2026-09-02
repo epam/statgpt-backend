@@ -4,6 +4,12 @@ from pydantic import Field
 from statgpt.app.chains.parameters import ChainParameters
 from statgpt.app.chains.tools import StatGptTool, ToolArgs
 from statgpt.app.schemas import ToolArtifact, ToolMessageState
+from statgpt.app.schemas.mcp import (
+    AvailableTermsStructuredContent,
+    GlossaryDefinitionRecord,
+    GlossaryTermRecord,
+    TermDefinitionsStructuredContent,
+)
 from statgpt.common import schemas
 from statgpt.common.schemas import ToolTypes
 from statgpt.common.schemas.tools import AvailableTermsTool as AvailableTermsToolConfig
@@ -16,6 +22,10 @@ class AvailableTermsTool(
     @classmethod
     def get_mcp_annotations(cls) -> ToolAnnotations:
         return ToolAnnotations(readOnlyHint=True, destructiveHint=False, openWorldHint=False)
+
+    @classmethod
+    def get_mcp_output_model(cls) -> type[AvailableTermsStructuredContent]:
+        return AvailableTermsStructuredContent
 
     async def _arun(self, inputs: dict) -> tuple[str, ToolArtifact]:
         data_service = ChainParameters.get_data_service(inputs)
@@ -35,7 +45,26 @@ class AvailableTermsTool(
             )
             target.append_content("\n".join(formatted_terms[:number_of_terms_to_show]) + "\n")
 
-        return response, ToolArtifact(state=ToolMessageState(type=self.tool_type))
+        return response, ToolArtifact(
+            state=ToolMessageState(type=self.tool_type),
+            mcp_structured=self._to_structured_content(terms),
+        )
+
+    def _to_structured_content(
+        self, terms: list[schemas.GlossaryTerm]
+    ) -> AvailableTermsStructuredContent:
+        # Expose domain/source only when the tool is configured to (mirrors the text rendering).
+        include_domain = self._tool_config.details.include_domain
+        include_source = self._tool_config.details.include_source
+        records = [
+            GlossaryTermRecord(
+                term=term.term,
+                domain=term.domain if include_domain else None,
+                source=term.source if include_source else None,
+            )
+            for term in terms
+        ]
+        return AvailableTermsStructuredContent(terms=records, count=len(terms))
 
     def _terms_to_markdown(self, terms: list[schemas.GlossaryTerm]) -> list[str]:
         include_domain = self._tool_config.details.include_domain
@@ -73,6 +102,10 @@ class TermDefinitionsTool(
         return ToolAnnotations(readOnlyHint=True, destructiveHint=False, openWorldHint=False)
 
     @classmethod
+    def get_mcp_output_model(cls) -> type[TermDefinitionsStructuredContent]:
+        return TermDefinitionsStructuredContent
+
+    @classmethod
     def get_args_schema(cls, tool_config: TermDefinitionsToolConfig) -> type[ToolArgs]:
         """Return the schema for the arguments that this tool accepts."""
 
@@ -94,12 +127,17 @@ class TermDefinitionsTool(
         data_service = ChainParameters.get_data_service(inputs)
 
         if self._tool_config.details.limit and len(terms) > self._tool_config.details.limit:
+            # Over-limit: structured content still matches the declared schema (no definitions);
+            # the reason lives in the text rendering.
             return (
                 f"The number of requested terms exceeds the limit of {self._tool_config.details.limit}. "
                 "Please reduce the number of terms and try again. Also, mind that massive requests "
                 "are not supported (e.g. asking for definitions of all available terms), as this is "
                 "not the intended use case of this tool.",
-                ToolArtifact(state=ToolMessageState(type=self.tool_type)),
+                ToolArtifact(
+                    state=ToolMessageState(type=self.tool_type),
+                    mcp_structured=TermDefinitionsStructuredContent(),
+                ),
             )
 
         all_terms = await data_service.get_available_terms()
@@ -109,7 +147,32 @@ class TermDefinitionsTool(
         if target:
             target.append_content(response)
 
-        return response, ToolArtifact(state=ToolMessageState(type=self.tool_type))
+        return response, ToolArtifact(
+            state=ToolMessageState(type=self.tool_type),
+            mcp_structured=self._to_structured_content(terms, all_terms),
+        )
+
+    @staticmethod
+    def _to_structured_content(
+        terms: list[str], all_terms: list[schemas.GlossaryTerm]
+    ) -> TermDefinitionsStructuredContent:
+        all_terms_dict = {term.term.lower(): term for term in all_terms}
+        records: list[GlossaryDefinitionRecord] = []
+        for term in terms:
+            term_db = all_terms_dict.get(term.strip().lower())
+            if term_db is not None:
+                records.append(
+                    GlossaryDefinitionRecord(
+                        term=term_db.term,
+                        found=True,
+                        domain=term_db.domain,
+                        source=term_db.source,
+                        definition=term_db.definition,
+                    )
+                )
+            else:
+                records.append(GlossaryDefinitionRecord(term=term, found=False))
+        return TermDefinitionsStructuredContent(definitions=records)
 
     @staticmethod
     def term_definition_to_markdown(terms: list[str], all_terms: list[schemas.GlossaryTerm]) -> str:

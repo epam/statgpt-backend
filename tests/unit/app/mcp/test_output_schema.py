@@ -24,7 +24,19 @@ from statgpt.app.schemas.data_query_outcome import (
     DataSetChoice,
     MissingDimensionsInfo,
 )
-from statgpt.app.schemas.mcp import TextToolStructuredContent
+from statgpt.app.schemas.mcp import (
+    AvailableDatasetsStructuredContent,
+    AvailablePublicationsStructuredContent,
+    AvailableTermsStructuredContent,
+    DatasetComponentRecord,
+    DatasetRecord,
+    DatasetStructureStructuredContent,
+    GlossaryDefinitionRecord,
+    GlossaryTermRecord,
+    PublicationTypeRecord,
+    TermDefinitionsStructuredContent,
+    TextToolStructuredContent,
+)
 from statgpt.app.schemas.query import AppJsonQueryWithMetadata
 from statgpt.app.schemas.service import ChannelDatasetsMetadataResponse
 from statgpt.app.schemas.tool_artifact import (
@@ -38,13 +50,16 @@ from statgpt.common.schemas import ToolTypes
 from statgpt.common.schemas.query import JsonQueryMetadata, JsonQueryWithMetadata
 from statgpt.common.schemas.tools import DataQueryTool
 
-# Tool types with a *rich* output schema (a bespoke structuredContent model). Every other tool
-# falls back to the text envelope, so this set is kept explicit: a tool that gains or loses a
-# bespoke schema without updating it trips the completeness test below.
-RICH_SCHEMA_TOOL_TYPES = {
-    ToolTypes.DATA_QUERY,
-    ToolTypes.SDMX_QUERY_APP,
-    ToolTypes.DATASETS_METADATA_APP,
+# Tools whose result is inherently prose (no machine-readable payload beyond the answer): they
+# fall back to the text envelope. Every other registered tool declares a bespoke schema. Kept
+# explicit so a tool that gains or loses a bespoke schema trips the completeness test below.
+ENVELOPE_TOOL_TYPES = {
+    ToolTypes.FILE_RAG,
+    ToolTypes.WEB_SEARCH,
+    ToolTypes.WEB_SEARCH_AGENT,
+    ToolTypes.PLAIN_CONTENT,
+    ToolTypes.DEEP_RESEARCH,
+    ToolTypes.RESUME_DEEP_RESEARCH,
 }
 
 
@@ -57,35 +72,25 @@ def _schema(tool_type: ToolTypes) -> dict:
 # ~~~~~~~~~~~~~ schema shape ~~~~~~~~~~~~~
 
 
-@pytest.mark.parametrize("tool_type", sorted(RICH_SCHEMA_TOOL_TYPES, key=str))
-def test_declared_output_schema_is_a_valid_object_schema(tool_type: ToolTypes):
-    schema = _schema(tool_type)
-    # MCP output schemas must describe an object (spec limitation), and the schema itself must be
-    # well-formed JSON Schema — reviewers read it straight from the running server.
-    assert schema["type"] == "object"
-    jsonschema.Draft202012Validator.check_schema(schema)
-
-
-def test_every_registered_tool_declares_an_object_output_schema():
-    # Every tool has an output schema: the three above declare a bespoke one, all others fall back
-    # to the text envelope. None may be missing or non-object (the MCP host would reject those).
-    text_envelope = model_to_output_schema(TextToolStructuredContent)
-    rich = set()
+def test_every_registered_tool_declares_a_valid_object_output_schema():
+    # Every tool has an output schema, and it must be a well-formed JSON Schema of object type:
+    # reviewers read it straight from the running server and the MCP host rejects non-object ones.
     for tool_type, tool_cls in _TOOL_IMPLEMENTATIONS.items():
         schema = tool_cls.get_mcp_output_schema()
         assert schema is not None, f"{tool_type} must declare an output schema"
         assert schema["type"] == "object", f"{tool_type} output schema must be an object"
         jsonschema.Draft202012Validator.check_schema(schema)
-        if schema != text_envelope:
-            rich.add(tool_type)
-    assert rich == RICH_SCHEMA_TOOL_TYPES
 
 
-def test_text_only_tool_declares_the_text_envelope_schema():
-    # A prose tool advertises the text envelope so its rendering is still typed structured content.
+def test_only_prose_tools_fall_back_to_the_text_envelope():
+    # Prose tools advertise the text envelope; every other tool declares a bespoke schema.
     text_envelope = model_to_output_schema(TextToolStructuredContent)
-    schema = _TOOL_IMPLEMENTATIONS[ToolTypes.AVAILABLE_TERMS].get_mcp_output_schema()
-    assert schema == text_envelope
+    envelope = {
+        tool_type
+        for tool_type, tool_cls in _TOOL_IMPLEMENTATIONS.items()
+        if tool_cls.get_mcp_output_schema() == text_envelope
+    }
+    assert envelope == ENVELOPE_TOOL_TYPES
 
 
 def test_data_query_schema_carries_a_version():
@@ -220,10 +225,55 @@ async def test_datasets_metadata_structured_content_validates():
     assert structured["deployment_id"] == "dep"
 
 
-async def test_text_only_tool_structured_content_validates():
-    # A prose tool's text rendering is mirrored into the text-envelope structured content and must
-    # validate against the declared schema.
-    artifact = ToolArtifact(state=ToolMessageState(type=ToolTypes.AVAILABLE_TERMS))
-    result = SimpleNamespace(content="Glossary contains 3 terms.", artifact=artifact)
-    structured = await _run_and_validate(_adapter(result, tool_type=ToolTypes.AVAILABLE_TERMS))
-    assert structured == {"text": "Glossary contains 3 terms."}
+# Representative structured content for each tool that attaches it to the artifact (the generic
+# provider path). These double as captured sample responses for the submission package.
+GENERIC_CASES: dict = {
+    ToolTypes.AVAILABLE_TERMS: AvailableTermsStructuredContent(
+        terms=[GlossaryTermRecord(term="GDP", domain="Economy", source="IMF")], count=1
+    ),
+    ToolTypes.TERM_DEFINITIONS: TermDefinitionsStructuredContent(
+        definitions=[
+            GlossaryDefinitionRecord(
+                term="GDP", found=True, domain="Economy", source="IMF", definition="Gross ..."
+            ),
+            GlossaryDefinitionRecord(term="unknown", found=False),
+        ]
+    ),
+    ToolTypes.AVAILABLE_PUBLICATIONS: AvailablePublicationsStructuredContent(
+        publication_types=[PublicationTypeRecord(name="Reports", description="Annual reports")],
+        count=1,
+    ),
+    ToolTypes.AVAILABLE_DATASETS: AvailableDatasetsStructuredContent(
+        datasets=[DatasetRecord(id="IMF:CPI(1.0.0)", name="Consumer Price Index")], count=1
+    ),
+    ToolTypes.DATASETS_METADATA: AvailableDatasetsStructuredContent(
+        datasets=[DatasetRecord(id="IMF:CPI(1.0.0)", name="Consumer Price Index")], count=1
+    ),
+    ToolTypes.DATASET_STRUCTURE: DatasetStructureStructuredContent(
+        dataset_id="IMF:CPI(1.0.0)",
+        found=True,
+        name="Consumer Price Index",
+        dimensions=[DatasetComponentRecord(id="REF_AREA", name="Reference area")],
+        attributes=[DatasetComponentRecord(id="UNIT_MULT", name="Unit multiplier")],
+    ),
+}
+
+
+@pytest.mark.parametrize("tool_type", sorted(GENERIC_CASES, key=str))
+async def test_tool_built_structured_content_validates(tool_type: ToolTypes):
+    # Tools that build their own structured content attach it to the artifact; the provider
+    # surfaces it and it must validate against the tool's declared schema.
+    artifact = ToolArtifact(
+        state=ToolMessageState(type=tool_type), mcp_structured=GENERIC_CASES[tool_type]
+    )
+    result = SimpleNamespace(content="Tool response.", artifact=artifact)
+    await _run_and_validate(_adapter(result, tool_type=tool_type))
+
+
+async def test_prose_tool_returns_the_text_envelope():
+    # A prose tool builds no structured content; the provider mirrors its text into the envelope,
+    # which must validate against the declared (envelope) schema.
+    artifact = ToolArtifact(state=ToolMessageState(type=ToolTypes.FILE_RAG))
+    result = SimpleNamespace(content="Here is the answer.", artifact=artifact)
+    structured = await _run_and_validate(_adapter(result, tool_type=ToolTypes.FILE_RAG))
+    assert structured == {"text": "Here is the answer."}

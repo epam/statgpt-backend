@@ -5,6 +5,7 @@ from statgpt.app.chains.parameters import ChainParameters
 from statgpt.app.chains.tools import StatGptTool, ToolArgs
 from statgpt.app.chains.utils import dataset_utils
 from statgpt.app.schemas import ToolArtifact, ToolMessageState
+from statgpt.app.schemas.mcp import DatasetComponentRecord, DatasetStructureStructuredContent
 from statgpt.app.utils.formatters import (
     CitationFormatterConfig,
     DatasetFormatterConfig,
@@ -27,6 +28,10 @@ class DatasetStructureTool(
     @classmethod
     def get_mcp_annotations(cls) -> ToolAnnotations:
         return ToolAnnotations(readOnlyHint=True, destructiveHint=False, openWorldHint=False)
+
+    @classmethod
+    def get_mcp_output_model(cls) -> type[DatasetStructureStructuredContent]:
+        return DatasetStructureStructuredContent
 
     def __init__(
         self, tool_config: DatasetStructureToolConfig, channel_config: ChannelConfig, **kwargs
@@ -66,7 +71,12 @@ class DatasetStructureTool(
             )
             if target:
                 target.append_content(response)
-            return response, ToolArtifact(state=ToolMessageState(type=self.tool_type))
+            return response, ToolArtifact(
+                state=ToolMessageState(type=self.tool_type),
+                mcp_structured=DatasetStructureStructuredContent(
+                    dataset_id=dataset_id, found=False
+                ),
+            )
 
         formatter = DetailedDatasetFormatter(
             self._dataset_formatter_config, auth_context=auth_context
@@ -81,4 +91,24 @@ class DatasetStructureTool(
             ", especially regarding sample values of the datasets' dimensions."
         )
 
-        return response, ToolArtifact(state=ToolMessageState(type=self.tool_type))
+        return response, ToolArtifact(
+            state=ToolMessageState(type=self.tool_type),
+            mcp_structured=self._to_structured_content(dataset_id, dataset),
+        )
+
+    @staticmethod
+    def _to_structured_content(dataset_id: str, dataset) -> DatasetStructureStructuredContent:
+        return DatasetStructureStructuredContent(
+            dataset_id=dataset.source_id,
+            found=True,
+            name=dataset.name,
+            url=dataset.dataset_url,
+            dimensions=[
+                DatasetComponentRecord(id=dim.entity_id, name=dim.name)
+                for dim in dataset.dimensions()
+            ],
+            attributes=[
+                DatasetComponentRecord(id=attr.entity_id, name=attr.name)
+                for attr in dataset.attributes()
+            ],
+        )

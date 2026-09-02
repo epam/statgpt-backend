@@ -14,6 +14,16 @@ from .tool_states import DeepResearchToolMessageState, FailedToolMessageState, T
 class ToolArtifact(BaseModel):
 
     state: ToolMessageState = Field(description="The state of the tool.")
+    mcp_structured: BaseModel | None = Field(
+        default=None,
+        exclude=True,
+        description=(
+            "The MCP structured content the tool built for its result, or None for a tool that"
+            " has no machine-readable payload beyond its text. Read by the MCP provider to fill"
+            " `structuredContent`; excluded from serialization since it is never persisted to the"
+            " tool state (it is rebuilt per MCP call and can be heavy)."
+        ),
+    )
 
     @property
     def type(self) -> ToolTypes:

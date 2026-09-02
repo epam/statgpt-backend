@@ -3,11 +3,12 @@ from mcp.types import ToolAnnotations
 from statgpt.app.chains.parameters import ChainParameters
 from statgpt.app.chains.tools import StatGptTool
 from statgpt.app.schemas import ToolArtifact, ToolMessageState
+from statgpt.app.schemas.mcp import AvailableDatasetsStructuredContent
 from statgpt.app.utils.formatters import DatasetsListFormatter
 from statgpt.common.schemas import AvailableDatasetsTool as AvailableDatasetsToolConfig
 from statgpt.common.schemas import ChannelConfig, ToolTypes
 
-from ._utils import _create_formatter_config
+from ._utils import _create_formatter_config, datasets_to_structured_content
 
 
 class AvailableDatasetsTool(
@@ -17,6 +18,10 @@ class AvailableDatasetsTool(
     @classmethod
     def get_mcp_annotations(cls) -> ToolAnnotations:
         return ToolAnnotations(readOnlyHint=True, destructiveHint=False, openWorldHint=False)
+
+    @classmethod
+    def get_mcp_output_model(cls) -> type[AvailableDatasetsStructuredContent]:
+        return AvailableDatasetsStructuredContent
 
     def __init__(
         self, tool_config: AvailableDatasetsToolConfig, channel_config: ChannelConfig, **kwargs
@@ -54,4 +59,7 @@ class AvailableDatasetsTool(
         if target:
             target.append_content(response)
 
-        return response, ToolArtifact(state=ToolMessageState(type=self.tool_type))
+        return response, ToolArtifact(
+            state=ToolMessageState(type=self.tool_type),
+            mcp_structured=datasets_to_structured_content(datasets),
+        )

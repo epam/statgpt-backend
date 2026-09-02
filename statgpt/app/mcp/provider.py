@@ -14,7 +14,7 @@ from fastmcp.tools import Tool, ToolResult
 from fastmcp.utilities.components import FastMCPComponent
 from fastmcp.utilities.versions import VersionSpec
 from mcp.types import ContentBlock, TextContent
-from pydantic import PrivateAttr, ValidationError
+from pydantic import BaseModel, PrivateAttr, ValidationError
 from starlette.requests import Request
 
 from statgpt.app.chains.tools import StatGptTool, ToolUpstreamError
@@ -28,12 +28,7 @@ from statgpt.app.mcp.exceptions import MissingDeploymentIdError
 from statgpt.app.mcp.guardrails import enforce_input_guardrail
 from statgpt.app.mcp.widget_resource import WidgetResource
 from statgpt.app.schemas.dial_app_configuration import StatGPTConfiguration
-from statgpt.app.schemas.mcp import (
-    DataQueryStructuredContent,
-    SdmxProxyStructuredContent,
-    TextToolStructuredContent,
-)
-from statgpt.app.schemas.service import ChannelDatasetsMetadataResponse
+from statgpt.app.schemas.mcp import SdmxProxyStructuredContent, TextToolStructuredContent
 from statgpt.app.schemas.tool_artifact import (
     DataQueryArtifact,
     DatasetsMetadataAppArtifact,
@@ -144,13 +139,7 @@ class _McpToolAdapter(Tool):
             raise ToolError(f"{self._langchain_tool.name} tool failed to execute")
         text = result.content if isinstance(result.content, str) else str(result.content)
         content: list[ContentBlock] = [TextContent(type="text", text=text)] if text else []
-        structured_content: (
-            DataQueryStructuredContent
-            | SdmxProxyStructuredContent
-            | ChannelDatasetsMetadataResponse
-            | TextToolStructuredContent
-            | None
-        ) = None
+        structured_content: BaseModel | None = None
         if isinstance(result.artifact, DataQueryArtifact):
             mcp_resources = (
                 self._tool_config.details.mcp_resources
@@ -182,10 +171,14 @@ class _McpToolAdapter(Tool):
             # Surface the datasets metadata payload as structured content so the UI widget can
             # consume it directly (the JSON body is also in the text content block above).
             structured_content = result.artifact.response
+        elif (built := getattr(result.artifact, "mcp_structured", None)) is not None:
+            # Tools that build their own structured content attach it to the artifact; surface it
+            # alongside the text rendering (both fields, per the marketplace contract).
+            structured_content = built
         elif self.output_schema is not None:
-            # Text-only tools: their declared output schema is the text envelope, so mirror the
-            # text rendering as structured content to satisfy the contract. Gated on a declared
-            # schema so a tool that opts out of structured output stays text-only.
+            # Fallback for a tool that declares the text envelope but built no richer structured
+            # content: mirror the text so the declared schema is still satisfied. The text content
+            # block is kept as well, so the response still carries a human-readable field.
             structured_content = TextToolStructuredContent(text=text)
         _log.info(
             "Sending MCP tool %s response: %d content block(s), structured_content=%s",
