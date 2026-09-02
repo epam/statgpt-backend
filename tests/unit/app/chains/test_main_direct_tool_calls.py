@@ -6,10 +6,16 @@ from unittest.mock import Mock
 
 from langchain_core.messages import ToolMessage
 
+from statgpt.app.chains import main as main_module
 from statgpt.app.chains.main import MainChainFactory
 from statgpt.app.config import StateVarsConfig
 from statgpt.app.config.chain_parameters import ChainParametersConfig
+from statgpt.app.schemas.dial_app_configuration import StatGPTConfiguration
+from statgpt.app.schemas.query_builder import DataQueryEvalAttachment, QueryBuilderAgentState
+from statgpt.app.schemas.tool_artifact import DataQueryArtifact, ToolArtifact
+from statgpt.app.schemas.tool_states import ToolMessageState
 from statgpt.app.settings.dial_app import dial_app_settings
+from statgpt.common.schemas import ToolTypes
 
 
 def _dial_tool_call(id_: str, name: str) -> SimpleNamespace:
@@ -64,5 +70,66 @@ async def test_dispatches_concurrently_and_preserves_order(monkeypatch):
     state = inputs[ChainParametersConfig.STATE]
     assert [tc["id"] for tc in state[StateVarsConfig.DIRECT_TOOL_CALLS]] == ["call-1", "call-2"]
     # results are appended to history in the original tool-call order
+    added_ids = [call.args[0].tool_call_id for call in history.add_tool_message.call_args_list]
+    assert added_ids == ["call-1", "call-2"]
+
+
+class _EvalDisplayer:
+    """Stands in for `DataQueryEvalAttachmentsDisplayer`, recording how it was built and used."""
+
+    built_with: dict = {}
+    displayed: dict = {}
+
+    def __init__(self, choice, auth_context, enabled) -> None:
+        type(self).built_with = dict(choice=choice, auth_context=auth_context, enabled=enabled)
+
+    async def display(self, artifacts) -> None:
+        type(self).displayed = artifacts
+
+
+async def test_only_data_query_calls_get_eval_attachments(monkeypatch):
+    """The eval attachments are what an offline evaluation scores the retrieval with, so a
+    direct caller must get one per data query call - and nothing for the other tools."""
+    monkeypatch.setattr(dial_app_settings, "enable_direct_tool_calls", True)
+
+    data_query_artifact = DataQueryArtifact(
+        state=QueryBuilderAgentState(),
+        data_responses={},
+        eval_attachment=DataQueryEvalAttachment(),
+    )
+    artifacts = {
+        "call-1": data_query_artifact,
+        "call-2": ToolArtifact(state=ToolMessageState(type=ToolTypes.WEB_SEARCH)),
+    }
+
+    async def call_tool(tool_call, inputs, show_stage=True, prefix=''):
+        return ToolMessage(
+            content="result",
+            tool_call_id=tool_call["id"],
+            artifact=artifacts[tool_call["id"]],
+        )
+
+    monkeypatch.setattr(
+        "statgpt.app.chains.main.ToolCaller",
+        SimpleNamespace(from_config=lambda config: SimpleNamespace(call_tool=call_tool)),
+    )
+    monkeypatch.setattr(main_module, "DataQueryEvalAttachmentsDisplayer", _EvalDisplayer)
+
+    choice = object()
+    auth_context = object()
+    inputs, history = _inputs_with_tool_calls(
+        [_dial_tool_call("call-1", "data_query"), _dial_tool_call("call-2", "web_search")]
+    )
+    inputs[ChainParametersConfig.CHOICE] = choice
+    inputs[ChainParametersConfig.AUTH_CONTEXT] = auth_context
+    inputs[ChainParametersConfig.CONFIGURATION] = StatGPTConfiguration(
+        enable_debug_attachments=True
+    )
+
+    await MainChainFactory(channel_config=Mock())._direct_tool_calls_chain(inputs)
+
+    assert _EvalDisplayer.displayed == {"call-1": data_query_artifact}
+    assert _EvalDisplayer.built_with == dict(choice=choice, auth_context=auth_context, enabled=True)
+    # the existing contract holds: every tool result still reaches history, in order
     added_ids = [call.args[0].tool_call_id for call in history.add_tool_message.call_args_list]
     assert added_ids == ["call-1", "call-2"]

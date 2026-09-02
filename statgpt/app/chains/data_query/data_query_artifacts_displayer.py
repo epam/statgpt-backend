@@ -5,6 +5,9 @@ import string
 import pandas as pd
 import plotly.graph_objects as go
 
+from statgpt.app.chains.data_query.eval_attachments_displayer import (
+    DataQueryEvalAttachmentsDisplayer,
+)
 from statgpt.app.schemas.dial_app_configuration import StatGPTConfiguration
 from statgpt.app.schemas.query import AppJsonQueryWithMetadata
 from statgpt.app.schemas.tool_artifact import DataQueryArtifact
@@ -46,14 +49,19 @@ class DataQueryArtifactDisplayer:
         self._chat_config = chat_config
         self._auth_context = auth_context
         self._max_cells = max_cells
+        self._eval_displayer = DataQueryEvalAttachmentsDisplayer(
+            choice=choice,
+            auth_context=auth_context,
+            enabled=chat_config.enable_debug_attachments,
+        )
 
     async def display(self, data_query_artifacts: dict[str, DataQueryArtifact]) -> None:
         data_query_artifacts_list = list(data_query_artifacts.values())
         responses = self._merge_data_responses(data_query_artifacts_list)
-        tasks = [self._display_data_responses(responses)]
-        if self._chat_config.enable_debug_attachments:
-            tasks.append(self._display_eval_attachments(data_query_artifacts))
-        await asyncio.gather(*tasks)
+        await asyncio.gather(
+            self._display_data_responses(responses),
+            self._eval_displayer.display(data_query_artifacts),
+        )
 
     async def get_system_message_content(
         self, data_query_artifacts: list[DataQueryArtifact]
@@ -66,48 +74,6 @@ class DataQueryArtifactDisplayer:
         datasets_content_filtered = list(filter(None, datasets_content))
 
         return "\n\n".join(datasets_content_filtered)
-
-    async def _display_eval_attachments(
-        self, data_query_artifacts: dict[str, DataQueryArtifact]
-    ) -> None:
-        async with attachments_storage_factory(self._auth_context.api_key) as attachments_storage:
-            tasks = []
-            for tool_call_id, artifact in data_query_artifacts.items():
-                tasks.append(
-                    self._display_eval_attachment(tool_call_id, artifact, attachments_storage)
-                )
-            await asyncio.gather(*tasks)
-
-    async def _display_eval_attachment(
-        self,
-        tool_call_id: str,
-        artifact: DataQueryArtifact,
-        attachments_storage: AttachmentsStorage,
-    ) -> None:
-        eval_attachment_content = artifact.eval_attachment.model_dump(mode="json")
-        response = await self._attach_json_file(
-            attachments_storage=attachments_storage,
-            data=eval_attachment_content,
-            filename=f"data_query_eval_attachment_{tool_call_id}.json",
-            title=f"Data Query Eval data: {tool_call_id}",
-            indent=2,
-        )
-        if response is not None:
-            self._choice.add_attachment(**response)
-
-        # The discovery lookup runs beside the query, so it reports in a file of its own.
-        discovery = artifact.discovery_datasets_eval_attachment
-        if discovery is None:
-            return
-        discovery_response = await self._attach_json_file(
-            attachments_storage=attachments_storage,
-            data=discovery.model_dump(mode="json"),
-            filename=f"discovery_datasets_eval_attachment_{tool_call_id}.json",
-            title=f"Discovery Datasets Eval data: {tool_call_id}",
-            indent=2,
-        )
-        if discovery_response is not None:
-            self._choice.add_attachment(**discovery_response)
 
     def _get_system_message_content(self, response: DataResponse) -> str | None:
         if response.status.parsing_status == DataParsingStatus.FAILED:
@@ -294,19 +260,6 @@ class DataQueryArtifactDisplayer:
         content = AppJsonQueryWithMetadata.from_common(query).model_dump_json(by_alias=True)
         title = data_response.enrich_attachment_name(self._config.json_query.name)
         return dict(type=MediaTypes.JSON, title=title, data=content)
-
-    @catch_and_log_async(logger)
-    async def _attach_json_file(
-        self,
-        attachments_storage: AttachmentsStorage,
-        data: dict,
-        filename: str,
-        title: str,
-        indent: int | None = None,
-    ) -> dict[str, str]:
-        json_content = json.dumps(data, ensure_ascii=False, indent=indent)
-        response = await attachments_storage.put_json(filename, json_content)
-        return dict(type=MediaTypes.JSON, title=title, url=response.url)
 
     @catch_and_log_async(logger)
     async def _attach_plotly(

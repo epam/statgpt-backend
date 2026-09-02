@@ -3,10 +3,14 @@ import asyncio
 from aidial_sdk.exceptions import InvalidRequestError
 from langchain_core.runnables import Runnable, RunnableLambda
 
+from statgpt.app.chains.data_query.eval_attachments_displayer import (
+    DataQueryEvalAttachmentsDisplayer,
+)
 from statgpt.app.chains.out_of_scope_checker import OutOfScopeChecker
 from statgpt.app.chains.parameters import ChainParameters
 from statgpt.app.chains.supreme_agent import SupremeAgentExecutor, ToolCaller
 from statgpt.app.config import StateVarsConfig
+from statgpt.app.schemas.tool_artifact import DataQueryArtifact
 from statgpt.app.settings.dial_app import dial_app_settings
 from statgpt.app.utils.message_history import (
     InvalidToolCallError,
@@ -71,8 +75,23 @@ class MainChainFactory:
                 for tool_call in tool_calls_parsed
             )
         )
+        data_query_artifacts: dict[str, DataQueryArtifact] = {}
         for tool_msg in tool_messages:
             history.add_tool_message(tool_msg)
+
+            artifact = tool_msg.artifact
+            if artifact and isinstance(artifact, DataQueryArtifact):
+                data_query_artifacts[tool_msg.tool_call_id] = artifact
+
+        if data_query_artifacts:
+            # Eval attachments only: a direct caller renders the data itself from the tool
+            # message, so the data attachments (table, plotly, CSV, python) would be noise.
+            eval_displayer = DataQueryEvalAttachmentsDisplayer(
+                choice=ChainParameters.get_choice(inputs),
+                auth_context=ChainParameters.get_auth_context(inputs),
+                enabled=ChainParameters.get_configuration(inputs).enable_debug_attachments,
+            )
+            await eval_displayer.display(data_query_artifacts)
 
         return inputs
 
