@@ -251,7 +251,7 @@ async def test_invalid_arguments_are_not_logged_verbatim(caplog):
         parameters={},
     )
 
-    with caplog.at_level(logging.INFO, logger="statgpt.app.mcp.provider"):
+    with caplog.at_level(logging.DEBUG, logger="statgpt.app.mcp.provider"):
         with pytest.raises(ToolError, match="Invalid arguments"):
             await adapter.run({"limit": "super-secret-value"})
 

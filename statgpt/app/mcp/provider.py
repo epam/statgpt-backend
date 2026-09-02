@@ -125,8 +125,12 @@ class _McpToolAdapter(Tool):
             result = await self._langchain_tool.ainvoke(tool_call)
         except ValidationError as e:
             # Argument-schema validation failures (e.g. missing required field, bad enum
-            # value). Surface a concise message instead of the generic failure.
-            _log.debug("Invalid arguments for MCP tool %s: %s", self._langchain_tool.name, e)
+            # value). Log only the offending field locations and error types — never the
+            # submitted values — then surface the detailed message to the caller.
+            error_summary = [{"loc": err.get("loc"), "type": err.get("type")} for err in e.errors()]
+            _log.debug(
+                "Invalid arguments for MCP tool %s: %s", self._langchain_tool.name, error_summary
+            )
             raise ToolError(f"Invalid arguments for {self._langchain_tool.name}: {e}") from e
         except ToolUpstreamError as e:
             # Upstream dependency failure (connection/timeout): surface the specific message.
