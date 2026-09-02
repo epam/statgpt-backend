@@ -113,6 +113,7 @@ class _Spy:
         publish_error: Exception | None = None,
         area_counts: PublishCounts | None = None,
         area_error: Exception | None = None,
+        verify_errors: dict[str, Exception] | None = None,
         channel: models.Channel | None = None,
     ) -> None:
         self.job = _job()
@@ -142,6 +143,7 @@ class _Spy:
         )
         self._publish_error = publish_error
         self._area_error = area_error
+        self._verify_errors = verify_errors or {}
 
         self.session = AsyncMock()
         self.session.commit.side_effect = self._on_commit
@@ -173,10 +175,17 @@ class _Spy:
     def _publisher(self, client: Any, *, channel: str, force: bool) -> Any:
         self.publisher_channel = channel
         self.publisher_force = force
-        return SimpleNamespace(verify_metadata_schema=self._verify, publish=self._publish)
+        return SimpleNamespace(
+            verify_metadata_schema=self._verifier("documents"), publish=self._publish
+        )
 
-    async def _verify(self) -> None:
-        return None
+    def _verifier(self, target: str) -> Any:
+        async def verify() -> None:
+            self.stages.append(f"verify:{target}")
+            if error := self._verify_errors.get(target):
+                raise error
+
+        return verify
 
     async def _publish(self, records: list[models.DiscoveryDataset]) -> PublishCounts:
         if self._publish_error is not None:
@@ -190,7 +199,9 @@ class _Spy:
     def _area_publisher(self, client: Any, *, channel: str, force: bool) -> Any:
         self.area_publisher_channel = channel
         self.area_publisher_force = force
-        return SimpleNamespace(verify_metadata_schema=self._verify, publish=self._publish_areas)
+        return SimpleNamespace(
+            verify_metadata_schema=self._verifier("reference-areas"), publish=self._publish_areas
+        )
 
     async def _publish_areas(self, records: list[models.DiscoveryDataset]) -> PublishCounts:
         if self._area_error is not None:
@@ -400,7 +411,12 @@ async def test_the_vocabulary_is_published_after_the_documents(
 
     await spy.service.process_job(job_id=42, force=True)
 
-    assert spy.stages == ["documents", "reference-areas"]
+    assert spy.stages == [
+        "verify:documents",
+        "verify:reference-areas",
+        "documents",
+        "reference-areas",
+    ]
     assert spy.applications == [_APPLICATION, _AREA_APPLICATION]
     assert spy.area_publisher_channel == "statgpt-gtdc"
     assert spy.area_publisher_force is True
@@ -417,7 +433,7 @@ async def test_a_channel_without_a_vocabulary_skips_the_stage(
 
     await spy.service.process_job(job_id=42)
 
-    assert spy.stages == ["documents"]
+    assert spy.stages == ["verify:documents", "documents"]
     assert spy.applications == [_APPLICATION]
     assert spy.job.status is schemas.PreprocessingStatusEnum.COMPLETED
     assert spy.job.details is not None
@@ -438,5 +454,26 @@ async def test_a_failed_vocabulary_fails_the_job(monkeypatch: pytest.MonkeyPatch
     assert spy.job.reason_for_failure is not None
     assert "vocabulary channel unreachable" in spy.job.reason_for_failure
     # The records were published all the same, and their statuses were committed.
-    assert spy.stages == ["documents"]
+    assert spy.stages == ["verify:documents", "verify:reference-areas", "documents"]
     assert spy.records[0].indexing_status is schemas.DiscoveryIndexingStatus.INDEXED
+
+
+async def test_a_misconfigured_vocabulary_channel_stops_the_run_before_it_publishes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A schema is one cheap read, and the job fails on it either way.
+
+    Verified after the documents, it would fail having already done every bit of its work -
+    once per run, until someone fixed the configuration.
+    """
+    spy = _Spy(
+        monkeypatch,
+        channel=_channel(reference_areas=True),
+        verify_errors={"reference-areas": RuntimeError("metadata_schema does not declare roles")},
+    )
+
+    await spy.service.process_job(job_id=42)
+
+    assert spy.job.status is schemas.PreprocessingStatusEnum.FAILED
+    assert spy.stages == ["verify:documents", "verify:reference-areas"]
+    assert spy.published == []

@@ -93,13 +93,14 @@ class DialAppSettings(BaseSettings):
         ),
     )
 
-    discovery_prefilter_dimensions_ttl_seconds: int = Field(
+    discovery_datasets_pre_filter_dimensions_ttl: int = Field(
         default=300,
-        alias="DISCOVERY_PREFILTER_DIMENSIONS_TTL_SECONDS",
+        alias="DISCOVERY_DATASETS_PRE_FILTER_DIMENSIONS_TTL",
         description=(
-            "How long the discovery pre-filter caches a channel's filterable values."
-            " A stale entry costs one rejected search, which falls back to an unfiltered one"
-            " - so this trades that against a metadata read on every turn"
+            "TTL in seconds for the in-process cache of a discovery channel's filterable"
+            " values. A stale entry costs one rejected search, which falls back to an"
+            " unfiltered one and drops the entry - so this trades that against a metadata"
+            " read on every turn"
         ),
     )
 

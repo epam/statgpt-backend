@@ -158,9 +158,9 @@ async def test_documents_are_withdrawn_before_the_rows_are_deleted(calls: list[s
     assert calls == [
         "select",
         "withdraw:channel-1",
-        "clear-areas:channel-1",
         "delete",
         "commit",
+        "clear-areas:channel-1",
     ]
 
 
@@ -225,6 +225,47 @@ async def test_clearing_a_channel_clears_its_reference_area_vocabulary(
     await service.delete_records_bulk(channel_id=1)
 
     assert "clear-areas:channel-1" in calls
+
+
+async def test_the_vocabulary_is_cleared_only_once_the_rows_are_gone(calls: list[str]) -> None:
+    """The opposite order is the one that can hurt.
+
+    The vocabulary is derived from the rows, so leaving it behind costs a widened list the
+    pre-filter offers a model. Clearing it and then failing to delete the rows would strip
+    live records of both area axes until the next indexing run.
+    """
+    service = _service(calls, [_stored()])
+
+    await service.delete_records_bulk(channel_id=1)
+
+    assert calls.index("clear-areas:channel-1") > calls.index("commit")
+
+
+async def test_a_failed_vocabulary_clear_does_not_fail_the_delete(
+    calls: list[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A leftover label is the harmless direction, so it must not undo a completed delete."""
+
+    def publisher(_client: Any, channel: str) -> Any:
+        async def clear() -> int:
+            calls.append(f"clear-areas:{channel}")
+            raise RuntimeError("vocabulary channel unreachable")
+
+        return SimpleNamespace(clear=clear)
+
+    monkeypatch.setattr(service_module, "ReferenceAreaPublisher", publisher)
+    service = _service(calls, [_stored()])
+
+    deleted = await service.delete_records_bulk(channel_id=1)
+
+    assert [item.id for item in deleted] == [1]
+    assert calls == [
+        "select",
+        "withdraw:channel-1",
+        "delete",
+        "commit",
+        "clear-areas:channel-1",
+    ]
 
 
 async def test_deleting_records_by_id_leaves_the_vocabulary_alone(

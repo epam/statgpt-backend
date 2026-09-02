@@ -12,8 +12,14 @@ import pytest
 from langchain_core.runnables import RunnableLambda
 
 from statgpt.app.chains.discovery_datasets import prefilter as prefilter_module
-from statgpt.app.chains.discovery_datasets.prefilter import DiscoveryPreFilterBuilder
-from statgpt.app.schemas.discovery_datasets import DiscoveryAxisSelection
+from statgpt.app.chains.discovery_datasets.prefilter import (
+    DiscoveryPreFilter,
+    DiscoveryPreFilterBuilder,
+)
+from statgpt.app.schemas.discovery_datasets import (
+    DiscoveryAxisSelection,
+    DiscoveryPreFilterAxisReport,
+)
 from statgpt.common.schemas import (
     REFERENCE_AREA_KIND,
     DiscoveryPreFilterAxis,
@@ -206,15 +212,18 @@ async def _build(
     discovery: _FakeClient | None = None,
     areas: _FakeClient | None = None,
     llm: _FakeLLM | None = None,
-) -> Any:
+    query: str = "gdp in france",
+) -> tuple[DiscoveryPreFilter, _FakeLLM, dict[str, _FakeClient]]:
     llm, clients = _install(monkeypatch, llm or _FakeLLM(answers), discovery=discovery, areas=areas)
     result = await DiscoveryPreFilterBuilder(details or _details()).build(
-        "gdp in france", _AuthContext(), _CHANNEL  # type: ignore[arg-type]
+        query, _AuthContext(), _CHANNEL  # type: ignore[arg-type]
     )
     return result, llm, clients
 
 
-def _report_of(result: Any, axis: DiscoveryPreFilterAxis) -> Any:
+def _report_of(
+    result: DiscoveryPreFilter, axis: DiscoveryPreFilterAxis
+) -> DiscoveryPreFilterAxisReport:
     return next(item for item in result.report.axes if item.axis == axis)
 
 
@@ -403,6 +412,34 @@ async def test_a_recased_value_is_kept_under_the_channels_spelling(
             GenericRagDocumentFilter(statgpt_channel=_CHANNEL, parsed_reference_areas="Euro area")
         ]
     )
+
+
+async def test_two_selections_folding_onto_one_value_make_one_entry(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Both are one requirement, so keeping both would only duplicate the cross product."""
+    result, _, _ = await _build(
+        monkeypatch, {DiscoveryPreFilterAxis.REFERENCE_AREA: ["France", "france", " FRANCE "]}
+    )
+
+    assert result.matcher == GenericRagDocumentMatcher(
+        filters=[
+            GenericRagDocumentFilter(statgpt_channel=_CHANNEL, parsed_reference_areas="France")
+        ]
+    )
+    assert _report_of(result, DiscoveryPreFilterAxis.REFERENCE_AREA).grounded == ["France"]
+
+
+async def test_a_padded_value_is_recovered_rather_than_dropped(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Whatever a model pads its answer with, the value it named is the value it meant."""
+    result, _, _ = await _build(monkeypatch, {DiscoveryPreFilterAxis.AGENCY: ["  IMF ", "   "]})
+
+    assert result.matcher == GenericRagDocumentMatcher(
+        filters=[GenericRagDocumentFilter(statgpt_channel=_CHANNEL, agency="IMF")]
+    )
+    assert _report_of(result, DiscoveryPreFilterAxis.AGENCY).selected == ["IMF"]
 
 
 async def test_nothing_grounded_leaves_no_matcher(monkeypatch: pytest.MonkeyPatch) -> None:

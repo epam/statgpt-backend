@@ -33,6 +33,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass, field
 
 from langchain_core.runnables import RunnableParallel, RunnableSerializable
+from langchain_openai import AzureChatOpenAI
 
 from statgpt.app.default_prompts import discovery_datasets_default_prompts
 from statgpt.app.schemas.discovery_datasets import (
@@ -86,7 +87,7 @@ _Assignment = tuple[str, str]
 """One filterable field and the single value an entry may carry on it."""
 
 _dimensions_cache: AsyncLoadingCache[dict[str, list[str]]] = AsyncLoadingCache(
-    ttl=dial_app_settings.discovery_prefilter_dimensions_ttl_seconds
+    ttl=dial_app_settings.discovery_datasets_pre_filter_dimensions_ttl
 )
 """The filterable values of each discovery channel, keyed by application id.
 
@@ -99,6 +100,16 @@ A cached list can fall behind the channel, which shows up as a request the servi
 is a fallback, not a fault: the alternative is a metadata read on the critical path of every
 turn.
 """
+
+
+def forget_dimensions(application_id: str) -> None:
+    """Drop a channel's cached filterable values, so the next lookup reads them again.
+
+    Called when a narrowed search is rejected, which is what a stale entry looks like. Without
+    this the entry would stand for the rest of its TTL, and every lookup in that window would
+    pay a rejected search and a fallback rather than only the first one.
+    """
+    _dimensions_cache.remove(application_id)
 
 
 @dataclass(frozen=True)
@@ -229,12 +240,14 @@ class DiscoveryPreFilterBuilder:
 
         dimensions: dict[str, list[str]] | None = None
         if isinstance(read_dimensions, BaseException):
-            _log.warning(f"Could not read the discovery channel's dimensions: {read_dimensions}")
+            _log.warning(
+                "Could not read the discovery channel's dimensions", exc_info=read_dimensions
+            )
         else:
             dimensions = read_dimensions
 
         if isinstance(read_areas, BaseException):
-            _log.warning(f"Could not read the reference-area vocabulary: {read_areas}")
+            _log.warning("Could not read the reference-area vocabulary", exc_info=read_areas)
             areas = {axis: _Vocabulary(reason=_UNREADABLE_VOCABULARY) for axis in area_axes}
         else:
             areas = read_areas
@@ -246,8 +259,10 @@ class DiscoveryPreFilterBuilder:
         application_id = self._config.get_application_id()
 
         async def load() -> dict[str, list[str]]:
-            async with GenericRagSearchClient.for_application(application_id, auth_context) as c:
-                return (await c.get_metadata_schema()).dimensions
+            async with GenericRagSearchClient.for_application(
+                application_id, auth_context
+            ) as client:
+                return (await client.get_metadata_schema()).dimensions
 
         return await _dimensions_cache.get(application_id, load)
 
@@ -288,7 +303,7 @@ class DiscoveryPreFilterBuilder:
         vocabularies: dict[DiscoveryPreFilterAxis, _Vocabulary] = {}
         for axis, values in zip(area_axes, found):
             if isinstance(values, BaseException):
-                _log.warning(f"Could not read the {axis} vocabulary: {values}")
+                _log.warning(f"Could not read the {axis} vocabulary", exc_info=values)
                 vocabularies[axis] = _Vocabulary(reason=_UNREADABLE_VOCABULARY)
             else:
                 vocabularies[axis] = _Vocabulary(values=values)
@@ -375,7 +390,9 @@ class DiscoveryPreFilterBuilder:
         return {axis: _values_of(answers.get(axis.value)) for axis in askable}
 
     @staticmethod
-    def _chain(llm, prompt: SystemUserPrompt, values: Sequence[str]) -> RunnableSerializable:
+    def _chain(
+        llm: AzureChatOpenAI, prompt: SystemUserPrompt, values: Sequence[str]
+    ) -> RunnableSerializable:
         """One axis's sub-chain, its vocabulary baked in as a partial.
 
         Partialled rather than passed at invocation time because the branches of a
@@ -420,12 +437,14 @@ class DiscoveryPreFilterBuilder:
         """
         name = _AXIS_FIELDS[axis]
         known = {value.casefold(): value for value in dimensions.get(name, [])}
-        assignments: list[_Assignment] = []
+        # De-duplicated: two selections folding onto one channel value are one requirement, and
+        # keeping both would multiply the cross product by entries identical to each other.
+        grounded: dict[str, None] = {}
         for value in selected:
             canonical = known.get(value.casefold())
             if canonical is not None:
-                assignments.append((name, canonical))
-        return assignments
+                grounded.setdefault(canonical, None)
+        return [(name, value) for value in grounded]
 
     @staticmethod
     def _cross_product(
@@ -461,4 +480,7 @@ def _values_of(answer: object) -> list[str]:
     """The values one sub-chain answered with, de-duplicated, or nothing if it answered oddly."""
     if not isinstance(answer, DiscoveryAxisSelection):
         return []
-    return list(dict.fromkeys(value for value in answer.values if value.strip()))
+    # Stripped rather than merely tested, for the reason `_ground` matches case-insensitively:
+    # a value the model padded with whitespace is a correct answer, and grounding it verbatim
+    # would drop it against a channel that holds the same value unpadded.
+    return list(dict.fromkeys(stripped for value in answer.values if (stripped := value.strip())))

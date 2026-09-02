@@ -71,9 +71,9 @@ the label in - `subject`, `partner`, or both - so the two chat-time area axes ca
 channel separately, each offered only the labels its own field holds. The same job publishes it,
 right after the records, and the chat-time pre-filter searches it to resolve the areas a query
 names onto the values the discovery channel actually holds. Leave it unset and no vocabulary is
-published: the pre-filter then narrows on the remaining axes. A failure to publish it fails the job, because a
-vocabulary that does not match the records narrows queries away from datasets that do answer
-them.
+published: the pre-filter then narrows on the remaining axes. A failure to publish it fails the
+job, because a vocabulary that does not match the records narrows queries away from datasets
+that do answer them.
 
 The same block also configures the chat-time lookup over what was published. `enabled: false`
 switches that lookup off while leaving indexing available, so discovery data can be indexed

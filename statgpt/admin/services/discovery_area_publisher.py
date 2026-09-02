@@ -54,7 +54,7 @@ class _WantedArea:
     """Sorted, so a run over unchanged records produces an unchanged document."""
 
 
-def area_roles(reference_area: str) -> list[tuple[str, str]]:
+def area_roles(reference_area: str) -> list[tuple[str, schemas.ReferenceAreaRole]]:
     """Every reference area one cell names, paired with the role it is named in.
 
     Both roles land in one vocabulary because the vocabulary answers "which of this channel's
@@ -84,7 +84,7 @@ def document_filename(value: str, channel: str) -> str:
     return f"{stem or _FALLBACK_FILENAME_STEM} [{digest}].txt"
 
 
-def build_metadata(area: _WantedArea, channel: str) -> schemas.ReferenceAreaDocumentMetadata:
+def _build_metadata(area: _WantedArea, channel: str) -> schemas.ReferenceAreaDocumentMetadata:
     return schemas.ReferenceAreaDocumentMetadata(
         statgpt_channel=channel, value=area.value, roles=list(area.roles)
     )
@@ -168,27 +168,27 @@ class ReferenceAreaPublisher:
             ]
         )
 
-        for key in list(existing):
-            if key not in wanted:
+        for key, document in list(existing.items()):
+            if (
+                key not in wanted
+                or self._force
+                or document.is_failed
+                or document_roles(document) != wanted[key].roles
+            ):
                 orphans.append(existing.pop(key))
-
-        stale = [
-            existing.pop(key)
-            for key, document in list(existing.items())
-            if self._force or document.is_failed or document_roles(document) != wanted[key].roles
-        ]
-        orphans.extend(stale)
 
         counts.skipped = len(existing)
         published = await async_utils.gather_with_concurrency(
             self._concurrency,
             *(self._upload(area) for key, area in wanted.items() if key not in existing),
         )
-        counts.upserted = len(published)
+        failed = sorted(value for value, document in published if document.is_failed)
+        counts.upserted = len(published) - len(failed)
+        counts.failed = len(failed)
         counts.deleted = await self._delete_all(orphans)
 
-        if failed := [value for value, document in published if document.is_failed]:
-            raise DiscoveryReferenceAreaIndexingError(sorted(failed))
+        if failed:
+            raise DiscoveryReferenceAreaIndexingError(failed)
 
         return counts
 
@@ -269,7 +269,7 @@ class ReferenceAreaPublisher:
             filename=document_filename(area.value, self._channel),
             content=area.value.encode("utf-8"),
             mime_type=MediaTypes.PLAIN_TEXT,
-            metadata=build_metadata(area, self._channel),
+            metadata=_build_metadata(area, self._channel),
             # The name is derived from the label and the channel, so whatever sits under it is
             # this label's and nothing else is entitled to it - which is also what lets a label
             # whose roles changed be republished over the document it already has.

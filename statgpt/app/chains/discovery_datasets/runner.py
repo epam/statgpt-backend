@@ -38,7 +38,7 @@ from statgpt.common.utils import write_yaml_to_stream
 from statgpt.common.utils.async_utils import gather_with_concurrency
 from statgpt.common.utils.models import get_chat_model
 
-from .prefilter import DiscoveryPreFilter, DiscoveryPreFilterBuilder
+from .prefilter import DiscoveryPreFilter, DiscoveryPreFilterBuilder, forget_dimensions
 from .templates import render_block
 
 _log = logging.getLogger(__name__)
@@ -162,6 +162,10 @@ class DiscoveryDatasetsRunner:
         cached list of them can be a few minutes behind. So a rejection is retried unnarrowed
         instead of being reported as a failed lookup - the pre-filter is an optimization, and a
         stale cache must not cost a user their results.
+
+        The cached values go with it. A rejection is the only evidence that they are stale, and
+        keeping them would make the next lookup, and every one until the entry expired, pay the
+        same rejected search and the same fallback.
         """
         if pre_filter.matcher is not None:
             try:
@@ -173,6 +177,7 @@ class DiscoveryDatasetsRunner:
                 pre_filter.report.fallback_reason = (
                     f"the narrowed search failed: {type(e).__name__}: {e}"
                 )
+                forget_dimensions(self._config.get_application_id())
 
         return await self._search_with(client, query, self._own_documents_matcher(channel))
 

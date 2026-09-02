@@ -9,7 +9,7 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from statgpt.common.schemas import DiscoveryDocumentMetadata
+from statgpt.common.schemas import DiscoveryDocumentMetadata, DiscoveryPreFilterAxis
 
 _PUBLISHING_METADATA_FIELDS = frozenset({"grade", "statgpt_channel"})
 """Metadata that scopes publishing rather than describing a dataset.
@@ -118,7 +118,7 @@ class DiscoveryPreFilterAxisReport(BaseModel):
 
     model_config = ConfigDict(use_attribute_docstrings=True)
 
-    axis: str
+    axis: DiscoveryPreFilterAxis
     offered: list[str] = Field(default_factory=list)
     selected: list[str] = Field(default_factory=list)
     grounded: list[str] = Field(default_factory=list)

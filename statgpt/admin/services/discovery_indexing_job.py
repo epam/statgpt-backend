@@ -265,45 +265,48 @@ class AdminPortalDiscoveryIndexingJobService(DbServiceBase):
     async def _publish_records(
         self, channel: models.Channel, records: list[models.DiscoveryDataset], force: bool
     ) -> tuple[PublishCounts, PublishCounts | None]:
-        """Reconcile the channel's RAG documents with the records, in place.
+        """Reconcile the channel's RAG documents, and then its vocabulary, with the records.
 
         Returns the documents' counts and the vocabulary's, the latter `None` when the channel
         publishes no vocabulary.
 
-        The indexing status of each record is written by the publisher; this only owns the
-        client's lifetime, so the connection pool is closed when the run ends rather than
+        Both schemas are verified before either channel is written to. A schema is one cheap
+        read, and a vocabulary channel found misconfigured afterwards would fail the job having
+        already done every bit of its work - once per run, until someone fixed the
+        configuration.
+
+        The vocabulary is published after the documents and never in place of them: it
+        describes what the discovery channel holds, so publishing it first would offer a label
+        for a document that does not exist yet. A failure there still fails the job. The records
+        are published either way - their statuses were committed by the publisher - but a
+        vocabulary that does not match them silently narrows queries away from datasets that do
+        cover what was asked, and that is not something a completed job should hide.
+
+        The indexing status of each record is written by the publishers; this only owns the
+        clients' lifetime, so the connection pools are closed when the run ends rather than
         held for as long as the process lives.
         """
-        application_id = self._rag_application_id(channel)
-        async with GenericRagIngestionClient.for_application(application_id) as client:
+        async with GenericRagIngestionClient.for_application(
+            self._rag_application_id(channel)
+        ) as client:
             publisher = DiscoveryPublisher(client, channel=channel.deployment_id, force=force)
-            await publisher.verify_metadata_schema()
-            counts = await publisher.publish(records)
+            vocabulary_application_id = self._reference_area_application_id(channel)
 
-        return counts, await self._publish_reference_areas(channel, records, force=force)
+            if vocabulary_application_id is None:
+                await publisher.verify_metadata_schema()
+                return await publisher.publish(records), None
 
-    async def _publish_reference_areas(
-        self, channel: models.Channel, records: list[models.DiscoveryDataset], force: bool
-    ) -> PublishCounts | None:
-        """Reconcile the channel's reference-area vocabulary with its records.
+            async with GenericRagIngestionClient.for_application(
+                vocabulary_application_id
+            ) as vocabulary_client:
+                vocabulary_publisher = ReferenceAreaPublisher(
+                    vocabulary_client, channel=channel.deployment_id, force=force
+                )
+                await publisher.verify_metadata_schema()
+                await vocabulary_publisher.verify_metadata_schema()
 
-        After the documents, and never in place of them: the vocabulary describes what the
-        discovery channel holds, so publishing it first would offer a label for a document
-        that does not exist yet.
-
-        A failure here fails the job. The records are published either way - their statuses
-        were committed by the publisher - but a vocabulary that does not match them silently
-        narrows queries away from datasets that do cover what was asked, and that is not
-        something a completed job should hide.
-        """
-        application_id = self._reference_area_application_id(channel)
-        if application_id is None:
-            return None
-
-        async with GenericRagIngestionClient.for_application(application_id) as client:
-            publisher = ReferenceAreaPublisher(client, channel=channel.deployment_id, force=force)
-            await publisher.verify_metadata_schema()
-            return await publisher.publish(records)
+                counts = await publisher.publish(records)
+                return counts, await vocabulary_publisher.publish(records)
 
 
 def _vocabulary_details(counts: PublishCounts | None) -> str:

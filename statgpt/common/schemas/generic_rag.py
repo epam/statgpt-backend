@@ -138,9 +138,13 @@ class GenericRagDocumentFilter(BaseModel):
     types each field as a `Literal` over its dimensions. A value outside them fails the whole
     request rather than matching nothing, so every value set here has to be grounded against
     the channel's `dimensions` first.
+
+    `extra="forbid"` because callers build this from field names held as strings - an axis map,
+    a column name - and an unknown one would otherwise be dropped silently, leaving an entry
+    that narrows nothing and a request that searches the whole channel with no error anywhere.
     """
 
-    model_config = ConfigDict(use_attribute_docstrings=True)
+    model_config = ConfigDict(use_attribute_docstrings=True, extra="forbid")
 
     statgpt_channel: str | None = None
     """Deployment id of the StatGPT channel that published the document."""

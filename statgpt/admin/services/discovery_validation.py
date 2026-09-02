@@ -113,7 +113,7 @@ def _allowed_frequencies() -> str:
 
 
 def _check_reference_area(record: DiscoveryRecord) -> Iterable[DiscoveryValidationIssue]:
-    """Column D must name at least one reference area.
+    """Column A must name at least one reference area.
 
     Not checked against any vocabulary - the template explicitly allows group labels such as
     'Euro area' or 'World', and those are values in their own right. Only emptiness is

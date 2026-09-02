@@ -783,6 +783,52 @@ async def test_a_rejected_narrowed_search_is_retried_unfiltered(
     assert "the narrowed search failed" in (builder.report.fallback_reason or "")
 
 
+async def test_a_rejected_narrowed_search_drops_the_cached_dimensions(
+    monkeypatch: pytest.MonkeyPatch, inputs: dict[str, Any]
+) -> None:
+    """A rejection is the only evidence the cached values are stale.
+
+    Leaving them in place would make every lookup until the entry expired pay the same
+    rejected search and the same fallback, rather than only this one.
+    """
+    forgotten: list[str] = []
+    monkeypatch.setattr(runner_module, "forget_dimensions", forgotten.append)
+
+    class _RejectsEverySearch(_FakeClient):
+        async def search_documents(
+            self,
+            query: str,
+            limit: int,
+            indexes: list[str] | None = None,
+            matcher: GenericRagDocumentMatcher | None = None,
+        ) -> list[GenericRagDocument]:
+            self.search_calls.append((query, limit, indexes, matcher))
+            if len(self.search_calls) == 1:
+                raise GenericRagChannelError("document search", "unknown filter value", 422)
+            return self._documents
+
+    _install(
+        monkeypatch, _RejectsEverySearch([_document(1, "Alpha")]), builder=_FakeBuilder(_narrowed())
+    )
+
+    await DiscoveryDatasetsRunner(_details()).run("gdp", inputs)
+
+    assert forgotten == [_APPLICATION]
+
+
+async def test_a_narrowed_search_that_works_keeps_the_cached_dimensions(
+    monkeypatch: pytest.MonkeyPatch, inputs: dict[str, Any]
+) -> None:
+    """Re-reading a channel's values on every turn is what the cache exists to avoid."""
+    forgotten: list[str] = []
+    monkeypatch.setattr(runner_module, "forget_dimensions", forgotten.append)
+    _install(monkeypatch, _FakeClient([_document(1, "Alpha")]), builder=_FakeBuilder(_narrowed()))
+
+    await DiscoveryDatasetsRunner(_details()).run("gdp", inputs)
+
+    assert forgotten == []
+
+
 async def test_the_pre_filter_report_survives_a_failed_lookup(
     monkeypatch: pytest.MonkeyPatch, inputs: dict[str, Any]
 ) -> None:
