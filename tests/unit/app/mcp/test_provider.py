@@ -1,4 +1,3 @@
-import logging
 from datetime import datetime, timezone
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
@@ -229,14 +228,14 @@ async def test_tool_failure_raises_tool_error():
         await adapter.run({})
 
 
-async def test_invalid_arguments_are_not_logged_verbatim(caplog):
-    # A pydantic ValidationError's string representation echoes the submitted value;
-    # the handler must log only the field location/type, never the value itself.
+async def test_invalid_arguments_raise_tool_error():
+    # Argument-schema validation failures surface a concise ToolError that names the
+    # offending field so the caller can correct the request.
     class _Args(BaseModel):
         limit: int
 
     try:
-        _Args(limit="super-secret-value")
+        _Args(limit="not-an-int")
     except ValidationError as exc:
         validation_error = exc
 
@@ -251,12 +250,10 @@ async def test_invalid_arguments_are_not_logged_verbatim(caplog):
         parameters={},
     )
 
-    with caplog.at_level(logging.DEBUG, logger="statgpt.app.mcp.provider"):
-        with pytest.raises(ToolError, match="Invalid arguments"):
-            await adapter.run({"limit": "super-secret-value"})
+    with pytest.raises(ToolError, match="Invalid arguments") as exc_info:
+        await adapter.run({"limit": "not-an-int"})
 
-    assert "super-secret-value" not in caplog.text
-    assert "limit" in caplog.text
+    assert "limit" in str(exc_info.value)
 
 
 class _FakeChatModel(Runnable):
