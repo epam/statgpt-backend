@@ -5,6 +5,7 @@ from pydantic import Field
 from .base import BaseYamlModel
 from .data_query_tool import DataQueryDetails
 from .dataset_structure_tool import DatasetStructureToolDetails
+from .discovery_datasets_tool import DiscoveryDatasetsDetails
 from .enums import ToolTypes
 from .tool_details import (
     AvailableDatasetsDetails,
@@ -109,6 +110,17 @@ class DatasetStructureTool(BaseToolConfig):
 class DataQueryTool(BaseToolConfig):
     type: ToolTypes = ToolTypes.DATA_QUERY
     details: DataQueryDetails = Field(default_factory=DataQueryDetails)
+
+
+class DiscoveryDatasetsTool(BaseToolConfig):
+    """Discovery datasets: the publish target, and the chat-time lookup over what was published.
+
+    Not listed in `ChannelConfig.tool_fields` - the lookup is run by the data query tool, not the
+    Supreme Agent - so `enabled` gates only that lookup, never publishing or indexing.
+    """
+
+    type: ToolTypes = ToolTypes.DISCOVERY_DATASETS
+    details: DiscoveryDatasetsDetails
 
 
 class FileRagTool(BaseToolConfig):

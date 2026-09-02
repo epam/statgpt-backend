@@ -1,5 +1,6 @@
 from .data_query import data_query_default_prompts
 from .datasets_metadata import datasets_metadata_default_prompts
+from .discovery_datasets import discovery_datasets_default_prompts
 from .guardrails import guardrails_default_prompts
 from .hybrid_search import hybrid_search_default_prompts
 from .rag_prefilter import rag_prefilter_default_prompts

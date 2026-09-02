@@ -118,3 +118,57 @@ class GenericRagMetadataSchema(BaseModel):
             for name, definition in properties.items()
             if isinstance(definition, dict) and definition.get("enable_filtering")
         }
+
+
+class GenericRagDocumentFilter(BaseModel):
+    """One entry of a matcher's `filters`: a document matches when every field set here matches.
+
+    The service builds this model per channel out of the metadata fields declared
+    `enable_filtering`, and rejects a field that is not one of them, so only fields
+    `DiscoveryDocumentMetadata` marks filterable may be added here. A field left `None` is
+    omitted from the request rather than sent as a null.
+    """
+
+    model_config = ConfigDict(use_attribute_docstrings=True)
+
+    statgpt_channel: str | None = None
+    """Deployment id of the StatGPT channel that published the document."""
+
+
+class GenericRagDocumentMatcher(BaseModel):
+    """The `matcher` of a search request: which documents the search is allowed to consider.
+
+    A document matches when it satisfies *any* of `filters`; an empty list means every document
+    in the channel. Applied before retrieval, so a request's `limit` is spent on matching
+    documents alone.
+    """
+
+    model_config = ConfigDict(use_attribute_docstrings=True)
+
+    filters: list[GenericRagDocumentFilter] = Field(default_factory=list)
+
+
+class GenericRagDocumentSearchRequest(BaseModel):
+    """The body of `POST /channel/documents/search`.
+
+    The service builds this schema dynamically per channel, so this is the static subset StatGPT
+    sends.
+    """
+
+    model_config = ConfigDict(use_attribute_docstrings=True)
+
+    query: str
+    """Free text the indexes are searched with."""
+
+    limit: int = 5
+    """Upper bound on results, applied both per index and to the rank-fused list."""
+
+    indexes: list[str] | None = None
+    """Which document indexes to search, in the order the stages run.
+
+    `None` leaves the choice to the channel, which uses every index flagged
+    `include_in_hybrid`.
+    """
+
+    matcher: GenericRagDocumentMatcher | None = None
+    """Which documents the search may return. `None` leaves the whole channel in scope."""

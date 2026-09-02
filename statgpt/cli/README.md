@@ -179,7 +179,7 @@ statgpt> discovery reindex -c my-channel
 | `-c, --channel` | Channel deployment ID (interactive if omitted)                                                       |
 | `--force`       | Rebuild every document even if nothing changed; each rebuilt record is briefly absent from the index |
 
-Requires a `discoveryRag` block in the channel configuration, and refuses to start while
+Requires a `discoveryDatasets` block in the channel configuration, and refuses to start while
 another job for the channel is running.
 
 ### discovery clear
@@ -199,7 +199,7 @@ statgpt> discovery clear -c my-channel -y        # scripted, no prompt
 
 No reindex is needed afterwards: the documents are withdrawn as part of the delete. If the RAG
 application cannot be reached the command fails and nothing is deleted, so a record never
-outlives its document. A channel with no `discoveryRag` block simply has its records deleted -
+outlives its document. A channel with no `discoveryDatasets` block simply has its records deleted -
 it never published anything.
 
 ### content init

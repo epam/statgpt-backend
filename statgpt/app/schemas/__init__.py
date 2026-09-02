@@ -1,4 +1,11 @@
 from .deep_research import DeepResearchSession, DeepResearchTurn
+from .discovery_datasets import (
+    DiscoveryCandidate,
+    DiscoveryDatasetsEvalAttachment,
+    DiscoveryDatasetsOutcome,
+    DiscoveryRelevanceItem,
+    DiscoveryRelevanceResponse,
+)
 from .file_rags import DialRagState
 from .query import AppJsonQuery, AppJsonQueryWithMetadata
 from .selection_candidates import (

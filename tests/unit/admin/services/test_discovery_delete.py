@@ -90,12 +90,8 @@ def _rag(
 
     def db_to_schema(channel: Any) -> Any:
         # Channel 2 stands for one with no publish target configured.
-        config = (
-            None
-            if channel.id == 2
-            else SimpleNamespace(get_application_id=lambda: f"{_APPLICATION}-{channel.id}")
-        )
-        return SimpleNamespace(details=SimpleNamespace(discovery_rag=config))
+        application_id = None if channel.id == 2 else f"{_APPLICATION}-{channel.id}"
+        return SimpleNamespace(details=SimpleNamespace(discovery_application_id=application_id))
 
     async def withdraw(client: Any, channel: str, keys: Any, **_: Any) -> int:
         calls.append(f"withdraw:{channel}")

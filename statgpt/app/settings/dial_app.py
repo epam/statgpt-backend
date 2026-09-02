@@ -93,6 +93,12 @@ class DialAppSettings(BaseSettings):
         ),
     )
 
+    discovery_datasets_download_concurrency: int = Field(
+        default=8,
+        alias="DISCOVERY_DATASETS_DOWNLOAD_CONCURRENCY",
+        description="How many discovery document bodies the discovery datasets lookup fetches at once",
+    )
+
     dial_system_user_context_roles: str | None = Field(
         default=None,
         alias="DIAL_SYSTEM_USER_CONTEXT_ROLES",

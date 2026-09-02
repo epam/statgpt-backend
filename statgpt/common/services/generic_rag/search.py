@@ -1,0 +1,77 @@
+"""Read access to the documents of a Generic RAG channel.
+
+What a chat-time lookup needs: rank documents against a query, then read the body of the ones it
+keeps. The ranking endpoint returns documents without their content, so the two calls together
+are what reconstitutes a full record.
+
+Authenticates with the caller's own DIAL key: this runs inside a chat turn, on behalf of a user.
+"""
+
+from typing import Self
+
+import httpx
+from pydantic import RootModel, SecretStr
+
+from statgpt.common.auth.auth_context import AuthContext
+from statgpt.common.schemas.generic_rag import (
+    GenericRagDocument,
+    GenericRagDocumentMatcher,
+    GenericRagDocumentSearchRequest,
+)
+
+from .client import BaseGenericRagChannelClient
+
+
+class _DocumentList(RootModel[list[GenericRagDocument]]):
+    """The bare JSON array `POST /channel/documents/search` answers with.
+
+    A model of its own so `_parse` can validate it, reporting a non-array body as a failure of
+    the search call rather than a `TypeError` downstream.
+    """
+
+
+class GenericRagSearchClient(BaseGenericRagChannelClient):
+    """The document read endpoints of one Generic RAG channel."""
+
+    @classmethod
+    def for_application(cls, application_id: str, auth_context: AuthContext) -> Self:
+        """Target the channel of a DIAL application, as the user behind `auth_context`.
+
+        The channel endpoints authorize on the DIAL key alone, so the user must have access to
+        the application; a user who does not gets an HTTP error rather than an empty result.
+        """
+        return cls(
+            base_url=cls.application_route(application_id),
+            api_key=SecretStr(auth_context.api_key),
+        )
+
+    async def search_documents(
+        self,
+        query: str,
+        limit: int,
+        indexes: list[str] | None = None,
+        matcher: GenericRagDocumentMatcher | None = None,
+    ) -> list[GenericRagDocument]:
+        """Documents relevant to `query`, best first.
+
+        Position in this list is the only relevance signal available - no scores are returned.
+        A `matcher` narrows what the search may consider before it ranks, so `limit` is spent
+        on matching documents rather than on the channel's whole population.
+        """
+        request = GenericRagDocumentSearchRequest(
+            query=query, limit=limit, indexes=indexes, matcher=matcher
+        )
+        response = await self._request(
+            "document search",
+            "POST",
+            "/documents/search",
+            json=request.model_dump(mode="json", exclude_none=True),
+        )
+        return self._parse(_DocumentList, response, "document search").root
+
+    async def download_document(self, document_id: int) -> str:
+        """The document's body as text. Discovery documents are plain UTF-8."""
+        response: httpx.Response = await self._request(
+            "document download", "GET", f"/documents/{document_id}/download"
+        )
+        return response.text
