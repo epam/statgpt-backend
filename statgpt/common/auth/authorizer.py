@@ -49,9 +49,7 @@ class DialUserAuthorizer(DialUserAuthorizerI):
     async def authorize(self, config: DialUserAuthorizerConfig) -> TokenResponseI:
         logger.info("Requesting OBO flow access token exchange for dial user")
         chat_token = await self.ttyd_chat_obo_flow.authorize(config.dial_token)
-        logger.debug(f"ServicesChat OBO-flow access token: {chat_token.access_token}")
         qh_token_result = await self.quanthub_obo_flow.authorize(chat_token.access_token)
-        logger.debug(f"Quanthub OBO-flow access token: {qh_token_result.access_token}")
         return qh_token_result
 
 

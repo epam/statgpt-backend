@@ -9,6 +9,7 @@ from fastmcp.exceptions import ToolError
 from langchain_core.messages import AIMessage
 from langchain_core.runnables import Runnable, RunnableLambda
 from mcp.types import EmbeddedResource, TextContent
+from pydantic import BaseModel, ValidationError
 
 from statgpt.app.chains.out_of_scope_checker import OutOfScopeCheckerResponse
 from statgpt.app.mcp.provider import ChannelToolProvider, _McpToolAdapter, _tool_app_config
@@ -225,6 +226,34 @@ async def test_tool_failure_raises_tool_error():
 
     with pytest.raises(ToolError):
         await adapter.run({})
+
+
+async def test_invalid_arguments_raise_tool_error():
+    # Argument-schema validation failures surface a concise ToolError that names the
+    # offending field so the caller can correct the request.
+    class _Args(BaseModel):
+        limit: int
+
+    try:
+        _Args(limit="not-an-int")
+    except ValidationError as exc:
+        validation_error = exc
+
+    tool = SimpleNamespace(name="fake_tool", ainvoke=AsyncMock(side_effect=validation_error))
+    adapter = _McpToolAdapter(
+        langchain_tool=tool,  # type: ignore[arg-type]
+        inputs={},
+        channel_config=SimpleNamespace(out_of_scope=None),  # type: ignore[arg-type]
+        tool_config=_data_query_config(),
+        auth_context=SimpleNamespace(),  # type: ignore[arg-type]
+        name="fake_tool",
+        parameters={},
+    )
+
+    with pytest.raises(ToolError, match="Invalid arguments") as exc_info:
+        await adapter.run({"limit": "not-an-int"})
+
+    assert "limit" in str(exc_info.value)
 
 
 class _FakeChatModel(Runnable):
