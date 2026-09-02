@@ -11,6 +11,7 @@ from statgpt.app.utils.formatters import (
     DatasetFormatterConfig,
     DetailedDatasetFormatter,
 )
+from statgpt.common.data.base import DataSet
 from statgpt.common.schemas import ChannelConfig
 from statgpt.common.schemas import DatasetStructureTool as DatasetStructureToolConfig
 from statgpt.common.schemas import ToolTypes
@@ -93,11 +94,11 @@ class DatasetStructureTool(
 
         return response, ToolArtifact(
             state=ToolMessageState(type=self.tool_type),
-            mcp_structured=self._to_structured_content(dataset_id, dataset),
+            mcp_structured=self._to_structured_content(dataset),
         )
 
     @staticmethod
-    def _to_structured_content(dataset_id: str, dataset) -> DatasetStructureStructuredContent:
+    def _to_structured_content(dataset: DataSet) -> DatasetStructureStructuredContent:
         return DatasetStructureStructuredContent(
             dataset_id=dataset.source_id,
             found=True,

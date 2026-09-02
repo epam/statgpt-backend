@@ -26,6 +26,7 @@ from statgpt.app.mcp.attachments import (
 from statgpt.app.mcp.decorators import guard_channel_resolution
 from statgpt.app.mcp.exceptions import MissingDeploymentIdError
 from statgpt.app.mcp.guardrails import enforce_input_guardrail
+from statgpt.app.mcp.output_schema import model_to_output_schema
 from statgpt.app.mcp.widget_resource import WidgetResource
 from statgpt.app.schemas.dial_app_configuration import StatGPTConfiguration
 from statgpt.app.schemas.mcp import SdmxProxyStructuredContent, TextToolStructuredContent
@@ -48,6 +49,10 @@ from statgpt.common.schemas import (
 )
 
 _log = logging.getLogger(__name__)
+
+# The output schema a tool advertises when it declares the plain text envelope. Compared against
+# a tool's declared schema to decide whether mirroring its text into the envelope is legitimate.
+_TEXT_ENVELOPE_SCHEMA = model_to_output_schema(TextToolStructuredContent)
 
 
 def _tool_app_config(tool_config: BaseToolConfig) -> AppConfig | None:
@@ -140,6 +145,9 @@ class _McpToolAdapter(Tool):
         text = result.content if isinstance(result.content, str) else str(result.content)
         content: list[ContentBlock] = [TextContent(type="text", text=text)] if text else []
         structured_content: BaseModel | None = None
+        # These artifact-specific branches take precedence over the generic `mcp_structured` path
+        # below and build the structured content themselves, so any `mcp_structured` inherited on
+        # these artifacts is intentionally not consulted.
         if isinstance(result.artifact, DataQueryArtifact):
             mcp_resources = (
                 self._tool_config.details.mcp_resources
@@ -175,10 +183,13 @@ class _McpToolAdapter(Tool):
             # Tools that build their own structured content attach it to the artifact; surface it
             # alongside the text rendering (both fields, per the marketplace contract).
             structured_content = built
-        elif self.output_schema is not None:
-            # Fallback for a tool that declares the text envelope but built no richer structured
-            # content: mirror the text so the declared schema is still satisfied. The text content
-            # block is kept as well, so the response still carries a human-readable field.
+        elif self.output_schema == _TEXT_ENVELOPE_SCHEMA:
+            # A tool that declares the text envelope but built no richer structured content: mirror
+            # the text so the declared schema is still satisfied. The text content block is kept as
+            # well, so the response still carries a human-readable field. Guarded on the declared
+            # schema being the envelope: a bespoke-schema tool that reaches here without structured
+            # content is a bug, and leaving `structuredContent` unset (a detectable absence) is
+            # safer than emitting an envelope that would violate its declared schema.
             structured_content = TextToolStructuredContent(text=text)
         _log.info(
             "Sending MCP tool %s response: %d content block(s), structured_content=%s",

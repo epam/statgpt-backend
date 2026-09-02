@@ -277,3 +277,12 @@ async def test_prose_tool_returns_the_text_envelope():
     result = SimpleNamespace(content="Here is the answer.", artifact=artifact)
     structured = await _run_and_validate(_adapter(result, tool_type=ToolTypes.FILE_RAG))
     assert structured == {"text": "Here is the answer."}
+
+
+async def test_bespoke_tool_without_structured_content_omits_it():
+    # A bespoke-schema tool that builds no structured content must NOT be handed the text envelope
+    # (that would violate its declared schema); the provider leaves structuredContent unset.
+    artifact = ToolArtifact(state=ToolMessageState(type=ToolTypes.AVAILABLE_DATASETS))
+    result = SimpleNamespace(content="Some prose.", artifact=artifact)
+    tool_result = await _adapter(result, tool_type=ToolTypes.AVAILABLE_DATASETS).run({})
+    assert tool_result.structured_content is None
