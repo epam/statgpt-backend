@@ -20,22 +20,10 @@ from typing import Protocol
 from urllib.parse import urlsplit
 
 from statgpt.common.schemas import DiscoveryValidationIssue
+from statgpt.common.utils import FREQUENCY_VOCABULARY, is_known_frequency, split_cell
 
 _log = logging.getLogger(__name__)
 
-_FREQUENCY_VOCABULARY: tuple[str, ...] = (
-    "Daily",
-    "Business daily",
-    "Weekly",
-    "Monthly",
-    "Quarterly",
-    "Semi-annual",
-    "Annual",
-    "Irregular",
-)
-"""The frequencies the discovery template tells submitters to choose from (column J)."""
-
-_FREQUENCY_LOOKUP = {value.casefold(): value for value in _FREQUENCY_VOCABULARY}
 _ALLOWED_URL_SCHEMES = ("http", "https")
 
 
@@ -95,22 +83,51 @@ class DiscoveryCheck:
 
 
 def _check_frequency_coverage(record: DiscoveryRecord) -> Iterable[DiscoveryValidationIssue]:
-    """Every ';'-separated token of column J must come from the template's vocabulary.
+    """Column J must name at least one frequency, each from the template's vocabulary.
 
-    An empty cell is not an issue: absent information does not make a record unfit to
-    refer to, a wrong value does.
+    An empty cell is an issue rather than absent information: the chat-time pre-filter narrows
+    the candidate set by frequency, and a record that names none is a record that no query
+    asking about one can reach - so it would be published and then never surfaced.
     """
-    if not record.frequency_coverage:
+    values = split_cell(record.frequency_coverage)
+    if not values:
+        yield DiscoveryValidationIssue(
+            field="frequency_coverage",
+            message=(
+                "At least one frequency is required, from: "
+                f"{_allowed_frequencies()}. Search narrows by it."
+            ),
+        )
         return
 
-    allowed = "; ".join(_FREQUENCY_VOCABULARY)
-    for token in record.frequency_coverage.split(";"):
-        value = token.strip()
-        if value and value.casefold() not in _FREQUENCY_LOOKUP:
+    for value in values:
+        if not is_known_frequency(value):
             yield DiscoveryValidationIssue(
                 field="frequency_coverage",
-                message=f"{value!r} is not one of: {allowed}.",
+                message=f"{value!r} is not one of: {_allowed_frequencies()}.",
             )
+
+
+def _allowed_frequencies() -> str:
+    return "; ".join(FREQUENCY_VOCABULARY)
+
+
+def _check_reference_area(record: DiscoveryRecord) -> Iterable[DiscoveryValidationIssue]:
+    """Column A must name at least one reference area.
+
+    Not checked against any vocabulary - the template explicitly allows group labels such as
+    'Euro area' or 'World', and those are values in their own right. Only emptiness is
+    rejected, and for the same reason as an empty frequency: the pre-filter narrows by
+    reference area, so a record naming none cannot be reached by a query that names one.
+    """
+    if not split_cell(record.reference_area):
+        yield DiscoveryValidationIssue(
+            field="reference_area",
+            message=(
+                "At least one reference area is required: search narrows by it."
+                " A group such as 'Euro area' or 'World' counts as one."
+            ),
+        )
 
 
 def _check_url(record: DiscoveryRecord) -> Iterable[DiscoveryValidationIssue]:
@@ -147,6 +164,7 @@ def _check_description(record: DiscoveryRecord) -> Iterable[DiscoveryValidationI
 
 DEFAULT_CHECKS: tuple[DiscoveryCheck, ...] = (
     DiscoveryCheck(name="description", run=_check_description),
+    DiscoveryCheck(name="reference_area", run=_check_reference_area),
     DiscoveryCheck(name="frequency_coverage", run=_check_frequency_coverage),
     DiscoveryCheck(name="url", run=_check_url),
 )
@@ -154,11 +172,14 @@ DEFAULT_CHECKS: tuple[DiscoveryCheck, ...] = (
 
 Deliberately minimal. There is no severity axis, so a check must only emit an issue when
 the record genuinely should not be indexed - an advisory nitpick has nowhere to live and
-would silently make records unindexable. `reference_area` is therefore not checked against
-ISO codes: the template explicitly allows group labels such as 'Euro area' or 'World'.
+would silently make records unindexable. `reference_area` is therefore checked for being
+present, never against ISO codes: the template explicitly allows group labels such as
+'Euro area' or 'World'.
 
-An absent description clears that bar rather than being a nitpick: the published document
-has nothing else in it.
+Three things clear that bar rather than being nitpicks. An absent description leaves the
+published document with nothing in it. An absent reference area or frequency leaves the
+record outside every pre-filtered search, so it would be indexed and never surfaced - a
+worse outcome than telling the submitter which cell to fill in.
 """
 
 

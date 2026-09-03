@@ -12,8 +12,10 @@ from langchain_core.runnables import RunnableLambda
 
 from statgpt.app.chains.discovery_datasets import DiscoveryDatasetsRunner
 from statgpt.app.chains.discovery_datasets import runner as runner_module
+from statgpt.app.chains.discovery_datasets.prefilter import DiscoveryPreFilter
 from statgpt.app.config import StateVarsConfig
 from statgpt.app.schemas.discovery_datasets import (
+    DiscoveryPreFilterReport,
     DiscoveryRelevanceItem,
     DiscoveryRelevanceResponse,
 )
@@ -165,8 +167,38 @@ def inputs() -> dict[str, Any]:
     }
 
 
+class _FakeBuilder:
+    """Stands in for the pre-filter, which is covered in `test_prefilter`.
+
+    Every test here is about what the runner does with the answer, so the answer is canned: a
+    narrowed matcher, or none at all.
+    """
+
+    def __init__(self, matcher: GenericRagDocumentMatcher | None = None) -> None:
+        self._matcher = matcher
+        self.report = DiscoveryPreFilterReport(
+            filters=len(matcher.filters) if matcher else 0,
+            fallback_reason=None if matcher else "nothing was grounded",
+        )
+
+    def __call__(self, config: Any) -> Self:
+        return self
+
+    async def build(self, query: str, auth_context: Any, channel: str) -> DiscoveryPreFilter:
+        return DiscoveryPreFilter(matcher=self._matcher, report=self.report)
+
+
+def _narrowed(channel: str = _CHANNEL, agency: str = "IMF") -> GenericRagDocumentMatcher:
+    return GenericRagDocumentMatcher(
+        filters=[GenericRagDocumentFilter(statgpt_channel=channel, agency=agency)]
+    )
+
+
 def _install(
-    monkeypatch: pytest.MonkeyPatch, client: _FakeClient, judge: _Judge | None = None
+    monkeypatch: pytest.MonkeyPatch,
+    client: _FakeClient,
+    judge: _Judge | None = None,
+    builder: _FakeBuilder | None = None,
 ) -> _Judge:
     judge = judge or _Judge()
     monkeypatch.setattr(
@@ -175,6 +207,7 @@ def _install(
         classmethod(lambda cls, application_id, auth_context: client),
     )
     monkeypatch.setattr(DiscoveryDatasetsRunner, "_judge", judge)
+    monkeypatch.setattr(runner_module, "DiscoveryPreFilterBuilder", builder or _FakeBuilder())
     return judge
 
 
@@ -671,3 +704,141 @@ async def test_a_configured_relevance_prompt_overrides_the_default(
     system, user = prompt_value.to_messages()
     assert system.content == "Custom judge."
     assert user.content.startswith("Q: inflation")
+
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~ pre-filtering ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
+async def test_the_narrowed_matcher_reaches_the_search(
+    monkeypatch: pytest.MonkeyPatch, inputs: dict[str, Any]
+) -> None:
+    client = _FakeClient([_document(1, "Alpha")])
+    builder = _FakeBuilder(_narrowed())
+    _install(monkeypatch, client, builder=builder)
+
+    attachment = (await DiscoveryDatasetsRunner(_details()).run("gdp", inputs)).eval_attachment
+
+    assert client.search_calls == [("gdp", 5, None, _narrowed())]
+    assert attachment.pre_filter is builder.report
+    assert builder.report.applied is True
+    assert builder.report.fallback_reason is None
+
+
+async def test_a_lookup_without_a_pre_filter_searches_the_whole_channel(
+    monkeypatch: pytest.MonkeyPatch, inputs: dict[str, Any]
+) -> None:
+    """Nothing was grounded, so the search sees every document this channel published."""
+    client = _FakeClient([_document(1, "Alpha")])
+    builder = _FakeBuilder()
+    _install(monkeypatch, client, builder=builder)
+
+    await DiscoveryDatasetsRunner(_details()).run("gdp", inputs)
+
+    assert client.search_calls == [("gdp", 5, None, _matcher())]
+    assert builder.report.applied is False
+
+
+async def test_a_rejected_narrowed_search_is_retried_unfiltered(
+    monkeypatch: pytest.MonkeyPatch, inputs: dict[str, Any]
+) -> None:
+    """The service validates filter values against what the channel holds right now.
+
+    A cached list of them can be minutes behind, so a rejection is a stale cache far more often
+    than it is a bug - and it must not cost the user their results.
+    """
+
+    class _RejectsTheFirstSearch(_FakeClient):
+        async def search_documents(
+            self,
+            query: str,
+            limit: int,
+            indexes: list[str] | None = None,
+            matcher: GenericRagDocumentMatcher | None = None,
+        ) -> list[GenericRagDocument]:
+            first = not self.search_calls
+            self.search_calls.append((query, limit, indexes, matcher))
+            if first:
+                raise GenericRagChannelError("document search", "unknown filter value", 422)
+            return self._documents
+
+    client = _RejectsTheFirstSearch([_document(1, "Alpha")])
+    builder = _FakeBuilder(_narrowed())
+    _install(
+        monkeypatch,
+        client,
+        _Judge(
+            DiscoveryRelevanceResponse(
+                items=[DiscoveryRelevanceItem(document_id=1, relevant=True, reason="covers it")]
+            )
+        ),
+        builder=builder,
+    )
+
+    outcome = await DiscoveryDatasetsRunner(_details()).run("gdp", inputs)
+
+    assert [call[3] for call in client.search_calls] == [_narrowed(), _matcher()]
+    assert outcome.rendered == "### Datasets\n\n- Alpha"
+    assert outcome.eval_attachment.error is None
+    assert builder.report.applied is False
+    assert "the narrowed search failed" in (builder.report.fallback_reason or "")
+
+
+async def test_a_rejected_narrowed_search_drops_the_cached_dimensions(
+    monkeypatch: pytest.MonkeyPatch, inputs: dict[str, Any]
+) -> None:
+    """A rejection is the only evidence the cached values are stale.
+
+    Leaving them in place would make every lookup until the entry expired pay the same
+    rejected search and the same fallback, rather than only this one.
+    """
+    forgotten: list[str] = []
+    monkeypatch.setattr(runner_module, "forget_dimensions", forgotten.append)
+
+    class _RejectsEverySearch(_FakeClient):
+        async def search_documents(
+            self,
+            query: str,
+            limit: int,
+            indexes: list[str] | None = None,
+            matcher: GenericRagDocumentMatcher | None = None,
+        ) -> list[GenericRagDocument]:
+            self.search_calls.append((query, limit, indexes, matcher))
+            if len(self.search_calls) == 1:
+                raise GenericRagChannelError("document search", "unknown filter value", 422)
+            return self._documents
+
+    _install(
+        monkeypatch, _RejectsEverySearch([_document(1, "Alpha")]), builder=_FakeBuilder(_narrowed())
+    )
+
+    await DiscoveryDatasetsRunner(_details()).run("gdp", inputs)
+
+    assert forgotten == [_APPLICATION]
+
+
+async def test_a_narrowed_search_that_works_keeps_the_cached_dimensions(
+    monkeypatch: pytest.MonkeyPatch, inputs: dict[str, Any]
+) -> None:
+    """Re-reading a channel's values on every turn is what the cache exists to avoid."""
+    forgotten: list[str] = []
+    monkeypatch.setattr(runner_module, "forget_dimensions", forgotten.append)
+    _install(monkeypatch, _FakeClient([_document(1, "Alpha")]), builder=_FakeBuilder(_narrowed()))
+
+    await DiscoveryDatasetsRunner(_details()).run("gdp", inputs)
+
+    assert forgotten == []
+
+
+async def test_the_pre_filter_report_survives_a_failed_lookup(
+    monkeypatch: pytest.MonkeyPatch, inputs: dict[str, Any]
+) -> None:
+    """A reviewer has to be able to tell a bad pre-filter from an unreachable channel."""
+    client = _FakeClient(search_error=GenericRagChannelError("document search", "down", 503))
+    builder = _FakeBuilder(_narrowed())
+    _install(monkeypatch, client, builder=builder)
+
+    attachment = (await DiscoveryDatasetsRunner(_details()).run("gdp", inputs)).eval_attachment
+
+    assert attachment.error is not None
+    assert attachment.pre_filter is builder.report
+    assert builder.report.applied is False

@@ -51,6 +51,7 @@ channel, so the channel configuration has to say which one:
     "description": "Discovery datasets surfaced alongside data query results.",
     "details": {
       "applicationId": "statgpt-generic-rag-grade-b-and-c",
+      "referenceAreaApplicationId": "statgpt-generic-rag-reference-areas",
       "templates": {
         "wrapper": "### Other datasets that may be relevant\n\n{items}",
         "item": "- **{name}** ({agency}) - {url}"
@@ -63,6 +64,16 @@ channel, so the channel configuration has to say which one:
 `applicationId` is the DIAL application fronting the RAG channel; `$env:{VAR}` is supported.
 Triggering a job on a channel without this block returns 409. Requests are authenticated with
 `DIAL_API_KEY`, since a background job has no user token.
+
+`referenceAreaApplicationId` is a second RAG channel, holding one document per distinct
+reference-area label the channel's records use. Each document names the roles its records use
+the label in - `subject`, `partner`, or both - so the two chat-time area axes can search the one
+channel separately, each offered only the labels its own field holds. The same job publishes it,
+right after the records, and the chat-time pre-filter searches it to resolve the areas a query
+names onto the values the discovery channel actually holds. Leave it unset and no vocabulary is
+published: the pre-filter then narrows on the remaining axes. A failure to publish it fails the
+job, because a vocabulary that does not match the records narrows queries away from datasets
+that do answer them.
 
 The same block also configures the chat-time lookup over what was published. `enabled: false`
 switches that lookup off while leaving indexing available, so discovery data can be indexed
@@ -77,14 +88,35 @@ tagged with the publishing channel's deployment id, and both the indexing job an
 lookup filter on it, so a channel never publishes over, withdraws, or surfaces another
 channel's records.
 
-The application's own configuration owns the document metadata schema. It is generated from
-`DiscoveryDocumentMetadata`, so it never has to be written by hand:
+Each application's own configuration owns its document metadata schema. Both are generated
+from the models that publish them, so neither has to be written by hand:
 
 ```
 python scripts/print_discovery_metadata_schema.py [--patch dial/core/config/config.json]
+python scripts/print_discovery_metadata_schema.py --schema reference-areas [--patch ...]
 ```
 
 A run reads the application's schema back and refuses to publish if any field the model
-declares filterable is missing - discovery search pre-filters by `agency` and
-`reference_area`, and `grade` / `statgpt_channel` are what let several channels and both
-discovery grades share one application without overwriting each other's documents.
+declares filterable is missing. Discovery search pre-filters by `agency` and by the
+`parsed_reference_areas`, `parsed_partner_reference_areas` and `parsed_frequencies` arrays -
+derived from the ';'-separated cells, because a filter matches a whole value - while `grade` /
+`statgpt_channel` are what let several channels and both discovery grades share one application
+without overwriting each other's documents.
+
+The vocabulary channel's `roles` is an array on the same terms, and it is what the two area
+axes filter on.
+
+The arrays have to be declared as plain, non-nullable string arrays. The RAG service turns the
+schema into its own request model, and an optional or enum-typed array makes that derivation
+fail on *every* search against the channel, not only one carrying the field. For the same
+reason, changing these fields means republishing every document: a document holding a string
+where an array is declared breaks the channel's search and its metadata endpoint alike.
+
+### Validation
+
+Records are validated at the start of every run, and an invalid record is withdrawn from the
+index rather than published. Besides a description and a well-formed URL, a record must name at
+least one reference area and at least one frequency: the chat-time pre-filter narrows by both,
+so a record naming neither would be indexed and then never surfaced. Group labels such as
+`Euro area` or `World` count as reference areas in their own right, and are never expanded into
+the countries inside them.

@@ -93,6 +93,17 @@ class DialAppSettings(BaseSettings):
         ),
     )
 
+    discovery_datasets_pre_filter_dimensions_ttl: int = Field(
+        default=300,
+        alias="DISCOVERY_DATASETS_PRE_FILTER_DIMENSIONS_TTL",
+        description=(
+            "TTL in seconds for the in-process cache of a discovery channel's filterable"
+            " values. A stale entry costs one rejected search, which falls back to an"
+            " unfiltered one and drops the entry - so this trades that against a metadata"
+            " read on every turn"
+        ),
+    )
+
     discovery_datasets_download_concurrency: int = Field(
         default=8,
         alias="DISCOVERY_DATASETS_DOWNLOAD_CONCURRENCY",

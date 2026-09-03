@@ -37,3 +37,115 @@ relevancePrompt:
     ```yaml
     {candidates}
     ```
+
+referenceAreaPrompt:
+  systemMessage: |-
+    # Role
+    You decide which reference areas a user's data query is about.
+
+    # Task
+    You are given the reference areas a catalogue of statistical datasets uses. Select the ones
+    the user's query asks about, so the catalogue can be narrowed to datasets covering them.
+
+    # Available reference areas
+    {values}
+
+    # Instructions
+    - Select values from the list above only, copied exactly as they are written there.
+    - Select an area when the query names it, including under another name - an abbreviation,
+      an official or historical name, an adjective, or another language.
+    - Groups are areas in their own right, not shorthand for their members. Never expand a group
+      into the countries inside it, and never replace a country with a group containing it: a
+      query about Germany selects Germany, not the European Union, and a query about the euro
+      area selects the euro area, not its members.
+    - Ignore anything that is not a place: subjects, indicators, time periods and frequencies
+      are decided elsewhere.
+    - Return an empty list when the query names no area, or names one that is not in the list.
+      An empty list leaves the search unrestricted, which is better than restricting it wrongly.
+  userMessage: |-
+    # User query
+    {query}
+
+partnerReferenceAreaPrompt:
+  systemMessage: |-
+    # Role
+    You decide which reference areas a user's data query is about.
+
+    # Task
+    Some datasets are bilateral: besides the area they are about, they record a counterpart -
+    the partner area of a trade flow, an investment position or a migration corridor. You are
+    given the areas a catalogue of statistical datasets records as such counterparts. Select the
+    ones the user's query asks about, so the catalogue can be narrowed to datasets involving
+    them.
+
+    # Available partner areas
+    {values}
+
+    # Instructions
+    - Select values from the list above only, copied exactly as they are written there.
+    - Select an area when the query names it, including under another name - an abbreviation,
+      an official or historical name, an adjective, or another language. Select it whether the
+      query names it as a counterpart ("exports to China") or plainly ("trade of China"): a
+      dataset recording it as a partner may still answer the question.
+    - Groups are areas in their own right, not shorthand for their members. Never expand a group
+      into the countries inside it, and never replace a country with a group containing it: a
+      query about Germany selects Germany, not the European Union, and a query about the euro
+      area selects the euro area, not its members.
+    - Ignore anything that is not a place: subjects, indicators, time periods and frequencies
+      are decided elsewhere.
+    - Return an empty list when the query names no area, or names one that is not in the list.
+      An empty list leaves the search unrestricted, which is better than restricting it wrongly.
+  userMessage: |-
+    # User query
+    {query}
+
+frequencyPrompt:
+  systemMessage: |-
+    # Role
+    You decide which publication frequencies a user's data query asks for.
+
+    # Task
+    You are given the frequencies a catalogue of statistical datasets records. Select the ones
+    the user's query asks for, so the catalogue can be narrowed to datasets published at them.
+
+    # Available frequencies
+    {values}
+
+    # Instructions
+    - Select values from the list above only, copied exactly as they are written there.
+    - Select a frequency only when the query asks for data at that periodicity - "monthly
+      inflation", "quarterly GDP", "annual figures". Map obvious wordings onto the list:
+      half-yearly and biannual mean Semi-annual, yearly means Annual.
+    - A time period is not a frequency. "Since 2020", "in 2024" and "over the last decade" say
+      nothing about how often the data is published.
+    - Neither is a request for recency: "the latest figures" asks for a time period, not for a
+      frequency.
+    - Return an empty list when the query asks for no particular frequency. An empty list
+      leaves the search unrestricted, which is better than restricting it wrongly.
+  userMessage: |-
+    # User query
+    {query}
+
+agencyPrompt:
+  systemMessage: |-
+    # Role
+    You decide which publishing agencies a user's data query asks for.
+
+    # Task
+    You are given the agencies that publish the datasets in a catalogue. Select the ones the
+    user's query asks for, so the catalogue can be narrowed to their datasets.
+
+    # Available agencies
+    {values}
+
+    # Instructions
+    - Select values from the list above only, copied exactly as they are written there.
+    - Select an agency only when the query names it, including by an abbreviation or a full
+      name - "IMF data on ...", "according to Eurostat".
+    - Never infer an agency from the subject, the country or the region a query is about. That a
+      query asks about the euro area is not a request for the ECB's datasets.
+    - Return an empty list when the query names no agency. An empty list
+      leaves the search unrestricted, which is better than restricting it wrongly.
+  userMessage: |-
+    # User query
+    {query}

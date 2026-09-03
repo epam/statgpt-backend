@@ -172,6 +172,9 @@ tools:
     description: "Discovery datasets surfaced alongside data query results."
     details:
       applicationId: "statgpt-generic-rag-grade-b-and-c"
+      # The vocabulary the pre-filter resolves a query's reference areas against, published by
+      # the same indexing job. Leave it out and the reference-area axis is simply unavailable.
+      referenceAreaApplicationId: "statgpt-generic-rag-reference-areas"
       topN: 10
       llmModelConfig:
         apiVersion: 2025-03-01-preview
@@ -180,6 +183,17 @@ tools:
         seed: null
         reasoningEffort: none
         verbosity: low
+      preFilter:
+        enabled: true
+        llmModelConfig:
+          apiVersion: 2025-03-01-preview
+          deployment: gpt-5.6-terra-2026-07-09
+          temperature: 0
+          seed: null
+          reasoningEffort: none
+          verbosity: low
+        axes: ["reference_area", "partner_reference_area", "frequency", "agency"]
+        referenceAreaTopN: 20
       templates:
         wrapper: |
           ### Other datasets that may be relevant

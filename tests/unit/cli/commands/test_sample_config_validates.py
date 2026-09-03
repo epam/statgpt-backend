@@ -60,6 +60,17 @@ def test_the_sample_channel_configures_discovery_datasets() -> None:
         assert "{items}" in templates.wrapper, "the wrapper must place the rendered items"
 
 
+def test_the_sample_channel_configures_the_discovery_pre_filter() -> None:
+    """The vocabulary channel has to be named, or the reference-area axis is unavailable."""
+    for ch_cfg, config in _merged():
+        assert (
+            config.discovery_reference_area_application_id
+        ), f"{ch_cfg['deployment_id']}: no reference-area vocabulary target"
+        pre_filter = config.discovery_datasets.details.pre_filter  # type: ignore[union-attr]
+        assert pre_filter.enabled is True
+        assert pre_filter.axes
+
+
 def test_discovery_datasets_is_never_offered_to_the_agent() -> None:
     for _, config in _merged():
         names = {tool.name for tool in config.agent_tools}
