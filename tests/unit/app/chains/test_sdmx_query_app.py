@@ -1,7 +1,7 @@
 import pytest
 from pydantic import ValidationError
 
-from statgpt.app.chains.sdmx_query_app_tool import SdmxQueryAppArgs
+from statgpt.app.chains.sdmx_query_app import SdmxQueryAppArgs
 from statgpt.common.schemas.tool_details import SdmxQueryAppDetails
 
 

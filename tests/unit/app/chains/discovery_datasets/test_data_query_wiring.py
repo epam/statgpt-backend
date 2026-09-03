@@ -9,10 +9,9 @@ from typing import Any
 
 import pytest
 
-from statgpt.app.chains.data_query import data_query_tool as tool_module
+from statgpt.app.chains.data_query import runner as runner_module
 from statgpt.app.chains.data_query.data_query_tool import DataQueryTool
 from statgpt.app.chains.data_query.parameters import DataQueryParameters
-from statgpt.app.config import ChainParametersConfig
 from statgpt.app.schemas.discovery_datasets import (
     DiscoveryDatasetsEvalAttachment,
     DiscoveryDatasetsOutcome,
@@ -20,7 +19,6 @@ from statgpt.app.schemas.discovery_datasets import (
 from statgpt.common.schemas import ChannelConfig
 from statgpt.common.schemas import DataQueryTool as DataQueryToolConfig
 from statgpt.common.schemas import SupremeAgentConfig
-from statgpt.common.schemas.enums import InvocationSource
 
 _SUPREME_AGENT = SupremeAgentConfig(
     name="T", domain="D", terminology_domain="T", language_instructions=["i"]
@@ -104,12 +102,12 @@ class _Runner:
 
 def _install(monkeypatch: pytest.MonkeyPatch, chain: _Chain, runner: _Runner | None) -> None:
     monkeypatch.setattr(
-        tool_module,
+        runner_module,
         "QueryBuilderFactory",
         lambda _config: _FactoryStub(chain),
     )
     monkeypatch.setattr(
-        tool_module.DiscoveryDatasetsRunner,
+        runner_module.DiscoveryDatasetsRunner,
         "from_channel_config",
         classmethod(lambda cls, channel_config: runner),
     )
@@ -134,26 +132,23 @@ async def test_the_rendered_block_is_appended_to_the_tool_response(
     response, artifact = await _tool(with_discovery=True)._arun({}, "gdp")
 
     assert response == "Here is your data.\n\n### Datasets\n\n- Alpha"
-    assert artifact.discovery_datasets_block == "### Datasets\n\n- Alpha"
     assert artifact.discovery_datasets_eval_attachment is not None
     assert artifact.discovery_datasets_eval_attachment.query == "gdp"
 
 
-async def test_an_mcp_call_carries_the_block_on_the_artifact_instead(
+async def test_the_runner_keeps_the_block_apart_from_the_response(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """An MCP client gets it as a content block of its own, so folding it in would duplicate it.
-
-    It also keeps markdown out of the response the provider reports as `message`, which a
-    client parses rather than reads.
+    """The MCP interface emits the block as a content block of its own, so the shared runner
+    must not fold it into the response: that would duplicate it there and leave markdown in the
+    `message` field a client parses rather than reads. Folding is the LangChain interface's job.
     """
     _install(monkeypatch, _Chain("Here is your data."), _Runner())
-    inputs = {ChainParametersConfig.INVOCATION_SOURCE: InvocationSource.MCP}
 
-    response, artifact = await _tool(with_discovery=True)._arun(inputs, "gdp")
+    outcome = await _tool(with_discovery=True)._runner.run({}, "gdp")
 
-    assert response == "Here is your data."
-    assert artifact.discovery_datasets_block == "### Datasets\n\n- Alpha"
+    assert outcome.response == "Here is your data."
+    assert outcome.discovery_block == "### Datasets\n\n- Alpha"
 
 
 async def test_a_lookup_that_found_nothing_leaves_the_response_untouched(
@@ -165,7 +160,6 @@ async def test_a_lookup_that_found_nothing_leaves_the_response_untouched(
     response, artifact = await _tool(with_discovery=True)._arun({}, "gdp")
 
     assert response == "Here is your data."
-    assert artifact.discovery_datasets_block is None
     assert artifact.discovery_datasets_eval_attachment is not None
 
 

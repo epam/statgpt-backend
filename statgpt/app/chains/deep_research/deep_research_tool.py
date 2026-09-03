@@ -1,7 +1,6 @@
 import time
 from typing import Annotated, Any, NamedTuple, Self
 
-from mcp.types import ToolAnnotations
 from pydantic import Field
 
 from statgpt.app.chains.parameters import ChainParameters
@@ -239,10 +238,6 @@ class DeepResearchTool(StatGptTool[DeepResearchToolConfig], tool_type=ToolTypes.
     """Starts a Deep Research session from a research question."""
 
     @classmethod
-    def get_mcp_annotations(cls) -> ToolAnnotations:
-        return ToolAnnotations(readOnlyHint=True, destructiveHint=False, openWorldHint=True)
-
-    @classmethod
     def get_args_schema(cls, tool_config: DeepResearchToolConfig) -> type[DeepResearchArgs]:
         """Return the schema for the arguments that this tool accepts."""
         return DeepResearchArgs
@@ -261,10 +256,6 @@ class ResumeDeepResearchTool(
     `details.resume_tool_name` / `details.resume_tool_description`) and invoked only while a
     session is in progress. Kept separate from the start tool so each has a clean, single-purpose
     contract."""
-
-    @classmethod
-    def get_mcp_annotations(cls) -> ToolAnnotations:
-        return ToolAnnotations(readOnlyHint=True, destructiveHint=False, openWorldHint=True)
 
     @classmethod
     def get_args_schema(cls, tool_config: DeepResearchToolConfig) -> type[ResumeDeepResearchArgs]:

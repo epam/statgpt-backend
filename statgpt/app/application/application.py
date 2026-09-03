@@ -10,7 +10,7 @@ from aidial_sdk.utils._reflection import get_method_implementation
 from fastapi import params as fastapi_params
 
 from statgpt.app.chains.file_rags.dial_rag.metadata_loader import dial_rag_metadata_http_client
-from statgpt.app.chains.sdmx_query_app_tool import sdmx_query_app_http_client
+from statgpt.app.chains.sdmx_query_app import sdmx_query_app_http_client
 from statgpt.app.mcp.widget_resource import widget_http_client
 from statgpt.common.models import DatabaseHealthChecker, optional_msi_token_manager_context
 from statgpt.common.services.data_preloader import preload_data_task_context

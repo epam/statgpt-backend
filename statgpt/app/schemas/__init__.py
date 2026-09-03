@@ -25,11 +25,10 @@ from .state import ChatState
 from .tool_artifact import (
     BaseFileRagArtifact,
     DataQueryArtifact,
-    DatasetsMetadataAppArtifact,
+    DataQueryOutcome,
     DeepResearchArtifact,
     DialRagArtifact,
     FailedToolArtifact,
-    SdmxQueryAppArtifact,
     ToolArtifact,
 )
 from .tool_states import (

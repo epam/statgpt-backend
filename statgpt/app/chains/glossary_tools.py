@@ -1,41 +1,60 @@
-from mcp.types import ToolAnnotations
+from dataclasses import dataclass
+
 from pydantic import Field
 
 from statgpt.app.chains.parameters import ChainParameters
 from statgpt.app.chains.tools import StatGptTool, ToolArgs
 from statgpt.app.schemas import ToolArtifact, ToolMessageState
-from statgpt.app.schemas.mcp import (
-    AvailableTermsStructuredContent,
-    GlossaryDefinitionRecord,
-    GlossaryTermRecord,
-    TermDefinitionsStructuredContent,
-)
 from statgpt.common import schemas
 from statgpt.common.schemas import ToolTypes
+from statgpt.common.schemas.tool_details import AvailableTermsDetails, TermDefinitionsDetails
 from statgpt.common.schemas.tools import AvailableTermsTool as AvailableTermsToolConfig
 from statgpt.common.schemas.tools import TermDefinitionsTool as TermDefinitionsToolConfig
+
+# ~~~~~~~~~~~~~ Available terms ~~~~~~~~~~~~~
+
+
+class AvailableTermsRunner:
+    """Lists the channel's glossary terms; shared by the LangChain and MCP interfaces."""
+
+    def __init__(self, details: AvailableTermsDetails):
+        self._details = details
+
+    async def run(self, inputs: dict) -> list[schemas.GlossaryTerm]:
+        data_service = ChainParameters.get_data_service(inputs)
+        return await data_service.get_available_terms()
+
+    def to_markdown_lines(self, terms: list[schemas.GlossaryTerm]) -> list[str]:
+        formatted_terms = []
+        for term in terms:
+            formatted_term = f"- **{term.term}**"
+            if self._details.include_domain:
+                formatted_term += f", domain: {term.domain}"
+            if self._details.include_source:
+                formatted_term += f", source: {term.source}"
+            formatted_terms.append(formatted_term)
+        return formatted_terms
+
+    def to_markdown(self, terms: list[schemas.GlossaryTerm]) -> str:
+        return (
+            f"Glossary contains {len(terms)} terms.\n\n*List of available glossary terms:*\n"
+            + "\n".join(self.to_markdown_lines(terms))
+        )
 
 
 class AvailableTermsTool(
     StatGptTool[AvailableTermsToolConfig], tool_type=ToolTypes.AVAILABLE_TERMS
 ):
-    @classmethod
-    def get_mcp_annotations(cls) -> ToolAnnotations:
-        return ToolAnnotations(readOnlyHint=True, destructiveHint=False, openWorldHint=False)
-
-    @classmethod
-    def get_mcp_output_model(cls) -> type[AvailableTermsStructuredContent]:
-        return AvailableTermsStructuredContent
+    def __init__(
+        self, tool_config: AvailableTermsToolConfig, channel_config: schemas.ChannelConfig, **kwargs
+    ):
+        super().__init__(tool_config, channel_config, **kwargs)
+        self._runner = AvailableTermsRunner(tool_config.details)
 
     async def _arun(self, inputs: dict) -> tuple[str, ToolArtifact]:
-        data_service = ChainParameters.get_data_service(inputs)
-
-        terms = await data_service.get_available_terms()
-        formatted_terms = self._terms_to_markdown(terms)
-        response = (
-            f"Glossary contains {len(terms)} terms.\n\n*List of available glossary terms:*\n"
-            + "\n".join(formatted_terms)
-        )
+        terms = await self._runner.run(inputs)
+        formatted_terms = self._runner.to_markdown_lines(terms)
+        response = self._runner.to_markdown(terms)
 
         target = ChainParameters.get_target(inputs)
         if target:
@@ -45,40 +64,10 @@ class AvailableTermsTool(
             )
             target.append_content("\n".join(formatted_terms[:number_of_terms_to_show]) + "\n")
 
-        return response, ToolArtifact(
-            state=ToolMessageState(type=self.tool_type),
-            mcp_structured=self._to_structured_content(terms),
-        )
+        return response, ToolArtifact(state=ToolMessageState(type=self.tool_type))
 
-    def _to_structured_content(
-        self, terms: list[schemas.GlossaryTerm]
-    ) -> AvailableTermsStructuredContent:
-        # Expose domain/source only when the tool is configured to (mirrors the text rendering).
-        include_domain = self._tool_config.details.include_domain
-        include_source = self._tool_config.details.include_source
-        records = [
-            GlossaryTermRecord(
-                term=term.term,
-                domain=term.domain if include_domain else None,
-                source=term.source if include_source else None,
-            )
-            for term in terms
-        ]
-        return AvailableTermsStructuredContent(terms=records, count=len(terms))
 
-    def _terms_to_markdown(self, terms: list[schemas.GlossaryTerm]) -> list[str]:
-        include_domain = self._tool_config.details.include_domain
-        include_source = self._tool_config.details.include_source
-
-        formatted_terms = []
-        for term in terms:
-            formatted_term = f"- **{term.term}**"
-            if include_domain:
-                formatted_term += f", domain: {term.domain}"
-            if include_source:
-                formatted_term += f", source: {term.source}"
-            formatted_terms.append(formatted_term)
-        return formatted_terms
+# ~~~~~~~~~~~~~ Term definitions ~~~~~~~~~~~~~
 
 
 class BaseTermDefinitionsArgs(ToolArgs):
@@ -94,100 +83,115 @@ class BaseTermDefinitionsArgs(ToolArgs):
     )
 
 
-class TermDefinitionsTool(
-    StatGptTool[TermDefinitionsToolConfig], tool_type=ToolTypes.TERM_DEFINITIONS
-):
-    @classmethod
-    def get_mcp_annotations(cls) -> ToolAnnotations:
-        return ToolAnnotations(readOnlyHint=True, destructiveHint=False, openWorldHint=False)
+def build_term_definitions_args(
+    tool_config: TermDefinitionsToolConfig,
+) -> type[BaseTermDefinitionsArgs]:
+    """The term-definitions args schema, with the configured limit spelled out in the description."""
 
-    @classmethod
-    def get_mcp_output_model(cls) -> type[TermDefinitionsStructuredContent]:
-        return TermDefinitionsStructuredContent
+    limit_msg = (
+        f" Maximum number of terms is limited to {tool_config.details.limit}."
+        if tool_config.details.limit
+        else ""
+    )
 
-    @classmethod
-    def get_args_schema(cls, tool_config: TermDefinitionsToolConfig) -> type[ToolArgs]:
-        """Return the schema for the arguments that this tool accepts."""
-
-        limit_msg = (
-            f" Maximum number of terms is limited to {tool_config.details.limit}."
-            if tool_config.details.limit
-            else ""
+    class TermDefinitionsArgs(BaseTermDefinitionsArgs):
+        terms: list[str] = Field(
+            description=BaseTermDefinitionsArgs.model_fields["terms"].description + limit_msg,  # type: ignore
+            # max_length=tool_config.details.limit,  # This keyword is not yet supported by the OpenAI API
         )
 
-        class TermDefinitionsArgs(BaseTermDefinitionsArgs):
-            terms: list[str] = Field(
-                description=BaseTermDefinitionsArgs.model_fields["terms"].description + limit_msg,  # type: ignore
-                # max_length=tool_config.details.limit,  # This keyword is not yet supported by the OpenAI API
-            )
+    return TermDefinitionsArgs
 
-        return TermDefinitionsArgs
 
-    async def _arun(self, inputs: dict, terms: list[str]) -> tuple[str, ToolArtifact]:
+@dataclass(frozen=True)
+class TermLookup:
+    """One requested term and the glossary entry it resolved to, if any."""
+
+    requested: str
+    found: schemas.GlossaryTerm | None
+
+
+@dataclass(frozen=True)
+class TermDefinitionsOutcome:
+    """What a term-definitions call produced: either the lookups, or nothing because the request
+    exceeded the configured limit."""
+
+    lookups: list[TermLookup]
+    limit_exceeded: bool = False
+    limit: int | None = None
+
+
+class TermDefinitionsRunner:
+    """Resolves requested terms against the glossary; shared by the LangChain and MCP interfaces."""
+
+    def __init__(self, details: TermDefinitionsDetails):
+        self._details = details
+
+    async def run(self, inputs: dict, terms: list[str]) -> TermDefinitionsOutcome:
+        limit = self._details.limit
+        if limit and len(terms) > limit:
+            # Over-limit: nothing is fetched; the interfaces explain the reason in their text.
+            return TermDefinitionsOutcome(lookups=[], limit_exceeded=True, limit=limit)
+
         data_service = ChainParameters.get_data_service(inputs)
+        all_terms = await data_service.get_available_terms()
+        return TermDefinitionsOutcome(lookups=self.lookup(terms, all_terms))
 
-        if self._tool_config.details.limit and len(terms) > self._tool_config.details.limit:
-            # Over-limit: structured content still matches the declared schema (no definitions);
-            # the reason lives in the text rendering.
+    @staticmethod
+    def lookup(terms: list[str], all_terms: list[schemas.GlossaryTerm]) -> list[TermLookup]:
+        all_terms_dict = {term.term.lower(): term for term in all_terms}
+        return [
+            TermLookup(requested=term, found=all_terms_dict.get(term.strip().lower()))
+            for term in terms
+        ]
+
+    @staticmethod
+    def to_markdown(outcome: TermDefinitionsOutcome) -> str:
+        if outcome.limit_exceeded:
             return (
-                f"The number of requested terms exceeds the limit of {self._tool_config.details.limit}. "
+                f"The number of requested terms exceeds the limit of {outcome.limit}. "
                 "Please reduce the number of terms and try again. Also, mind that massive requests "
                 "are not supported (e.g. asking for definitions of all available terms), as this is "
-                "not the intended use case of this tool.",
-                ToolArtifact(
-                    state=ToolMessageState(type=self.tool_type),
-                    mcp_structured=TermDefinitionsStructuredContent(),
-                ),
+                "not the intended use case of this tool."
             )
 
-        all_terms = await data_service.get_available_terms()
-        response = self.term_definition_to_markdown(terms, all_terms)
-
-        target = ChainParameters.get_target(inputs)
-        if target:
-            target.append_content(response)
-
-        return response, ToolArtifact(
-            state=ToolMessageState(type=self.tool_type),
-            mcp_structured=self._to_structured_content(terms, all_terms),
-        )
-
-    @staticmethod
-    def _to_structured_content(
-        terms: list[str], all_terms: list[schemas.GlossaryTerm]
-    ) -> TermDefinitionsStructuredContent:
-        all_terms_dict = {term.term.lower(): term for term in all_terms}
-        records: list[GlossaryDefinitionRecord] = []
-        for term in terms:
-            term_db = all_terms_dict.get(term.strip().lower())
-            if term_db is not None:
-                records.append(
-                    GlossaryDefinitionRecord(
-                        term=term_db.term,
-                        found=True,
-                        domain=term_db.domain,
-                        source=term_db.source,
-                        definition=term_db.definition,
-                    )
-                )
-            else:
-                records.append(GlossaryDefinitionRecord(term=term, found=False))
-        return TermDefinitionsStructuredContent(definitions=records)
-
-    @staticmethod
-    def term_definition_to_markdown(terms: list[str], all_terms: list[schemas.GlossaryTerm]) -> str:
-        all_terms_dict = {term.term.lower(): term for term in all_terms}
-
         response = "## Glossary term definitions:\n"
-        for term in terms:
-            term_to_search = term.strip().lower()
-
-            if term_db := all_terms_dict.get(term_to_search):
+        for lookup in outcome.lookups:
+            if term_db := lookup.found:
                 response += f"### {term_db.term}\n"
                 response += f"**Domain:** {term_db.domain}  \n"
                 response += f"**Source:** {term_db.source}  \n"
                 response += f"**Definition:**  \n{term_db.definition}\n\n"
             else:
-                response += f"### {term}\n"
+                response += f"### {lookup.requested}\n"
                 response += "The term is not available in the glossary.\n\n"
         return response
+
+
+class TermDefinitionsTool(
+    StatGptTool[TermDefinitionsToolConfig], tool_type=ToolTypes.TERM_DEFINITIONS
+):
+    def __init__(
+        self,
+        tool_config: TermDefinitionsToolConfig,
+        channel_config: schemas.ChannelConfig,
+        **kwargs,
+    ):
+        super().__init__(tool_config, channel_config, **kwargs)
+        self._runner = TermDefinitionsRunner(tool_config.details)
+
+    @classmethod
+    def get_args_schema(cls, tool_config: TermDefinitionsToolConfig) -> type[ToolArgs]:
+        """Return the schema for the arguments that this tool accepts."""
+        return build_term_definitions_args(tool_config)
+
+    async def _arun(self, inputs: dict, terms: list[str]) -> tuple[str, ToolArtifact]:
+        outcome = await self._runner.run(inputs, terms)
+        response = self._runner.to_markdown(outcome)
+
+        if not outcome.limit_exceeded:
+            target = ChainParameters.get_target(inputs)
+            if target:
+                target.append_content(response)
+
+        return response, ToolArtifact(state=ToolMessageState(type=self.tool_type))

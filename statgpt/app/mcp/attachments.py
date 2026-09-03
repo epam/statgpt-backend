@@ -11,7 +11,7 @@ from pydantic import AnyUrl
 from statgpt.app.schemas.data_query_outcome import DataQueryStatus
 from statgpt.app.schemas.mcp import DataQueryStructuredContent, DataQueryToolsInfo
 from statgpt.app.schemas.query import AppJsonQueryWithMetadata
-from statgpt.app.schemas.tool_artifact import DataQueryArtifact
+from statgpt.app.schemas.tool_artifact import DataQueryOutcome
 from statgpt.app.services.python_code_generator import generate_merged_python_code
 from statgpt.common.data.base import DataResponse
 from statgpt.common.schemas import ChannelConfig, DataQueryMcpResources
@@ -25,8 +25,8 @@ _LEFT_RULE = ":---"
 _RIGHT_RULE = "---:"
 
 
-def data_query_artifact_to_resources(
-    artifact: DataQueryArtifact,
+def data_query_outcome_to_resources(
+    outcome: DataQueryOutcome,
     config: DataQueryMcpResources,
 ) -> list[EmbeddedResource]:
     """Serialize each DataResponse into the inline resources enabled by `config`.
@@ -40,7 +40,7 @@ def data_query_artifact_to_resources(
     MultiIndexed frame when there are no observations.
     """
     resources: list[EmbeddedResource] = []
-    for response in artifact.data_responses.values():
+    for response in outcome.data_responses.values():
         if response.is_empty:
             continue
         if config.csv.enabled:
@@ -191,12 +191,12 @@ def _format_cell(value: Any) -> str:
     return str(value).replace("|", "\\|").replace("\r\n", " ").replace("\n", " ")
 
 
-def data_query_artifact_to_structured_content(
-    artifact: DataQueryArtifact,
+def data_query_outcome_to_structured_content(
+    outcome: DataQueryOutcome,
     channel_config: ChannelConfig,
     message: str | None = None,
 ) -> DataQueryStructuredContent:
-    """Build the data query tool's MCP structured content from the artifact.
+    """Build the data query tool's MCP structured content from the pipeline outcome.
 
     Always returns a value carrying the pipeline ``status``. Per outcome:
     - ``data_available`` / ``executed_no_data`` / ``failed``: the executed queries + reproducible
@@ -207,8 +207,8 @@ def data_query_artifact_to_structured_content(
     - ``missing_dimensions``: the required dimensions the user must still specify.
     - ``invalid_time_period`` / ``no_data``: just the status and the human-readable message.
     """
-    state = artifact.state
-    mcp_payload = artifact.mcp_payload
+    state = outcome.state
+    mcp_payload = outcome.mcp_payload
     status = state.status
 
     sdmx_query_app = channel_config.sdmx_query_app
@@ -223,7 +223,7 @@ def data_query_artifact_to_structured_content(
     ):
         executed_queries = [
             AppJsonQueryWithMetadata.from_common(response.json_query)
-            for response in artifact.data_responses.values()
+            for response in outcome.data_responses.values()
             if response.json_query is not None
         ]
         return DataQueryStructuredContent(

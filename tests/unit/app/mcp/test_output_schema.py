@@ -1,22 +1,18 @@
 """Contract tests for MCP tool output schemas.
 
-Only four tools declare an MCP output schema and emit ``structuredContent``: the two glossary tools
-(available-terms, term-definitions) and the two dataset-metadata tools (available-datasets,
-dataset-structure). Every other registered tool opts out (no declared schema). These tests fail the
+Only four tools declare an MCP output schema: the two glossary tools (available-terms,
+term-definitions) and the two dataset-metadata tools (available-datasets, dataset-structure). Every
+other tool opts out (no declared schema), even where it emits structured content. These tests fail the
 build when a scoped tool's runtime content drifts from its declared schema, and lock the reduced
 scope so a tool cannot silently gain or lose a schema. They double as the captured sample responses
 for the marketplace submission package.
 """
 
-from types import SimpleNamespace
-from unittest.mock import AsyncMock
-
 import jsonschema
 import pytest
+from fastmcp.tools import ToolResult
 
-import statgpt.app.chains  # noqa: F401  # imported for its side effect: populate the tool registry
-from statgpt.app.chains.tools import _TOOL_IMPLEMENTATIONS
-from statgpt.app.mcp.provider import _McpToolAdapter
+from statgpt.app.mcp.tools import StatGptMcpTool, mcp_tool_class_for
 from statgpt.app.schemas.mcp import (
     AvailableDatasetsStructuredContent,
     AvailableTermsStructuredContent,
@@ -30,12 +26,9 @@ from statgpt.app.schemas.mcp import (
     ProviderRecord,
     TermDefinitionsStructuredContent,
 )
-from statgpt.app.schemas.tool_artifact import ToolArtifact
-from statgpt.app.schemas.tool_states import ToolMessageState
 from statgpt.common.schemas import ToolTypes
-from statgpt.common.schemas.tools import DataQueryTool
 
-# The only tools in scope for explicit MCP output schemas. Every other registered tool opts out.
+# The only tools in scope for explicit MCP output schemas. Every other tool opts out.
 SCOPED_TOOL_TYPES = {
     ToolTypes.AVAILABLE_TERMS,
     ToolTypes.TERM_DEFINITIONS,
@@ -49,7 +42,7 @@ STRUCTURED_ONLY_TOOL_TYPES = {ToolTypes.AVAILABLE_DATASETS, ToolTypes.DATASET_ST
 
 
 def _schema(tool_type: ToolTypes) -> dict:
-    schema = _TOOL_IMPLEMENTATIONS[tool_type].get_mcp_output_schema()
+    schema = mcp_tool_class_for(tool_type).get_output_schema()
     assert schema is not None, f"{tool_type} should declare an output schema"
     return schema
 
@@ -62,8 +55,8 @@ def test_only_scoped_tools_declare_an_output_schema():
     # explicit so a tool that gains or loses a schema trips this test.
     declaring = {
         tool_type
-        for tool_type, tool_cls in _TOOL_IMPLEMENTATIONS.items()
-        if tool_cls.get_mcp_output_schema() is not None
+        for tool_type in ToolTypes
+        if mcp_tool_class_for(tool_type).get_output_schema() is not None
     }
     assert declaring == SCOPED_TOOL_TYPES
 
@@ -78,26 +71,6 @@ def test_declared_schemas_are_valid_object_schemas():
 
 
 # ~~~~~~~~~~~~~ runtime content validates against the declared schema ~~~~~~~~~~~~~
-
-
-def _adapter(result, *, tool_type: ToolTypes):
-    tool = SimpleNamespace(
-        name="fake_tool",
-        ainvoke=AsyncMock(return_value=result),
-        mcp_structured_only=_TOOL_IMPLEMENTATIONS[tool_type].mcp_structured_only,
-    )
-    return _McpToolAdapter(
-        langchain_tool=tool,  # type: ignore[arg-type]
-        inputs={},
-        # out_of_scope=None disables the guardrail so run() proceeds straight to the tool.
-        channel_config=SimpleNamespace(out_of_scope=None),  # type: ignore[arg-type]
-        tool_config=DataQueryTool(name="fake_tool", description="Query data"),
-        auth_context=SimpleNamespace(),  # type: ignore[arg-type]
-        name="fake_tool",
-        parameters={},
-        output_schema=_schema(tool_type),
-    )
-
 
 # Representative structured content for each scoped tool. These double as captured sample responses
 # for the submission package.
@@ -153,15 +126,22 @@ GENERIC_CASES: dict = {
 }
 
 
-@pytest.mark.parametrize("tool_type", sorted(GENERIC_CASES, key=str))
-async def test_tool_built_structured_content_validates(tool_type: ToolTypes):
-    # Tools that build their own structured content attach it to the artifact; the provider surfaces
-    # it and it must validate against the tool's declared schema.
-    artifact = ToolArtifact(
-        state=ToolMessageState(type=tool_type), mcp_structured=GENERIC_CASES[tool_type]
+def _tool_result(tool_type: ToolTypes) -> ToolResult:
+    # The two ways an MCP tool emits structured content: as the whole result (structured-only) or
+    # alongside the text rendering.
+    model = GENERIC_CASES[tool_type]
+    if tool_type in STRUCTURED_ONLY_TOOL_TYPES:
+        return StatGptMcpTool._structured_only(model)
+    return ToolResult(
+        content=StatGptMcpTool._text_content("Tool response."), structured_content=model
     )
-    result = SimpleNamespace(content="Tool response.", artifact=artifact)
-    tool_result = await _adapter(result, tool_type=tool_type).run({})
+
+
+@pytest.mark.parametrize("tool_type", sorted(GENERIC_CASES, key=str))
+def test_structured_content_validates_against_the_declared_schema(tool_type: ToolTypes):
+    # The model each tool declares must serialize to something its own schema accepts.
+    assert GENERIC_CASES[tool_type].__class__ is mcp_tool_class_for(tool_type).get_output_model()
+    tool_result = _tool_result(tool_type)
     assert tool_result.structured_content is not None
     jsonschema.validate(instance=tool_result.structured_content, schema=_schema(tool_type))
 
@@ -172,38 +152,20 @@ def test_scoped_tools_cover_the_generic_cases():
 
 
 @pytest.mark.parametrize("tool_type", sorted(STRUCTURED_ONLY_TOOL_TYPES, key=str))
-async def test_structured_only_tool_drops_text(tool_type: ToolTypes):
-    # A structured-only tool returns only structuredContent: no text content block is emitted even
-    # when the tool produced a text rendering.
-    artifact = ToolArtifact(
-        state=ToolMessageState(type=tool_type), mcp_structured=GENERIC_CASES[tool_type]
-    )
-    result = SimpleNamespace(content="Some prose.", artifact=artifact)
-    tool_result = await _adapter(result, tool_type=tool_type).run({})
-    assert tool_result.content == []
+def test_structured_only_tool_drops_text(tool_type: ToolTypes):
+    # A structured-only tool returns only structuredContent: no text content block is emitted.
+    assert _tool_result(tool_type).content == []
 
 
-async def test_structured_only_tool_omits_null_fields():
+def test_structured_only_tool_omits_null_fields():
     # Null optional fields are dropped from the structured content of a structured-only tool.
     content = AvailableDatasetsStructuredContent(
         datasets=[DatasetRecord(id="IMF:CPI(1.0.0)", name="CPI")],
         total_datasets=1,
         total_agencies=0,
     )
-    artifact = ToolArtifact(
-        state=ToolMessageState(type=ToolTypes.AVAILABLE_DATASETS), mcp_structured=content
-    )
-    result = SimpleNamespace(content="Some prose.", artifact=artifact)
-    tool_result = await _adapter(result, tool_type=ToolTypes.AVAILABLE_DATASETS).run({})
-    structured = tool_result.structured_content
+    structured = StatGptMcpTool._structured_only(content).structured_content
+    assert structured is not None
     assert structured["datasets"] == [{"id": "IMF:CPI(1.0.0)", "name": "CPI"}]
     assert "totalIndicators" not in structured
-
-
-async def test_scoped_tool_without_structured_content_omits_it():
-    # A scoped tool that builds no structured content leaves structuredContent unset rather than
-    # emitting something that would violate its declared schema.
-    artifact = ToolArtifact(state=ToolMessageState(type=ToolTypes.AVAILABLE_DATASETS))
-    result = SimpleNamespace(content="Some prose.", artifact=artifact)
-    tool_result = await _adapter(result, tool_type=ToolTypes.AVAILABLE_DATASETS).run({})
-    assert tool_result.structured_content is None
+    jsonschema.validate(instance=structured, schema=_schema(ToolTypes.AVAILABLE_DATASETS))

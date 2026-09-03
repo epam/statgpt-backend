@@ -1,69 +1,29 @@
-import asyncio
 import logging
 from collections.abc import Sequence
 from datetime import datetime
 from typing import Any
-from uuid import uuid4
 
-from fastmcp.apps import AppConfig, app_config_to_meta_dict
-from fastmcp.exceptions import ToolError
 from fastmcp.resources import Resource
 from fastmcp.server.dependencies import get_http_request
 from fastmcp.server.providers import Provider
-from fastmcp.tools import Tool, ToolResult
+from fastmcp.tools import Tool
 from fastmcp.utilities.components import FastMCPComponent
 from fastmcp.utilities.versions import VersionSpec
-from mcp.types import ContentBlock, TextContent
-from pydantic import BaseModel, PrivateAttr, ValidationError
 from starlette.requests import Request
 
-from statgpt.app.chains.tools import StatGptTool, ToolUpstreamError
 from statgpt.app.config import ChainParametersConfig
-from statgpt.app.mcp.attachments import (
-    data_query_artifact_to_resources,
-    data_query_artifact_to_structured_content,
-)
 from statgpt.app.mcp.decorators import guard_channel_resolution
 from statgpt.app.mcp.exceptions import MissingDeploymentIdError
-from statgpt.app.mcp.guardrails import enforce_input_guardrail
+from statgpt.app.mcp.tools import StatGptMcpTool
 from statgpt.app.mcp.widget_resource import WidgetResource
 from statgpt.app.schemas.dial_app_configuration import StatGPTConfiguration
-from statgpt.app.schemas.mcp import SdmxProxyStructuredContent
-from statgpt.app.schemas.tool_artifact import (
-    DataQueryArtifact,
-    DatasetsMetadataAppArtifact,
-    SdmxQueryAppArtifact,
-)
 from statgpt.app.security import DialAuthCredentials, create_auth_context
 from statgpt.app.services.chat_facade import ChannelServiceFacade
 from statgpt.app.utils.dial_stages import DummyStage, NullChoice
 from statgpt.common.auth.auth_context import AuthContext
-from statgpt.common.schemas import (
-    BaseToolConfig,
-    ChannelConfig,
-    DataQueryMcpResources,
-    DataQueryTool,
-    InvocationSource,
-    ProxiedResourceConfig,
-)
+from statgpt.common.schemas import InvocationSource, ProxiedResourceConfig
 
 _log = logging.getLogger(__name__)
-
-
-def _tool_app_config(tool_config: BaseToolConfig) -> AppConfig | None:
-    """Build the MCP Apps config (``_meta.ui``) from the config's MCP-App fields.
-
-    Uses fastmcp's typed ``AppConfig`` so the wire format (camelCase aliases per the
-    MCP Apps extension) stays in sync with the library. Returns ``None`` when neither
-    field is set so ``_meta`` is omitted and the host applies the spec default
-    visibility (``["model", "app"]``).
-    """
-    if tool_config.mcp_visibility is None and tool_config.mcp_app_resource_uri is None:
-        return None
-    return AppConfig(
-        visibility=tool_config.mcp_visibility,
-        resource_uri=tool_config.mcp_app_resource_uri,
-    )
 
 
 def _build_mcp_inputs(
@@ -83,116 +43,6 @@ def _build_mcp_inputs(
     }
 
 
-class _McpToolAdapter(Tool):
-    """A FastMCP Tool backed by a StatGptTool instance."""
-
-    _langchain_tool: StatGptTool = PrivateAttr()
-    _inputs: dict[str, Any] = PrivateAttr()
-    _channel_config: ChannelConfig = PrivateAttr()
-    _tool_config: BaseToolConfig = PrivateAttr()
-    _auth_context: AuthContext = PrivateAttr()
-
-    def __init__(
-        self,
-        langchain_tool: StatGptTool,
-        inputs: dict[str, Any],
-        channel_config: ChannelConfig,
-        tool_config: BaseToolConfig,
-        auth_context: AuthContext,
-        **kwargs: Any,
-    ):
-        super().__init__(**kwargs)
-        self._langchain_tool = langchain_tool
-        self._inputs = inputs
-        self._channel_config = channel_config
-        self._tool_config = tool_config
-        self._auth_context = auth_context
-
-    async def run(self, arguments: dict[str, Any]) -> ToolResult:
-        # Screen arbitrary free-text input with the out-of-scope guardrail before
-        # executing. Raised ToolError propagates to the MCP client unchanged.
-        await enforce_input_guardrail(
-            self._langchain_tool, arguments, self._channel_config, self._auth_context
-        )
-        tool_call = {
-            "name": self._langchain_tool.name,
-            "args": {**arguments, "inputs": self._inputs},
-            "id": str(uuid4()),
-            "type": "tool_call",
-        }
-        try:
-            result = await self._langchain_tool.ainvoke(tool_call)
-        except ValidationError as e:
-            # Argument-schema validation failures (e.g. missing required field, bad enum
-            # value). Surface a concise message instead of generic failure
-            _log.debug("Invalid arguments for MCP tool %s: %s", self._langchain_tool.name, e)
-            raise ToolError(f"Invalid arguments for {self._langchain_tool.name}: {e}") from e
-        except ToolUpstreamError as e:
-            # Upstream dependency failure (connection/timeout): surface the specific message.
-            _log.warning("Upstream error in MCP tool %s: %s", self._langchain_tool.name, e)
-            raise ToolError(str(e)) from e
-        except Exception:
-            # Catch-all for unexpected errors. Known error cases should return
-            # proper content or raise a custom exception caught in a dedicated
-            # except block above this one.
-            _log.exception("Error executing MCP tool %s", self._langchain_tool.name)
-            raise ToolError(f"{self._langchain_tool.name} tool failed to execute")
-        text = result.content if isinstance(result.content, str) else str(result.content)
-        content: list[ContentBlock] = [TextContent(type="text", text=text)] if text else []
-        structured_content: BaseModel | dict[str, Any] | None = None
-        # These artifact-specific branches take precedence over the generic `mcp_structured` path
-        # below and build the structured content themselves, so any `mcp_structured` inherited on
-        # these artifacts is intentionally not consulted.
-        if isinstance(result.artifact, DataQueryArtifact):
-            mcp_resources = (
-                self._tool_config.details.mcp_resources
-                if isinstance(self._tool_config, DataQueryTool)
-                else DataQueryMcpResources()
-            )
-            # The CSV and Markdown conversions are CPU-bound and can block on large
-            # dataframes; offload them to a worker thread.
-            resources = await asyncio.to_thread(
-                data_query_artifact_to_resources, result.artifact, mcp_resources
-            )
-            content.extend(resources)
-            structured_content = data_query_artifact_to_structured_content(
-                result.artifact, self._channel_config, message=text or None
-            )
-            # A content block of its own rather than a suffix on the response, which is also
-            # reported as `message` for a client to parse.
-            if discovery_block := result.artifact.discovery_datasets_block:
-                content.append(TextContent(type="text", text=discovery_block))
-        elif isinstance(result.artifact, SdmxQueryAppArtifact):
-            # Surface the upstream HTTP metadata so the MCP-App can distinguish success from
-            # error responses and know the body's media type. The raw body stays in the text
-            # content block above to keep the passthrough behavior.
-            structured_content = SdmxProxyStructuredContent(
-                status_code=result.artifact.status_code,
-                content_type=result.artifact.content_type,
-            )
-        elif isinstance(result.artifact, DatasetsMetadataAppArtifact):
-            # Surface the datasets metadata payload as structured content so the UI widget can
-            # consume it directly (the JSON body is also in the text content block above).
-            structured_content = result.artifact.response
-        elif (built := getattr(result.artifact, "mcp_structured", None)) is not None:
-            # Tools that build their own structured content attach it to the artifact; surface it
-            # alongside the text rendering (both fields, per the marketplace contract).
-            if self._langchain_tool.mcp_structured_only():
-                # This tool's complete result lives in structured content: drop the text block so it
-                # is not duplicated, and omit null optional fields for a compact payload.
-                content = []
-                structured_content = built.model_dump(mode="json", by_alias=True, exclude_none=True)
-            else:
-                structured_content = built
-        _log.info(
-            "Sending MCP tool %s response: %d content block(s), structured_content=%s",
-            self._langchain_tool.name,
-            len(content),
-            type(structured_content).__name__ if structured_content else None,
-        )
-        return ToolResult(content=content, structured_content=structured_content)
-
-
 class ChannelToolProvider(Provider):
     """MCP Provider that dynamically serves tools from a StatGPT channel config."""
 
@@ -207,29 +57,6 @@ class ChannelToolProvider(Provider):
         )
         return auth_context, channel_service
 
-    def _create_mcp_tool(
-        self,
-        tool_config: BaseToolConfig,
-        channel_config: ChannelConfig,
-        inputs: dict[str, Any],
-        auth_context: AuthContext,
-    ) -> _McpToolAdapter:
-        langchain_tool = StatGptTool.from_config(tool_config, channel_config)
-        app_config = _tool_app_config(tool_config)
-        return _McpToolAdapter(
-            langchain_tool=langchain_tool,
-            inputs=inputs,
-            channel_config=channel_config,
-            tool_config=tool_config,
-            auth_context=auth_context,
-            name=channel_config.mcp.tool_name_prefix + tool_config.effective_mcp_name,
-            description=tool_config.effective_mcp_description,
-            parameters=langchain_tool.get_public_args_schema(),
-            output_schema=langchain_tool.get_mcp_output_schema(),
-            annotations=langchain_tool.get_mcp_annotations(),
-            meta={"ui": app_config_to_meta_dict(app_config)} if app_config else None,
-        )
-
     @guard_channel_resolution(default=[], log_prefix="tools/list")
     async def _list_tools(self) -> Sequence[Tool]:
         auth_context, channel_service = await self._resolve_context(get_http_request())
@@ -241,8 +68,9 @@ class ChannelToolProvider(Provider):
         tools: list[Tool] = []
         for tool_config in channel_config.tools:
             try:
-                mcp_tool = self._create_mcp_tool(tool_config, channel_config, inputs, auth_context)
-                tools.append(mcp_tool)
+                tools.append(
+                    StatGptMcpTool.from_config(tool_config, channel_config, inputs, auth_context)
+                )
             except Exception:
                 _log.warning("Failed to create MCP tool for %s", tool_config.name, exc_info=True)
         return tools
@@ -267,7 +95,7 @@ class ChannelToolProvider(Provider):
         inputs = _build_mcp_inputs(auth_context, channel_service)
         for tool_config in channel_config.tools:
             if tool_config.effective_mcp_name == name:
-                return self._create_mcp_tool(tool_config, channel_config, inputs, auth_context)
+                return StatGptMcpTool.from_config(tool_config, channel_config, inputs, auth_context)
         _log.warning(
             "MCP tool %s not found in the `%s` channel", name, channel_service.deployment_id
         )
