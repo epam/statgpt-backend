@@ -8,7 +8,6 @@ from statgpt.app.chains.parameters import ChainParameters
 from statgpt.app.chains.tools import GuardrailInput, StatGptTool, ToolArgs
 from statgpt.app.default_prompts import datasets_metadata_default_prompts
 from statgpt.app.schemas import ToolArtifact, ToolMessageState
-from statgpt.app.schemas.mcp import AvailableDatasetsStructuredContent
 from statgpt.app.utils.formatters import DatasetsListFormatter
 from statgpt.common.schemas import ChannelConfig
 from statgpt.common.schemas import DatasetsMetadataTool as DatasetsMetadataToolConfig
@@ -16,7 +15,7 @@ from statgpt.common.schemas import ToolTypes
 from statgpt.common.schemas.enums import AvailableDatasetsVersion
 from statgpt.common.utils.models import get_chat_model
 
-from ._utils import _create_formatter_config, datasets_to_structured_content
+from ._utils import _create_formatter_config
 
 
 class DatasetsMetadataArgs(ToolArgs):
@@ -31,12 +30,6 @@ class DatasetsMetadataTool(
     @classmethod
     def get_mcp_annotations(cls) -> ToolAnnotations:
         return ToolAnnotations(readOnlyHint=True, destructiveHint=False, openWorldHint=False)
-
-    @classmethod
-    def get_mcp_output_model(cls) -> type[AvailableDatasetsStructuredContent]:
-        # The tool answers in prose (the text content); the datasets it reasoned over are the
-        # machine-readable payload, keyed by stable URN.
-        return AvailableDatasetsStructuredContent
 
     def __init__(
         self, tool_config: DatasetsMetadataToolConfig, channel_config: ChannelConfig, **kwargs
@@ -90,7 +83,4 @@ class DatasetsMetadataTool(
             if target:
                 target.append_content(content)  # type: ignore[arg-type]
 
-        return response, ToolArtifact(
-            state=ToolMessageState(type=self.tool_type),
-            mcp_structured=datasets_to_structured_content(datasets),
-        )
+        return response, ToolArtifact(state=ToolMessageState(type=self.tool_type))

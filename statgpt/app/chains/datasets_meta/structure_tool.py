@@ -5,16 +5,24 @@ from statgpt.app.chains.parameters import ChainParameters
 from statgpt.app.chains.tools import StatGptTool, ToolArgs
 from statgpt.app.chains.utils import dataset_utils
 from statgpt.app.schemas import ToolArtifact, ToolMessageState
-from statgpt.app.schemas.mcp import DatasetComponentRecord, DatasetStructureStructuredContent
+from statgpt.app.schemas.mcp import (
+    DatasetComponentRecord,
+    DatasetStructureStructuredContent,
+    DatasetValueRecord,
+    ProviderAgencyRecord,
+)
 from statgpt.app.utils.formatters import (
     CitationFormatterConfig,
     DatasetFormatterConfig,
     DetailedDatasetFormatter,
 )
-from statgpt.common.data.base import DataSet
+from statgpt.common.auth.auth_context import AuthContext
+from statgpt.common.data.base import Attribute, CategoricalDimension, DataSet, Dimension
 from statgpt.common.schemas import ChannelConfig
 from statgpt.common.schemas import DatasetStructureTool as DatasetStructureToolConfig
 from statgpt.common.schemas import ToolTypes
+
+_SAMPLE_VALUES_LIMIT = 10
 
 
 class DatasetStructureArgs(ToolArgs):
@@ -33,6 +41,10 @@ class DatasetStructureTool(
     @classmethod
     def get_mcp_output_model(cls) -> type[DatasetStructureStructuredContent]:
         return DatasetStructureStructuredContent
+
+    @classmethod
+    def mcp_structured_only(cls) -> bool:
+        return True
 
     def __init__(
         self, tool_config: DatasetStructureToolConfig, channel_config: ChannelConfig, **kwargs
@@ -94,22 +106,57 @@ class DatasetStructureTool(
 
         return response, ToolArtifact(
             state=ToolMessageState(type=self.tool_type),
-            mcp_structured=self._to_structured_content(dataset),
+            mcp_structured=await self._to_structured_content(dataset, auth_context),
         )
 
-    @staticmethod
-    def _to_structured_content(dataset: DataSet) -> DatasetStructureStructuredContent:
+    @classmethod
+    async def _to_structured_content(
+        cls, dataset: DataSet, auth_context: AuthContext
+    ) -> DatasetStructureStructuredContent:
+        citation = dataset.config.citation
+        description = (
+            citation.description if citation and citation.description else dataset.description
+        )
+        last_updated: str | None
+        if updated_at := await dataset.updated_at(auth_context):
+            last_updated = updated_at.date().isoformat()
+        else:
+            last_updated = citation.last_updated if citation else None
+        provider_agencies = None
+        if citation and citation.provider_agencies:
+            provider_agencies = [
+                ProviderAgencyRecord(id=agency.id, name=agency.name)
+                for agency in citation.provider_agencies
+            ]
         return DatasetStructureStructuredContent(
             dataset_id=dataset.source_id,
             found=True,
             name=dataset.name,
+            description=description,
+            provider=citation.provider if citation else None,
+            last_updated=last_updated,
             url=dataset.dataset_url,
-            dimensions=[
-                DatasetComponentRecord(id=dim.entity_id, name=dim.name)
-                for dim in dataset.dimensions()
-            ],
-            attributes=[
-                DatasetComponentRecord(id=attr.entity_id, name=attr.name)
-                for attr in dataset.attributes()
-            ],
+            provider_agencies=provider_agencies,
+            dimensions=[cls._component_record(dim) for dim in dataset.dimensions()],
+            attributes=[cls._component_record(attr) for attr in dataset.attributes()],
         )
+
+    @staticmethod
+    def _component_record(component: Dimension | Attribute) -> DatasetComponentRecord:
+        type_ = getattr(component, "dimension_type", None) or getattr(
+            component, "attribute_type", None
+        )
+        record = DatasetComponentRecord(
+            id=component.entity_id,
+            name=component.name,
+            type=type_.value if type_ is not None else None,
+            description=component.description,
+        )
+        if isinstance(component, CategoricalDimension):
+            values = component.available_values
+            record.total_values = len(values)
+            record.sample_values = [
+                DatasetValueRecord(id=value.query_id, name=value.name)
+                for value in values[:_SAMPLE_VALUES_LIMIT]
+            ]
+        return record

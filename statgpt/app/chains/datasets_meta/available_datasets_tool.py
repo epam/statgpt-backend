@@ -23,6 +23,10 @@ class AvailableDatasetsTool(
     def get_mcp_output_model(cls) -> type[AvailableDatasetsStructuredContent]:
         return AvailableDatasetsStructuredContent
 
+    @classmethod
+    def mcp_structured_only(cls) -> bool:
+        return True
+
     def __init__(
         self, tool_config: AvailableDatasetsToolConfig, channel_config: ChannelConfig, **kwargs
     ):
@@ -61,5 +65,7 @@ class AvailableDatasetsTool(
 
         return response, ToolArtifact(
             state=ToolMessageState(type=self.tool_type),
-            mcp_structured=datasets_to_structured_content(datasets),
+            mcp_structured=await datasets_to_structured_content(
+                datasets, auth_context, indicator_counts
+            ),
         )

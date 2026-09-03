@@ -1,5 +1,13 @@
-from statgpt.app.schemas.mcp import AvailableDatasetsStructuredContent, DatasetRecord
+import asyncio
+from collections import defaultdict
+
+from statgpt.app.schemas.mcp import (
+    AvailableDatasetsStructuredContent,
+    DatasetRecord,
+    ProviderRecord,
+)
 from statgpt.app.utils.formatters import CitationFormatterConfig, DatasetFormatterConfig
+from statgpt.common.auth.auth_context import AuthContext
 from statgpt.common.data.base import DataSet
 from statgpt.common.schemas.enums import (
     AvailableDatasetsHeaderFormat,
@@ -8,16 +16,66 @@ from statgpt.common.schemas.enums import (
 )
 
 
-def datasets_to_structured_content(
+async def _dataset_last_updated(dataset: DataSet, auth_context: AuthContext) -> str | None:
+    """The dataset's last-updated date as an ISO 8601 string, from the source when known,
+    otherwise the free-text citation value."""
+    if updated_at := await dataset.updated_at(auth_context):
+        return updated_at.date().isoformat()
+    citation = dataset.config.citation
+    return citation.last_updated if citation else None
+
+
+async def datasets_to_structured_content(
     datasets: list[DataSet],
+    auth_context: AuthContext,
+    indicator_counts: dict[str, int] | None,
 ) -> AvailableDatasetsStructuredContent:
-    """Build the MCP structured content shared by the available-datasets and datasets-metadata
-    tools: each dataset as a record keyed by its stable URN (source id)."""
+    """Build the MCP structured content for the available-datasets tool: each dataset as a record
+    keyed by its stable URN (source id), the distinct providers with their dataset counts, and
+    channel-wide totals."""
+    last_updated = await asyncio.gather(
+        *(_dataset_last_updated(ds, auth_context) for ds in datasets)
+    )
+
+    records: list[DatasetRecord] = []
+    provider_counts: dict[str, int] = defaultdict(int)
+    agencies: set[str] = set()
+    for dataset, dataset_last_updated in zip(datasets, last_updated):
+        citation = dataset.config.citation
+        description = (
+            citation.description if citation and citation.description else dataset.description
+        )
+        provider = citation.provider if citation else None
+        if provider:
+            provider_counts[provider] += 1
+        if citation and (agency_names := citation.provider_agency_names_with_fallback_to_provider):
+            agencies.update(agency_names)
+        records.append(
+            DatasetRecord(
+                id=dataset.source_id,
+                name=dataset.name,
+                description=description,
+                provider=provider,
+                last_updated=dataset_last_updated,
+                url=dataset.dataset_url,
+                number_of_indicators=(
+                    indicator_counts.get(dataset.entity_id) if indicator_counts else None
+                ),
+            )
+        )
+
+    providers = [
+        ProviderRecord(name=name, dataset_count=count)
+        for name, count in sorted(provider_counts.items())
+    ]
+    total_indicators = sum(indicator_counts.values()) if indicator_counts else None
+
     return AvailableDatasetsStructuredContent(
-        datasets=[
-            DatasetRecord(id=ds.source_id, name=ds.name, url=ds.dataset_url) for ds in datasets
-        ],
-        count=len(datasets),
+        providers=providers,
+        datasets=records,
+        total_datasets=len(datasets),
+        total_indicators=total_indicators,
+        total_agencies=len(agencies),
     )
 
 

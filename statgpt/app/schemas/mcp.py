@@ -9,22 +9,6 @@ from statgpt.app.schemas.query import AppJsonQueryWithMetadata
 from statgpt.common.schemas.base import BaseYamlModel
 
 
-class TextToolStructuredContent(BaseYamlModel):
-    """MCP structured content for tools whose result is a single text/Markdown rendering.
-
-    These tools (glossary, publications, web search, plain content, ...) have no richer
-    machine-readable shape than their conversational answer, so the structured content mirrors
-    that text. This still gives the platform a typed, inspectable payload — a declared field with
-    a known type, not a bare ``object`` — satisfying the output-schema contract without inventing
-    structure the tool does not actually produce. It is the default output model for a tool that
-    does not override ``get_mcp_output_model``.
-    """
-
-    text: str = Field(
-        description="The tool's text/Markdown response, identical to the text content block."
-    )
-
-
 class DataQueryToolsInfo(BaseYamlModel):
     """Names of companion MCP tools the caller can use to act on the queries."""
 
@@ -128,62 +112,121 @@ class TermDefinitionsStructuredContent(BaseYamlModel):
     )
 
 
-class PublicationTypeRecord(BaseYamlModel):
-    """One publication type the channel exposes."""
+class ProviderRecord(BaseYamlModel):
+    """One data provider, with how many of the channel's datasets it contributes."""
 
-    name: str = Field(
-        description="The publication type name. Use this exact value when querying publications."
-    )
-    description: str | None = Field(default=None, description="What this publication type covers.")
+    model_config = ConfigDict(serialize_by_alias=True)
 
-
-class AvailablePublicationsStructuredContent(BaseYamlModel):
-    """MCP structured content for the available-publications tool: the publication types as
-    records so a caller can pick exact names to query."""
-
-    publication_types: list[PublicationTypeRecord] = Field(
-        default_factory=list, description="The available publication types."
-    )
-    count: int = Field(description="Number of available publication types.")
+    name: str = Field(description="Provider name, e.g. 'IMF'.")
+    dataset_count: int = Field(description="Number of datasets contributed by this provider.")
 
 
 class DatasetRecord(BaseYamlModel):
-    """One dataset the channel exposes."""
+    """One dataset the channel exposes. Optional fields are omitted when unknown."""
+
+    model_config = ConfigDict(serialize_by_alias=True)
 
     id: str = Field(
         description="Dataset URN (source id), e.g. 'IMF:CPI(1.0.0)'. Stable identifier to pass to "
         "the dataset-structure and data-query tools."
     )
     name: str = Field(description="Human-readable dataset name.")
+    description: str | None = Field(default=None, description="Dataset description, if available.")
+    provider: str | None = Field(default=None, description="Provider name, if known.")
+    last_updated: str | None = Field(
+        default=None, description="Date the dataset was last updated (ISO 8601), if known."
+    )
     url: str | None = Field(default=None, description="Link to the dataset, if available.")
+    number_of_indicators: int | None = Field(
+        default=None, description="Number of indicators in the dataset, if computed."
+    )
 
 
 class AvailableDatasetsStructuredContent(BaseYamlModel):
-    """MCP structured content for the available-datasets and datasets-metadata tools: the datasets
-    as records with stable URNs so a caller can reference them in follow-up tool calls."""
+    """MCP structured content for the available-datasets tool: every dataset the channel exposes as
+    a record with its stable URN, the distinct providers with their dataset counts, and
+    channel-wide totals."""
 
+    model_config = ConfigDict(serialize_by_alias=True)
+
+    providers: list[ProviderRecord] = Field(
+        default_factory=list,
+        description="Distinct providers across the datasets, each with its dataset count.",
+    )
     datasets: list[DatasetRecord] = Field(
         default_factory=list, description="The datasets, one record each."
     )
-    count: int = Field(description="Number of datasets.")
+    total_datasets: int = Field(description="Total number of datasets.")
+    total_indicators: int | None = Field(
+        default=None,
+        description="Total number of indicators across the datasets, if indicator counts were "
+        "computed.",
+    )
+    total_agencies: int = Field(
+        description="Number of distinct provider agencies across the datasets."
+    )
+
+
+class DatasetValueRecord(BaseYamlModel):
+    """One value (code) of a dataset dimension."""
+
+    model_config = ConfigDict(serialize_by_alias=True)
+
+    id: str = Field(description="The value's query id (the code used in queries).")
+    name: str = Field(description="Human-readable value name.")
 
 
 class DatasetComponentRecord(BaseYamlModel):
-    """A dimension or attribute of a dataset."""
+    """A dimension or attribute of a dataset. Optional fields are omitted when unknown."""
+
+    model_config = ConfigDict(serialize_by_alias=True)
 
     id: str = Field(description="The component's entity id (e.g. 'REF_AREA').")
     name: str = Field(description="Human-readable component name.")
+    type: str | None = Field(default=None, description="The component's data type, if known.")
+    description: str | None = Field(
+        default=None, description="The component's description, if available."
+    )
+    total_values: int | None = Field(
+        default=None,
+        description="Total number of available values, for a categorical dimension.",
+    )
+    sample_values: list[DatasetValueRecord] | None = Field(
+        default=None,
+        description="A sample of the dimension's available values (up to 10), for a categorical "
+        "dimension. When total_values exceeds the sample size this is not the full list.",
+    )
+
+
+class ProviderAgencyRecord(BaseYamlModel):
+    """One agency behind a dataset's provider."""
+
+    model_config = ConfigDict(serialize_by_alias=True)
+
+    id: str = Field(description="Agency id.")
+    name: str = Field(description="Agency name.")
 
 
 class DatasetStructureStructuredContent(BaseYamlModel):
-    """MCP structured content for the dataset-structure tool: the dataset's dimensions and
-    attributes as records. Sample values are intentionally omitted (they live in the text and can
-    be large); the text remains the source for values."""
+    """MCP structured content for the dataset-structure tool: the dataset's metadata plus its
+    dimensions and attributes, with a bounded sample of each dimension's values. Optional fields
+    are omitted when unknown."""
+
+    model_config = ConfigDict(serialize_by_alias=True)
 
     dataset_id: str = Field(description="The requested dataset URN (source id).")
     found: bool = Field(description="Whether a dataset with that URN was found.")
     name: str | None = Field(default=None, description="Dataset name, when found.")
+    description: str | None = Field(default=None, description="Dataset description, if available.")
+    provider: str | None = Field(default=None, description="Provider name, if known.")
+    last_updated: str | None = Field(
+        default=None, description="Date the dataset was last updated (ISO 8601), if known."
+    )
     url: str | None = Field(default=None, description="Link to the dataset, when available.")
+    provider_agencies: list[ProviderAgencyRecord] | None = Field(
+        default=None,
+        description="Agencies behind the provider, when the dataset aggregates several.",
+    )
     dimensions: list[DatasetComponentRecord] = Field(
         default_factory=list, description="The dataset's dimensions."
     )

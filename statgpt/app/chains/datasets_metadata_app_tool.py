@@ -3,7 +3,6 @@ from mcp.types import ToolAnnotations
 from statgpt.app.chains.parameters import ChainParameters
 from statgpt.app.chains.tools import StatGptTool
 from statgpt.app.schemas import DatasetsMetadataAppArtifact, ToolMessageState
-from statgpt.app.schemas.service import ChannelDatasetsMetadataResponse
 from statgpt.app.services.channel_datasets_metadata import build_channel_datasets_metadata
 from statgpt.common.schemas import DatasetsMetadataAppTool as DatasetsMetadataAppToolConfig
 from statgpt.common.schemas import ToolTypes
@@ -20,10 +19,6 @@ class DatasetsMetadataAppTool(
     @classmethod
     def get_mcp_annotations(cls) -> ToolAnnotations:
         return ToolAnnotations(readOnlyHint=True, destructiveHint=False, openWorldHint=False)
-
-    @classmethod
-    def get_mcp_output_model(cls) -> type[ChannelDatasetsMetadataResponse]:
-        return ChannelDatasetsMetadataResponse
 
     async def _arun(self, inputs: dict, **kwargs) -> tuple[str, DatasetsMetadataAppArtifact]:
         data_service = ChainParameters.get_data_service(inputs)

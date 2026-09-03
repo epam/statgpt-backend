@@ -11,7 +11,6 @@ from statgpt.app.chains.tools import GuardrailInput, StatGptTool, ToolArgs
 from statgpt.app.config import ChainParametersConfig
 from statgpt.app.schemas.data_query_outcome import DataQueryMcpPayload
 from statgpt.app.schemas.discovery_datasets import DiscoveryDatasetsOutcome
-from statgpt.app.schemas.mcp import DataQueryStructuredContent
 from statgpt.app.schemas.query_builder import DataQueryEvalAttachment, QueryBuilderAgentState
 from statgpt.app.schemas.tool_artifact import DataQueryArtifact
 from statgpt.common.config import multiline_logger as logger
@@ -36,10 +35,6 @@ class DataQueryTool(StatGptTool[DataQueryToolConfig], tool_type=ToolTypes.DATA_Q
     @classmethod
     def get_mcp_annotations(cls) -> ToolAnnotations:
         return ToolAnnotations(readOnlyHint=True, destructiveHint=False, openWorldHint=False)
-
-    @classmethod
-    def get_mcp_output_model(cls) -> type[DataQueryStructuredContent]:
-        return DataQueryStructuredContent
 
     @classmethod
     def get_args_schema(cls, tool_config: DataQueryToolConfig) -> type[DataQueryArgs]:

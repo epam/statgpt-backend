@@ -7,7 +7,6 @@ from mcp.types import ToolAnnotations
 from pydantic import BaseModel, Field
 
 from statgpt.app.schemas import ToolArtifact
-from statgpt.app.schemas.mcp import TextToolStructuredContent
 from statgpt.common.schemas import BaseToolConfig, ChannelConfig, ToolTypes
 
 
@@ -178,15 +177,23 @@ class StatGptTool(BaseTool, ABC, Generic[ToolConfigType]):
 
     @classmethod
     def get_mcp_output_model(cls) -> type[BaseModel] | None:
-        """The Pydantic model describing this tool's MCP ``structuredContent``.
+        """The Pydantic model describing this tool's MCP ``structuredContent``, or ``None`` when the
+        tool declares no output schema (its result is plain text).
 
-        Defaults to the text envelope (``TextToolStructuredContent``): a tool that returns only a
-        text rendering still declares a typed output schema and emits its text as structured
-        content. Tools with a richer machine-readable result override this to return the model they
-        build in the MCP provider, which both declares the output schema (``get_mcp_output_schema``)
-        and pins the response shape so the two cannot drift (guarded in tests). Overriding to
-        ``None`` opts a tool out of structured output entirely (text only)."""
-        return TextToolStructuredContent
+        Tools with a machine-readable result override this to return the model they build in the MCP
+        provider, which both declares the output schema (``get_mcp_output_schema``) and pins the
+        response shape so the two cannot drift (guarded in tests)."""
+        return None
+
+    @classmethod
+    def mcp_structured_only(cls) -> bool:
+        """Whether the MCP response should carry only ``structuredContent`` — the text content block
+        dropped and null fields omitted from the structured content.
+
+        Tools whose complete result is captured in structured content override to ``True`` so the
+        machine-readable payload is the single source of truth and is not duplicated by a text
+        rendering. Only consulted when the tool builds structured content."""
+        return False
 
     @classmethod
     def get_mcp_output_schema(cls) -> dict[str, Any] | None:

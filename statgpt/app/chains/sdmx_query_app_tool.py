@@ -7,7 +7,6 @@ from pydantic import Field, field_validator, model_validator
 
 from statgpt.app.chains.tools import StatGptTool, ToolArgs, ToolUpstreamError
 from statgpt.app.schemas import SdmxQueryAppArtifact, ToolMessageState
-from statgpt.app.schemas.mcp import SdmxProxyStructuredContent
 from statgpt.common.schemas import SdmxQueryAppTool as SdmxQueryAppToolConfig
 from statgpt.common.schemas import ToolTypes
 from statgpt.common.utils import ManagedHttpClient
@@ -76,10 +75,6 @@ class SdmxQueryAppTool(StatGptTool[SdmxQueryAppToolConfig], tool_type=ToolTypes.
     @classmethod
     def get_mcp_annotations(cls) -> ToolAnnotations:
         return ToolAnnotations(readOnlyHint=True, destructiveHint=False, openWorldHint=False)
-
-    @classmethod
-    def get_mcp_output_model(cls) -> type[SdmxProxyStructuredContent]:
-        return SdmxProxyStructuredContent
 
     @classmethod
     def get_args_schema(cls, tool_config: SdmxQueryAppToolConfig) -> type[SdmxQueryAppArgs]:
