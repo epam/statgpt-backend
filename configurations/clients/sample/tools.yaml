@@ -76,6 +76,10 @@ tools:
     description: |-
       Executing sdmx query on available datasets. Some datasets include forecasts for next years.
       Constructed query is used to fetch indicators from one of the datasets.
+      Also use this tool when the user asks WHERE to find statistical data, a series, or a statistical
+      table (e.g. "where can I find Sampleland's consumer price index?") - the response may include links to
+      external official sources that publish the requested data. Phrasing alone does not qualify:
+      a "where can I find" question about a definition or concept is not a data request.
       Instructions:
       * Don't try to expand country groups or regions, it's done by tool itself
       * Summarize but DON'T REPHRASE time filter: "from now to 2030" must remain "from now to 2030"
@@ -83,6 +87,8 @@ tools:
       * Tool supports star-queries for countries, e.g. "Give GDP for all countries"
       * Tool may ask clarifications if query is unclear. If query is modified accordingly, tool will provide
         requested data.
+      * Tool response may end with a section "Other datasets that may be relevant" -
+        external official sources this tool cannot query; handle it per your instructions.
       * Good query example: "Please give me wage information of USA"
       * Bad query example: "What are the recent economy indicators for Baltic countries?"
         Reason: ambiguous query, specific indicators should be mentioned, e.g. GDP, unemployment rate
@@ -167,13 +173,19 @@ tools:
     details:
       applicationId: "statgpt-generic-rag-grade-b-and-c"
       topN: 10
+      llmModelConfig:
+        apiVersion: 2025-03-01-preview
+        deployment: gpt-5.6-terra-2026-07-09
+        temperature: 0
+        seed: null
+        reasoningEffort: none
+        verbosity: low
       templates:
         wrapper: |
           ### Other datasets that may be relevant
 
-          These datasets are not onboarded into this application, so they cannot be queried here.
-          If the data you were looking for was not found among the onboarded datasets, or is only
-          partially covered by the results above, consider consulting the sources below directly.
+          The following datasets seem relevant to your query but cannot be queried in this
+          application. They are available from their publishers via the links below.
 
           {items}
         item: |
