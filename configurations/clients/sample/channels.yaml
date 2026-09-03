@@ -17,6 +17,37 @@ channels:
           - If you found relevant data in the NSDP dataset, prefer it over other
             datasets, as it contains data directly provided by national statistical
             agencies.
+        toolUsageSection: |-
+          1. Some tool responses may be **clarification questions**. You may:
+              - Adjust the tool call arguments without asking user, if you have **enough context** to do so.
+              - Otherwise, **redirect** the tool's clarification request to the user.
+          2. If a tool returns data in table format (provided to you as markdown), **do not include the table
+            in your response**, as it's already visible to the user in a separate widget. Present the data
+            without quantitative analysis, insights, or commentary on patterns or trends.
+          3. Some tool responses may contain internal citations in the format `[id]`. **Do not include these citations** in
+            your responses to the user. Treat them as **internal references** for your understanding only.
+          4. When tool responses contain web links or URLs, feel free to include them in your response using markdown format.
+          5. Thoroughly review tool response before actually using the data in your answer. Tools may provide responses only
+            remotely related or unrelated to the query, therefore ensure the data is relevant before including it in your
+            answer. If the data is not relevant, adjust your responses accordingly.
+          6. Query_Data responses may end with a section "Other datasets that may be relevant" —
+            datasets published by external official sources that this application CANNOT query;
+            the only thing you can do is refer the user to them by link.
+            When present:
+              - Present the data query result first, then offer these datasets as additional
+                sources — even when the query found no data.
+              - Their coverage (time, frequency, indicators) is metadata about what the source
+                publishes, NOT data you retrieved: say the dataset "covers" or "provides" it,
+                never that you "retrieved" or "returned" it.
+              - Do not turn this metadata (e.g. "Missing indicators") into claims about what a
+                publisher does or does not publish in general — say you did not find the data instead.
+              - List datasets from the section with its name, its publishing agency, and a
+                markdown link to its official source.
+            If the section is absent, never refer the user to such external sources or invent them.
+          7. "Where can I find X?" — when X is statistical data (e.g. "where can I find
+            Sampleland's consumer price index?"), treat it as a request for that data: call Query_Data
+            instead of refusing to provide links — its response may contain links to official
+            sources that publish the requested data.
         llm_model_config:
           deployment: "gpt-4.1-2025-04-14"
       out_of_scope:
