@@ -1,25 +1,14 @@
-import asyncio
 from typing import Annotated
 
-from langchain_core.runnables import Runnable
-from mcp.types import ToolAnnotations
 from pydantic import Field
 
-from statgpt.app.chains.discovery_datasets import DiscoveryDatasetsRunner
-from statgpt.app.chains.parameters import ChainParameters
 from statgpt.app.chains.tools import GuardrailInput, StatGptTool, ToolArgs
-from statgpt.app.config import ChainParametersConfig
-from statgpt.app.schemas.data_query_outcome import DataQueryMcpPayload
-from statgpt.app.schemas.discovery_datasets import DiscoveryDatasetsOutcome
-from statgpt.app.schemas.query_builder import DataQueryEvalAttachment, QueryBuilderAgentState
 from statgpt.app.schemas.tool_artifact import DataQueryArtifact
-from statgpt.common.config import multiline_logger as logger
-from statgpt.common.data.base import DataResponse
+from statgpt.common.schemas import ChannelConfig
 from statgpt.common.schemas import DataQueryTool as DataQueryToolConfig
-from statgpt.common.schemas.enums import InvocationSource, ToolTypes
+from statgpt.common.schemas.enums import ToolTypes
 
-from .parameters import DataQueryParameters
-from .query_builder.factory import QueryBuilderFactory
+from .runner import DataQueryRunner
 
 
 class DataQueryArgs(ToolArgs):
@@ -32,9 +21,9 @@ class DataQueryArgs(ToolArgs):
 
 class DataQueryTool(StatGptTool[DataQueryToolConfig], tool_type=ToolTypes.DATA_QUERY):
 
-    @classmethod
-    def get_mcp_annotations(cls) -> ToolAnnotations:
-        return ToolAnnotations(readOnlyHint=True, destructiveHint=False, openWorldHint=False)
+    def __init__(self, tool_config: DataQueryToolConfig, channel_config: ChannelConfig, **kwargs):
+        super().__init__(tool_config, channel_config, **kwargs)
+        self._runner = DataQueryRunner(tool_config.details, channel_config)
 
     @classmethod
     def get_args_schema(cls, tool_config: DataQueryToolConfig) -> type[DataQueryArgs]:
@@ -42,71 +31,10 @@ class DataQueryTool(StatGptTool[DataQueryToolConfig], tool_type=ToolTypes.DATA_Q
         return DataQueryArgs
 
     async def _arun(self, inputs: dict, query: str) -> tuple[str, DataQueryArtifact]:
-        factory = QueryBuilderFactory(self._tool_config.details)
+        outcome = await self._runner.run(inputs, query)
 
-        # Update the inputs
-        inputs[ChainParametersConfig.QUERY] = query
+        response = outcome.response
+        if discovery_block := outcome.discovery_block:
+            response = f"{response}\n\n{discovery_block}"
 
-        chain: Runnable = await factory.create_chain(inputs)
-
-        res, discovery = await self._run_with_discovery(chain, inputs, query)
-        logger.info(f"DataQueryTool result: {res!r}")
-
-        response_str: str = res[DataQueryParameters.RESPONSE_FIELD]
-        data_responses: dict[str, DataResponse] = {
-            k: v
-            for k, v in res.get(ChainParametersConfig.DATA_RESPONSES, {}).items()
-            if v is not None
-        }
-        state: QueryBuilderAgentState = res.get(DataQueryParameters.STATE, QueryBuilderAgentState())
-        mcp_payload: DataQueryMcpPayload = res.get(
-            DataQueryParameters.MCP_PAYLOAD, DataQueryMcpPayload()
-        )
-        eval_attachment: DataQueryEvalAttachment = res.get(
-            DataQueryParameters.EVAL_ATTACHMENT, DataQueryEvalAttachment()
-        )
-
-        discovery_block = discovery.rendered if discovery is not None else None
-        if discovery_block and ChainParameters.get_invocation_source(inputs) is (
-            InvocationSource.AGENT
-        ):
-            # Agent only: an MCP client gets the block as a content block of its own (see the
-            # provider), so folding it in here would duplicate it and leave markdown in the
-            # `message` field a widget parses.
-            response_str = f"{response_str}\n\n{discovery_block}"
-
-        return response_str, DataQueryArtifact(
-            data_responses=data_responses,
-            state=state,
-            mcp_payload=mcp_payload,
-            eval_attachment=eval_attachment,
-            discovery_datasets_block=discovery_block,
-            discovery_datasets_eval_attachment=(
-                discovery.eval_attachment if discovery is not None else None
-            ),
-        )
-
-    async def _run_with_discovery(
-        self, chain: Runnable, inputs: dict, query: str
-    ) -> tuple[dict, DiscoveryDatasetsOutcome | None]:
-        """Run the query pipeline and, when configured, the discovery lookup beside it.
-
-        The lookup shares nothing with the pipeline - it only reads from ``inputs`` - and it
-        never raises, so a failure there cannot cost the user their data.
-        """
-        runner = DiscoveryDatasetsRunner.from_channel_config(self._channel_config)
-        if runner is None:
-            return await chain.ainvoke(inputs), None
-
-        # Not a TaskGroup: it would wrap a pipeline failure in an ExceptionGroup, changing what
-        # the tool raises on a failed data query.
-        discovery_task = asyncio.create_task(runner.run(query, inputs))
-        try:
-            res = await chain.ainvoke(inputs)
-        except BaseException:
-            discovery_task.cancel()
-            # Awaited, not just cancelled: `cancel()` only schedules the CancelledError, and
-            # the lookup must not still be writing to the choice as it is torn down.
-            await asyncio.gather(discovery_task, return_exceptions=True)
-            raise
-        return res, await discovery_task
+        return response, DataQueryArtifact.from_outcome(outcome)

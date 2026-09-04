@@ -3,7 +3,6 @@ from collections.abc import MutableMapping
 from typing import Annotated, Any, ClassVar, Generic, Literal, TypeVar
 
 from langchain_core.tools import BaseTool, InjectedToolArg
-from mcp.types import ToolAnnotations
 from pydantic import BaseModel, Field
 
 from statgpt.app.schemas import ToolArtifact
@@ -168,16 +167,14 @@ class StatGptTool(BaseTool, ABC, Generic[ToolConfigType]):
         """Return the schema for the arguments that this tool accepts."""
         return ToolArgs
 
-    @classmethod
-    @abstractmethod
-    def get_mcp_annotations(cls) -> ToolAnnotations:
-        """MCP tool hints may be used by clients for UX decisions (e.g. skipping
-        confirmation prompts for read-only tools, flagging open-world tools).
-        Advisory only — clients must not rely on them for security."""
+    @staticmethod
+    def implementation_for(tool_type: ToolTypes) -> type['StatGptTool']:
+        """The tool class registered for `tool_type` (the implementing module must be imported)."""
+        return _TOOL_IMPLEMENTATIONS[tool_type]
 
     @staticmethod
     def from_config(tool_config: ToolConfigType, channel_config: ChannelConfig) -> 'StatGptTool':
-        cls = _TOOL_IMPLEMENTATIONS[tool_config.type]
+        cls = StatGptTool.implementation_for(tool_config.type)
 
         return cls(
             tool_config=tool_config,
@@ -186,15 +183,3 @@ class StatGptTool(BaseTool, ABC, Generic[ToolConfigType]):
             description=tool_config.description,
             args_schema=cls.get_args_schema(tool_config),
         )
-
-    def get_public_args_schema(self) -> dict[str, Any]:
-        """Get JSON Schema for tool parameters, excluding injected args."""
-        return self.get_args_schema(self._tool_config).get_public_schema()
-
-    def get_guardrail_input(self, arguments: dict[str, Any]) -> str | None:
-        """Return the free-text user input that should be screened by input
-        guardrails, or None if this tool takes no arbitrary natural-language input.
-
-        Delegates to the args schema, which marks its free-text field with
-        ``GuardrailInput``; see ``ToolArgs.get_guardrail_input``."""
-        return self.get_args_schema(self._tool_config).get_guardrail_input(arguments)

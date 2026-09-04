@@ -1,13 +1,14 @@
+from typing import Self
+
 from pydantic import BaseModel, ConfigDict, Field
 
 from statgpt.common.data.base import DataResponse
 from statgpt.common.schemas import ToolTypes
 
 from .data_query_outcome import DataQueryMcpPayload
-from .discovery_datasets import DiscoveryDatasetsEvalAttachment
+from .discovery_datasets import DiscoveryDatasetsEvalAttachment, DiscoveryDatasetsOutcome
 from .file_rags import BaseRagState, DialRagState
 from .query_builder import DataQueryEvalAttachment, QueryBuilderAgentState
-from .service import ChannelDatasetsMetadataResponse
 from .tool_states import DeepResearchToolMessageState, FailedToolMessageState, ToolMessageState
 
 
@@ -32,6 +33,38 @@ class DeepResearchArtifact(ToolArtifact):
     state: DeepResearchToolMessageState
 
 
+class DataQueryOutcome(BaseModel):
+    """What one run of the data query pipeline produced, before either interface renders it.
+
+    The LangChain tool turns it into the tool message text plus a `DataQueryArtifact`; the MCP tool
+    turns it into content blocks and structured content. Neither framework leaks in here.
+    """
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
+    response: str = Field(
+        description="The pipeline's human-readable response, without the discovery datasets block."
+    )
+    data_responses: dict[str, DataResponse] = Field(
+        default_factory=dict,
+        description="Mapping from dataset id to response "
+        "if the data request was successfully built and executed.",
+    )
+    state: QueryBuilderAgentState = Field(default_factory=QueryBuilderAgentState)
+    mcp_payload: DataQueryMcpPayload = Field(default_factory=DataQueryMcpPayload)
+    eval_attachment: DataQueryEvalAttachment = Field(default_factory=DataQueryEvalAttachment)
+    discovery: DiscoveryDatasetsOutcome | None = Field(
+        default=None,
+        description="What the discovery datasets lookup did on this call, or `None` when the"
+        " lookup is not configured for the channel.",
+    )
+
+    @property
+    def discovery_block(self) -> str | None:
+        """The rendered discovery datasets block, or `None` when there was nothing to show."""
+        return self.discovery.rendered if self.discovery is not None else None
+
+
 class DataQueryArtifact(ToolArtifact):
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
@@ -47,14 +80,6 @@ class DataQueryArtifact(ToolArtifact):
     eval_attachment: DataQueryEvalAttachment = Field(
         description="Attachment containing additional information for evaluation."
     )
-    discovery_datasets_block: str | None = Field(
-        default=None,
-        description=(
-            "The rendered discovery datasets block, or `None` when there was nothing to show."
-            " Carried here as well as in the response string so an MCP client can place it as a"
-            " content block of its own."
-        ),
-    )
     discovery_datasets_eval_attachment: DiscoveryDatasetsEvalAttachment | None = Field(
         default=None,
         description=(
@@ -63,27 +88,18 @@ class DataQueryArtifact(ToolArtifact):
         ),
     )
 
-
-class SdmxQueryAppArtifact(ToolArtifact):
-    """Carries the upstream HTTP metadata for the SDMX query-app passthrough tool so the MCP
-    provider can expose the status code and content type to the client (the raw body is returned
-    as the tool's text content)."""
-
-    status_code: int = Field(description="HTTP status code returned by the upstream request.")
-    content_type: str | None = Field(
-        default=None,
-        description="Value of the upstream `Content-Type` response header, if present.",
-    )
-
-
-class DatasetsMetadataAppArtifact(ToolArtifact):
-    """Carries the channel datasets metadata payload for the MCP-App-only datasets-metadata tool
-    so the MCP provider can surface it as structured content for the UI widget (the JSON body is
-    also returned as the tool's text content)."""
-
-    response: ChannelDatasetsMetadataResponse = Field(
-        description="The datasets metadata payload, matching the `/metadata/datasets` endpoint."
-    )
+    @classmethod
+    def from_outcome(cls, outcome: DataQueryOutcome) -> Self:
+        discovery = outcome.discovery
+        return cls(
+            state=outcome.state,
+            data_responses=outcome.data_responses,
+            mcp_payload=outcome.mcp_payload,
+            eval_attachment=outcome.eval_attachment,
+            discovery_datasets_eval_attachment=(
+                discovery.eval_attachment if discovery is not None else None
+            ),
+        )
 
 
 # ~~~~~~~~~~~~~ File RAG ~~~~~~~~~~~~~
