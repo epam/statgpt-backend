@@ -213,6 +213,8 @@ async def test_non_string_content_is_stringified():
 
 
 async def test_tool_failure_raises_tool_error():
+    # Unexpected failures map to the internal-error class, and the internal detail
+    # ("boom") is scrubbed from the caller-visible message.
     tool = SimpleNamespace(name="fake_tool", ainvoke=AsyncMock(side_effect=RuntimeError("boom")))
     adapter = _McpToolAdapter(
         langchain_tool=tool,  # type: ignore[arg-type]
@@ -224,8 +226,27 @@ async def test_tool_failure_raises_tool_error():
         parameters={},
     )
 
-    with pytest.raises(ToolError):
+    with pytest.raises(ToolError, match="Internal error") as exc_info:
         await adapter.run({})
+
+    assert "boom" not in str(exc_info.value)
+
+
+async def test_response_assembly_failure_is_scrubbed(monkeypatch):
+    # A failure while building the resources/structured content (after a successful tool
+    # invocation) is wrapped by the taxonomy too, rather than leaking as a bare error.
+    def _boom(*args, **kwargs):
+        raise RuntimeError("csv serialization exploded at /internal/path")
+
+    monkeypatch.setattr("statgpt.app.mcp.provider.data_query_artifact_to_resources", _boom)
+    response = _data_response(pd.DataFrame({"x": [1, 2]}))
+    artifact = DataQueryArtifact.model_construct(data_responses={"ds1": response}, state=_state())
+    adapter = _build_adapter(SimpleNamespace(content="answer", artifact=artifact))
+
+    with pytest.raises(ToolError, match="Internal error") as exc_info:
+        await adapter.run({})
+
+    assert "csv serialization exploded" not in str(exc_info.value)
 
 
 async def test_invalid_arguments_raise_tool_error():
@@ -250,7 +271,7 @@ async def test_invalid_arguments_raise_tool_error():
         parameters={},
     )
 
-    with pytest.raises(ToolError, match="Invalid arguments") as exc_info:
+    with pytest.raises(ToolError, match="Invalid input") as exc_info:
         await adapter.run({"limit": "not-an-int"})
 
     assert "limit" in str(exc_info.value)
