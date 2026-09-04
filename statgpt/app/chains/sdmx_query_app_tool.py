@@ -111,8 +111,11 @@ class SdmxQueryAppTool(StatGptTool[SdmxQueryAppToolConfig], tool_type=ToolTypes.
         except httpx.TimeoutException as e:
             raise ToolUpstreamError("The SDMX backend did not respond in time (timeout).") from e
         except httpx.HTTPError as e:
-            # Connection errors, DNS failures, protocol errors, etc.
-            raise ToolUpstreamError(f"Could not reach the SDMX backend: {e}") from e
+            # Connection errors, DNS failures, protocol errors, etc. Keep the underlying error
+            # (which can name the internal endpoint) in the server log only; the surfaced reason
+            # stays internals-free so it is safe to pass through the MCP error taxonomy verbatim.
+            _log.warning("SDMX query app request to %s failed: %s", url, e)
+            raise ToolUpstreamError("The SDMX backend could not be reached.") from e
 
         # Passthrough: return the raw response body regardless of status so the MCP-App
         # component can render both successful payloads and upstream error responses. The

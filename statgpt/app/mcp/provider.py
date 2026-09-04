@@ -6,7 +6,6 @@ from typing import Any
 from uuid import uuid4
 
 from fastmcp.apps import AppConfig, app_config_to_meta_dict
-from fastmcp.exceptions import ToolError
 from fastmcp.resources import Resource
 from fastmcp.server.dependencies import get_http_request
 from fastmcp.server.providers import Provider
@@ -14,16 +13,17 @@ from fastmcp.tools import Tool, ToolResult
 from fastmcp.utilities.components import FastMCPComponent
 from fastmcp.utilities.versions import VersionSpec
 from mcp.types import ContentBlock, TextContent
-from pydantic import PrivateAttr, ValidationError
+from pydantic import PrivateAttr
 from starlette.requests import Request
 
-from statgpt.app.chains.tools import StatGptTool, ToolUpstreamError
+from statgpt.app.chains.tools import StatGptTool
 from statgpt.app.config import ChainParametersConfig
 from statgpt.app.mcp.attachments import (
     data_query_artifact_to_resources,
     data_query_artifact_to_structured_content,
 )
 from statgpt.app.mcp.decorators import guard_channel_resolution
+from statgpt.app.mcp.errors import to_tool_error
 from statgpt.app.mcp.exceptions import MissingDeploymentIdError
 from statgpt.app.mcp.guardrails import enforce_input_guardrail
 from statgpt.app.mcp.widget_resource import WidgetResource
@@ -115,29 +115,23 @@ class _McpToolAdapter(Tool):
         await enforce_input_guardrail(
             self._langchain_tool, arguments, self._channel_config, self._auth_context
         )
+        try:
+            return await self._invoke_and_build_result(arguments)
+        except Exception as e:
+            # Translate any execution or response-assembly error into an actionable,
+            # internals-free ToolError via the shared taxonomy (see statgpt.app.mcp.errors).
+            # The whole body is wrapped (not just ainvoke) so a failure while building the
+            # resources/structured content cannot leak as a bare error either.
+            raise to_tool_error(e, tool_name=self._langchain_tool.name) from e
+
+    async def _invoke_and_build_result(self, arguments: dict[str, Any]) -> ToolResult:
         tool_call = {
             "name": self._langchain_tool.name,
             "args": {**arguments, "inputs": self._inputs},
             "id": str(uuid4()),
             "type": "tool_call",
         }
-        try:
-            result = await self._langchain_tool.ainvoke(tool_call)
-        except ValidationError as e:
-            # Argument-schema validation failures (e.g. missing required field, bad enum
-            # value). Surface a concise message instead of generic failure
-            _log.debug("Invalid arguments for MCP tool %s: %s", self._langchain_tool.name, e)
-            raise ToolError(f"Invalid arguments for {self._langchain_tool.name}: {e}") from e
-        except ToolUpstreamError as e:
-            # Upstream dependency failure (connection/timeout): surface the specific message.
-            _log.warning("Upstream error in MCP tool %s: %s", self._langchain_tool.name, e)
-            raise ToolError(str(e)) from e
-        except Exception:
-            # Catch-all for unexpected errors. Known error cases should return
-            # proper content or raise a custom exception caught in a dedicated
-            # except block above this one.
-            _log.exception("Error executing MCP tool %s", self._langchain_tool.name)
-            raise ToolError(f"{self._langchain_tool.name} tool failed to execute")
+        result = await self._langchain_tool.ainvoke(tool_call)
         text = result.content if isinstance(result.content, str) else str(result.content)
         content: list[ContentBlock] = [TextContent(type="text", text=text)] if text else []
         structured_content: (
