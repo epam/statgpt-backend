@@ -231,6 +231,20 @@ class AuditActionType(StrEnum):
     DELETE = "delete"
 
 
+class AuditScope(StrEnum):
+    """Groups audit records so verbose scopes can be enabled per environment.
+
+    Which scopes are recorded is controlled by the ``AUDIT_SCOPE`` setting, which
+    defaults to ``CONFIG`` and ``EX_IM``; add ``REINDEX`` and/or ``DS_LINK`` to
+    enable verbose auditing.
+    """
+
+    CONFIG = "config"
+    EX_IM = "ex_im"
+    REINDEX = "reindex"
+    DS_LINK = "ds_link"
+
+
 class AutoUpdateResult(StrEnum):
     """Result of an auto-update job execution."""
 
