@@ -5,7 +5,6 @@ from statgpt.app.schemas.query import AppJsonQuery, AppJsonQueryWithMetadata
 from statgpt.app.schemas.service import GeneratePythonCodeRequest
 from statgpt.app.services.python_code_generator import (
     PYTHON_SDMX1_HEADER,
-    _build_key_from_filters,
     _build_params_from_filters,
     generate_merged_python_code,
     generate_python_code_from_query,
@@ -65,34 +64,6 @@ def test_json_query_with_metadata_legacy_body_parses() -> None:
     q = JsonQueryWithMetadata.model_validate(body)
     assert q.metadata.time_period_dimension == "TIME_PERIOD"
     assert q.sdmx1_source == "IMF_DATA"
-
-
-def test_build_key_from_filters_uses_dsd_order_and_empty_slots() -> None:
-    filters = [
-        JsonComponentQuery(component_code="D", operator=JsonQueryOperator.IN, values=["d1"]),
-        JsonComponentQuery(component_code="A", operator=JsonQueryOperator.IN, values=["a1"]),
-    ]
-    order = ["A", "B", "C", "D"]
-    key = _build_key_from_filters(filters, "TIME_PERIOD", order)
-    assert key == "a1...d1"
-
-
-def test_build_key_from_filters_skips_time_in_order_hint() -> None:
-    filters = [
-        JsonComponentQuery(component_code="A", operator=JsonQueryOperator.IN, values=["a1"]),
-    ]
-    order = ["A", "TIME_PERIOD", "B"]
-    key = _build_key_from_filters(filters, "TIME_PERIOD", order)
-    assert key == "a1."
-
-
-def test_build_key_from_filters_legacy_filter_order_when_no_hint() -> None:
-    filters = [
-        JsonComponentQuery(component_code="D", operator=JsonQueryOperator.IN, values=["d1"]),
-        JsonComponentQuery(component_code="A", operator=JsonQueryOperator.IN, values=["a1"]),
-    ]
-    key = _build_key_from_filters(filters, "TIME_PERIOD", None)
-    assert key == "d1.a1"
 
 
 def test_generate_python_code_uses_key_dimension_ids_in_dsd_order() -> None:
@@ -365,12 +336,18 @@ def test_app_json_query_with_metadata_from_common_round_trips() -> None:
     )
     app_query = AppJsonQueryWithMetadata.from_common(common_query)
     assert app_query.disabled is False
-    assert app_query.model_dump() == {**common_query.model_dump(), "disabled": False}
+    # `from_common` preserves the common fields, adds `disabled`, and derives the record id.
+    assert app_query.model_dump() == {
+        **common_query.model_dump(),
+        "disabled": False,
+        "record_id": "IMF:WEO(1.0)/a1.",
+    }
 
     dump = app_query.model_dump(by_alias=True)
     assert dump["disabled"] is False
     assert dump["sdmx1Source"] == "IMF_DATA"
     assert dump["metadata"]["keyDimensionIdsInDsdOrder"] == ["A", "B"]
+    assert dump["recordId"] == "IMF:WEO(1.0)/a1."
 
 
 def test_app_json_query_rejects_non_bool_disabled() -> None:

@@ -376,7 +376,7 @@ def test_structured_content_data_available_serializes_single_query():
     data = structured.model_dump(by_alias=True)
     assert data["status"] == DataQueryStatus.DATA_AVAILABLE
     assert data["tools"] == {"sdmxProxy": "sdmx_query_app"}
-    assert data["version"] == 2
+    assert data["version"] == 3
     assert "import sdmx" in data["pythonCode"]
     assert len(data["queries"]) == 1
     query = data["queries"][0]
@@ -385,6 +385,8 @@ def test_structured_content_data_available_serializes_single_query():
     assert query["sdmx1Source"] == "IMF_DATA"
     assert query["filters"][0]["componentCode"] == "REF_AREA"
     assert query["metadata"]["keyDimensionIdsInDsdOrder"] == ["REF_AREA", "INDICATOR"]
+    # Each query carries a stable, opaque record id: dataflow ref + SDMX series key.
+    assert query["recordId"] == "IMF:CPI(1.0.0)/FR+DE."
 
 
 def test_structured_content_omits_sdmx_proxy_when_unconfigured():

@@ -4,6 +4,7 @@ from typing import Never
 from statgpt.app.schemas.query import AppJsonQueryWithMetadata
 from statgpt.common.data.sdmx.python_code import generate_python_query_body
 from statgpt.common.schemas.query import JsonComponentQuery, JsonQueryOperator
+from statgpt.common.schemas.record_id import build_sdmx_series_key
 
 _log = logging.getLogger(__name__)
 
@@ -19,36 +20,6 @@ import sdmx"""
 
 def _build_flow_ref(agency_id: str, resource_id: str, version: str) -> str:
     return f"{agency_id},{resource_id},{version}"
-
-
-def _build_key_from_filters(
-    filters: list[JsonComponentQuery],
-    time_component: str,
-    key_dimension_ids_in_dsd_order: list[str] | None,
-) -> str:
-    """Build SDMX REST key string from categorical filters.
-
-    When ``key_dimension_ids_in_dsd_order`` is set (DSD order, excluding time), the key
-    matches SDMX 2.1 expectations: ``'.'`` between dimensions, ``'+'`` within a
-    dimension, and ``''`` for dimensions with no filter (wildcard slot).
-
-    If that hint is absent, key segments follow the filter list order (legacy).
-    """
-    if key_dimension_ids_in_dsd_order:
-        by_id = {f.component_code: f for f in filters}
-        parts: list[str] = []
-        for dim_id in key_dimension_ids_in_dsd_order:
-            if dim_id == time_component:
-                continue
-            f = by_id.get(dim_id)
-            parts.append("+".join(f.values) if f is not None else "")
-        return ".".join(parts)
-    parts = []
-    for f in filters:
-        if f.component_code == time_component:
-            continue
-        parts.append("+".join(f.values))
-    return ".".join(parts)
 
 
 def _invalid_time_filter(reason: str, f: JsonComponentQuery) -> Never:
@@ -123,7 +94,7 @@ def generate_python_code_from_query(query: AppJsonQueryWithMetadata, suffix: str
     provider = query.sdmx1_source or query.agency_id
 
     time_component = query.metadata.time_period_dimension
-    key = _build_key_from_filters(
+    key = build_sdmx_series_key(
         query.filters,
         time_component,
         query.metadata.key_dimension_ids_in_dsd_order,

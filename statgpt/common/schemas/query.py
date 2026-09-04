@@ -47,7 +47,13 @@ class JsonQueryMetadata(BaseYamlModel):
 
 
 class JsonQuery(BaseYamlModel):
-    urn: str = Field(description="The urn of the dataset")
+    urn: str = Field(
+        description=(
+            "Stable dataflow identifier (SDMX short URN, 'AGENCY:RESOURCE(VERSION)'): the"
+            " maintaining agency, dataflow id, and dataflow version. Opaque; pass back verbatim"
+            " to reference the same dataflow."
+        )
+    )
     filters: list[JsonComponentQuery] = Field(description="The list of component queries")
 
     _URN_PATTERN: ClassVar[re.Pattern[str]] = re.compile(
