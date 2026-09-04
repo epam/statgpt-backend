@@ -109,8 +109,10 @@ async def test_data_query_artifact_adds_csv_resources():
     assert structured is not None
     assert structured["status"] == DataQueryStatus.DATA_AVAILABLE
     assert [q["urn"] for q in structured["queries"]] == ["IMF:CPI(1.0.0)"]
+    # Each query carries a stable, opaque record id serialized under its camelCase alias.
+    assert [q["recordId"] for q in structured["queries"]] == ["IMF:CPI(1.0.0)/"]
     assert structured["tools"] == {"sdmxProxy": "sdmx_query_app"}
-    assert structured["version"] == 2
+    assert structured["version"] == 3
     assert "import sdmx" in structured["pythonCode"]
 
 

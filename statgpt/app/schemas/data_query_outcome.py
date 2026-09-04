@@ -38,7 +38,12 @@ class DataSetChoice(BaseYamlModel):
     Represent a dataset choice available for selection by either agent or user.
     """
 
-    id: str = Field(description="The unique identifier of the dataset, used for selection.")
+    id: str = Field(
+        description=(
+            "Stable dataflow identifier of the dataset (SDMX short URN,"
+            " 'AGENCY:RESOURCE(VERSION)'), used for selection. Opaque; pass back verbatim."
+        )
+    )
     name: str = Field(description="The human-readable name of the dataset, used for display.")
     description: str | None = Field(
         default=None,

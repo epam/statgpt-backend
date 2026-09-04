@@ -35,7 +35,9 @@ class DataQueryStructuredContent(BaseYamlModel):
     queries: list[AppJsonQueryWithMetadata] = Field(
         default_factory=list,
         description="The queries, one per dataset. Present for the data_available, "
-        "executed_no_data, failed and not_executed outcomes.",
+        "executed_no_data, failed and not_executed outcomes. Each query carries a stable, "
+        "opaque `recordId` (and the dataflow `urn`) that a follow-up call can pass back "
+        "verbatim to reference the exact same record.",
     )
     python_code: str | None = Field(
         default=None,
@@ -54,7 +56,7 @@ class DataQueryStructuredContent(BaseYamlModel):
         description="Human-readable message, e.g. explaining why no data is available.",
     )
     tools: DataQueryToolsInfo = Field(description="Companion MCP tools for these queries.")
-    version: int = Field(default=2, description="Schema version of this structured content.")
+    version: int = Field(default=3, description="Schema version of this structured content.")
 
 
 class SdmxProxyStructuredContent(BaseYamlModel):

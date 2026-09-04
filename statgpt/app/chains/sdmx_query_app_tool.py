@@ -31,6 +31,10 @@ class SdmxQueryAppArgs(ToolArgs):
             "Domain-less request path appended to the configured base URL, including any query"
             " string. Must start with a single '/', e.g."
             " '/structure/dataflow/IMF.RES/ED/1.0.0?details=full'."
+            " Build it from the identifiers returned by the data query tool: a `recordId`"
+            " ('AGENCY:RESOURCE(VERSION)/SERIES_KEY') or dataflow `urn` names the exact"
+            " dataflow (AGENCY, RESOURCE, VERSION) and series key to request, so a follow-up"
+            " call acts on the same record the search returned."
         ),
     )
     body: dict[str, Any] | None = Field(
