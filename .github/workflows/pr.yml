@@ -79,11 +79,11 @@ jobs:
           docker-cleanup: "true"
           set-tmpdir: "true"
 
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           lfs: true
 
-      - uses: epam/ai-dial-ci/actions/build_docker@4.5.0
+      - uses: epam/ai-dial-ci/actions/build_docker@4.10.0
         with:
           image-names: ghcr.io/${{ matrix.image-name }}
           image-tags: test
