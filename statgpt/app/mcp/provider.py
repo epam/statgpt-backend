@@ -37,6 +37,7 @@ from statgpt.app.schemas.tool_artifact import (
 )
 from statgpt.app.security import DialAuthCredentials, create_auth_context
 from statgpt.app.services.chat_facade import ChannelServiceFacade
+from statgpt.app.settings.dial_app import dial_app_settings
 from statgpt.app.utils.dial_stages import DummyStage, NullChoice
 from statgpt.common.auth.auth_context import AuthContext
 from statgpt.common.schemas import (
@@ -110,6 +111,33 @@ class _McpToolAdapter(Tool):
         self._auth_context = auth_context
 
     async def run(self, arguments: dict[str, Any]) -> ToolResult:
+        # Bound the whole invocation by a deadline kept under the 300s host tool-call
+        # timeout. On expiry asyncio.timeout cancels the current downstream await, which
+        # cascades cancellation through the chain, and we surface a readable ToolError so
+        # the model can recover in-conversation instead of seeing an unexplained host
+        # cancellation. The deadline starts here, so it bounds tool *execution* only, not
+        # the preceding channel/auth resolution; the margin under 300s absorbs that.
+        timeout_seconds = dial_app_settings.mcp_tool_timeout_seconds
+        try:
+            async with asyncio.timeout(timeout_seconds) as deadline:
+                return await self._execute(arguments)
+        except TimeoutError as e:
+            if not deadline.expired():
+                # A plain TimeoutError bubbled up from downstream, not our deadline.
+                raise
+            _log.warning(
+                "MCP tool %s exceeded its %.0fs deadline; downstream work cancelled",
+                self._langchain_tool.name,
+                timeout_seconds,
+            )
+            raise ToolError(
+                f"The {self._langchain_tool.name} tool did not finish within "
+                f"{timeout_seconds:.0f} seconds and was stopped before the host timed it "
+                "out. Narrow the request (e.g. fewer indicators, a shorter time range, or a "
+                "single dataset) and try again."
+            ) from e
+
+    async def _execute(self, arguments: dict[str, Any]) -> ToolResult:
         # Screen arbitrary free-text input with the out-of-scope guardrail before
         # executing. Raised ToolError propagates to the MCP client unchanged.
         await enforce_input_guardrail(

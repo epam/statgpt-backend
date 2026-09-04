@@ -1,3 +1,4 @@
+import asyncio
 from datetime import datetime, timezone
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
@@ -254,6 +255,65 @@ async def test_invalid_arguments_raise_tool_error():
         await adapter.run({"limit": "not-an-int"})
 
     assert "limit" in str(exc_info.value)
+
+
+async def test_run_cancels_downstream_and_returns_actionable_error_on_deadline(monkeypatch):
+    # A tool that runs past its deadline is cancelled and yields a readable ToolError
+    # naming the tool, so the model can recover instead of hitting the host's hard cancel.
+    monkeypatch.setattr("statgpt.app.mcp.provider.dial_app_settings.mcp_tool_timeout_seconds", 0.01)
+    cancelled = asyncio.Event()
+
+    async def _never_finishes(_tool_call):
+        try:
+            await asyncio.sleep(30)
+        except asyncio.CancelledError:
+            cancelled.set()
+            raise
+
+    tool = SimpleNamespace(name="fake_tool", ainvoke=_never_finishes)
+    adapter = _McpToolAdapter(
+        langchain_tool=tool,  # type: ignore[arg-type]
+        inputs={},
+        channel_config=SimpleNamespace(out_of_scope=None),  # type: ignore[arg-type]
+        tool_config=_data_query_config(),
+        auth_context=SimpleNamespace(),  # type: ignore[arg-type]
+        name="fake_tool",
+        parameters={},
+    )
+
+    with pytest.raises(ToolError, match="did not finish within") as exc_info:
+        await adapter.run({})
+
+    assert "fake_tool" in str(exc_info.value)
+    assert cancelled.is_set()
+
+
+async def test_run_completes_within_deadline(monkeypatch):
+    # The deadline wrapper is transparent for tools that finish in time.
+    monkeypatch.setattr("statgpt.app.mcp.provider.dial_app_settings.mcp_tool_timeout_seconds", 5.0)
+    adapter = _build_adapter(SimpleNamespace(content="hello", artifact=None))
+
+    tool_result = await adapter.run({})
+
+    assert tool_result.content[0].text == "hello"
+
+
+async def test_run_passes_through_non_deadline_timeout_error(monkeypatch):
+    # A TimeoutError that is not our own deadline expiring (here, from artifact
+    # conversion) must propagate unchanged rather than being relabeled as the
+    # host-deadline ToolError. Guards the `deadline.expired()` disambiguation.
+    monkeypatch.setattr("statgpt.app.mcp.provider.dial_app_settings.mcp_tool_timeout_seconds", 5.0)
+
+    def _raise_timeout(*_args, **_kwargs):
+        raise TimeoutError("conversion timed out")
+
+    monkeypatch.setattr("statgpt.app.mcp.provider.data_query_artifact_to_resources", _raise_timeout)
+    response = _data_response(pd.DataFrame({"x": [1, 2]}))
+    artifact = DataQueryArtifact.model_construct(data_responses={"ds1": response}, state=_state())
+    adapter = _build_adapter(SimpleNamespace(content="answer", artifact=artifact))
+
+    with pytest.raises(TimeoutError, match="conversion timed out"):
+        await adapter.run({})
 
 
 class _FakeChatModel(Runnable):

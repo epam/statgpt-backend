@@ -99,6 +99,17 @@ class DialAppSettings(BaseSettings):
         description="How many discovery document bodies the discovery datasets lookup fetches at once",
     )
 
+    mcp_tool_timeout_seconds: float = Field(
+        default=240.0,
+        alias="MCP_TOOL_TIMEOUT_SECONDS",
+        description=(
+            "Per-call deadline (seconds) for a single MCP tool invocation. Kept safely under "
+            "the 300s tool-call timeout enforced by Claude.ai / Claude Desktop so the tool "
+            "cancels its downstream work and returns an actionable error before the host "
+            "issues an unexplained hard cancellation."
+        ),
+    )
+
     dial_system_user_context_roles: str | None = Field(
         default=None,
         alias="DIAL_SYSTEM_USER_CONTEXT_ROLES",

@@ -26,6 +26,7 @@ the [common README file](../common/README.md).
 | TTYD_TOOL_PLAIN_CONTENT_*               |    No    | Environment variables for the Plain Content tool to replace in the files content. Replace `*` with the variable name.                                                                                                                                |                                              |                     |
 | INDICATORS_TOTAL_CACHE_TTL              |    No    | TTL in seconds for the in-process cache of the per-channel indicators total (used to substitute the `{indicators_total}` token in conversation-starter texts). The figure is non-transactional; staleness within this window is acceptable.          | integer (seconds)                            | `60`                |
 | DISCOVERY_DATASETS_DOWNLOAD_CONCURRENCY |    No    | How many discovery document bodies the discovery datasets lookup fetches at once                                                                                                                                                                     | integer                                      | `8`                 |
+| MCP_TOOL_TIMEOUT_SECONDS                |    No    | Per-call deadline (seconds) for a single MCP tool invocation. Kept under the 300s tool-call timeout enforced by Claude.ai / Claude Desktop so the tool cancels its downstream work and returns an actionable error before the host hard-cancels it.   | number (seconds)                             | `240`               |
 
 ## MCP Server
 
