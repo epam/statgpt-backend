@@ -2,11 +2,12 @@
 
 What matters here: the ban list catches the selection-steering patterns marketplaces
 reject, the opt-in flag gates the whole check, only model-visible tools are scanned, and
-it is the MCP-facing text (``effective_mcp_description``) that is linted - not the agent
-description a channel may keep separately.
+it is the explicit ``mcp_description`` that is linted - the agent-facing ``description`` a
+channel keeps for the Supreme Agent never falls through, and a model-visible tool that
+omits ``mcp_description`` is itself a violation.
 """
 
-from statgpt.common.config.mcp_policy import lint_channel, lint_text
+from statgpt.common.config.mcp_policy import MISSING_MCP_DESCRIPTION, lint_channel, lint_text
 from statgpt.common.schemas import ChannelConfig, SupremeAgentConfig
 
 _SUPREME_AGENT = SupremeAgentConfig(
@@ -61,8 +62,14 @@ def test_opt_out_channel_is_not_linted() -> None:
     assert lint_channel(channel, "internal") == []
 
 
-def test_opted_in_channel_flags_a_steering_description() -> None:
-    channel = _channel({"name": "list_datasets", "description": _STEERING_DESCRIPTION})
+def test_opted_in_channel_flags_a_steering_mcp_description() -> None:
+    channel = _channel(
+        {
+            "name": "list_datasets",
+            "description": _CLEAN_DESCRIPTION,
+            "mcpDescription": _STEERING_DESCRIPTION,
+        }
+    )
 
     violations = lint_channel(channel, "mcp-gtdc")
 
@@ -78,10 +85,19 @@ def test_opted_in_channel_flags_a_steering_description() -> None:
     assert all(v.deployment_id == "mcp-gtdc" for v in violations)
 
 
-def test_opted_in_channel_passes_a_clean_description() -> None:
+def test_missing_mcp_description_is_flagged() -> None:
+    """A model-visible tool must declare an explicit mcpDescription; a clean agent
+    description does not substitute for it, because it would ship to MCP unchecked."""
     channel = _channel({"name": "list_datasets", "description": _CLEAN_DESCRIPTION})
 
-    assert lint_channel(channel, "mcp-gtdc") == []
+    violations = lint_channel(channel, "mcp-gtdc")
+
+    assert len(violations) == 1
+    (violation,) = violations
+    assert violation.rule == MISSING_MCP_DESCRIPTION
+    assert violation.field == "description"
+    assert violation.tool_name == "list_datasets"
+    assert violation.deployment_id == "mcp-gtdc"
 
 
 def test_app_only_tools_are_not_scanned() -> None:

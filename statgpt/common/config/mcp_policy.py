@@ -11,6 +11,13 @@ The check is a heuristic gate, not a replacement for human review: it catches th
 drift-prone patterns cheaply. It runs only on channels that opt in via
 ``McpConfig.enforce_marketplace_policy`` - internal channels intentionally keep steering
 language for the Supreme Agent and are left alone.
+
+The description linted is ``mcp_description`` directly, not ``effective_mcp_description``:
+a channel serving the same tools to both the Supreme Agent and MCP keeps steering language
+in the agent-facing ``description`` and a clean override in ``mcp_description``. A
+model-visible tool that omits ``mcp_description`` would ship its agent description to MCP,
+so a missing override is itself a violation - the agent text can never fall through
+unchecked.
 """
 
 import re
@@ -83,6 +90,11 @@ _BANNED_PATTERNS: list[tuple[str, re.Pattern[str]]] = [
 ]
 
 
+# Rule name for a model-visible tool that declares no explicit MCP description: without
+# one the agent-facing `description` is what ships to MCP, which the policy forbids.
+MISSING_MCP_DESCRIPTION = "missing_mcp_description"
+
+
 class MetadataViolation(BaseModel):
     """A single ban-list hit on a tool's model-visible metadata."""
 
@@ -110,19 +122,45 @@ def _is_model_visible(tool: BaseToolConfig) -> bool:
 
 
 def lint_tool(tool: BaseToolConfig, deployment_id: str | None = None) -> list[MetadataViolation]:
-    """Lint the name and description a model-visible tool exposes over MCP."""
+    """Lint the name and description a model-visible tool exposes over MCP.
+
+    The name is the published identifier (``mcp_name``, or the agent ``name`` when unset);
+    tool names are constrained identifiers, so publishing the agent name is acceptable.
+
+    The description is ``mcp_description`` directly: it must be set for a model-visible tool
+    on an opted-in channel, and a missing one is a violation rather than a silent fall
+    through to the agent-facing ``description``.
+    """
     violations: list[MetadataViolation] = []
-    fields = {
-        "name": tool.effective_mcp_name,
-        "description": tool.effective_mcp_description,
-    }
-    for field, text in fields.items():
-        for rule, match in lint_text(text):
+
+    for rule, match in lint_text(tool.effective_mcp_name):
+        violations.append(
+            MetadataViolation(
+                deployment_id=deployment_id,
+                tool_name=tool.effective_mcp_name,
+                field="name",
+                rule=rule,
+                match=match,
+            )
+        )
+
+    if tool.mcp_description is None:
+        violations.append(
+            MetadataViolation(
+                deployment_id=deployment_id,
+                tool_name=tool.effective_mcp_name,
+                field="description",
+                rule=MISSING_MCP_DESCRIPTION,
+                match="",
+            )
+        )
+    else:
+        for rule, match in lint_text(tool.mcp_description):
             violations.append(
                 MetadataViolation(
                     deployment_id=deployment_id,
                     tool_name=tool.effective_mcp_name,
-                    field=field,
+                    field="description",
                     rule=rule,
                     match=match,
                 )
