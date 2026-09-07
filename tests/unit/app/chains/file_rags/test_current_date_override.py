@@ -51,7 +51,7 @@ def prefilter() -> PreFilterResponse:
                     ),
                     publication_type=None,
                 ),
-                RagFilterDialSingle(publication_date=None, publication_type="sigma"),
+                RagFilterDialSingle(publication_date=None, publication_type="report"),
             ],
             top_n=TopNDocuments(limit=3),
         )
@@ -60,7 +60,7 @@ def prefilter() -> PreFilterResponse:
 
 EXPECTED_FILTERS = [
     {"publication_date": {"start": "2024-01-01", "end": "2025-03-15"}},
-    {"publication_type": "sigma"},
+    {"publication_type": "report"},
 ]
 EXPECTED_TOP_N = {"sort_by": ["publication_date"], "order": "desc", "limit": 3}
 
@@ -158,12 +158,12 @@ def test_fix_llm_hallucinations_respects_reference_date():
 
 def test_latest_is_decoded_relative_to_reference_date():
     builder = DialRagPrefilterBuilder(
-        metadata=DialRagMetadata(publication_types={"sigma"}),
-        pub_type_to_decoder_mapping={"sigma": "-1y"},
+        metadata=DialRagMetadata(publication_types={"report"}),
+        pub_type_to_decoder_mapping={"report": "-1y"},
     )
 
     rag_filter = builder.create_prefilter(
-        publication_types=["sigma"],
+        publication_types=["report"],
         start_date=None,
         end_date=None,
         is_latest=True,
@@ -173,7 +173,7 @@ def test_latest_is_decoded_relative_to_reference_date():
 
     assert rag_filter is not None
     (single,) = rag_filter.filters
-    assert single.publication_type == "sigma"
+    assert single.publication_type == "report"
     assert single.publication_date is not None
     assert single.publication_date.start == datetime.date(2024, 3, 15)
     assert single.publication_date.end is None
