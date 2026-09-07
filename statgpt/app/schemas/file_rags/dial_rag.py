@@ -44,11 +44,12 @@ class TimePeriodFilter(SingleFilterLLMOutput):
         except ValueError:
             return None
 
-    def fix_llm_hallucinations(self) -> TimePeriodFilter:
+    def fix_llm_hallucinations(self, today: datetime.date | None = None) -> TimePeriodFilter:
         """
         LLM might occasionally set end or start date after today. Here we fix it.
+        `today` may be overridden (e.g. by the RAG eval, to reproduce a past date).
         """
-        today = datetime.date.today()
+        today = today or datetime.date.today()
         parsed_start_date = self.parse_date(self.start)
         parsed_end_date = self.parse_date(self.end)
         if parsed_start_date and parsed_start_date > today:
@@ -318,9 +319,18 @@ class PreFilterResponse(BaseModel):
 
 
 class DialRagState(BaseRagState):
+    """
+    Tool state shared by all FILE_RAG implementations (DIAL RAG and Generic RAG).
+    statgpt-eval validates FILE_RAG tool responses against this model, so new fields must be optional.
+    """
+
     version: RAGVersion = RAGVersion.DIAL
     pre_filter: PreFilterResponse | None = None
     metadata: DialRagMetadata | None = None
+    current_date: datetime.date | None = Field(
+        default=None,
+        description="Current date override used instead of the wall clock (RAG eval). None means 'today'.",
+    )
     prefilter_decoder_of_latest: dict[str, str] = Field(
         default_factory=dict,
         description="Mapping the publication type to a function that generates a time range "

@@ -22,6 +22,7 @@ class ChainParametersConfig:
     INVOCATION_SOURCE = "invocation_source"
 
     TARGET_PREFILTER = "target_prefilter"
+    TARGET_CURRENT_DATE = "target_current_date"
     DATASETS_DICT = "datasets_dict"
     DATASET_DIMENSION_QUERIES = "dataset_dimension_queries"
     DATASET_QUERIES_FORMATTED_STR = "dataset_queries_formatted_str"
