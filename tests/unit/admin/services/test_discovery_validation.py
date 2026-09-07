@@ -1,13 +1,13 @@
 import pytest
 
 from statgpt.admin.services.discovery_validation import (
-    _FREQUENCY_VOCABULARY,
     DEFAULT_CHECKS,
     DiscoveryCheck,
     DiscoveryRecord,
     DiscoveryValidator,
 )
 from statgpt.common.schemas import DiscoveryDatasetBase, DiscoveryValidationIssue
+from statgpt.common.utils import FREQUENCY_VOCABULARY
 
 
 def _record(**overrides: str) -> DiscoveryDatasetBase:
@@ -15,6 +15,7 @@ def _record(**overrides: str) -> DiscoveryDatasetBase:
         "agency": "Bank Indonesia (BI)",
         "dataset_id": "TABEL1_1",
         "description": "Money and Banking table.",
+        "reference_area": "Indonesia",
         "frequency_coverage": "Monthly",
         "url": "https://www.bi.go.id/SEKI/tabel/TABEL1_1.xls",
     }
@@ -26,7 +27,7 @@ def test_a_well_filled_record_is_valid() -> None:
     assert DiscoveryValidator().validate(_record()) == []
 
 
-@pytest.mark.parametrize("frequency", _FREQUENCY_VOCABULARY)
+@pytest.mark.parametrize("frequency", FREQUENCY_VOCABULARY)
 def test_every_vocabulary_frequency_is_accepted(frequency: str) -> None:
     assert DiscoveryValidator().validate(_record(frequency_coverage=frequency)) == []
 
@@ -47,9 +48,22 @@ def test_a_frequency_outside_the_vocabulary_is_reported() -> None:
     assert "Semi-annual" in issues[0].message
 
 
-def test_an_empty_frequency_is_not_an_issue() -> None:
-    """Absent information does not make a record unfit to refer to; a wrong value does."""
-    assert DiscoveryValidator().validate(_record(frequency_coverage="")) == []
+@pytest.mark.parametrize("frequency", ["", "  ", ";"])
+def test_a_record_naming_no_frequency_is_reported(frequency: str) -> None:
+    """The chat-time pre-filter narrows by frequency, so a record naming none is unreachable."""
+    issues = DiscoveryValidator().validate(_record(frequency_coverage=frequency))
+
+    assert [issue.field for issue in issues] == ["frequency_coverage"]
+    # The message says what to choose from, so a submitter can fix it without the template.
+    assert "Semi-annual" in issues[0].message
+
+
+@pytest.mark.parametrize("reference_area", ["", "  ", ";"])
+def test_a_record_naming_no_reference_area_is_reported(reference_area: str) -> None:
+    """Same reason: an empty axis would be filtered out of every narrowed search."""
+    issues = DiscoveryValidator().validate(_record(reference_area=reference_area))
+
+    assert [issue.field for issue in issues] == ["reference_area"]
 
 
 @pytest.mark.parametrize(
@@ -88,9 +102,10 @@ def test_a_record_without_a_description_is_reported() -> None:
     assert issues[0].field == "description"
 
 
-def test_group_reference_areas_are_not_flagged() -> None:
-    """The template explicitly allows group labels, so there is no ISO-code check."""
-    assert DiscoveryValidator().validate(_record(reference_area="Euro area")) == []
+@pytest.mark.parametrize("reference_area", ["Euro area", "World", "partner countries: China"])
+def test_group_and_partner_reference_areas_are_not_flagged(reference_area: str) -> None:
+    """The template allows group labels and partner lists, so there is no ISO-code check."""
+    assert DiscoveryValidator().validate(_record(reference_area=reference_area)) == []
 
 
 def test_all_issues_are_collected_not_just_the_first() -> None:

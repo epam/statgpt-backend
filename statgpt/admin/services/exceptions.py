@@ -193,12 +193,30 @@ class DiscoveryMetadataSchemaError(AdminServiceError):
     narrow down.
     """
 
-    def __init__(self, missing_fields: Sequence[str]) -> None:
+    def __init__(self, missing_fields: Sequence[str], *, channel: str = "discovery RAG") -> None:
         fields = ", ".join(missing_fields)
         super().__init__(
-            f"The discovery RAG channel does not declare these metadata field(s) as"
+            f"The {channel} channel does not declare these metadata field(s) as"
             f" filterable: {fields}. Add them to the Generic RAG application's"
             f" `metadata_schema` with `enable_filtering` set, then run the job again."
+        )
+
+
+class DiscoveryReferenceAreaIndexingError(AdminServiceError):
+    """The reference-area vocabulary channel accepted a document and failed to index it.
+
+    Fails the run, unlike a discovery record that cannot be indexed. A record's failure costs
+    that one dataset its place in the results, while a missing vocabulary entry silently
+    narrows away every dataset covering that area, for every query naming it - so it must not
+    be reported as a completed job.
+    """
+
+    def __init__(self, values: Sequence[str]) -> None:
+        listed = ", ".join(repr(value) for value in values)
+        super().__init__(
+            f"The reference-area RAG channel failed to index {len(values)} vocabulary"
+            f" document(s): {listed}. The channel reports no reason for it. Until this is"
+            f" resolved, queries naming those areas cannot be narrowed by reference area."
         )
 
 
