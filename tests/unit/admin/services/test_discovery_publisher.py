@@ -256,10 +256,10 @@ def test_a_document_without_a_usable_key_claims_none(metadata: dict[str, object]
 async def test_a_channel_that_cannot_filter_is_refused() -> None:
     client = _client()
     schema = DiscoveryDocumentMetadata.channel_json_schema()
-    del schema["properties"]["reference_area"]["enable_filtering"]
+    del schema["properties"]["parsed_reference_areas"]["enable_filtering"]
     client.get_metadata_schema.return_value = GenericRagMetadataSchema(schema=schema, dimensions={})
 
-    with pytest.raises(DiscoveryMetadataSchemaError, match="reference_area"):
+    with pytest.raises(DiscoveryMetadataSchemaError, match="parsed_reference_areas"):
         await _publisher(client).verify_metadata_schema()
 
 
@@ -270,7 +270,34 @@ async def test_the_generated_schema_declares_everything_a_run_requires() -> None
     ).filterable_fields
 
     assert declared == DiscoveryDocumentMetadata.filterable_fields()
-    assert {"agency", "reference_area", "grade", "statgpt_channel"} <= declared
+    assert {
+        "agency",
+        "grade",
+        "statgpt_channel",
+        "parsed_reference_areas",
+        "parsed_partner_reference_areas",
+        "parsed_frequencies",
+    } <= declared
+
+
+def test_the_parsed_arrays_render_as_plain_string_arrays() -> None:
+    """What the service can turn into a request model, and the only shape of array it can.
+
+    An optional or enum-typed array makes the service's derivation raise - on every search
+    request, not just one carrying that field - so this guards the whole channel's search.
+    """
+    properties = DiscoveryDocumentMetadata.channel_json_schema()["properties"]
+
+    for field in (
+        "parsed_reference_areas",
+        "parsed_partner_reference_areas",
+        "parsed_frequencies",
+    ):
+        assert properties[field] == {
+            "type": "array",
+            "items": {"type": "string"},
+            "enable_filtering": True,
+        }
 
 
 async def test_a_channel_declaring_the_required_filters_is_accepted() -> None:

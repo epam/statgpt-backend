@@ -11,6 +11,7 @@ from typing import Any, Self, TypeVar
 import httpx
 from pydantic import BaseModel, SecretStr
 
+from statgpt.common.schemas.generic_rag import GenericRagMetadataSchema
 from statgpt.common.settings.dial import dial_settings
 from statgpt.common.utils import ManagedHttpClient
 
@@ -75,6 +76,18 @@ class BaseGenericRagChannelClient:
 
     async def __aexit__(self, *exc_info: object) -> None:
         await self.aclose()
+
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~ endpoints ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+    async def get_metadata_schema(self) -> GenericRagMetadataSchema:
+        """Read the metadata JSON-schema the channel accepts, and its filterable dimensions.
+
+        Both halves need it, for opposite reasons: a publisher checks that the fields search
+        relies on are declared filterable, and a search reads `dimensions` to learn which
+        values it is allowed to filter by at all.
+        """
+        response = await self._request("metadata read", "GET", "/metadata")
+        return self._parse(GenericRagMetadataSchema, response, "metadata read")
 
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~ transport ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 

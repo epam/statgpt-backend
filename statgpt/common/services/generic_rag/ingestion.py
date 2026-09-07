@@ -13,11 +13,7 @@ from typing import Self
 
 from pydantic import BaseModel
 
-from statgpt.common.schemas.generic_rag import (
-    GenericRagDocument,
-    GenericRagDocumentPage,
-    GenericRagMetadataSchema,
-)
+from statgpt.common.schemas.generic_rag import GenericRagDocument, GenericRagDocumentPage
 from statgpt.common.settings.dial import dial_settings
 
 from .client import BaseGenericRagChannelClient, GenericRagChannelError
@@ -53,11 +49,6 @@ class GenericRagIngestionClient(BaseGenericRagChannelClient):
         return cls(base_url=cls.application_route(application_id), api_key=dial_settings.api_key)
 
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~ endpoints ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-    async def get_metadata_schema(self) -> GenericRagMetadataSchema:
-        """Read the metadata JSON-schema the channel accepts, and its filterable fields."""
-        response = await self._request("metadata read", "GET", "/metadata")
-        return self._parse(GenericRagMetadataSchema, response, "metadata read")
 
     async def list_documents(self) -> list[GenericRagDocument]:
         """Every document in the channel, paged to exhaustion."""

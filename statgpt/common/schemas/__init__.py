@@ -46,8 +46,17 @@ from .discovery_datasets_tool import (
     DiscoveryDatasetsDetails,
     DiscoveryDatasetsPrompts,
     DiscoveryDatasetsTemplates,
+    DiscoveryPreFilterAxis,
+    DiscoveryPreFilterConfig,
+    DiscoveryPreFilterPrompts,
 )
-from .discovery_document import DiscoveryDocumentMetadata
+from .discovery_document import (
+    REFERENCE_AREA_KIND,
+    ChannelDocumentMetadata,
+    DiscoveryDocumentMetadata,
+    ReferenceAreaDocumentMetadata,
+    ReferenceAreaRole,
+)
 from .discovery_indexing_job import DiscoveryIndexingJob
 from .enums import (
     AuditActionType,

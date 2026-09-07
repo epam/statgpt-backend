@@ -29,6 +29,8 @@ from statgpt.common.utils import (
     escape_invalid_filename_chars,
     format_exception_reason,
     get_ts_utcnow,
+    parse_frequencies,
+    parse_reference_areas,
 )
 
 from .discovery_validation import DiscoveryRecord
@@ -131,12 +133,21 @@ def build_metadata(
 
     The description is the one field left out, because it is the body. Everything else is
     carried here and nowhere else, and the application's indexes reach it here.
+
+    The `parsed_` arrays are the exception to this module's rule that nothing is derived: a
+    retrieval filter matches whole values, so a ';'-separated cell can only be filtered on
+    once it has been split. The cell itself still travels verbatim beside it, and the split is
+    mechanical - see `discovery_cells`.
     """
+    areas, partner_areas = parse_reference_areas(record.reference_area)
     return schemas.DiscoveryDocumentMetadata(
         grade=grade,
         statgpt_channel=channel,
         agency=record.agency,
         reference_area=record.reference_area,
+        parsed_reference_areas=areas,
+        parsed_partner_reference_areas=partner_areas,
+        parsed_frequencies=parse_frequencies(record.frequency_coverage),
         dataset_id=record.dataset_id,
         name=record.name,
         url=record.url,
@@ -218,12 +229,17 @@ async def withdraw_documents(
         # The group is an artifact of the task group inside `gather_with_concurrency`, and it
         # matches neither an `except GenericRagIngestionError` nor an exception handler
         # registered on it. The remaining leaves are the same outage counted once per document.
-        raise _first_leaf(group) from group
+        raise first_leaf(group) from group
     return len(documents)
 
 
-def _first_leaf(exc: BaseException) -> BaseException:
-    """The first real exception inside a possibly nested exception group."""
+def first_leaf(exc: BaseException) -> BaseException:
+    """The first real exception inside a possibly nested exception group.
+
+    `gather_with_concurrency` runs its coroutines in a task group, so a failure arrives wrapped
+    however many levels deep the group nests. A caller that has to report why something did not
+    happen wants the outage, not the wrapper.
+    """
     while isinstance(exc, BaseExceptionGroup):
         exc = exc.exceptions[0]
     return exc

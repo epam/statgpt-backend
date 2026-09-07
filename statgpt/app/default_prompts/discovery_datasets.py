@@ -5,6 +5,10 @@ from statgpt.common.schemas import DefaltPromptsBase, SystemUserPrompt
 
 class DiscoveryDatasetsDefaultPrompts(DefaltPromptsBase):
     relevance_prompt: SystemUserPrompt
+    reference_area_prompt: SystemUserPrompt
+    partner_reference_area_prompt: SystemUserPrompt
+    frequency_prompt: SystemUserPrompt
+    agency_prompt: SystemUserPrompt
 
 
 yaml_fp = os.path.join(

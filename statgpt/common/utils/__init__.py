@@ -8,6 +8,13 @@ from .dial import (
     open_file_stream,
     write_file_to,
 )
+from .discovery_cells import (
+    FREQUENCY_VOCABULARY,
+    is_known_frequency,
+    parse_frequencies,
+    parse_reference_areas,
+    split_cell,
+)
 from .exceptions import InvalidLLMStreamResponse, format_exception_reason
 from .files import (
     change_file_extension,
