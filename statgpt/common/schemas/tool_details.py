@@ -242,6 +242,16 @@ class DeepResearchDetails(BaseToolDetails):
         default=None,
         description="The system prompt for the Deep Research application.",
     )
+    access_claim: str | None = Field(
+        default=None,
+        description=(
+            "Name of the JWT claim on the caller's token that grants access to Deep Research."
+            " When unset, Deep Research is advertised and runnable for every user on a channel"
+            " that has the tool enabled. When set, the claim must be present and truthy in the"
+            " caller's token, otherwise the toggle is hidden and the mode cannot be forced."
+            " Fails closed: if claims cannot be resolved, access is denied."
+        ),
+    )
     always_show_stages: bool = Field(
         default=False,
         description=(

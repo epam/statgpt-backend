@@ -1,7 +1,8 @@
 """Unit tests for ChannelServiceFacade.get_dial_channel_configuration.
 
 Focus: the `deep_research` property is advertised in the DIAL configuration schema
-only when the channel has the Deep Research tool configured and enabled.
+only when the channel has the Deep Research tool configured and enabled, and — when the
+tool is gated on an `access_claim` — only for callers whose token carries that claim.
 """
 
 from unittest.mock import MagicMock
@@ -30,13 +31,24 @@ def _channel_config(
     )
 
 
-def _deep_research_tool(*, enabled: bool = True) -> DeepResearchTool:
+def _deep_research_tool(
+    *, enabled: bool = True, access_claim: str | None = None
+) -> DeepResearchTool:
+    details: dict = {"deployment_id": "deep-research-app"}
+    if access_claim is not None:
+        details["access_claim"] = access_claim
     return DeepResearchTool(
         name="deep_research",
         description="Deep Research tool",
         enabled=enabled,
-        details={"deployment_id": "deep-research-app"},
+        details=details,
     )
+
+
+def _auth_context(*, has_claim: bool = True) -> MagicMock:
+    auth_context = MagicMock()
+    auth_context.has_truthy_claim.return_value = has_claim
+    return auth_context
 
 
 def _facade(config: ChannelConfig) -> ChannelServiceFacade:
@@ -46,9 +58,11 @@ def _facade(config: ChannelConfig) -> ChannelServiceFacade:
     return ChannelServiceFacade(channel=channel)
 
 
-async def _get_schema(config: ChannelConfig) -> dict:
+async def _get_schema(config: ChannelConfig, auth_context=None) -> dict:
     facade = _facade(config)
-    return await facade.get_dial_channel_configuration(auth_context=MagicMock())
+    return await facade.get_dial_channel_configuration(
+        auth_context=auth_context if auth_context is not None else MagicMock()
+    )
 
 
 class TestDeepResearchConfiguration:
@@ -94,3 +108,35 @@ class TestDeepResearchConfiguration:
 
         assert schema["properties"]["deep_research"]["title"] == "Deep research"
         assert "starter" in schema["properties"]
+
+    @pytest.mark.asyncio
+    async def test_advertised_when_claim_gated_and_caller_has_claim(self) -> None:
+        schema = await _get_schema(
+            _channel_config(deep_research=_deep_research_tool(access_claim="dr_access")),
+            auth_context=_auth_context(has_claim=True),
+        )
+
+        assert "deep_research" in schema["properties"]
+
+    @pytest.mark.asyncio
+    async def test_omitted_when_claim_gated_and_caller_lacks_claim(self) -> None:
+        auth_context = _auth_context(has_claim=False)
+        schema = await _get_schema(
+            _channel_config(deep_research=_deep_research_tool(access_claim="dr_access")),
+            auth_context=auth_context,
+        )
+
+        assert "deep_research" not in schema["properties"]
+        auth_context.has_truthy_claim.assert_called_once_with("dr_access")
+
+    @pytest.mark.asyncio
+    async def test_advertised_when_claim_unset_regardless_of_token(self) -> None:
+        auth_context = _auth_context(has_claim=False)
+        schema = await _get_schema(
+            _channel_config(deep_research=_deep_research_tool()),
+            auth_context=auth_context,
+        )
+
+        assert "deep_research" in schema["properties"]
+        # No claim configured -> the token is never consulted.
+        auth_context.has_truthy_claim.assert_not_called()

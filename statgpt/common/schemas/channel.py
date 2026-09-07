@@ -4,6 +4,7 @@ from urllib.parse import urlsplit
 
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from statgpt.common.auth.auth_context import AuthContext
 from statgpt.common.config import utils as config_utils
 from statgpt.common.settings.elastic import ElasticSearchSettings
 from statgpt.common.utils.media_types import MediaTypes
@@ -403,6 +404,22 @@ class ChannelConfig(BaseYamlModel):
     def is_deep_research_available(self) -> bool:
         """Whether the channel has the Deep Research tool configured and enabled."""
         return self.deep_research is not None and self.deep_research.enabled
+
+    def is_deep_research_available_for(self, auth_context: AuthContext) -> bool:
+        """Whether Deep Research is available to the caller behind ``auth_context``.
+
+        Extends `is_deep_research_available` with per-user gating: when the tool's
+        `access_claim` is set, the named claim must be present and truthy in the caller's
+        token. Fails closed — if the claim is required but claims cannot be resolved,
+        access is denied.
+        """
+        if not self.is_deep_research_available:
+            return False
+        assert self.deep_research is not None  # guaranteed by is_deep_research_available
+        access_claim = self.deep_research.details.access_claim
+        if not access_claim:
+            return True
+        return auth_context.has_truthy_claim(access_claim)
 
     @property
     def discovery_application_id(self) -> str | None:

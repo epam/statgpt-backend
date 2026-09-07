@@ -1,5 +1,6 @@
 from unittest.mock import MagicMock, patch
 
+import jwt
 import pytest
 
 from statgpt.app.security.auth_context import (
@@ -8,6 +9,10 @@ from statgpt.app.security.auth_context import (
     create_auth_context,
 )
 from statgpt.app.security.exceptions import InsufficientRoleError
+
+
+def _encode(claims: dict) -> str:
+    return jwt.encode(claims, "secret", algorithm="HS256")
 
 
 @pytest.fixture
@@ -109,6 +114,45 @@ class TestUserAuthContext:
         context = UserAuthContext(mock_request)
         assert context.dial_access_token is None
 
+    def test_get_token_claims_decodes_payload(self, mock_request):
+        """get_token_claims decodes the JWT payload without verifying the signature."""
+        mock_request.bearer_token = _encode({"sub": "u1", "deep_research": True})
+        context = UserAuthContext(mock_request)
+        assert context.get_token_claims() == {"sub": "u1", "deep_research": True}
+
+    def test_get_token_claims_none_without_token(self, mock_request):
+        """get_token_claims returns None when no bearer token is present."""
+        mock_request.bearer_token = None
+        context = UserAuthContext(mock_request)
+        assert context.get_token_claims() is None
+
+    def test_get_token_claims_none_on_malformed_token(self, mock_request):
+        """get_token_claims fails closed (returns None) on an undecodable token."""
+        mock_request.bearer_token = "not-a-jwt"
+        context = UserAuthContext(mock_request)
+        assert context.get_token_claims() is None
+
+    def test_has_truthy_claim_true_when_present_and_truthy(self, mock_request):
+        mock_request.bearer_token = _encode({"deep_research": True})
+        context = UserAuthContext(mock_request)
+        assert context.has_truthy_claim("deep_research") is True
+
+    def test_has_truthy_claim_false_when_absent(self, mock_request):
+        mock_request.bearer_token = _encode({"sub": "u1"})
+        context = UserAuthContext(mock_request)
+        assert context.has_truthy_claim("deep_research") is False
+
+    def test_has_truthy_claim_false_when_falsy(self, mock_request):
+        mock_request.bearer_token = _encode({"deep_research": False})
+        context = UserAuthContext(mock_request)
+        assert context.has_truthy_claim("deep_research") is False
+
+    def test_has_truthy_claim_false_without_token(self, mock_request):
+        """Fail closed: no token means the claim can't be resolved, so access is denied."""
+        mock_request.bearer_token = None
+        context = UserAuthContext(mock_request)
+        assert context.has_truthy_claim("deep_research") is False
+
 
 class TestSystemUserAuthContext:
     def test_is_system_returns_true(self, mock_request):
@@ -121,3 +165,10 @@ class TestSystemUserAuthContext:
         mock_request.bearer_token = "token123"
         context = SystemUserAuthContext(mock_request)
         assert context.dial_access_token is None
+
+    def test_claim_gating_fails_closed(self, mock_request):
+        """A system user has no token, so claim-gated access is always denied."""
+        mock_request.bearer_token = "token123"
+        context = SystemUserAuthContext(mock_request)
+        assert context.get_token_claims() is None
+        assert context.has_truthy_claim("deep_research") is False

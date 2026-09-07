@@ -436,8 +436,12 @@ class SupremeAgentExecutor:
         - toggle on, session in progress -> RESUME the session (mediated).
         - toggle off, session in progress -> abandon the run (drop the flag), handle normally.
         - otherwise -> a normal Supreme Agent turn (``None``).
+
+        Availability is resolved per user: when the tool is gated on an `access_claim`, a caller
+        without that claim can never enter a Deep Research turn even if they force the toggle.
         """
-        if not self._channel_config.is_deep_research_available:
+        auth_context = ChainParameters.get_auth_context(inputs)
+        if not self._channel_config.is_deep_research_available_for(auth_context):
             return None
 
         state = ChainParameters.get_state(inputs)

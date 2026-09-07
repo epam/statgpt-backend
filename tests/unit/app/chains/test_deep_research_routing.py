@@ -38,14 +38,17 @@ from statgpt.common.schemas.channel import ChannelConfig, SupremeAgentConfig
 from statgpt.common.schemas.tools import DataQueryTool, DeepResearchTool
 
 
-def _channel_config() -> ChannelConfig:
+def _channel_config(*, access_claim: str | None = None) -> ChannelConfig:
+    details: dict = {"deployment_id": "dr-app"}
+    if access_claim is not None:
+        details["access_claim"] = access_claim
     return ChannelConfig(
         supreme_agent=SupremeAgentConfig(name="X", domain="d", terminology_domain="t"),
         deep_research=DeepResearchTool(
             name="deep_research",
             description="DR",
             enabled=True,
-            details={"deployment_id": "dr-app"},
+            details=details,
         ),
         data_query=DataQueryTool(name="data_query", description="DQ", enabled=True, details={}),
     )
@@ -251,11 +254,15 @@ def _patch_dr_deployment_counting(monkeypatch) -> dict:
     return calls
 
 
-def _inputs(state: dict, user_text: str, *, deep_research: bool = True, choice=None) -> dict:
+def _inputs(
+    state: dict, user_text: str, *, deep_research: bool = True, choice=None, auth_context=None
+) -> dict:
     return {
         ChainParametersConfig.STATE: state,
         ChainParametersConfig.CHOICE: choice if choice is not None else _RecordingChoice(),
-        ChainParametersConfig.AUTH_CONTEXT: MagicMock(api_key="k"),
+        ChainParametersConfig.AUTH_CONTEXT: (
+            auth_context if auth_context is not None else MagicMock(api_key="k")
+        ),
         ChainParametersConfig.HISTORY: History(
             messages=[DialMessage(role=Role.USER, content=user_text)]
         ),
@@ -426,6 +433,34 @@ def test_routing_modes_are_driven_by_toggle_and_session():
     )
     # toggle off, no session -> normal
     assert executor._resolve_deep_research_mode(_inputs({}, "hi", deep_research=False)) is None
+
+
+def test_claim_gated_caller_without_claim_cannot_force_deep_research():
+    """When the tool is gated on an `access_claim`, a caller lacking the claim can never enter a
+    Deep Research turn, even with the toggle forced on."""
+    executor = SupremeAgentExecutor(_channel_config(access_claim="dr_access"))
+    denied = MagicMock(api_key="k")
+    denied.has_truthy_claim.return_value = False
+
+    mode = executor._resolve_deep_research_mode(
+        _inputs({}, "research this", deep_research=True, auth_context=denied)
+    )
+
+    assert mode is None
+    denied.has_truthy_claim.assert_called_once_with("dr_access")
+
+
+def test_claim_gated_caller_with_claim_starts_deep_research():
+    """A caller carrying the required claim routes normally into Deep Research."""
+    executor = SupremeAgentExecutor(_channel_config(access_claim="dr_access"))
+    granted = MagicMock(api_key="k")
+    granted.has_truthy_claim.return_value = True
+
+    mode = executor._resolve_deep_research_mode(
+        _inputs({}, "research this", deep_research=True, auth_context=granted)
+    )
+
+    assert mode is _DeepResearchMode.START
 
 
 async def test_report_delivered_verbatim_with_attachments(monkeypatch):
