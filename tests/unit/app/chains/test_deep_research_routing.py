@@ -261,7 +261,7 @@ def _inputs(
         ChainParametersConfig.STATE: state,
         ChainParametersConfig.CHOICE: choice if choice is not None else _RecordingChoice(),
         ChainParametersConfig.AUTH_CONTEXT: (
-            auth_context if auth_context is not None else MagicMock(api_key="k")
+            auth_context if auth_context is not None else MagicMock(api_key="k", is_system=False)
         ),
         ChainParametersConfig.HISTORY: History(
             messages=[DialMessage(role=Role.USER, content=user_text)]
@@ -439,7 +439,7 @@ def test_claim_gated_caller_without_claim_cannot_force_deep_research():
     """When the tool is gated on an `access_claim`, a caller lacking the claim can never enter a
     Deep Research turn, even with the toggle forced on."""
     executor = SupremeAgentExecutor(_channel_config(access_claim="dr_access"))
-    denied = MagicMock(api_key="k")
+    denied = MagicMock(api_key="k", is_system=False)
     denied.has_truthy_claim.return_value = False
 
     mode = executor._resolve_deep_research_mode(
@@ -453,7 +453,7 @@ def test_claim_gated_caller_without_claim_cannot_force_deep_research():
 def test_claim_gated_caller_with_claim_starts_deep_research():
     """A caller carrying the required claim routes normally into Deep Research."""
     executor = SupremeAgentExecutor(_channel_config(access_claim="dr_access"))
-    granted = MagicMock(api_key="k")
+    granted = MagicMock(api_key="k", is_system=False)
     granted.has_truthy_claim.return_value = True
 
     mode = executor._resolve_deep_research_mode(
@@ -461,6 +461,37 @@ def test_claim_gated_caller_with_claim_starts_deep_research():
     )
 
     assert mode is _DeepResearchMode.START
+
+
+def test_system_user_bypasses_claim_gate_and_enters_deep_research():
+    """A system user (used for evaluation, disabled in production) carries no token, so it can't
+    satisfy a claim gate; it is granted access instead of being denied."""
+    executor = SupremeAgentExecutor(_channel_config(access_claim="dr_access"))
+    system_user = MagicMock(api_key="k", is_system=True)
+    system_user.has_truthy_claim.return_value = False
+
+    mode = executor._resolve_deep_research_mode(
+        _inputs({}, "research this", deep_research=True, auth_context=system_user)
+    )
+
+    assert mode is _DeepResearchMode.START
+    system_user.has_truthy_claim.assert_not_called()
+
+
+def test_access_claim_resolves_env_var_before_gating(monkeypatch):
+    """`access_claim` supports $env:{VAR}: the resolved claim name is what the caller's token is
+    checked against."""
+    monkeypatch.setenv("DR_CLAIM", "dr_access")
+    executor = SupremeAgentExecutor(_channel_config(access_claim="$env:{DR_CLAIM}"))
+    caller = MagicMock(api_key="k", is_system=False)
+    caller.has_truthy_claim.return_value = True
+
+    mode = executor._resolve_deep_research_mode(
+        _inputs({}, "research this", deep_research=True, auth_context=caller)
+    )
+
+    assert mode is _DeepResearchMode.START
+    caller.has_truthy_claim.assert_called_once_with("dr_access")
 
 
 async def test_report_delivered_verbatim_with_attachments(monkeypatch):

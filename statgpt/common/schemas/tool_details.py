@@ -242,14 +242,17 @@ class DeepResearchDetails(BaseToolDetails):
         default=None,
         description="The system prompt for the Deep Research application.",
     )
-    access_claim: str | None = Field(
+    access_claim_raw: str | None = Field(
         default=None,
+        validation_alias=AliasChoices("access_claim", "accessClaim"),
+        serialization_alias="accessClaim",
         description=(
             "Name of the JWT claim on the caller's token that grants access to Deep Research."
-            " When unset, Deep Research is advertised and runnable for every user on a channel"
-            " that has the tool enabled. When set, the claim must be present and truthy in the"
-            " caller's token, otherwise the toggle is hidden and the mode cannot be forced."
-            " Fails closed: if claims cannot be resolved, access is denied."
+            " Supports $env:{VAR} syntax. When unset, Deep Research is advertised and runnable"
+            " for every user on a channel that has the tool enabled. When set, the claim must be"
+            " present and truthy in the caller's token, otherwise the toggle is hidden and the"
+            " mode cannot be forced. Fails closed: if claims cannot be resolved, access is denied."
+            " System users (used for evaluation, disabled in production) always have access."
         ),
     )
     always_show_stages: bool = Field(
@@ -278,6 +281,12 @@ class DeepResearchDetails(BaseToolDetails):
 
     def get_deployment_id(self) -> str:
         return config_utils.replace_env(self.deployment_id_raw)
+
+    def get_access_claim(self) -> str | None:
+        if self.access_claim_raw is None or not self.access_claim_raw.strip():
+            return None
+        resolved = config_utils.replace_env(self.access_claim_raw).strip()
+        return resolved or None
 
 
 class PublicationType(BaseYamlModel):

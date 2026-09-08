@@ -45,8 +45,9 @@ def _deep_research_tool(
     )
 
 
-def _auth_context(*, has_claim: bool = True) -> MagicMock:
+def _auth_context(*, has_claim: bool = True, is_system: bool = False) -> MagicMock:
     auth_context = MagicMock()
+    auth_context.is_system = is_system
     auth_context.has_truthy_claim.return_value = has_claim
     return auth_context
 
@@ -61,7 +62,7 @@ def _facade(config: ChannelConfig) -> ChannelServiceFacade:
 async def _get_schema(config: ChannelConfig, auth_context=None) -> dict:
     facade = _facade(config)
     return await facade.get_dial_channel_configuration(
-        auth_context=auth_context if auth_context is not None else MagicMock()
+        auth_context=auth_context if auth_context is not None else _auth_context()
     )
 
 
@@ -128,6 +129,18 @@ class TestDeepResearchConfiguration:
 
         assert "deep_research" not in schema["properties"]
         auth_context.has_truthy_claim.assert_called_once_with("dr_access")
+
+    @pytest.mark.asyncio
+    async def test_advertised_for_system_user_even_when_claim_gated(self) -> None:
+        auth_context = _auth_context(has_claim=False, is_system=True)
+        schema = await _get_schema(
+            _channel_config(deep_research=_deep_research_tool(access_claim="dr_access")),
+            auth_context=auth_context,
+        )
+
+        assert "deep_research" in schema["properties"]
+        # System users bypass the claim gate, so the token is never consulted.
+        auth_context.has_truthy_claim.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_advertised_when_claim_unset_regardless_of_token(self) -> None:
