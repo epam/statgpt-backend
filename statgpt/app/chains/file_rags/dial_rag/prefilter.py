@@ -68,13 +68,33 @@ class PreFilterBuilder:
         )
         self._metadata = metadata
 
-    async def build_filter_from_query(self, query: str) -> PreFilterResponse:
-        llm_filters = await self._call_llm(query=query)
-        dial_rag_filters = self._convert_llm_output_to_dial_rag_filter(llm_filters)
+    async def build_filter_from_query(
+        self, query: str, reference_date: date | None = None
+    ) -> PreFilterResponse:
+        """
+        Build the publications prefilter from the user query.
+
+        `reference_date` replaces "today" everywhere the builder needs it: in the LLM prompt,
+        when dropping hallucinated future dates, and when decoding "latest" into a time range.
+        None means the wall clock. Used by the RAG eval to reproduce a past date.
+        """
+        llm_filters = await self._call_llm(query=query, reference_date=reference_date)
+        dial_rag_filters = self._convert_llm_output_to_dial_rag_filter(
+            llm_filters, reference_date=reference_date
+        )
         return PreFilterResponse(llm_output=llm_filters, rag_filter=dial_rag_filters)
 
-    async def _call_llm(self, query: str) -> RagFilterLLMOutput:
-        pre_filter_chain = self._create_prefilter_chain()
+    @staticmethod
+    def _prompt_date_partials(reference_date: date | None) -> dict[str, str]:
+        today = reference_date or date.today()
+        return {
+            "current_date_long": utils.format_date_long(today),
+            "current_date_yyyymmdd": today.strftime("%Y-%m-%d"),
+            "current_year": today.strftime("%Y"),
+        }
+
+    async def _call_llm(self, query: str, reference_date: date | None) -> RagFilterLLMOutput:
+        pre_filter_chain = self._create_prefilter_chain(reference_date=reference_date)
         outputs = await pre_filter_chain.ainvoke({"query": query})
         return RagFilterLLMOutput(
             time_period=outputs["time_period"],
@@ -83,16 +103,12 @@ class PreFilterBuilder:
             last_n_publications=outputs["last_n_publications"].last_n_publications,
         )
 
-    def _create_prefilter_chain(self) -> RunnableSerializable:
+    def _create_prefilter_chain(self, reference_date: date | None) -> RunnableSerializable:
         date_chain = SingleFilterChainBuilder.create_chain(
             llm=self._llm,
             system_prompt=rag_prefilter_default_prompts.date_system_prompt,
             output_type=TimePeriodFilter,
-            partials={
-                "current_date_long": utils.get_today_date_long(),
-                "current_date_yyyymmdd": utils.get_ts_now_str(ts_format="%Y-%m-%d"),
-                "current_year": utils.get_ts_now_str(ts_format="%Y"),
-            },
+            partials=self._prompt_date_partials(reference_date),
         )
         latest_chain = SingleFilterChainBuilder.create_chain(
             llm=self._llm,
@@ -126,7 +142,7 @@ class PreFilterBuilder:
         self, llm_output: RagFilterLLMOutput, reference_date: date | None = None
     ) -> RagFilterDial | None:
         # fix hallucinations before creating the filter
-        time_period_llm = llm_output.time_period.fix_llm_hallucinations()
+        time_period_llm = llm_output.time_period.fix_llm_hallucinations(today=reference_date)
 
         start_date = time_period_llm.parse_date(time_period_llm.start)
         end_date = time_period_llm.parse_date(time_period_llm.end)

@@ -1,3 +1,4 @@
+import datetime
 import typing as t
 
 from langchain_core.runnables import Runnable
@@ -41,6 +42,13 @@ The query to search an answer for.
         'since RagFilterDial is not JSON-serializable, '
         'it must be passed as a JSON serialized string. ',
     )
+    target_current_date: t.Annotated[str | None, InjectedToolArg] = Field(
+        default=None,
+        description='YYYY-MM-DD date to use as "today" instead of the wall clock: '
+        'when building the prefilter (prompt, relative dates, "latest") '
+        'and, for RAG versions supporting it, in the RAG answer generation. '
+        'used in RAG eval to reproduce answers as of the test case cutoff date.',
+    )
 
 
 class FileRagTool(StatGptTool[FileRagToolConfig], tool_type=ToolTypes.FILE_RAG):
@@ -54,7 +62,11 @@ class FileRagTool(StatGptTool[FileRagToolConfig], tool_type=ToolTypes.FILE_RAG):
         return FileRagArgs
 
     async def _arun(
-        self, inputs: dict, query: str, target_prefilter_json: str | None = None
+        self,
+        inputs: dict,
+        query: str,
+        target_prefilter_json: str | None = None,
+        target_current_date: str | None = None,
     ) -> tuple[str, BaseFileRagArtifact]:
         version = self._tool_config.details.version
         implementation = _RAG_IMPLEMENTATIONS[version](self._tool_config, self._channel_config)
@@ -69,6 +81,9 @@ class FileRagTool(StatGptTool[FileRagToolConfig], tool_type=ToolTypes.FILE_RAG):
         )
         inputs[ChainParametersConfig.QUERY] = query
         inputs[ChainParametersConfig.TARGET_PREFILTER] = target_prefilter
+        inputs[ChainParametersConfig.TARGET_CURRENT_DATE] = (
+            datetime.date.fromisoformat(target_current_date) if target_current_date else None
+        )
         res: dict = await chain.ainvoke(inputs)
         logger.info(f"FileRagTool result: {res!r}")
 
