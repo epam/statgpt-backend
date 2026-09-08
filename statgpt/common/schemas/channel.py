@@ -409,10 +409,12 @@ class ChannelConfig(BaseYamlModel):
         """Whether Deep Research is available to the caller behind ``auth_context``.
 
         Extends `is_deep_research_available` with per-user gating: when the tool's
-        `access_claim` is set, the named claim must be present and truthy in the caller's
-        token. Fails closed — if the claim is required but claims cannot be resolved,
-        access is denied. System users (used for evaluation, disabled in production) bypass
-        the claim gate, since they carry no token yet must be able to run evaluations.
+        `access_claim` is set, the caller's token must satisfy it. With `access_claim_value`
+        set, the claim must equal or contain that value (list-valued claims such as `roles`);
+        without it, the claim only needs to be present and truthy. Fails closed — if the claim
+        is required but claims cannot be resolved, access is denied. System users (used for
+        evaluation, disabled in production) bypass the claim gate, since they carry no token
+        yet must be able to run evaluations.
         """
         if not self.is_deep_research_available:
             return False
@@ -422,7 +424,8 @@ class ChannelConfig(BaseYamlModel):
         access_claim = self.deep_research.details.get_access_claim()
         if not access_claim:
             return True
-        return auth_context.has_truthy_claim(access_claim)
+        access_claim_value = self.deep_research.details.get_access_claim_value()
+        return auth_context.has_claim_value(access_claim, access_claim_value)
 
     @property
     def discovery_application_id(self) -> str | None:

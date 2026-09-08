@@ -3,8 +3,11 @@ from abc import ABC, abstractmethod
 from typing import Any
 
 import jwt
+from pydantic import TypeAdapter, ValidationError
 
 _log = logging.getLogger(__name__)
+
+bool_validator = TypeAdapter(bool)
 
 
 class AuthContext(ABC):
@@ -41,12 +44,27 @@ class AuthContext(ABC):
             _log.warning(f"Failed to decode DIAL access token claims: {e}")
             return None
 
-    def has_truthy_claim(self, claim: str) -> bool:
-        """Whether ``claim`` is present and truthy in the caller's token.
+    def has_claim_value(self, claim: str, value: str | None = None) -> bool:
+        """Whether the caller's token satisfies the ``claim`` gate.
 
-        Fails closed: a missing/undecodable token or an absent/falsy claim returns False.
+        - ``value`` is ``None``: the ``claim`` must parse to a truthy boolean, so string
+          claims like ``"false"``/``"0"`` are correctly treated as falsy.
+        - ``value`` is set: the token's claim must equal it (scalar claim) or contain it
+          (list-valued claim such as ``roles``, which may carry many values).
+
+        Comparison is done on string form so YAML/env-configured values match numeric or
+        boolean claims. Fails closed: a missing/undecodable token, an absent claim, a
+        non-boolean-coercible claim, or a value mismatch all return False.
         """
         claims = self.get_token_claims()
-        if claims is None:
+        if claims is None or claim not in claims:
             return False
-        return bool(claims.get(claim))
+        actual = claims[claim]
+        if value is None:
+            try:
+                return bool_validator.validate_python(actual)
+            except ValidationError:
+                return False
+        if isinstance(actual, (list, tuple, set)):
+            return any(value == str(item) for item in actual)
+        return value == str(actual)

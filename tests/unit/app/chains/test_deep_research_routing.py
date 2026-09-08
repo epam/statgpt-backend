@@ -38,10 +38,14 @@ from statgpt.common.schemas.channel import ChannelConfig, SupremeAgentConfig
 from statgpt.common.schemas.tools import DataQueryTool, DeepResearchTool
 
 
-def _channel_config(*, access_claim: str | None = None) -> ChannelConfig:
+def _channel_config(
+    *, access_claim: str | None = None, access_claim_value: str | None = None
+) -> ChannelConfig:
     details: dict = {"deployment_id": "dr-app"}
     if access_claim is not None:
         details["access_claim"] = access_claim
+    if access_claim_value is not None:
+        details["access_claim_value"] = access_claim_value
     return ChannelConfig(
         supreme_agent=SupremeAgentConfig(name="X", domain="d", terminology_domain="t"),
         deep_research=DeepResearchTool(
@@ -440,21 +444,21 @@ def test_claim_gated_caller_without_claim_cannot_force_deep_research():
     Deep Research turn, even with the toggle forced on."""
     executor = SupremeAgentExecutor(_channel_config(access_claim="dr_access"))
     denied = MagicMock(api_key="k", is_system=False)
-    denied.has_truthy_claim.return_value = False
+    denied.has_claim_value.return_value = False
 
     mode = executor._resolve_deep_research_mode(
         _inputs({}, "research this", deep_research=True, auth_context=denied)
     )
 
     assert mode is None
-    denied.has_truthy_claim.assert_called_once_with("dr_access")
+    denied.has_claim_value.assert_called_once_with("dr_access", None)
 
 
 def test_claim_gated_caller_with_claim_starts_deep_research():
     """A caller carrying the required claim routes normally into Deep Research."""
     executor = SupremeAgentExecutor(_channel_config(access_claim="dr_access"))
     granted = MagicMock(api_key="k", is_system=False)
-    granted.has_truthy_claim.return_value = True
+    granted.has_claim_value.return_value = True
 
     mode = executor._resolve_deep_research_mode(
         _inputs({}, "research this", deep_research=True, auth_context=granted)
@@ -463,19 +467,36 @@ def test_claim_gated_caller_with_claim_starts_deep_research():
     assert mode is _DeepResearchMode.START
 
 
+def test_claim_value_gate_passes_required_value_to_auth_context():
+    """When `access_claim_value` is configured, it is passed through so the caller's claim is
+    checked for that specific value (e.g. one of many `roles`)."""
+    executor = SupremeAgentExecutor(
+        _channel_config(access_claim="roles", access_claim_value="dr_access")
+    )
+    granted = MagicMock(api_key="k", is_system=False)
+    granted.has_claim_value.return_value = True
+
+    mode = executor._resolve_deep_research_mode(
+        _inputs({}, "research this", deep_research=True, auth_context=granted)
+    )
+
+    assert mode is _DeepResearchMode.START
+    granted.has_claim_value.assert_called_once_with("roles", "dr_access")
+
+
 def test_system_user_bypasses_claim_gate_and_enters_deep_research():
     """A system user (used for evaluation, disabled in production) carries no token, so it can't
     satisfy a claim gate; it is granted access instead of being denied."""
     executor = SupremeAgentExecutor(_channel_config(access_claim="dr_access"))
     system_user = MagicMock(api_key="k", is_system=True)
-    system_user.has_truthy_claim.return_value = False
+    system_user.has_claim_value.return_value = False
 
     mode = executor._resolve_deep_research_mode(
         _inputs({}, "research this", deep_research=True, auth_context=system_user)
     )
 
     assert mode is _DeepResearchMode.START
-    system_user.has_truthy_claim.assert_not_called()
+    system_user.has_claim_value.assert_not_called()
 
 
 def test_access_claim_resolves_env_var_before_gating(monkeypatch):
@@ -484,14 +505,14 @@ def test_access_claim_resolves_env_var_before_gating(monkeypatch):
     monkeypatch.setenv("DR_CLAIM", "dr_access")
     executor = SupremeAgentExecutor(_channel_config(access_claim="$env:{DR_CLAIM}"))
     caller = MagicMock(api_key="k", is_system=False)
-    caller.has_truthy_claim.return_value = True
+    caller.has_claim_value.return_value = True
 
     mode = executor._resolve_deep_research_mode(
         _inputs({}, "research this", deep_research=True, auth_context=caller)
     )
 
     assert mode is _DeepResearchMode.START
-    caller.has_truthy_claim.assert_called_once_with("dr_access")
+    caller.has_claim_value.assert_called_once_with("dr_access", None)
 
 
 async def test_report_delivered_verbatim_with_attachments(monkeypatch):

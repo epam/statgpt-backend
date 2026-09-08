@@ -132,26 +132,59 @@ class TestUserAuthContext:
         context = UserAuthContext(mock_request)
         assert context.get_token_claims() is None
 
-    def test_has_truthy_claim_true_when_present_and_truthy(self, mock_request):
+    def test_has_claim_value_true_when_present_and_truthy(self, mock_request):
+        """No required value: the claim only needs to be present and truthy."""
         mock_request.bearer_token = _encode({"deep_research": True})
         context = UserAuthContext(mock_request)
-        assert context.has_truthy_claim("deep_research") is True
+        assert context.has_claim_value("deep_research") is True
 
-    def test_has_truthy_claim_false_when_absent(self, mock_request):
+    def test_has_claim_value_false_when_absent(self, mock_request):
         mock_request.bearer_token = _encode({"sub": "u1"})
         context = UserAuthContext(mock_request)
-        assert context.has_truthy_claim("deep_research") is False
+        assert context.has_claim_value("deep_research") is False
 
-    def test_has_truthy_claim_false_when_falsy(self, mock_request):
+    def test_has_claim_value_false_when_falsy(self, mock_request):
         mock_request.bearer_token = _encode({"deep_research": False})
         context = UserAuthContext(mock_request)
-        assert context.has_truthy_claim("deep_research") is False
+        assert context.has_claim_value("deep_research") is False
 
-    def test_has_truthy_claim_false_without_token(self, mock_request):
+    def test_has_claim_value_false_without_token(self, mock_request):
         """Fail closed: no token means the claim can't be resolved, so access is denied."""
         mock_request.bearer_token = None
         context = UserAuthContext(mock_request)
-        assert context.has_truthy_claim("deep_research") is False
+        assert context.has_claim_value("deep_research") is False
+
+    def test_has_claim_value_matches_scalar_claim(self, mock_request):
+        mock_request.bearer_token = _encode({"tier": "premium"})
+        context = UserAuthContext(mock_request)
+        assert context.has_claim_value("tier", "premium") is True
+
+    def test_has_claim_value_scalar_mismatch_fails_closed(self, mock_request):
+        mock_request.bearer_token = _encode({"tier": "basic"})
+        context = UserAuthContext(mock_request)
+        assert context.has_claim_value("tier", "premium") is False
+
+    def test_has_claim_value_matches_within_list_claim(self, mock_request):
+        """A `roles`-style list claim grants access when it contains the required value."""
+        mock_request.bearer_token = _encode({"roles": ["viewer", "dr_access", "editor"]})
+        context = UserAuthContext(mock_request)
+        assert context.has_claim_value("roles", "dr_access") is True
+
+    def test_has_claim_value_absent_from_list_claim_fails_closed(self, mock_request):
+        mock_request.bearer_token = _encode({"roles": ["viewer", "editor"]})
+        context = UserAuthContext(mock_request)
+        assert context.has_claim_value("roles", "dr_access") is False
+
+    def test_has_claim_value_compares_non_string_claim_as_string(self, mock_request):
+        """Numeric/boolean claims are compared on string form so config values still match."""
+        mock_request.bearer_token = _encode({"level": 5})
+        context = UserAuthContext(mock_request)
+        assert context.has_claim_value("level", "5") is True
+
+    def test_has_claim_value_required_value_missing_claim_fails_closed(self, mock_request):
+        mock_request.bearer_token = _encode({"sub": "u1"})
+        context = UserAuthContext(mock_request)
+        assert context.has_claim_value("roles", "dr_access") is False
 
 
 class TestSystemUserAuthContext:
@@ -171,4 +204,4 @@ class TestSystemUserAuthContext:
         mock_request.bearer_token = "token123"
         context = SystemUserAuthContext(mock_request)
         assert context.get_token_claims() is None
-        assert context.has_truthy_claim("deep_research") is False
+        assert context.has_claim_value("deep_research") is False
