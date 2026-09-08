@@ -1,6 +1,8 @@
 import asyncio
 from collections import defaultdict
+from typing import Any
 
+from dateutil.parser import ParserError, parse
 from fastmcp.tools import ToolResult
 from pydantic import PrivateAttr
 
@@ -17,27 +19,32 @@ from statgpt.app.schemas.mcp import (
     ProviderAgencyRecord,
     ProviderRecord,
 )
+from statgpt.app.utils.formatters.dataset_detailed import sample_component_values
 from statgpt.common.auth.auth_context import AuthContext
 from statgpt.common.data.base import Attribute, CategoricalDimension, DataSet, Dimension
 from statgpt.common.schemas import AvailableDatasetsTool as AvailableDatasetsToolConfig
+from statgpt.common.schemas import ChannelConfig
 from statgpt.common.schemas import DatasetStructureTool as DatasetStructureToolConfig
 from statgpt.common.schemas import ToolTypes
 
 from .base import StatGptMcpTool
 
-_SAMPLE_VALUES_LIMIT = 10
-
-
 # ~~~~~~~~~~~~~ structured content builders ~~~~~~~~~~~~~
 
 
 async def _dataset_last_updated(dataset: DataSet, auth_context: AuthContext) -> str | None:
-    """The dataset's last-updated date as an ISO 8601 string, from the source when known,
-    otherwise the free-text citation value."""
+    """The dataset's last-updated date as an ISO 8601 date, from the source when known, otherwise
+    parsed from the citation's free-text value (the way the SDMX dataset resolves `updated_at`).
+    `None` when neither yields a date, so the field is never populated with unparsed text."""
     if updated_at := await dataset.updated_at(auth_context):
         return updated_at.date().isoformat()
     citation = dataset.config.citation
-    return citation.last_updated if citation else None
+    if citation is None or not citation.last_updated:
+        return None
+    try:
+        return parse(citation.last_updated).date().isoformat()
+    except (ParserError, OverflowError):
+        return None
 
 
 async def datasets_to_structured_content(
@@ -95,12 +102,14 @@ async def datasets_to_structured_content(
 
 
 async def dataset_structure_to_structured_content(
-    dataset: DataSet, auth_context: AuthContext
+    dataset: DataSet, auth_context: AuthContext, *, include_provider_agencies: bool
 ) -> DatasetStructureStructuredContent:
+    """Build the MCP structured content for the dataset-structure tool. `provider_agencies` is
+    exposed only when the tool is configured to include it, mirroring the text rendering."""
     citation = dataset.config.citation
     description = citation.description if citation and citation.description else dataset.description
     provider_agencies = None
-    if citation and citation.provider_agencies:
+    if include_provider_agencies and citation and citation.provider_agencies:
         provider_agencies = [
             ProviderAgencyRecord(id=agency.id, name=agency.name)
             for agency in citation.provider_agencies
@@ -120,21 +129,30 @@ async def dataset_structure_to_structured_content(
 
 
 def _component_record(component: Dimension | Attribute) -> DatasetComponentRecord:
-    type_ = getattr(component, "dimension_type", None) or getattr(component, "attribute_type", None)
-    record = DatasetComponentRecord(
-        id=component.entity_id,
-        name=component.name,
-        type=type_.value if type_ is not None else None,
-        description=component.description,
-    )
+    if isinstance(component, Dimension):
+        type_ = component.dimension_type.value
+    else:
+        type_ = component.attribute_type.value
+
+    total_values: int | None = None
+    sample_values: list[DatasetValueRecord] | None = None
     if isinstance(component, CategoricalDimension):
         values = component.available_values
-        record.total_values = len(values)
-        record.sample_values = [
+        total_values = len(values)
+        # Same sampling as the text rendering: everything when it fits, a random sample otherwise.
+        sample_values = [
             DatasetValueRecord(id=value.query_id, name=value.name)
-            for value in values[:_SAMPLE_VALUES_LIMIT]
+            for value in sample_component_values(values)
         ]
-    return record
+
+    return DatasetComponentRecord(
+        id=component.entity_id,
+        name=component.name,
+        type=type_,
+        description=component.description,
+        total_values=total_values,
+        sample_values=sample_values,
+    )
 
 
 # ~~~~~~~~~~~~~ MCP interfaces ~~~~~~~~~~~~~
@@ -150,10 +168,10 @@ class AvailableDatasetsMcpTool(
     def __init__(
         self,
         tool_config: AvailableDatasetsToolConfig,
-        channel_config,
-        inputs,
-        auth_context,
-        **kwargs,
+        channel_config: ChannelConfig,
+        inputs: dict[str, Any],
+        auth_context: AuthContext,
+        **kwargs: Any,
     ):
         super().__init__(tool_config, channel_config, inputs, auth_context, **kwargs)
         self._runner = AvailableDatasetsRunner(tool_config.details)
@@ -192,5 +210,9 @@ class DatasetStructureMcpTool(
                 DatasetStructureStructuredContent(dataset_id=args.dataset_id, found=False)
             )
         return self._structured_only(
-            await dataset_structure_to_structured_content(dataset, self._auth_context)
+            await dataset_structure_to_structured_content(
+                dataset,
+                self._auth_context,
+                include_provider_agencies=self._tool_config.details.include_provider_agencies,
+            )
         )

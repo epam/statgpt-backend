@@ -1,8 +1,12 @@
+from typing import Any
+
 from fastmcp.tools import ToolResult
 from pydantic import PrivateAttr
 
 from statgpt.app.chains.sdmx_query_app import SdmxQueryAppArgs, SdmxQueryAppProxy
 from statgpt.app.schemas.mcp import SdmxProxyStructuredContent
+from statgpt.common.auth.auth_context import AuthContext
+from statgpt.common.schemas import ChannelConfig
 from statgpt.common.schemas import SdmxQueryAppTool as SdmxQueryAppToolConfig
 from statgpt.common.schemas import ToolTypes
 
@@ -19,7 +23,12 @@ class SdmxQueryAppMcpTool(
     _proxy: SdmxQueryAppProxy = PrivateAttr()
 
     def __init__(
-        self, tool_config: SdmxQueryAppToolConfig, channel_config, inputs, auth_context, **kwargs
+        self,
+        tool_config: SdmxQueryAppToolConfig,
+        channel_config: ChannelConfig,
+        inputs: dict[str, Any],
+        auth_context: AuthContext,
+        **kwargs: Any,
     ):
         super().__init__(tool_config, channel_config, inputs, auth_context, **kwargs)
         self._proxy = SdmxQueryAppProxy(tool_config.details)

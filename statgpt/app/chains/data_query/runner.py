@@ -37,7 +37,7 @@ class DataQueryRunner:
         chain: Runnable = await factory.create_chain(inputs)
 
         res, discovery = await self._run_with_discovery(chain, inputs, query)
-        logger.info(f"DataQueryTool result: {res!r}")
+        logger.info(f"DataQueryRunner result: {res!r}")
 
         data_responses: dict[str, DataResponse] = {
             k: v

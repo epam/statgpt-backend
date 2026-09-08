@@ -122,6 +122,12 @@ class StatGptMcpTool(Tool, ABC, Generic[ToolConfigType, ArgsType]):
         schema and the runtime payload cannot drift (guarded in tests)."""
         return None
 
+    @classmethod
+    def get_output_schema(cls) -> dict[str, Any] | None:
+        """The advertised MCP output schema, derived from `get_output_model`."""
+        model = cls.get_output_model()
+        return model_to_output_schema(model) if model is not None else None
+
     @abstractmethod
     async def _execute(self, args: ArgsType) -> ToolResult:
         """Run the tool with validated arguments and return the complete MCP result."""
@@ -137,11 +143,12 @@ class StatGptMcpTool(Tool, ABC, Generic[ToolConfigType, ArgsType]):
             _log.debug("Invalid arguments for MCP tool %s: %s", self.name, e)
             raise ToolError(f"Invalid arguments for {self.name}: {e}") from e
 
-        # Screen arbitrary free-text input with the out-of-scope guardrail before executing.
-        # Raised ToolError propagates to the MCP client unchanged.
+        # Screen arbitrary free-text input with the out-of-scope guardrail before executing. The
+        # validated arguments are screened (not the raw request), so the guardrail sees exactly
+        # what the tool will run with. Raised ToolError propagates to the MCP client unchanged.
         await enforce_input_guardrail(
             self.name,
-            self._args_schema.get_guardrail_input(arguments),
+            self._args_schema.get_guardrail_input(args.model_dump(exclude={"inputs"})),
             self._channel_config,
             self._auth_context,
         )
@@ -182,11 +189,6 @@ class StatGptMcpTool(Tool, ABC, Generic[ToolConfigType, ArgsType]):
         )
 
     # ~~~~~~~~~~~~~ factory ~~~~~~~~~~~~~
-
-    @classmethod
-    def get_output_schema(cls) -> dict[str, Any] | None:
-        model = cls.get_output_model()
-        return model_to_output_schema(model) if model is not None else None
 
     @staticmethod
     def from_config(

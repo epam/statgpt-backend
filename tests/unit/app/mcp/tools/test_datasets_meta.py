@@ -1,13 +1,20 @@
 from datetime import datetime, timezone
 from types import SimpleNamespace
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, MagicMock
 
 from statgpt.app.config import ChainParametersConfig
 from statgpt.app.mcp.tools import StatGptMcpTool
+from statgpt.common.data.base import Attribute, CategoricalDimension
+from statgpt.common.data.base.enums import AttributeType, DimensionDataType
+from statgpt.common.schemas.dataset_structure_tool import DatasetStructureToolDetails
 from statgpt.common.schemas.tool_details import AvailableDatasetsDetails
 from statgpt.common.schemas.tools import AvailableDatasetsTool, DatasetStructureTool
 
 _AUTH = SimpleNamespace()
+_AGENCIES = [
+    SimpleNamespace(id="IMF", name="Intl Monetary Fund"),
+    SimpleNamespace(id="WB", name="World Bank"),
+]
 
 
 def _dataset(
@@ -15,14 +22,18 @@ def _dataset(
     entity_id: str = "cpi",
     provider: str | None = "IMF",
     updated_at: datetime | None = None,
+    citation_last_updated: str | None = "2023-06-15",
+    provider_agencies: list | None = None,
+    dimensions: list | None = None,
+    attributes: list | None = None,
 ) -> SimpleNamespace:
     citation = (
         SimpleNamespace(
             description=None,
             provider=provider,
             provider_agency_names_with_fallback_to_provider=[provider],
-            provider_agencies=None,
-            last_updated="2023",
+            provider_agencies=provider_agencies,
+            last_updated=citation_last_updated,
         )
         if provider
         else None
@@ -35,9 +46,31 @@ def _dataset(
         dataset_url=None,
         config=SimpleNamespace(citation=citation),
         updated_at=AsyncMock(return_value=updated_at),
-        dimensions=lambda: [],
-        attributes=lambda: [],
+        dimensions=lambda: dimensions or [],
+        attributes=lambda: attributes or [],
     )
+
+
+def _categorical_dimension(n_values: int) -> MagicMock:
+    # A spec'd mock passes the `isinstance` checks the record builder relies on.
+    dim = MagicMock(spec=CategoricalDimension)
+    dim.entity_id = "REF_AREA"
+    dim.name = "Reference area"
+    dim.description = None
+    dim.dimension_type = DimensionDataType.CATEGORY
+    dim.available_values = [
+        SimpleNamespace(query_id=f"C{i}", name=f"Country {i}") for i in range(n_values)
+    ]
+    return dim
+
+
+def _attribute() -> MagicMock:
+    attr = MagicMock(spec=Attribute)
+    attr.entity_id = "UNIT_MULT"
+    attr.name = "Unit multiplier"
+    attr.description = "Power of ten."
+    attr.attribute_type = AttributeType.STRING
+    return attr
 
 
 def _build(tool_config, inputs: dict) -> StatGptMcpTool:
@@ -88,13 +121,25 @@ async def test_available_datasets_is_structured_only():
                 "name": "Consumer Price Index",
                 "description": "Prices.",
                 "provider": "IMF",
-                "lastUpdated": "2023",
+                "lastUpdated": "2023-06-15",
             },
             {"id": "WB:GDP(1.0)", "name": "Consumer Price Index", "description": "Prices."},
         ],
         "totalDatasets": 2,
         "totalAgencies": 1,
     }
+
+
+async def test_available_datasets_omits_an_unparsable_citation_date():
+    # `lastUpdated` is an ISO 8601 contract: free text that cannot be parsed into a date is
+    # dropped rather than passed through.
+    inputs = _datasets_inputs([_dataset(citation_last_updated="Quarterly, when ready")])
+    tool_config = AvailableDatasetsTool(name="datasets", description="Datasets.")
+
+    structured = (await _build(tool_config, inputs).run({})).structured_content
+
+    assert structured is not None
+    assert "lastUpdated" not in structured["datasets"][0]
 
 
 async def test_available_datasets_reports_indicator_counts_when_configured():
@@ -160,3 +205,86 @@ async def test_dataset_structure_found_uses_the_source_update_date():
         "dimensions": [],
         "attributes": [],
     }
+
+
+async def test_dataset_structure_hides_provider_agencies_by_default():
+    # Mirrors the text rendering: `include_provider_agencies` defaults to False.
+    tool_config = DatasetStructureTool(name="structure", description="Structure.")
+    dataset = _dataset(provider_agencies=_AGENCIES)
+
+    structured = (
+        await _build(tool_config, _structure_inputs(dataset)).run({"dataset_id": "IMF:CPI(1.0.0)"})
+    ).structured_content
+
+    assert structured is not None
+    assert "providerAgencies" not in structured
+
+
+async def test_dataset_structure_exposes_provider_agencies_when_configured():
+    tool_config = DatasetStructureTool(
+        name="structure",
+        description="Structure.",
+        details=DatasetStructureToolDetails(include_provider_agencies=True),
+    )
+    dataset = _dataset(provider_agencies=_AGENCIES)
+
+    structured = (
+        await _build(tool_config, _structure_inputs(dataset)).run({"dataset_id": "IMF:CPI(1.0.0)"})
+    ).structured_content
+
+    assert structured is not None
+    assert structured["providerAgencies"] == [
+        {"id": "IMF", "name": "Intl Monetary Fund"},
+        {"id": "WB", "name": "World Bank"},
+    ]
+
+
+async def test_dataset_structure_lists_every_value_of_a_small_dimension():
+    tool_config = DatasetStructureTool(name="structure", description="Structure.")
+    dataset = _dataset(dimensions=[_categorical_dimension(3)], attributes=[_attribute()])
+
+    structured = (
+        await _build(tool_config, _structure_inputs(dataset)).run({"dataset_id": "IMF:CPI(1.0.0)"})
+    ).structured_content
+
+    assert structured is not None
+    assert structured["dimensions"] == [
+        {
+            "id": "REF_AREA",
+            "name": "Reference area",
+            "type": "category",
+            "totalValues": 3,
+            "sampleValues": [
+                {"id": "C0", "name": "Country 0"},
+                {"id": "C1", "name": "Country 1"},
+                {"id": "C2", "name": "Country 2"},
+            ],
+        }
+    ]
+    assert structured["attributes"] == [
+        {
+            "id": "UNIT_MULT",
+            "name": "Unit multiplier",
+            "type": "string",
+            "description": "Power of ten.",
+        }
+    ]
+
+
+async def test_dataset_structure_samples_a_large_dimension_like_the_text_rendering():
+    # Same rule as the detailed formatter: a bounded sample (random, so only its size and
+    # membership are checked) once the values exceed the limit.
+    tool_config = DatasetStructureTool(name="structure", description="Structure.")
+    dataset = _dataset(dimensions=[_categorical_dimension(25)])
+
+    structured = (
+        await _build(tool_config, _structure_inputs(dataset)).run({"dataset_id": "IMF:CPI(1.0.0)"})
+    ).structured_content
+
+    assert structured is not None
+    (dimension,) = structured["dimensions"]
+    assert dimension["totalValues"] == 25
+    sample_ids = [value["id"] for value in dimension["sampleValues"]]
+    assert len(sample_ids) == 10
+    assert len(set(sample_ids)) == 10
+    assert set(sample_ids) <= {f"C{i}" for i in range(25)}

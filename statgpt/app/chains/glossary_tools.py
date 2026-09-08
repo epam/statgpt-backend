@@ -35,10 +35,13 @@ class AvailableTermsRunner:
             formatted_terms.append(formatted_term)
         return formatted_terms
 
-    def to_markdown(self, terms: list[schemas.GlossaryTerm]) -> str:
+    def to_markdown(self, terms: list[schemas.GlossaryTerm], lines: list[str] | None = None) -> str:
+        """The full text rendering; pass `lines` when `to_markdown_lines` was already computed."""
+        if lines is None:
+            lines = self.to_markdown_lines(terms)
         return (
             f"Glossary contains {len(terms)} terms.\n\n*List of available glossary terms:*\n"
-            + "\n".join(self.to_markdown_lines(terms))
+            + "\n".join(lines)
         )
 
 
@@ -54,7 +57,7 @@ class AvailableTermsTool(
     async def _arun(self, inputs: dict) -> tuple[str, ToolArtifact]:
         terms = await self._runner.run(inputs)
         formatted_terms = self._runner.to_markdown_lines(terms)
-        response = self._runner.to_markdown(terms)
+        response = self._runner.to_markdown(terms, formatted_terms)
 
         target = ChainParameters.get_target(inputs)
         if target:

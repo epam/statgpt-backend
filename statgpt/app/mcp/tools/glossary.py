@@ -1,3 +1,5 @@
+from typing import Any
+
 from fastmcp.tools import ToolResult
 from pydantic import PrivateAttr
 
@@ -16,6 +18,7 @@ from statgpt.app.schemas.mcp import (
     TermDefinitionsStructuredContent,
 )
 from statgpt.common import schemas
+from statgpt.common.auth.auth_context import AuthContext
 from statgpt.common.schemas import ToolTypes
 from statgpt.common.schemas.tools import AvailableTermsTool as AvailableTermsToolConfig
 from statgpt.common.schemas.tools import TermDefinitionsTool as TermDefinitionsToolConfig
@@ -65,7 +68,12 @@ class AvailableTermsMcpTool(
     _runner: AvailableTermsRunner = PrivateAttr()
 
     def __init__(
-        self, tool_config: AvailableTermsToolConfig, channel_config, inputs, auth_context, **kwargs
+        self,
+        tool_config: AvailableTermsToolConfig,
+        channel_config: schemas.ChannelConfig,
+        inputs: dict[str, Any],
+        auth_context: AuthContext,
+        **kwargs: Any,
     ):
         super().__init__(tool_config, channel_config, inputs, auth_context, **kwargs)
         self._runner = AvailableTermsRunner(tool_config.details)
@@ -92,7 +100,12 @@ class TermDefinitionsMcpTool(
     _runner: TermDefinitionsRunner = PrivateAttr()
 
     def __init__(
-        self, tool_config: TermDefinitionsToolConfig, channel_config, inputs, auth_context, **kwargs
+        self,
+        tool_config: TermDefinitionsToolConfig,
+        channel_config: schemas.ChannelConfig,
+        inputs: dict[str, Any],
+        auth_context: AuthContext,
+        **kwargs: Any,
     ):
         super().__init__(tool_config, channel_config, inputs, auth_context, **kwargs)
         self._runner = TermDefinitionsRunner(tool_config.details)

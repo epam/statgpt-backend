@@ -23,9 +23,9 @@ async def enforce_input_guardrail(
     Supreme Agent, applied here to a single stateless MCP tool call. Raises
     ``ToolError`` when the request is out of scope or — fail-closed — when the
     guardrail check itself cannot be completed. Does nothing for tools that take
-    no arbitrary natural-language input (``query`` is ``None``), or when guardrails are
-    disabled (globally
-    via ``SKIP_OUT_OF_SCOPE_CHECK`` or per-channel when ``out_of_scope`` is unset).
+    no arbitrary natural-language input (``query`` is ``None``), or when guardrails
+    are disabled (globally via ``SKIP_OUT_OF_SCOPE_CHECK`` or per-channel when
+    ``out_of_scope`` is unset).
     """
     if dial_app_settings.skip_out_of_scope_check:
         return

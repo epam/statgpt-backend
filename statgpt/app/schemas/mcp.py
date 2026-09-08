@@ -183,7 +183,7 @@ class DatasetComponentRecord(BaseYamlModel):
 
     id: str = Field(description="The component's entity id (e.g. 'REF_AREA').")
     name: str = Field(description="Human-readable component name.")
-    type: str | None = Field(default=None, description="The component's data type, if known.")
+    type: str = Field(description="The component's data type, e.g. 'category' or 'datetime'.")
     description: str | None = Field(
         default=None, description="The component's description, if available."
     )
@@ -193,8 +193,9 @@ class DatasetComponentRecord(BaseYamlModel):
     )
     sample_values: list[DatasetValueRecord] | None = Field(
         default=None,
-        description="A sample of the dimension's available values (up to 10), for a categorical "
-        "dimension. When total_values exceeds the sample size this is not the full list.",
+        description="The dimension's available values, for a categorical dimension: all of them "
+        "when there are at most 10, otherwise a random sample of 10 (so when total_values exceeds "
+        "the sample size this is not the full list).",
     )
 
 

@@ -1,4 +1,5 @@
 import asyncio
+from typing import Any
 
 from fastmcp.tools import ToolResult
 from mcp.types import TextContent
@@ -10,6 +11,8 @@ from statgpt.app.mcp.attachments import (
     data_query_outcome_to_resources,
     data_query_outcome_to_structured_content,
 )
+from statgpt.common.auth.auth_context import AuthContext
+from statgpt.common.schemas import ChannelConfig
 from statgpt.common.schemas import DataQueryTool as DataQueryToolConfig
 from statgpt.common.schemas import ToolTypes
 
@@ -22,7 +25,12 @@ class DataQueryMcpTool(
     _runner: DataQueryRunner = PrivateAttr()
 
     def __init__(
-        self, tool_config: DataQueryToolConfig, channel_config, inputs, auth_context, **kwargs
+        self,
+        tool_config: DataQueryToolConfig,
+        channel_config: ChannelConfig,
+        inputs: dict[str, Any],
+        auth_context: AuthContext,
+        **kwargs: Any,
     ):
         super().__init__(tool_config, channel_config, inputs, auth_context, **kwargs)
         self._runner = DataQueryRunner(tool_config.details, channel_config)
