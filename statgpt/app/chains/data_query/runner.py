@@ -31,7 +31,6 @@ class DataQueryRunner:
     async def run(self, inputs: dict, query: str) -> DataQueryOutcome:
         factory = QueryBuilderFactory(self._details)
 
-        # Update the inputs
         inputs[ChainParametersConfig.QUERY] = query
 
         chain: Runnable = await factory.create_chain(inputs)

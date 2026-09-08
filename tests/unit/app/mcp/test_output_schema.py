@@ -144,12 +144,10 @@ def test_scoped_tools_cover_the_generic_cases():
 
 @pytest.mark.parametrize("tool_type", sorted(SCOPED_TOOL_TYPES, key=str))
 def test_structured_only_tool_drops_text(tool_type: ToolTypes):
-    # A structured-only tool returns only structuredContent: no text content block is emitted.
     assert _tool_result(tool_type).content == []
 
 
 def test_structured_only_tool_omits_null_fields():
-    # Null optional fields are dropped from the structured content of a structured-only tool.
     content = AvailableDatasetsStructuredContent(
         datasets=[DatasetRecord(id="IMF:CPI(1.0.0)", name="CPI")],
         total_datasets=1,
