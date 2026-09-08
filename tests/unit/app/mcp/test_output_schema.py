@@ -1,11 +1,12 @@
 """Contract tests for MCP tool output schemas.
 
 Only four tools declare an MCP output schema: the two glossary tools (available-terms,
-term-definitions) and the two dataset-metadata tools (available-datasets, dataset-structure). Every
-other tool opts out (no declared schema), even where it emits structured content. These tests fail the
-build when a scoped tool's runtime content drifts from its declared schema, and lock the reduced
-scope so a tool cannot silently gain or lose a schema. They double as the captured sample responses
-for the marketplace submission package.
+term-definitions) and the two dataset-metadata tools (available-datasets, dataset-structure). All
+four are structured-only — they carry their whole result in `structuredContent` and emit no text
+block. Every other tool opts out (no declared schema), even where it emits structured content. These
+tests fail the build when a scoped tool's runtime content drifts from its declared schema, and lock
+the reduced scope so a tool cannot silently gain or lose a schema. They double as the captured
+sample responses for the marketplace submission package.
 """
 
 import jsonschema
@@ -35,10 +36,6 @@ SCOPED_TOOL_TYPES = {
     ToolTypes.AVAILABLE_DATASETS,
     ToolTypes.DATASET_STRUCTURE,
 }
-
-# Of the scoped tools, these carry their full result in structured content: the MCP response drops
-# the text block and omits null optional fields.
-STRUCTURED_ONLY_TOOL_TYPES = {ToolTypes.AVAILABLE_DATASETS, ToolTypes.DATASET_STRUCTURE}
 
 
 def _schema(tool_type: ToolTypes) -> dict:
@@ -81,10 +78,10 @@ GENERIC_CASES: dict = {
     ToolTypes.TERM_DEFINITIONS: TermDefinitionsStructuredContent(
         definitions=[
             GlossaryDefinitionRecord(
-                term="GDP", found=True, domain="Economy", source="IMF", definition="Gross ..."
-            ),
-            GlossaryDefinitionRecord(term="unknown", found=False),
-        ]
+                term="GDP", definition="Gross ...", domain="Economy", source="IMF"
+            )
+        ],
+        not_found=["unknown"],
     ),
     ToolTypes.AVAILABLE_DATASETS: AvailableDatasetsStructuredContent(
         providers=[ProviderRecord(name="IMF", dataset_count=1)],
@@ -127,14 +124,8 @@ GENERIC_CASES: dict = {
 
 
 def _tool_result(tool_type: ToolTypes) -> ToolResult:
-    # The two ways an MCP tool emits structured content: as the whole result (structured-only) or
-    # alongside the text rendering.
-    model = GENERIC_CASES[tool_type]
-    if tool_type in STRUCTURED_ONLY_TOOL_TYPES:
-        return StatGptMcpTool._structured_only(model)
-    return ToolResult(
-        content=StatGptMcpTool._text_content("Tool response."), structured_content=model
-    )
+    # Every scoped tool is structured-only: the whole result is the structured content.
+    return StatGptMcpTool._structured_only(GENERIC_CASES[tool_type])
 
 
 @pytest.mark.parametrize("tool_type", sorted(GENERIC_CASES, key=str))
@@ -151,7 +142,7 @@ def test_scoped_tools_cover_the_generic_cases():
     assert set(GENERIC_CASES) == SCOPED_TOOL_TYPES
 
 
-@pytest.mark.parametrize("tool_type", sorted(STRUCTURED_ONLY_TOOL_TYPES, key=str))
+@pytest.mark.parametrize("tool_type", sorted(SCOPED_TOOL_TYPES, key=str))
 def test_structured_only_tool_drops_text(tool_type: ToolTypes):
     # A structured-only tool returns only structuredContent: no text content block is emitted.
     assert _tool_result(tool_type).content == []

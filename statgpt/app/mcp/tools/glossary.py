@@ -1,5 +1,6 @@
 from typing import Any
 
+from fastmcp.exceptions import ToolError
 from fastmcp.tools import ToolResult
 from pydantic import PrivateAttr
 
@@ -29,12 +30,14 @@ from .base import StatGptMcpTool
 def available_terms_structured_content(
     terms: list[schemas.GlossaryTerm], *, include_domain: bool, include_source: bool
 ) -> AvailableTermsStructuredContent:
-    # Expose domain/source only when the tool is configured to (mirrors the text rendering).
+    # Expose domain/source only when the tool is configured to (mirrors the LangChain rendering).
+    # Both are non-optional strings upstream, so a missing value arrives as "": map it to None so
+    # the field is dropped from the payload instead of being sent empty.
     records = [
         GlossaryTermRecord(
             term=term.term,
-            domain=term.domain if include_domain else None,
-            source=term.source if include_source else None,
+            domain=(term.domain or None) if include_domain else None,
+            source=(term.source or None) if include_source else None,
         )
         for term in terms
     ]
@@ -44,27 +47,27 @@ def available_terms_structured_content(
 def term_definitions_structured_content(
     outcome: TermDefinitionsOutcome,
 ) -> TermDefinitionsStructuredContent:
-    # Over-limit: still matches the declared schema (no definitions); the reason lives in the text.
-    records = [
-        (
-            GlossaryDefinitionRecord(
-                term=lookup.found.term,
-                found=True,
-                domain=lookup.found.domain,
-                source=lookup.found.source,
-                definition=lookup.found.definition,
-            )
-            if lookup.found is not None
-            else GlossaryDefinitionRecord(term=lookup.requested, found=False)
+    definitions = [
+        GlossaryDefinitionRecord(
+            term=lookup.found.term,
+            definition=lookup.found.definition,
+            domain=lookup.found.domain or None,
+            source=lookup.found.source or None,
         )
         for lookup in outcome.lookups
+        if lookup.found is not None
     ]
-    return TermDefinitionsStructuredContent(definitions=records)
+    not_found = [lookup.requested for lookup in outcome.lookups if lookup.found is None]
+    return TermDefinitionsStructuredContent(
+        definitions=definitions, not_found=not_found or None  # empty list would not be dropped
+    )
 
 
 class AvailableTermsMcpTool(
     StatGptMcpTool[AvailableTermsToolConfig, ToolArgs], tool_type=ToolTypes.AVAILABLE_TERMS
 ):
+    """Structured-only: the complete result lives in `structuredContent`, so no text block."""
+
     _runner: AvailableTermsRunner = PrivateAttr()
 
     def __init__(
@@ -85,11 +88,10 @@ class AvailableTermsMcpTool(
     async def _execute(self, args: ToolArgs) -> ToolResult:
         terms = await self._runner.run(args.inputs)
         details = self._tool_config.details
-        return ToolResult(
-            content=self._text_content(self._runner.to_markdown(terms)),
-            structured_content=available_terms_structured_content(
+        return self._structured_only(
+            available_terms_structured_content(
                 terms, include_domain=details.include_domain, include_source=details.include_source
-            ),
+            )
         )
 
 
@@ -97,6 +99,8 @@ class TermDefinitionsMcpTool(
     StatGptMcpTool[TermDefinitionsToolConfig, BaseTermDefinitionsArgs],
     tool_type=ToolTypes.TERM_DEFINITIONS,
 ):
+    """Structured-only: the complete result lives in `structuredContent`, so no text block."""
+
     _runner: TermDefinitionsRunner = PrivateAttr()
 
     def __init__(
@@ -122,7 +126,8 @@ class TermDefinitionsMcpTool(
 
     async def _execute(self, args: BaseTermDefinitionsArgs) -> ToolResult:
         outcome = await self._runner.run(args.inputs, args.terms)
-        return ToolResult(
-            content=self._text_content(self._runner.to_markdown(outcome)),
-            structured_content=term_definitions_structured_content(outcome),
-        )
+        if outcome.limit_exceeded:
+            # Nothing was fetched and the caller must retry with fewer terms: that is an error, not
+            # an empty result that would read as "none of these terms exist".
+            raise ToolError(self._runner.limit_exceeded_message(outcome.limit))
+        return self._structured_only(term_definitions_structured_content(outcome))

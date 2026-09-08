@@ -73,7 +73,10 @@ class SdmxProxyStructuredContent(BaseYamlModel):
 
 
 class GlossaryTermRecord(BaseYamlModel):
-    """One available glossary term."""
+    """One available glossary term. Optional fields are omitted when the glossary has no value for
+    them or the tool is not configured to expose them."""
+
+    model_config = ConfigDict(serialize_by_alias=True)
 
     term: str = Field(
         description="The glossary term. Use this exact value as the id when requesting its "
@@ -87,6 +90,8 @@ class AvailableTermsStructuredContent(BaseYamlModel):
     """MCP structured content for the available-glossary-terms tool: the terms as records so a
     caller can pick exact ids to request definitions for."""
 
+    model_config = ConfigDict(serialize_by_alias=True)
+
     terms: list[GlossaryTermRecord] = Field(
         default_factory=list, description="The available glossary terms."
     )
@@ -94,21 +99,31 @@ class AvailableTermsStructuredContent(BaseYamlModel):
 
 
 class GlossaryDefinitionRecord(BaseYamlModel):
-    """A definition lookup result for a single requested term."""
+    """One glossary term's definition. Optional fields are omitted when the glossary has no value
+    for them."""
 
-    term: str = Field(description="The requested term.")
-    found: bool = Field(description="Whether the term was found in the glossary.")
-    domain: str | None = Field(default=None, description="Domain of the term, when found.")
-    source: str | None = Field(default=None, description="Source of the term, when found.")
-    definition: str | None = Field(default=None, description="The term's definition, when found.")
+    model_config = ConfigDict(serialize_by_alias=True)
+
+    term: str = Field(description="The glossary term, exactly as stored in the glossary.")
+    definition: str = Field(description="The term's definition.")
+    domain: str | None = Field(default=None, description="Domain the term belongs to, if known.")
+    source: str | None = Field(default=None, description="Source of the term, if known.")
 
 
 class TermDefinitionsStructuredContent(BaseYamlModel):
-    """MCP structured content for the term-definitions tool: one record per requested term, each
-    flagging whether it was found so a caller need not parse the prose."""
+    """MCP structured content for the term-definitions tool: one record per requested term that the
+    glossary knows, with the unknown ones listed separately."""
+
+    model_config = ConfigDict(serialize_by_alias=True)
 
     definitions: list[GlossaryDefinitionRecord] = Field(
-        default_factory=list, description="One entry per requested term."
+        default_factory=list,
+        description="One entry per requested term that was found in the glossary.",
+    )
+    not_found: list[str] | None = Field(
+        default=None,
+        description="The requested terms that are not in the glossary, as requested. Omitted when "
+        "every requested term was found.",
     )
 
 

@@ -149,14 +149,19 @@ class TermDefinitionsRunner:
         ]
 
     @staticmethod
-    def to_markdown(outcome: TermDefinitionsOutcome) -> str:
+    def limit_exceeded_message(limit: int | None) -> str:
+        """Why an over-limit request fetched nothing, and what the caller should do about it."""
+        return (
+            f"The number of requested terms exceeds the limit of {limit}. "
+            "Please reduce the number of terms and try again. Also, mind that massive requests "
+            "are not supported (e.g. asking for definitions of all available terms), as this is "
+            "not the intended use case of this tool."
+        )
+
+    @classmethod
+    def to_markdown(cls, outcome: TermDefinitionsOutcome) -> str:
         if outcome.limit_exceeded:
-            return (
-                f"The number of requested terms exceeds the limit of {outcome.limit}. "
-                "Please reduce the number of terms and try again. Also, mind that massive requests "
-                "are not supported (e.g. asking for definitions of all available terms), as this is "
-                "not the intended use case of this tool."
-            )
+            return cls.limit_exceeded_message(outcome.limit)
 
         response = "## Glossary term definitions:\n"
         for lookup in outcome.lookups:

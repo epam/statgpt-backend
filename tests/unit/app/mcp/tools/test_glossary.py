@@ -1,7 +1,8 @@
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
-from mcp.types import TextContent
+import pytest
+from fastmcp.exceptions import ToolError
 
 from statgpt.app.config import ChainParametersConfig
 from statgpt.app.mcp.tools import StatGptMcpTool
@@ -10,6 +11,9 @@ from statgpt.common.schemas.tools import AvailableTermsTool, TermDefinitionsTool
 
 _GDP = SimpleNamespace(term="GDP", domain="Economy", source="IMF", definition="Gross ...")
 _CPI = SimpleNamespace(term="CPI", domain="Prices", source="IMF", definition="Consumer ...")
+# A term the glossary has no domain/source for: upstream they are non-optional strings, so the
+# missing value arrives as "".
+_PPP = SimpleNamespace(term="PPP", domain="", source="", definition="Purchasing ...")
 
 
 def _inputs(terms: list) -> tuple[dict, AsyncMock]:
@@ -31,8 +35,8 @@ def _build(tool_config, inputs: dict) -> StatGptMcpTool:
 # ~~~~~~~~~~~~~ available terms ~~~~~~~~~~~~~
 
 
-async def test_available_terms_returns_markdown_and_records():
-    inputs, _ = _inputs([_GDP, _CPI])
+async def test_available_terms_returns_records_only():
+    inputs, _ = _inputs([_GDP, _CPI, _PPP])
     tool_config = AvailableTermsTool(
         name="terms",
         description="Terms.",
@@ -41,22 +45,17 @@ async def test_available_terms_returns_markdown_and_records():
 
     tool_result = await _build(tool_config, inputs).run({})
 
-    assert tool_result.content == [
-        TextContent(
-            type="text",
-            text=(
-                "Glossary contains 2 terms.\n\n*List of available glossary terms:*\n"
-                "- **GDP**, domain: Economy\n- **CPI**, domain: Prices"
-            ),
-        )
-    ]
-    # Domain/source are exposed only when configured, mirroring the text rendering.
+    # Structured-only: the text rendering would only duplicate the records.
+    assert tool_result.content == []
+    # `source` is dropped because the tool is not configured to expose it, `PPP`'s `domain` because
+    # the glossary has no value for it.
     assert tool_result.structured_content == {
         "terms": [
-            {"term": "GDP", "domain": "Economy", "source": None},
-            {"term": "CPI", "domain": "Prices", "source": None},
+            {"term": "GDP", "domain": "Economy"},
+            {"term": "CPI", "domain": "Prices"},
+            {"term": "PPP"},
         ],
-        "count": 2,
+        "count": 3,
     }
 
 
@@ -69,41 +68,43 @@ def _definitions_config(limit: int | None = None) -> TermDefinitionsTool:
     )
 
 
-async def test_term_definitions_flags_found_and_missing_terms():
-    inputs, _ = _inputs([_GDP])
+async def test_term_definitions_separates_found_and_missing_terms():
+    inputs, _ = _inputs([_GDP, _PPP])
 
-    tool_result = await _build(_definitions_config(), inputs).run({"terms": ["gdp ", "unknown"]})
+    tool_result = await _build(_definitions_config(), inputs).run(
+        {"terms": ["gdp ", "PPP", "unknown"]}
+    )
 
+    # Structured-only, and a found term needs no `found` flag. `PPP` carries neither domain nor
+    # source because the glossary has no value for them.
+    assert tool_result.content == []
     assert tool_result.structured_content == {
         "definitions": [
-            {
-                "term": "GDP",
-                "found": True,
-                "domain": "Economy",
-                "source": "IMF",
-                "definition": "Gross ...",
-            },
-            {"term": "unknown", "found": False, "domain": None, "source": None, "definition": None},
-        ]
+            {"term": "GDP", "definition": "Gross ...", "domain": "Economy", "source": "IMF"},
+            {"term": "PPP", "definition": "Purchasing ..."},
+        ],
+        "notFound": ["unknown"],
     }
-    text = tool_result.content[0]
-    assert isinstance(text, TextContent)
-    assert "### GDP" in text.text
-    assert "The term is not available in the glossary." in text.text
 
 
-async def test_term_definitions_over_limit_fetches_nothing():
-    # Structured content still matches the declared schema (no definitions); the reason lives in
-    # the text rendering.
+async def test_term_definitions_omits_not_found_when_every_term_resolves():
+    inputs, _ = _inputs([_GDP])
+
+    tool_result = await _build(_definitions_config(), inputs).run({"terms": ["GDP"]})
+
+    assert tool_result.structured_content is not None
+    assert "notFound" not in tool_result.structured_content
+
+
+async def test_term_definitions_over_limit_raises():
+    # An over-limit request fetches nothing and must be retried with fewer terms, so it fails
+    # rather than returning an empty result that would read as "none of these terms exist".
     inputs, get_available_terms = _inputs([_GDP])
 
-    tool_result = await _build(_definitions_config(limit=1), inputs).run({"terms": ["GDP", "CPI"]})
+    with pytest.raises(ToolError, match="exceeds the limit of 1"):
+        await _build(_definitions_config(limit=1), inputs).run({"terms": ["GDP", "CPI"]})
 
     get_available_terms.assert_not_called()
-    assert tool_result.structured_content == {"definitions": []}
-    text = tool_result.content[0]
-    assert isinstance(text, TextContent)
-    assert "exceeds the limit of 1" in text.text
 
 
 def test_term_definitions_schema_spells_out_the_limit():
