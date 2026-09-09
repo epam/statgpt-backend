@@ -44,14 +44,30 @@ class GenericRetrieverConfig(BaseModel):
     document_selector: GenericExplicitDocumentSelector
 
 
+class GenericGenerationConfig(BaseModel):
+    """Overrides for the Generic RAG answer generation config."""
+
+    current_date: datetime.date | None = Field(
+        default=None,
+        description="Date the answer generation treats as 'today' instead of the wall clock. "
+        "Used in RAG eval to reproduce answers as of a cutoff date.",
+    )
+
+
 class GenericRagConfiguration(BaseModel):
     """Partial `custom_fields.configuration` payload sent to the Generic RAG application.
 
     Only the fields we need to override are set; everything else (retriever type,
-    answer generation, top_k) is merged from the application's server-side defaults.
+    answer generation LLM, top_k) is merged from the application's server-side defaults.
+    NOTE: the application silently ignores unknown top-level keys, so the nesting here
+    must match its `RequestConfig` exactly.
     """
 
-    retriever: GenericRetrieverConfig
+    retriever: GenericRetrieverConfig | None = None
+    generation: GenericGenerationConfig | None = None
+
+    def is_empty(self) -> bool:
+        return self.retriever is None and self.generation is None
 
     @classmethod
     def from_rag_filter_dial(cls, rag_filter: RagFilterDial) -> Self:

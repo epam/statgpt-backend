@@ -5,8 +5,8 @@ from types import SimpleNamespace
 import pandas as pd
 
 from statgpt.app.mcp.attachments import (
-    data_query_artifact_to_resources,
-    data_query_artifact_to_structured_content,
+    data_query_outcome_to_resources,
+    data_query_outcome_to_structured_content,
 )
 from statgpt.app.schemas.data_query_outcome import (
     DataQueryMcpPayload,
@@ -17,7 +17,7 @@ from statgpt.app.schemas.data_query_outcome import (
     MissingDimensionsInfo,
 )
 from statgpt.app.schemas.query import AppJsonQueryWithMetadata
-from statgpt.app.schemas.tool_artifact import DataQueryArtifact
+from statgpt.app.schemas.tool_artifact import DataQueryOutcome
 from statgpt.common.schemas.data_query_tool import DataQueryMcpResources, McpResource
 from statgpt.common.schemas.query import (
     JsonComponentQuery,
@@ -31,7 +31,7 @@ _FIXED_TS_STR = _FIXED_TS.strftime("%Y%m%dT%H%M%SZ")
 
 
 def _state(status: DataQueryStatus = DataQueryStatus.DATA_AVAILABLE) -> SimpleNamespace:
-    # The converter only reads `status` off the artifact's state.
+    # The converter only reads `status` off the outcome's state.
     return SimpleNamespace(status=status)
 
 
@@ -48,13 +48,13 @@ def _mcp_payload(
     )
 
 
-def _make_artifact(
+def _make_outcome(
     data_responses: dict,
     state: SimpleNamespace | None = None,
     mcp_payload: DataQueryMcpPayload | None = None,
-) -> DataQueryArtifact:
+) -> DataQueryOutcome:
     # Bypass pydantic validation — the converter only reads data_responses, state and mcp_payload.
-    return DataQueryArtifact.model_construct(
+    return DataQueryOutcome.model_construct(
         data_responses=data_responses,
         state=state or _state(),
         mcp_payload=mcp_payload or _mcp_payload(),
@@ -104,25 +104,25 @@ def _response(
     )
 
 
-def _resources(artifact: DataQueryArtifact, csv: bool = True, markdown: bool = False):
+def _resources(outcome: DataQueryOutcome, csv: bool = True, markdown: bool = False):
     config = DataQueryMcpResources(
         csv=McpResource(enabled_str=str(csv)),
         markdown_table=McpResource(enabled_str=str(markdown)),
     )
-    return data_query_artifact_to_resources(artifact, config)
+    return data_query_outcome_to_resources(outcome, config)
 
 
-def _markdown_text(artifact: DataQueryArtifact) -> str:
-    resources = _resources(artifact, csv=False, markdown=True)
+def _markdown_text(outcome: DataQueryOutcome) -> str:
+    resources = _resources(outcome, csv=False, markdown=True)
     assert len(resources) == 1
     return resources[0].resource.text
 
 
 def test_single_dataset_produces_one_csv_resource():
     df = pd.DataFrame({"country": ["FR", "DE"], "value": [1, 2]})
-    artifact = _make_artifact({"ds1": _response("IMF:CPI(2.0.0)", df)})
+    outcome = _make_outcome({"ds1": _response("IMF:CPI(2.0.0)", df)})
 
-    resources = _resources(artifact)
+    resources = _resources(outcome)
 
     assert len(resources) == 1
     resource = resources[0].resource
@@ -136,14 +136,14 @@ def test_single_dataset_produces_one_csv_resource():
 def test_multiple_datasets_preserve_insertion_order():
     df1 = pd.DataFrame({"a": [1]})
     df2 = pd.DataFrame({"b": [2]})
-    artifact = _make_artifact(
+    outcome = _make_outcome(
         {
             "ds1": _response("IMF:CPI(1.0.0)", df1),
             "ds2": _response("BIS:IR(2.1.0)", df2),
         }
     )
 
-    resources = _resources(artifact)
+    resources = _resources(outcome)
 
     assert [str(r.resource.uri) for r in resources] == [
         f"statgpt://data_query/IMF%3ACPI%281.0.0%29/{_FIXED_TS_STR}.csv",
@@ -154,14 +154,14 @@ def test_multiple_datasets_preserve_insertion_order():
 def test_each_response_uses_its_own_created_at():
     ts1 = datetime(2026, 1, 1, 0, 0, 0, tzinfo=timezone.utc)
     ts2 = datetime(2026, 1, 2, 0, 0, 0, tzinfo=timezone.utc)
-    artifact = _make_artifact(
+    outcome = _make_outcome(
         {
             "ds1": _response("IMF:CPI(1.0.0)", pd.DataFrame({"a": [1]}), created_at=ts1),
             "ds2": _response("BIS:IR(2.1.0)", pd.DataFrame({"b": [2]}), created_at=ts2),
         }
     )
 
-    resources = _resources(artifact)
+    resources = _resources(outcome)
 
     assert [str(r.resource.uri) for r in resources] == [
         "statgpt://data_query/IMF%3ACPI%281.0.0%29/20260101T000000Z.csv",
@@ -170,14 +170,14 @@ def test_each_response_uses_its_own_created_at():
 
 
 def test_empty_dataframes_are_skipped():
-    artifact = _make_artifact(
+    outcome = _make_outcome(
         {
             "empty": _response("IMF:EMPTY(1.0.0)", pd.DataFrame()),
             "ok": _response("IMF:OK(1.0.0)", pd.DataFrame({"x": [1]})),
         }
     )
 
-    resources = _resources(artifact)
+    resources = _resources(outcome)
 
     assert len(resources) == 1
     assert (
@@ -187,26 +187,26 @@ def test_empty_dataframes_are_skipped():
 
 
 def test_no_responses_returns_empty_list():
-    artifact = _make_artifact({})
+    outcome = _make_outcome({})
 
-    assert _resources(artifact) == []
+    assert _resources(outcome) == []
 
 
 def test_csv_disabled_produces_no_resources():
-    artifact = _make_artifact({"ds1": _response("IMF:CPI(1.0.0)", pd.DataFrame({"x": [1]}))})
+    outcome = _make_outcome({"ds1": _response("IMF:CPI(1.0.0)", pd.DataFrame({"x": [1]}))})
 
-    assert _resources(artifact, csv=False) == []
+    assert _resources(outcome, csv=False) == []
 
 
 def test_both_payloads_enabled_are_emitted_per_response():
-    artifact = _make_artifact(
+    outcome = _make_outcome(
         {
             "ds1": _response("IMF:CPI(1.0.0)", pd.DataFrame({"x": [1]})),
             "ds2": _response("BIS:IR(2.1.0)", pd.DataFrame({"y": [2]})),
         }
     )
 
-    resources = _resources(artifact, csv=True, markdown=True)
+    resources = _resources(outcome, csv=True, markdown=True)
 
     assert [(r.resource.mimeType, str(r.resource.uri)) for r in resources] == [
         ("text/csv", f"statgpt://data_query/IMF%3ACPI%281.0.0%29/{_FIXED_TS_STR}.csv"),
@@ -218,9 +218,9 @@ def test_both_payloads_enabled_are_emitted_per_response():
 
 def test_markdown_resource_is_annotated_for_the_user():
     df = pd.DataFrame({"REF_AREA": ["FR"], "2024": [1.5]})
-    artifact = _make_artifact({"ds1": _response("IMF:CPI(1.0.0)", df)})
+    outcome = _make_outcome({"ds1": _response("IMF:CPI(1.0.0)", df)})
 
-    resources = _resources(artifact, csv=False, markdown=True)
+    resources = _resources(outcome, csv=False, markdown=True)
 
     assert len(resources) == 1
     assert resources[0].annotations is not None
@@ -239,7 +239,7 @@ def test_markdown_table_uses_display_names_and_drops_codes():
             "2024": [1.5, 2.5],
         }
     )
-    artifact = _make_artifact(
+    outcome = _make_outcome(
         {
             "ds1": _response(
                 "IMF:CPI(1.0.0)",
@@ -249,7 +249,7 @@ def test_markdown_table_uses_display_names_and_drops_codes():
         }
     )
 
-    text = _markdown_text(artifact)
+    text = _markdown_text(outcome)
 
     assert text.startswith("### CPI [IMF:CPI(1.0.0)]\n\n")
     header = text.splitlines()[2]
@@ -264,16 +264,16 @@ def test_markdown_table_uses_display_names_and_drops_codes():
 
 def test_markdown_table_keeps_ids_without_display_names():
     df = pd.DataFrame({"REF_AREA": ["FR"], "REF_AREA_Name": ["France"], "2024": [1.0]})
-    artifact = _make_artifact({"ds1": _response("IMF:CPI(1.0.0)", df)})
+    outcome = _make_outcome({"ds1": _response("IMF:CPI(1.0.0)", df)})
 
-    header = _markdown_text(artifact).splitlines()[2]
+    header = _markdown_text(outcome).splitlines()[2]
 
     assert [cell.strip() for cell in header.strip("|").split("|")] == ["REF_AREA", "2024"]
 
 
 def test_markdown_table_keeps_id_when_display_name_collides():
     df = pd.DataFrame({"FREQ": ["A"], "REF_AREA": ["FR"], "2024": [1.0]})
-    artifact = _make_artifact(
+    outcome = _make_outcome(
         {
             "ds1": _response(
                 "IMF:CPI(1.0.0)",
@@ -284,7 +284,7 @@ def test_markdown_table_keeps_id_when_display_name_collides():
         }
     )
 
-    header = _markdown_text(artifact).splitlines()[2]
+    header = _markdown_text(outcome).splitlines()[2]
 
     assert [cell.strip() for cell in header.strip("|").split("|")] == [
         "Frequency",
@@ -295,11 +295,11 @@ def test_markdown_table_keeps_id_when_display_name_collides():
 
 def test_markdown_table_is_not_padded():
     df = pd.DataFrame({"REF_AREA": ["FR"], "REF_AREA_Name": ["France"], "2024": [1.5]})
-    artifact = _make_artifact(
+    outcome = _make_outcome(
         {"ds1": _response("IMF:CPI(1.0.0)", df, component_names={"REF_AREA": "Reference area"})}
     )
 
-    lines = _markdown_text(artifact).splitlines()
+    lines = _markdown_text(outcome).splitlines()
 
     assert lines[2] == "| Reference area | 2024 |"
     # Numeric columns are right-aligned, everything else left-aligned, at minimum rule width.
@@ -309,18 +309,18 @@ def test_markdown_table_is_not_padded():
 
 def test_markdown_table_escapes_pipes_in_values():
     df = pd.DataFrame({"INDICATOR": ["GDP | current prices"], "2024": [1.5]})
-    artifact = _make_artifact({"ds1": _response("IMF:CPI(1.0.0)", df)})
+    outcome = _make_outcome({"ds1": _response("IMF:CPI(1.0.0)", df)})
 
-    row = _markdown_text(artifact).splitlines()[4]
+    row = _markdown_text(outcome).splitlines()[4]
 
     assert row == "| GDP \\| current prices | 1.5 |"
 
 
 def test_markdown_table_drops_trailing_zero_of_whole_floats():
     df = pd.DataFrame({"REF_AREA": ["FR", "DE", "IT"], "2024": [123.0, 4.5, 1e14]})
-    artifact = _make_artifact({"ds1": _response("IMF:CPI(1.0.0)", df)})
+    outcome = _make_outcome({"ds1": _response("IMF:CPI(1.0.0)", df)})
 
-    rows = _markdown_text(artifact).splitlines()[4:]
+    rows = _markdown_text(outcome).splitlines()[4:]
 
     assert rows == ["| FR | 123 |", "| DE | 4.5 |", "| IT | 100000000000000 |"]
 
@@ -328,34 +328,34 @@ def test_markdown_table_drops_trailing_zero_of_whole_floats():
 def test_markdown_table_keeps_textual_values_verbatim():
     # A `.0` in a value that arrived as text may be part of a code, so it is left alone.
     df = pd.DataFrame({"VERSION": ["1.0"], "2024": ["7.0"]})
-    artifact = _make_artifact({"ds1": _response("IMF:CPI(1.0.0)", df)})
+    outcome = _make_outcome({"ds1": _response("IMF:CPI(1.0.0)", df)})
 
-    assert _markdown_text(artifact).splitlines()[4] == "| 1.0 | 7.0 |"
+    assert _markdown_text(outcome).splitlines()[4] == "| 1.0 | 7.0 |"
 
 
 def test_markdown_table_preserves_full_float_precision():
     df = pd.DataFrame({"REF_AREA": ["FR"], "2024": [112.345678901234]})
-    artifact = _make_artifact({"ds1": _response("IMF:CPI(1.0.0)", df)})
+    outcome = _make_outcome({"ds1": _response("IMF:CPI(1.0.0)", df)})
 
-    assert "112.345678901234" in _markdown_text(artifact)
+    assert "112.345678901234" in _markdown_text(outcome)
 
 
 def test_markdown_table_renders_missing_values_as_na():
     df = pd.DataFrame({"REF_AREA": ["FR", "DE"], "2024": [1.5, None]})
-    artifact = _make_artifact({"ds1": _response("IMF:CPI(1.0.0)", df)})
+    outcome = _make_outcome({"ds1": _response("IMF:CPI(1.0.0)", df)})
 
-    assert "NA" in _markdown_text(artifact)
+    assert "NA" in _markdown_text(outcome)
 
 
 def test_markdown_table_skips_empty_responses():
-    artifact = _make_artifact(
+    outcome = _make_outcome(
         {
             "empty": _response("IMF:EMPTY(1.0.0)", pd.DataFrame()),
             "ok": _response("IMF:OK(1.0.0)", pd.DataFrame({"x": [1]})),
         }
     )
 
-    resources = _resources(artifact, csv=False, markdown=True)
+    resources = _resources(outcome, csv=False, markdown=True)
 
     assert len(resources) == 1
     assert str(resources[0].resource.uri).startswith("statgpt://data_query/IMF%3AOK%281.0.0%29/")
@@ -367,11 +367,11 @@ def _app_query(urn: str) -> AppJsonQueryWithMetadata:
 
 def test_structured_content_data_available_serializes_single_query():
     df = pd.DataFrame({"x": [1]})
-    artifact = _make_artifact(
+    outcome = _make_outcome(
         {"ds1": _response("IMF:CPI(1.0.0)", df, json_query=_json_query("IMF:CPI(1.0.0)"))}
     )
 
-    structured = data_query_artifact_to_structured_content(artifact, _channel_config())
+    structured = data_query_outcome_to_structured_content(outcome, _channel_config())
 
     data = structured.model_dump(by_alias=True)
     assert data["status"] == DataQueryStatus.DATA_AVAILABLE
@@ -389,12 +389,12 @@ def test_structured_content_data_available_serializes_single_query():
 
 def test_structured_content_omits_sdmx_proxy_when_unconfigured():
     df = pd.DataFrame({"x": [1]})
-    artifact = _make_artifact(
+    outcome = _make_outcome(
         {"ds1": _response("IMF:CPI(1.0.0)", df, json_query=_json_query("IMF:CPI(1.0.0)"))}
     )
 
-    structured = data_query_artifact_to_structured_content(
-        artifact, _channel_config(sdmx_proxy_name=None)
+    structured = data_query_outcome_to_structured_content(
+        outcome, _channel_config(sdmx_proxy_name=None)
     )
 
     assert structured.tools.sdmx_proxy is None
@@ -402,37 +402,37 @@ def test_structured_content_omits_sdmx_proxy_when_unconfigured():
 
 def test_structured_content_data_available_preserves_insertion_order():
     df = pd.DataFrame({"x": [1]})
-    artifact = _make_artifact(
+    outcome = _make_outcome(
         {
             "ds1": _response("IMF:CPI(1.0.0)", df, json_query=_json_query("IMF:CPI(1.0.0)")),
             "ds2": _response("BIS:IR(2.1.0)", df, json_query=_json_query("BIS:IR(2.1.0)")),
         }
     )
 
-    structured = data_query_artifact_to_structured_content(artifact, _channel_config())
+    structured = data_query_outcome_to_structured_content(outcome, _channel_config())
 
     assert [q.urn for q in structured.queries] == ["IMF:CPI(1.0.0)", "BIS:IR(2.1.0)"]
 
 
 def test_structured_content_data_available_skips_responses_without_query():
     df = pd.DataFrame({"x": [1]})
-    artifact = _make_artifact(
+    outcome = _make_outcome(
         {
             "no_query": _response("IMF:NOQ(1.0.0)", df, json_query=None),
             "ok": _response("IMF:OK(1.0.0)", df, json_query=_json_query("IMF:OK(1.0.0)")),
         }
     )
 
-    structured = data_query_artifact_to_structured_content(artifact, _channel_config())
+    structured = data_query_outcome_to_structured_content(outcome, _channel_config())
 
     assert [q.urn for q in structured.queries] == ["IMF:OK(1.0.0)"]
 
 
 def test_structured_content_no_data_carries_message():
-    artifact = _make_artifact({}, state=_state(DataQueryStatus.NO_DATA))
+    outcome = _make_outcome({}, state=_state(DataQueryStatus.NO_DATA))
 
-    structured = data_query_artifact_to_structured_content(
-        artifact, _channel_config(), message="No relevant data found."
+    structured = data_query_outcome_to_structured_content(
+        outcome, _channel_config(), message="No relevant data found."
     )
 
     assert structured.status is DataQueryStatus.NO_DATA
@@ -447,13 +447,13 @@ def test_structured_content_dataset_selection_carries_candidates():
         DataSetChoice(id="IMF:CPI", name="CPI", description="Prices", is_official=True),
         DataSetChoice(id="BIS:IR", name="Rates"),
     ]
-    artifact = _make_artifact(
+    outcome = _make_outcome(
         {},
         state=_state(DataQueryStatus.DATASET_SELECTION_REQUIRED),
         mcp_payload=_mcp_payload(candidate_datasets=candidates),
     )
 
-    structured = data_query_artifact_to_structured_content(artifact, _channel_config())
+    structured = data_query_outcome_to_structured_content(outcome, _channel_config())
 
     assert structured.status is DataQueryStatus.DATASET_SELECTION_REQUIRED
     data = structured.model_dump(by_alias=True)
@@ -473,13 +473,13 @@ def test_structured_content_missing_dimensions_carries_payload():
             )
         ],
     )
-    artifact = _make_artifact(
+    outcome = _make_outcome(
         {},
         state=_state(DataQueryStatus.MISSING_DIMENSIONS),
         mcp_payload=_mcp_payload(missing_dimensions=missing),
     )
 
-    structured = data_query_artifact_to_structured_content(artifact, _channel_config())
+    structured = data_query_outcome_to_structured_content(outcome, _channel_config())
 
     assert structured.status is DataQueryStatus.MISSING_DIMENSIONS
     data = structured.model_dump(by_alias=True)["missingDimensions"]
@@ -495,14 +495,14 @@ def test_structured_content_missing_dimensions_carries_payload():
 def test_structured_content_invalid_time_period_carries_message_only():
     # The rejected time period was never applied to the constructed queries, so reporting them
     # would describe a query the user did not ask for.
-    artifact = _make_artifact(
+    outcome = _make_outcome(
         {},
         state=_state(DataQueryStatus.INVALID_TIME_PERIOD),
         mcp_payload=_mcp_payload(constructed_queries=[_app_query("IMF:CPI(1.0.0)")]),
     )
 
-    structured = data_query_artifact_to_structured_content(
-        artifact, _channel_config(), message="The selected end date (2030) is outside 2000-2019."
+    structured = data_query_outcome_to_structured_content(
+        outcome, _channel_config(), message="The selected end date (2030) is outside 2000-2019."
     )
 
     assert structured.status is DataQueryStatus.INVALID_TIME_PERIOD
@@ -512,13 +512,13 @@ def test_structured_content_invalid_time_period_carries_message_only():
 
 
 def test_structured_content_not_executed_uses_constructed_queries():
-    artifact = _make_artifact(
+    outcome = _make_outcome(
         {},
         state=_state(DataQueryStatus.NOT_EXECUTED),
         mcp_payload=_mcp_payload(constructed_queries=[_app_query("IMF:CPI(1.0.0)")]),
     )
 
-    structured = data_query_artifact_to_structured_content(artifact, _channel_config())
+    structured = data_query_outcome_to_structured_content(outcome, _channel_config())
 
     assert structured.status is DataQueryStatus.NOT_EXECUTED
     assert [q.urn for q in structured.queries] == ["IMF:CPI(1.0.0)"]
@@ -526,9 +526,9 @@ def test_structured_content_not_executed_uses_constructed_queries():
 
 
 def test_structured_content_not_executed_without_queries_has_no_python_code():
-    artifact = _make_artifact({}, state=_state(DataQueryStatus.NOT_EXECUTED))
+    outcome = _make_outcome({}, state=_state(DataQueryStatus.NOT_EXECUTED))
 
-    structured = data_query_artifact_to_structured_content(artifact, _channel_config())
+    structured = data_query_outcome_to_structured_content(outcome, _channel_config())
 
     assert structured.status is DataQueryStatus.NOT_EXECUTED
     assert structured.queries == []
@@ -538,12 +538,12 @@ def test_structured_content_not_executed_without_queries_has_no_python_code():
 def test_structured_content_executed_no_data_still_reports_the_queries():
     # The queries ran and returned nothing: a client should still be able to show what was asked.
     df = pd.DataFrame()
-    artifact = _make_artifact(
+    outcome = _make_outcome(
         {"ds1": _response("IMF:CPI(1.0.0)", df, json_query=_json_query("IMF:CPI(1.0.0)"))},
         state=_state(DataQueryStatus.EXECUTED_NO_DATA),
     )
 
-    structured = data_query_artifact_to_structured_content(artifact, _channel_config())
+    structured = data_query_outcome_to_structured_content(outcome, _channel_config())
 
     assert structured.status is DataQueryStatus.EXECUTED_NO_DATA
     assert [q.urn for q in structured.queries] == ["IMF:CPI(1.0.0)"]
@@ -552,12 +552,12 @@ def test_structured_content_executed_no_data_still_reports_the_queries():
 
 def test_structured_content_failed_reports_the_queries_that_errored():
     df = pd.DataFrame()
-    artifact = _make_artifact(
+    outcome = _make_outcome(
         {"ds1": _response("IMF:CPI(1.0.0)", df, json_query=_json_query("IMF:CPI(1.0.0)"))},
         state=_state(DataQueryStatus.FAILED),
     )
 
-    structured = data_query_artifact_to_structured_content(artifact, _channel_config())
+    structured = data_query_outcome_to_structured_content(outcome, _channel_config())
 
     assert structured.status is DataQueryStatus.FAILED
     assert [q.urn for q in structured.queries] == ["IMF:CPI(1.0.0)"]
@@ -567,9 +567,9 @@ def test_structured_content_failed_reports_the_queries_that_errored():
 def test_structured_content_failed_without_responses_has_no_queries():
     # `failed` is also the default status, reached when the pipeline errored before executing
     # anything — there is nothing to report but the status.
-    artifact = _make_artifact({}, state=_state(DataQueryStatus.FAILED))
+    outcome = _make_outcome({}, state=_state(DataQueryStatus.FAILED))
 
-    structured = data_query_artifact_to_structured_content(artifact, _channel_config())
+    structured = data_query_outcome_to_structured_content(outcome, _channel_config())
 
     assert structured.status is DataQueryStatus.FAILED
     assert structured.queries == []

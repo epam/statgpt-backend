@@ -1,5 +1,5 @@
 import typing as t
-from datetime import datetime
+from datetime import date, datetime
 
 from aidial_sdk.chat_completion import Request, Stage
 
@@ -51,6 +51,11 @@ class ChainParameters:
     @staticmethod
     def get_target_prefilter(data: dict) -> RagFilterDial | None:
         return data[ChainParametersConfig.TARGET_PREFILTER]
+
+    @staticmethod
+    def get_target_current_date(data: dict) -> date | None:
+        """Current date override for the RAG tool (used in RAG eval). None means "today"."""
+        return data.get(ChainParametersConfig.TARGET_CURRENT_DATE)
 
     @staticmethod
     def get_auth_context(data: dict) -> AuthContext:

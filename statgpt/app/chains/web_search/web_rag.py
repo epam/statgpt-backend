@@ -2,7 +2,6 @@ import re
 from enum import StrEnum
 from typing import Annotated, Any
 
-from mcp.types import ToolAnnotations
 from pydantic import Field, create_model
 
 from statgpt.app.chains.parameters import ChainParameters
@@ -27,10 +26,6 @@ class BaseWebSearchArgs(ToolArgs):
 
 
 class WebSearchTool(StatGptTool[WebSearchToolConfig], tool_type=ToolTypes.WEB_SEARCH):
-    @classmethod
-    def get_mcp_annotations(cls) -> ToolAnnotations:
-        return ToolAnnotations(readOnlyHint=True, destructiveHint=False, openWorldHint=True)
-
     def __init__(self, tool_config: WebSearchToolConfig, channel_config: ChannelConfig, **kwargs):
         super().__init__(tool_config, channel_config, **kwargs)
 
