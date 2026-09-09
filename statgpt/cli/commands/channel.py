@@ -71,11 +71,13 @@ async def import_handler(
     clean: bool = False,
     update_datasets: bool = False,
     update_data_sources: bool = False,
-    mode: str = RecordUploadMode.UPSERT.value,
+    discovery_datasets_mode: str = RecordUploadMode.UPSERT.value,
+    glossary_terms_mode: str = RecordUploadMode.UPSERT.value,
     admin_url: str | None = None,
 ) -> None:
     """Import a channel from a zip archive."""
-    upload_mode = RecordUploadMode(mode)
+    datasets_mode = RecordUploadMode(discovery_datasets_mode)
+    terms_mode = RecordUploadMode(glossary_terms_mode)
     # Interactive file selection if not provided
     if not file:
         if cli_runtime.non_interactive:
@@ -121,7 +123,9 @@ async def import_handler(
     print_info(f"Importing channel from: {file}")
     print_info(
         f"Options: clean={clean}, update_datasets={update_datasets}, "
-        f"update_data_sources={update_data_sources}, mode={upload_mode.value}"
+        f"update_data_sources={update_data_sources}, "
+        f"discovery_datasets_mode={datasets_mode.value}, "
+        f"glossary_terms_mode={terms_mode.value}"
     )
 
     async with get_admin_client(base_url=admin_url) as client:
@@ -138,7 +142,8 @@ async def import_handler(
                     clean_up=clean,
                     update_datasets=update_datasets,
                     update_data_sources=update_data_sources,
-                    mode=upload_mode,
+                    discovery_datasets_mode=datasets_mode,
+                    glossary_terms_mode=terms_mode,
                 )
                 job_id = job.id
                 print_info(f"Import job started: {job_id}")
@@ -681,11 +686,19 @@ import_command = Command(
             is_flag=True,
         ),
         CommandArg(
-            name="mode",
+            name="discovery-datasets-mode",
             description=(
-                "How the archive's discovery datasets and glossary terms are reconciled"
-                " with the channel's: upsert keeps records the archive does not mention,"
-                " replace deletes them"
+                "How the archive's discovery datasets are reconciled with the channel's:"
+                " upsert keeps records the archive does not mention, replace deletes them"
+            ),
+            choices=[mode.value for mode in RecordUploadMode],
+            default=RecordUploadMode.UPSERT.value,
+        ),
+        CommandArg(
+            name="glossary-terms-mode",
+            description=(
+                "How the archive's glossary terms are reconciled with the channel's:"
+                " upsert keeps terms the archive does not mention, replace deletes them"
             ),
             choices=[mode.value for mode in RecordUploadMode],
             default=RecordUploadMode.UPSERT.value,

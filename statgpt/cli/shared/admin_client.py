@@ -254,7 +254,8 @@ class AdminClient:
         clean_up: bool = False,
         update_datasets: bool = False,
         update_data_sources: bool = False,
-        mode: RecordUploadMode = RecordUploadMode.UPSERT,
+        discovery_datasets_mode: RecordUploadMode = RecordUploadMode.UPSERT,
+        glossary_terms_mode: RecordUploadMode = RecordUploadMode.UPSERT,
     ) -> Job:
         """Start channel import job.
 
@@ -267,7 +268,8 @@ class AdminClient:
                 "clean_up": str(clean_up),
                 "update_datasets": str(update_datasets),
                 "update_data_sources": str(update_data_sources),
-                "mode": mode.value,
+                "discovery_datasets_mode": discovery_datasets_mode.value,
+                "glossary_terms_mode": glossary_terms_mode.value,
             }
             resp = await self._client.post(
                 self._url("/channels/import"),

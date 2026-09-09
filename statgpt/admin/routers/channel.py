@@ -98,15 +98,25 @@ IMPORT_CHANNEL_CLEAN_UP_DESCRIPTION = (
 )
 
 
-IMPORT_CHANNEL_MODE_DESCRIPTION = (
-    "How the archive's record collections - discovery datasets and glossary terms - are"
-    " reconciled with the ones the channel already holds."
-    " `upsert` keeps the records the archive does not mention; `replace` deletes them, so"
-    " the channel ends up matching the archive, including for a collection the archive does"
-    " not carry at all."
-    " Only applies when merging into an existing channel: with `clean_up` enabled, or when"
-    " the import creates the channel, there is nothing to delete."
+def _import_channel_mode_description(collection: str) -> str:
+    """Describe how one of the archive's record collections is reconciled on import."""
+    return (
+        f"How the archive's {collection} are reconciled with the ones the channel already"
+        f" holds. `upsert` keeps the records the archive does not mention; `replace` deletes"
+        f" them, so the channel's {collection} end up matching the archive, including when the"
+        " archive carries none at all."
+        " Each collection is governed by its own mode, and this one only applies when merging"
+        " into an existing channel: with `clean_up` enabled, or when the import creates the"
+        " channel, there is nothing to delete."
+    )
+
+
+IMPORT_CHANNEL_DISCOVERY_DATASETS_MODE_DESCRIPTION = _import_channel_mode_description(
+    "discovery datasets"
 )
+
+
+IMPORT_CHANNEL_GLOSSARY_TERMS_MODE_DESCRIPTION = _import_channel_mode_description("glossary terms")
 
 
 @router.post("/import")
@@ -120,8 +130,13 @@ async def import_channel(
     update_data_sources: Annotated[
         bool, Query(description='Whether to update the data sources if it already exists')
     ] = False,
-    mode: Annotated[
-        schemas.RecordUploadMode, Query(description=IMPORT_CHANNEL_MODE_DESCRIPTION)
+    discovery_datasets_mode: Annotated[
+        schemas.RecordUploadMode,
+        Query(description=IMPORT_CHANNEL_DISCOVERY_DATASETS_MODE_DESCRIPTION),
+    ] = schemas.RecordUploadMode.UPSERT,
+    glossary_terms_mode: Annotated[
+        schemas.RecordUploadMode,
+        Query(description=IMPORT_CHANNEL_GLOSSARY_TERMS_MODE_DESCRIPTION),
     ] = schemas.RecordUploadMode.UPSERT,
 ) -> schemas.Job:
     """Create a background job to import a channel from a zip file.
@@ -135,7 +150,8 @@ async def import_channel(
             clean_up,
             update_datasets,
             update_data_sources,
-            mode=mode,
+            discovery_datasets_mode=discovery_datasets_mode,
+            glossary_terms_mode=glossary_terms_mode,
             auth_context=SystemUserAuthContext(),
         )
 
