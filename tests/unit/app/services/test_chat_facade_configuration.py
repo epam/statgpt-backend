@@ -1,10 +1,11 @@
 """Unit tests for ChannelServiceFacade.get_dial_channel_configuration.
 
 Focus: the `deep_research` property is advertised in the DIAL configuration schema
-only when the channel has the Deep Research tool configured and enabled.
+only when the channel has the Deep Research tool configured and enabled, and — when the
+tool is gated on an `access_claim_value` role — only for callers whose DIAL roles include it.
 """
 
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -30,13 +31,27 @@ def _channel_config(
     )
 
 
-def _deep_research_tool(*, enabled: bool = True) -> DeepResearchTool:
+def _deep_research_tool(
+    *,
+    enabled: bool = True,
+    access_claim_value: str | None = None,
+) -> DeepResearchTool:
+    details: dict = {"deployment_id": "deep-research-app"}
+    if access_claim_value is not None:
+        details["access_claim_value"] = access_claim_value
     return DeepResearchTool(
         name="deep_research",
         description="Deep Research tool",
         enabled=enabled,
-        details={"deployment_id": "deep-research-app"},
+        details=details,
     )
+
+
+def _auth_context(*, has_role: bool = True, is_system: bool = False) -> MagicMock:
+    auth_context = MagicMock()
+    auth_context.is_system = is_system
+    auth_context.has_role = AsyncMock(return_value=has_role)
+    return auth_context
 
 
 def _facade(config: ChannelConfig) -> ChannelServiceFacade:
@@ -46,9 +61,11 @@ def _facade(config: ChannelConfig) -> ChannelServiceFacade:
     return ChannelServiceFacade(channel=channel)
 
 
-async def _get_schema(config: ChannelConfig) -> dict:
+async def _get_schema(config: ChannelConfig, auth_context=None) -> dict:
     facade = _facade(config)
-    return await facade.get_dial_channel_configuration(auth_context=MagicMock())
+    return await facade.get_dial_channel_configuration(
+        auth_context=auth_context if auth_context is not None else _auth_context()
+    )
 
 
 class TestDeepResearchConfiguration:
@@ -94,3 +111,49 @@ class TestDeepResearchConfiguration:
 
         assert schema["properties"]["deep_research"]["title"] == "Deep research"
         assert "starter" in schema["properties"]
+
+    @pytest.mark.asyncio
+    async def test_advertised_when_role_gated_and_caller_has_role(self) -> None:
+        auth_context = _auth_context(has_role=True)
+        schema = await _get_schema(
+            _channel_config(deep_research=_deep_research_tool(access_claim_value="dr_access")),
+            auth_context=auth_context,
+        )
+
+        assert "deep_research" in schema["properties"]
+        auth_context.has_role.assert_awaited_once_with("dr_access")
+
+    @pytest.mark.asyncio
+    async def test_omitted_when_role_gated_and_caller_lacks_role(self) -> None:
+        auth_context = _auth_context(has_role=False)
+        schema = await _get_schema(
+            _channel_config(deep_research=_deep_research_tool(access_claim_value="dr_access")),
+            auth_context=auth_context,
+        )
+
+        assert "deep_research" not in schema["properties"]
+        auth_context.has_role.assert_awaited_once_with("dr_access")
+
+    @pytest.mark.asyncio
+    async def test_advertised_for_system_user_even_when_role_gated(self) -> None:
+        auth_context = _auth_context(has_role=False, is_system=True)
+        schema = await _get_schema(
+            _channel_config(deep_research=_deep_research_tool(access_claim_value="dr_access")),
+            auth_context=auth_context,
+        )
+
+        assert "deep_research" in schema["properties"]
+        # System users bypass the role gate, so DIAL roles are never consulted.
+        auth_context.has_role.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_advertised_when_role_unset_regardless_of_token(self) -> None:
+        auth_context = _auth_context(has_role=False)
+        schema = await _get_schema(
+            _channel_config(deep_research=_deep_research_tool()),
+            auth_context=auth_context,
+        )
+
+        assert "deep_research" in schema["properties"]
+        # No role configured -> DIAL roles are never consulted.
+        auth_context.has_role.assert_not_awaited()
