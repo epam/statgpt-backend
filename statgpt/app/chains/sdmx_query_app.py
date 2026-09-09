@@ -1,14 +1,12 @@
 import logging
+from dataclasses import dataclass
 from typing import Any, Literal
 
 import httpx
-from mcp.types import ToolAnnotations
 from pydantic import Field, field_validator, model_validator
 
-from statgpt.app.chains.tools import StatGptTool, ToolArgs, ToolUpstreamError
-from statgpt.app.schemas import SdmxQueryAppArtifact, ToolMessageState
-from statgpt.common.schemas import SdmxQueryAppTool as SdmxQueryAppToolConfig
-from statgpt.common.schemas import ToolTypes
+from statgpt.app.chains.tools import ToolArgs, ToolUpstreamError
+from statgpt.common.schemas.tool_details import SdmxQueryAppDetails
 from statgpt.common.utils import ManagedHttpClient
 
 _log = logging.getLogger(__name__)
@@ -63,41 +61,37 @@ class SdmxQueryAppArgs(ToolArgs):
         return self
 
 
-class SdmxQueryAppTool(StatGptTool[SdmxQueryAppToolConfig], tool_type=ToolTypes.SDMX_QUERY_APP):
-    """MCP-only passthrough tool that forwards a frontend-built SDMX request to a configured
-    HTTP backend (e.g. an SDMX query application or proxy) and returns the raw response for
-    client-side rendering.
+@dataclass(frozen=True)
+class SdmxProxyResponse:
+    """The upstream response, passed through as-is: the body regardless of status so the
+    MCP-App component can render both payloads and upstream errors, plus the HTTP metadata the
+    body alone can't reliably convey."""
+
+    body: str
+    status_code: int
+    content_type: str | None
+
+
+class SdmxQueryAppProxy:
+    """Forwards a frontend-built SDMX request to the configured HTTP backend (e.g. an SDMX query
+    application or proxy).
 
     The caller provides only a domain-less path; the trusted base URL prefix comes from the
-    tool details, so the tool can only reach the configured host (no SSRF surface).
+    tool details, so the proxy can only reach the configured host (no SSRF surface). MCP-only:
+    the request is built and invoked by the MCP-App component, never by the Supreme Agent.
     """
 
-    @classmethod
-    def get_mcp_annotations(cls) -> ToolAnnotations:
-        return ToolAnnotations(readOnlyHint=True, destructiveHint=False, openWorldHint=False)
+    def __init__(self, details: SdmxQueryAppDetails):
+        self._details = details
 
-    @classmethod
-    def get_args_schema(cls, tool_config: SdmxQueryAppToolConfig) -> type[SdmxQueryAppArgs]:
-        return SdmxQueryAppArgs
-
-    def _build_headers(self, method: str, accept: str | None) -> dict[str, str]:
-        headers: dict[str, str] = {}
-        if accept:
-            headers["accept"] = accept
-        if method == "POST":
-            headers.setdefault("content-type", "application/json")
-        return headers
-
-    async def _arun(
+    async def forward(
         self,
-        inputs: dict,
         path: str,
         method: Literal["GET", "POST"] = "GET",
         body: dict[str, Any] | None = None,
         accept: str | None = None,
-        **kwargs,
-    ) -> tuple[str, SdmxQueryAppArtifact]:
-        url = f"{self._tool_config.details.get_base_url()}{path}"
+    ) -> SdmxProxyResponse:
+        url = f"{self._details.get_base_url()}{path}"
         headers = self._build_headers(method, accept)
 
         _log.info("SDMX query app passthrough: %s %s", method, url)
@@ -114,12 +108,17 @@ class SdmxQueryAppTool(StatGptTool[SdmxQueryAppToolConfig], tool_type=ToolTypes.
             # Connection errors, DNS failures, protocol errors, etc.
             raise ToolUpstreamError(f"Could not reach the SDMX backend: {e}") from e
 
-        # Passthrough: return the raw response body regardless of status so the MCP-App
-        # component can render both successful payloads and upstream error responses. The
-        # upstream status code and content type are carried on the artifact so the provider
-        # can expose them to the client (the body alone can't reliably convey them).
-        return response.text, SdmxQueryAppArtifact(
-            state=ToolMessageState(type=self.tool_type),
+        return SdmxProxyResponse(
+            body=response.text,
             status_code=response.status_code,
             content_type=response.headers.get("content-type"),
         )
+
+    @staticmethod
+    def _build_headers(method: str, accept: str | None) -> dict[str, str]:
+        headers: dict[str, str] = {}
+        if accept:
+            headers["accept"] = accept
+        if method == "POST":
+            headers.setdefault("content-type", "application/json")
+        return headers

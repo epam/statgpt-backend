@@ -1,4 +1,3 @@
-from mcp.types import ToolAnnotations
 from pydantic import Field
 
 from statgpt.app.chains.parameters import ChainParameters
@@ -21,13 +20,16 @@ class DatasetStructureArgs(ToolArgs):
     )
 
 
+def dataset_not_found_message(dataset_id: str) -> str:
+    return (
+        f"Dataset with ID '{dataset_id}' not found among available datasets. "
+        f"Please check the ID and try again."
+    )
+
+
 class DatasetStructureTool(
     StatGptTool[DatasetStructureToolConfig], tool_type=ToolTypes.DATASET_STRUCTURE
 ):
-    @classmethod
-    def get_mcp_annotations(cls) -> ToolAnnotations:
-        return ToolAnnotations(readOnlyHint=True, destructiveHint=False, openWorldHint=False)
-
     def __init__(
         self, tool_config: DatasetStructureToolConfig, channel_config: ChannelConfig, **kwargs
     ):
@@ -58,15 +60,13 @@ class DatasetStructureTool(
         dataset = await dataset_utils.get_dataset_by_source_id(inputs, dataset_id)
         target = ChainParameters.get_target(inputs)
         auth_context = ChainParameters.get_auth_context(inputs)
+        artifact = ToolArtifact(state=ToolMessageState(type=self.tool_type))
 
         if dataset is None:
-            response = (
-                f"Dataset with ID '{dataset_id}' not found among available datasets. "
-                f"Please check the ID and try again."
-            )
+            response = dataset_not_found_message(dataset_id)
             if target:
                 target.append_content(response)
-            return response, ToolArtifact(state=ToolMessageState(type=self.tool_type))
+            return response, artifact
 
         formatter = DetailedDatasetFormatter(
             self._dataset_formatter_config, auth_context=auth_context
@@ -81,4 +81,4 @@ class DatasetStructureTool(
             ", especially regarding sample values of the datasets' dimensions."
         )
 
-        return response, ToolArtifact(state=ToolMessageState(type=self.tool_type))
+        return response, artifact
