@@ -1,8 +1,10 @@
 """Unit tests for ChannelServiceFacade.get_dial_channel_configuration.
 
-Focus: the `deep_research` property is advertised in the DIAL configuration schema
-only when the channel has the Deep Research tool configured and enabled, and — when the
-tool is gated on an `access_claim_value` role — only for callers whose DIAL roles include it.
+Focus: the two gated properties of the DIAL configuration schema. `deep_research` is
+advertised only when the channel has the Deep Research tool configured and enabled, and —
+when the tool is gated on an `access_claim_value` role — only for callers whose DIAL roles
+include it. `enable_debug_attachments` is advertised only when
+`DIAL_ALLOW_DEBUG_ATTACHMENTS_TOGGLE` is on.
 """
 
 from unittest.mock import AsyncMock, MagicMock
@@ -10,6 +12,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from statgpt.app.services.chat_facade import ChannelServiceFacade
+from statgpt.app.settings.dial_app import dial_app_settings
 from statgpt.common.schemas.channel import (
     ChannelConfig,
     ConversationStarterConfig,
@@ -77,7 +80,6 @@ class TestDeepResearchConfiguration:
         assert "deep_research" not in schema["properties"]
         # base fields are still advertised
         assert "timezone" in schema["properties"]
-        assert "enable_debug_attachments" in schema["properties"]
 
     @pytest.mark.asyncio
     async def test_omitted_when_tool_disabled(self) -> None:
@@ -157,3 +159,52 @@ class TestDeepResearchConfiguration:
         assert "deep_research" in schema["properties"]
         # No role configured -> DIAL roles are never consulted.
         auth_context.has_role.assert_not_awaited()
+
+
+@pytest.fixture
+def debug_attachments_toggle_allowed(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(dial_app_settings, "dial_allow_debug_attachments_toggle", True)
+
+
+class TestDebugAttachmentsConfiguration:
+
+    @pytest.mark.asyncio
+    async def test_omitted_by_default(self) -> None:
+        schema = await _get_schema(_channel_config())
+
+        assert "enable_debug_attachments" not in schema["properties"]
+
+    @pytest.mark.asyncio
+    async def test_advertised_when_allowed(self, debug_attachments_toggle_allowed: None) -> None:
+        schema = await _get_schema(_channel_config())
+
+        prop = schema["properties"]["enable_debug_attachments"]
+        assert prop["type"] == "boolean"
+        assert prop["default"] is False
+
+    @pytest.mark.asyncio
+    async def test_advertised_alongside_deep_research(
+        self, debug_attachments_toggle_allowed: None
+    ) -> None:
+        schema = await _get_schema(_channel_config(deep_research=_deep_research_tool()))
+
+        assert list(schema["properties"]) == [
+            "timezone",
+            "enable_debug_attachments",
+            "deep_research",
+        ]
+        assert schema.get("dial:chatMessageInputDisabled") is False
+        assert schema["additionalProperties"] is False
+
+    @pytest.mark.asyncio
+    async def test_advertised_alongside_conversation_starters(
+        self, debug_attachments_toggle_allowed: None
+    ) -> None:
+        starters = ConversationStartersConfig(
+            intro_text="Welcome",
+            buttons=[ConversationStarterConfig(title="Ask", text="Ask something")],
+        )
+        schema = await _get_schema(_channel_config(starters=starters))
+
+        assert "enable_debug_attachments" in schema["properties"]
+        assert schema["properties"]["starter"]["dial:widget"] == "buttons"
