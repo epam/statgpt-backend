@@ -38,6 +38,16 @@ class DialAppSettings(BaseSettings):
         description="Show debug attachments in chat completion responses",
     )
 
+    dial_allow_debug_attachments_toggle: bool = Field(
+        default=False,
+        alias="DIAL_ALLOW_DEBUG_ATTACHMENTS_TOGGLE",
+        description=(
+            "Advertise the 'Enable debug attachments' control in the DIAL channel configuration "
+            "schema, letting users switch debug attachments on themselves. Off in production; "
+            "DIAL_SHOW_DEBUG_ATTACHMENTS still sets the value."
+        ),
+    )
+
     enable_dev_commands: bool = Field(
         default=False, alias="ENABLE_DEV_COMMANDS", description="Enable development commands"
     )
