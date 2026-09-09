@@ -38,6 +38,7 @@ from statgpt.common.schemas import (
     DiscoveryIndexingStatus,
     DiscoveryValidationStatus,
     PreprocessingStatusEnum,
+    RecordUploadMode,
 )
 
 _log = logging.getLogger(__name__)
@@ -70,9 +71,11 @@ async def import_handler(
     clean: bool = False,
     update_datasets: bool = False,
     update_data_sources: bool = False,
+    mode: str = RecordUploadMode.UPSERT.value,
     admin_url: str | None = None,
 ) -> None:
     """Import a channel from a zip archive."""
+    upload_mode = RecordUploadMode(mode)
     # Interactive file selection if not provided
     if not file:
         if cli_runtime.non_interactive:
@@ -118,7 +121,7 @@ async def import_handler(
     print_info(f"Importing channel from: {file}")
     print_info(
         f"Options: clean={clean}, update_datasets={update_datasets}, "
-        f"update_data_sources={update_data_sources}"
+        f"update_data_sources={update_data_sources}, mode={upload_mode.value}"
     )
 
     async with get_admin_client(base_url=admin_url) as client:
@@ -135,6 +138,7 @@ async def import_handler(
                     clean_up=clean,
                     update_datasets=update_datasets,
                     update_data_sources=update_data_sources,
+                    mode=upload_mode,
                 )
                 job_id = job.id
                 print_info(f"Import job started: {job_id}")
@@ -263,6 +267,29 @@ def _format_status_counts(counts: Mapping[Any, int]) -> str:
     )
 
 
+_DISCOVERY_AGENCIES_SHOWN = 10
+"""Agencies to name before summarizing the rest: a status line, not a full listing."""
+
+
+def _agency_table(counts: Mapping[str, int], limit: int = _DISCOVERY_AGENCIES_SHOWN) -> Table:
+    """Render an agency breakdown as a table, the way the other breakdowns are rendered.
+
+    Not a one-line summary like the status counts: agency names are long enough that a
+    joined line wraps mid-value, and a channel can hold more of them than a status report
+    should print - hence the cap and the count of what it left out.
+    """
+    table = Table(title=None, show_header=True, header_style="bold", box=None, padding=(0, 2))
+    table.add_column("Agency")
+    table.add_column("Records", justify="right")
+
+    items = list(counts.items())
+    for agency, count in items[:limit]:
+        table.add_row(agency, str(count))
+    if len(items) > limit:
+        table.add_row(f"[dim]+{len(items) - limit} more[/dim]", "")
+    return table
+
+
 def _print_discovery_stats(channel: Channel, stats: DiscoveryDatasetStats | None) -> None:
     """Print the Grade C breakdown, when the channel has anything to show.
 
@@ -282,6 +309,8 @@ def _print_discovery_stats(channel: Channel, stats: DiscoveryDatasetStats | None
 
     console.print(f"  [dim]Validation:[/dim] {_format_status_counts(stats.by_validation_status)}")
     console.print(f"  [dim]Indexing:[/dim]   {_format_status_counts(stats.by_indexing_status)}")
+    if stats.by_agency:
+        console.print(_agency_table(stats.by_agency))
 
     pending = sum(stats.by_indexing_status.get(status, 0) for status in _DISCOVERY_ACTION_NEEDED)
     pending += stats.by_validation_status.get(DiscoveryValidationStatus.NOT_VALIDATED, 0)
@@ -650,6 +679,16 @@ import_command = Command(
             name="update-data-sources",
             description="Update existing data sources if they already exist",
             is_flag=True,
+        ),
+        CommandArg(
+            name="mode",
+            description=(
+                "How the archive's discovery datasets and glossary terms are reconciled"
+                " with the channel's: upsert keeps records the archive does not mention,"
+                " replace deletes them"
+            ),
+            choices=[mode.value for mode in RecordUploadMode],
+            default=RecordUploadMode.UPSERT.value,
         ),
         CommandArg(
             name="admin-url",

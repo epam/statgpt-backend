@@ -46,11 +46,21 @@ def _row(term: str, definition: str = "def", domain: str = "Econ", source: str =
     return {"term": term, "definition": definition, "domain": domain, "source": source}
 
 
+def _empty_zip() -> zipfile.ZipFile:
+    """An archive that carries no glossary at all, as an export of a channel without one."""
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w") as archive:
+        archive.writestr("metadata.json", "{}")
+    buffer.seek(0)
+    return zipfile.ZipFile(buffer, "r")
+
+
 def _make_service(existing: list) -> AdminPortalGlossaryOfTermsService:
     service = AdminPortalGlossaryOfTermsService(session=MagicMock())
     service.get_term_models_by_channel = AsyncMock(return_value=existing)  # type: ignore[method-assign]
     service.add_terms_bulk = AsyncMock(return_value=[])  # type: ignore[method-assign]
     service.update_terms_bulk = AsyncMock(return_value=[])  # type: ignore[method-assign]
+    service.delete_terms_bulk = AsyncMock(return_value=[])  # type: ignore[method-assign]
     return service
 
 
@@ -145,6 +155,62 @@ async def test_non_merge_dedupes_within_archive_by_name() -> None:
     service.add_terms_bulk.assert_awaited_once()
     added = service.add_terms_bulk.await_args.kwargs["data"]
     assert [(item.term, item.domain) for item in added] == [("GDP", "Trade")]
+
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~ replace mode ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
+@pytest.mark.asyncio
+async def test_merge_keeps_absent_terms_by_default() -> None:
+    """The default is upsert, so an import cannot quietly drop a channel's own terms."""
+    service = _make_service(existing=[_term("GDP"), _term("CPI", term_id=2)])
+    zip_file = _make_zip([_row("GDP")])
+
+    await service.import_glossary_from_zip(zip_file, channel_id=1, merge=True)
+
+    service.delete_terms_bulk.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_replace_deletes_terms_the_archive_does_not_mention() -> None:
+    service = _make_service(existing=[_term("GDP"), _term("CPI", term_id=2)])
+    zip_file = _make_zip([_row("GDP")])
+
+    await service.import_glossary_from_zip(zip_file, channel_id=1, merge=True, delete_absent=True)
+
+    service.delete_terms_bulk.assert_awaited_once_with(term_ids=[2])
+
+
+@pytest.mark.asyncio
+async def test_replace_deletes_nothing_when_the_archive_mentions_every_term() -> None:
+    service = _make_service(existing=[_term("GDP")])
+    zip_file = _make_zip([_row("GDP")])
+
+    await service.import_glossary_from_zip(zip_file, channel_id=1, merge=True, delete_absent=True)
+
+    service.delete_terms_bulk.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_replace_clears_the_channel_when_the_archive_carries_no_glossary() -> None:
+    """An archive without the file describes a channel with no terms, so replace empties it."""
+    service = _make_service(existing=[_term("GDP")])
+
+    await service.import_glossary_from_zip(
+        _empty_zip(), channel_id=1, merge=True, delete_absent=True
+    )
+
+    service.delete_terms_bulk.assert_awaited_once_with(channel_id=1)
+
+
+@pytest.mark.asyncio
+async def test_upsert_leaves_the_channel_alone_when_the_archive_carries_no_glossary() -> None:
+    service = _make_service(existing=[_term("GDP")])
+
+    await service.import_glossary_from_zip(_empty_zip(), channel_id=1, merge=True)
+
+    service.delete_terms_bulk.assert_not_awaited()
+    service.add_terms_bulk.assert_not_awaited()
 
 
 def _integrity_error(sqlstate: str | None) -> IntegrityError:

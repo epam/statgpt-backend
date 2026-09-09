@@ -25,12 +25,12 @@ from statgpt.common.schemas import (
     DiscoveryDatasetStats,
     DiscoveryIndexingJob,
     DiscoveryPayloadErrorDetail,
-    DiscoveryUploadMode,
     DiscoveryUploadSummary,
     GlossaryTerm,
     GlossaryTermBase,
     GlossaryTermUpdateBulk,
     Job,
+    RecordUploadMode,
 )
 
 _log = logging.getLogger(__name__)
@@ -254,6 +254,7 @@ class AdminClient:
         clean_up: bool = False,
         update_datasets: bool = False,
         update_data_sources: bool = False,
+        mode: RecordUploadMode = RecordUploadMode.UPSERT,
     ) -> Job:
         """Start channel import job.
 
@@ -266,6 +267,7 @@ class AdminClient:
                 "clean_up": str(clean_up),
                 "update_datasets": str(update_datasets),
                 "update_data_sources": str(update_data_sources),
+                "mode": mode.value,
             }
             resp = await self._client.post(
                 self._url("/channels/import"),
@@ -364,7 +366,7 @@ class AdminClient:
         self,
         channel_id: int,
         file_path: str,
-        mode: DiscoveryUploadMode = DiscoveryUploadMode.UPSERT,
+        mode: RecordUploadMode = RecordUploadMode.UPSERT,
     ) -> DiscoveryUploadSummary:
         """Load a discovery workbook (.xlsx) or CSV into a channel.
 

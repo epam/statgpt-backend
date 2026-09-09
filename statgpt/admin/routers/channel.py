@@ -98,6 +98,17 @@ IMPORT_CHANNEL_CLEAN_UP_DESCRIPTION = (
 )
 
 
+IMPORT_CHANNEL_MODE_DESCRIPTION = (
+    "How the archive's record collections - discovery datasets and glossary terms - are"
+    " reconciled with the ones the channel already holds."
+    " `upsert` keeps the records the archive does not mention; `replace` deletes them, so"
+    " the channel ends up matching the archive, including for a collection the archive does"
+    " not carry at all."
+    " Only applies when merging into an existing channel: with `clean_up` enabled, or when"
+    " the import creates the channel, there is nothing to delete."
+)
+
+
 @router.post("/import")
 async def import_channel(
     background_tasks: BackgroundTasks,
@@ -109,6 +120,9 @@ async def import_channel(
     update_data_sources: Annotated[
         bool, Query(description='Whether to update the data sources if it already exists')
     ] = False,
+    mode: Annotated[
+        schemas.RecordUploadMode, Query(description=IMPORT_CHANNEL_MODE_DESCRIPTION)
+    ] = schemas.RecordUploadMode.UPSERT,
 ) -> schemas.Job:
     """Create a background job to import a channel from a zip file.
     Use the job id to check the status of the job.
@@ -121,6 +135,7 @@ async def import_channel(
             clean_up,
             update_datasets,
             update_data_sources,
+            mode=mode,
             auth_context=SystemUserAuthContext(),
         )
 
