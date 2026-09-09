@@ -405,27 +405,25 @@ class ChannelConfig(BaseYamlModel):
         """Whether the channel has the Deep Research tool configured and enabled."""
         return self.deep_research is not None and self.deep_research.enabled
 
-    def is_deep_research_available_for(self, auth_context: AuthContext) -> bool:
+    async def is_deep_research_available_for(self, auth_context: AuthContext) -> bool:
         """Whether Deep Research is available to the caller behind ``auth_context``.
 
         Extends `is_deep_research_available` with per-user gating: when the tool's
-        `access_claim` is set, the caller's token must satisfy it. With `access_claim_value`
-        set, the claim must equal or contain that value (list-valued claims such as `roles`);
-        without it, the claim only needs to be present and truthy. Fails closed — if the claim
-        is required but claims cannot be resolved, access is denied. System users (used for
-        evaluation, disabled in production) bypass the claim gate, since they carry no token
-        yet must be able to run evaluations.
+        `access_claim_value` is set, the caller's DIAL roles (resolved from their access token
+        via DIAL's user-info endpoint) must include that value. Fails closed — if a role is
+        required but roles cannot be resolved, access is denied. System users (used for
+        evaluation, disabled in production) bypass the gate, since they carry no token yet must
+        be able to run evaluations.
         """
         if not self.is_deep_research_available:
             return False
         assert self.deep_research is not None  # guaranteed by is_deep_research_available
         if auth_context.is_system:
             return True
-        access_claim = self.deep_research.details.get_access_claim()
-        if not access_claim:
+        access_role = self.deep_research.details.get_access_claim_value()
+        if not access_role:
             return True
-        access_claim_value = self.deep_research.details.get_access_claim_value()
-        return auth_context.has_claim_value(access_claim, access_claim_value)
+        return await auth_context.has_role(access_role)
 
     @property
     def discovery_application_id(self) -> str | None:

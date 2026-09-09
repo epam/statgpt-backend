@@ -295,9 +295,12 @@ class ChannelServiceFacade:
         return self._channel.details
 
     async def get_dial_channel_configuration(self, auth_context: AuthContext) -> dict[str, Any]:
+        deep_research_available = await self.channel_config.is_deep_research_available_for(
+            auth_context
+        )
         base_configuration_cls: type[BaseChannelConfiguration] = (
             DeepResearchChannelConfiguration
-            if self.channel_config.is_deep_research_available_for(auth_context)
+            if deep_research_available
             else BaseChannelConfiguration
         )
 

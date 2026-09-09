@@ -1,13 +1,12 @@
 import logging
 from abc import ABC, abstractmethod
-from typing import Any
 
-import jwt
-from pydantic import TypeAdapter, ValidationError
+from aidial_client import DialException
+
+from statgpt.common.settings.dial import dial_settings
+from statgpt.common.utils.dial import dial_client_factory
 
 _log = logging.getLogger(__name__)
-
-bool_validator = TypeAdapter(bool)
 
 
 class AuthContext(ABC):
@@ -28,43 +27,24 @@ class AuthContext(ABC):
     def api_key(self) -> str:
         """DIAL API key for the request."""
 
-    def get_token_claims(self) -> dict[str, Any] | None:
-        """Decode the caller's DIAL access token (JWT) and return its claims.
+    async def get_roles(self) -> list[str]:
+        """Authorization roles DIAL resolves for the caller.
 
-        The token is already validated by DIAL Core upstream, so the signature is not
-        re-verified here — only the claim payload is read. Returns ``None`` when no token
-        is present or it cannot be decoded, so callers can fail closed.
+        Sends the caller's access token to DIAL's user-info endpoint and returns the roles it
+        reports, rather than decoding the JWT locally. Fails closed: without an access token, or
+        when the lookup fails, an empty list is returned so callers deny access by default.
         """
         token = self.dial_access_token
         if not token:
-            return None
+            return []
         try:
-            return jwt.decode(token, options={"verify_signature": False})
-        except jwt.PyJWTError as e:
-            _log.warning(f"Failed to decode DIAL access token claims: {e}")
-            return None
+            async with dial_client_factory(base_url=dial_settings.url, bearer_token=token) as dial:
+                user_info = await dial.user.info()
+                return list(user_info.roles)
+        except DialException as e:
+            _log.warning(f"Failed to resolve caller roles from DIAL: {e}")
+            return []
 
-    def has_claim_value(self, claim: str, value: str | None = None) -> bool:
-        """Whether the caller's token satisfies the ``claim`` gate.
-
-        - ``value`` is ``None``: the ``claim`` must parse to a truthy boolean, so string
-          claims like ``"false"``/``"0"`` are correctly treated as falsy.
-        - ``value`` is set: the token's claim must equal it (scalar claim) or contain it
-          (list-valued claim such as ``roles``, which may carry many values).
-
-        Comparison is done on string form so YAML/env-configured values match numeric or
-        boolean claims. Fails closed: a missing/undecodable token, an absent claim, a
-        non-boolean-coercible claim, or a value mismatch all return False.
-        """
-        claims = self.get_token_claims()
-        if claims is None or claim not in claims:
-            return False
-        actual = claims[claim]
-        if value is None:
-            try:
-                return bool_validator.validate_python(actual)
-            except ValidationError:
-                return False
-        if isinstance(actual, (list, tuple, set)):
-            return any(value == str(item) for item in actual)
-        return value == str(actual)
+    async def has_role(self, role: str) -> bool:
+        """Whether DIAL reports ``role`` among the caller's roles. Fails closed."""
+        return role in await self.get_roles()

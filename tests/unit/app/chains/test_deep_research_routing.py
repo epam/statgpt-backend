@@ -16,7 +16,7 @@ These tests pin that behaviour and the deterministic toggle/session routing.
 """
 
 import json
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
 
 from aidial_sdk.chat_completion import Message as DialMessage
 from aidial_sdk.chat_completion import Role
@@ -38,12 +38,8 @@ from statgpt.common.schemas.channel import ChannelConfig, SupremeAgentConfig
 from statgpt.common.schemas.tools import DataQueryTool, DeepResearchTool
 
 
-def _channel_config(
-    *, access_claim: str | None = None, access_claim_value: str | None = None
-) -> ChannelConfig:
+def _channel_config(*, access_claim_value: str | None = None) -> ChannelConfig:
     details: dict = {"deployment_id": "dr-app"}
-    if access_claim is not None:
-        details["access_claim"] = access_claim
     if access_claim_value is not None:
         details["access_claim_value"] = access_claim_value
     return ChannelConfig(
@@ -407,112 +403,98 @@ async def test_resume_keeps_session_focused_on_unrelated_request(monkeypatch):
     assert DeepResearchSession.from_state(state) is not None  # session kept
 
 
-def test_toggle_off_mid_session_abandons_and_routes_normally():
+async def test_toggle_off_mid_session_abandons_and_routes_normally():
     """Turning the toggle off while a session is active drops the session and routes the turn as a
     normal Supreme Agent request."""
     prior = DeepResearchTurn(user_message="give me US GDP", assistant_content="Which region?")
     state = _session_state(prior)
     inputs = _inputs(state, "show me inflation instead", deep_research=False)
 
-    mode = SupremeAgentExecutor(_channel_config())._resolve_deep_research_mode(inputs)
+    mode = await SupremeAgentExecutor(_channel_config())._resolve_deep_research_mode(inputs)
 
     assert mode is None  # normal turn
     assert DeepResearchSession.from_state(state) is None  # session abandoned
 
 
-def test_routing_modes_are_driven_by_toggle_and_session():
+async def test_routing_modes_are_driven_by_toggle_and_session():
     """Routing is deterministic on the toggle + session flag, never on the message text."""
     executor = SupremeAgentExecutor(_channel_config())
 
     # toggle on, no session -> START
     assert (
-        executor._resolve_deep_research_mode(_inputs({}, "hi", deep_research=True))
+        await executor._resolve_deep_research_mode(_inputs({}, "hi", deep_research=True))
         is _DeepResearchMode.START
     )
     # toggle on, session in progress -> RESUME
     resume_state = _session_state(DeepResearchTurn(user_message="q", assistant_content="a"))
     assert (
-        executor._resolve_deep_research_mode(_inputs(resume_state, "hi", deep_research=True))
+        await executor._resolve_deep_research_mode(_inputs(resume_state, "hi", deep_research=True))
         is _DeepResearchMode.RESUME
     )
     # toggle off, no session -> normal
-    assert executor._resolve_deep_research_mode(_inputs({}, "hi", deep_research=False)) is None
+    assert (
+        await executor._resolve_deep_research_mode(_inputs({}, "hi", deep_research=False)) is None
+    )
 
 
-def test_claim_gated_caller_without_claim_cannot_force_deep_research():
-    """When the tool is gated on an `access_claim`, a caller lacking the claim can never enter a
-    Deep Research turn, even with the toggle forced on."""
-    executor = SupremeAgentExecutor(_channel_config(access_claim="dr_access"))
+async def test_role_gated_caller_without_role_cannot_force_deep_research():
+    """When the tool is gated on an `access_claim_value`, a caller lacking that DIAL role can never
+    enter a Deep Research turn, even with the toggle forced on."""
+    executor = SupremeAgentExecutor(_channel_config(access_claim_value="dr_access"))
     denied = MagicMock(api_key="k", is_system=False)
-    denied.has_claim_value.return_value = False
+    denied.has_role = AsyncMock(return_value=False)
 
-    mode = executor._resolve_deep_research_mode(
+    mode = await executor._resolve_deep_research_mode(
         _inputs({}, "research this", deep_research=True, auth_context=denied)
     )
 
     assert mode is None
-    denied.has_claim_value.assert_called_once_with("dr_access", None)
+    denied.has_role.assert_awaited_once_with("dr_access")
 
 
-def test_claim_gated_caller_with_claim_starts_deep_research():
-    """A caller carrying the required claim routes normally into Deep Research."""
-    executor = SupremeAgentExecutor(_channel_config(access_claim="dr_access"))
+async def test_role_gated_caller_with_role_starts_deep_research():
+    """A caller whose DIAL roles include the required role routes normally into Deep Research."""
+    executor = SupremeAgentExecutor(_channel_config(access_claim_value="dr_access"))
     granted = MagicMock(api_key="k", is_system=False)
-    granted.has_claim_value.return_value = True
+    granted.has_role = AsyncMock(return_value=True)
 
-    mode = executor._resolve_deep_research_mode(
+    mode = await executor._resolve_deep_research_mode(
         _inputs({}, "research this", deep_research=True, auth_context=granted)
     )
 
     assert mode is _DeepResearchMode.START
+    granted.has_role.assert_awaited_once_with("dr_access")
 
 
-def test_claim_value_gate_passes_required_value_to_auth_context():
-    """When `access_claim_value` is configured, it is passed through so the caller's claim is
-    checked for that specific value (e.g. one of many `roles`)."""
-    executor = SupremeAgentExecutor(
-        _channel_config(access_claim="roles", access_claim_value="dr_access")
-    )
-    granted = MagicMock(api_key="k", is_system=False)
-    granted.has_claim_value.return_value = True
-
-    mode = executor._resolve_deep_research_mode(
-        _inputs({}, "research this", deep_research=True, auth_context=granted)
-    )
-
-    assert mode is _DeepResearchMode.START
-    granted.has_claim_value.assert_called_once_with("roles", "dr_access")
-
-
-def test_system_user_bypasses_claim_gate_and_enters_deep_research():
+async def test_system_user_bypasses_role_gate_and_enters_deep_research():
     """A system user (used for evaluation, disabled in production) carries no token, so it can't
-    satisfy a claim gate; it is granted access instead of being denied."""
-    executor = SupremeAgentExecutor(_channel_config(access_claim="dr_access"))
+    satisfy a role gate; it is granted access instead of being denied."""
+    executor = SupremeAgentExecutor(_channel_config(access_claim_value="dr_access"))
     system_user = MagicMock(api_key="k", is_system=True)
-    system_user.has_claim_value.return_value = False
+    system_user.has_role = AsyncMock(return_value=False)
 
-    mode = executor._resolve_deep_research_mode(
+    mode = await executor._resolve_deep_research_mode(
         _inputs({}, "research this", deep_research=True, auth_context=system_user)
     )
 
     assert mode is _DeepResearchMode.START
-    system_user.has_claim_value.assert_not_called()
+    system_user.has_role.assert_not_awaited()
 
 
-def test_access_claim_resolves_env_var_before_gating(monkeypatch):
-    """`access_claim` supports $env:{VAR}: the resolved claim name is what the caller's token is
-    checked against."""
-    monkeypatch.setenv("DR_CLAIM", "dr_access")
-    executor = SupremeAgentExecutor(_channel_config(access_claim="$env:{DR_CLAIM}"))
+async def test_access_role_resolves_env_var_before_gating(monkeypatch):
+    """`access_claim_value` supports $env:{VAR}: the resolved role is what the caller's DIAL roles
+    are checked against."""
+    monkeypatch.setenv("DR_ROLE", "dr_access")
+    executor = SupremeAgentExecutor(_channel_config(access_claim_value="$env:{DR_ROLE}"))
     caller = MagicMock(api_key="k", is_system=False)
-    caller.has_claim_value.return_value = True
+    caller.has_role = AsyncMock(return_value=True)
 
-    mode = executor._resolve_deep_research_mode(
+    mode = await executor._resolve_deep_research_mode(
         _inputs({}, "research this", deep_research=True, auth_context=caller)
     )
 
     assert mode is _DeepResearchMode.START
-    caller.has_claim_value.assert_called_once_with("dr_access", None)
+    caller.has_role.assert_awaited_once_with("dr_access")
 
 
 async def test_report_delivered_verbatim_with_attachments(monkeypatch):

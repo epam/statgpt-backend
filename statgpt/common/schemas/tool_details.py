@@ -242,28 +242,18 @@ class DeepResearchDetails(BaseToolDetails):
         default=None,
         description="The system prompt for the Deep Research application.",
     )
-    access_claim_raw: str | None = Field(
-        default=None,
-        validation_alias=AliasChoices("access_claim", "accessClaim"),
-        serialization_alias="accessClaim",
-        description=(
-            "Name of the JWT claim on the caller's token that grants access to Deep Research."
-            " Supports $env:{VAR} syntax. When unset, Deep Research is advertised and runnable"
-            " for every user on a channel that has the tool enabled. When set, the caller's token"
-            " must satisfy the claim (see `access_claim_value`), otherwise the toggle is hidden and"
-            " the mode cannot be forced. Fails closed: if claims cannot be resolved, access is"
-            " denied. System users (used for evaluation, disabled in production) always have access."
-        ),
-    )
     access_claim_value_raw: str | None = Field(
         default=None,
         validation_alias=AliasChoices("access_claim_value", "accessClaimValue"),
         serialization_alias="accessClaimValue",
         description=(
-            "Value the `access_claim` claim must carry to grant access. Supports $env:{VAR} syntax."
-            " Ignored when `access_claim` is unset. When set, the caller's claim must equal this"
-            " value (scalar claim) or contain it (list-valued claim such as `roles`). When unset,"
-            " the claim only needs to be present and truthy."
+            "Authorization role that grants access to Deep Research. Supports $env:{VAR} syntax."
+            " When unset, Deep Research is advertised and runnable for every user on a channel"
+            " that has the tool enabled. When set, the caller's DIAL roles — resolved from their"
+            " access token via DIAL's user-info endpoint — must include this value, otherwise the"
+            " toggle is hidden and the mode cannot be forced. Fails closed: if roles cannot be"
+            " resolved, access is denied. System users (used for evaluation, disabled in"
+            " production) always have access."
         ),
     )
     always_show_stages: bool = Field(
@@ -292,12 +282,6 @@ class DeepResearchDetails(BaseToolDetails):
 
     def get_deployment_id(self) -> str:
         return config_utils.replace_env(self.deployment_id_raw)
-
-    def get_access_claim(self) -> str | None:
-        if self.access_claim_raw is None or not self.access_claim_raw.strip():
-            return None
-        resolved = config_utils.replace_env(self.access_claim_raw).strip()
-        return resolved or None
 
     def get_access_claim_value(self) -> str | None:
         if self.access_claim_value_raw is None or not self.access_claim_value_raw.strip():

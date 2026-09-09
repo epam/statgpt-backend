@@ -2,11 +2,10 @@
 
 Focus: the `deep_research` property is advertised in the DIAL configuration schema
 only when the channel has the Deep Research tool configured and enabled, and — when the
-tool is gated on an `access_claim` (optionally requiring a specific `access_claim_value`) —
-only for callers whose token satisfies that claim.
+tool is gated on an `access_claim_value` role — only for callers whose DIAL roles include it.
 """
 
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -35,12 +34,9 @@ def _channel_config(
 def _deep_research_tool(
     *,
     enabled: bool = True,
-    access_claim: str | None = None,
     access_claim_value: str | None = None,
 ) -> DeepResearchTool:
     details: dict = {"deployment_id": "deep-research-app"}
-    if access_claim is not None:
-        details["access_claim"] = access_claim
     if access_claim_value is not None:
         details["access_claim_value"] = access_claim_value
     return DeepResearchTool(
@@ -51,10 +47,10 @@ def _deep_research_tool(
     )
 
 
-def _auth_context(*, has_claim: bool = True, is_system: bool = False) -> MagicMock:
+def _auth_context(*, has_role: bool = True, is_system: bool = False) -> MagicMock:
     auth_context = MagicMock()
     auth_context.is_system = is_system
-    auth_context.has_claim_value.return_value = has_claim
+    auth_context.has_role = AsyncMock(return_value=has_role)
     return auth_context
 
 
@@ -117,62 +113,47 @@ class TestDeepResearchConfiguration:
         assert "starter" in schema["properties"]
 
     @pytest.mark.asyncio
-    async def test_advertised_when_claim_gated_and_caller_has_claim(self) -> None:
+    async def test_advertised_when_role_gated_and_caller_has_role(self) -> None:
+        auth_context = _auth_context(has_role=True)
         schema = await _get_schema(
-            _channel_config(deep_research=_deep_research_tool(access_claim="dr_access")),
-            auth_context=_auth_context(has_claim=True),
+            _channel_config(deep_research=_deep_research_tool(access_claim_value="dr_access")),
+            auth_context=auth_context,
         )
 
         assert "deep_research" in schema["properties"]
+        auth_context.has_role.assert_awaited_once_with("dr_access")
 
     @pytest.mark.asyncio
-    async def test_omitted_when_claim_gated_and_caller_lacks_claim(self) -> None:
-        auth_context = _auth_context(has_claim=False)
+    async def test_omitted_when_role_gated_and_caller_lacks_role(self) -> None:
+        auth_context = _auth_context(has_role=False)
         schema = await _get_schema(
-            _channel_config(deep_research=_deep_research_tool(access_claim="dr_access")),
+            _channel_config(deep_research=_deep_research_tool(access_claim_value="dr_access")),
             auth_context=auth_context,
         )
 
         assert "deep_research" not in schema["properties"]
-        auth_context.has_claim_value.assert_called_once_with("dr_access", None)
+        auth_context.has_role.assert_awaited_once_with("dr_access")
 
     @pytest.mark.asyncio
-    async def test_claim_value_gate_passes_required_value(self) -> None:
-        """`access_claim_value` is forwarded so the caller's claim (e.g. `roles`) is checked for
-        that specific value rather than mere presence."""
-        auth_context = _auth_context(has_claim=True)
+    async def test_advertised_for_system_user_even_when_role_gated(self) -> None:
+        auth_context = _auth_context(has_role=False, is_system=True)
         schema = await _get_schema(
-            _channel_config(
-                deep_research=_deep_research_tool(
-                    access_claim="roles", access_claim_value="dr_access"
-                )
-            ),
+            _channel_config(deep_research=_deep_research_tool(access_claim_value="dr_access")),
             auth_context=auth_context,
         )
 
         assert "deep_research" in schema["properties"]
-        auth_context.has_claim_value.assert_called_once_with("roles", "dr_access")
+        # System users bypass the role gate, so DIAL roles are never consulted.
+        auth_context.has_role.assert_not_awaited()
 
     @pytest.mark.asyncio
-    async def test_advertised_for_system_user_even_when_claim_gated(self) -> None:
-        auth_context = _auth_context(has_claim=False, is_system=True)
-        schema = await _get_schema(
-            _channel_config(deep_research=_deep_research_tool(access_claim="dr_access")),
-            auth_context=auth_context,
-        )
-
-        assert "deep_research" in schema["properties"]
-        # System users bypass the claim gate, so the token is never consulted.
-        auth_context.has_claim_value.assert_not_called()
-
-    @pytest.mark.asyncio
-    async def test_advertised_when_claim_unset_regardless_of_token(self) -> None:
-        auth_context = _auth_context(has_claim=False)
+    async def test_advertised_when_role_unset_regardless_of_token(self) -> None:
+        auth_context = _auth_context(has_role=False)
         schema = await _get_schema(
             _channel_config(deep_research=_deep_research_tool()),
             auth_context=auth_context,
         )
 
         assert "deep_research" in schema["properties"]
-        # No claim configured -> the token is never consulted.
-        auth_context.has_claim_value.assert_not_called()
+        # No role configured -> DIAL roles are never consulted.
+        auth_context.has_role.assert_not_awaited()
