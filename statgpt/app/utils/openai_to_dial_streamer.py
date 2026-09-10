@@ -4,10 +4,16 @@ from typing import Any
 from aidial_sdk.chat_completion import Stage
 from openai.types.chat import ChatCompletionChunk
 
+from statgpt.app.utils.dial_annotations import send_annotations
 from statgpt.app.utils.dial_stages import ChoiceI
 from statgpt.common.schemas import StagesConfig
 from statgpt.common.schemas.token_usage import TokenUsageItem
 from statgpt.common.utils.token_usage_context import get_token_usage_manager
+
+# Maps (streamer, the index a sub-deployment gave one of its annotations) to the index this
+# response gives that annotation. One dict per response, shared by every streamer of that
+# response: see `OpenAiToDialStreamer._renumber_annotation`.
+AnnotationIndexes = dict[tuple["OpenAiToDialStreamer", int], int]
 
 
 class OpenAiToDialStreamer:
@@ -18,14 +24,18 @@ class OpenAiToDialStreamer:
         deployment: str,
         show_debug_stages: bool,
         stages_config: StagesConfig,
+        annotation_indexes: AnnotationIndexes,
         stream_content: bool = True,
     ) -> None:
         """Creates a streamer that processes OpenAI ChatCompletionChunks and sends them to Dial.
 
         Args:
             target: Choice or Stage object to append content and attachments to.
-            choice: Choice object to create new stages.
+            choice: Choice object to create new stages, and to send annotations to.
             deployment: Deployment id or name that will be used to track token usage.
+            annotation_indexes: The annotation index space of the whole response, shared with
+                every other streamer of the same response. Required rather than defaulted, so
+                that a new call site fails loudly instead of numbering annotations on its own.
             stream_content: If True, the content will be appended to the `target` as it is received.
             stream_stages: If True, the stages will be created with the content and attachments from the chunks.
         """
@@ -35,6 +45,7 @@ class OpenAiToDialStreamer:
         self._deployment = deployment
         self._show_debug_stages = show_debug_stages
         self._stages_config = stages_config
+        self._annotation_indexes = annotation_indexes
         self._stream_content = stream_content
 
         self._content = ""
@@ -108,6 +119,9 @@ class OpenAiToDialStreamer:
             for attachment in attachments:
                 self._process_attachment(attachment)
 
+        if annotations := custom_content.get('annotations'):
+            self._process_annotations(annotations)
+
         if not self._stages_config.debug_only or self._show_debug_stages:
             for stage in custom_content.get('stages', []):
                 self._process_stage(stage)
@@ -126,6 +140,41 @@ class OpenAiToDialStreamer:
                 reference_url=attachment.get('reference_url'),
                 reference_type=attachment.get('reference_type'),
             )
+
+    def _process_annotations(self, annotations: list[dict[str, Any]]) -> None:
+        """Relay the sub-deployment's annotations to the user's message.
+
+        They go to `_choice` and never to `_target`, which is a stage on some paths: an
+        annotation claims a marker tag in a message, and a stage is not a message. Every field
+        is relayed unchanged except `index`.
+        """
+        send_annotations(
+            self._choice, [self._renumber_annotation(annotation) for annotation in annotations]
+        )
+
+    def _renumber_annotation(self, annotation: dict[str, Any]) -> dict[str, Any]:
+        """Move the annotation's `index` into the index space of the whole response.
+
+        Each sub-deployment numbers its own annotations from zero, and several of them run
+        concurrently in one response (the Supreme Agent and the direct-tool-calls chain both
+        dispatch tool calls with `asyncio.gather`), so the incoming numbers collide. The client
+        compares indexes before it consults the tag id, and two annotations that share an index
+        are read as one entry — which would hide the sources of a pill that cites several.
+
+        An annotation that arrives without an index keeps none: the array it belongs to is
+        either fully indexed or not indexed at all.
+
+        This lookup deliberately contains no `await`, so concurrent tool calls cannot interleave
+        inside it and it needs no lock. Keep it synchronous for that reason.
+        """
+        index = annotation.get('index')
+        if index is None:
+            return annotation
+
+        key = (self, index)
+        if key not in self._annotation_indexes:
+            self._annotation_indexes[key] = len(self._annotation_indexes)
+        return {**annotation, 'index': self._annotation_indexes[key]}
 
     def _process_stage(self, stage: dict[str, Any]) -> None:
         index = stage['index']

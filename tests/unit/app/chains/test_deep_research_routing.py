@@ -267,6 +267,7 @@ def _inputs(
             messages=[DialMessage(role=Role.USER, content=user_text)]
         ),
         ChainParametersConfig.CONFIGURATION: StatGPTConfiguration(deep_research=deep_research),
+        ChainParametersConfig.ANNOTATION_INDEXES: {},
     }
 
 

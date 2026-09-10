@@ -150,6 +150,7 @@ class TestStreamerStateCapture:
             deployment="d",
             show_debug_stages=False,
             stages_config=Mock(),
+            annotation_indexes={},
             stream_content=True,
         )
 

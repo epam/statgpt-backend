@@ -138,6 +138,9 @@ class ChannelCompletion(ChatCompletion):
                 ParamsConfig.START_OF_REQUEST: start_time,
                 ParamsConfig.CONFIGURATION: configuration,
                 ParamsConfig.INVOCATION_SOURCE: InvocationSource.AGENT,
+                # Empty index space: every annotation relayed during this response is numbered
+                # in it, whichever tool relays it.
+                ParamsConfig.ANNOTATION_INDEXES: {},
             }
 
             callbacks: list = []

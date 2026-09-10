@@ -40,6 +40,9 @@ def _build_mcp_inputs(
         ChainParametersConfig.TARGET: DummyStage(),
         ChainParametersConfig.START_OF_REQUEST: datetime.now(configuration.tzinfo),
         ChainParametersConfig.INVOCATION_SOURCE: InvocationSource.MCP,
+        # Present so a tool that relays annotations can run here too. Nothing is emitted: the
+        # MCP context has no choice to stream them on.
+        ChainParametersConfig.ANNOTATION_INDEXES: {},
     }
 
 
