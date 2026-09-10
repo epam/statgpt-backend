@@ -18,7 +18,12 @@ from statgpt.common.data.base import (
 )
 from statgpt.common.data.base.enums import InvalidDataSetQueryReasonType
 from statgpt.common.data.base.query import InvalidDataSetQueryReason
-from statgpt.common.schemas.enums import DataParsingStatus, DataRequestStatus, LocaleEnum
+from statgpt.common.schemas.enums import (
+    DataParsingStatus,
+    DataRequestStatus,
+    ExplorerLinkPolicy,
+    LocaleEnum,
+)
 
 from .base import BaseFormatter
 from .dataset_base import DatasetFormatterConfig
@@ -41,6 +46,10 @@ class DatasetQueryFormatterConfig(BaseModel):
     )
     include_query_uuid: bool = Field(
         False, description="Whether to include the query UUID in the output"
+    )
+    explorer_link: ExplorerLinkPolicy = Field(
+        ExplorerLinkPolicy.always,
+        description="When to render the data explorer deep link under the execution result",
     )
 
 
@@ -84,11 +93,23 @@ class DatasetQueryFormatter(BaseFormatter):
             header += f' {dial_app_settings.official_dataset_label}'
         return header
 
+    def _include_explorer_link(self, has_data: bool) -> bool:
+        """Whether this response's explorer deep link should be rendered."""
+        match self._config.explorer_link:
+            case ExplorerLinkPolicy.always:
+                return True
+            case ExplorerLinkPolicy.only_when_no_data:
+                return not has_data
+            case ExplorerLinkPolicy.never:
+                return False
+
     def _format_execution_result(self, data_response: DataResponse) -> list[str]:
         """Format execution result section."""
         lines = []
 
-        if not data_response.visual_dataframe.empty:
+        has_data = not data_response.visual_dataframe.empty
+
+        if has_data:
             lines.append(
                 f'✅ **{self._("Execution result")}**: {self._("Data received, contains {count} series.").format(count=data_response.get_display_series_count())}'
             )
@@ -120,7 +141,7 @@ class DatasetQueryFormatter(BaseFormatter):
                 f'💡 **{self._("Advice")}:** {self._("Most likely, the query is generally correct, but there is no data for the specified time period.")} {self._("You may want to try selecting a different time period.")} {self._("Another option is to try to find relevant data in other datasets or using other tools.")}'
             )
 
-        if data_response.url_query:
+        if data_response.url_query and self._include_explorer_link(has_data):
             lines.append("")
             lines.append(f'[🔍 {self._("View data in explorer")}]({data_response.url_query})')
 
