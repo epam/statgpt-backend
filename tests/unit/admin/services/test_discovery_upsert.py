@@ -23,9 +23,9 @@ from statgpt.common.schemas import (
     DiscoveryDatasetUpdate,
     DiscoveryDatasetUpdateBulk,
     DiscoveryIndexingStatus,
-    DiscoveryUploadMode,
     DiscoveryUploadSummary,
     DiscoveryValidationStatus,
+    RecordUploadMode,
 )
 from statgpt.common.services import DiscoveryDatasetService, normalize_key_part, record_key
 
@@ -241,12 +241,12 @@ def _service(existing: list[models.DiscoveryDataset]) -> AdminPortalDiscoveryDat
 async def _upload(
     service: AdminPortalDiscoveryDatasetService,
     records: Sequence[DiscoveryDatasetBase],
-    mode: DiscoveryUploadMode,
+    mode: RecordUploadMode,
 ) -> DiscoveryUploadSummary:
     return await service._upsert(
         channel_id=1,
         candidates=_build_candidates(records),
-        delete_absent=mode is DiscoveryUploadMode.REPLACE,
+        delete_absent=mode is RecordUploadMode.REPLACE,
     )
 
 
@@ -254,7 +254,7 @@ async def _upload(
 async def test_new_records_are_created() -> None:
     service = _service(existing=[])
 
-    summary = await _upload(service, [_record()], DiscoveryUploadMode.UPSERT)
+    summary = await _upload(service, [_record()], RecordUploadMode.UPSERT)
 
     assert (summary.created, summary.updated, summary.unchanged, summary.deleted) == (1, 0, 0, 0)
 
@@ -265,7 +265,7 @@ async def test_identical_resubmission_is_unchanged_and_keeps_statuses() -> None:
     stored = _stored()
     service = _service(existing=[stored])
 
-    summary = await _upload(service, [_record()], DiscoveryUploadMode.UPSERT)
+    summary = await _upload(service, [_record()], RecordUploadMode.UPSERT)
 
     assert (summary.created, summary.updated, summary.unchanged) == (0, 0, 1)
     assert stored.validation_status is DiscoveryValidationStatus.VALID
@@ -279,7 +279,7 @@ async def test_a_case_or_spacing_only_difference_is_unchanged(agency: str) -> No
     stored = _stored()
     service = _service(existing=[stored])
 
-    summary = await _upload(service, [_record(agency=agency)], DiscoveryUploadMode.UPSERT)
+    summary = await _upload(service, [_record(agency=agency)], RecordUploadMode.UPSERT)
 
     assert (summary.created, summary.updated, summary.unchanged, summary.deleted) == (0, 0, 1, 0)
     assert stored.agency == "Bank Indonesia (BI)"  # stored casing wins
@@ -302,7 +302,7 @@ async def test_a_payload_that_omits_a_field_leaves_the_stored_value_alone() -> N
         {"agency": "Bank Indonesia (BI)", "dataset_id": "TABEL1_1"}
     )
 
-    summary = await _upload(service, [partial], DiscoveryUploadMode.UPSERT)
+    summary = await _upload(service, [partial], RecordUploadMode.UPSERT)
 
     assert (summary.created, summary.updated, summary.unchanged) == (0, 0, 1)
     assert stored.description == "Money and banking table."
@@ -316,7 +316,7 @@ async def test_an_omitted_field_is_not_confused_with_a_cleared_one() -> None:
     stored = _stored(description="Money and banking table.")
     service = _service(existing=[stored])
 
-    summary = await _upload(service, [_record(description="")], DiscoveryUploadMode.UPSERT)
+    summary = await _upload(service, [_record(description="")], RecordUploadMode.UPSERT)
 
     assert (summary.created, summary.updated, summary.unchanged) == (0, 1, 0)
     assert stored.description == ""
@@ -327,7 +327,7 @@ async def test_an_edited_field_updates_the_record_and_resets_its_state() -> None
     stored = _stored(description="old")
     service = _service(existing=[stored])
 
-    summary = await _upload(service, [_record(description="new")], DiscoveryUploadMode.UPSERT)
+    summary = await _upload(service, [_record(description="new")], RecordUploadMode.UPSERT)
 
     assert (summary.created, summary.updated, summary.unchanged) == (0, 1, 0)
     assert stored.description == "new"
@@ -343,7 +343,7 @@ async def test_an_edited_record_that_was_never_indexed_stays_new() -> None:
     stored = _stored(description="old", indexing_status=DiscoveryIndexingStatus.NEW)
     service = _service(existing=[stored])
 
-    await _upload(service, [_record(description="new")], DiscoveryUploadMode.UPSERT)
+    await _upload(service, [_record(description="new")], RecordUploadMode.UPSERT)
 
     assert stored.indexing_status is DiscoveryIndexingStatus.NEW
 
@@ -359,7 +359,7 @@ async def test_editing_a_failed_record_clears_the_publish_error() -> None:
     )
     service = _service(existing=[stored])
 
-    await _upload(service, [_record(description="new")], DiscoveryUploadMode.UPSERT)
+    await _upload(service, [_record(description="new")], RecordUploadMode.UPSERT)
 
     assert stored.indexing_status is DiscoveryIndexingStatus.NEW
     assert stored.index_error is None
@@ -370,7 +370,7 @@ async def test_upsert_keeps_records_the_file_does_not_mention() -> None:
     stored = _stored(dataset_id="TABEL9_9")
     service = _service(existing=[stored])
 
-    summary = await _upload(service, [_record()], DiscoveryUploadMode.UPSERT)
+    summary = await _upload(service, [_record()], RecordUploadMode.UPSERT)
 
     assert (summary.created, summary.deleted) == (1, 0)
 
@@ -438,6 +438,6 @@ async def test_replace_deletes_records_the_file_does_not_mention() -> None:
     kept = _stored(dataset_id="TABEL1_1", id=2)
     service = _service(existing=[absent, kept])
 
-    summary = await _upload(service, [_record()], DiscoveryUploadMode.REPLACE)
+    summary = await _upload(service, [_record()], RecordUploadMode.REPLACE)
 
     assert (summary.created, summary.unchanged, summary.deleted) == (0, 1, 1)

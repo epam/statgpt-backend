@@ -16,8 +16,8 @@ from statgpt.common.schemas import (
     Channel,
     DiscoveryPayloadErrorDetail,
     DiscoveryPayloadProblem,
-    DiscoveryUploadMode,
     DiscoveryUploadSummary,
+    RecordUploadMode,
 )
 
 _NOW = datetime.datetime(2026, 1, 1)
@@ -46,7 +46,7 @@ class _StubAdminClient:
     """Records every upload, and refuses the files named in `refuse`."""
 
     def __init__(self, refuse: set[str] | None = None, channels: list[Channel] | None = None):
-        self.uploads: list[tuple[int, str, DiscoveryUploadMode]] = []
+        self.uploads: list[tuple[int, str, RecordUploadMode]] = []
         self._refuse = refuse or set()
         self._channels = channels or []
 
@@ -54,7 +54,7 @@ class _StubAdminClient:
         return self._channels
 
     async def upload_discovery_datasets(
-        self, channel_id: int, file_path: str, mode: DiscoveryUploadMode
+        self, channel_id: int, file_path: str, mode: RecordUploadMode
     ) -> DiscoveryUploadSummary:
         import os
 
@@ -95,10 +95,10 @@ async def test_every_file_is_uploaded_to_every_channel_of_the_client(tmp_path) -
     )
 
     assert client.uploads == [
-        (1, "a.xlsx", DiscoveryUploadMode.UPSERT),
-        (1, "b.csv", DiscoveryUploadMode.UPSERT),
-        (2, "a.xlsx", DiscoveryUploadMode.UPSERT),
-        (2, "b.csv", DiscoveryUploadMode.UPSERT),
+        (1, "a.xlsx", RecordUploadMode.UPSERT),
+        (1, "b.csv", RecordUploadMode.UPSERT),
+        (2, "a.xlsx", RecordUploadMode.UPSERT),
+        (2, "b.csv", RecordUploadMode.UPSERT),
     ], "files are uploaded in name order, and only the supported ones"
     assert not report.has_failures
 
@@ -134,7 +134,7 @@ async def test_channels_not_processed_in_this_run_are_looked_up(tmp_path) -> Non
 
     await _upload_discovery_datasets(client, report, _channel_cfg("channel-a"), {}, str(directory))
 
-    assert client.uploads == [(42, "a.csv", DiscoveryUploadMode.UPSERT)]
+    assert client.uploads == [(42, "a.csv", RecordUploadMode.UPSERT)]
 
 
 @pytest.mark.asyncio

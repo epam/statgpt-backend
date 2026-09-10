@@ -153,10 +153,11 @@ class DiscoveryDatasetUpdateBulk(DiscoveryDatasetUpdate):
 
 
 class DiscoveryDatasetStats(BaseYamlModel):
-    """How many of a channel's discovery dataset records sit in each status.
+    """How many of a channel's discovery dataset records sit in each status and agency.
 
-    Both maps carry every member of their enum, zeros included, so a caller can render the
-    whole breakdown without deciding what an absent key means.
+    The two status maps carry every member of their enum, zeros included, so a caller can
+    render the whole breakdown without deciding what an absent key means. Agencies are not
+    an enum, so `by_agency` carries only the ones the channel actually holds.
     """
 
     model_config = ConfigDict(use_attribute_docstrings=True)
@@ -169,6 +170,14 @@ class DiscoveryDatasetStats(BaseYamlModel):
 
     by_indexing_status: dict[DiscoveryIndexingStatus, int] = Field(default_factory=dict)
     """Record count per indexing state."""
+
+    by_agency: dict[str, int] = Field(default_factory=dict)
+    """Record count per agency, largest first, so the values double as filter arguments.
+
+    Keys are spelled as stored, one per agency the `agency` filter can match: records whose
+    agency differs only in case or spacing are one entry, since the filter folds them
+    together too.
+    """
 
 
 class DiscoveryPayloadProblem(BaseYamlModel):
