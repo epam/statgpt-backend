@@ -127,8 +127,6 @@ class ParsedRow:
 @dataclass(frozen=True)
 class ParsedFile:
     rows: list[ParsedRow] = field(default_factory=list)
-    rows_skipped: int = 0
-    """Blank rows skipped, such as the ~300 empty formatted rows the template ships."""
 
     column_letters: dict[str, str] = field(default_factory=dict)
     """Field name -> column letter, so a problem can be reported as a cell reference."""
@@ -247,7 +245,7 @@ def _build_rows(
     data_rows: Iterable[tuple[int, Sequence[Any]]],
     headers: dict[int, str],
     max_rows: int,
-) -> tuple[list[ParsedRow], int]:
+) -> list[ParsedRow]:
     """Normalize the data rows of a file, stopping as soon as the row cap is exceeded.
 
     Takes an iterable rather than a list so the cap bounds memory: a sheet is streamed and
@@ -256,7 +254,6 @@ def _build_rows(
     expand by orders of magnitude.
     """
     rows: list[ParsedRow] = []
-    skipped = 0
 
     for row_number, cells in data_rows:
         values = {
@@ -266,8 +263,8 @@ def _build_rows(
         }
         if not any(values.values()):
             # The template ships hundreds of formatted-but-empty rows, and `ws.max_row`
-            # is inflated in read-only mode, so blanks are skipped rather than stopped at.
-            skipped += 1
+            # is inflated in read-only mode, so blanks are passed over rather than stopped
+            # at. They are not data, so they are dropped silently, not counted.
             continue
         rows.append(ParsedRow(row_number=row_number, values=values))
         if len(rows) > max_rows:
@@ -275,7 +272,7 @@ def _build_rows(
                 f"The file has more than {max_rows} data rows. Split it and upload the parts."
             )
 
-    return rows, skipped
+    return rows
 
 
 def _column_letters(headers: dict[int, str]) -> dict[str, str]:
@@ -320,11 +317,11 @@ def _parse_workbook(data: bytes, max_rows: int) -> ParsedFile:
         headers = _resolve_headers_or_positional(header_cells)
         # Consumed here, inside the `try`: streaming is what makes `max_rows` bound memory,
         # and the rows cannot be read once the `finally` below has closed the workbook.
-        rows, skipped = _build_rows(enumerate(rows_iter, start=2), headers, max_rows)
+        rows = _build_rows(enumerate(rows_iter, start=2), headers, max_rows)
     finally:
         workbook.close()
 
-    return ParsedFile(rows=rows, rows_skipped=skipped, column_letters=_column_letters(headers))
+    return ParsedFile(rows=rows, column_letters=_column_letters(headers))
 
 
 def _decode_csv(data: bytes) -> str:
@@ -357,9 +354,9 @@ def _parse_csv(data: bytes, max_rows: int) -> ParsedFile:
         raise DiscoveryUploadFormatError("The CSV file is empty.") from e
 
     headers = _resolve_headers_or_positional(header_cells)
-    rows, skipped = _build_rows(enumerate(reader, start=2), headers, max_rows)
+    rows = _build_rows(enumerate(reader, start=2), headers, max_rows)
     # A CSV has no spreadsheet coordinates, so problems are reported by row only.
-    return ParsedFile(rows=rows, rows_skipped=skipped)
+    return ParsedFile(rows=rows)
 
 
 def parse_discovery_file(data: bytes, filename: str | None, max_rows: int) -> ParsedFile:
