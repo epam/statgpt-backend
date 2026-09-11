@@ -190,3 +190,17 @@ resolutions:
     - message: ".*PyPI::python-dateutil:2\\..*"
       reason: "CANT_FIX_EXCEPTION"
       comment: "Dual (Apache 2.0 OR BSD 3-Clause): https://github.com/dateutil/dateutil/blob/master/LICENSE"
+
+    # JSON Schema validation (MCP tool schemas)
+    - message: ".*PyPI::jsonschema:4\\..*"
+      reason: "CANT_FIX_EXCEPTION"
+      comment: "MIT License: https://github.com/python-jsonschema/jsonschema/blob/main/COPYING"
+    - message: ".*PyPI::jsonschema-specifications:2025\\..*"
+      reason: "CANT_FIX_EXCEPTION"
+      comment: "MIT License: https://github.com/python-jsonschema/jsonschema-specifications/blob/main/COPYING"
+    - message: ".*PyPI::referencing:0\\..*"
+      reason: "CANT_FIX_EXCEPTION"
+      comment: "MIT License: https://github.com/python-jsonschema/referencing/blob/main/COPYING"
+    - message: ".*PyPI::rpds-py:0\\..*"
+      reason: "CANT_FIX_EXCEPTION"
+      comment: "MIT License: https://github.com/crate-py/rpds/blob/main/LICENSE"

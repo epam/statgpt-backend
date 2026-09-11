@@ -272,10 +272,24 @@ class AdminPortalGlossaryOfTermsService(GlossaryOfTermsService):
         _log.info(f"Exported glossary terms to {glossary_file!r}.")
 
     async def import_glossary_from_zip(
-        self, zip_file: zipfile.ZipFile, channel_id: int, merge: bool = False
+        self,
+        zip_file: zipfile.ZipFile,
+        channel_id: int,
+        merge: bool = False,
+        delete_absent: bool = False,
     ) -> None:
+        """Load the archive's terms into a channel.
+
+        `delete_absent` deletes the terms the archive does not mention - including when the
+        archive carries no terms file at all, which describes a channel with none. It only
+        means anything alongside `merge`: a channel this import created holds no terms to
+        delete.
+        """
         if JobsConfig.GLOSSARY_TERMS_FILE not in zip_file.namelist():
             _log.info("No glossary terms found in the zip file.")
+            if delete_absent:
+                deleted = await self.delete_terms_bulk(channel_id=channel_id)
+                _log.info(f"Deleted {len(deleted)} glossary terms absent from the archive.")
             return
 
         _log.info("Importing glossary terms from zip file.")
@@ -288,7 +302,7 @@ class AdminPortalGlossaryOfTermsService(GlossaryOfTermsService):
         ]
 
         if merge:
-            await self._merge_terms(channel_id, glossary_terms_base)
+            await self._merge_terms(channel_id, glossary_terms_base, delete_absent=delete_absent)
             return
 
         # A pre-fix archive can carry duplicate names (issue #564); collapse them
@@ -297,7 +311,12 @@ class AdminPortalGlossaryOfTermsService(GlossaryOfTermsService):
         items = await self.add_terms_bulk(channel_id=channel_id, data=deduped)
         _log.info(f"Imported {len(items)} glossary terms.")
 
-    async def _merge_terms(self, channel_id: int, terms: list[schemas.GlossaryTermBase]) -> None:
+    async def _merge_terms(
+        self,
+        channel_id: int,
+        terms: list[schemas.GlossaryTermBase],
+        delete_absent: bool = False,
+    ) -> None:
         """Merge terms into an existing channel without creating duplicates.
 
         A term is identified by its name, which is unique per channel (see the
@@ -305,6 +324,9 @@ class AdminPortalGlossaryOfTermsService(GlossaryOfTermsService):
         exists updates the stored fields when any differ; a new name is inserted;
         names that are unchanged (or repeated within the archive itself) are
         ignored, so re-importing the same archive stays idempotent (issue #564).
+
+        `delete_absent` also deletes the terms the archive does not mention, leaving the
+        channel matching the archive.
         """
         existing_by_term = {
             item.term: item
@@ -313,8 +335,9 @@ class AdminPortalGlossaryOfTermsService(GlossaryOfTermsService):
 
         to_add: list[schemas.GlossaryTermBase] = []
         to_update: list[schemas.GlossaryTermUpdateBulk] = []
+        submitted = self._dedupe_by_name(terms)
 
-        for term in self._dedupe_by_name(terms):
+        for term in submitted:
             existing_term = existing_by_term.get(term.term)
             if existing_term is None:
                 to_add.append(term)
@@ -337,4 +360,16 @@ class AdminPortalGlossaryOfTermsService(GlossaryOfTermsService):
         if to_update:
             await self.update_terms_bulk(data=to_update)
 
-        _log.info(f"Merged glossary terms: {len(to_add)} added, {len(to_update)} updated.")
+        deleted = 0
+        if delete_absent:
+            submitted_names = {term.term for term in submitted}
+            stale_ids = [
+                item.id for name, item in existing_by_term.items() if name not in submitted_names
+            ]
+            if stale_ids:
+                deleted = len(await self.delete_terms_bulk(term_ids=stale_ids))
+
+        _log.info(
+            f"Merged glossary terms: {len(to_add)} added, {len(to_update)} updated,"
+            f" {deleted} deleted."
+        )

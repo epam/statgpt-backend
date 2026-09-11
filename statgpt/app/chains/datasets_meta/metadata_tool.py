@@ -1,7 +1,6 @@
 from typing import Annotated
 
 from langchain_core.prompts import ChatPromptTemplate, SystemMessagePromptTemplate
-from mcp.types import ToolAnnotations
 from pydantic import Field
 
 from statgpt.app.chains.parameters import ChainParameters
@@ -27,10 +26,6 @@ class DatasetsMetadataArgs(ToolArgs):
 class DatasetsMetadataTool(
     StatGptTool[DatasetsMetadataToolConfig], tool_type=ToolTypes.DATASETS_METADATA
 ):
-    @classmethod
-    def get_mcp_annotations(cls) -> ToolAnnotations:
-        return ToolAnnotations(readOnlyHint=True, destructiveHint=False, openWorldHint=False)
-
     def __init__(
         self, tool_config: DatasetsMetadataToolConfig, channel_config: ChannelConfig, **kwargs
     ):

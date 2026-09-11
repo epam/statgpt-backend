@@ -1,8 +1,10 @@
 import base64
 import csv
+import io
 import json
 import os
 import re
+from collections.abc import Sequence
 from enum import StrEnum
 from pathlib import Path
 
@@ -129,17 +131,30 @@ def read_csv_as_dict_list(fp: str, encoding="utf-8") -> list[dict[str, str]]:
         return [row for row in reader]
 
 
+def csv_from_dict_list(data: list[dict[str, str]], fieldnames: Sequence[str] | None = None) -> str:
+    """Render rows as CSV text, header first.
+
+    Supply `fieldnames` to write a header for a set of rows that may be empty - deriving
+    them from the first row cannot describe an empty result.
+    """
+    if fieldnames is None:
+        if not data:
+            raise ValueError("No data to write")
+        fieldnames = list(data[0].keys())
+
+    buffer = io.StringIO(newline='')
+    writer = csv.DictWriter(buffer, fieldnames=fieldnames)
+
+    writer.writeheader()
+    writer.writerows(data)
+    return buffer.getvalue()
+
+
 def write_csv_from_dict_list(
     data: list[dict[str, str]], fp: str, mode="w", encoding="utf-8"
 ) -> None:
-    if not data:
-        raise ValueError("No data to write")
-
     with open(fp, mode=mode, newline='', encoding=encoding) as csvfile:
-        writer = csv.DictWriter(csvfile, fieldnames=data[0].keys())
-
-        writer.writeheader()
-        writer.writerows(data)
+        csvfile.write(csv_from_dict_list(data))
 
 
 def read_yaml(fp: Path | str, encoding="utf-8"):

@@ -4,6 +4,7 @@ from urllib.parse import urlsplit
 
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from statgpt.common.auth.auth_context import AuthContext
 from statgpt.common.config import utils as config_utils
 from statgpt.common.settings.elastic import ElasticSearchSettings
 from statgpt.common.utils.media_types import MediaTypes
@@ -412,6 +413,26 @@ class ChannelConfig(BaseYamlModel):
     def is_deep_research_available(self) -> bool:
         """Whether the channel has the Deep Research tool configured and enabled."""
         return self.deep_research is not None and self.deep_research.enabled
+
+    async def is_deep_research_available_for(self, auth_context: AuthContext) -> bool:
+        """Whether Deep Research is available to the caller behind ``auth_context``.
+
+        Extends `is_deep_research_available` with per-user gating: when the tool's
+        `access_claim_value` is set, the caller's DIAL roles (resolved from their access token
+        via DIAL's user-info endpoint) must include that value. Fails closed — if a role is
+        required but roles cannot be resolved, access is denied. System users (used for
+        evaluation, disabled in production) bypass the gate, since they carry no token yet must
+        be able to run evaluations.
+        """
+        if not self.is_deep_research_available:
+            return False
+        assert self.deep_research is not None  # guaranteed by is_deep_research_available
+        if auth_context.is_system:
+            return True
+        access_role = self.deep_research.details.get_access_claim_value()
+        if not access_role:
+            return True
+        return await auth_context.has_role(access_role)
 
     @property
     def discovery_application_id(self) -> str | None:

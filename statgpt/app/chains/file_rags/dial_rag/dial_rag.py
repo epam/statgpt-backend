@@ -1,3 +1,4 @@
+import datetime
 import time
 from typing import Any
 
@@ -32,6 +33,7 @@ class DialRagAgentFactory(BaseRAGFactory):
     FIELD_ATTACHMENTS = 'attachments'
     FIELD_METADATA = 'metadata'
     FIELD_PRE_FILTER_DECODER_OF_LATEST = 'prefilter_decoder_of_latest'
+    FIELD_CURRENT_DATE = 'current_date'
 
     def _init_dial_rag_client(self, auth_context: AuthContext):
         nondefault_dial_rag_pgvector_endpoint = dial_rag_settings.pgvector_url
@@ -76,7 +78,7 @@ class DialRagAgentFactory(BaseRAGFactory):
         )
 
     async def _run_prefilter_nonsafe(
-        self, auth_context: AuthContext, query: str
+        self, auth_context: AuthContext, query: str, reference_date: datetime.date | None
     ) -> tuple[PreFilterResponse, DialRagMetadata]:
         try:
             metadata_loader = DialRagMetadataLoader.create_for_local_or_remote(
@@ -101,13 +103,19 @@ class DialRagAgentFactory(BaseRAGFactory):
             llm=llm, metadata=metadata, pub_type_to_decoder_mapping=decoder_of_latest_mapping
         )
 
-        pre_filter_response = await pre_filter_builder.build_filter_from_query(query=query)
+        pre_filter_response = await pre_filter_builder.build_filter_from_query(
+            query=query, reference_date=reference_date
+        )
         logger.info(f'Built publication filter: {pre_filter_response!r}')
 
         return pre_filter_response, metadata
 
     async def _run_prefilter(
-        self, auth_context: AuthContext, query: str, target: Stage
+        self,
+        auth_context: AuthContext,
+        query: str,
+        target: Stage,
+        reference_date: datetime.date | None,
     ) -> tuple[PreFilterResponse, DialRagMetadata | None]:
 
         def _format_exception_w_cause(exc: Exception) -> str:
@@ -115,7 +123,7 @@ class DialRagAgentFactory(BaseRAGFactory):
 
         try:
             pre_filter_response, metadata = await self._run_prefilter_nonsafe(
-                auth_context=auth_context, query=query
+                auth_context=auth_context, query=query, reference_date=reference_date
             )
         except RAGMetadataError as e:
             logger.exception(e)
@@ -157,8 +165,19 @@ class DialRagAgentFactory(BaseRAGFactory):
                 reference_type=attachment.get('reference_type'),
             )
 
-    def _build_extra_body(self, pre_filter_response: PreFilterResponse) -> dict | None:
-        """Build the `extra_body` (RAG configuration) sent with the chat completion request."""
+    def _build_extra_body(
+        self, pre_filter_response: PreFilterResponse, current_date: datetime.date | None
+    ) -> dict | None:
+        """Build the `extra_body` (RAG configuration) sent with the chat completion request.
+
+        `current_date` is the "today" override; DIAL RAG has no way to accept it, so it only
+        affects the prefilter built by statgpt. Generic RAG forwards it to answer generation.
+        """
+        if current_date is not None:
+            logger.warning(
+                f'{type(self).__name__}: RAG does not accept a current date override - '
+                f'ignoring current_date={current_date} for the RAG call'
+            )
         rag_filter = pre_filter_response.rag_filter
         if rag_filter is None:
             return None
@@ -173,6 +192,10 @@ class DialRagAgentFactory(BaseRAGFactory):
         query = ChainParameters.get_query(inputs)
 
         target_prefilter = ChainParameters.get_target_prefilter(inputs)
+        current_date = ChainParameters.get_target_current_date(inputs)
+        if current_date is not None:
+            logger.info(f'received current date override: {current_date}')
+
         if target_prefilter is not None:
             logger.info(
                 'received target prefilter - will ignore building prefilter from user query. '
@@ -186,7 +209,7 @@ class DialRagAgentFactory(BaseRAGFactory):
         else:
             logger.info(f'building prefilter from user query: "{query}"')
             pre_filter_response, metadata = await self._run_prefilter(
-                auth_context=auth_context, query=query, target=target
+                auth_context=auth_context, query=query, target=target, reference_date=current_date
             )
 
         inputs[self.FIELD_PRE_FILTER] = pre_filter_response
@@ -194,6 +217,7 @@ class DialRagAgentFactory(BaseRAGFactory):
         inputs[self.FIELD_PRE_FILTER_DECODER_OF_LATEST] = (
             self._tool_config.details.decoder_of_latest
         )
+        inputs[self.FIELD_CURRENT_DATE] = current_date
 
         state = ChainParameters.get_state(inputs)
         skip = state.get(StateVarsConfig.CMD_RAG_PREFILTER_ONLY, False)
@@ -209,11 +233,9 @@ class DialRagAgentFactory(BaseRAGFactory):
 
         # call dial RAG
 
-        prefilter_dict = None if (f := pre_filter_response.rag_filter) is None else f.as_dial_dict()
-        inputs_to_log = {'query': query, 'prefilter': prefilter_dict}
-        logger.info(f'calling DIAL RAG with following inputs: {inputs_to_log}')
-
-        configuration_params = self._build_extra_body(pre_filter_response)
+        configuration_params = self._build_extra_body(pre_filter_response, current_date)
+        inputs_to_log = {'query': query, 'extra_body': configuration_params}
+        logger.info(f'calling RAG with following inputs: {inputs_to_log}')
 
         dial_rag_client = self._init_dial_rag_client(auth_context)
         deployment_name = self._tool_config.details.get_deployment_id()

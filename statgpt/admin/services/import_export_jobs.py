@@ -185,6 +185,8 @@ class JobsService:
         clean_up: bool,
         update_datasets: bool,
         update_data_sources: bool,
+        discovery_datasets_mode: schemas.RecordUploadMode,
+        glossary_terms_mode: schemas.RecordUploadMode,
         auth_context: AuthContext,
     ) -> schemas.Job:
         job = models.Job(
@@ -218,7 +220,8 @@ class JobsService:
                     job.file = resp.url
 
             _log.info(
-                f"Creating import job with args: {clean_up=}, {update_datasets=}, {update_data_sources=}"
+                f"Creating import job with args: {clean_up=}, {update_datasets=},"
+                f" {update_data_sources=}, {discovery_datasets_mode=}, {glossary_terms_mode=}"
             )
             background_tasks.add_task(
                 import_channel_in_background_task,
@@ -226,6 +229,8 @@ class JobsService:
                 clean_up,
                 update_datasets,
                 update_data_sources,
+                discovery_datasets_mode,
+                glossary_terms_mode,
                 auth_context,
                 get_audit_context(),
             )
@@ -368,6 +373,8 @@ class JobsService:
         clean_up: bool,
         update_datasets: bool,
         update_data_sources: bool,
+        discovery_datasets_mode: schemas.RecordUploadMode,
+        glossary_terms_mode: schemas.RecordUploadMode,
         auth_context: AuthContext,
     ) -> tuple[int, bool]:
         """Import channel data including datasets and embeddings from the zip file.
@@ -410,13 +417,21 @@ class JobsService:
             job.channel_id = channel_db.id
             await self._update_job_status(job, schemas.PreprocessingStatusEnum.IN_PROGRESS)
             if scope.includes_configs():
+                # Only a merge can have records to delete: a channel this import created
+                # starts empty, so `replace` and `upsert` describe the same work there.
+                replace = schemas.RecordUploadMode.REPLACE
+                delete_absent_terms = is_merge and glossary_terms_mode is replace
+                delete_absent_datasets = is_merge and discovery_datasets_mode is replace
+
                 glossary_service = GlossaryOfTermsService(session)
                 await glossary_service.import_glossary_from_zip(
-                    zip_file, channel_db.id, merge=is_merge
+                    zip_file, channel_db.id, merge=is_merge, delete_absent=delete_absent_terms
                 )
 
                 discovery_service = DiscoveryDatasetService(session)
-                await discovery_service.import_discovery_datasets_from_zip(zip_file, channel_db.id)
+                await discovery_service.import_discovery_datasets_from_zip(
+                    zip_file, channel_db.id, delete_absent=delete_absent_datasets
+                )
 
             dataset_service = DataSetService(session)
             await dataset_service.import_datasets_and_data_sources_from_zip(
@@ -437,6 +452,8 @@ class JobsService:
         clean_up: bool,
         update_datasets: bool,
         update_data_sources: bool,
+        discovery_datasets_mode: schemas.RecordUploadMode,
+        glossary_terms_mode: schemas.RecordUploadMode,
         auth_context: AuthContext,
     ) -> schemas.Job:
         _log.info(f"Importing channel from zip file. Job id={job_id}")
@@ -459,7 +476,14 @@ class JobsService:
 
                 with zipfile.ZipFile(zip_file_path, 'r') as zip_file:
                     channel_id, should_deduplicate = await self._import_data_from_zip(
-                        job, zip_file, clean_up, update_datasets, update_data_sources, auth_context
+                        job,
+                        zip_file,
+                        clean_up,
+                        update_datasets,
+                        update_data_sources,
+                        discovery_datasets_mode,
+                        glossary_terms_mode,
+                        auth_context,
                     )
         except Exception as e:
             _log.exception(e)
@@ -497,6 +521,8 @@ async def import_channel_in_background_task(
     clean_up: bool,
     update_datasets: bool,
     update_data_sources: bool,
+    discovery_datasets_mode: schemas.RecordUploadMode,
+    glossary_terms_mode: schemas.RecordUploadMode,
     auth_context: AuthContext,
     audit_context: AuditContext,
 ) -> None:
@@ -509,6 +535,8 @@ async def import_channel_in_background_task(
                 clean_up=clean_up,
                 update_datasets=update_datasets,
                 update_data_sources=update_data_sources,
+                discovery_datasets_mode=discovery_datasets_mode,
+                glossary_terms_mode=glossary_terms_mode,
                 auth_context=auth_context,
             )
     except Exception as e:

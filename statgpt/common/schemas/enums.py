@@ -208,8 +208,12 @@ class DiscoveryIndexingStatus(StrEnum):
     FAILED = "FAILED"
 
 
-class DiscoveryUploadMode(StrEnum):
-    """How an uploaded file is reconciled with the records a channel already holds."""
+class RecordUploadMode(StrEnum):
+    """How a loaded file is reconciled with the records a channel already holds.
+
+    Shared by the discovery dataset upload and the channel import, so the same CSV loads
+    the same way whichever door it comes through.
+    """
 
     UPSERT = "upsert"
     """Insert new records, update changed ones, keep records absent from the file."""

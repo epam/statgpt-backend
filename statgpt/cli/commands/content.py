@@ -41,11 +41,11 @@ from statgpt.common.schemas import (
     DataSetBase,
     DataSource,
     DataSourceBase,
-    DiscoveryUploadMode,
     GlossaryTerm,
     GlossaryTermBase,
     GlossaryTermUpdateBulk,
     RAGVersion,
+    RecordUploadMode,
 )
 from statgpt.common.utils import attachments_storage_factory
 
@@ -446,7 +446,7 @@ async def _upload_discovery_datasets(
             label = f"{channel.deployment_id}: {filename}"
             try:
                 summary = await admin_client.upload_discovery_datasets(
-                    channel.id, path, DiscoveryUploadMode.UPSERT
+                    channel.id, path, RecordUploadMode.UPSERT
                 )
             except DiscoveryPayloadError as e:
                 print_error(f"  Failed discovery file {filename}: {e}")

@@ -343,7 +343,7 @@ class SupremeAgentExecutor:
         fake_history = await self._fake_tool_calls(tool_executor, inputs, show_stages=debug)
         history.prepend(fake_history)
 
-        if (dr_mode := self._resolve_deep_research_mode(inputs)) is not None:
+        if (dr_mode := await self._resolve_deep_research_mode(inputs)) is not None:
             # A Deep Research turn is mediated in its own loop, bound only to the Deep Research
             # tools; it never runs the general agent below.
             return await self._run_deep_research_turn(
@@ -421,7 +421,7 @@ class SupremeAgentExecutor:
         choice.append_content(warning_msg)
         return warning_msg
 
-    def _resolve_deep_research_mode(self, inputs: dict) -> _DeepResearchMode | None:
+    async def _resolve_deep_research_mode(self, inputs: dict) -> _DeepResearchMode | None:
         """Decide whether this turn is a Deep Research turn, and which kind.
 
         Deep Research is deliberately excluded from `ChannelConfig.tool_fields`, so it never appears
@@ -436,8 +436,13 @@ class SupremeAgentExecutor:
         - toggle on, session in progress -> RESUME the session (mediated).
         - toggle off, session in progress -> abandon the run (drop the flag), handle normally.
         - otherwise -> a normal Supreme Agent turn (``None``).
+
+        Availability is resolved per user: when the tool is gated on an `access_claim_value`, a
+        caller lacking that DIAL role can never enter a Deep Research turn even if they force the
+        toggle.
         """
-        if not self._channel_config.is_deep_research_available:
+        auth_context = ChainParameters.get_auth_context(inputs)
+        if not await self._channel_config.is_deep_research_available_for(auth_context):
             return None
 
         state = ChainParameters.get_state(inputs)

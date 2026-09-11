@@ -102,12 +102,16 @@ statgpt> auth login --method interactive
 statgpt> channel import --file /path/to/channel.zip --clean
 ```
 
-| Option                  | Description                              |
-|-------------------------|------------------------------------------|
-| `--file`                | Path to zip archive (prompts if omitted) |
-| `--clean`               | Clean existing data before import        |
-| `--update-datasets`     | Update existing datasets                 |
-| `--update-data-sources` | Update existing data sources             |
+| Option                      | Description                                                                                 |
+|-----------------------------|---------------------------------------------------------------------------------------------|
+| `--file`                    | Path to zip archive (prompts if omitted)                                                    |
+| `--clean`                   | Clean existing data before import                                                           |
+| `--update-datasets`         | Update existing datasets                                                                    |
+| `--update-data-sources`     | Update existing data sources                                                                |
+| `--discovery-datasets-mode` | `upsert` (default) keeps discovery datasets absent from the archive, `replace` deletes them |
+| `--glossary-terms-mode`     | `upsert` (default) keeps glossary terms absent from the archive, `replace` deletes them     |
+
+The two modes are independent, and both only apply when merging into an existing channel — with `--clean`, or when the import creates the channel, there is nothing to delete.
 
 ### channel status
 
