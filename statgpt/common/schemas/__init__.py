@@ -61,6 +61,7 @@ from .discovery_indexing_job import DiscoveryIndexingJob
 from .enums import (
     AuditActionType,
     AuditEntityType,
+    AuditScope,
     AutoUpdateResult,
     ChannelDatasetUpdateStatus,
     ChannelIndexStatusScope,

@@ -10,6 +10,7 @@ from sqlalchemy.sql import func
 from statgpt.common.schemas import (
     AuditActionType,
     AuditEntityType,
+    AuditScope,
     AutoUpdateResult,
     DiscoveryIndexingStatus,
     DiscoveryValidationStatus,
@@ -386,6 +387,11 @@ class AuditLog(IdMixin, Base):
     )
     action_type: Mapped[AuditActionType] = mapped_column(
         Enum(AuditActionType, values_callable=lambda e: [x.value for x in e]),
+    )
+    scope: Mapped[AuditScope] = mapped_column(
+        Enum(AuditScope, values_callable=lambda e: [x.value for x in e]),
+        default=AuditScope.CONFIG,
+        server_default=AuditScope.CONFIG.value,
     )
 
     item_id: Mapped[int]
