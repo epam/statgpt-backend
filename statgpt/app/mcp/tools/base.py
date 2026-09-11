@@ -10,6 +10,7 @@ the same way the LangChain interfaces do. Tool types without a dedicated MCP int
 by `LangChainMcpTool`, which runs the LangChain tool and returns its text.
 """
 
+import asyncio
 import logging
 from abc import ABC, abstractmethod
 from typing import Any, ClassVar, Generic, TypeVar
@@ -24,6 +25,7 @@ from pydantic import BaseModel, PrivateAttr, ValidationError
 from statgpt.app.chains.tools import StatGptTool, ToolArgs, ToolUpstreamError
 from statgpt.app.mcp.guardrails import enforce_input_guardrail
 from statgpt.app.mcp.output_schema import model_to_output_schema
+from statgpt.app.settings.dial_app import dial_app_settings
 from statgpt.common.auth.auth_context import AuthContext
 from statgpt.common.schemas import BaseToolConfig, ChannelConfig, ToolTypes
 
@@ -143,18 +145,40 @@ class StatGptMcpTool(Tool, ABC, Generic[ToolConfigType, ArgsType]):
             _log.debug("Invalid arguments for MCP tool %s: %s", self.name, e)
             raise ToolError(f"Invalid arguments for {self.name}: {e}") from e
 
-        # Screen arbitrary free-text input with the out-of-scope guardrail before executing. The
-        # validated arguments are screened (not the raw request), so the guardrail sees exactly
-        # what the tool will run with. Raised ToolError propagates to the MCP client unchanged.
-        await enforce_input_guardrail(
-            self.name,
-            self._args_schema.get_guardrail_input(args.model_dump(exclude={"inputs"})),
-            self._channel_config,
-            self._auth_context,
-        )
-
+        # Bound the guardrail and execution by a deadline kept under the 300s host tool-call
+        # timeout. On expiry asyncio.timeout cancels the current downstream await, which cascades
+        # cancellation through the chain, and we surface a readable ToolError so the model can
+        # recover in-conversation instead of seeing an unexplained host cancellation. The deadline
+        # bounds tool work only, not the preceding channel/auth resolution; the margin under 300s
+        # absorbs that.
+        timeout_seconds = dial_app_settings.mcp_tool_timeout_seconds
         try:
-            result = await self._execute(args)
+            async with asyncio.timeout(timeout_seconds) as deadline:
+                # Screen arbitrary free-text input with the out-of-scope guardrail before
+                # executing. The validated arguments are screened (not the raw request), so the
+                # guardrail sees exactly what the tool will run with. Raised ToolError propagates
+                # to the MCP client unchanged.
+                await enforce_input_guardrail(
+                    self.name,
+                    self._args_schema.get_guardrail_input(args.model_dump(exclude={"inputs"})),
+                    self._channel_config,
+                    self._auth_context,
+                )
+                result = await self._execute(args)
+        except TimeoutError as e:
+            if not deadline.expired():
+                # A plain TimeoutError bubbled up from downstream, not our deadline.
+                raise
+            _log.warning(
+                "MCP tool %s exceeded its %.0fs deadline; downstream work cancelled",
+                self.name,
+                timeout_seconds,
+            )
+            raise ToolError(
+                f"The {self.name} tool did not finish within {timeout_seconds:.0f} seconds and "
+                "was stopped before the host timed it out. Narrow the request (e.g. fewer "
+                "indicators, a shorter time range, or a single dataset) and try again."
+            ) from e
         except ToolError:
             raise
         except ToolUpstreamError as e:
