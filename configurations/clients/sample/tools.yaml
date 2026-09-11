@@ -126,6 +126,14 @@ tools:
           enabledStr: "False"
         markdownTable:
           enabledStr: "True"
+      # When each surface carries the "View data in explorer" deep link back to the source
+      # registry. One of: always | only_when_no_data | never. All default to `always`.
+      # Set a surface to `only_when_no_data` to keep the link on the paths where StatGPT could
+      # not deliver (no rows, or the query failed) and drop it from successful answers.
+      explorerLink:
+        stage: always
+        agent: always
+        mcp: always
       stagesConfig:
         debugOnly: true
         toolCallName: "Searching for data: {query}"
