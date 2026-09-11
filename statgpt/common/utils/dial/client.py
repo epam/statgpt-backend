@@ -10,17 +10,25 @@ _log = logging.getLogger(__name__)
 
 
 @asynccontextmanager
-async def dial_client_factory(base_url: str, api_key: str | SecretStr) -> AsyncIterator[AsyncDial]:
+async def dial_client_factory(
+    base_url: str,
+    api_key: str | SecretStr | None = None,
+    *,
+    bearer_token: str | SecretStr | None = None,
+) -> AsyncIterator[AsyncDial]:
     """Yield an :class:`AsyncDial` and close its connection pool on exit.
 
-    Relies on the SDK's own async lifecycle management: ``AsyncDial`` is used
-    as an async context manager so its underlying httpx client is closed
-    deterministically via ``aclose()`` when the block exits.
+    Authenticate with either an ``api_key`` or a caller ``bearer_token`` (access token);
+    pass whichever the call site has. Relies on the SDK's own async lifecycle management:
+    ``AsyncDial`` is used as an async context manager so its underlying httpx client is
+    closed deterministically via ``aclose()`` when the block exits.
     """
     if isinstance(api_key, SecretStr):
         api_key = api_key.get_secret_value()
+    if isinstance(bearer_token, SecretStr):
+        bearer_token = bearer_token.get_secret_value()
 
-    async with AsyncDial(base_url=base_url, api_key=api_key) as dial:
+    async with AsyncDial(base_url=base_url, api_key=api_key, bearer_token=bearer_token) as dial:
         yield dial
 
 

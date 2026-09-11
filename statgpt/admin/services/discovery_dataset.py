@@ -648,7 +648,7 @@ class AdminPortalDiscoveryDatasetService(DiscoveryDatasetService):
         channel_id: int,
         data: bytes,
         filename: str | None,
-        mode: schemas.DiscoveryUploadMode,
+        mode: schemas.RecordUploadMode,
     ) -> schemas.DiscoveryUploadSummary:
         """Load a filled discovery workbook or CSV into a channel."""
         channel = await ChannelService(self._session).get_model_by_id(channel_id)
@@ -675,13 +675,27 @@ class AdminPortalDiscoveryDatasetService(DiscoveryDatasetService):
         summary = await self._upsert(
             channel.id,
             candidates,
-            delete_absent=mode is schemas.DiscoveryUploadMode.REPLACE,
+            delete_absent=mode is schemas.RecordUploadMode.REPLACE,
         )
         summary.rows_read = len(parsed.rows)
         summary.rows_skipped = parsed.rows_skipped
         return summary
 
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~ export / import ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+    @staticmethod
+    def _export_rows(records: Iterable[models.DiscoveryDataset]) -> list[dict[str, str]]:
+        """Shape records for the export CSV.
+
+        Only the descriptive fields travel: validation and indexing state describe this
+        deployment's index, not the dataset.
+        """
+        return [
+            schemas.DiscoveryDatasetBase.model_validate(item, from_attributes=True).model_dump(
+                mode="json"
+            )
+            for item in records
+        ]
 
     async def export_discovery_datasets_to_folder(
         self, channel: models.Channel, folder_path: str
@@ -693,30 +707,56 @@ class AdminPortalDiscoveryDatasetService(DiscoveryDatasetService):
             return
 
         _log.info(f"Exporting {len(records)} discovery datasets.")
-        # Only the descriptive fields travel: validation and indexing state describe this
-        # deployment's index, not the dataset.
-        rows = [
-            schemas.DiscoveryDatasetBase.model_validate(item, from_attributes=True).model_dump(
-                mode="json"
-            )
-            for item in records
-        ]
-
         file_path = os.path.join(folder_path, JobsConfig.DISCOVERY_DATASETS_FILE)
-        utils.write_csv_from_dict_list(rows, file_path)
+        utils.write_csv_from_dict_list(self._export_rows(records), file_path)
         _log.info(f"Exported discovery datasets to {file_path!r}.")
 
+    async def export_discovery_datasets_to_csv(
+        self,
+        channel_id: int,
+        validation_status: schemas.DiscoveryValidationStatus | None = None,
+        indexing_status: schemas.DiscoveryIndexingStatus | None = None,
+        agency: str | None = None,
+    ) -> str:
+        """Render the channel's records as the CSV the channel export writes.
+
+        Same rows, same columns, same writer as `export_discovery_datasets_to_folder`, so
+        what this returns can be handed straight to the upload endpoint of another channel.
+
+        The columns are named explicitly rather than taken from the first row, so a filter
+        that matches nothing returns a header on its own instead of failing.
+        """
+        records = await self.get_record_models_by_channel(
+            channel_id,
+            limit=None,
+            offset=0,
+            validation_status=validation_status,
+            indexing_status=indexing_status,
+            agency=agency,
+        )
+        return utils.csv_from_dict_list(
+            self._export_rows(records),
+            fieldnames=list(schemas.DiscoveryDatasetBase.model_fields),
+        )
+
     async def import_discovery_datasets_from_zip(
-        self, zip_file: zipfile.ZipFile, channel_id: int
+        self, zip_file: zipfile.ZipFile, channel_id: int, delete_absent: bool = False
     ) -> None:
         """Load the archive's records into a channel.
 
         Always reconciles on the natural key, so this covers both a fresh channel and a
         merge into one that already holds records: re-importing the same archive is
         idempotent instead of colliding on the unique constraint.
+
+        `delete_absent` deletes the records the archive does not mention, the way a
+        `replace` upload does - including when the archive carries no records file at all,
+        which describes a channel with none.
         """
         if JobsConfig.DISCOVERY_DATASETS_FILE not in zip_file.namelist():
             _log.info("No discovery datasets found in the zip file.")
+            if delete_absent:
+                summary = await self._upsert(channel_id, [], delete_absent=True)
+                _log.info(f"Deleted {summary.deleted} discovery datasets absent from the archive.")
             return
 
         _log.info("Importing discovery datasets from zip file.")
@@ -731,5 +771,8 @@ class AdminPortalDiscoveryDatasetService(DiscoveryDatasetService):
         problems.extend(_duplicate_problems(candidates))
         _raise_for_problems(problems, self._UPLOAD_SETTINGS.max_reported_problems)
 
-        summary = await self._upsert(channel_id, candidates, delete_absent=False)
-        _log.info(f"Imported {summary.created + summary.updated} discovery datasets.")
+        summary = await self._upsert(channel_id, candidates, delete_absent=delete_absent)
+        _log.info(
+            f"Imported {summary.created + summary.updated} discovery datasets,"
+            f" deleted {summary.deleted}."
+        )

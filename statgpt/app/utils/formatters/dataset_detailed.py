@@ -5,6 +5,21 @@ from statgpt.common.data.base import CategoricalDimension, Category, DataSet
 
 from .dataset_simple import SimpleDatasetFormatter
 
+SAMPLE_VALUES_LIMIT = 10
+
+
+def sample_component_values(
+    values: Sequence[Category], limit: int = SAMPLE_VALUES_LIMIT, shuffle_sample: bool = True
+) -> Sequence[Category]:
+    """The values to show for a component: all of them when they fit within `limit`, otherwise a
+    sample of `limit` values (random by default, so the caller does not always see the same head
+    of a long list). Shared by the text formatter and the MCP structured content."""
+    if len(values) <= limit:
+        return values
+    if shuffle_sample:
+        return random.sample(values, limit)
+    return values[:limit]
+
 
 class DetailedDatasetFormatter(SimpleDatasetFormatter):
 
@@ -21,11 +36,7 @@ class DetailedDatasetFormatter(SimpleDatasetFormatter):
                 f'{self._("Total")}: {len(values)} {self._("items")}',
                 f'{self._("Values")}: {values_str}',
             ]
-        sample_values: Sequence[Category]
-        if shuffle_sample:
-            sample_values = random.sample(values, limit)
-        else:
-            sample_values = values[:limit]
+        sample_values = sample_component_values(values, limit, shuffle_sample)
         sample_values_str = self._format_values(sample_values)
         return [
             f'{self._("Total")}: {len(values)} {self._("items")}',
@@ -62,7 +73,7 @@ class DetailedDatasetFormatter(SimpleDatasetFormatter):
                 if isinstance(dim, CategoricalDimension):
                     values = dim.available_values
                     formatted_values = self._format_component_values(
-                        values, limit=10, shuffle_sample=True
+                        values, limit=SAMPLE_VALUES_LIMIT, shuffle_sample=True
                     )
                     for value in formatted_values:
                         result.append(f'{dimension_details_tabs}- {value}')

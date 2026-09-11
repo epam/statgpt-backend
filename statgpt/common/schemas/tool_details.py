@@ -242,6 +242,20 @@ class DeepResearchDetails(BaseToolDetails):
         default=None,
         description="The system prompt for the Deep Research application.",
     )
+    access_claim_value_raw: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("access_claim_value", "accessClaimValue"),
+        serialization_alias="accessClaimValue",
+        description=(
+            "Authorization role that grants access to Deep Research. Supports $env:{VAR} syntax."
+            " When unset, Deep Research is advertised and runnable for every user on a channel"
+            " that has the tool enabled. When set, the caller's DIAL roles — resolved from their"
+            " access token via DIAL's user-info endpoint — must include this value, otherwise the"
+            " toggle is hidden and the mode cannot be forced. Fails closed: if roles cannot be"
+            " resolved, access is denied. System users (used for evaluation, disabled in"
+            " production) always have access."
+        ),
+    )
     always_show_stages: bool = Field(
         default=False,
         description=(
@@ -268,6 +282,12 @@ class DeepResearchDetails(BaseToolDetails):
 
     def get_deployment_id(self) -> str:
         return config_utils.replace_env(self.deployment_id_raw)
+
+    def get_access_claim_value(self) -> str | None:
+        if self.access_claim_value_raw is None or not self.access_claim_value_raw.strip():
+            return None
+        resolved = config_utils.replace_env(self.access_claim_value_raw).strip()
+        return resolved or None
 
 
 class PublicationType(BaseYamlModel):
