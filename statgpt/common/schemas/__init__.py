@@ -67,7 +67,6 @@ from .enums import (
     DecoderOfLatestEnum,
     DiscoveryGrade,
     DiscoveryIndexingStatus,
-    DiscoveryUploadMode,
     DiscoveryValidationStatus,
     ExportScope,
     IndexerVersion,
@@ -76,6 +75,7 @@ from .enums import (
     JobType,
     PreprocessingStatusEnum,
     RAGVersion,
+    RecordUploadMode,
     ToolTypes,
 )
 from .generic_rag import (

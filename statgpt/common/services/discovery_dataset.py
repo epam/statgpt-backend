@@ -31,23 +31,31 @@ def record_key(agency: str, dataset_id: str) -> RecordKey:
     return normalize_key_part(agency), normalize_key_part(dataset_id)
 
 
-StatsRow = tuple[schemas.DiscoveryValidationStatus, schemas.DiscoveryIndexingStatus, int]
-"""One row of the grouped count query: (validation status, indexing status, count)."""
+StatsRow = tuple[schemas.DiscoveryValidationStatus, schemas.DiscoveryIndexingStatus, str, int]
+"""One row of the grouped count query: (validation status, indexing status, agency, count)."""
 
 
 def fold_stats(rows: Iterable[StatsRow]) -> schemas.DiscoveryDatasetStats:
-    """Fold grouped counts into the two breakdowns, seeded with every status at zero.
+    """Fold grouped counts into the breakdowns, seeded with every status at zero.
 
     Kept out of the service so the folding can be exercised without a session.
+
+    Agencies cannot be seeded - the values are open-ended - so they are collected as they
+    arrive and then ordered by count, largest first, ties broken by name: a caller
+    rendering a picker gets a stable list without sorting it again.
     """
     stats = schemas.DiscoveryDatasetStats(
         by_validation_status={status: 0 for status in schemas.DiscoveryValidationStatus},
         by_indexing_status={status: 0 for status in schemas.DiscoveryIndexingStatus},
     )
-    for validation_status, indexing_status, count in rows:
+    by_agency: dict[str, int] = {}
+    for validation_status, indexing_status, agency, count in rows:
         stats.total += count
         stats.by_validation_status[validation_status] += count
         stats.by_indexing_status[indexing_status] += count
+        by_agency[agency] = by_agency.get(agency, 0) + count
+
+    stats.by_agency = dict(sorted(by_agency.items(), key=lambda item: (-item[1], item[0])))
     return stats
 
 
@@ -108,21 +116,27 @@ class DiscoveryDatasetService(DbServiceBase):
             return (await session.execute(query)).scalar_one()
 
     async def get_stats(self, channel_id: int) -> schemas.DiscoveryDatasetStats:
-        """Count the channel's records per validation and indexing status.
+        """Count the channel's records per validation status, indexing status and agency.
 
         One grouped query rather than a count per status: the caller wants the whole
         breakdown, and the alternative is a round trip per enum member.
+
+        Agencies are grouped by the generated `agency_key`, and one stored spelling per key
+        is reported, so every agency in the result is a value the `agency` filter matches -
+        which is the point of publishing them.
         """
         query = (
             select(
                 models.DiscoveryDataset.validation_status,
                 models.DiscoveryDataset.indexing_status,
+                func.min(models.DiscoveryDataset.agency),
                 func.count("*"),
             )
             .where(*self._filters(channel_id))
             .group_by(
                 models.DiscoveryDataset.validation_status,
                 models.DiscoveryDataset.indexing_status,
+                models.DiscoveryDataset.agency_key,
             )
         )
         async with self._lock_session() as session:

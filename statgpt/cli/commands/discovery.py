@@ -24,11 +24,7 @@ from statgpt.cli.shared import (
     select_channel,
     spinner_status,
 )
-from statgpt.common.schemas import (
-    DiscoveryIndexingJob,
-    DiscoveryUploadMode,
-    PreprocessingStatusEnum,
-)
+from statgpt.common.schemas import DiscoveryIndexingJob, PreprocessingStatusEnum, RecordUploadMode
 
 POLL_INTERVAL = 1  # seconds
 
@@ -53,10 +49,10 @@ async def _select_file_interactive() -> str | None:
 async def upload_handler(
     channel: str | None = None,
     file: str | None = None,
-    mode: str = DiscoveryUploadMode.UPSERT.value,
+    mode: str = RecordUploadMode.UPSERT.value,
 ) -> None:
     """Upload a discovery datasets workbook or CSV to a channel."""
-    upload_mode = DiscoveryUploadMode(mode)
+    upload_mode = RecordUploadMode(mode)
 
     async with get_admin_client() as client:
         selected_channel = await select_channel(client, channel)
@@ -73,7 +69,7 @@ async def upload_handler(
             print_error(f"File not found: {file}")
             return
 
-        if upload_mode is DiscoveryUploadMode.REPLACE and not confirm_interactive(
+        if upload_mode is RecordUploadMode.REPLACE and not confirm_interactive(
             f"Replace mode deletes records absent from the file. Continue with"
             f" {selected_channel.deployment_id}?",
             default=False,
@@ -206,8 +202,8 @@ upload_command = Command(
                 "How the file is reconciled with the channel's records:"
                 " upsert keeps records the file does not mention, replace deletes them"
             ),
-            choices=[mode.value for mode in DiscoveryUploadMode],
-            default=DiscoveryUploadMode.UPSERT.value,
+            choices=[mode.value for mode in RecordUploadMode],
+            default=RecordUploadMode.UPSERT.value,
         ),
     ],
 )

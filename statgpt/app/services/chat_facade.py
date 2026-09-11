@@ -10,6 +10,7 @@ from aidial_sdk.chat_completion.form import Button, FormMetaclass
 from aidial_sdk.pydantic.v2 import ConfigDict as DialConfigDict
 from aidial_sdk.pydantic.v2 import Field as DialField
 from pydantic import BaseModel, ConfigDict, Field, computed_field
+from pydantic.fields import FieldInfo
 
 import statgpt.common.models as models
 import statgpt.common.schemas as schemas
@@ -199,6 +200,8 @@ class VersionedDataSet:
 
 
 class BaseChannelConfiguration(BaseModel, metaclass=FormMetaclass):
+    """Fields advertised to every caller, on every channel."""
+
     model_config = DialConfigDict(chat_message_input_disabled=False)
 
     timezone: str = DialField(
@@ -206,26 +209,30 @@ class BaseChannelConfiguration(BaseModel, metaclass=FormMetaclass):
         "Used to interpret and display dates and times.",
         default="UTC",
     )
-    enable_debug_attachments: bool = DialField(
-        description="Enable debug attachments in the chat responses.",
-        default=dial_app_settings.dial_show_debug_attachments,
-    )
 
 
-class DeepResearchChannelConfiguration(BaseChannelConfiguration):
-    """Configuration variant that advertises the Deep Research toggle.
+def _build_channel_configuration_cls(
+    optional_fields: dict[str, tuple[Any, FieldInfo]],
+) -> type[BaseChannelConfiguration]:
+    """Build the advertised configuration model from the fields a request may expose.
 
-    Used only for channels that have the Deep Research tool configured, so the
-    frontend renders the control exclusively where the capability is available.
+    Each entry maps a field name to its `(annotation, DialField(...))` pair; the fields are
+    appended, in order, after those of `BaseChannelConfiguration`. Building the class instead
+    of declaring one variant per combination keeps the gates independent of each other.
+
+    `model_config` has to be repeated here: `FormMetaclass` reads it from the class namespace
+    only, so a subclass that omits it drops `dial:chatMessageInputDisabled` from the schema.
+    That is also why `pydantic.create_model` is unusable - it refuses `__config__` alongside
+    `__base__`, and offers no other way into the namespace.
     """
-
-    model_config = DialConfigDict(chat_message_input_disabled=False)
-
-    deep_research: bool = DialField(
-        title="Deep research",
-        description="Run the request in Deep Research mode.",
-        default=DEEP_RESEARCH_TOGGLE_DEFAULT,
-    )
+    namespace: dict[str, Any] = {
+        "__module__": __name__,
+        "__qualname__": "StatGPTConfiguration",
+        "model_config": DialConfigDict(chat_message_input_disabled=False),
+        "__annotations__": {name: ann for name, (ann, _) in optional_fields.items()},
+    }
+    namespace.update({name: field for name, (_, field) in optional_fields.items()})
+    return FormMetaclass("StatGPTConfiguration", (BaseChannelConfiguration,), namespace)  # type: ignore[return-value]
 
 
 class ChannelServiceFacade:
@@ -295,19 +302,43 @@ class ChannelServiceFacade:
         return self._channel.details
 
     async def get_dial_channel_configuration(self, auth_context: AuthContext) -> dict[str, Any]:
-        base_configuration_cls: type[BaseChannelConfiguration] = (
-            DeepResearchChannelConfiguration
-            if self.channel_config.is_deep_research_available
-            else BaseChannelConfiguration
-        )
+        optional_fields: dict[str, tuple[Any, FieldInfo]] = {}
 
+        if dial_app_settings.dial_allow_debug_attachments_toggle:
+            optional_fields["enable_debug_attachments"] = (
+                bool,
+                DialField(
+                    description="Enable debug attachments in the chat responses.",
+                    default=dial_app_settings.dial_show_debug_attachments,
+                ),
+            )
+
+        if await self.channel_config.is_deep_research_available_for(auth_context):
+            optional_fields["deep_research"] = (
+                bool,
+                DialField(
+                    title="Deep research",
+                    description="Run the request in Deep Research mode.",
+                    default=DEEP_RESEARCH_TOGGLE_DEFAULT,
+                ),
+            )
+
+        starter = await self._build_conversation_starter_field(auth_context)
+        if starter is not None:
+            optional_fields["starter"] = (int | None, starter)
+
+        return _build_channel_configuration_cls(optional_fields).model_json_schema()
+
+    async def _build_conversation_starter_field(
+        self, auth_context: AuthContext
+    ) -> FieldInfo | None:
+        """Build the `starter` buttons field, or None when the channel has no starters."""
         conversation_starters_config = self.channel_config.conversation_starters
         if conversation_starters_config is None:
             _log.info(
                 f"No conversation starters configuration found for channel {self._channel.title}"
             )
-
-            return base_configuration_cls.model_json_schema()
+            return None
 
         _log.info(
             f"Conversation starters configuration found for channel {self._channel.title}, {conversation_starters_config=}"
@@ -342,12 +373,7 @@ class ChannelServiceFacade:
         if input_placeholder is not None:
             other_fields["json_schema_extra"] = {"statgpt:inputPlaceholder": input_placeholder}
 
-        class StatGPTConfiguration(base_configuration_cls):  # type: ignore[misc,valid-type]
-            starter: int | None = DialField(
-                default=None, description=intro_text, buttons=buttons, **other_fields
-            )
-
-        return StatGPTConfiguration.model_json_schema()
+        return DialField(default=None, description=intro_text, buttons=buttons, **other_fields)
 
     def get_named_entity_types(self) -> list[str]:
         return self.channel_config.list_named_entity_types()

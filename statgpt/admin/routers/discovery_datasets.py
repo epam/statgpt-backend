@@ -11,7 +11,7 @@ collection, while a single record is addressed globally under `/discovery-datase
 
 from typing import Any
 
-from fastapi import APIRouter, BackgroundTasks, Depends, UploadFile, status
+from fastapi import APIRouter, BackgroundTasks, Depends, Response, UploadFile, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 import statgpt.common.models as models
@@ -19,7 +19,9 @@ import statgpt.common.schemas as schemas
 from statgpt.admin.auth.user import require_jwt_auth
 from statgpt.admin.services import AdminPortalDiscoveryDatasetService as DiscoveryDatasetService
 from statgpt.admin.services import AdminPortalDiscoveryIndexingJobService as IndexingJobService
+from statgpt.admin.settings.exim import JobsConfig
 from statgpt.common.models import get_session_context_manager
+from statgpt.common.utils import MediaTypes
 from statgpt.common.utils.cancel_dependency import cancel_on_disconnect
 
 channel_discovery_datasets_router = APIRouter(
@@ -91,6 +93,45 @@ async def get_channel_discovery_dataset_stats(
     return await DiscoveryDatasetService(session).get_stats(channel_id)
 
 
+@channel_discovery_datasets_router.get(
+    "/export",
+    response_class=Response,
+    responses={status.HTTP_200_OK: {"content": {MediaTypes.CSV: {}}}},
+)
+async def export_channel_discovery_datasets(
+    channel_id: int,
+    validation_status: schemas.DiscoveryValidationStatus | None = None,
+    indexing_status: schemas.DiscoveryIndexingStatus | None = None,
+    agency: str | None = None,
+    session: AsyncSession = Depends(models.get_session),
+    _=Depends(cancel_on_disconnect),
+) -> Response:
+    """Download the channel's discovery datasets as the CSV the channel export writes.
+
+    Byte-for-byte the archive's `discovery_datasets.csv`, so the download goes straight
+    into `POST /{channel_id}/discovery-datasets/upload` on another channel. Only the
+    descriptive fields are exported: validation and indexing state belong to the channel
+    that holds the record, and are re-derived by the next indexing job.
+
+    The filters are the list endpoint's, with the same semantics, so an admin can export
+    exactly the slice they are looking at; with none supplied the whole channel is
+    exported. A slice that matches nothing is a CSV with only its header.
+
+    Synchronous, unlike the channel export: one channel's records are small enough to
+    return in the response, so there is no job to poll.
+    """
+    csv_content = await DiscoveryDatasetService(session).export_discovery_datasets_to_csv(
+        channel_id, validation_status, indexing_status, agency
+    )
+    return Response(
+        content=csv_content,
+        media_type=MediaTypes.CSV,
+        headers={
+            "Content-Disposition": (f'attachment; filename="{JobsConfig.DISCOVERY_DATASETS_FILE}"')
+        },
+    )
+
+
 @channel_discovery_datasets_router.post("")
 async def add_discovery_dataset_to_channel(
     channel_id: int,
@@ -134,7 +175,7 @@ async def clear_channel_discovery_datasets(
 async def upload_discovery_datasets(
     channel_id: int,
     file: UploadFile,
-    mode: schemas.DiscoveryUploadMode = schemas.DiscoveryUploadMode.UPSERT,
+    mode: schemas.RecordUploadMode = schemas.RecordUploadMode.UPSERT,
     session: AsyncSession = Depends(models.get_session),
 ) -> schemas.DiscoveryUploadSummary:
     """Load a filled discovery workbook (.xlsx) or CSV into the channel.
