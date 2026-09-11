@@ -249,6 +249,15 @@ class McpConfig(BaseYamlModel):
             " Empty (the default) disables the feature."
         ),
     )
+    enforce_marketplace_policy: bool = Field(
+        default=False,
+        description=(
+            "Opt this channel into the marketplace-policy lint of its model-visible tool"
+            " metadata (names and descriptions). Enable on channels published to an MCP"
+            " marketplace so a ban-list check can flag selection-manipulating language;"
+            " leave off for internal channels whose descriptions steer the Supreme Agent."
+        ),
+    )
 
     @field_validator("resources")
     @classmethod
