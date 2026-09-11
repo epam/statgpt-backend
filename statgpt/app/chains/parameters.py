@@ -78,6 +78,10 @@ class ChainParameters:
         the annotations of concurrently running sub-deployments do not reuse each other's
         indexes. It is kept here rather than in ``state`` because the state is persisted into
         the response and the SDK's chunk-merge rewrites the ``index`` keys of any list it holds.
+
+        Scaffolding, not a permanent parameter: it stands in for the counter the SDK's ``Choice``
+        already owns for stages and attachments but not for annotations. See the module docstring
+        of ``statgpt.app.utils.dial_annotations``.
         """
         return data[ChainParametersConfig.ANNOTATION_INDEX_SPACE]
 

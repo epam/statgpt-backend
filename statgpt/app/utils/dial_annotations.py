@@ -4,6 +4,21 @@ An annotation claims a `<cit data-id="...">` marker tag in the message text and 
 tag cites: the file, its page, and the label of the pill the client draws in its place. A tag no
 annotation claims is rendered as literal text, so the array has to reach the reader for the
 citations to appear.
+
+This module is a stand-in for an SDK method that does not exist yet, and is meant to be deleted
+rather than maintained. `Choice` numbers every child it knows about from its own counter —
+`create_stage` from `_last_stage_index`, `add_attachment` from `_last_attachment_index` — which
+is why `OpenAiToDialStreamer._process_stage` and `_process_attachment` hand over a payload and
+never an index. `aidial_sdk` (pinned `>=0.39.0,<0.40.0`) has no concept of an annotation, so
+there is no counter to borrow and no method to hand the array to.
+
+If the SDK grows a `Choice.add_annotation`, delete this module together with
+`AnnotationIndexSpace` and everything that threads it (`ChainParametersConfig`, the
+`ChainParameters` accessor, the streamer's constructor argument, and the two entry points that
+create the counter), and call the method from `_process_annotations` the way
+`_process_attachment` already calls `add_attachment`. That also returns the two things this
+workaround gives up: the `opened`/`closed` guard that `send_chunk` skips, and a real `NullChoice`
+no-op in place of the `isinstance` test in `send_annotations` below.
 """
 
 import logging

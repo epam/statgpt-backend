@@ -15,6 +15,12 @@ from statgpt.common.utils.token_usage_context import get_token_usage_manager
 # created with `itertools.count()` and shared by every streamer of that response: see
 # `OpenAiToDialStreamer._renumber_annotation`. A counter rather than a map keyed by streamer,
 # so that the shared object outlives no streamer and none of their buffered reports.
+#
+# It exists only because the SDK owns no annotation index. `Choice` numbers stages and
+# attachments from its own counters, which is why `_process_stage` and `_process_attachment`
+# below pass a payload and never an index; annotations have no such method, so the numbering
+# falls to us. A `Choice.add_annotation` upstream would delete this alias and everything that
+# threads it — see the module docstring of `dial_annotations` for the full list.
 AnnotationIndexSpace = Iterator[int]
 
 
