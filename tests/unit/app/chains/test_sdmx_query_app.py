@@ -4,12 +4,10 @@ import httpx
 import pytest
 from pydantic import ValidationError
 
-from statgpt.app.chains import sdmx_query_app_tool as sdmx_module
-from statgpt.app.chains.sdmx_query_app_tool import SdmxQueryAppArgs
-from statgpt.app.chains.sdmx_query_app_tool import SdmxQueryAppTool as SdmxQueryAppChainTool
+from statgpt.app.chains import sdmx_query_app as sdmx_module
+from statgpt.app.chains.sdmx_query_app import SdmxQueryAppArgs, SdmxQueryAppProxy
 from statgpt.app.chains.tools import ToolUpstreamError
 from statgpt.common.schemas.tool_details import SdmxQueryAppDetails
-from statgpt.common.schemas.tools import SdmxQueryAppTool as SdmxQueryAppToolConfig
 
 
 def _args(**kwargs) -> SdmxQueryAppArgs:
@@ -105,18 +103,8 @@ class TestUpstreamErrorScrubbing:
     """A backend connection failure is raised as an internals-free ``ToolUpstreamError``;
     the underlying error (which can name the internal endpoint) stays in the server log only."""
 
-    def _tool(self) -> SdmxQueryAppChainTool:
-        config = SdmxQueryAppToolConfig(
-            name="sdmx_query_app",
-            description="passthrough",
-            details=SdmxQueryAppDetails(base_url_raw="https://sdmx-internal.svc/api"),
-        )
-        return SdmxQueryAppChainTool(
-            tool_config=config,
-            channel_config=SimpleNamespace(),  # type: ignore[arg-type]
-            name="sdmx_query_app",
-            description="passthrough",
-        )
+    def _proxy(self) -> SdmxQueryAppProxy:
+        return SdmxQueryAppProxy(SdmxQueryAppDetails(base_url_raw="https://sdmx-internal.svc/api"))
 
     async def test_connection_error_does_not_leak_endpoint(self, monkeypatch):
         class _FakeClient:
@@ -128,7 +116,7 @@ class TestUpstreamErrorScrubbing:
         )
 
         with pytest.raises(ToolUpstreamError) as exc_info:
-            await self._tool()._arun(inputs={}, path="/data")
+            await self._proxy().forward(path="/data")
 
         message = str(exc_info.value)
         assert message == "The SDMX backend could not be reached."

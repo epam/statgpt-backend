@@ -8,7 +8,7 @@ import httpx
 import pytest
 
 from statgpt.cli.shared.admin_client import AdminAPIError, AdminClient, DiscoveryPayloadError
-from statgpt.common.schemas import DiscoveryIndexingStatus, DiscoveryUploadMode
+from statgpt.common.schemas import DiscoveryIndexingStatus, RecordUploadMode
 
 _CHANNEL_ID = 7
 
@@ -31,6 +31,7 @@ async def test_stats_are_requested_per_channel_and_parsed() -> None:
         "total": 3,
         "by_validation_status": {"VALID": 2, "INVALID": 1, "NOT_VALIDATED": 0},
         "by_indexing_status": {"INDEXED": 2, "NEW": 1, "OUTDATED": 0, "FAILED": 0},
+        "by_agency": {"IMF": 2, "OECD": 1},
     }
     client, requests = _client(lambda request: httpx.Response(200, json=payload))
 
@@ -39,6 +40,18 @@ async def test_stats_are_requested_per_channel_and_parsed() -> None:
     assert requests[0].url.path == "/admin/api/v1/channels/7/discovery-datasets/stats"
     assert stats.total == 3
     assert stats.by_indexing_status[DiscoveryIndexingStatus.INDEXED] == 2
+    assert stats.by_agency == {"IMF": 2, "OECD": 1}
+
+
+@pytest.mark.asyncio
+async def test_stats_without_an_agency_breakdown_still_parse() -> None:
+    """An admin API predating the breakdown must not break the CLI's status report."""
+    payload = {"total": 0}
+    client, _ = _client(lambda request: httpx.Response(200, json=payload))
+
+    stats = await client.get_discovery_stats(_CHANNEL_ID)
+
+    assert stats.by_agency == {}
 
 
 @pytest.mark.asyncio
@@ -51,7 +64,7 @@ async def test_upload_posts_the_file_with_its_name_and_mode(tmp_path) -> None:
     client, requests = _client(lambda request: httpx.Response(200, json=summary))
 
     result = await client.upload_discovery_datasets(
-        _CHANNEL_ID, str(file), DiscoveryUploadMode.REPLACE
+        _CHANNEL_ID, str(file), RecordUploadMode.REPLACE
     )
 
     request = requests[0]
