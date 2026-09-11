@@ -130,10 +130,14 @@ async def test_empty_text_yields_no_content_block(monkeypatch):
 
 
 async def test_tool_failure_raises_tool_error(monkeypatch):
+    # Unexpected failures map to the internal-error class, and the internal detail ("boom") is
+    # scrubbed from the caller-visible message.
     _fake_langchain_tool(monkeypatch, error=RuntimeError("boom"))
 
-    with pytest.raises(ToolError, match="failed to execute"):
+    with pytest.raises(ToolError, match="Internal error") as exc_info:
         await _build().run({})
+
+    assert "boom" not in str(exc_info.value)
 
 
 async def test_upstream_error_surfaces_its_message(monkeypatch):
@@ -148,7 +152,7 @@ async def test_invalid_arguments_raise_tool_error_naming_the_field(monkeypatch):
     # that must surface a concise ToolError naming the field so the caller can correct the request.
     fake = _fake_langchain_tool(monkeypatch)
 
-    with pytest.raises(ToolError, match="Invalid arguments") as exc_info:
+    with pytest.raises(ToolError, match="Invalid input") as exc_info:
         await _build(DatasetsMetadataTool(name="meta", description="Metadata.")).run({})
 
     assert "query" in str(exc_info.value)
@@ -161,7 +165,7 @@ async def test_invalid_arguments_are_rejected_before_the_guardrail_runs(monkeypa
     guardrail = AsyncMock()
     monkeypatch.setattr("statgpt.app.mcp.tools.base.enforce_input_guardrail", guardrail)
 
-    with pytest.raises(ToolError, match="Invalid arguments"):
+    with pytest.raises(ToolError, match="Invalid input"):
         await _build(DatasetsMetadataTool(name="meta", description="Metadata.")).run({"query": 42})
 
     guardrail.assert_not_called()

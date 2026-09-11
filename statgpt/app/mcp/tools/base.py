@@ -19,9 +19,10 @@ from fastmcp.apps import AppConfig, app_config_to_meta_dict
 from fastmcp.exceptions import ToolError
 from fastmcp.tools import Tool, ToolResult
 from mcp.types import ContentBlock, TextContent, ToolAnnotations
-from pydantic import BaseModel, PrivateAttr, ValidationError
+from pydantic import BaseModel, PrivateAttr
 
-from statgpt.app.chains.tools import StatGptTool, ToolArgs, ToolUpstreamError
+from statgpt.app.chains.tools import StatGptTool, ToolArgs
+from statgpt.app.mcp.errors import to_tool_error
 from statgpt.app.mcp.guardrails import enforce_input_guardrail
 from statgpt.app.mcp.output_schema import model_to_output_schema
 from statgpt.common.auth.auth_context import AuthContext
@@ -135,37 +136,31 @@ class StatGptMcpTool(Tool, ABC, Generic[ToolConfigType, ArgsType]):
     # ~~~~~~~~~~~~~ cross-cutting ~~~~~~~~~~~~~
 
     async def run(self, arguments: dict[str, Any]) -> ToolResult:
-        # Validate first: it is cheap, fails fast, and guarantees the guardrail below screens a
-        # real string. A concise message names the offending field instead of a generic failure.
         try:
+            # Validate first: it is cheap, fails fast, guarantees the guardrail below screens a
+            # real string, and a malformed request never costs a guardrail LLM call.
             args = self._args_schema.model_validate({**arguments, "inputs": self._inputs})
-        except ValidationError as e:
-            _log.debug("Invalid arguments for MCP tool %s: %s", self.name, e)
-            raise ToolError(f"Invalid arguments for {self.name}: {e}") from e
 
-        # Screen arbitrary free-text input with the out-of-scope guardrail before executing. The
-        # validated arguments are screened (not the raw request), so the guardrail sees exactly
-        # what the tool will run with. Raised ToolError propagates to the MCP client unchanged.
-        await enforce_input_guardrail(
-            self.name,
-            self._args_schema.get_guardrail_input(args.model_dump(exclude={"inputs"})),
-            self._channel_config,
-            self._auth_context,
-        )
+            # Screen arbitrary free-text input with the out-of-scope guardrail before executing.
+            # The validated arguments are screened (not the raw request), so the guardrail sees
+            # exactly what the tool will run with.
+            await enforce_input_guardrail(
+                self.name,
+                self._args_schema.get_guardrail_input(args.model_dump(exclude={"inputs"})),
+                self._channel_config,
+                self._auth_context,
+            )
 
-        try:
             result = await self._execute(args)
         except ToolError:
+            # A guardrail rejection (or a ToolError raised deliberately downstream) is already the
+            # actionable, internals-free message we want the caller to see. Pass it through.
             raise
-        except ToolUpstreamError as e:
-            # Upstream dependency failure (connection/timeout): surface the specific message.
-            _log.warning("Upstream error in MCP tool %s: %s", self.name, e)
-            raise ToolError(str(e)) from e
-        except Exception:
-            # Catch-all for unexpected errors. Known error cases should return proper content or
-            # raise a custom exception caught in a dedicated except block above this one.
-            _log.exception("Error executing MCP tool %s", self.name)
-            raise ToolError(f"{self.name} tool failed to execute")
+        except Exception as e:
+            # Translate any validation, execution or response-assembly error into an actionable,
+            # internals-free ToolError via the shared taxonomy (see statgpt.app.mcp.errors). The
+            # whole body is wrapped so a failure while building the result cannot leak either.
+            raise to_tool_error(e, tool_name=self.name) from e
 
         _log.info(
             "Sending MCP tool %s response: %d content block(s), structured_content=%s",

@@ -10,4 +10,9 @@ mcp = FastMCP(
         "and more. Tools are channel-specific and depend on the deployment configuration."
     ),
     providers=[channel_tool_provider],
+    # Defense-in-depth: only text from an explicitly raised ToolError reaches the caller.
+    # The tool adapter already funnels failures through the actionable-error taxonomy
+    # (see statgpt.app.mcp.errors); masking guarantees any error escaping that path is
+    # not surfaced as a bare, internals-bearing message.
+    mask_error_details=True,
 )
