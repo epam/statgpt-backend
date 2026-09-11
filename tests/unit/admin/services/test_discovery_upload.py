@@ -179,8 +179,12 @@ def test_whitespace_is_normalized() -> None:
     assert parsed.rows[0].values["agency"] == "Bank Indonesia (BI)"
 
 
-def test_blank_rows_are_skipped_without_stopping_the_scan() -> None:
-    """The template ships ~300 formatted-but-empty rows between and after the data."""
+def test_blank_rows_are_dropped_without_stopping_the_scan() -> None:
+    """The template ships ~300 formatted-but-empty rows between and after the data.
+
+    They are not data, so they are dropped silently rather than reported as skipped: a
+    count inflated by template formatting only misleads whoever reads the upload summary.
+    """
     blank: list = [None] * len(_DATASETS_HEADERS)
     whitespace_only = [" "] * len(_DATASETS_HEADERS)
     second = list(_ROW)
@@ -191,7 +195,6 @@ def test_blank_rows_are_skipped_without_stopping_the_scan() -> None:
     )
 
     assert [row.values["dataset_id"] for row in parsed.rows] == ["TABEL1_1", "TABEL1_2"]
-    assert parsed.rows_skipped == 3
     # Row numbers still point at the real spreadsheet rows.
     assert [row.row_number for row in parsed.rows] == [2, 5]
 
