@@ -255,6 +255,7 @@ class DialRagAgentFactory(BaseRAGFactory):
             stream_content=False,
             show_debug_stages=state.get(StateVarsConfig.SHOW_DEBUG_STAGES, False),
             stages_config=self._tool_config.details.stages_config,
+            annotation_index_space=ChainParameters.get_annotation_index_space(inputs),
         )
 
         with dial_streamer:
