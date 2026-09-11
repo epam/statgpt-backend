@@ -15,6 +15,7 @@ from statgpt.common.config.utils import replace_env
 
 from .base import BaseYamlModel, SystemUserPrompt
 from .enums import (
+    ExplorerLinkPolicy,
     IndexerVersion,
     IndicatorSelectionVersion,
     InvocationSource,
@@ -246,6 +247,33 @@ class DataQueryMcpResources(BaseYamlModel):
             " is what instructs the model to reproduce the table for the user."
         ),
     )
+
+
+class DataQueryExplorerLink(BaseYamlModel):
+    """When each surface of the data query response carries the data explorer deep link.
+
+    The three surfaces are configured separately because they have different audiences: the
+    stage is read by the user, who may well want to go and look at the source, while the tool
+    response is read by the model, which tends to copy any link it is given into its answer.
+    The defaults reproduce the behavior that predates this config - the link everywhere.
+    """
+
+    stage: ExplorerLinkPolicy = Field(
+        default=ExplorerLinkPolicy.always,
+        description="Policy for the user-facing DIAL stage. Not used on the MCP path, which has no stages.",
+    )
+    agent: ExplorerLinkPolicy = Field(
+        default=ExplorerLinkPolicy.always,
+        description="Policy for the tool response the Supreme Agent reads.",
+    )
+    mcp: ExplorerLinkPolicy = Field(
+        default=ExplorerLinkPolicy.always,
+        description="Policy for the tool response returned to an MCP client.",
+    )
+
+    def for_source(self, source: InvocationSource) -> ExplorerLinkPolicy:
+        """The policy for the tool response, given the flow the call belongs to."""
+        return self.mcp if source is InvocationSource.MCP else self.agent
 
 
 class DataQueryLLMModels(BaseYamlModel):
@@ -507,6 +535,10 @@ class DataQueryDetails(BaseToolDetails):
     messages: DataQueryMessages = Field(default_factory=DataQueryMessages)  # type: ignore
     attachments: DataQueryAttachments = Field(default_factory=DataQueryAttachments)  # type: ignore
     mcp_resources: DataQueryMcpResources = Field(default_factory=DataQueryMcpResources)
+    explorer_link: DataQueryExplorerLink = Field(
+        default_factory=DataQueryExplorerLink,
+        description="When the data explorer deep link is rendered, per output surface.",
+    )
     pipeline_stage_names: DataQueryStageNames = Field(default_factory=DataQueryStageNames)
     allow_auto_update: bool = Field(
         default=False,
