@@ -1,3 +1,4 @@
+import itertools
 import json
 from unittest.mock import Mock
 
@@ -150,6 +151,7 @@ class TestStreamerStateCapture:
             deployment="d",
             show_debug_stages=False,
             stages_config=Mock(),
+            annotation_index_space=itertools.count(),
             stream_content=True,
         )
 
