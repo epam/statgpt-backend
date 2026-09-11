@@ -208,7 +208,7 @@ class DeepResearchRunner:
                     stream_content=False,
                     show_debug_stages=show_debug_stages,
                     stages_config=details.stages_config,
-                    annotation_indexes=ChainParameters.get_annotation_indexes(inputs),
+                    annotation_index_space=ChainParameters.get_annotation_index_space(inputs),
                 )
                 with dial_streamer:
                     stream = await client.chat.completions.create(**create_kwargs)

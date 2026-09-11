@@ -20,7 +20,7 @@ class ChainParametersConfig:
     START_OF_REQUEST = "start_of_request"
     CONFIGURATION = "configuration"
     INVOCATION_SOURCE = "invocation_source"
-    ANNOTATION_INDEXES = "annotation_indexes"
+    ANNOTATION_INDEX_SPACE = "annotation_index_space"
 
     TARGET_PREFILTER = "target_prefilter"
     TARGET_CURRENT_DATE = "target_current_date"

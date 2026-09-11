@@ -6,6 +6,9 @@ so the client can turn each claimed tag into a citation pill instead of showing 
 """
 
 import asyncio
+import gc
+import itertools
+import weakref
 from typing import Any
 from unittest.mock import Mock
 
@@ -15,7 +18,7 @@ from openai.types.chat import ChatCompletionChunk
 
 from statgpt.app.utils.dial_annotations import send_annotations
 from statgpt.app.utils.dial_stages import NullChoice
-from statgpt.app.utils.openai_to_dial_streamer import AnnotationIndexes, OpenAiToDialStreamer
+from statgpt.app.utils.openai_to_dial_streamer import AnnotationIndexSpace, OpenAiToDialStreamer
 
 
 def _annotation(index: int | None, tag_id: str = "cit-1", page: int = 3) -> dict[str, Any]:
@@ -87,15 +90,16 @@ def _relayed(choice: Choice) -> list[tuple[str, int]]:
 
 
 def _streamer(
-    choice: Choice, annotation_indexes: AnnotationIndexes, target: Any = None
+    choice: Choice, index_space: AnnotationIndexSpace | None = None, target: Any = None
 ) -> OpenAiToDialStreamer:
+    """A streamer on `choice`. Pass `index_space` to share one counter between streamers."""
     return OpenAiToDialStreamer(
         target if target is not None else choice,
         choice,
         deployment="deep-research",
         show_debug_stages=False,
         stages_config=Mock(debug_only=True),
-        annotation_indexes=annotation_indexes,
+        annotation_index_space=index_space if index_space is not None else itertools.count(),
     )
 
 
@@ -145,16 +149,14 @@ class TestStreamerRelaysAnnotations:
     def test_relays_every_field_unchanged(self):
         choice = _open_choice()
         annotation = _annotation(0)
-        _streamer(choice, {})._process_custom_content({"annotations": [annotation]})
+        _streamer(choice)._process_custom_content({"annotations": [annotation]})
 
         assert _sent_annotations(choice) == [annotation]
 
     def test_relays_to_the_choice_and_not_to_the_target_stage(self):
         choice = _open_choice()
         stage = Mock()
-        _streamer(choice, {}, target=stage)._process_custom_content(
-            {"annotations": [_annotation(0)]}
-        )
+        _streamer(choice, target=stage)._process_custom_content({"annotations": [_annotation(0)]})
 
         assert len(_sent_annotations(choice)) == 1
         stage.send_chunk.assert_not_called()
@@ -163,13 +165,13 @@ class TestStreamerRelaysAnnotations:
         """`custom_content` is not part of the OpenAI schema; the whole array has to come
         through `ChatCompletionChunk` parsing for the relay to have anything to send."""
         choice = _open_choice()
-        _streamer(choice, {}).send_chunk(_chunk([_annotation(0)]))
+        _streamer(choice).send_chunk(_chunk([_annotation(0)]))
 
         assert _sent_annotations(choice) == [_annotation(0)]
 
     def test_custom_content_without_annotations_sends_nothing(self):
         choice = _open_choice()
-        _streamer(choice, {})._process_custom_content({"state": {"research_started": True}})
+        _streamer(choice)._process_custom_content({"state": {"research_started": True}})
 
         assert _sent_annotations(choice) == []
 
@@ -179,13 +181,13 @@ class TestAnnotationIndexSpace:
         """Two tool calls of one response write to the one choice of that response, and each
         sub-deployment numbers its own annotations from zero. Sharing one index space keeps the
         pills of one from swallowing the pills of the other."""
-        indexes: AnnotationIndexes = {}
+        index_space = itertools.count()
         choice = _open_choice()
 
-        _streamer(choice, indexes)._process_custom_content(
+        _streamer(choice, index_space)._process_custom_content(
             {"annotations": [_annotation(0, tag_id="dr-1"), _annotation(1, tag_id="dr-2")]}
         )
-        _streamer(choice, indexes)._process_custom_content(
+        _streamer(choice, index_space)._process_custom_content(
             {"annotations": [_annotation(0, tag_id="rag-1")]}
         )
 
@@ -194,10 +196,10 @@ class TestAnnotationIndexSpace:
     def test_interleaved_streamers_produce_non_overlapping_indexes(self):
         """The two tool calls run concurrently, so their deltas reach the shared choice
         interleaved. Every annotation of the response must still end up with its own index."""
-        indexes: AnnotationIndexes = {}
+        index_space = itertools.count()
         choice = _open_choice()
-        deep_research = _streamer(choice, indexes)
-        rag = _streamer(choice, indexes)
+        deep_research = _streamer(choice, index_space)
+        rag = _streamer(choice, index_space)
 
         deep_research._process_custom_content({"annotations": [_annotation(0, tag_id="dr-1")]})
         rag._process_custom_content({"annotations": [_annotation(0, tag_id="rag-1")]})
@@ -211,9 +213,9 @@ class TestAnnotationIndexSpace:
     def test_one_streamer_keeps_an_index_stable_across_deltas(self):
         """The sub-deployment may re-send an annotation to extend it; the same incoming index
         must keep resolving to the same outgoing one, or the client would store two entries."""
-        indexes: AnnotationIndexes = {}
+        index_space = itertools.count()
         choice = _open_choice()
-        streamer = _streamer(choice, indexes)
+        streamer = _streamer(choice, index_space)
 
         streamer._process_custom_content({"annotations": [_annotation(0)]})
         streamer._process_custom_content({"annotations": [_annotation(1, tag_id="cit-2")]})
@@ -222,9 +224,25 @@ class TestAnnotationIndexSpace:
         assert [a["index"] for a in _sent_annotations(choice)] == [0, 1, 0]
 
     def test_an_index_less_annotation_stays_index_less(self):
-        indexes: AnnotationIndexes = {}
+        index_space = itertools.count()
         choice = _open_choice()
-        _streamer(choice, indexes)._process_custom_content({"annotations": [_annotation(None)]})
+        _streamer(choice, index_space)._process_custom_content({"annotations": [_annotation(None)]})
 
         assert _sent_annotations(choice) == [_annotation(None)]
-        assert indexes == {}
+        assert next(index_space) == 0, "an index-less annotation consumes no index"
+
+    def test_the_index_space_does_not_retain_a_streamer(self):
+        """Why the index space is a counter rather than a map keyed by streamer: it lives for
+        the whole response, and a streamer holds its sub-deployment's buffered report, its
+        attachments and its stages. Keying on the streamer would pin all of that until the
+        response ends, however many tool calls the turn makes."""
+        index_space = itertools.count()
+        choice = _open_choice()
+        streamer = _streamer(choice, index_space)
+        streamer._process_custom_content({"annotations": [_annotation(0)]})
+        collected = weakref.ref(streamer)
+
+        del streamer
+        gc.collect()
+
+        assert collected() is None

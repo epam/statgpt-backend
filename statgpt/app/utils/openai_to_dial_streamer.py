@@ -1,4 +1,5 @@
 import json
+from collections.abc import Iterator
 from typing import Any
 
 from aidial_sdk.chat_completion import Stage
@@ -10,10 +11,11 @@ from statgpt.common.schemas import StagesConfig
 from statgpt.common.schemas.token_usage import TokenUsageItem
 from statgpt.common.utils.token_usage_context import get_token_usage_manager
 
-# Maps (streamer, the index a sub-deployment gave one of its annotations) to the index this
-# response gives that annotation. One dict per response, shared by every streamer of that
-# response: see `OpenAiToDialStreamer._renumber_annotation`.
-AnnotationIndexes = dict[tuple["OpenAiToDialStreamer", int], int]
+# Hands out the index this response gives a relayed annotation. One counter per response,
+# created with `itertools.count()` and shared by every streamer of that response: see
+# `OpenAiToDialStreamer._renumber_annotation`. A counter rather than a map keyed by streamer,
+# so that the shared object outlives no streamer and none of their buffered reports.
+AnnotationIndexSpace = Iterator[int]
 
 
 class OpenAiToDialStreamer:
@@ -24,7 +26,7 @@ class OpenAiToDialStreamer:
         deployment: str,
         show_debug_stages: bool,
         stages_config: StagesConfig,
-        annotation_indexes: AnnotationIndexes,
+        annotation_index_space: AnnotationIndexSpace,
         stream_content: bool = True,
     ) -> None:
         """Creates a streamer that processes OpenAI ChatCompletionChunks and sends them to Dial.
@@ -33,9 +35,9 @@ class OpenAiToDialStreamer:
             target: Choice or Stage object to append content and attachments to.
             choice: Choice object to create new stages, and to send annotations to.
             deployment: Deployment id or name that will be used to track token usage.
-            annotation_indexes: The annotation index space of the whole response, shared with
-                every other streamer of the same response. Required rather than defaulted, so
-                that a new call site fails loudly instead of numbering annotations on its own.
+            annotation_index_space: The annotation index counter of the whole response, shared
+                with every other streamer of the same response. Required rather than defaulted,
+                so a new call site fails loudly instead of numbering annotations on its own.
             stream_content: If True, the content will be appended to the `target` as it is received.
             stream_stages: If True, the stages will be created with the content and attachments from the chunks.
         """
@@ -45,13 +47,16 @@ class OpenAiToDialStreamer:
         self._deployment = deployment
         self._show_debug_stages = show_debug_stages
         self._stages_config = stages_config
-        self._annotation_indexes = annotation_indexes
+        self._annotation_index_space = annotation_index_space
         self._stream_content = stream_content
 
         self._content = ""
         self._stages: dict[int, Stage] = {}
         self._attachments: list[dict[str, Any]] = []
         self._state: dict[str, Any] | None = None
+        # This streamer's own annotations only: the index its sub-deployment gave one, mapped
+        # to the index this response gave it. Dies with the streamer.
+        self._annotation_indexes: dict[int, int] = {}
 
     def __enter__(self):
         return self
@@ -164,6 +169,10 @@ class OpenAiToDialStreamer:
         An annotation that arrives without an index keeps none: the array it belongs to is
         either fully indexed or not indexed at all.
 
+        `_annotation_indexes` maps this streamer's incoming indexes and no one else's, so an
+        index that two sub-deployments both used stays two separate entries. Keeping the
+        numbers those entries resolve to apart is the shared counter's job.
+
         This lookup deliberately contains no `await`, so concurrent tool calls cannot interleave
         inside it and it needs no lock. Keep it synchronous for that reason.
         """
@@ -171,10 +180,9 @@ class OpenAiToDialStreamer:
         if index is None:
             return annotation
 
-        key = (self, index)
-        if key not in self._annotation_indexes:
-            self._annotation_indexes[key] = len(self._annotation_indexes)
-        return {**annotation, 'index': self._annotation_indexes[key]}
+        if index not in self._annotation_indexes:
+            self._annotation_indexes[index] = next(self._annotation_index_space)
+        return {**annotation, 'index': self._annotation_indexes[index]}
 
     def _process_stage(self, stage: dict[str, Any]) -> None:
         index = stage['index']

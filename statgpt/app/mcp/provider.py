@@ -1,3 +1,4 @@
+import itertools
 import logging
 from collections.abc import Sequence
 from datetime import datetime
@@ -42,7 +43,7 @@ def _build_mcp_inputs(
         ChainParametersConfig.INVOCATION_SOURCE: InvocationSource.MCP,
         # Present so a tool that relays annotations can run here too. Nothing is emitted: the
         # MCP context has no choice to stream them on.
-        ChainParametersConfig.ANNOTATION_INDEXES: {},
+        ChainParametersConfig.ANNOTATION_INDEX_SPACE: itertools.count(),
     }
 
 

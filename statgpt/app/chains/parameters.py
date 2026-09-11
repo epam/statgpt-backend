@@ -9,7 +9,7 @@ from statgpt.app.schemas.file_rags.dial_rag import RagFilterDial
 from statgpt.app.services.chat_facade import ChannelServiceFacade, VersionedDataSet
 from statgpt.app.utils.dial_stages import ChoiceI
 from statgpt.app.utils.message_history import History
-from statgpt.app.utils.openai_to_dial_streamer import AnnotationIndexes
+from statgpt.app.utils.openai_to_dial_streamer import AnnotationIndexSpace
 from statgpt.common.auth.auth_context import AuthContext
 from statgpt.common.data.base import DataResponse, DataSetQuery, DimensionQuery
 from statgpt.common.schemas.enums import InvocationSource
@@ -71,15 +71,15 @@ class ChainParameters:
         return data[ChainParametersConfig.TARGET]
 
     @staticmethod
-    def get_annotation_indexes(data: dict) -> AnnotationIndexes:
-        """The annotation index space of the current response.
+    def get_annotation_index_space(data: dict) -> AnnotationIndexSpace:
+        """The annotation index counter of the current response.
 
-        One dict per response, shared by every ``OpenAiToDialStreamer`` it creates so that the
-        annotations of concurrently running sub-deployments do not reuse each other's indexes.
-        It is kept here rather than in ``state`` because the state is persisted into the
-        response and the SDK's chunk-merge rewrites the ``index`` keys of any list it holds.
+        One counter per response, shared by every ``OpenAiToDialStreamer`` it creates so that
+        the annotations of concurrently running sub-deployments do not reuse each other's
+        indexes. It is kept here rather than in ``state`` because the state is persisted into
+        the response and the SDK's chunk-merge rewrites the ``index`` keys of any list it holds.
         """
-        return data[ChainParametersConfig.ANNOTATION_INDEXES]
+        return data[ChainParametersConfig.ANNOTATION_INDEX_SPACE]
 
     @staticmethod
     def get_history(data: dict) -> History:
