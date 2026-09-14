@@ -16,9 +16,13 @@ from statgpt.app.utils import OpenAiToDialStreamer, openai
 from statgpt.app.utils.dial_stages import ChoiceI
 from statgpt.common.schemas import ChannelConfig
 from statgpt.common.schemas import DeepResearchTool as DeepResearchToolConfig
-from statgpt.common.schemas import ToolTypes
+from statgpt.common.schemas import ResumeStagesConfig, ToolTypes
 from statgpt.common.schemas.llm_call_duration import LLMCallDurationItem
 from statgpt.common.utils.llm_call_duration_context import get_llm_call_duration_manager
+
+# Placeholder exposing the question a Deep Research session was started with to the resume
+# tool's stage names (see `ResumeStagesConfig`).
+_ORIGINAL_QUESTION_KEY = 'original_question'
 
 
 class DeepResearchArgs(ToolArgs):
@@ -265,6 +269,34 @@ class ResumeDeepResearchTool(
     @classmethod
     def get_args_schema(cls, tool_config: DeepResearchToolConfig) -> type[ResumeDeepResearchArgs]:
         return ResumeDeepResearchArgs
+
+    @property
+    def _resume_stages_config(self) -> ResumeStagesConfig:
+        return self._tool_config.details.resume_stages_config
+
+    @property
+    def stage_name(self) -> str:
+        """Resume calls get their own configured stage names: this tool is called with a `message`,
+        so the start tool's templates (built around its `query` argument) cannot be reused."""
+        return self._resume_stages_config.tool_call_name or self.default_stage_name
+
+    @property
+    def result_stage_name(self) -> str:
+        return self._resume_stages_config.tool_result_name or self.default_result_stage_name
+
+    def _render_stage_name(self, name: str, args: dict, inputs: dict) -> str:
+        """Expose the session's original question to the stage-name templates.
+
+        It lives in the conversation state, not in the tool arguments. When it cannot be read, a
+        template that needs it is replaced by the configured `missing_question_name` rather than
+        shown half-filled."""
+        session = DeepResearchSession.from_state(ChainParameters.get_state(inputs))
+        question = session.original_question if session else None
+        if question is None:
+            if f"{{{_ORIGINAL_QUESTION_KEY}}}" in name:
+                return self._resume_stages_config.missing_question_name
+            return super()._render_stage_name(name, args, inputs)
+        return super()._render_stage_name(name, args | {_ORIGINAL_QUESTION_KEY: question}, inputs)
 
     @classmethod
     def build(cls, tool_config: DeepResearchToolConfig, channel_config: ChannelConfig) -> Self:
