@@ -84,6 +84,17 @@ class BaseToolConfig(BaseYamlModel):
         return self.description
 
     @property
+    def is_app_only(self) -> bool:
+        """Whether the tool is hidden from the model (MCP-App-only visibility).
+
+        Such tools are for internal application use and are not loaded into an agent's context,
+        so the model-facing MCP guards (rate limits, payload budget) do not apply to them. When
+        `mcp_visibility` is unset the spec default `["model", "app"]` applies, so the tool is
+        model-facing.
+        """
+        return self.mcp_visibility is not None and "model" not in self.mcp_visibility
+
+    @property
     def effective_mcp_name(self) -> str:
         return self.mcp_name if self.mcp_name is not None else self.name
 
