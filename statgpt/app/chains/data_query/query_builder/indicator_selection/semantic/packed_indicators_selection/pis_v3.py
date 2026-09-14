@@ -184,6 +184,9 @@ candidates:
         def get_queries(self):
             pass  # not used
 
+        def map_dataset_ids_from_llm(self, source_id_to_dataset_id: dict[str, str]) -> None:
+            pass  # V3 uses indexes, not dataset IDs
+
     class CombinedOutput(BaseModel):
         queries: DatasetDimQueries
         selection_status_str: str
@@ -290,7 +293,7 @@ candidates:
     async def _populate_candidates_stage(self, inputs: dict):
         pass  # not using
 
-    def _format_candidates(self, inputs: dict):
+    def _format_candidates_for_llm(self, inputs: dict):
         batch_ix = self.get_batch_ix(inputs)
         batch_size = self.get_batch_size(inputs)
         candidates = self._get_candidates(inputs)
@@ -407,7 +410,7 @@ candidates:
 
     def _create_chain_inner(self, llm):
         chain = (
-            self._format_candidates
+            self._format_candidates_for_llm
             | RunnablePassthrough.assign(**{self.PARSED_RESPONSE_KEY: self._prompt_template | llm})
             | self._remove_hallucinations
             | self._pack_results
