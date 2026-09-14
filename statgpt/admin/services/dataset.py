@@ -29,6 +29,7 @@ from statgpt.common.hybrid_indexer import Indexer
 from statgpt.common.schemas import (
     AuditActionType,
     AuditEntityType,
+    AuditScope,
     AutoUpdateResult,
     ChannelIndexStatusScope,
     HybridSearchConfig,
@@ -360,19 +361,24 @@ class AdminPortalDataSetService(DataSetService):
                 limit=None, offset=0, channel_id=channel_id
             )
         }
-        items = [
-            models.ChannelDataset(
-                channel_id=channel_id,
-                dataset_id=ds.id,
-            )
-            for ds in datasets
-            if ds.id not in existing_dataset_ids
-        ]
-
-        if not items:
+        new_datasets = [ds for ds in datasets if ds.id not in existing_dataset_ids]
+        if not new_datasets:
             return
 
-        self._session.add_all(items)
+        self._session.add_all(
+            models.ChannelDataset(channel_id=channel_id, dataset_id=ds.id) for ds in new_datasets
+        )
+        audit = AuditService(self._session)
+        for ds in new_datasets:
+            await audit.log_event(
+                entity_type=AuditEntityType.DATASET,
+                action_type=AuditActionType.CREATE,
+                scope=AuditScope.DS_LINK,
+                item_id=ds.id,
+                entity_id=str(ds.id_),
+                entity_name=ds.title,
+                state_after={"channel_id": channel_id, "dataset_id": ds.id},
+            )
         await self._session.commit()
 
     async def _import_datasets_versions(
@@ -813,7 +819,7 @@ class AdminPortalDataSetService(DataSetService):
                 delete(models.DataSet).where(models.DataSet.id.in_([item.id for item in items]))
             )
             await self._session.flush()
-            AuditService(self._session).persist_batch(
+            await AuditService(self._session).persist_batch(
                 entity_type=AuditEntityType.DATASET,
                 action_type=AuditActionType.DELETE,
                 items=deleted,
@@ -1053,6 +1059,19 @@ class AdminPortalDataSetService(DataSetService):
         )
 
         self._session.add(item)
+        await AuditService(self._session).log_event(
+            entity_type=AuditEntityType.DATASET,
+            action_type=AuditActionType.CREATE,
+            scope=AuditScope.DS_LINK,
+            item_id=dataset.id,
+            entity_id=str(dataset.id_),
+            entity_name=dataset.title,
+            state_after={
+                "channel_id": channel.id,
+                "channel_deployment_id": channel.deployment_id,
+                "dataset_id": dataset.id,
+            },
+        )
         await self._session.commit()
 
         return schemas.ChannelDatasetBase.model_validate(item, from_attributes=True)
@@ -1511,6 +1530,16 @@ class AdminPortalDataSetService(DataSetService):
                 ch_ds, StatusEnum.NOT_STARTED, do_commit=False
             )
 
+        await AuditService(self._session).log_event(
+            entity_type=AuditEntityType.CHANNEL,
+            action_type=AuditActionType.UPDATE,
+            scope=AuditScope.REINDEX,
+            item_id=channel.id,
+            entity_id=channel.get_entity_id(),
+            entity_name=channel.title,
+            state_after={"dataset_ids": dataset_ids, "dataset_count": len(dataset_ids)},
+        )
+
         await self._session.commit()
         for ch_ds in channel_datasets:
             await self._session.refresh(ch_ds)
@@ -1588,6 +1617,19 @@ class AdminPortalDataSetService(DataSetService):
         background_tasks.add_task(
             clear_channel_dataset_data_in_background_task,
             channel_dataset_id=channel_dataset.id,
+        )
+        await AuditService(self._session).log_event(
+            entity_type=AuditEntityType.DATASET,
+            action_type=AuditActionType.UPDATE,
+            scope=AuditScope.REINDEX,
+            item_id=dataset.id,
+            entity_id=dataset.get_entity_id(),
+            entity_name=dataset.title,
+            state_after={
+                "channel_id": channel.id,
+                "channel_deployment_id": channel.deployment_id,
+                "version_id": version.id,
+            },
         )
         await self._update_channel_dataset_status(channel_dataset, StatusEnum.NOT_STARTED)
 
