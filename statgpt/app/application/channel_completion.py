@@ -1,3 +1,4 @@
+import itertools
 import logging
 from collections.abc import Iterable
 from datetime import datetime
@@ -138,6 +139,9 @@ class ChannelCompletion(ChatCompletion):
                 ParamsConfig.START_OF_REQUEST: start_time,
                 ParamsConfig.CONFIGURATION: configuration,
                 ParamsConfig.INVOCATION_SOURCE: InvocationSource.AGENT,
+                # Fresh index space: every annotation relayed during this response takes its
+                # index from this counter, whichever tool relays it.
+                ParamsConfig.ANNOTATION_INDEX_SPACE: itertools.count(),
             }
 
             callbacks: list = []
