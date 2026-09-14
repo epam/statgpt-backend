@@ -28,6 +28,7 @@ the [common README file](../common/README.md).
 | INDICATORS_TOTAL_CACHE_TTL                   |    No    | TTL in seconds for the in-process cache of the per-channel indicators total (used to substitute the `{indicators_total}` token in conversation-starter texts). The figure is non-transactional; staleness within this window is acceptable.          | integer (seconds)                            | `60`                |
 | DISCOVERY_DATASETS_DOWNLOAD_CONCURRENCY      |    No    | How many discovery document bodies the discovery datasets lookup fetches at once                                                                                                                                                                     | integer                                      | `8`                 |
 | DISCOVERY_DATASETS_PRE_FILTER_DIMENSIONS_TTL |    No    | TTL in seconds for the in-process cache of a discovery channel's filterable values. A stale entry costs one rejected search, which falls back to an unfiltered one and drops the entry - so this trades that against a metadata read on every turn   | integer (seconds)                            | `300`               |
+| MCP_TOOL_TIMEOUT_SECONDS                     |    No    | Per-call deadline (seconds) for a single MCP tool invocation. Kept under the 300s tool-call timeout enforced by Claude.ai / Claude Desktop so the tool cancels its downstream work and returns an actionable error before the host hard-cancels it.   | number (seconds)                             | `240`               |
 
 ## MCP Server
 
