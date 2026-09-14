@@ -186,6 +186,10 @@ class DeepResearchRunner:
             state.get(StateVarsConfig.SHOW_DEBUG_STAGES, False) or details.always_show_stages
         )
 
+        # Keep `stream=True`. In a blocking response the DIAL SDK merges the chunks into one
+        # message and strips the `index` field from every annotation. The streamer below needs
+        # that field to renumber the annotations, and it cannot tell a stripped array from one
+        # that never had indexes, so the report's citations would silently break.
         create_kwargs: dict[str, Any] = dict(model=deployment_id, stream=True, messages=messages)
         client = openai.get_async_client(api_key=auth_context.api_key)
         time_start = time.monotonic()
@@ -204,6 +208,7 @@ class DeepResearchRunner:
                     stream_content=False,
                     show_debug_stages=show_debug_stages,
                     stages_config=details.stages_config,
+                    annotation_index_space=ChainParameters.get_annotation_index_space(inputs),
                 )
                 with dial_streamer:
                     stream = await client.chat.completions.create(**create_kwargs)

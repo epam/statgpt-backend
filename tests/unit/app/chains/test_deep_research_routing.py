@@ -15,6 +15,7 @@ Deep Research is excluded from ``ChannelConfig.tool_fields`` and is reachable on
 These tests pin that behaviour and the deterministic toggle/session routing.
 """
 
+import itertools
 import json
 from unittest.mock import AsyncMock, MagicMock
 
@@ -267,6 +268,7 @@ def _inputs(
             messages=[DialMessage(role=Role.USER, content=user_text)]
         ),
         ChainParametersConfig.CONFIGURATION: StatGPTConfiguration(deep_research=deep_research),
+        ChainParametersConfig.ANNOTATION_INDEX_SPACE: itertools.count(),
     }
 
 
