@@ -20,6 +20,7 @@ from statgpt.common.data.base import (
     DimensionQuery,
     QueryOperator,
 )
+from statgpt.common.hybrid_indexer.schemas import IndicatorIndex
 from statgpt.common.schemas import ToolTypes
 
 from .selection_candidates import (
@@ -139,6 +140,23 @@ class RetrievalStageDescription(BaseModel):
     description: str
 
 
+class HybridRawCandidate(BaseModel):
+    """One raw hybrid-search candidate, before LLM relevancy scoring."""
+
+    id: str
+    metadata: IndicatorIndex
+
+
+class HybridSubqueryCandidates(BaseModel):
+    """Raw hybrid-search candidates of one subquery, in retrieval order.
+
+    The list order defines the (1)..(N) numbering the relevancy prompt sees.
+    """
+
+    query: str
+    candidates: list[HybridRawCandidate] = Field(default_factory=list)
+
+
 class RetrievalStagesResults(BaseModel):
     indicators: dict[str, dict] = Field(
         description="Dictionary mapping stages to their respective list of indicators.",
@@ -147,6 +165,14 @@ class RetrievalStagesResults(BaseModel):
     stages_descriptions_ordered: list[RetrievalStageDescription] = Field(
         description="Ordered list of retrieval stages descriptions",
         default_factory=list,
+    )
+    hybrid_raw_candidates: list[HybridSubqueryCandidates] | None = Field(
+        default=None,
+        description=(
+            "Raw hybrid-search candidates per subquery, in retrieval order "
+            "(the order defines the relevancy prompt numbering). Populated only by "
+            "hybrid indicator selection, and only when debug stages are enabled."
+        ),
     )
 
 
