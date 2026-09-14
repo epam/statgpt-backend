@@ -42,7 +42,7 @@ class StageRules(BaseYamlModel):
         return self
 
 
-class StagesConfig(BaseYamlModel):
+class ToolStageNames(BaseYamlModel):
     tool_call_name: str | None = Field(
         default=None,
         description="The stage name of the tool call. Supports {} placeholders for tool args",
@@ -51,6 +51,9 @@ class StagesConfig(BaseYamlModel):
         default=None,
         description="The stage name of the tool result, supports {} placeholders for tool args",
     )
+
+
+class StagesConfig(ToolStageNames):
     debug_only: bool = Field(
         default=True,
         description=(
@@ -232,6 +235,37 @@ class WebSearchAgentDetails(BaseToolDetails):
         return config_utils.replace_env(self.deployment_id_raw)
 
 
+class ResumeStagesConfig(ToolStageNames):
+    """Stage names of the internal tool that resumes an in-progress Deep Research session.
+
+    Kept apart from the start tool's `stages_config`: the resume call carries a different argument
+    (`message`), so the two cannot share placeholders. `debug_only` / `rules` are absent on purpose
+    — resume-stage visibility follows the start tool, and the stages streamed by the Deep Research
+    deployment are still governed by `stages_config`."""
+
+    tool_call_name: str | None = Field(
+        default="Researching: {original_question}",
+        description=(
+            "The stage name of the resume tool call."
+            " Supports the {original_question} and {message} placeholders."
+        ),
+    )
+    tool_result_name: str | None = Field(
+        default="Research result: {original_question}",
+        description=(
+            "The stage name of the resume tool result."
+            " Supports the {original_question} and {message} placeholders."
+        ),
+    )
+    missing_question_name: str = Field(
+        default="Continue researching",
+        description=(
+            "The stage name used instead of a template that references {original_question}"
+            " when the original question cannot be retrieved from the session."
+        ),
+    )
+
+
 class DeepResearchDetails(BaseToolDetails):
     deployment_id_raw: str = Field(
         validation_alias=AliasChoices("deployment_id", "deploymentId"),
@@ -278,6 +312,10 @@ class DeepResearchDetails(BaseToolDetails):
         description=(
             "Description of the internal tool that resumes an in-progress Deep Research session."
         ),
+    )
+    resume_stages_config: ResumeStagesConfig = Field(
+        default_factory=ResumeStagesConfig,
+        description="The stage names of the internal tool that resumes a Deep Research session.",
     )
 
     def get_deployment_id(self) -> str:
