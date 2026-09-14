@@ -539,7 +539,12 @@ it is especially true for dimension values like "all", "total", "all maturities"
                 lines.append('### Dataset References')
                 dataset_ids = sorted(set(exact.queries.keys()).union(child.queries.keys()))
                 for dataset_id in dataset_ids:
-                    dataset = datasets_dict[dataset_id]
+                    dataset = datasets_dict.get(dataset_id)
+                    if dataset is None:
+                        logger.warning(
+                            f'Skipping unknown {dataset_id=} when populating stage content'
+                        )
+                        continue
                     lines.append(f'* {dataset.name}')
                     lines.append(f'\t* ID: {dataset.source_id}')
 
