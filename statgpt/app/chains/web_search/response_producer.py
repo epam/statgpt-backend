@@ -93,6 +93,7 @@ class RagResponseProducer(ResponseProducerABC):
             stream_content=self._stream_content,
             show_debug_stages=state.get(StateVarsConfig.SHOW_DEBUG_STAGES, False),
             stages_config=self._stages_config,
+            annotation_index_space=ChainParameters.get_annotation_index_space(inputs),
         )
 
         res = None
@@ -146,6 +147,7 @@ class UrlOnlyResponseProducer(ResponseProducerABC):
                 stream_content=True,
                 show_debug_stages=state.get(StateVarsConfig.SHOW_DEBUG_STAGES, False),
                 stages_config=self._stages_config,
+                annotation_index_space=ChainParameters.get_annotation_index_space(inputs),
             )
 
             with dial_streamer:

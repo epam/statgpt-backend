@@ -117,6 +117,24 @@ class TimePeriodStrategy(StrEnum):
     AFTER = "AFTER"
 
 
+class ExplorerLinkPolicy(StrEnum):
+    """When a data query response should carry the data explorer deep link.
+
+    The link points the user back to the source registry. That is worth offering when
+    StatGPT could not deliver the data itself, and noise when it just did - hence the
+    middle option rather than a plain on/off.
+    """
+
+    always = "always"
+    """Render the link whenever the response carries one."""
+
+    only_when_no_data = "only_when_no_data"
+    """Render the link only when the query returned no rows, or failed to run or parse."""
+
+    never = "never"
+    """Never render the link."""
+
+
 class SpecialDimensionsProcessorType(StrEnum):
     LHCL = "large_hierarchical_codelist"
 

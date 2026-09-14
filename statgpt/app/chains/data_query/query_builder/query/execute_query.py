@@ -19,8 +19,8 @@ from statgpt.app.utils.formatters import DatasetQueryFormatter, DatasetQueryForm
 from statgpt.common.auth.auth_context import AuthContext
 from statgpt.common.data.base import DataResponse, DataSetQuery
 from statgpt.common.schemas import StagesConfig
-from statgpt.common.schemas.data_query_tool import DataQueryMessages
-from statgpt.common.schemas.enums import DataParsingStatus, DataRequestStatus
+from statgpt.common.schemas.data_query_tool import DataQueryExplorerLink, DataQueryMessages
+from statgpt.common.schemas.enums import DataParsingStatus, DataRequestStatus, ExplorerLinkPolicy
 from statgpt.common.schemas.tool_details import StageDescriptor
 
 from .summarize_query import SummarizeQueriesChain
@@ -32,11 +32,13 @@ class ExecuteQueryChain:
         stages_config: StagesConfig,
         stage: StageDescriptor,
         messages: DataQueryMessages,
+        explorer_link: DataQueryExplorerLink,
         summarize_queries_chain: SummarizeQueriesChain,
     ):
         self._stages_config = stages_config
         self._stage = stage
         self._messages = messages
+        self._explorer_link = explorer_link
         self._summarize_queries_chain = summarize_queries_chain
 
     async def summarize_dataset_queries(self, inputs: dict) -> dict:
@@ -50,24 +52,38 @@ class ExecuteQueryChain:
 
         target = ChainParameters.get_target(inputs)
 
-        query_formatter = DatasetQueryFormatter(
-            config=DatasetQueryFormatterConfig(
-                locale=chain_state.data_service.channel_config.locale,
-                include_missing_dimensions=False,
-                include_default_queries=True,
-                include_auto_selects=True,
-            ),
-            auth_context=auth_context,
+        async def render(policy: ExplorerLinkPolicy) -> str:
+            query_formatter = DatasetQueryFormatter(
+                config=DatasetQueryFormatterConfig(
+                    locale=chain_state.data_service.channel_config.locale,
+                    include_missing_dimensions=False,
+                    include_default_queries=True,
+                    include_auto_selects=True,
+                    explorer_link=policy,
+                ),
+                auth_context=auth_context,
+            )
+            formatted_queries = await query_formatter.format_queries(
+                dataset_queries=dataset_queries,
+                datasets_dict=datasets_dict,
+                data_responses=data_responses,
+            )
+            return "The following queries were executed:\n\n" + formatted_queries
+
+        # The stage is read by the user and the response by the model, so each surface gets its
+        # own explorer link policy - and its own rendering when the two differ. The second pass
+        # is pure string building, and is skipped anyway when both surfaces agree.
+        stage_policy = self._explorer_link.stage
+        response_policy = self._explorer_link.for_source(
+            ChainParameters.get_invocation_source(inputs)
         )
 
-        formatted_queries = await query_formatter.format_queries(
-            dataset_queries=dataset_queries,
-            datasets_dict=datasets_dict,
-            data_responses=data_responses,
+        stage_content = await render(stage_policy)
+        response_content = (  # reuse already rendered content if the policy is the same
+            stage_content if response_policy is stage_policy else await render(response_policy)
         )
 
-        response_content = "The following queries were executed:\n\n" + formatted_queries
-        target.append_content(response_content)
+        target.append_content(stage_content)
         # append message to be shown to agent only (not to user) if it's configured.
         # the wording differs per audience: the agent shows the data in DIAL attachments,
         # an MCP client shows it in the UI widget.
