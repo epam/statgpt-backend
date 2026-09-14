@@ -1,6 +1,7 @@
 """The cross-cutting behaviour every MCP tool shares, exercised through the LangChain-backed default:
 argument validation, the input guardrail, error mapping, and the tool-type registry."""
 
+import asyncio
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
@@ -165,6 +166,59 @@ async def test_invalid_arguments_are_rejected_before_the_guardrail_runs(monkeypa
         await _build(DatasetsMetadataTool(name="meta", description="Metadata.")).run({"query": 42})
 
     guardrail.assert_not_called()
+
+
+# ~~~~~~~~~~~~~ deadline ~~~~~~~~~~~~~
+
+
+async def test_run_cancels_downstream_and_returns_actionable_error_on_deadline(monkeypatch):
+    # A tool that runs past its deadline is cancelled and yields a readable ToolError naming the
+    # tool, so the model can recover instead of hitting the host's hard cancel.
+    monkeypatch.setattr(
+        "statgpt.app.mcp.tools.base.dial_app_settings.mcp_tool_timeout_seconds", 0.01
+    )
+    cancelled = asyncio.Event()
+
+    async def _never_finishes(_tool_call):
+        try:
+            await asyncio.sleep(30)
+        except asyncio.CancelledError:
+            cancelled.set()
+            raise
+
+    fake = _fake_langchain_tool(monkeypatch)
+    fake.ainvoke = _never_finishes
+
+    with pytest.raises(ToolError, match="did not finish within") as exc_info:
+        await _build().run({})
+
+    assert "fake_tool" in str(exc_info.value)
+    assert cancelled.is_set()
+
+
+async def test_run_completes_within_deadline(monkeypatch):
+    # The deadline wrapper is transparent for tools that finish in time.
+    monkeypatch.setattr(
+        "statgpt.app.mcp.tools.base.dial_app_settings.mcp_tool_timeout_seconds", 5.0
+    )
+    _fake_langchain_tool(monkeypatch, result=SimpleNamespace(content="hello", artifact=None))
+
+    tool_result = await _build().run({})
+
+    assert tool_result.content[0].text == "hello"
+
+
+async def test_run_passes_through_non_deadline_timeout_error(monkeypatch):
+    # A TimeoutError that is not our own deadline expiring must propagate unchanged rather than
+    # being relabeled as the host-deadline ToolError. Guards the `deadline.expired()`
+    # disambiguation.
+    monkeypatch.setattr(
+        "statgpt.app.mcp.tools.base.dial_app_settings.mcp_tool_timeout_seconds", 5.0
+    )
+    _fake_langchain_tool(monkeypatch, error=TimeoutError("downstream timed out"))
+
+    with pytest.raises(TimeoutError, match="downstream timed out"):
+        await _build().run({})
 
 
 # ~~~~~~~~~~~~~ guardrail ~~~~~~~~~~~~~
