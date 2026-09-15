@@ -215,6 +215,15 @@ class SupremeAgent:
     ) -> str:
         template = supreme_agent_default_prompts.system_prompt
 
+        # Inlined into the template instead of being passed to `.partial(...)` below, so that the
+        # placeholders the section carries are still resolved - both the `{today_date}` of the
+        # default content and any other prompt placeholder a channel's override references.
+        template = template.replace(
+            "{data_presentation_section}",
+            channel_config.supreme_agent.data_presentation_section
+            or supreme_agent_default_prompts.default_data_presentation_section,
+        )
+
         if channel_config.supreme_agent.additional_context:
             template += "\n\n" + supreme_agent_default_prompts.additional_context_wrapper_section
 
