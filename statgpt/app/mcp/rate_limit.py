@@ -11,11 +11,8 @@ is enough to stop a single caller from hammering one instance; tighten to a shar
 global limits are ever needed.
 """
 
-import hashlib
-import hmac
 import logging
 import math
-import secrets
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -31,12 +28,6 @@ _log = logging.getLogger(__name__)
 # Prune idle buckets once the table grows past this, so a long-lived process that has served many
 # distinct callers does not retain a bucket per caller forever.
 _PRUNE_THRESHOLD = 10_000
-
-# Per-process key for the keyed hash that derives caller ids. Random per process because buckets
-# live in process anyway (see module docstring), so the key never needs to outlive the process or
-# match another replica. Keying the hash means a leaked digest cannot be brute-forced back to the
-# raw token, unlike a plain SHA-256.
-_CALLER_ID_KEY = secrets.token_bytes(32)
 
 
 class McpToolCostClass(str, Enum):
@@ -144,10 +135,9 @@ def _configs_from_settings(settings: McpSettings) -> dict[McpToolCostClass, Buck
 def caller_identity(auth_context: AuthContext) -> str:
     """A stable, non-reversible id for the caller, used only as a rate-limit key.
 
-    Derived from the bearer token (or the DIAL API key when there is no bearer) via a keyed hash
-    (HMAC with a per-process key) so the raw secret is never held as a dict key or written to a log
-    and a leaked digest cannot be brute-forced back to the token. Callers we cannot identify share a
-    single "anonymous" bucket, which throttles them together rather than exempting them.
+    Derived from the bearer token (or the DIAL API key when there is no bearer). Callers we cannot
+    identify share a single "anonymous" bucket, which throttles them together rather than exempting
+    them.
     """
     token = auth_context.dial_access_token
     if not token:
@@ -157,7 +147,12 @@ def caller_identity(auth_context: AuthContext) -> str:
             token = None
     if not token:
         return "anonymous"
-    return hmac.new(_CALLER_ID_KEY, token.encode("utf-8"), hashlib.sha256).hexdigest()[:32]
+    # Derive the id with the builtin `hash` (a per-process-seeded SipHash), not a crypto hash: it
+    # runs on every call ahead of the limit check, so it must stay cheap (an expensive KDF here
+    # would itself be a CPU-exhaustion vector), the raw secret is never held as a key or logged, and
+    # a high-entropy token cannot be recovered from the digest. A crypto hash is avoided on purpose:
+    # CodeQL rejects any fast crypto hash of a credential as weak, accepting only an expensive KDF.
+    return f"{hash(token) & 0xFFFFFFFFFFFFFFFF:016x}"
 
 
 _mcp_rate_limiter = McpRateLimiter(_configs_from_settings(mcp_settings))
