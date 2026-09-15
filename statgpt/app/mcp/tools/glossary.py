@@ -12,6 +12,7 @@ from statgpt.app.chains.glossary_tools import (
     build_term_definitions_args,
 )
 from statgpt.app.chains.tools import ToolArgs
+from statgpt.app.mcp.rate_limit import McpToolCostClass
 from statgpt.app.schemas.mcp import (
     AvailableTermsStructuredContent,
     GlossaryDefinitionRecord,
@@ -82,6 +83,11 @@ class AvailableTermsMcpTool(
         self._runner = AvailableTermsRunner(tool_config.details)
 
     @classmethod
+    def get_cost_class(cls, tool_config: AvailableTermsToolConfig) -> McpToolCostClass:
+        # A local glossary lookup: cheap to serve.
+        return McpToolCostClass.CHEAP
+
+    @classmethod
     def get_output_model(cls) -> type[AvailableTermsStructuredContent]:
         return AvailableTermsStructuredContent
 
@@ -119,6 +125,11 @@ class TermDefinitionsMcpTool(
         cls, tool_config: TermDefinitionsToolConfig
     ) -> type[BaseTermDefinitionsArgs]:
         return build_term_definitions_args(tool_config)
+
+    @classmethod
+    def get_cost_class(cls, tool_config: TermDefinitionsToolConfig) -> McpToolCostClass:
+        # A local glossary lookup: cheap to serve.
+        return McpToolCostClass.CHEAP
 
     @classmethod
     def get_output_model(cls) -> type[TermDefinitionsStructuredContent]:
