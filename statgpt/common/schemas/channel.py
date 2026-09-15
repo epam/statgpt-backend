@@ -81,6 +81,14 @@ class SupremeAgentConfig(BaseYamlModel):
             " If empty, the default content is used."
         ),
     )
+    data_presentation_section: str = Field(
+        default="",
+        description=(
+            "Custom content for the 'Data Presentation to User' section of the system prompt."
+            " May reference the system prompt's placeholders, e.g. {today_date}."
+            " If empty, the default content is used."
+        ),
+    )
     user_ui_context_section: str = Field(
         default="",
         description=(
