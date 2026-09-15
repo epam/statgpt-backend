@@ -247,6 +247,3 @@ class DiscoveryUploadSummary(BaseYamlModel):
 
     rows_read: int = 0
     """Data rows found in the file, excluding the header and blank rows."""
-
-    rows_skipped: int = 0
-    """Blank rows skipped, such as the empty formatted rows the template ships with."""

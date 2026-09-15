@@ -6,6 +6,7 @@ from langchain_core.tools import BaseTool, InjectedToolArg
 from pydantic import BaseModel, Field
 
 from statgpt.app.schemas import ToolArtifact
+from statgpt.common.config import multiline_logger as logger
 from statgpt.common.schemas import BaseToolConfig, ChannelConfig, ToolTypes
 
 
@@ -136,22 +137,54 @@ class StatGptTool(BaseTool, ABC, Generic[ToolConfigType]):
         self._channel_config = channel_config
 
     @property
-    def stage_name(self) -> str:
-        """Return the stage name of calling this tool."""
-        if name := self._tool_config.details.stages_config.tool_call_name:
-            return name
-
+    def default_stage_name(self) -> str:
+        """The stage name of calling this tool when none is configured."""
         tool_name = self.name.replace('_', ' ')
         return f"Calling {tool_name} tool"
 
     @property
-    def result_stage_name(self) -> str:
-        """Return the stage name of showing the result of this tool."""
-        if name := self._tool_config.details.stages_config.tool_result_name:
-            return name
-
+    def default_result_stage_name(self) -> str:
+        """The stage name of this tool's result when none is configured."""
         tool_name = self.name.replace('_', ' ')
         return f"Result from {tool_name} tool"
+
+    @property
+    def stage_name(self) -> str:
+        """Return the stage name of calling this tool."""
+        return self._tool_config.details.stages_config.tool_call_name or self.default_stage_name
+
+    @property
+    def result_stage_name(self) -> str:
+        """Return the stage name of showing the result of this tool."""
+        return (
+            self._tool_config.details.stages_config.tool_result_name
+            or self.default_result_stage_name
+        )
+
+    def render_stage_name(self, args: dict, inputs: dict) -> str:
+        """Return the display name of the stage of calling this tool."""
+        return self._render_stage_name(self.stage_name, args, inputs)
+
+    def render_result_stage_name(self, args: dict, inputs: dict) -> str:
+        """Return the display name of the stage showing this tool's result."""
+        return self._render_stage_name(self.result_stage_name, args, inputs)
+
+    def _render_stage_name(self, name: str, args: dict, inputs: dict) -> str:
+        """Fill the placeholders of a configured stage name from the tool call arguments.
+
+        Override to expose values the LLM never passes (e.g. something carried in the conversation
+        state) or to substitute a different name when a value the template needs is unavailable."""
+        if not args:
+            return name
+        values = {
+            k: ", ".join(map(str, v)) if isinstance(v, list) else str(v) for k, v in args.items()
+        }
+        try:
+            return name.format(**values)
+        except (KeyError, IndexError, ValueError) as e:
+            # An unknown or malformed placeholder: keep the raw name rather than failing the call.
+            logger.warning(f"Error formatting stage name: {e}")
+            return name
 
     def _run(self, *args: Any, **kwargs: Any) -> Any:
         """This method is implemented to satisfy the BaseTool interface.
