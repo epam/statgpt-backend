@@ -3,6 +3,8 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
 import pandas as pd
+import pytest
+from fastmcp.exceptions import ToolError
 from mcp.types import EmbeddedResource, TextContent
 
 from statgpt.app.mcp.tools import StatGptMcpTool
@@ -162,3 +164,18 @@ async def test_the_runner_receives_the_validated_query():
 
     _, query = tool._runner.run.call_args.args  # type: ignore[attr-defined]
     assert query == "cpi in France"
+
+
+async def test_response_assembly_failure_is_scrubbed(monkeypatch):
+    # A failure while building the resources/structured content (after a successful run) is
+    # wrapped by the taxonomy too, rather than leaking as a bare, internals-bearing error.
+    def _boom(*args, **kwargs):
+        raise RuntimeError("csv serialization exploded at /internal/path")
+
+    monkeypatch.setattr("statgpt.app.mcp.tools.data_query.data_query_outcome_to_resources", _boom)
+    outcome = _outcome(data_responses={"ds1": _data_response(pd.DataFrame({"x": [1, 2]}))})
+
+    with pytest.raises(ToolError, match="Internal error") as exc_info:
+        await _build(outcome).run({"query": "cpi"})
+
+    assert "csv serialization exploded" not in str(exc_info.value)
