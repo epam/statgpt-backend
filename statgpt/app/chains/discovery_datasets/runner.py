@@ -95,6 +95,17 @@ class DiscoveryDatasetsRunner:
         # down with it.
         attachment.pre_filter = pre_filter.report
 
+        if self._pre_filter_only(inputs):
+            # Stop after the pre-filter without running the search.
+            # Useful for inspecting the pre-filter output in isolation.
+            # Set a flag in attachment to distinguish from an empty search result.
+            attachment.stopped_after_pre_filter = True
+            self._report(stage, "## Pre-filter", self._as_yaml([pre_filter.report]))
+            self._report(
+                stage, "## Stopped", "`!discovery_prefilter_only`: nothing after the pre-filter ran"
+            )
+            return None
+
         candidates = await self._retrieve(query, auth_context, channel, pre_filter)
         attachment.candidates = candidates
         self._report(stage, "## Pre-filter", self._as_yaml([pre_filter.report]))
@@ -111,6 +122,12 @@ class DiscoveryDatasetsRunner:
         rendered = render_block(self._config.templates, selected)
         self._report(stage, "## Rendered block", rendered or "_nothing was rendered_")
         return rendered
+
+    @staticmethod
+    def _pre_filter_only(inputs: dict) -> bool:
+        """Whether the dev command asked for the pre-filter and nothing else."""
+        state = ChainParameters.get_state(inputs)
+        return bool(state.get(StateVarsConfig.CMD_DISCOVERY_PREFILTER_ONLY, False))
 
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~ retrieval ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
