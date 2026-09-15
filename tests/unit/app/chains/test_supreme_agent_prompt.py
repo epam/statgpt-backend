@@ -21,6 +21,14 @@ def test_system_prompt_uses_default_sections():
 
     assert supreme_agent_default_prompts.default_user_ui_context_section in prompt
     assert supreme_agent_default_prompts.default_tool_usage_section in prompt
+    # The data presentation section carries the {today_date} placeholder, which must still be
+    # resolved when the section is injected.
+    assert (
+        supreme_agent_default_prompts.default_data_presentation_section.format(
+            today_date="2026-08-21"
+        )
+        in prompt
+    )
 
 
 def test_system_prompt_section_overrides_replace_defaults():
@@ -31,11 +39,17 @@ def test_system_prompt_section_overrides_replace_defaults():
             terminology_domain="insurance",
             user_ui_context_section="The user sees only your text reply.",
             tool_usage_section="Custom tool usage rules.",
+            data_presentation_section=(
+                "Cite everything. You are {chat_bot_name} and today is {today_date}."
+            ),
         )
     )
 
     assert "The user sees only your text reply." in prompt
     assert "Custom tool usage rules." in prompt
+    # An override may reference any of the prompt's placeholders, not just `{today_date}`.
+    assert "Cite everything. You are ask sigma and today is 2026-08-21." in prompt
     # Overrides must fully replace the defaults, not merely be appended.
     assert supreme_agent_default_prompts.default_user_ui_context_section not in prompt
     assert supreme_agent_default_prompts.default_tool_usage_section not in prompt
+    assert "coverage statements MISLEAD THE USER" not in prompt
