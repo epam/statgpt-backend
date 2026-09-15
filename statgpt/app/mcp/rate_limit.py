@@ -12,8 +12,10 @@ global limits are ever needed.
 """
 
 import hashlib
+import hmac
 import logging
 import math
+import secrets
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -29,6 +31,12 @@ _log = logging.getLogger(__name__)
 # Prune idle buckets once the table grows past this, so a long-lived process that has served many
 # distinct callers does not retain a bucket per caller forever.
 _PRUNE_THRESHOLD = 10_000
+
+# Per-process key for the keyed hash that derives caller ids. Random per process because buckets
+# live in process anyway (see module docstring), so the key never needs to outlive the process or
+# match another replica. Keying the hash means a leaked digest cannot be brute-forced back to the
+# raw token, unlike a plain SHA-256.
+_CALLER_ID_KEY = secrets.token_bytes(32)
 
 
 class McpToolCostClass(str, Enum):
@@ -136,8 +144,9 @@ def _configs_from_settings(settings: McpSettings) -> dict[McpToolCostClass, Buck
 def caller_identity(auth_context: AuthContext) -> str:
     """A stable, non-reversible id for the caller, used only as a rate-limit key.
 
-    Derived from the bearer token (or the DIAL API key when there is no bearer) and hashed so the
-    raw secret is never held as a dict key or written to a log. Callers we cannot identify share a
+    Derived from the bearer token (or the DIAL API key when there is no bearer) via a keyed hash
+    (HMAC with a per-process key) so the raw secret is never held as a dict key or written to a log
+    and a leaked digest cannot be brute-forced back to the token. Callers we cannot identify share a
     single "anonymous" bucket, which throttles them together rather than exempting them.
     """
     token = auth_context.dial_access_token
@@ -148,7 +157,7 @@ def caller_identity(auth_context: AuthContext) -> str:
             token = None
     if not token:
         return "anonymous"
-    return hashlib.sha256(token.encode("utf-8")).hexdigest()[:32]
+    return hmac.new(_CALLER_ID_KEY, token.encode("utf-8"), hashlib.sha256).hexdigest()[:32]
 
 
 _mcp_rate_limiter = McpRateLimiter(_configs_from_settings(mcp_settings))

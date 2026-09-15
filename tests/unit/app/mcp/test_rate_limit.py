@@ -2,6 +2,7 @@
 mechanics, caller identification, and the `enforce_rate_limit` wrapper."""
 
 import hashlib
+import hmac
 from types import SimpleNamespace
 
 import pytest
@@ -91,15 +92,29 @@ def test_cost_classes_have_separate_buckets():
 # ~~~~~~~~~~~~~ caller identity ~~~~~~~~~~~~~
 
 
+def _expected_id(token: str) -> str:
+    return hmac.new(rate_limit._CALLER_ID_KEY, token.encode("utf-8"), hashlib.sha256).hexdigest()[
+        :32
+    ]
+
+
 def test_caller_identity_hashes_the_bearer_token():
     ident = caller_identity(SimpleNamespace(dial_access_token="secret-token"))
-    assert ident == hashlib.sha256(b"secret-token").hexdigest()[:32]
+    assert ident == _expected_id("secret-token")
     assert "secret-token" not in ident  # the raw secret is never used as the key
+
+
+def test_caller_identity_is_deterministic_and_token_specific():
+    a1 = caller_identity(SimpleNamespace(dial_access_token="token-a"))
+    a2 = caller_identity(SimpleNamespace(dial_access_token="token-a"))
+    b = caller_identity(SimpleNamespace(dial_access_token="token-b"))
+    assert a1 == a2  # same caller shares a bucket
+    assert a1 != b  # different callers get different buckets
 
 
 def test_caller_identity_falls_back_to_api_key():
     ctx = SimpleNamespace(dial_access_token=None, api_key="the-key")
-    assert caller_identity(ctx) == hashlib.sha256(b"the-key").hexdigest()[:32]
+    assert caller_identity(ctx) == _expected_id("the-key")
 
 
 def test_caller_identity_is_anonymous_when_unidentifiable():
