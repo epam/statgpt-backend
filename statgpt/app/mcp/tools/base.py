@@ -10,6 +10,7 @@ the same way the LangChain interfaces do. Tool types without a dedicated MCP int
 by `LangChainMcpTool`, which runs the LangChain tool and returns its text.
 """
 
+import asyncio
 import logging
 from abc import ABC, abstractmethod
 from typing import Any, ClassVar, Generic, TypeVar
@@ -19,12 +20,13 @@ from fastmcp.apps import AppConfig, app_config_to_meta_dict
 from fastmcp.exceptions import ToolError
 from fastmcp.tools import Tool, ToolResult
 from mcp.types import ContentBlock, TextContent, ToolAnnotations
-from pydantic import BaseModel, PrivateAttr
+from pydantic import BaseModel, PrivateAttr, ValidationError
 
 from statgpt.app.chains.tools import StatGptTool, ToolArgs
 from statgpt.app.mcp.errors import to_tool_error
 from statgpt.app.mcp.guardrails import enforce_input_guardrail
 from statgpt.app.mcp.output_schema import model_to_output_schema
+from statgpt.app.settings.dial_app import dial_app_settings
 from statgpt.common.auth.auth_context import AuthContext
 from statgpt.common.schemas import BaseToolConfig, ChannelConfig, ToolTypes
 
@@ -140,26 +142,51 @@ class StatGptMcpTool(Tool, ABC, Generic[ToolConfigType, ArgsType]):
             # Validate first: it is cheap, fails fast, guarantees the guardrail below screens a
             # real string, and a malformed request never costs a guardrail LLM call.
             args = self._args_schema.model_validate({**arguments, "inputs": self._inputs})
+        except ValidationError as e:
+            raise to_tool_error(e, tool_name=self.name) from e
 
-            # Screen arbitrary free-text input with the out-of-scope guardrail before executing.
-            # The validated arguments are screened (not the raw request), so the guardrail sees
-            # exactly what the tool will run with.
-            await enforce_input_guardrail(
+        # Bound the guardrail and execution by a deadline kept under the 300s host tool-call
+        # timeout. On expiry asyncio.timeout cancels the current downstream await, which cascades
+        # cancellation through the chain, and we surface a readable ToolError so the model can
+        # recover in-conversation instead of seeing an unexplained host cancellation. The deadline
+        # bounds tool work only, not the preceding channel/auth resolution; the margin under 300s
+        # absorbs that.
+        timeout_seconds = dial_app_settings.mcp_tool_timeout_seconds
+        try:
+            async with asyncio.timeout(timeout_seconds) as deadline:
+                # Screen arbitrary free-text input with the out-of-scope guardrail before
+                # executing. The validated arguments are screened (not the raw request), so the
+                # guardrail sees exactly what the tool will run with. A guardrail rejection raises
+                # ToolError, which passes through unchanged below.
+                await enforce_input_guardrail(
+                    self.name,
+                    self._args_schema.get_guardrail_input(args.model_dump(exclude={"inputs"})),
+                    self._channel_config,
+                    self._auth_context,
+                )
+                result = await self._execute(args)
+        except TimeoutError as e:
+            if not deadline.expired():
+                # A plain TimeoutError bubbled up from downstream, not our deadline.
+                raise
+            _log.warning(
+                "MCP tool %s exceeded its %.0fs deadline; downstream work cancelled",
                 self.name,
-                self._args_schema.get_guardrail_input(args.model_dump(exclude={"inputs"})),
-                self._channel_config,
-                self._auth_context,
+                timeout_seconds,
             )
-
-            result = await self._execute(args)
+            raise ToolError(
+                f"The {self.name} tool did not finish within {timeout_seconds:.0f} seconds and "
+                "was stopped before the host timed it out. Narrow the request (e.g. fewer "
+                "indicators, a shorter time range, or a single dataset) and try again."
+            ) from e
         except ToolError:
-            # A guardrail rejection (or a ToolError raised deliberately downstream) is already the
-            # actionable, internals-free message we want the caller to see. Pass it through.
+            # A guardrail rejection, the deadline message, or a ToolError raised deliberately
+            # downstream is already the actionable, internals-free message we want the caller to
+            # see. Pass it through.
             raise
         except Exception as e:
-            # Translate any validation, execution or response-assembly error into an actionable,
-            # internals-free ToolError via the shared taxonomy (see statgpt.app.mcp.errors). The
-            # whole body is wrapped so a failure while building the result cannot leak either.
+            # Translate any execution or response-assembly error into an actionable, internals-free
+            # ToolError via the shared taxonomy (see statgpt.app.mcp.errors).
             raise to_tool_error(e, tool_name=self.name) from e
 
         _log.info(

@@ -35,6 +35,12 @@ class DeepResearchSession(BaseModel):
 
     turns: list[DeepResearchTurn] = Field(default_factory=list)
 
+    @property
+    def original_question(self) -> str | None:
+        """The question the session was started with, or ``None`` before the first turn is
+        recorded (a session is saved only once Deep Research has answered)."""
+        return self.turns[0].user_message if self.turns else None
+
     @classmethod
     def from_state(cls, state: dict[str, Any]) -> Self | None:
         """Load and validate the session stored in DIAL state, or ``None`` if absent."""

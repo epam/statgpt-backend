@@ -82,23 +82,6 @@ class ToolCaller:
             for tool_cfg in channel_config.agent_tools
         ]
 
-    @staticmethod
-    def _format_stage_name(name: str, args: dict) -> str:
-        if not args:
-            return name
-        result = {}
-        # replace all lists with ", ".join(list)
-        for k, v in args.items():
-            if isinstance(v, list):
-                result[k] = ", ".join(map(str, v))
-            else:
-                result[k] = str(v)
-        try:
-            return name.format(**result)
-        except KeyError as e:
-            logger.warning(f"Error formatting stage name: {e}")
-            return name
-
     async def call_tool(
         self, tool_call: ToolCall, inputs: dict, show_stage: bool = True, prefix: str = ''
     ) -> ToolMessage:
@@ -108,12 +91,9 @@ class ToolCaller:
 
         choice = ChainParameters.get_choice(inputs)
 
-        formatted_stage_name = self._format_stage_name(tool.stage_name, tool_call['args'])
-        formatted_result_stage_name = self._format_stage_name(
-            tool.result_stage_name, tool_call['args']
-        )
-        tool_call_name = f"{prefix}{formatted_stage_name}"
-        tool_result_name = f"{prefix}{formatted_result_stage_name}"
+        args = tool_call['args']
+        tool_call_name = f"{prefix}{tool.render_stage_name(args, inputs)}"
+        tool_result_name = f"{prefix}{tool.render_result_stage_name(args, inputs)}"
 
         with optional_timed_stage(choice=choice, name=tool_call_name, enabled=show_stage):
             logger.debug(f"Calling tool: {tool.name}")

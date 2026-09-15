@@ -678,7 +678,6 @@ class AdminPortalDiscoveryDatasetService(DiscoveryDatasetService):
             delete_absent=mode is schemas.RecordUploadMode.REPLACE,
         )
         summary.rows_read = len(parsed.rows)
-        summary.rows_skipped = parsed.rows_skipped
         return summary
 
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~ export / import ~~~~~~~~~~~~~~~~~~~~~~~~~~~~

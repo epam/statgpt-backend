@@ -100,7 +100,7 @@ from .glossary_of_terms import (
 )
 from .jobs import ClearJobsResult, Job
 from .model_config import EmbeddingsModelConfig, LLMModelConfig
-from .tool_details import FakeCall, SdmxQueryAppDetails, StagesConfig
+from .tool_details import FakeCall, ResumeStagesConfig, SdmxQueryAppDetails, StagesConfig
 from .tools import (
     AvailableDatasetsTool,
     AvailablePublicationsTool,

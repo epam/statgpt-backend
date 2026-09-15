@@ -29,7 +29,6 @@ _SUMMARY_FIELDS = [
     ("unchanged", "Unchanged"),
     ("deleted", "Deleted"),
     ("rows_read", "Rows read"),
-    ("rows_skipped", "Rows skipped"),
 ]
 
 
