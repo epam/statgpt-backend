@@ -155,6 +155,22 @@ records. Records are matched on agency and dataset ID, ignoring case and spacing
 statgpt> discovery upload -c my-channel --file records.xlsx
 ```
 
+A workbook holds one row per dataset on its `Datasets` sheet, columns A-I: reference area,
+regional coverage, agency, dataset ID, name, description, URL, time coverage and frequency
+coverage. Each dataset's indicators live on a sheet of their own, named with that dataset's
+ID, with an `Indicator` column and a `Units of measure` column. A dataset ID is therefore also
+a sheet name: at most 31 characters, none of `: \ / ? * [ ]`, and unique across the workbook -
+across agencies too, so two agencies using the same ID have to be uploaded as separate files.
+
+A file still carrying a column the current template dropped - `Excluded regional values`,
+`Indicators coverage` on the `Datasets` sheet, or `Relevant indicators not present` - is
+refused in full, naming the column: those values were authored, and accepting the file while
+dropping them would be indistinguishable from data loss.
+
+A CSV stays flat. It carries the nine sheet columns plus one `indicators_coverage` column
+holding the `;`-separated list, which is the shape the channel export writes, so an export can
+be uploaded to another channel unchanged.
+
 | Option          | Description                                                                   |
 |-----------------|-------------------------------------------------------------------------------|
 | `-c, --channel` | Channel deployment ID (interactive if omitted)                                |

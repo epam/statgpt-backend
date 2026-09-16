@@ -7,6 +7,11 @@ where it can be unit-tested without a session or an HTTP app. Callers run it thr
 openpyxl is used directly rather than ``pandas.read_excel``: pandas coerces column dtypes
 (``1960`` arrives as ``1960.0``), turns blanks into ``NaN``, mangles repeated headers, and
 discards the cell coordinates the error report needs.
+
+A workbook is two shapes at once. The `Datasets` sheet holds one row per dataset, and each
+dataset's indicators live on a sheet of their own, named with the dataset's ID. A CSV stays
+flat: the indicators arrive as one already-joined column, which is also how the export
+writes them.
 """
 
 import csv
@@ -25,27 +30,29 @@ from openpyxl.utils import get_column_letter
 from openpyxl.utils.exceptions import InvalidFileException
 from openpyxl.worksheet._read_only import ReadOnlyWorksheet
 
+from statgpt.common import schemas
+from statgpt.common.services import normalize_key_part
 from statgpt.common.utils import normalize_whitespace
 
 from .exceptions import DiscoveryUploadFormatError
 
 _log = logging.getLogger(__name__)
 
-COLUMN_FIELDS: tuple[str, ...] = (
+DATASETS_SHEET_FIELDS: tuple[str, ...] = (
     "reference_area",  # A
     "regional_coverage",  # B
-    "excluded_regional_values",  # C
-    "agency",  # D
-    "dataset_id",  # E
-    "name",  # F
-    "description",  # G
-    "url",  # H
-    "time_coverage",  # I
-    "frequency_coverage",  # J
-    "indicators_coverage",  # K
-    "missing_indicators",  # L
+    "agency",  # C
+    "dataset_id",  # D
+    "name",  # E
+    "description",  # F
+    "url",  # G
+    "time_coverage",  # H
+    "frequency_coverage",  # I
 )
-"""The descriptive fields in workbook column order, used for the positional fallback."""
+"""The columns of the `Datasets` sheet, in order, used for the positional fallback."""
+
+RECORD_FIELDS: tuple[str, ...] = (*DATASETS_SHEET_FIELDS, "indicators_coverage")
+"""Every field a submitter writes. The indicators are a sheet in a workbook, a column in a CSV."""
 
 REQUIRED_FIELDS: tuple[str, ...] = ("agency", "dataset_id")
 """Halves of the natural key. A file without these columns cannot be reconciled at all."""
@@ -53,7 +60,6 @@ REQUIRED_FIELDS: tuple[str, ...] = ("agency", "dataset_id")
 FIELD_LABELS: dict[str, str] = {
     "reference_area": "Reference area / country",
     "regional_coverage": "Regional coverage",
-    "excluded_regional_values": "Excluded regional values",
     "agency": "Agency / organization",
     "dataset_id": "Dataset ID",
     "name": "Dataset name",
@@ -61,15 +67,13 @@ FIELD_LABELS: dict[str, str] = {
     "url": "Dataset URL",
     "time_coverage": "Time coverage",
     "frequency_coverage": "Frequency coverage",
-    "indicators_coverage": "Indicators coverage (incl. units of measure)",
-    "missing_indicators": "Relevant indicators not present in the dataset",
+    "indicators_coverage": "Indicators coverage",
 }
 """Human labels, so an error message names the column the way the file does."""
 
 _WORKBOOK_HEADERS: dict[str, str] = {
     "reference area / country": "reference_area",
     "regional coverage": "regional_coverage",
-    "excluded regional values": "excluded_regional_values",
     "agency / organization": "agency",
     "dataset id": "dataset_id",
     "dataset name": "name",
@@ -79,38 +83,88 @@ _WORKBOOK_HEADERS: dict[str, str] = {
     "frequency coverage": "frequency_coverage",
     "indicators coverage (incl. units of measure)": "indicators_coverage",
     "indicators coverage": "indicators_coverage",
-    # The template spells column L two different ways: this one on the `Instructions`
-    # sheet, the longer one on `Datasets`. Both have to resolve.
+}
+"""How the template spells each header. `indicators_coverage` is a CSV column only."""
+
+_RETIRED_FIELDS: tuple[str, ...] = ("excluded_regional_values", "missing_indicators")
+"""Columns the current template dropped, on every format.
+
+They are resolved rather than ignored, so a file that still carries one is refused by name:
+the values are authored, and accepting the file while dropping the column would be
+indistinguishable from data loss.
+"""
+
+_RETIRED_WORKBOOK_HEADERS: dict[str, str] = {
+    "excluded regional values": "excluded_regional_values",
+    # The old template spelled this column two ways: the short one on `Instructions`, the
+    # long one on `Datasets`. Both have to be recognized to be refused.
     "relevant indicators not present": "missing_indicators",
     "relevant indicators not present in the dataset": "missing_indicators",
 }
 
+_RETIRED_LABELS: dict[str, str] = {
+    "excluded_regional_values": "Excluded regional values",
+    "missing_indicators": "Relevant indicators not present in the dataset",
+}
+"""Labels for the retired columns, kept only so a rejection can name what it found."""
+
+
+def _field_name_aliases(name: str) -> tuple[str, ...]:
+    """The spellings a field's own name arrives under: snake_case, spaced, camelCase.
+
+    Carried alongside the workbook headers so a CSV exported by this application - whose
+    headers are the field names - re-imports unchanged.
+    """
+    head, *rest = name.split("_")
+    return name, name.replace("_", " "), head + "".join(part.title() for part in rest)
+
 
 def _build_header_aliases() -> dict[str, str]:
-    """Header text (normalized + casefolded) -> field name.
-
-    Carries the workbook headers plus the field names themselves, so a CSV exported by
-    this application re-imports unchanged.
-    """
-    aliases = dict(_WORKBOOK_HEADERS)
-    for name in COLUMN_FIELDS:
-        aliases[name] = name
-        aliases[name.replace("_", " ")] = name
-        head, *rest = name.split("_")
-        aliases[head + "".join(part.title() for part in rest)] = name
+    """Header text (normalized + casefolded) -> field name, retired fields included."""
+    aliases = {**_WORKBOOK_HEADERS, **_RETIRED_WORKBOOK_HEADERS}
+    for name in (*RECORD_FIELDS, *_RETIRED_FIELDS):
+        for alias in _field_name_aliases(name):
+            aliases[alias] = name
     return {key.casefold(): value for key, value in aliases.items()}
 
 
 _HEADER_ALIASES: dict[str, str] = _build_header_aliases()
 
 _DATASETS_SHEET_NAME: str = "datasets"
+_INSTRUCTIONS_SHEET_NAME: str = "instructions"
 _XLSX_SIGNATURE = b"PK\x03\x04"
 _XLS_SIGNATURE = b"\xd0\xcf\x11\xe0"
+
+_INDICATOR_NAME = "name"
+_INDICATOR_UNITS = "units"
+
+_INDICATOR_HEADERS: dict[str, str] = {
+    "indicator": _INDICATOR_NAME,
+    "indicators": _INDICATOR_NAME,
+    "indicator name": _INDICATOR_NAME,
+    "units of measure": _INDICATOR_UNITS,
+    "unit of measure": _INDICATOR_UNITS,
+    "units": _INDICATOR_UNITS,
+    "unit": _INDICATOR_UNITS,
+}
+
+_INDICATOR_SHEET_WIDTH = 2
+"""Columns of an indicator sheet, and the only width the positional fallback accepts."""
+
+_INDICATOR_SEPARATOR = "; "
+"""What joins the indicators of one dataset, matching every other list-bearing cell."""
 
 
 class _DiscoveryFileFormat(StrEnum):
     XLSX = auto()
     CSV = auto()
+
+
+_FORMAT_FIELDS: dict[_DiscoveryFileFormat, tuple[str, ...]] = {
+    _DiscoveryFileFormat.XLSX: DATASETS_SHEET_FIELDS,
+    _DiscoveryFileFormat.CSV: RECORD_FIELDS,
+}
+"""What each format's data columns are, in order. Anything else resolved is refused."""
 
 
 @dataclass(frozen=True)
@@ -124,6 +178,11 @@ class ParsedRow:
     """Field name -> value. Fields whose column is absent are not present here."""
 
 
+def _cell_reference(column_letters: dict[str, str], field_name: str, row_number: int) -> str | None:
+    letter = column_letters.get(field_name)
+    return f"{letter}{row_number}" if letter else None
+
+
 @dataclass(frozen=True)
 class ParsedFile:
     rows: list[ParsedRow] = field(default_factory=list)
@@ -131,10 +190,37 @@ class ParsedFile:
     column_letters: dict[str, str] = field(default_factory=dict)
     """Field name -> column letter, so a problem can be reported as a cell reference."""
 
+    problems: list[schemas.DiscoveryPayloadProblem] = field(default_factory=list)
+    """What the file says that could not be used, located.
+
+    Carried rather than raised so indicator-sheet trouble reaches the per-cell report
+    alongside the schema violations, instead of collapsing the whole upload into one message.
+    """
+
     def cell(self, field_name: str, row_number: int) -> str | None:
-        """The cell reference for a field on a row, e.g. 'D14'. None if not a spreadsheet."""
-        letter = self.column_letters.get(field_name)
-        return f"{letter}{row_number}" if letter else None
+        """The cell reference for a field on a row, e.g. 'C14'. None if not a spreadsheet."""
+        return _cell_reference(self.column_letters, field_name, row_number)
+
+
+@dataclass(frozen=True)
+class _SheetProblem:
+    """Trouble on an indicator sheet, before it is known which dataset row owns it."""
+
+    message: str
+    cell: str
+
+
+@dataclass(frozen=True)
+class _IndicatorSheet:
+    """One dataset's indicators, as a sheet supplied them."""
+
+    title: str
+    """The sheet name, as the workbook spells it. Paired with a dataset ID folded."""
+
+    text: str = ""
+    """The joined cell this sheet becomes. Empty for a sheet holding no indicators."""
+
+    problems: list[_SheetProblem] = field(default_factory=list)
 
 
 def _detect_format(data: bytes, filename: str | None = None) -> _DiscoveryFileFormat:
@@ -182,13 +268,40 @@ def _coerce_cell(value: Any) -> str:
     return str(value)
 
 
-def _resolve_headers(header_cells: list[Any]) -> dict[int, str]:
+def _retired_header_error(
+    text: str, index: int, field_name: str, file_format: _DiscoveryFileFormat
+) -> DiscoveryUploadFormatError:
+    """Refuse a file that still carries a column the current template dropped.
+
+    The whole file goes rather than the column: the submitter authored those values, and an
+    upload that silently ignored them would look like data loss.
+    """
+    where = "The 'Datasets' sheet" if file_format is _DiscoveryFileFormat.XLSX else "The file"
+    expected = ", ".join(FIELD_LABELS[name] for name in _FORMAT_FIELDS[file_format])
+    hint = (
+        " Indicators now go on one sheet per dataset, named with the dataset's ID."
+        if file_format is _DiscoveryFileFormat.XLSX
+        else ""
+    )
+    return DiscoveryUploadFormatError(
+        f"{where} has {text!r} in column {get_column_letter(index + 1)}, which the current"
+        f" discovery template does not have: this file follows the old template."
+        f" Remove {_RETIRED_LABELS.get(field_name, text)!r} and re-upload."
+        f" Expected columns: {expected}.{hint}"
+    )
+
+
+def _resolve_headers(
+    header_cells: Sequence[Any], file_format: _DiscoveryFileFormat
+) -> dict[int, str]:
     """Column index -> field name, from a header row.
 
     Unrecognized columns are ignored, so extra columns (including the status columns of an
     exported CSV) are tolerated. Two columns resolving to the same field is an error: one of
-    them would be silently dropped.
+    them would be silently dropped. A column of the old template is an error too - see
+    `_retired_header_error`.
     """
+    accepted = frozenset(_FORMAT_FIELDS[file_format])
     resolved: dict[int, str] = {}
     seen: dict[str, int] = {}
     for index, cell in enumerate(header_cells):
@@ -198,6 +311,8 @@ def _resolve_headers(header_cells: list[Any]) -> dict[int, str]:
         field_name = _HEADER_ALIASES.get(text.casefold())
         if field_name is None:
             continue
+        if field_name not in accepted:
+            raise _retired_header_error(text, index, field_name, file_format)
         if field_name in seen:
             raise DiscoveryUploadFormatError(
                 f"Two columns describe {FIELD_LABELS[field_name]!r}"
@@ -209,26 +324,32 @@ def _resolve_headers(header_cells: list[Any]) -> dict[int, str]:
     return resolved
 
 
-def _positional_headers(width: int) -> dict[int, str]:
+def _positional_headers(width: int, file_format: _DiscoveryFileFormat) -> dict[int, str]:
     """Column index -> field name for a file whose header row could not be recognized.
 
     Only usable when the row is exactly as wide as the template. Row 1 is still treated as
     a header rather than as data: every real file has one, and importing a renamed header
     as a record would create a junk row.
     """
-    if width != len(COLUMN_FIELDS):
+    fields = _FORMAT_FIELDS[file_format]
+    if width != len(fields):
         raise DiscoveryUploadFormatError(
             f"The header row does not name any known column. Expected the discovery"
             f" template's columns ({', '.join(FIELD_LABELS[f] for f in REQUIRED_FIELDS)},"
-            f" ...) or exactly {len(COLUMN_FIELDS)} columns in template order,"
+            f" ...) or exactly {len(fields)} columns in template order,"
             f" found {width}."
         )
-    _log.warning("Discovery upload header row unrecognized; falling back to column order A-L.")
-    return dict(enumerate(COLUMN_FIELDS))
+    _log.warning(
+        f"Discovery upload header row unrecognized; falling back to column order"
+        f" A-{get_column_letter(len(fields))}."
+    )
+    return dict(enumerate(fields))
 
 
-def _resolve_headers_or_positional(header_cells: list[Any]) -> dict[int, str]:
-    resolved = _resolve_headers(header_cells)
+def _resolve_headers_or_positional(
+    header_cells: Sequence[Any], file_format: _DiscoveryFileFormat
+) -> dict[int, str]:
+    resolved = _resolve_headers(header_cells, file_format)
     missing = [name for name in REQUIRED_FIELDS if name not in resolved.values()]
     if not missing:
         return resolved
@@ -238,7 +359,7 @@ def _resolve_headers_or_positional(header_cells: list[Any]) -> dict[int, str]:
             + ", ".join(repr(FIELD_LABELS[name]) for name in missing)
             + "."
         )
-    return _positional_headers(len(header_cells))
+    return _positional_headers(len(header_cells), file_format)
 
 
 def _build_rows(
@@ -296,7 +417,217 @@ def _get_worksheet(workbook: Workbook) -> ReadOnlyWorksheet:
     return worksheet
 
 
-def _parse_workbook(data: bytes, max_rows: int) -> ParsedFile:
+def _check_dataset_ids(
+    rows: Sequence[ParsedRow], column_letters: dict[str, str]
+) -> list[schemas.DiscoveryPayloadProblem]:
+    """Report a dataset ID a previous row already claimed.
+
+    Workbook-wide and ignoring the agency, unlike the natural key: the ID names a sheet, so
+    two records whose IDs agree cannot both carry indicators in one workbook however
+    different the datasets are. Length and forbidden characters are not checked here - the
+    schema's key type does that on every write path, and its violations already reach the
+    per-cell report.
+    """
+    problems: list[schemas.DiscoveryPayloadProblem] = []
+    first_seen: dict[str, ParsedRow] = {}
+
+    for row in rows:
+        value = row.values.get("dataset_id", "")
+        if not value:
+            continue
+        key = normalize_key_part(value)
+        first = first_seen.setdefault(key, row)
+        if first is row:
+            continue
+        problems.append(
+            schemas.DiscoveryPayloadProblem(
+                message=(
+                    f"Dataset ID {value!r} is already used on row {first.row_number}."
+                    f" It names the dataset's indicators sheet, so it has to be unique in"
+                    f" the workbook - across agencies too. Upload them as separate files."
+                ),
+                field="dataset_id",
+                row=row.row_number,
+                cell=_cell_reference(column_letters, "dataset_id", row.row_number),
+            )
+        )
+
+    return problems
+
+
+def _resolve_indicator_headers(header_cells: Sequence[Any]) -> dict[str, int] | None:
+    """Column -> index for an indicator sheet, or None if the sheet cannot be read.
+
+    Falls back to column order only for a sheet exactly as wide as the template's two
+    columns, the way the `Datasets` sheet's fallback works.
+    """
+    resolved: dict[str, int] = {}
+    for index, cell in enumerate(header_cells):
+        text = normalize_whitespace(_coerce_cell(cell)).casefold()
+        column = _INDICATOR_HEADERS.get(text)
+        if column is not None and column not in resolved:
+            resolved[column] = index
+
+    if _INDICATOR_NAME in resolved:
+        return resolved
+    if len(header_cells) == _INDICATOR_SHEET_WIDTH:
+        return {_INDICATOR_NAME: 0, _INDICATOR_UNITS: 1}
+    return None
+
+
+def _indicator_value(cells: Sequence[Any], headers: dict[str, int], column: str) -> str:
+    index = headers.get(column)
+    if index is None or index >= len(cells):
+        return ""
+    return normalize_whitespace(_coerce_cell(cells[index]))
+
+
+def _parse_indicator_sheet(
+    worksheet: ReadOnlyWorksheet, max_indicators_per_dataset: int
+) -> _IndicatorSheet:
+    """Read one dataset's indicators sheet into the joined cell it becomes.
+
+    An empty sheet is an empty list rather than a problem: it says the same thing as a
+    dataset row with no sheet at all, and whether a record may have no indicators is
+    validation's question, not this one's.
+    """
+    title = worksheet.title
+    rows_iter = worksheet.values
+
+    try:
+        header_cells = list(next(rows_iter))
+    except StopIteration:
+        return _IndicatorSheet(title=title)
+
+    headers = _resolve_indicator_headers(header_cells)
+    if headers is None:
+        return _IndicatorSheet(
+            title=title,
+            problems=[
+                _SheetProblem(
+                    message=(
+                        f"Sheet {title!r} has no 'Indicator' column, so this dataset's"
+                        f" indicators could not be read. Expected 'Indicator' and"
+                        f" 'Units of measure'."
+                    ),
+                    cell=f"'{title}'!A1",
+                )
+            ],
+        )
+
+    entries: list[str] = []
+    problems: list[_SheetProblem] = []
+
+    for row_number, cells in enumerate(rows_iter, start=2):
+        name = _indicator_value(cells, headers, _INDICATOR_NAME)
+        units = _indicator_value(cells, headers, _INDICATOR_UNITS)
+        if not name and not units:
+            # The template ships formatted-but-empty rows here too.
+            continue
+        if not name:
+            letter = get_column_letter(headers.get(_INDICATOR_UNITS, 1) + 1)
+            problems.append(
+                _SheetProblem(
+                    message=(
+                        f"Sheet {title!r} gives units {units!r} with no indicator name,"
+                        f" so the row says nothing the search could match."
+                    ),
+                    cell=f"'{title}'!{letter}{row_number}",
+                )
+            )
+            continue
+        entries.append(f"{name} ({units})" if units else name)
+        if len(entries) > max_indicators_per_dataset:
+            # Streamed and refused mid-read, like `max_rows`: a compressed sheet can expand
+            # by orders of magnitude, so the byte cap on the upload bounds nothing here.
+            raise DiscoveryUploadFormatError(
+                f"Sheet {title!r} lists more than {max_indicators_per_dataset} indicators."
+                f" Shorten the list, or split the dataset."
+            )
+
+    return _IndicatorSheet(title=title, text=_INDICATOR_SEPARATOR.join(entries), problems=problems)
+
+
+def _parse_indicator_sheets(
+    workbook: Workbook, datasets_title: str, max_indicators_per_dataset: int
+) -> tuple[dict[str, _IndicatorSheet], list[_IndicatorSheet]]:
+    """Read every indicator sheet, keyed the way a dataset ID folds.
+
+    Returns the index and the sheets that could not enter it - two sheet names folding onto
+    one key. Those are reported like a sheet no dataset claims, since neither is reachable
+    from the `Datasets` sheet.
+    """
+    index: dict[str, _IndicatorSheet] = {}
+    shadowed: list[_IndicatorSheet] = []
+
+    for title in workbook.sheetnames:
+        if title == datasets_title or title.strip().casefold() == _INSTRUCTIONS_SHEET_NAME:
+            continue
+        sheet = _parse_indicator_sheet(workbook[title], max_indicators_per_dataset)
+        key = normalize_key_part(title)
+        if key in index:
+            shadowed.append(sheet)
+        else:
+            index[key] = sheet
+
+    return index, shadowed
+
+
+def _orphan_problem(sheet: _IndicatorSheet) -> schemas.DiscoveryPayloadProblem:
+    """Report an indicator sheet no dataset row claims.
+
+    Not silently ignored, unlike an unrecognized column: a sheet that is there holds
+    indicators someone authored, and an upload that dropped them without saying so would
+    leave the dataset looking as though it had none.
+    """
+    return schemas.DiscoveryPayloadProblem(
+        message=(
+            f"Sheet {sheet.title!r} lists indicators, but no row of the"
+            f" {_DATASETS_SHEET_NAME.title()!r} sheet has that Dataset ID, so they would"
+            f" not be uploaded at all."
+        ),
+        field="dataset_id",
+        cell=f"'{sheet.title}'!A1",
+    )
+
+
+def _apply_indicator_sheets(
+    rows: Sequence[ParsedRow],
+    sheets: dict[str, _IndicatorSheet],
+    shadowed: Sequence[_IndicatorSheet],
+) -> list[schemas.DiscoveryPayloadProblem]:
+    """Write each dataset's indicators onto its row, and report the sheets left over.
+
+    A dataset row with no sheet and one whose sheet holds nothing both get an empty cell:
+    the parser records how many indicators a dataset has, and validation decides whether
+    that is allowed.
+    """
+    problems: list[schemas.DiscoveryPayloadProblem] = []
+    claimed: set[str] = set()
+
+    for row in rows:
+        key = normalize_key_part(row.values.get("dataset_id", ""))
+        sheet = sheets.get(key)
+        row.values["indicators_coverage"] = sheet.text if sheet else ""
+        if sheet is None:
+            continue
+        claimed.add(key)
+        problems.extend(
+            schemas.DiscoveryPayloadProblem(
+                message=problem.message,
+                field="indicators_coverage",
+                row=row.row_number,
+                cell=problem.cell,
+            )
+            for problem in sheet.problems
+        )
+
+    unclaimed = [sheet for key, sheet in sheets.items() if key not in claimed]
+    problems.extend(_orphan_problem(sheet) for sheet in [*unclaimed, *shadowed])
+    return problems
+
+
+def _parse_workbook(data: bytes, max_rows: int, max_indicators_per_dataset: int) -> ParsedFile:
     try:
         workbook = openpyxl.load_workbook(io.BytesIO(data), read_only=True, data_only=True)
     except (zipfile.BadZipFile, InvalidFileException, KeyError, ValueError) as e:
@@ -314,14 +645,21 @@ def _parse_workbook(data: bytes, max_rows: int) -> ParsedFile:
         except StopIteration as e:
             raise DiscoveryUploadFormatError("The sheet is empty.") from e
 
-        headers = _resolve_headers_or_positional(header_cells)
+        headers = _resolve_headers_or_positional(header_cells, _DiscoveryFileFormat.XLSX)
         # Consumed here, inside the `try`: streaming is what makes `max_rows` bound memory,
         # and the rows cannot be read once the `finally` below has closed the workbook.
         rows = _build_rows(enumerate(rows_iter, start=2), headers, max_rows)
+        column_letters = _column_letters(headers)
+
+        problems = _check_dataset_ids(rows, column_letters)
+        sheets, shadowed = _parse_indicator_sheets(
+            workbook, worksheet.title, max_indicators_per_dataset
+        )
+        problems.extend(_apply_indicator_sheets(rows, sheets, shadowed))
     finally:
         workbook.close()
 
-    return ParsedFile(rows=rows, column_letters=_column_letters(headers))
+    return ParsedFile(rows=rows, column_letters=column_letters, problems=problems)
 
 
 def _decode_csv(data: bytes) -> str:
@@ -353,21 +691,27 @@ def _parse_csv(data: bytes, max_rows: int) -> ParsedFile:
     except StopIteration as e:
         raise DiscoveryUploadFormatError("The CSV file is empty.") from e
 
-    headers = _resolve_headers_or_positional(header_cells)
+    headers = _resolve_headers_or_positional(header_cells, _DiscoveryFileFormat.CSV)
     rows = _build_rows(enumerate(reader, start=2), headers, max_rows)
     # A CSV has no spreadsheet coordinates, so problems are reported by row only.
     return ParsedFile(rows=rows)
 
 
-def parse_discovery_file(data: bytes, filename: str | None, max_rows: int) -> ParsedFile:
+def parse_discovery_file(
+    data: bytes,
+    filename: str | None,
+    max_rows: int,
+    max_indicators_per_dataset: int,
+) -> ParsedFile:
     """Parse an uploaded workbook or CSV into normalized rows.
 
     Raises `DiscoveryUploadFormatError` for anything that is not a readable discovery
-    file - the caller maps that to a 400.
+    file - the caller maps that to a 400. Everything a readable file gets wrong about one
+    dataset is carried on the result instead, so it can be reported cell by cell.
     """
     file_format = _detect_format(data, filename)
     _log.info(f"Parsing discovery upload {filename!r} as {file_format}.")
 
     if file_format is _DiscoveryFileFormat.XLSX:
-        return _parse_workbook(data, max_rows)
+        return _parse_workbook(data, max_rows, max_indicators_per_dataset)
     return _parse_csv(data, max_rows)

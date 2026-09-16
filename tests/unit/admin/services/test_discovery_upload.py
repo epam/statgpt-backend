@@ -6,13 +6,17 @@ from typing import Any
 import openpyxl
 import pytest
 
-from statgpt.admin.services.discovery_upload import COLUMN_FIELDS, parse_discovery_file
+from statgpt.admin.services.discovery_upload import (
+    DATASETS_SHEET_FIELDS,
+    RECORD_FIELDS,
+    ParsedFile,
+    parse_discovery_file,
+)
 from statgpt.admin.services.exceptions import DiscoveryUploadFormatError
 
 _DATASETS_HEADERS = [
     "Reference area / country",
     "Regional coverage",
-    "Excluded regional values",
     "Agency / organization",
     "Dataset ID",
     "Dataset name",
@@ -20,14 +24,11 @@ _DATASETS_HEADERS = [
     "Dataset URL",
     "Time coverage",
     "Frequency coverage",
-    "Indicators coverage (incl. units of measure)",
-    "Relevant indicators not present in the dataset",
 ]
 
 _ROW = [
     "Indonesia (IDN)",
     "None",
-    "",
     "Bank Indonesia (BI)",
     "TABEL1_1",
     "Broad Money",
@@ -35,8 +36,13 @@ _ROW = [
     "https://www.bi.go.id/SEKI/tabel/TABEL1_1.xls",
     "From 1989-01 to 2026-06",
     "Monthly",
-    "broad money (M2) (Rp billions)",
-    "policy interest rates",
+]
+
+_INDICATOR_HEADERS = ["Indicator", "Units of measure"]
+
+_INDICATORS = [
+    ["broad money (M2)", "billions of Rp"],
+    ["narrow money (M1)", "billions of Rp"],
 ]
 
 
@@ -45,8 +51,14 @@ def _workbook(
     headers: list[Any] | None = None,
     sheet_name: str = "Datasets",
     extra_sheet_first: bool = True,
+    indicator_sheets: dict[str, list[list[Any]]] | None = None,
+    indicator_headers: list[Any] | None = None,
 ) -> bytes:
-    """Build a workbook in memory, so no binary fixture has to be committed."""
+    """Build a workbook in memory, so no binary fixture has to be committed.
+
+    `indicator_sheets` maps a sheet name to its data rows; the header row is added for it.
+    Passing `None` gives the datasets rows one sheet each, named with their dataset ID.
+    """
     wb = openpyxl.Workbook()
     first = wb.active
     assert first is not None
@@ -62,6 +74,20 @@ def _workbook(
     for row in rows:
         sheet.append(row)
 
+    if indicator_sheets is None:
+        dataset_id_index = _DATASETS_HEADERS.index("Dataset ID")
+        indicator_sheets = {
+            str(row[dataset_id_index]): list(_INDICATORS)
+            for row in rows
+            if len(row) > dataset_id_index and row[dataset_id_index]
+        }
+
+    for title, indicator_rows in indicator_sheets.items():
+        indicators = wb.create_sheet(title)
+        indicators.append(_INDICATOR_HEADERS if indicator_headers is None else indicator_headers)
+        for row in indicator_rows:
+            indicators.append(row)
+
     buffer = io.BytesIO()
     wb.save(buffer)
     return buffer.getvalue()
@@ -75,75 +101,96 @@ def _csv_bytes(rows: list[dict[str, Any]], fieldnames: list[str], delimiter: str
     return buffer.getvalue().encode("utf-8")
 
 
+def _parse(
+    data: bytes,
+    filename: str = "book.xlsx",
+    *,
+    max_rows: int = 100,
+    max_indicators: int = 1000,
+) -> ParsedFile:
+    return parse_discovery_file(
+        data, filename, max_rows=max_rows, max_indicators_per_dataset=max_indicators
+    )
+
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~ the Datasets sheet ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
 def test_parses_template_headers_and_reports_cell_references() -> None:
-    parsed = parse_discovery_file(_workbook([_ROW]), "book.xlsx", max_rows=100)
+    parsed = _parse(_workbook([_ROW]))
 
     assert len(parsed.rows) == 1
     row = parsed.rows[0]
     assert row.row_number == 2
     assert row.values["agency"] == "Bank Indonesia (BI)"
-    assert row.values["missing_indicators"] == "policy interest rates"
-    # Column D of the template, on the first data row.
-    assert parsed.cell("agency", row.row_number) == "D2"
-
-
-def test_accepts_the_instructions_sheet_spelling_of_column_l() -> None:
-    """The template spells column L two ways; both have to resolve (see Excel notes)."""
-    headers = _DATASETS_HEADERS[:-1] + ["Relevant indicators not present"]
-
-    parsed = parse_discovery_file(_workbook([_ROW], headers=headers), "book.xlsx", max_rows=100)
-
-    assert parsed.rows[0].values["missing_indicators"] == "policy interest rates"
+    # Column C of the template, on the first data row.
+    assert parsed.cell("agency", row.row_number) == "C2"
+    assert not parsed.problems
 
 
 def test_reads_second_sheet_when_datasets_sheet_is_absent() -> None:
     data = _workbook([_ROW], sheet_name="Sheet2")
 
-    parsed = parse_discovery_file(data, "book.xlsx", max_rows=100)
+    parsed = _parse(data)
 
     assert parsed.rows[0].values["dataset_id"] == "TABEL1_1"
 
 
 def test_single_sheet_without_datasets_name_is_rejected() -> None:
-    data = _workbook([_ROW], sheet_name="Sheet1", extra_sheet_first=False)
+    data = _workbook([_ROW], sheet_name="Sheet1", extra_sheet_first=False, indicator_sheets={})
 
     with pytest.raises(DiscoveryUploadFormatError, match="no second sheet"):
-        parse_discovery_file(data, "book.xlsx", max_rows=100)
+        _parse(data)
 
 
 def test_falls_back_to_column_order_when_headers_are_unrecognized() -> None:
     """A renamed header row is still readable, and is never imported as a record."""
-    headers = [f"col{i}" for i in range(len(COLUMN_FIELDS))]
+    headers = [f"col{i}" for i in range(len(DATASETS_SHEET_FIELDS))]
 
-    parsed = parse_discovery_file(_workbook([_ROW], headers=headers), "book.xlsx", max_rows=100)
+    parsed = _parse(_workbook([_ROW], headers=headers))
 
     assert len(parsed.rows) == 1
     assert parsed.rows[0].values["agency"] == "Bank Indonesia (BI)"
 
 
 def test_partially_recognized_headers_missing_the_key_are_rejected() -> None:
-    headers = ["Dataset name", "Description"] + [f"col{i}" for i in range(10)]
+    headers = ["Dataset name", "Description"] + [f"col{i}" for i in range(7)]
 
     with pytest.raises(DiscoveryUploadFormatError, match="missing required column"):
-        parse_discovery_file(_workbook([_ROW], headers=headers), "book.xlsx", max_rows=100)
+        _parse(_workbook([_ROW], headers=headers))
 
 
 def test_two_columns_for_one_field_are_rejected() -> None:
     headers = _DATASETS_HEADERS + ["Agency / organization"]
 
     with pytest.raises(DiscoveryUploadFormatError, match="Two columns"):
-        parse_discovery_file(_workbook([_ROW], headers=headers), "book.xlsx", max_rows=100)
+        _parse(_workbook([_ROW], headers=headers))
 
 
 def test_unknown_extra_columns_are_ignored() -> None:
     headers = _DATASETS_HEADERS + ["validation_status", "Some note"]
 
-    parsed = parse_discovery_file(
-        _workbook([_ROW + ["INVALID", "note"]], headers=headers), "book.xlsx", max_rows=100
-    )
+    parsed = _parse(_workbook([_ROW + ["INVALID", "note"]], headers=headers))
 
     assert parsed.rows[0].values["agency"] == "Bank Indonesia (BI)"
     assert "validation_status" not in parsed.rows[0].values
+
+
+@pytest.mark.parametrize(
+    "retired_header",
+    [
+        "Excluded regional values",
+        "Indicators coverage (incl. units of measure)",
+        "Relevant indicators not present in the dataset",
+        "missing_indicators",
+    ],
+)
+def test_a_workbook_following_the_old_template_is_refused(retired_header: str) -> None:
+    """The values were authored, so dropping the column silently would look like data loss."""
+    headers = _DATASETS_HEADERS + [retired_header]
+
+    with pytest.raises(DiscoveryUploadFormatError, match="follows the old template"):
+        _parse(_workbook([_ROW + ["something"]], headers=headers))
 
 
 @pytest.mark.parametrize(
@@ -162,9 +209,9 @@ def test_unknown_extra_columns_are_ignored() -> None:
 def test_typed_cells_are_coerced_to_text(cell_value: object, expected: str) -> None:
     """openpyxl returns typed values, and Pydantic's lax mode will not coerce int -> str."""
     row: list = list(_ROW)
-    row[8] = cell_value  # Time coverage
+    row[7] = cell_value  # Time coverage
 
-    parsed = parse_discovery_file(_workbook([row]), "book.xlsx", max_rows=100)
+    parsed = _parse(_workbook([row]))
 
     assert parsed.rows[0].values["time_coverage"] == expected
 
@@ -172,9 +219,9 @@ def test_typed_cells_are_coerced_to_text(cell_value: object, expected: str) -> N
 def test_whitespace_is_normalized() -> None:
     """The agency cell below holds a literal U+00A0 after 'Bank', plus padding and runs."""
     row = list(_ROW)
-    row[3] = "  Bank  Indonesia   (BI) "
+    row[2] = "  Bank  Indonesia   (BI) "
 
-    parsed = parse_discovery_file(_workbook([row]), "book.xlsx", max_rows=100)
+    parsed = _parse(_workbook([row]))
 
     assert parsed.rows[0].values["agency"] == "Bank Indonesia (BI)"
 
@@ -188,11 +235,9 @@ def test_blank_rows_are_dropped_without_stopping_the_scan() -> None:
     blank: list = [None] * len(_DATASETS_HEADERS)
     whitespace_only = [" "] * len(_DATASETS_HEADERS)
     second = list(_ROW)
-    second[4] = "TABEL1_2"
+    second[3] = "TABEL1_2"
 
-    parsed = parse_discovery_file(
-        _workbook([_ROW, blank, whitespace_only, second, blank]), "book.xlsx", max_rows=100
-    )
+    parsed = _parse(_workbook([_ROW, blank, whitespace_only, second, blank]))
 
     assert [row.values["dataset_id"] for row in parsed.rows] == ["TABEL1_1", "TABEL1_2"]
     # Row numbers still point at the real spreadsheet rows.
@@ -203,63 +248,248 @@ def test_row_cap_is_enforced() -> None:
     rows = []
     for index in range(3):
         row = list(_ROW)
-        row[4] = f"TABEL{index}"
+        row[3] = f"TABEL{index}"
         rows.append(row)
 
     with pytest.raises(DiscoveryUploadFormatError, match="more than 2 data rows"):
-        parse_discovery_file(_workbook(rows), "book.xlsx", max_rows=2)
+        _parse(_workbook(rows), max_rows=2)
+
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~ dataset ids ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
+def test_a_dataset_id_used_twice_is_reported_even_across_agencies() -> None:
+    """The id names a sheet, so one workbook cannot hold two datasets claiming it."""
+    second = list(_ROW)
+    second[2] = "Statistics Indonesia (BPS)"
+
+    parsed = _parse(_workbook([_ROW, second]))
+
+    assert [problem.row for problem in parsed.problems] == [3]
+    problem = parsed.problems[0]
+    assert problem.field == "dataset_id"
+    assert problem.cell == "D3"
+    assert "already used on row 2" in problem.message
+
+
+def test_a_dataset_id_repeated_in_another_casing_is_reported() -> None:
+    second = list(_ROW)
+    second[3] = "tabel1_1 "
+    sheets = {"TABEL1_1": list(_INDICATORS)}
+
+    parsed = _parse(_workbook([_ROW, second], indicator_sheets=sheets))
+
+    assert [problem.row for problem in parsed.problems] == [3]
+
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~ indicator sheets ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
+def test_indicator_rows_are_joined_with_their_units() -> None:
+    parsed = _parse(_workbook([_ROW]))
+
+    assert parsed.rows[0].values["indicators_coverage"] == (
+        "broad money (M2) (billions of Rp); narrow money (M1) (billions of Rp)"
+    )
+    assert not parsed.problems
+
+
+def test_an_indicator_without_units_is_carried_as_its_name_alone() -> None:
+    sheets = {"TABEL1_1": [["broad money (M2)", None], ["policy rate", "percent per annum"]]}
+
+    parsed = _parse(_workbook([_ROW], indicator_sheets=sheets))
+
+    assert parsed.rows[0].values["indicators_coverage"] == (
+        "broad money (M2); policy rate (percent per annum)"
+    )
+
+
+def test_the_sheet_is_matched_to_its_dataset_ignoring_case_and_spacing() -> None:
+    sheets = {" tabel1_1 ": list(_INDICATORS)}
+
+    parsed = _parse(_workbook([_ROW], indicator_sheets=sheets))
+
+    assert parsed.rows[0].values["indicators_coverage"].startswith("broad money (M2)")
+    assert not parsed.problems
+
+
+def test_a_dataset_with_no_indicator_sheet_gets_an_empty_list() -> None:
+    """Not a problem here: whether a record may list no indicators is validation's call."""
+    parsed = _parse(_workbook([_ROW], indicator_sheets={}))
+
+    assert parsed.rows[0].values["indicators_coverage"] == ""
+    assert not parsed.problems
+
+
+def test_a_sheet_holding_only_its_header_row_reads_the_same_as_no_sheet() -> None:
+    parsed = _parse(_workbook([_ROW], indicator_sheets={"TABEL1_1": []}))
+
+    assert parsed.rows[0].values["indicators_coverage"] == ""
+    assert not parsed.problems
+
+
+def test_blank_indicator_rows_are_dropped() -> None:
+    sheets = {"TABEL1_1": [[None, None], ["broad money (M2)", "billions of Rp"], [" ", " "]]}
+
+    parsed = _parse(_workbook([_ROW], indicator_sheets=sheets))
+
+    assert parsed.rows[0].values["indicators_coverage"] == "broad money (M2) (billions of Rp)"
+    assert not parsed.problems
+
+
+def test_units_without_an_indicator_name_are_reported_at_their_cell() -> None:
+    sheets = {"TABEL1_1": [["broad money (M2)", "billions of Rp"], [None, "percent"]]}
+
+    parsed = _parse(_workbook([_ROW], indicator_sheets=sheets))
+
+    assert len(parsed.problems) == 1
+    problem = parsed.problems[0]
+    assert problem.field == "indicators_coverage"
+    # Located on the indicators sheet, but reported against the row that owns it.
+    assert problem.row == 2
+    assert problem.cell == "'TABEL1_1'!B3"
+    # The indicators that could be read are still carried.
+    assert parsed.rows[0].values["indicators_coverage"] == "broad money (M2) (billions of Rp)"
+
+
+def test_a_sheet_no_dataset_row_claims_is_reported() -> None:
+    """Indicators someone authored that the upload would otherwise drop without saying so."""
+    sheets = {"TABEL1_1": list(_INDICATORS), "TABEL9_9": list(_INDICATORS)}
+
+    parsed = _parse(_workbook([_ROW], indicator_sheets=sheets))
+
+    assert len(parsed.problems) == 1
+    problem = parsed.problems[0]
+    assert problem.row is None
+    assert problem.cell == "'TABEL9_9'!A1"
+    assert "TABEL9_9" in problem.message
+
+
+def test_two_sheets_folding_onto_one_name_leave_the_second_unreachable() -> None:
+    """Only one of them can be paired, so the other is reported rather than dropped."""
+    sheets = {"TABEL1_1": list(_INDICATORS), "tabel1_1 ": [["policy rate", "percent"]]}
+
+    parsed = _parse(_workbook([_ROW], indicator_sheets=sheets))
+
+    assert [problem.cell for problem in parsed.problems] == ["'tabel1_1 '!A1"]
+    assert parsed.rows[0].values["indicators_coverage"].startswith("broad money (M2)")
+
+
+def test_an_indicator_sheet_without_an_indicator_column_is_reported() -> None:
+    sheets = {"TABEL1_1": [["broad money (M2)", "billions of Rp", "extra"]]}
+
+    parsed = _parse(_workbook([_ROW], indicator_sheets=sheets, indicator_headers=["a", "b", "c"]))
+
+    assert len(parsed.problems) == 1
+    assert "no 'Indicator' column" in parsed.problems[0].message
+    assert parsed.rows[0].values["indicators_coverage"] == ""
+
+
+def test_a_two_column_indicator_sheet_falls_back_to_column_order() -> None:
+    sheets = {"TABEL1_1": list(_INDICATORS)}
+
+    parsed = _parse(
+        _workbook(
+            [_ROW], indicator_sheets=sheets, indicator_headers=["Name", "Unit of measurement"]
+        )
+    )
+
+    assert parsed.rows[0].values["indicators_coverage"].startswith("broad money (M2)")
+    assert not parsed.problems
+
+
+def test_the_instructions_sheet_is_not_read_as_indicators() -> None:
+    parsed = _parse(_workbook([_ROW]))
+
+    assert not parsed.problems
+
+
+def test_the_per_sheet_indicator_cap_is_enforced() -> None:
+    sheets = {"TABEL1_1": [[f"indicator {index}", "percent"] for index in range(4)]}
+
+    with pytest.raises(DiscoveryUploadFormatError, match="more than 3 indicators"):
+        _parse(_workbook([_ROW], indicator_sheets=sheets), max_indicators=3)
+
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~ other formats ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 
 def test_legacy_xls_is_rejected_with_actionable_message() -> None:
     with pytest.raises(DiscoveryUploadFormatError, match="re-save it as .xlsx"):
-        parse_discovery_file(b"\xd0\xcf\x11\xe0some legacy content", "book.xls", max_rows=100)
+        _parse(b"\xd0\xcf\x11\xe0some legacy content", "book.xls")
 
 
 def test_corrupt_workbook_is_a_format_error_not_a_crash() -> None:
     with pytest.raises(DiscoveryUploadFormatError):
-        parse_discovery_file(b"PK\x03\x04not really a zip", "book.xlsx", max_rows=100)
+        _parse(b"PK\x03\x04not really a zip")
 
 
 def test_unknown_file_type_is_rejected() -> None:
     with pytest.raises(DiscoveryUploadFormatError, match="Unsupported file type"):
-        parse_discovery_file(b"%PDF-1.4", "book.pdf", max_rows=100)
+        _parse(b"%PDF-1.4", "book.pdf")
 
 
 def test_csv_with_field_names_round_trips_an_export() -> None:
     """A CSV exported by this application (snake_case headers) re-imports unchanged."""
-    fieldnames = list(COLUMN_FIELDS)
-    row = dict(zip(fieldnames, _ROW))
+    fieldnames = list(RECORD_FIELDS)
+    row = dict(zip(fieldnames, [*_ROW, "broad money (M2) (billions of Rp)"]))
 
-    parsed = parse_discovery_file(_csv_bytes([row], fieldnames), "discovery_datasets.csv", 100)
+    parsed = _parse(_csv_bytes([row], fieldnames), "discovery_datasets.csv")
 
     assert parsed.rows[0].values == row
+    assert parsed.rows[0].values["indicators_coverage"] == "broad money (M2) (billions of Rp)"
     # A CSV has no spreadsheet coordinates, so problems are reported by row only.
     assert parsed.cell("agency", 2) is None
+
+
+def test_csv_accepts_the_workbook_spelling_of_the_indicators_column() -> None:
+    headers = [*_DATASETS_HEADERS, "Indicators coverage"]
+    row = dict(zip(headers, [*_ROW, "broad money (M2)"]))
+
+    parsed = _parse(_csv_bytes([row], headers), "book.csv")
+
+    assert parsed.rows[0].values["indicators_coverage"] == "broad money (M2)"
+
+
+@pytest.mark.parametrize("retired_header", ["Excluded regional values", "missing_indicators"])
+def test_csv_following_the_old_template_is_refused(retired_header: str) -> None:
+    headers = [*_DATASETS_HEADERS, retired_header]
+    row = dict(zip(headers, [*_ROW, "something"]))
+
+    with pytest.raises(DiscoveryUploadFormatError, match="follows the old template"):
+        _parse(_csv_bytes([row], headers), "book.csv")
 
 
 def test_csv_with_workbook_headers_and_semicolon_delimiter() -> None:
     row = dict(zip(_DATASETS_HEADERS, _ROW))
 
-    parsed = parse_discovery_file(
-        _csv_bytes([row], _DATASETS_HEADERS, delimiter=";"), "book.csv", 100
-    )
+    parsed = _parse(_csv_bytes([row], _DATASETS_HEADERS, delimiter=";"), "book.csv")
 
     assert parsed.rows[0].values["agency"] == "Bank Indonesia (BI)"
     assert parsed.rows[0].values["dataset_id"] == "TABEL1_1"
 
 
+def test_csv_without_the_indicators_column_is_accepted() -> None:
+    """Emptiness is caught once, at validation time, not on the write path."""
+    row = dict(zip(_DATASETS_HEADERS, _ROW))
+
+    parsed = _parse(_csv_bytes([row], _DATASETS_HEADERS), "book.csv")
+
+    assert "indicators_coverage" not in parsed.rows[0].values
+
+
 def test_csv_with_bom_and_cp1252_fallback() -> None:
-    fieldnames = list(COLUMN_FIELDS)
-    row = dict(zip(fieldnames, _ROW))
+    fieldnames = list(RECORD_FIELDS)
+    row = dict(zip(fieldnames, [*_ROW, "broad money (M2)"]))
     row["agency"] = "Banco de España (BdE)"
 
     with_bom = "﻿".encode() + _csv_bytes([row], fieldnames)
-    assert parse_discovery_file(with_bom, "x.csv", 100).rows[0].values["agency"] == row["agency"]
+    assert _parse(with_bom, "x.csv").rows[0].values["agency"] == row["agency"]
 
     as_cp1252 = _csv_bytes([row], fieldnames).decode().encode("cp1252")
-    assert parse_discovery_file(as_cp1252, "x.csv", 100).rows[0].values["agency"] == row["agency"]
+    assert _parse(as_cp1252, "x.csv").rows[0].values["agency"] == row["agency"]
 
 
 def test_empty_csv_is_rejected() -> None:
     with pytest.raises(DiscoveryUploadFormatError, match="empty"):
-        parse_discovery_file(b"", "x.csv", 100)
+        _parse(b"", "x.csv")

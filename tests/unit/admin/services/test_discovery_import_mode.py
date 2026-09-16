@@ -8,7 +8,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from statgpt.admin.services.discovery_dataset import AdminPortalDiscoveryDatasetService
-from statgpt.admin.services.discovery_upload import COLUMN_FIELDS
+from statgpt.admin.services.discovery_upload import RECORD_FIELDS
 from statgpt.admin.settings.exim import JobsConfig
 from statgpt.common.schemas import DiscoveryUploadSummary
 
@@ -20,7 +20,7 @@ def _make_zip(rows: list[dict[str, str]] | None) -> zipfile.ZipFile:
         archive.writestr("metadata.json", "{}")
         if rows is not None:
             csv_buffer = io.StringIO()
-            writer = csv.DictWriter(csv_buffer, fieldnames=list(COLUMN_FIELDS))
+            writer = csv.DictWriter(csv_buffer, fieldnames=list(RECORD_FIELDS))
             writer.writeheader()
             writer.writerows(rows)
             archive.writestr(JobsConfig.DISCOVERY_DATASETS_FILE, csv_buffer.getvalue())
@@ -29,7 +29,7 @@ def _make_zip(rows: list[dict[str, str]] | None) -> zipfile.ZipFile:
 
 
 def _row(agency: str = "IMF", dataset_id: str = "TABEL1_1") -> dict[str, str]:
-    row = {name: "" for name in COLUMN_FIELDS}
+    row = {name: "" for name in RECORD_FIELDS}
     row.update(agency=agency, dataset_id=dataset_id)
     return row
 

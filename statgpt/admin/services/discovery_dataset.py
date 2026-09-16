@@ -28,7 +28,7 @@ from statgpt.common.services import (
 
 from .discovery_area_publisher import ReferenceAreaPublisher
 from .discovery_publisher import withdraw_documents
-from .discovery_upload import COLUMN_FIELDS, FIELD_LABELS, REQUIRED_FIELDS, parse_discovery_file
+from .discovery_upload import FIELD_LABELS, RECORD_FIELDS, REQUIRED_FIELDS, parse_discovery_file
 from .exceptions import (
     DiscoveryDatasetConflictError,
     DiscoveryDatasetNotFoundError,
@@ -54,7 +54,7 @@ violation of `dataset_id` arrives as ``datasetId``. Everything downstream - the 
 labels, the cell references, the `field` a caller reads - is keyed by field name.
 """
 
-_DESCRIPTIVE_FIELDS = frozenset(COLUMN_FIELDS)
+_DESCRIPTIVE_FIELDS = frozenset(RECORD_FIELDS)
 """The fields a write may touch. Anything else a payload carries (`id`) is not a column."""
 
 _DiscoveryFields = schemas.DiscoveryDatasetBase | schemas.DiscoveryDatasetUpdate
@@ -654,7 +654,11 @@ class AdminPortalDiscoveryDatasetService(DiscoveryDatasetService):
         channel = await ChannelService(self._session).get_model_by_id(channel_id)
 
         parsed = await asyncio.to_thread(
-            parse_discovery_file, data, filename, self._UPLOAD_SETTINGS.max_rows
+            parse_discovery_file,
+            data,
+            filename,
+            self._UPLOAD_SETTINGS.max_rows,
+            self._UPLOAD_SETTINGS.max_indicators_per_dataset,
         )
         raw = [
             _RawRecord(
@@ -662,7 +666,7 @@ class AdminPortalDiscoveryDatasetService(DiscoveryDatasetService):
                 row=row.row_number,
                 cells={
                     name: reference
-                    for name in COLUMN_FIELDS
+                    for name in RECORD_FIELDS
                     if (reference := parsed.cell(name, row.row_number))
                 },
             )
@@ -670,6 +674,9 @@ class AdminPortalDiscoveryDatasetService(DiscoveryDatasetService):
         ]
         candidates, problems = _build_candidates_from_rows(raw)
         problems.extend(_duplicate_problems(candidates))
+        # The file's own problems travel with the schema violations, so an upload that got
+        # several different things wrong is reported once rather than one class at a time.
+        problems.extend(parsed.problems)
         _raise_for_problems(problems, self._UPLOAD_SETTINGS.max_reported_problems)
 
         summary = await self._upsert(
@@ -686,15 +693,15 @@ class AdminPortalDiscoveryDatasetService(DiscoveryDatasetService):
     def _export_rows(records: Iterable[models.DiscoveryDataset]) -> list[dict[str, str]]:
         """Shape records for the export CSV.
 
-        Only the descriptive fields travel: validation and indexing state describe this
-        deployment's index, not the dataset.
+        Only the submitted fields travel: validation and indexing state describe this
+        deployment's index rather than the dataset, and the derived columns are not something
+        an upload may carry back in.
+
+        Read straight off the row rather than through the write schema, so a record stored
+        before the current rules - a dataset id no sheet could be named after - is still
+        exportable. The export says what is stored; refusing a write is the write's business.
         """
-        return [
-            schemas.DiscoveryDatasetBase.model_validate(item, from_attributes=True).model_dump(
-                mode="json"
-            )
-            for item in records
-        ]
+        return [{name: getattr(item, name) for name in RECORD_FIELDS} for item in records]
 
     async def export_discovery_datasets_to_folder(
         self, channel: models.Channel, folder_path: str
@@ -735,7 +742,7 @@ class AdminPortalDiscoveryDatasetService(DiscoveryDatasetService):
         )
         return utils.csv_from_dict_list(
             self._export_rows(records),
-            fieldnames=list(schemas.DiscoveryDatasetBase.model_fields),
+            fieldnames=list(RECORD_FIELDS),
         )
 
     async def import_discovery_datasets_from_zip(

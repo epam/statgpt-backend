@@ -11,7 +11,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from statgpt.admin.services.discovery_dataset import AdminPortalDiscoveryDatasetService
-from statgpt.admin.services.discovery_upload import COLUMN_FIELDS
+from statgpt.admin.services.discovery_upload import RECORD_FIELDS
 from statgpt.common import models, utils
 from statgpt.common.schemas import (
     DiscoveryDatasetBase,
@@ -25,7 +25,7 @@ def _stored(agency: str = "IMF", dataset_id: str = "TABEL1_1", **overrides: obje
 
     The point of several of these tests is that the state does not reach the file.
     """
-    values: dict[str, object] = {name: "" for name in COLUMN_FIELDS}
+    values: dict[str, object] = {name: "" for name in RECORD_FIELDS}
     values.update(agency=agency, dataset_id=dataset_id)
     values.update(overrides)
     values.setdefault("id", 1)
