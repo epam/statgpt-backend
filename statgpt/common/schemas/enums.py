@@ -92,6 +92,16 @@ class RAGVersion(StrEnum):
     """Generic RAG DIAL application (reuses the DIAL RAG transport)"""
 
 
+class AttachmentsTarget(StrEnum):
+    """Where a tool's attachments are attached."""
+
+    stage = "stage"
+    """Attach to the tool-result stage."""
+
+    choice = "choice"
+    """Attach to the assistant message."""
+
+
 class DecoderOfLatestEnum(StrEnum):
     """Function to create a time range corresponding to "latest" for a given publication type."""
 

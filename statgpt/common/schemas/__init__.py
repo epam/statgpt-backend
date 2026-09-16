@@ -64,6 +64,7 @@ from .discovery_document import (
 )
 from .discovery_indexing_job import DiscoveryIndexingJob
 from .enums import (
+    AttachmentsTarget,
     AuditActionType,
     AuditEntityType,
     AutoUpdateResult,
