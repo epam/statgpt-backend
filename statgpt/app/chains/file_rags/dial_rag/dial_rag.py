@@ -36,6 +36,7 @@ class DialRagAgentFactory(BaseRAGFactory):
     FIELD_METADATA = 'metadata'
     FIELD_PRE_FILTER_DECODER_OF_LATEST = 'prefilter_decoder_of_latest'
     FIELD_CURRENT_DATE = 'current_date'
+    FIELD_SEARCH_ALL_PUBLICATIONS = 'search_all_publications'
 
     def _init_dial_rag_client(self, auth_context: AuthContext):
         nondefault_dial_rag_pgvector_endpoint = dial_rag_settings.pgvector_url
@@ -203,6 +204,7 @@ class DialRagAgentFactory(BaseRAGFactory):
         query = ChainParameters.get_query(inputs)
 
         target_prefilter = ChainParameters.get_target_prefilter(inputs)
+        search_all_publications = ChainParameters.get_search_all_publications(inputs)
         current_date = ChainParameters.get_target_current_date(inputs)
         if current_date is not None:
             logger.info(f'received current date override: {current_date}')
@@ -217,14 +219,32 @@ class DialRagAgentFactory(BaseRAGFactory):
                 rag_filter=target_prefilter,
             )
             metadata = None  # not used as well
+        elif search_all_publications:
+            logger.info('agent requested search across all publications - skipping prefilter')
+            pre_filter_response = PreFilterResponse(llm_output=None, rag_filter=None)
+            metadata = None
+            target.add_attachment(
+                type=MediaTypes.MARKDOWN,
+                title='Pre-filter',
+                data="Skipped at the agent's request - searching across all publications.",
+            )
         else:
             logger.info(f'building prefilter from user query: "{query}"')
             pre_filter_response, metadata = await self._run_prefilter(
                 auth_context=auth_context, query=query, target=target, reference_date=current_date
             )
 
+        # suggest the unfiltered retry only when the empty result may be caused by a prefilter
+        # built from the user query; never on eval calls with an injected target prefilter
+        suggest_unfiltered_retry = (
+            target_prefilter is None
+            and not search_all_publications
+            and pre_filter_response.rag_filter is not None
+        )
+
         inputs[self.FIELD_PRE_FILTER] = pre_filter_response
         inputs[self.FIELD_METADATA] = metadata
+        inputs[self.FIELD_SEARCH_ALL_PUBLICATIONS] = search_all_publications
         inputs[self.FIELD_PRE_FILTER_DECODER_OF_LATEST] = (
             self._tool_config.details.decoder_of_latest
         )
@@ -300,6 +320,12 @@ class DialRagAgentFactory(BaseRAGFactory):
                     f"{tool_name} was unable to find the relevant data for the query: {query}\nOriginal response: {dial_streamer.content_with_attachments_metadata}"
                 )
                 target.append_content(msg)
+                if suggest_unfiltered_retry:
+                    msg += (
+                        '\n\nA publications pre-filter was applied to this search. To search '
+                        'across all available publications, call this tool again with the same '
+                        'query and `search_all_publications=true`.'
+                    )
                 inputs[self.FIELD_RESPONSE] = msg
                 inputs[self.FIELD_ANSWERED_BY] = 'LLM'
 
