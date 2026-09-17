@@ -195,7 +195,11 @@ class DeepResearchRunner:
         # that field to renumber the annotations, and it cannot tell a stripped array from one
         # that never had indexes, so the report's citations would silently break.
         create_kwargs: dict[str, Any] = dict(model=deployment_id, stream=True, messages=messages)
-        client = openai.get_async_client(api_key=auth_context.api_key)
+        # Deep Research reaches back into this app's MCP server to query data, so it needs the
+        # caller's access token (not just the API key) to authorize downstream data sources.
+        client = openai.get_async_client(
+            api_key=auth_context.api_key, access_token=auth_context.dial_access_token
+        )
         time_start = time.monotonic()
         try:
             async with client:

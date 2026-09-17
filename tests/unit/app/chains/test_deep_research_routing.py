@@ -207,7 +207,7 @@ def _patch_dr_deployment(
             return False
 
     monkeypatch.setattr(
-        deep_research_module.openai, "get_async_client", lambda api_key=None, **k: _FakeClient()
+        deep_research_module.openai, "get_async_client", lambda *a, **k: _FakeClient()
     )
 
 
@@ -226,7 +226,7 @@ def _patch_dr_deployment_raises(monkeypatch, error: Exception) -> None:
             return False
 
     monkeypatch.setattr(
-        deep_research_module.openai, "get_async_client", lambda api_key=None, **k: _RaisingClient()
+        deep_research_module.openai, "get_async_client", lambda *a, **k: _RaisingClient()
     )
 
 
@@ -250,7 +250,7 @@ def _patch_dr_deployment_counting(monkeypatch) -> dict:
             return False
 
     monkeypatch.setattr(
-        deep_research_module.openai, "get_async_client", lambda api_key=None, **k: _FakeClient()
+        deep_research_module.openai, "get_async_client", lambda *a, **k: _FakeClient()
     )
     return calls
 
