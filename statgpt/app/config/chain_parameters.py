@@ -24,6 +24,7 @@ class ChainParametersConfig:
 
     TARGET_PREFILTER = "target_prefilter"
     TARGET_CURRENT_DATE = "target_current_date"
+    SEARCH_ALL_PUBLICATIONS = "search_all_publications"
     DATASETS_DICT = "datasets_dict"
     DATASET_DIMENSION_QUERIES = "dataset_dimension_queries"
     DATASET_QUERIES_FORMATTED_STR = "dataset_queries_formatted_str"

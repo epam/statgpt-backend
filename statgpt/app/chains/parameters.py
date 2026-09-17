@@ -59,6 +59,11 @@ class ChainParameters:
         return data.get(ChainParametersConfig.TARGET_CURRENT_DATE)
 
     @staticmethod
+    def get_search_all_publications(data: dict) -> bool:
+        """Agent-requested RAG fallback: search all publications without a prefilter."""
+        return data.get(ChainParametersConfig.SEARCH_ALL_PUBLICATIONS, False)
+
+    @staticmethod
     def get_auth_context(data: dict) -> AuthContext:
         return data[ChainParametersConfig.AUTH_CONTEXT]
 
