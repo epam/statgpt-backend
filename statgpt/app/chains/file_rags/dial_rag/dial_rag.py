@@ -16,8 +16,10 @@ from statgpt.app.schemas import DialRagArtifact, DialRagState
 from statgpt.app.schemas.file_rags.dial_rag import DialRagMetadata, PreFilterResponse
 from statgpt.app.settings.dial_rag import dial_rag_settings
 from statgpt.app.utils import OpenAiToDialStreamer, openai, replace_dial_url
+from statgpt.app.utils.dial_stages import ChoiceI
 from statgpt.common.auth.auth_context import AuthContext
 from statgpt.common.config import multiline_logger as logger
+from statgpt.common.schemas import AttachmentsTarget
 from statgpt.common.schemas.llm_call_duration import LLMCallDurationItem
 from statgpt.common.utils import MediaTypes
 from statgpt.common.utils.llm_call_duration_context import get_llm_call_duration_manager
@@ -148,7 +150,16 @@ class DialRagAgentFactory(BaseRAGFactory):
 
         return pre_filter_response, metadata
 
-    def _append_attachments(self, target: Stage, attachments: list[dict[str, Any]]) -> None:
+    def _attachments_sink(self, target: Stage, choice: ChoiceI) -> ChoiceI | Stage:
+        """Where the RAG attachments are attached, per the tool's `attachments_target`.
+
+        The answer itself always goes to `target`; only the attachments move.
+        """
+        if self._tool_config.details.attachments_target is AttachmentsTarget.choice:
+            return choice
+        return target
+
+    def _append_attachments(self, sink: ChoiceI | Stage, attachments: list[dict[str, Any]]) -> None:
         attachment_url_override = self._tool_config.details.get_attachment_url_override()
 
         for attachment in attachments:
@@ -156,7 +167,7 @@ class DialRagAgentFactory(BaseRAGFactory):
             if attachment_url_override and reference_url:
                 reference_url = replace_dial_url(reference_url, attachment_url_override)
 
-            target.add_attachment(
+            sink.add_attachment(
                 type=attachment.get('type'),
                 title=attachment.get('title'),
                 data=attachment.get('data'),
@@ -273,7 +284,9 @@ class DialRagAgentFactory(BaseRAGFactory):
                     f"### Response\n\n{dial_streamer.content}"
                     "\n\n---"
                 )
-                self._append_attachments(target, dial_streamer.attachments)
+                self._append_attachments(
+                    self._attachments_sink(target, choice), dial_streamer.attachments
+                )
                 inputs[self.FIELD_RESPONSE] = dial_streamer.content_with_attachments_metadata
                 inputs[self.FIELD_ANSWERED_BY] = 'RAG'
                 inputs[self.FIELD_ATTACHMENTS] = dial_streamer.attachments

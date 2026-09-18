@@ -61,6 +61,11 @@ class DialAppFactory:
         app = StatGPTApp(
             dial_url=dial_settings.url,
             add_healthcheck=True,
+            # Accept the custom_content.annotations we stream on assistant messages when the
+            # client replays them in history: aidial_sdk's request CustomContent has no
+            # annotations field, and its default extra-field check would 400 the next turn.
+            # Remove once the SDK declares the field. See statgpt/app/utils/dial_annotations.py.
+            allow_extra_request_fields=True,
             lifespan=lifespan,
             telemetry_config=TelemetryConfig(
                 service_name=dial_app_settings.dial_app_name,
