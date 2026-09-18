@@ -4,6 +4,7 @@ from statgpt.app.services.hybrid_searcher import HybridCandidateScored
 from statgpt.app.settings.dial_app import dial_app_settings
 from statgpt.app.utils.formatters import DatasetFormatterConfig, SimpleDatasetFormatter
 from statgpt.common.auth.auth_context import AuthContext
+from statgpt.common.config import logger
 from statgpt.common.data.base import CategoricalDimension, DataSet, DimensionQuery
 from statgpt.common.data.sdmx.v21.dataset import Sdmx21DataSet
 from statgpt.common.schemas.enums import LocaleEnum
@@ -109,7 +110,10 @@ class DatasetDimQueriesSimpleDictFormatter:
     ) -> str:
         lines = []
         for dataset_id, dataset_query in sorted(queries.items(), key=lambda x: x[0]):
-            dataset = self.datasets[dataset_id]
+            dataset = self.datasets.get(dataset_id)
+            if dataset is None:
+                logger.warning(f'Skipping unknown {dataset_id=} in query formatting')
+                continue
 
             prefix = '#' * header_level
             title = f'{prefix} {dataset.name}'
