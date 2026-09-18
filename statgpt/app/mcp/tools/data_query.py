@@ -11,6 +11,7 @@ from statgpt.app.mcp.attachments import (
     data_query_outcome_to_resources,
     data_query_outcome_to_structured_content,
 )
+from statgpt.app.mcp.rate_limit import McpToolCostClass
 from statgpt.common.auth.auth_context import AuthContext
 from statgpt.common.schemas import ChannelConfig
 from statgpt.common.schemas import DataQueryTool as DataQueryToolConfig
@@ -38,6 +39,11 @@ class DataQueryMcpTool(
     @classmethod
     def get_args_schema(cls, tool_config: DataQueryToolConfig) -> type[DataQueryArgs]:
         return DataQueryArgs
+
+    @classmethod
+    def get_cost_class(cls, tool_config: DataQueryToolConfig) -> McpToolCostClass:
+        # Builds and runs SDMX queries with LLM-backed processing: the most expensive to serve.
+        return McpToolCostClass.EXPENSIVE
 
     async def _execute(self, args: DataQueryArgs) -> ToolResult:
         outcome = await self._runner.run(args.inputs, args.query)

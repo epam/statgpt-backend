@@ -25,7 +25,10 @@ from pydantic import BaseModel, PrivateAttr, ValidationError
 from statgpt.app.chains.tools import StatGptTool, ToolArgs, ToolUpstreamError
 from statgpt.app.mcp.guardrails import enforce_input_guardrail
 from statgpt.app.mcp.output_schema import model_to_output_schema
+from statgpt.app.mcp.payload_budget import enforce_payload_budget
+from statgpt.app.mcp.rate_limit import McpToolCostClass, enforce_rate_limit
 from statgpt.app.settings.dial_app import dial_app_settings
+from statgpt.app.settings.mcp import mcp_settings
 from statgpt.common.auth.auth_context import AuthContext
 from statgpt.common.schemas import BaseToolConfig, ChannelConfig, ToolTypes
 
@@ -42,6 +45,18 @@ _OPEN_WORLD_TOOL_TYPES = frozenset(
     {
         ToolTypes.WEB_SEARCH,
         ToolTypes.WEB_SEARCH_AGENT,
+    }
+)
+# Tool types served by the LangChain catch-all that are expensive to serve or externally
+# reachable (web calls and/or LLM-backed processing), so they take the expensive per-caller
+# rate-limit allowance. Everything else the catch-all serves is a metadata or static read and
+# keeps the moderate default.
+_EXPENSIVE_TOOL_TYPES = frozenset(
+    {
+        ToolTypes.WEB_SEARCH,
+        ToolTypes.WEB_SEARCH_AGENT,
+        ToolTypes.DEEP_RESEARCH,
+        ToolTypes.FILE_RAG,
     }
 )
 
@@ -118,6 +133,12 @@ class StatGptMcpTool(Tool, ABC, Generic[ToolConfigType, ArgsType]):
         return _DEFAULT_ANNOTATIONS
 
     @classmethod
+    def get_cost_class(cls, tool_config: ToolConfigType) -> McpToolCostClass:
+        """How expensive this tool is to serve, which selects its per-caller rate-limit
+        allowance. The moderate default suits an upstream metadata read; subclasses override."""
+        return McpToolCostClass.MODERATE
+
+    @classmethod
     def get_output_model(cls) -> type[BaseModel] | None:
         """The Pydantic model describing this tool's ``structuredContent``, or ``None`` when the
         tool declares no output schema. Declaring it pins the response shape so the advertised
@@ -144,6 +165,14 @@ class StatGptMcpTool(Tool, ABC, Generic[ToolConfigType, ArgsType]):
         except ValidationError as e:
             _log.debug("Invalid arguments for MCP tool %s: %s", self.name, e)
             raise ToolError(f"Invalid arguments for {self.name}: {e}") from e
+
+        # Rate limit before the (LLM-backed) guardrail and execution, so an over-limit caller is
+        # rejected without spending that work. App-only tools are for internal application use and
+        # are not loaded into an agent's context, so they are exempt.
+        if not self._tool_config.is_app_only:
+            enforce_rate_limit(
+                self.name, self.get_cost_class(self._tool_config), self._auth_context
+            )
 
         # Bound the guardrail and execution by a deadline kept under the 300s host tool-call
         # timeout. On expiry asyncio.timeout cancels the current downstream await, which cascades
@@ -190,6 +219,13 @@ class StatGptMcpTool(Tool, ABC, Generic[ToolConfigType, ArgsType]):
             # raise a custom exception caught in a dedicated except block above this one.
             _log.exception("Error executing MCP tool %s", self.name)
             raise ToolError(f"{self.name} tool failed to execute")
+
+        # Keep the result within the host's payload limit. Exempt for app-only tools, whose result
+        # is consumed by the application, not returned into an agent's context.
+        if not self._tool_config.is_app_only and mcp_settings.mcp_payload_budget_enabled:
+            result = enforce_payload_budget(
+                result, tool_name=self.name, budget=mcp_settings.mcp_payload_max_chars
+            )
 
         _log.info(
             "Sending MCP tool %s response: %d content block(s), structured_content=%s",
@@ -263,6 +299,12 @@ class LangChainMcpTool(StatGptMcpTool[BaseToolConfig, ToolArgs]):
         if tool_config.type in _OPEN_WORLD_TOOL_TYPES:
             return ToolAnnotations(readOnlyHint=True, destructiveHint=False, openWorldHint=True)
         return _DEFAULT_ANNOTATIONS
+
+    @classmethod
+    def get_cost_class(cls, tool_config: BaseToolConfig) -> McpToolCostClass:
+        if tool_config.type in _EXPENSIVE_TOOL_TYPES:
+            return McpToolCostClass.EXPENSIVE
+        return McpToolCostClass.MODERATE
 
     async def _execute(self, args: ToolArgs) -> ToolResult:
         # `inputs` is re-injected as the live object: dumping it would serialize the context
