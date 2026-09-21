@@ -37,8 +37,7 @@ The query to search an answer for.
     search_all_publications: bool = Field(
         default=False,
         description='''\
-Set to true to search across ALL available publications, without any publication filters
-(publication type, publication date, "latest").
+Set to true to search across ALL available publications, without any publication filters.
 - Use ONLY as a fallback: when a call with this flag unset found no publications for the same user request.
 - Never set to true on the first call.
 ''',
