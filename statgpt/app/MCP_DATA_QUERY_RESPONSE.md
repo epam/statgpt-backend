@@ -9,8 +9,9 @@ reader:
 | `structuredContent` | the calling model | The queries the pipeline produced, or what a follow-up query would need when it produced none. Validated against the tool's declared `outputSchema`. |
 | `result._meta` | the clients | One namespaced payload per audience: the MCP-App widget and programmatic clients (e.g. Deep Research). |
 
-The whole response carries one version number, `3`, in `structuredContent.version` and in every
-`_meta` payload. See [the migration guide](MCP_DATA_QUERY_RESPONSE_MIGRATION.md) for what changed
+The whole response carries one version number, `3`, in every `_meta` payload.
+`structuredContent` is not versioned: it is read by the model, which has nothing to do with a
+version number. See [the migration guide](MCP_DATA_QUERY_RESPONSE_MIGRATION.md) for what changed
 from version 2.
 
 ## `structuredContent`
@@ -29,10 +30,10 @@ from version 2.
 | `queries[].seriesCount` | Number of series returned, absent when the query returned no data. |
 | `missingDimensions` | The dimensions a follow-up query must specify, with `totalValues` and up to 10 `sampleValues` each. |
 | `candidateDatasets[]` | Datasets to narrow the query to, as `id` / `name` / `isOfficial`. |
-| `version` | `3`. |
 
-Null fields are omitted. The pipeline status, the python snippet and the companion tool names are
-not here: the text block explains the outcome to the model, and the clients read `_meta`.
+Null fields are omitted. The pipeline status, the python snippet, the companion tool names and the
+response version are not here: the text block explains the outcome to the model, and the clients
+read `_meta`.
 
 ## `result._meta`
 
@@ -127,8 +128,7 @@ The queries ran and returned data.
         "seriesCount": 2
       }
     ],
-    "candidateDatasets": [],
-    "version": 3
+    "candidateDatasets": []
   },
   "_meta": {
     "statgpt.dialx.ai/mcp-app": {
@@ -263,8 +263,7 @@ The queries ran and returned nothing. The model still sees what was asked, and `
         }
       }
     ],
-    "candidateDatasets": [],
-    "version": 3
+    "candidateDatasets": []
   },
   "_meta": {
     "statgpt.dialx.ai/mcp-app": {
@@ -391,8 +390,7 @@ The fetch or the parsing failed. Also the default status, in which case there ar
         }
       }
     ],
-    "candidateDatasets": [],
-    "version": 3
+    "candidateDatasets": []
   },
   "_meta": {
     "statgpt.dialx.ai/mcp-app": {
@@ -513,8 +511,7 @@ The queries were constructed but never ran: `executed` is `false`, and there is 
         }
       }
     ],
-    "candidateDatasets": [],
-    "version": 3
+    "candidateDatasets": []
   },
   "_meta": {
     "statgpt.dialx.ai/mcp-app": {
@@ -609,8 +606,7 @@ The query matched several datasets. The model gets the ids to narrow it down; th
         "name": "National Summary Data Page (NSDP)",
         "isOfficial": false
       }
-    ],
-    "version": 3
+    ]
   },
   "_meta": {
     "statgpt.dialx.ai/mcp-app": {
@@ -707,8 +703,7 @@ The query is incomplete. The model gets a bounded sample of each dimension's val
         }
       ]
     },
-    "candidateDatasets": [],
-    "version": 3
+    "candidateDatasets": []
   },
   "_meta": {
     "statgpt.dialx.ai/mcp-app": {
@@ -811,8 +806,7 @@ The requested period is outside the dataset's range. The constructed queries are
 {
   "structuredContent": {
     "queries": [],
-    "candidateDatasets": [],
-    "version": 3
+    "candidateDatasets": []
   },
   "_meta": {
     "statgpt.dialx.ai/mcp-app": {
@@ -844,8 +838,7 @@ Nothing relevant was found, and no query was built.
 {
   "structuredContent": {
     "queries": [],
-    "candidateDatasets": [],
-    "version": 3
+    "candidateDatasets": []
   },
   "_meta": {
     "statgpt.dialx.ai/mcp-app": {

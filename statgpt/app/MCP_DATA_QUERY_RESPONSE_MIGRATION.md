@@ -27,7 +27,7 @@ Version 2 carried everything in `structuredContent`:
 | `candidateDatasets[]` (with `description`) | `_meta["{ns}/mcp-app"].candidateDatasets[]` |
 | `missingDimensions` (every available value) | `_meta["{ns}/mcp-app"].missingDimensions` |
 | `tools.sdmxProxy` | `_meta["{ns}/mcp-app"].tools.sdmxProxy` |
-| `version: 2` | `version: 3`, in `structuredContent` and in both `_meta` payloads |
+| `version: 2` | `version: 3`, in both `_meta` payloads; `structuredContent` is no longer versioned |
 
 `{ns}` is the configured namespace, `statgpt.dialx.ai` by default.
 
@@ -70,5 +70,5 @@ block instead, and use the stem to match a resource to a query. A response that 
 4. Confirm the namespace your deployment is configured with (`details.mcpMeta.namespace`) and that
    your audience's payload is carried: the `mcp-app` one whenever the tool binds a widget through
    `mcp_app_resource_uri`, the `client` one when `details.mcpMeta.client.enabledStr` is on.
-5. Treat `version` as the single version of the whole response: `structuredContent` and both
-   `_meta` payloads are bumped together.
+5. Read `version` from your audience's `_meta` payload. It versions the whole response, so both
+   payloads are bumped together; `structuredContent` no longer carries it.

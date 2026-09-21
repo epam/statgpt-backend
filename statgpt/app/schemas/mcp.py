@@ -11,8 +11,8 @@ from statgpt.app.schemas.query import AppJsonQueryWithMetadata
 from statgpt.common.schemas.base import BaseYamlModel
 from statgpt.common.schemas.query import JsonQueryOperator
 
-# One version number for the whole data query response: `structuredContent` and every `_meta`
-# audience payload carry it and are bumped together.
+# One version number for the whole data query response: every `_meta` audience payload carries it
+# and they are bumped together. `structuredContent` does not: the calling model cannot act on it.
 DATA_QUERY_RESPONSE_VERSION = 3
 
 
@@ -166,9 +166,6 @@ class DataQueryStructuredContent(BaseYamlModel):
     candidate_datasets: list[CandidateDatasetRecord] = Field(
         default_factory=list,
         description="Datasets to narrow the query to, when it matched several.",
-    )
-    version: int = Field(
-        default=DATA_QUERY_RESPONSE_VERSION, description="Schema version of this response."
     )
 
 

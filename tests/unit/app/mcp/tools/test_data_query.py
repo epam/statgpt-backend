@@ -121,7 +121,7 @@ async def test_data_available_returns_text_csv_and_structured_content():
     assert [r.resource.mimeType for r in resources] == ["text/csv"]
     structured = tool_result.structured_content
     assert structured is not None
-    assert structured["version"] == 3
+    assert "version" not in structured
     assert [q["datasetUrn"] for q in structured["queries"]] == ["IMF:CPI(1.0.0)"]
     assert structured["queries"][0]["executed"] is True
     # Null fields are dropped from what the model reads.

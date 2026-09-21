@@ -432,9 +432,9 @@ def test_structured_content_data_available_describes_the_executed_query():
         by_alias=True, exclude_none=True
     )
 
-    assert data["version"] == 3
-    # The status, the python code and the companion tools are client-facing: `_meta` carries them.
-    assert set(data) == {"queries", "candidateDatasets", "version"}
+    # The status, the python code, the companion tools and the version are client-facing: `_meta`
+    # carries them.
+    assert set(data) == {"queries", "candidateDatasets"}
     assert len(data["queries"]) == 1
     query = data["queries"][0]
     assert query["datasetUrn"] == "IMF:CPI(1.0.0)"
@@ -648,7 +648,7 @@ def test_structured_content_no_data_is_empty():
         by_alias=True, exclude_none=True
     )
 
-    assert data == {"queries": [], "candidateDatasets": [], "version": 3}
+    assert data == {"queries": [], "candidateDatasets": []}
 
 
 def test_structured_content_invalid_time_period_is_empty():
