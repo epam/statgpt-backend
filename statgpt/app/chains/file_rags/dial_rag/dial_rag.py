@@ -320,11 +320,15 @@ class DialRagAgentFactory(BaseRAGFactory):
                     f"{tool_name} was unable to find the relevant data for the query: {query}\nOriginal response: {dial_streamer.content_with_attachments_metadata}"
                 )
                 target.append_content(msg)
+                if rag_filter := pre_filter_response.rag_filter:
+                    msg += (
+                        '\n\nThe following publications pre-filter was applied to this search:\n'
+                        f'{rag_filter}'
+                    )
                 if suggest_unfiltered_retry:
                     msg += (
-                        '\n\nA publications pre-filter was applied to this search. To search '
-                        'across all available publications, call this tool again with the same '
-                        'query and `search_all_publications=true`.'
+                        '\n\nTo search across all available publications, call this tool again '
+                        'with the same query and `search_all_publications=true`.'
                     )
                 inputs[self.FIELD_RESPONSE] = msg
                 inputs[self.FIELD_ANSWERED_BY] = 'LLM'
