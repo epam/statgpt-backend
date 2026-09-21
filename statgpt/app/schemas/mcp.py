@@ -1,6 +1,6 @@
 from typing import Self
 
-from pydantic import ConfigDict, Field, computed_field
+from pydantic import ConfigDict, Field, computed_field, model_validator
 
 from statgpt.app.schemas.data_query_outcome import (
     DataQueryStatus,
@@ -415,36 +415,35 @@ class DatasetComponentRecord(BaseYamlModel):
         "when there are at most 10, otherwise a random sample of 10 (so when total_values exceeds "
         "the sample size this is not the full list).",
     )
+    sample_values_count: int | None = Field(
+        default=None,
+        description="Number of values listed in `sampleValues`. Lower than `totalValues` when the"
+        " list is a sample.",
+    )
 
-
-class ProviderAgencyRecord(BaseYamlModel):
-    """One agency behind a dataset's provider."""
-
-    model_config = ConfigDict(serialize_by_alias=True)
-
-    id: str = Field(description="Agency id.")
-    name: str = Field(description="Agency name.")
+    @model_validator(mode="after")
+    def _derive_sample_values_count(self) -> Self:
+        # Derived rather than computed: a computed field is always required by the serialization
+        # schema, while this one is omitted along with `sampleValues` for a non-categorical
+        # component. Overwritten unconditionally, so it cannot drift from the list it describes.
+        self.sample_values_count = (
+            len(self.sample_values) if self.sample_values is not None else None
+        )
+        return self
 
 
 class DatasetStructureStructuredContent(BaseYamlModel):
-    """MCP structured content for the dataset-structure tool: the dataset's metadata plus its
-    dimensions and attributes, with a bounded sample of each dimension's values. Optional fields
-    are omitted when unknown."""
+    """MCP structured content for the dataset-structure tool: the dataset's identity plus its
+    dimensions and attributes, with a bounded sample of each dimension's values. A dataset that
+    does not exist is reported as a tool error, so this content always describes a found dataset.
+    """
 
     model_config = ConfigDict(serialize_by_alias=True)
 
-    dataset_id: str = Field(description="The requested dataset URN (source id).")
-    found: bool = Field(description="Whether a dataset with that URN was found.")
-    name: str | None = Field(default=None, description="Dataset name, when found.")
-    description: str | None = Field(default=None, description="Dataset description, if available.")
-    provider: str | None = Field(default=None, description="Provider name, if known.")
+    dataset_id: str = Field(description="The dataset URN (source id).")
+    name: str = Field(description="Human-readable dataset name.")
     last_updated: str | None = Field(
         default=None, description="Date the dataset was last updated (ISO 8601), if known."
-    )
-    url: str | None = Field(default=None, description="Link to the dataset, when available.")
-    provider_agencies: list[ProviderAgencyRecord] | None = Field(
-        default=None,
-        description="Agencies behind the provider, when the dataset aggregates several.",
     )
     dimensions: list[DatasetComponentRecord] = Field(
         default_factory=list, description="The dataset's dimensions."
