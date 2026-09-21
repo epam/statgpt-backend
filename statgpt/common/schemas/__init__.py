@@ -30,6 +30,7 @@ from .composite import ChannelDatasetUpdateResult, DataSetUpdateResponse
 from .data_query_tool import (
     DataQueryDetails,
     DataQueryExplorerLink,
+    DataQueryMcpMeta,
     DataQueryMcpResources,
     HybridSearchConfig,
 )

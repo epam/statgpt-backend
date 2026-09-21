@@ -112,7 +112,9 @@ class IncompleteQueriesChain:
             )
             for dimension, value_infos in cls.iter_missing_dimensions(dataset, query, availability)
         ]
-        return MissingDimensionsInfo(dataset_id=dataset_id, dimensions=dimensions)
+        return MissingDimensionsInfo(
+            dataset_id=dataset_id, dataset_urn=dataset.data.source_id, dimensions=dimensions
+        )
 
     async def _add_missing_dimensions_in_attachments(
         self,
