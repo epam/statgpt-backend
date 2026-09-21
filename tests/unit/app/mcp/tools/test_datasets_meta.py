@@ -2,6 +2,9 @@ from datetime import datetime, timezone
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
+import pytest
+from fastmcp.exceptions import ToolError
+
 from statgpt.app.config import ChainParametersConfig
 from statgpt.app.mcp.tools import StatGptMcpTool
 from statgpt.common.data.base import Attribute, CategoricalDimension
@@ -73,12 +76,20 @@ def _attribute() -> MagicMock:
     return attr
 
 
-def _build(tool_config, inputs: dict) -> StatGptMcpTool:
+def _build(
+    tool_config,
+    inputs: dict,
+    available_datasets: AvailableDatasetsTool | None = None,
+    tool_name_prefix: str = "",
+) -> StatGptMcpTool:
     return StatGptMcpTool.from_config(
         tool_config,
         # out_of_scope=None disables the guardrail, so run() proceeds straight to the tool.
         SimpleNamespace(  # type: ignore[arg-type]
-            mcp=SimpleNamespace(tool_name_prefix=""), out_of_scope=None, locale="en"
+            mcp=SimpleNamespace(tool_name_prefix=tool_name_prefix),
+            out_of_scope=None,
+            locale="en",
+            available_datasets=available_datasets,
         ),
         inputs=inputs,
         auth_context=_AUTH,  # type: ignore[arg-type]
@@ -170,20 +181,36 @@ def _structure_inputs(dataset) -> dict:
     }
 
 
-async def test_dataset_structure_not_found():
+async def test_dataset_structure_not_found_is_an_error_naming_the_datasets_tool():
+    # An unknown id is a tool error, not a payload the model has to interpret. The hint names the
+    # available-datasets tool as MCP exposes it, prefix included.
+    tool_config = DatasetStructureTool(name="structure", description="Structure.")
+    available_datasets = AvailableDatasetsTool(name="datasets", description="Datasets.")
+
+    tool = _build(
+        tool_config,
+        _structure_inputs(None),
+        available_datasets=available_datasets,
+        tool_name_prefix="statgpt__",
+    )
+    with pytest.raises(ToolError) as exc_info:
+        await tool.run({"dataset_id": "IMF:NOPE(1.0)"})
+
+    message = str(exc_info.value)
+    assert "IMF:NOPE(1.0)" in message
+    assert "statgpt__datasets" in message
+
+
+async def test_dataset_structure_not_found_falls_back_to_the_urn_format():
+    # Without an available-datasets tool on the channel there is nothing to point at, so the hint
+    # states the expected id format instead.
     tool_config = DatasetStructureTool(name="structure", description="Structure.")
 
-    tool_result = await _build(tool_config, _structure_inputs(None)).run(
-        {"dataset_id": "IMF:NOPE(1.0)"}
-    )
+    tool = _build(tool_config, _structure_inputs(None))
+    with pytest.raises(ToolError) as exc_info:
+        await tool.run({"dataset_id": "IMF:NOPE(1.0)"})
 
-    assert tool_result.content == []
-    assert tool_result.structured_content == {
-        "datasetId": "IMF:NOPE(1.0)",
-        "found": False,
-        "dimensions": [],
-        "attributes": [],
-    }
+    assert "agency_id:resource_id(version)" in str(exc_info.value)
 
 
 async def test_dataset_structure_found_uses_the_source_update_date():
@@ -197,30 +224,17 @@ async def test_dataset_structure_found_uses_the_source_update_date():
     assert tool_result.content == []
     assert tool_result.structured_content == {
         "datasetId": "IMF:CPI(1.0.0)",
-        "found": True,
         "name": "Consumer Price Index",
-        "description": "Prices.",
-        "provider": "IMF",
         "lastUpdated": "2024-01-31",
         "dimensions": [],
         "attributes": [],
     }
 
 
-async def test_dataset_structure_hides_provider_agencies_by_default():
-    # Mirrors the text rendering: `include_provider_agencies` defaults to False.
-    tool_config = DatasetStructureTool(name="structure", description="Structure.")
-    dataset = _dataset(provider_agencies=_AGENCIES)
-
-    structured = (
-        await _build(tool_config, _structure_inputs(dataset)).run({"dataset_id": "IMF:CPI(1.0.0)"})
-    ).structured_content
-
-    assert structured is not None
-    assert "providerAgencies" not in structured
-
-
-async def test_dataset_structure_exposes_provider_agencies_when_configured():
+async def test_dataset_structure_omits_provenance():
+    # Provenance belongs to the available-datasets response; the structure response carries the
+    # dataset's identity and its components only, whatever the text rendering is configured to
+    # include.
     tool_config = DatasetStructureTool(
         name="structure",
         description="Structure.",
@@ -233,10 +247,7 @@ async def test_dataset_structure_exposes_provider_agencies_when_configured():
     ).structured_content
 
     assert structured is not None
-    assert structured["providerAgencies"] == [
-        {"id": "IMF", "name": "Intl Monetary Fund"},
-        {"id": "WB", "name": "World Bank"},
-    ]
+    assert not {"description", "provider", "url", "providerAgencies"} & structured.keys()
 
 
 async def test_dataset_structure_lists_every_value_of_a_small_dimension():
@@ -259,6 +270,7 @@ async def test_dataset_structure_lists_every_value_of_a_small_dimension():
                 {"id": "C1", "name": "Country 1"},
                 {"id": "C2", "name": "Country 2"},
             ],
+            "sampleValuesCount": 3,
         }
     ]
     assert structured["attributes"] == [
@@ -284,6 +296,7 @@ async def test_dataset_structure_samples_a_large_dimension_like_the_text_renderi
     assert structured is not None
     (dimension,) = structured["dimensions"]
     assert dimension["totalValues"] == 25
+    assert dimension["sampleValuesCount"] == 10
     sample_ids = [value["id"] for value in dimension["sampleValues"]]
     assert len(sample_ids) == 10
     assert len(set(sample_ids)) == 10
