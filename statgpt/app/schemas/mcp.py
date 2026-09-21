@@ -1,6 +1,6 @@
 from typing import Self
 
-from pydantic import ConfigDict, Field
+from pydantic import ConfigDict, Field, computed_field
 
 from statgpt.app.schemas.data_query_outcome import (
     DataQueryStatus,
@@ -67,6 +67,14 @@ class QueryFilter(BaseYamlModel):
     values: list[FilterValue] = Field(
         default_factory=list, description="The filtered values, truncated when there are many."
     )
+
+    @computed_field(  # type: ignore[prop-decorator]
+        description="Number of values listed in `values`. Lower than `totalValues` when the list"
+        " is truncated."
+    )
+    @property
+    def returned_values(self) -> int:
+        return len(self.values)
 
 
 class QueryRecord(BaseYamlModel):
@@ -246,9 +254,6 @@ class DataQueryClientMeta(BaseYamlModel):
 
     status: DataQueryStatus = Field(
         description="Outcome of the data query pipeline (which branch produced the response)."
-    )
-    message: str | None = Field(
-        default=None, description="Human-readable message, e.g. why no data is available."
     )
     queries: list[ClientQueryRecord] = Field(
         default_factory=list, description="The queries, one per dataset."

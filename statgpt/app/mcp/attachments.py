@@ -347,9 +347,9 @@ def data_query_outcome_to_meta(
             mode="json", by_alias=True
         )
     if meta_config.client.enabled:
-        meta[meta_config.client_key] = _client_meta(
-            outcome, config.mcp_resources, message
-        ).model_dump(mode="json", by_alias=True, exclude_none=True)
+        meta[meta_config.client_key] = _client_meta(outcome, config.mcp_resources).model_dump(
+            mode="json", by_alias=True, exclude_none=True
+        )
 
     return meta or None
 
@@ -402,7 +402,7 @@ def _mcp_app_meta(
 
 
 def _client_meta(
-    outcome: DataQueryOutcome, resources_config: DataQueryMcpResources, message: str | None
+    outcome: DataQueryOutcome, resources_config: DataQueryMcpResources
 ) -> DataQueryClientMeta:
     """The client payload: the pipeline status plus, per query, where to look at it and which of
     the result's resources belong to it."""
@@ -436,7 +436,7 @@ def _client_meta(
             for query in outcome.mcp_payload.constructed_queries
         ]
 
-    return DataQueryClientMeta(status=status, message=message, queries=queries)
+    return DataQueryClientMeta(status=status, queries=queries)
 
 
 def _executed_query_records(outcome: DataQueryOutcome) -> list[QueryRecord]:

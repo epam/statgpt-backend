@@ -149,7 +149,7 @@ async def test_data_available_carries_both_meta_audiences():
     ]
 
 
-async def test_no_data_reports_the_status_and_message_in_meta():
+async def test_no_data_reports_the_status_in_meta():
     outcome = _outcome(response="No relevant data found.", status=DataQueryStatus.NO_DATA)
 
     tool_result = await _build(outcome).run({"query": "cpi"})
@@ -160,7 +160,9 @@ async def test_no_data_reports_the_status_and_message_in_meta():
     assert tool_result.meta is not None
     for payload in tool_result.meta.values():
         assert payload["status"] == DataQueryStatus.NO_DATA
-        assert payload["message"] == "No relevant data found."
+    # Only the widget payload carries the message; a client reads the text content block.
+    assert tool_result.meta["statgpt.dialx.ai/mcp-app"]["message"] == "No relevant data found."
+    assert "message" not in tool_result.meta["statgpt.dialx.ai/client"]
 
 
 async def test_markdown_resource_is_added_when_configured():

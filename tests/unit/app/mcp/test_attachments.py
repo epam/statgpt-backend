@@ -494,6 +494,7 @@ def test_structured_content_truncates_a_long_value_list():
     reported = data_query_outcome_to_structured_content(outcome).queries[0].filters[0]
 
     assert reported.total_values == 25
+    assert reported.returned_values == 10
     assert [value.id for value in reported.values] == values[:10]
 
 
@@ -799,7 +800,7 @@ def test_client_meta_carries_links_and_resource_uris():
     )["statgpt.dialx.ai/client"]
 
     assert payload["status"] == DataQueryStatus.DATA_AVAILABLE
-    assert payload["message"] == "answer"
+    assert "message" not in payload
     assert payload["version"] == 3
     record = payload["queries"][0]
     assert record["urn"] == "IMF:CPI(1.0.0)"

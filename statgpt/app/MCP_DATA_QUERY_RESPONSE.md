@@ -23,6 +23,7 @@ from version 2.
 | `queries[].executed` | `false` for a query that was constructed but never ran. |
 | `queries[].filters[]` | One entry per filtered dimension: `dimensionId`, `dimensionName`, `operator`, `values[].id` / `values[].name`. A dimension with no filter is not listed - every one of its values is included. |
 | `queries[].filters[].totalValues` | Present only when `values` was truncated to the first 10. |
+| `queries[].filters[].returnedValues` | How many values `values` lists. Lower than `totalValues` when the list was truncated. |
 | `queries[].requestedPeriod` | `startPeriod` / `endPeriod`, named after the SDMX REST query parameters. The time period is reported here, not as another filter. |
 | `queries[].factualPeriod` | The period the returned data actually covers. |
 | `queries[].seriesCount` | Number of series returned, absent when the query returned no data. |
@@ -53,9 +54,9 @@ details:
   [`mcp_app_resource_uri`](README.md#mcp-apps-ui-widgets) - without one nothing can render it, so
   it has no toggle of its own.
 - **`{namespace}/client`** - what a programmatic client needs to present and navigate the result:
-  the `status`, the `message`, and per query the `dataExplorerUrl`, the `datasetUrl`, the
-  `resourceUris` and the `seriesCount`. Null fields are omitted. Off by default; enable it for a
-  channel whose callers are programmatic.
+  the `status`, and per query the `dataExplorerUrl`, the `datasetUrl`, the `resourceUris` and the
+  `seriesCount`. Null fields are omitted. Off by default; enable it for a channel whose callers are
+  programmatic.
 
 `_meta` is omitted entirely when neither payload applies.
 
@@ -95,7 +96,8 @@ The queries ran and returned data.
                 "id": "USA",
                 "name": "United States"
               }
-            ]
+            ],
+            "returnedValues": 1
           },
           {
             "dimensionId": "INDICATOR",
@@ -110,7 +112,8 @@ The queries ran and returned data.
                 "id": "NGDPD",
                 "name": "Gross domestic product (GDP), Current prices, US dollar"
               }
-            ]
+            ],
+            "returnedValues": 2
           }
         ],
         "requestedPeriod": {
@@ -234,7 +237,8 @@ The queries ran and returned nothing. The model still sees what was asked, and `
                 "id": "USA",
                 "name": "United States"
               }
-            ]
+            ],
+            "returnedValues": 1
           },
           {
             "dimensionId": "INDICATOR",
@@ -249,7 +253,8 @@ The queries ran and returned nothing. The model still sees what was asked, and `
                 "id": "NGDPD",
                 "name": "Gross domestic product (GDP), Current prices, US dollar"
               }
-            ]
+            ],
+            "returnedValues": 2
           }
         ],
         "requestedPeriod": {
@@ -360,7 +365,8 @@ The fetch or the parsing failed. Also the default status, in which case there ar
                 "id": "USA",
                 "name": "United States"
               }
-            ]
+            ],
+            "returnedValues": 1
           },
           {
             "dimensionId": "INDICATOR",
@@ -375,7 +381,8 @@ The fetch or the parsing failed. Also the default status, in which case there ar
                 "id": "NGDPD",
                 "name": "Gross domestic product (GDP), Current prices, US dollar"
               }
-            ]
+            ],
+            "returnedValues": 2
           }
         ],
         "requestedPeriod": {
@@ -483,7 +490,8 @@ The queries were constructed but never ran: `executed` is `false`, and there is 
               {
                 "id": "USA"
               }
-            ]
+            ],
+            "returnedValues": 1
           },
           {
             "dimensionId": "INDICATOR",
@@ -495,7 +503,8 @@ The queries were constructed but never ran: `executed` is `false`, and there is 
               {
                 "id": "NGDPD"
               }
-            ]
+            ],
+            "returnedValues": 2
           }
         ],
         "requestedPeriod": {
@@ -631,7 +640,6 @@ The query matched several datasets. The model gets the ids to narrow it down; th
     },
     "statgpt.dialx.ai/client": {
       "status": "dataset_selection_required",
-      "message": "Several datasets match your query. Which one should I use?",
       "queries": [],
       "version": 3
     }
@@ -788,7 +796,6 @@ The query is incomplete. The model gets a bounded sample of each dimension's val
     },
     "statgpt.dialx.ai/client": {
       "status": "missing_dimensions",
-      "message": "Your query is missing the required dimension \"Country\".",
       "queries": [],
       "version": 3
     }
@@ -822,7 +829,6 @@ The requested period is outside the dataset's range. The constructed queries are
     },
     "statgpt.dialx.ai/client": {
       "status": "invalid_time_period",
-      "message": "The selected end date (2030) is outside the available range.",
       "queries": [],
       "version": 3
     }
@@ -856,7 +862,6 @@ Nothing relevant was found, and no query was built.
     },
     "statgpt.dialx.ai/client": {
       "status": "no_data",
-      "message": "No relevant data was found for the provided query.",
       "queries": [],
       "version": 3
     }
