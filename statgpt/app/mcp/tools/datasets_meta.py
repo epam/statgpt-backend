@@ -29,7 +29,6 @@ from statgpt.app.schemas.mcp import (
     DatasetRecord,
     DatasetStructureStructuredContent,
     DatasetValueRecord,
-    ProviderAgencyRecord,
     ProviderRecord,
     TimeCoverageRecord,
 )
@@ -117,27 +116,15 @@ async def datasets_to_structured_content(
 
 
 async def dataset_structure_to_structured_content(
-    dataset: DataSet, auth_context: AuthContext, *, include_provider_agencies: bool
+    dataset: DataSet, auth_context: AuthContext
 ) -> DatasetStructureStructuredContent:
-    """Build the MCP structured content for the dataset-structure tool. `provider_agencies` is
-    exposed only when the tool is configured to include it, mirroring the text rendering."""
-    citation = dataset.config.citation
-    description = citation.description if citation and citation.description else dataset.description
-    provider_agencies = None
-    if include_provider_agencies and citation and citation.provider_agencies:
-        provider_agencies = [
-            ProviderAgencyRecord(id=agency.id, name=agency.name)
-            for agency in citation.provider_agencies
-        ]
+    """Build the MCP structured content for the dataset-structure tool: the dataset's identity and
+    its components. The provenance the text rendering carries (description, provider, link) is left
+    out - a caller that needs it has it from the available-datasets tool."""
     return DatasetStructureStructuredContent(
         dataset_id=dataset.source_id,
-        found=True,
         name=dataset.name,
-        description=description,
-        provider=citation.provider if citation else None,
         last_updated=await _dataset_last_updated(dataset, auth_context),
-        url=dataset.dataset_url,
-        provider_agencies=provider_agencies,
         dimensions=[_component_record(dim) for dim in dataset.dimensions()],
         attributes=[_component_record(attr) for attr in dataset.attributes()],
     )
@@ -175,6 +162,18 @@ def availability_payload_to_structured_content(
         dimensions=dimensions,
         time_coverage=time_coverage,
     )
+
+
+def _dataset_not_found_error(dataset_id: str, channel_config: ChannelConfig) -> ToolError:
+    """The error raised for an unknown dataset id, pointing at the tool that lists the valid ones
+    when the channel exposes it."""
+    available_datasets = channel_config.available_datasets
+    if available_datasets is not None and available_datasets.enabled:
+        tool_name = channel_config.mcp.tool_name_prefix + available_datasets.effective_mcp_name
+        hint = f"Use the {tool_name} tool to list the available datasets and their exact ids."
+    else:
+        hint = "Ids are dataset URNs in the format 'agency_id:resource_id(version)'."
+    return ToolError(f"Dataset with ID '{dataset_id}' not found. {hint}")
 
 
 def _component_record(component: Dimension | Attribute) -> DatasetComponentRecord:
@@ -255,15 +254,9 @@ class DatasetStructureMcpTool(
     async def _execute(self, args: DatasetStructureArgs) -> ToolResult:
         dataset = await dataset_utils.get_dataset_by_source_id(args.inputs, args.dataset_id)
         if dataset is None:
-            return self._structured_only(
-                DatasetStructureStructuredContent(dataset_id=args.dataset_id, found=False)
-            )
+            raise _dataset_not_found_error(args.dataset_id, self._channel_config)
         return self._structured_only(
-            await dataset_structure_to_structured_content(
-                dataset,
-                self._auth_context,
-                include_provider_agencies=self._tool_config.details.include_provider_agencies,
-            )
+            await dataset_structure_to_structured_content(dataset, self._auth_context)
         )
 
 

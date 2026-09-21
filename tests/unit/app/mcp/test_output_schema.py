@@ -1,11 +1,13 @@
 """Contract tests for MCP tool output schemas.
 
-Only four tools declare an MCP output schema: the two glossary tools (available-terms,
-term-definitions) and the two dataset-metadata tools (available-datasets, dataset-structure). All
-four are structured-only — they carry their whole result in `structuredContent` and emit no text
-block. Every other tool opts out (no declared schema), even where it emits structured content. These
-tests fail the build when a scoped tool's runtime content drifts from its declared schema, and lock
-the reduced scope so a tool cannot silently gain or lose a schema. They double as the captured
+Six tools declare an MCP output schema: the two glossary tools (available-terms,
+term-definitions), the three dataset-metadata tools (available-datasets, dataset-structure,
+availability-query) and the data query tool. The first five are structured-only — they carry their
+whole result in `structuredContent` and emit no text block — while the data query tool also returns
+text and resources. Every other tool opts out (no declared schema), even where it emits structured
+content.
+These tests fail the build when a scoped tool's runtime content drifts from its declared schema, and
+lock the reduced scope so a tool cannot silently gain or lose a schema. They double as the captured
 sample responses for the marketplace submission package.
 """
 
@@ -20,18 +22,23 @@ from statgpt.app.schemas.mcp import (
     AvailabilityValueRecord,
     AvailableDatasetsStructuredContent,
     AvailableTermsStructuredContent,
+    DataQueryStructuredContent,
     DatasetComponentRecord,
     DatasetRecord,
     DatasetStructureStructuredContent,
     DatasetValueRecord,
+    FilterValue,
     GlossaryDefinitionRecord,
     GlossaryTermRecord,
-    ProviderAgencyRecord,
+    PeriodRange,
     ProviderRecord,
+    QueryFilter,
+    QueryRecord,
     TermDefinitionsStructuredContent,
     TimeCoverageRecord,
 )
 from statgpt.common.schemas import ToolTypes
+from statgpt.common.schemas.query import JsonQueryOperator
 
 # The only tools in scope for explicit MCP output schemas. Every other tool opts out.
 SCOPED_TOOL_TYPES = {
@@ -40,7 +47,10 @@ SCOPED_TOOL_TYPES = {
     ToolTypes.AVAILABLE_DATASETS,
     ToolTypes.DATASET_STRUCTURE,
     ToolTypes.AVAILABILITY_QUERY,
+    ToolTypes.DATA_QUERY,
 }
+# The scoped tools whose whole result is the structured content.
+STRUCTURED_ONLY_TOOL_TYPES = SCOPED_TOOL_TYPES - {ToolTypes.DATA_QUERY}
 
 
 def _schema(tool_type: ToolTypes) -> dict:
@@ -107,13 +117,8 @@ GENERIC_CASES: dict = {
     ),
     ToolTypes.DATASET_STRUCTURE: DatasetStructureStructuredContent(
         dataset_id="IMF:CPI(1.0.0)",
-        found=True,
         name="Consumer Price Index",
-        description="Prices.",
-        provider="IMF",
         last_updated="2024-01-31",
-        url="https://example.org/imf-cpi",
-        provider_agencies=[ProviderAgencyRecord(id="IMF", name="Intl Monetary Fund")],
         dimensions=[
             DatasetComponentRecord(
                 id="REF_AREA",
@@ -145,11 +150,36 @@ GENERIC_CASES: dict = {
             dimension_id="TIME_PERIOD", name="Time period", start="2000", end="2024"
         ),
     ),
+    ToolTypes.DATA_QUERY: DataQueryStructuredContent(
+        queries=[
+            QueryRecord(
+                query_id="dq_ab12cd34ef",
+                dataset_urn="IMF:CPI(1.0.0)",
+                dataset_name="Consumer Price Index",
+                executed=True,
+                filters=[
+                    QueryFilter(
+                        dimension_id="REF_AREA",
+                        dimension_name="Reference area",
+                        operator=JsonQueryOperator.IN,
+                        values=[FilterValue(id="US", name="United States")],
+                    )
+                ],
+                requested_period=PeriodRange(start_period="2020-01-01", end_period="2024-12-31"),
+                factual_period=PeriodRange(start_period="2020", end_period="2024"),
+                series_count=1,
+            )
+        ]
+    ),
 }
 
 
+def _structured_content(tool_type: ToolTypes) -> dict:
+    # Serialized the way the tools serialize it: by alias, with the null fields dropped.
+    return GENERIC_CASES[tool_type].model_dump(mode="json", by_alias=True, exclude_none=True)
+
+
 def _tool_result(tool_type: ToolTypes) -> ToolResult:
-    # Every scoped tool is structured-only: the whole result is the structured content.
     return StatGptMcpTool._structured_only(GENERIC_CASES[tool_type])
 
 
@@ -157,9 +187,7 @@ def _tool_result(tool_type: ToolTypes) -> ToolResult:
 def test_structured_content_validates_against_the_declared_schema(tool_type: ToolTypes):
     # The model each tool declares must serialize to something its own schema accepts.
     assert GENERIC_CASES[tool_type].__class__ is mcp_tool_class_for(tool_type).get_output_model()
-    tool_result = _tool_result(tool_type)
-    assert tool_result.structured_content is not None
-    jsonschema.validate(instance=tool_result.structured_content, schema=_schema(tool_type))
+    jsonschema.validate(instance=_structured_content(tool_type), schema=_schema(tool_type))
 
 
 def test_scoped_tools_cover_the_generic_cases():
@@ -167,7 +195,7 @@ def test_scoped_tools_cover_the_generic_cases():
     assert set(GENERIC_CASES) == SCOPED_TOOL_TYPES
 
 
-@pytest.mark.parametrize("tool_type", sorted(SCOPED_TOOL_TYPES, key=str))
+@pytest.mark.parametrize("tool_type", sorted(STRUCTURED_ONLY_TOOL_TYPES, key=str))
 def test_structured_only_tool_drops_text(tool_type: ToolTypes):
     assert _tool_result(tool_type).content == []
 
