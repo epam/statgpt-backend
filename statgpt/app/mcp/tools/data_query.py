@@ -67,7 +67,7 @@ class DataQueryMcpTool(
         meta = data_query_outcome_to_meta(
             outcome,
             self._channel_config,
-            self._tool_config.details,
+            self._tool_config,
             message=outcome.response or None,
         )
         # A content block of its own rather than a suffix on the response, which is also

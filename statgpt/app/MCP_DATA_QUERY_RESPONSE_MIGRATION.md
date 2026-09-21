@@ -42,7 +42,8 @@ Version 2 carried everything in `structuredContent`:
 - **`requestedPeriod` / `factualPeriod`** (`startPeriod` / `endPeriod`), replacing the
   `TIME_PERIOD` entry in the model-facing `filters`. `mcp-app` still carries it as a filter.
 - **`_meta["{ns}/client"]`**, a payload for programmatic clients: per query the
-  `dataExplorerUrl`, the `datasetUrl`, the `resourceUris` and the `seriesCount`.
+  `dataExplorerUrl`, the `datasetUrl`, the `resourceUris` and the `seriesCount`. It is off by
+  default - set `details.mcpMeta.client.enabledStr` to `"True"` on the channels that need it.
 - **Dimension and value display names** in `structuredContent.queries[].filters[]`, so the model
   reads `United States` rather than `USA` alone.
 
@@ -66,6 +67,7 @@ block instead, and use the stem to match a resource to a query. A response that 
    `pythonCode` from `_meta["{ns}/mcp-app"]`.
 3. Join tables to queries by the `queryId` in the resource URI.
 4. Confirm the namespace your deployment is configured with (`details.mcpMeta.namespace`) and that
-   your audience's payload is enabled.
+   your audience's payload is carried: the `mcp-app` one whenever the tool binds a widget through
+   `mcp_app_resource_uri`, the `client` one when `details.mcpMeta.client.enabledStr` is on.
 5. Treat `version` as the single version of the whole response: `structuredContent` and both
    `_meta` payloads are bumped together.

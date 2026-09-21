@@ -22,8 +22,8 @@ from statgpt.app.schemas.tool_artifact import DataQueryOutcome
 from statgpt.common.schemas.data_query_tool import (
     DataQueryMcpMeta,
     DataQueryMcpResources,
-    McpMetaAudience,
     McpResource,
+    ToggleableConfig,
 )
 from statgpt.common.schemas.query import (
     JsonComponentQuery,
@@ -388,23 +388,25 @@ def _timed_query(urn: str, values: list[str], operator=JsonQueryOperator.BETWEEN
     return query
 
 
-def _meta_config(
+def _tool_config(
     mcp_app: bool = True,
     client: bool = True,
     namespace: str = "statgpt.dialx.ai",
     csv: bool = True,
     markdown: bool = False,
 ) -> SimpleNamespace:
-    # The converter only reads `mcp_meta` and `mcp_resources` off the tool details.
+    # The converter only reads `mcp_app_resource_uri` off the tool config, and `mcp_meta` /
+    # `mcp_resources` off its details.
     return SimpleNamespace(
-        mcp_meta=DataQueryMcpMeta(
-            namespace=namespace,
-            mcp_app=McpMetaAudience(enabled_str=str(mcp_app)),
-            client=McpMetaAudience(enabled_str=str(client)),
-        ),
-        mcp_resources=DataQueryMcpResources(
-            csv=McpResource(enabled_str=str(csv)),
-            markdown_table=McpResource(enabled_str=str(markdown)),
+        mcp_app_resource_uri="ui://statgpt/data-widget.html" if mcp_app else None,
+        details=SimpleNamespace(
+            mcp_meta=DataQueryMcpMeta(
+                namespace=namespace, client=ToggleableConfig(enabled_str=str(client))
+            ),
+            mcp_resources=DataQueryMcpResources(
+                csv=McpResource(enabled_str=str(csv)),
+                markdown_table=McpResource(enabled_str=str(markdown)),
+            ),
         ),
     )
 
@@ -669,7 +671,7 @@ def test_meta_carries_one_payload_per_audience():
         {"ds1": _response("IMF:CPI(1.0.0)", df, json_query=_json_query("IMF:CPI(1.0.0)"))}
     )
 
-    meta = data_query_outcome_to_meta(outcome, _channel_config(), _meta_config())
+    meta = data_query_outcome_to_meta(outcome, _channel_config(), _tool_config())
 
     assert meta is not None
     assert set(meta) == {"statgpt.dialx.ai/mcp-app", "statgpt.dialx.ai/client"}
@@ -679,27 +681,36 @@ def test_meta_namespace_is_configurable():
     outcome = _make_outcome({})
 
     meta = data_query_outcome_to_meta(
-        outcome, _channel_config(), _meta_config(namespace="data.example.org")
+        outcome, _channel_config(), _tool_config(namespace="data.example.org")
     )
 
     assert meta is not None
     assert set(meta) == {"data.example.org/mcp-app", "data.example.org/client"}
 
 
-def test_meta_omits_a_disabled_audience():
+def test_meta_omits_the_mcp_app_payload_when_the_tool_binds_no_widget():
     outcome = _make_outcome({})
 
-    meta = data_query_outcome_to_meta(outcome, _channel_config(), _meta_config(mcp_app=False))
+    meta = data_query_outcome_to_meta(outcome, _channel_config(), _tool_config(mcp_app=False))
 
     assert meta is not None
     assert set(meta) == {"statgpt.dialx.ai/client"}
 
 
-def test_meta_is_omitted_when_every_audience_is_disabled():
+def test_meta_omits_a_disabled_client_payload():
+    outcome = _make_outcome({})
+
+    meta = data_query_outcome_to_meta(outcome, _channel_config(), _tool_config(client=False))
+
+    assert meta is not None
+    assert set(meta) == {"statgpt.dialx.ai/mcp-app"}
+
+
+def test_meta_is_omitted_when_no_audience_has_a_reader():
     outcome = _make_outcome({})
 
     meta = data_query_outcome_to_meta(
-        outcome, _channel_config(), _meta_config(mcp_app=False, client=False)
+        outcome, _channel_config(), _tool_config(mcp_app=False, client=False)
     )
 
     assert meta is None
@@ -712,7 +723,7 @@ def test_mcp_app_meta_carries_the_sdmx_query_model():
     )
 
     payload = data_query_outcome_to_meta(
-        outcome, _channel_config(), _meta_config(), message="answer"
+        outcome, _channel_config(), _tool_config(), message="answer"
     )["statgpt.dialx.ai/mcp-app"]
 
     assert payload["status"] == DataQueryStatus.DATA_AVAILABLE
@@ -732,7 +743,7 @@ def test_mcp_app_meta_carries_the_sdmx_query_model():
 def test_mcp_app_meta_keeps_null_fields_so_its_shape_never_changes():
     outcome = _make_outcome({}, state=_state(DataQueryStatus.NO_DATA))
 
-    payload = data_query_outcome_to_meta(outcome, _channel_config(), _meta_config())[
+    payload = data_query_outcome_to_meta(outcome, _channel_config(), _tool_config())[
         "statgpt.dialx.ai/mcp-app"
     ]
 
@@ -747,7 +758,7 @@ def test_mcp_app_meta_omits_sdmx_proxy_when_unconfigured():
     outcome = _make_outcome({})
 
     payload = data_query_outcome_to_meta(
-        outcome, _channel_config(sdmx_proxy_name=None), _meta_config()
+        outcome, _channel_config(sdmx_proxy_name=None), _tool_config()
     )["statgpt.dialx.ai/mcp-app"]
 
     assert payload["tools"] == {"sdmxProxy": None}
@@ -769,7 +780,7 @@ def test_mcp_app_meta_carries_every_available_value():
         mcp_payload=_mcp_payload(missing_dimensions=missing),
     )
 
-    payload = data_query_outcome_to_meta(outcome, _channel_config(), _meta_config())[
+    payload = data_query_outcome_to_meta(outcome, _channel_config(), _tool_config())[
         "statgpt.dialx.ai/mcp-app"
     ]
 
@@ -784,7 +795,7 @@ def test_client_meta_carries_links_and_resource_uris():
     outcome = _make_outcome({"ds1": _response("IMF:CPI(1.0.0)", df, json_query=query)})
 
     payload = data_query_outcome_to_meta(
-        outcome, _channel_config(), _meta_config(csv=True, markdown=True), message="answer"
+        outcome, _channel_config(), _tool_config(csv=True, markdown=True), message="answer"
     )["statgpt.dialx.ai/client"]
 
     assert payload["status"] == DataQueryStatus.DATA_AVAILABLE
@@ -808,7 +819,7 @@ def test_client_meta_reports_the_same_query_id_as_the_structured_content():
         {"ds1": _response("IMF:CPI(1.0.0)", df, json_query=_json_query("IMF:CPI(1.0.0)"))}
     )
 
-    meta = data_query_outcome_to_meta(outcome, _channel_config(), _meta_config())
+    meta = data_query_outcome_to_meta(outcome, _channel_config(), _tool_config())
     structured = data_query_outcome_to_structured_content(outcome)
 
     assert meta is not None
@@ -828,7 +839,7 @@ def test_client_meta_omits_resources_for_an_empty_response():
         state=_state(DataQueryStatus.EXECUTED_NO_DATA),
     )
 
-    payload = data_query_outcome_to_meta(outcome, _channel_config(), _meta_config())[
+    payload = data_query_outcome_to_meta(outcome, _channel_config(), _tool_config())[
         "statgpt.dialx.ai/client"
     ]
 
@@ -843,7 +854,7 @@ def test_client_meta_reports_constructed_queries_without_links():
         mcp_payload=_mcp_payload(constructed_queries=[_app_query("IMF:CPI(1.0.0)")]),
     )
 
-    payload = data_query_outcome_to_meta(outcome, _channel_config(), _meta_config())[
+    payload = data_query_outcome_to_meta(outcome, _channel_config(), _tool_config())[
         "statgpt.dialx.ai/client"
     ]
 

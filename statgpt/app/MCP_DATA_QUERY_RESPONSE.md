@@ -35,28 +35,29 @@ not here: the text block explains the outcome to the model, and the clients read
 
 ## `result._meta`
 
-Two payloads, each under a namespaced key and each toggleable per channel:
+Two payloads, each under a namespaced key:
 
 ```yaml
 details:
   mcpMeta:
     namespace: "statgpt.dialx.ai"       # supports $env:{VAR}
-    mcpApp:
-      enabledStr: "True"
     client:
-      enabledStr: "True"
+      enabledStr: "True"                # off by default
 ```
 
 - **`{namespace}/mcp-app`** - what the UI widget renders and edits: the pipeline `status`, the
   `message`, the SDMX query model (`urn`, `filters`, `metadata`, `sdmx1Source`, `disabled`) with its
   `queryId`, the full `candidateDatasets` / `missingDimensions` value lists, the reproducible
   `pythonCode`, and the companion `tools`. Null fields are kept, so the payload's shape does not
-  change with the outcome.
+  change with the outcome. Carried exactly when the tool binds a widget through
+  [`mcp_app_resource_uri`](README.md#mcp-apps-ui-widgets) - without one nothing can render it, so
+  it has no toggle of its own.
 - **`{namespace}/client`** - what a programmatic client needs to present and navigate the result:
   the `status`, the `message`, and per query the `dataExplorerUrl`, the `datasetUrl`, the
-  `resourceUris` and the `seriesCount`. Null fields are omitted.
+  `resourceUris` and the `seriesCount`. Null fields are omitted. Off by default; enable it for a
+  channel whose callers are programmatic.
 
-`_meta` is omitted entirely when both audiences are disabled.
+`_meta` is omitted entirely when neither payload applies.
 
 ## Resource URIs
 

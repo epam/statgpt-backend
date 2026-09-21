@@ -126,12 +126,11 @@ tools:
           enabledStr: "False"
         markdownTable:
           enabledStr: "True"
-      # Audience-specific payloads carried in the MCP result's `_meta`, each under
-      # `{namespace}/mcp-app` and `{namespace}/client`. Both are enabled by default.
+      # Audience-specific payloads carried in the MCP result's `_meta`, under
+      # `{namespace}/mcp-app` and `{namespace}/client`. The MCP-App payload is carried whenever
+      # the tool binds a widget via `mcp_app_resource_uri`; the client payload is opt-in.
       mcpMeta:
         namespace: "statgpt.dialx.ai"
-        mcpApp:
-          enabledStr: "True"
         client:
           enabledStr: "True"
       # When each surface carries the "View data in explorer" deep link back to the source

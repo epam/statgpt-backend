@@ -5,21 +5,18 @@ from statgpt.common.schemas.data_query_tool import DataQueryDetails, DataQueryMc
 
 
 class TestDataQueryMcpMeta:
-    def test_defaults_publish_both_audiences(self):
+    def test_defaults_keep_the_client_payload_off(self):
         cfg = DataQueryDetails().mcp_meta
 
         assert cfg.get_namespace() == "statgpt.dialx.ai"
         assert cfg.mcp_app_key == "statgpt.dialx.ai/mcp-app"
         assert cfg.client_key == "statgpt.dialx.ai/client"
-        assert cfg.mcp_app.enabled is True
-        assert cfg.client.enabled is True
+        # The MCP-App payload has no toggle: it follows the tool's `mcp_app_resource_uri`.
+        assert cfg.client.enabled is False
 
-    def test_audiences_are_toggled_independently(self):
-        cfg = DataQueryMcpMeta.model_validate(
-            {"mcpApp": {"enabledStr": "False"}, "client": {"enabledStr": "True"}}
-        )
+    def test_client_payload_is_opt_in(self):
+        cfg = DataQueryMcpMeta.model_validate({"client": {"enabledStr": "True"}})
 
-        assert cfg.mcp_app.enabled is False
         assert cfg.client.enabled is True
 
     def test_namespace_resolves_an_environment_variable(self, monkeypatch):

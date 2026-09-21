@@ -251,25 +251,15 @@ class DataQueryMcpResources(BaseYamlModel):
     )
 
 
-class McpMetaAudience(ToggleableConfig):
-    """One audience-specific payload the MCP data query result carries in `_meta`."""
-
-    enabled_str: str = Field(
-        default="True",
-        description=(
-            "Whether the MCP data query result carries this audience's `_meta` payload."
-            " The value can be a reference to an environment variable."
-        ),
-    )
-
-
 class DataQueryMcpMeta(BaseYamlModel):
     """Audience-specific payloads the MCP data query result carries in `result._meta`.
 
     Each payload is published under its own namespaced `_meta` key - `{namespace}/mcp-app` and
-    `{namespace}/client` - and can be turned off independently, because the two audiences read
-    different fields: the widget needs the SDMX query model it renders and edits, a programmatic
-    client needs links and resource URIs.
+    `{namespace}/client` - because the two audiences read different fields: the widget needs the
+    SDMX query model it renders and edits, a programmatic client needs links and resource URIs.
+
+    The MCP-App payload has no toggle of its own: it is carried exactly when the tool binds a
+    widget through `mcp_app_resource_uri`, which is what makes it readable in the first place.
     """
 
     namespace_raw: str = Field(
@@ -281,18 +271,12 @@ class DataQueryMcpMeta(BaseYamlModel):
             " requires for extension keys. Supports $env:{VAR} syntax."
         ),
     )
-    mcp_app: McpMetaAudience = Field(
-        default_factory=McpMetaAudience,
-        description=(
-            "Payload for the MCP-App widget: the pipeline status, the SDMX query model with its"
-            " dimension metadata, the reproducible python code and the companion tool names."
-        ),
-    )
-    client: McpMetaAudience = Field(
-        default_factory=McpMetaAudience,
+    client: ToggleableConfig = Field(
+        default_factory=lambda: ToggleableConfig(enabled_str="False"),
         description=(
             "Payload for programmatic clients: the pipeline status, the data explorer deep link,"
             " the dataset link and the URIs of the resources carried in the result."
+            " Off by default - enable it for a channel whose callers are programmatic."
         ),
     )
 

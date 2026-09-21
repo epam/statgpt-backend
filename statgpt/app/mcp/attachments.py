@@ -31,7 +31,8 @@ from statgpt.app.schemas.query import AppJsonQueryWithMetadata
 from statgpt.app.schemas.tool_artifact import DataQueryOutcome
 from statgpt.app.services.python_code_generator import generate_merged_python_code
 from statgpt.common.data.base import DataResponse
-from statgpt.common.schemas import ChannelConfig, DataQueryDetails, DataQueryMcpResources
+from statgpt.common.schemas import ChannelConfig, DataQueryMcpResources
+from statgpt.common.schemas import DataQueryTool as DataQueryToolConfig
 from statgpt.common.schemas.query import (
     JsonComponentQuery,
     JsonQuery,
@@ -327,17 +328,20 @@ def data_query_outcome_to_structured_content(
 def data_query_outcome_to_meta(
     outcome: DataQueryOutcome,
     channel_config: ChannelConfig,
-    config: DataQueryDetails,
+    tool_config: DataQueryToolConfig,
     message: str | None = None,
 ) -> dict[str, Any] | None:
-    """Build the result's ``_meta``: one namespaced payload per audience the config enables.
+    """Build the result's ``_meta``: one namespaced payload per audience that has a reader.
 
-    Returns ``None`` when every audience is disabled, so the result carries no ``_meta`` at all.
+    The MCP-App payload is carried when the tool binds a widget resource - without one there is
+    nothing to render it - and the client payload when the config enables it. Returns ``None``
+    when neither applies, so the result carries no ``_meta`` at all.
     """
+    config = tool_config.details
     meta_config = config.mcp_meta
     meta: dict[str, Any] = {}
 
-    if meta_config.mcp_app.enabled:
+    if tool_config.mcp_app_resource_uri is not None:
         # Nulls are kept here: the widget's payload keeps the same shape whatever the outcome.
         meta[meta_config.mcp_app_key] = _mcp_app_meta(outcome, channel_config, message).model_dump(
             mode="json", by_alias=True

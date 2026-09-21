@@ -16,15 +16,28 @@ from statgpt.app.schemas.tool_artifact import DataQueryOutcome
 from statgpt.common.schemas.data_query_tool import (
     DataQueryMcpMeta,
     DataQueryMcpResources,
-    McpMetaAudience,
     McpResource,
+    ToggleableConfig,
 )
 from statgpt.common.schemas.query import JsonQueryMetadata, JsonQueryWithMetadata
 from statgpt.common.schemas.tools import DataQueryTool
 
+_WIDGET_URI = "ui://statgpt/data-widget.html"
 
-def _tool_config(**mcp_resources) -> DataQueryTool:
-    config = DataQueryTool(name="data_query", description="Query data")
+
+def _tool_config(
+    mcp_app_resource_uri: str | None = _WIDGET_URI,
+    client_meta: bool = True,
+    **mcp_resources,
+) -> DataQueryTool:
+    config = DataQueryTool(
+        name="data_query",
+        description="Query data",
+        mcp_app_resource_uri=mcp_app_resource_uri,
+    )
+    config.details.mcp_meta = DataQueryMcpMeta(
+        client=ToggleableConfig(enabled_str=str(client_meta))
+    )
     if mcp_resources:
         config.details.mcp_resources = DataQueryMcpResources(
             **{key: McpResource(enabled_str=str(value)) for key, value in mcp_resources.items()}
@@ -172,11 +185,19 @@ async def test_mcp_app_meta_omits_sdmx_proxy_when_unconfigured():
     assert tool_result.meta["statgpt.dialx.ai/mcp-app"]["tools"] == {"sdmxProxy": None}
 
 
-async def test_meta_is_omitted_when_every_audience_is_disabled():
-    config = _tool_config()
-    config.details.mcp_meta = DataQueryMcpMeta(
-        mcp_app=McpMetaAudience(enabled_str="False"), client=McpMetaAudience(enabled_str="False")
-    )
+async def test_mcp_app_meta_is_omitted_when_the_tool_binds_no_widget():
+    # Nothing renders the widget payload, so it is not built at all.
+    config = _tool_config(mcp_app_resource_uri=None)
+    outcome = _outcome(data_responses={"ds1": _data_response(pd.DataFrame({"x": [1]}))})
+
+    tool_result = await _build(outcome, config).run({"query": "cpi"})
+
+    assert tool_result.meta is not None
+    assert set(tool_result.meta) == {"statgpt.dialx.ai/client"}
+
+
+async def test_meta_is_omitted_when_no_audience_has_a_reader():
+    config = _tool_config(mcp_app_resource_uri=None, client_meta=False)
     outcome = _outcome(data_responses={"ds1": _data_response(pd.DataFrame({"x": [1]}))})
 
     tool_result = await _build(outcome, config).run({"query": "cpi"})
