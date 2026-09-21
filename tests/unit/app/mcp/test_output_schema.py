@@ -15,6 +15,9 @@ from fastmcp.tools import ToolResult
 
 from statgpt.app.mcp.tools import StatGptMcpTool, mcp_tool_class_for
 from statgpt.app.schemas.mcp import (
+    AvailabilityDimensionRecord,
+    AvailabilityStructuredContent,
+    AvailabilityValueRecord,
     AvailableDatasetsStructuredContent,
     AvailableTermsStructuredContent,
     DatasetComponentRecord,
@@ -26,6 +29,7 @@ from statgpt.app.schemas.mcp import (
     ProviderAgencyRecord,
     ProviderRecord,
     TermDefinitionsStructuredContent,
+    TimeCoverageRecord,
 )
 from statgpt.common.schemas import ToolTypes
 
@@ -35,6 +39,7 @@ SCOPED_TOOL_TYPES = {
     ToolTypes.TERM_DEFINITIONS,
     ToolTypes.AVAILABLE_DATASETS,
     ToolTypes.DATASET_STRUCTURE,
+    ToolTypes.AVAILABILITY_QUERY,
 }
 
 
@@ -119,6 +124,26 @@ GENERIC_CASES: dict = {
             )
         ],
         attributes=[DatasetComponentRecord(id="UNIT_MULT", name="Unit multiplier", type="string")],
+    ),
+    ToolTypes.AVAILABILITY_QUERY: AvailabilityStructuredContent(
+        dataset_id="IMF:CPI(1.0.0)",
+        found=True,
+        dimensions=[
+            AvailabilityDimensionRecord(
+                id="REF_AREA",
+                name="Reference area",
+                total_available=2,
+                returned=2,
+                truncated=False,
+                values=[
+                    AvailabilityValueRecord(id="US", name="United States"),
+                    AvailabilityValueRecord(id="GB", name="United Kingdom"),
+                ],
+            )
+        ],
+        time_coverage=TimeCoverageRecord(
+            dimension_id="TIME_PERIOD", name="Time period", start="2000", end="2024"
+        ),
     ),
 }
 

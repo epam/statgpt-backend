@@ -249,3 +249,65 @@ class DatasetStructureStructuredContent(BaseYamlModel):
     attributes: list[DatasetComponentRecord] = Field(
         default_factory=list, description="The dataset's attributes."
     )
+
+
+class AvailabilityValueRecord(BaseYamlModel):
+    """One available code of a dimension under the availability query."""
+
+    model_config = ConfigDict(serialize_by_alias=True)
+
+    id: str = Field(description="The code's query id (the value used in queries).")
+    name: str | None = Field(
+        default=None, description="Human-readable code name, for a categorical dimension."
+    )
+
+
+class AvailabilityDimensionRecord(BaseYamlModel):
+    """Availability coverage for one dimension: how many codes are available under the query and a
+    bounded sample of them."""
+
+    model_config = ConfigDict(serialize_by_alias=True)
+
+    id: str = Field(description="The dimension's entity id (e.g. 'REF_AREA').")
+    name: str = Field(description="Human-readable dimension name.")
+    total_available: int = Field(
+        description="Total number of codes available for this dimension under the query."
+    )
+    returned: int = Field(
+        description="Number of codes returned in `values` (bounded by the per-call and hard limits)."
+    )
+    truncated: bool = Field(
+        description="Whether `values` is a truncated subset of the available codes."
+    )
+    values: list[AvailabilityValueRecord] = Field(
+        default_factory=list, description="The available codes, up to the effective limit."
+    )
+
+
+class TimeCoverageRecord(BaseYamlModel):
+    """The time dimension's available range under the availability query."""
+
+    model_config = ConfigDict(serialize_by_alias=True)
+
+    dimension_id: str = Field(description="The time dimension's entity id (e.g. 'TIME_PERIOD').")
+    name: str = Field(description="Human-readable time dimension name.")
+    start: str | None = Field(default=None, description="Earliest available time period, if known.")
+    end: str | None = Field(default=None, description="Latest available time period, if known.")
+
+
+class AvailabilityStructuredContent(BaseYamlModel):
+    """MCP structured content for the availability-query tool: per-dimension coverage for the
+    (possibly partial) query, with a bounded sample of each dimension's available codes and the
+    time range when present. Optional fields are omitted when unknown."""
+
+    model_config = ConfigDict(serialize_by_alias=True)
+
+    dataset_id: str = Field(description="The requested dataset URN (source id).")
+    found: bool = Field(description="Whether a dataset with that URN was found.")
+    dimensions: list[AvailabilityDimensionRecord] = Field(
+        default_factory=list, description="Per-dimension availability coverage."
+    )
+    time_coverage: TimeCoverageRecord | None = Field(
+        default=None,
+        description="The time dimension's available range, when the query yields one.",
+    )

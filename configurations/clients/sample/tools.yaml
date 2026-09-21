@@ -78,13 +78,6 @@ tools:
       for an empty or partial key. Use it to answer coverage questions cheaply instead of running
       a full `Query_Data` star query just to see what exists.
 
-      Arguments:
-      * `dataset_id`: the dataset URN.
-      * `partial_query`: a mapping of dimension ID to code IDs to fix, e.g. {"SERIES": ["51401"]}.
-        Pass {} to see availability across the whole dataset.
-      * `codes_per_dimension`: max codes returned per dimension (default 10, null for no limit).
-      * `include_dimensions`: restrict the result to these dimension IDs (null for all).
-
       Returns each dimension's available codes with their names, so a separate code-list lookup
       is not needed. Use `Dataset_Structure` first if you need the dimension IDs.
 
