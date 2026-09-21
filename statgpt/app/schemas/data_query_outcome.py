@@ -75,6 +75,10 @@ class MissingDimensionsInfo(BaseYamlModel):
     """Describes why a query is incomplete: which dimensions still need a value."""
 
     dataset_id: str = Field(description="The dataset the missing dimensions belong to.")
+    dataset_urn: str | None = Field(
+        default=None,
+        description="Source id (URN) of that dataset, when known - the id a caller can query by.",
+    )
     dimensions: list[MissingDimensionInfo] = Field(
         default_factory=list, description="The missing required dimensions."
     )
