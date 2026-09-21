@@ -27,7 +27,6 @@ from statgpt.app.schemas.mcp import (
     GlossaryDefinitionRecord,
     GlossaryTermRecord,
     PeriodRange,
-    ProviderAgencyRecord,
     ProviderRecord,
     QueryFilter,
     QueryRecord,
@@ -112,13 +111,8 @@ GENERIC_CASES: dict = {
     ),
     ToolTypes.DATASET_STRUCTURE: DatasetStructureStructuredContent(
         dataset_id="IMF:CPI(1.0.0)",
-        found=True,
         name="Consumer Price Index",
-        description="Prices.",
-        provider="IMF",
         last_updated="2024-01-31",
-        url="https://example.org/imf-cpi",
-        provider_agencies=[ProviderAgencyRecord(id="IMF", name="Intl Monetary Fund")],
         dimensions=[
             DatasetComponentRecord(
                 id="REF_AREA",
