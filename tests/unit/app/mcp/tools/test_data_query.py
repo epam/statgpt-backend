@@ -13,7 +13,12 @@ from statgpt.app.schemas.discovery_datasets import (
     DiscoveryDatasetsOutcome,
 )
 from statgpt.app.schemas.tool_artifact import DataQueryOutcome
-from statgpt.common.schemas.data_query_tool import DataQueryMcpResources, McpResource
+from statgpt.common.schemas.data_query_tool import (
+    DataQueryMcpMeta,
+    DataQueryMcpResources,
+    McpMetaAudience,
+    McpResource,
+)
 from statgpt.common.schemas.query import JsonQueryMetadata, JsonQueryWithMetadata
 from statgpt.common.schemas.tools import DataQueryTool
 
@@ -70,6 +75,9 @@ def _data_response(df: pd.DataFrame) -> SimpleNamespace:
         is_empty=df.empty,
         created_at=datetime(2026, 4, 20, 15, 30, 0, tzinfo=timezone.utc),
         json_query=_json_query("IMF:CPI(1.0.0)"),
+        time_period=("2020", "2024"),
+        url_query="https://explorer.example/query",
+        get_display_series_count=lambda: 2,
     )
 
 
@@ -84,7 +92,7 @@ def _outcome(
     return DataQueryOutcome.model_construct(
         response=response,
         data_responses=data_responses or {},
-        state=SimpleNamespace(status=status),
+        state=SimpleNamespace(status=status, dimension_id_to_name={}),
         mcp_payload=DataQueryMcpPayload(),
         discovery=discovery,
     )
@@ -100,23 +108,46 @@ async def test_data_available_returns_text_csv_and_structured_content():
     assert [r.resource.mimeType for r in resources] == ["text/csv"]
     structured = tool_result.structured_content
     assert structured is not None
-    assert structured["status"] == DataQueryStatus.DATA_AVAILABLE
-    assert [q["urn"] for q in structured["queries"]] == ["IMF:CPI(1.0.0)"]
-    assert structured["tools"] == {"sdmxProxy": "sdmx_query_app"}
-    assert structured["version"] == 2
-    assert "import sdmx" in structured["pythonCode"]
+    assert structured["version"] == 3
+    assert [q["datasetUrn"] for q in structured["queries"]] == ["IMF:CPI(1.0.0)"]
+    assert structured["queries"][0]["executed"] is True
+    # Null fields are dropped from what the model reads.
+    assert "missingDimensions" not in structured
 
 
-async def test_no_data_returns_status_and_message():
+async def test_data_available_carries_both_meta_audiences():
+    outcome = _outcome(data_responses={"ds1": _data_response(pd.DataFrame({"x": [1, 2]}))})
+
+    tool_result = await _build(outcome).run({"query": "cpi"})
+
+    meta = tool_result.meta
+    assert meta is not None
+    assert set(meta) == {"statgpt.dialx.ai/mcp-app", "statgpt.dialx.ai/client"}
+    mcp_app = meta["statgpt.dialx.ai/mcp-app"]
+    assert mcp_app["status"] == DataQueryStatus.DATA_AVAILABLE
+    assert mcp_app["version"] == 3
+    assert mcp_app["tools"] == {"sdmxProxy": "sdmx_query_app"}
+    assert "import sdmx" in mcp_app["pythonCode"]
+    assert [q["urn"] for q in mcp_app["queries"]] == ["IMF:CPI(1.0.0)"]
+    client = meta["statgpt.dialx.ai/client"]
+    assert client["queries"][0]["dataExplorerUrl"] == "https://explorer.example/query"
+    assert client["queries"][0]["resourceUris"] == [
+        f"statgpt://data_query/IMF%3ACPI%281.0.0%29/{client['queries'][0]['queryId']}.csv"
+    ]
+
+
+async def test_no_data_reports_the_status_and_message_in_meta():
     outcome = _outcome(response="No relevant data found.", status=DataQueryStatus.NO_DATA)
 
     tool_result = await _build(outcome).run({"query": "cpi"})
 
     structured = tool_result.structured_content
     assert structured is not None
-    assert structured["status"] == DataQueryStatus.NO_DATA
-    assert structured["message"] == "No relevant data found."
     assert structured["queries"] == []
+    assert tool_result.meta is not None
+    for payload in tool_result.meta.values():
+        assert payload["status"] == DataQueryStatus.NO_DATA
+        assert payload["message"] == "No relevant data found."
 
 
 async def test_markdown_resource_is_added_when_configured():
@@ -132,13 +163,26 @@ async def test_markdown_resource_is_added_when_configured():
     assert [r.resource.mimeType for r in resources] == ["text/markdown"]
 
 
-async def test_structured_content_omits_sdmx_proxy_when_unconfigured():
+async def test_mcp_app_meta_omits_sdmx_proxy_when_unconfigured():
     outcome = _outcome(data_responses={"ds1": _data_response(pd.DataFrame({"x": [1]}))})
 
     tool_result = await _build(outcome, sdmx_query_app=None).run({"query": "cpi"})
 
+    assert tool_result.meta is not None
+    assert tool_result.meta["statgpt.dialx.ai/mcp-app"]["tools"] == {"sdmxProxy": None}
+
+
+async def test_meta_is_omitted_when_every_audience_is_disabled():
+    config = _tool_config()
+    config.details.mcp_meta = DataQueryMcpMeta(
+        mcp_app=McpMetaAudience(enabled_str="False"), client=McpMetaAudience(enabled_str="False")
+    )
+    outcome = _outcome(data_responses={"ds1": _data_response(pd.DataFrame({"x": [1]}))})
+
+    tool_result = await _build(outcome, config).run({"query": "cpi"})
+
+    assert tool_result.meta is None
     assert tool_result.structured_content is not None
-    assert tool_result.structured_content["tools"] == {"sdmxProxy": None}
 
 
 async def test_discovery_block_is_a_content_block_of_its_own():

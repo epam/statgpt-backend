@@ -1,3 +1,5 @@
+from typing import Self
+
 from pydantic import ConfigDict, Field
 
 from statgpt.app.schemas.data_query_outcome import (
@@ -7,6 +9,11 @@ from statgpt.app.schemas.data_query_outcome import (
 )
 from statgpt.app.schemas.query import AppJsonQueryWithMetadata
 from statgpt.common.schemas.base import BaseYamlModel
+from statgpt.common.schemas.query import JsonQueryOperator
+
+# One version number for the whole data query response: `structuredContent` and every `_meta`
+# audience payload carry it and are bumped together.
+DATA_QUERY_RESPONSE_VERSION = 3
 
 
 class DataQueryToolsInfo(BaseYamlModel):
@@ -20,11 +27,160 @@ class DataQueryToolsInfo(BaseYamlModel):
     )
 
 
-class DataQueryStructuredContent(BaseYamlModel):
-    """MCP structured content for the data query tool.
+class FilterValue(BaseYamlModel):
+    """One value of a dimension: the code a query uses, with its display name when known."""
 
-    Always carries a ``status`` tagging the pipeline outcome; the remaining fields are
-    populated per outcome. Serialized with camelCase aliases to match the DIAL attachment shape.
+    model_config = ConfigDict(serialize_by_alias=True)
+
+    id: str = Field(description="The value's query id (the code used in queries).")
+    name: str | None = Field(
+        default=None, description="Human-readable name of the value, when known."
+    )
+
+
+class PeriodRange(BaseYamlModel):
+    """A time period, named after the SDMX REST query parameters."""
+
+    model_config = ConfigDict(serialize_by_alias=True)
+
+    start_period: str | None = Field(default=None, description="First period covered.")
+    end_period: str | None = Field(default=None, description="Last period covered.")
+
+
+class QueryFilter(BaseYamlModel):
+    """The filter applied to one dimension.
+
+    A dimension with no filter is not listed: every one of its values is included.
+    """
+
+    model_config = ConfigDict(serialize_by_alias=True)
+
+    dimension_id: str = Field(description="Entity id of the filtered dimension.")
+    dimension_name: str | None = Field(
+        default=None, description="Human-readable name of the dimension, when known."
+    )
+    operator: JsonQueryOperator = Field(description="How the values are applied.")
+    total_values: int | None = Field(
+        default=None,
+        description="Total number of filtered values. Present only when `values` is truncated.",
+    )
+    values: list[FilterValue] = Field(
+        default_factory=list, description="The filtered values, truncated when there are many."
+    )
+
+
+class QueryRecord(BaseYamlModel):
+    """One dataset query the pipeline produced."""
+
+    model_config = ConfigDict(serialize_by_alias=True)
+
+    query_id: str = Field(
+        description="Id of this query within the response; joins it to the result's resources and"
+        " `_meta` payloads. Stable for the same query executed on the same date."
+    )
+    dataset_urn: str = Field(description="URN of the queried dataset, e.g. 'IMF:CPI(1.0.0)'.")
+    dataset_name: str | None = Field(default=None, description="Dataset name, when known.")
+    executed: bool = Field(
+        description="Whether this query was executed. A constructed but unexecuted query describes"
+        " what would be asked, not data that was returned."
+    )
+    filters: list[QueryFilter] = Field(
+        default_factory=list, description="The filters applied, one per filtered dimension."
+    )
+    requested_period: PeriodRange | None = Field(
+        default=None, description="The time period the query asked for."
+    )
+    factual_period: PeriodRange | None = Field(
+        default=None, description="The time period the returned data actually covers."
+    )
+    series_count: int | None = Field(
+        default=None, description="Number of data series returned, when the query returned data."
+    )
+
+
+class MissingDimensionRecord(BaseYamlModel):
+    """A required dimension the query does not specify yet."""
+
+    model_config = ConfigDict(serialize_by_alias=True)
+
+    dimension_id: str = Field(description="Entity id of the missing dimension.")
+    name: str = Field(description="Human-readable name of the dimension.")
+    total_values: int = Field(description="Total number of values available for it.")
+    sample_values: list[FilterValue] = Field(
+        default_factory=list,
+        description="Values available given the rest of the query: all of them when there are at"
+        " most 10, otherwise the first 10 (so this is not the full list when `totalValues` exceeds"
+        " the sample size).",
+    )
+
+
+class MissingDimensionsRecord(BaseYamlModel):
+    """Why a query is incomplete: which dimensions still need a value."""
+
+    model_config = ConfigDict(serialize_by_alias=True)
+
+    dataset_urn: str | None = Field(
+        default=None, description="URN of the dataset the missing dimensions belong to."
+    )
+    dimensions: list[MissingDimensionRecord] = Field(
+        default_factory=list, description="The missing required dimensions."
+    )
+
+
+class CandidateDatasetRecord(BaseYamlModel):
+    """A dataset the query could be narrowed to."""
+
+    model_config = ConfigDict(serialize_by_alias=True)
+
+    id: str = Field(description="Dataset URN. Name it in a follow-up query to pick this dataset.")
+    name: str = Field(description="Human-readable dataset name.")
+    is_official: bool = Field(default=False, description="Whether the dataset is official.")
+
+
+class DataQueryStructuredContent(BaseYamlModel):
+    """MCP structured content for the data query tool: the queries the pipeline produced, and what
+    a follow-up query would need when it produced none.
+
+    Written for the calling model. What a client needs instead - the pipeline status, the SDMX
+    wiring, links, python code - is carried in the result's `_meta`; the outcome itself is
+    explained in the text content block.
+    """
+
+    model_config = ConfigDict(serialize_by_alias=True)
+
+    queries: list[QueryRecord] = Field(
+        default_factory=list, description="The queries, one per dataset."
+    )
+    missing_dimensions: MissingDimensionsRecord | None = Field(
+        default=None,
+        description="Dimensions the query must still specify, when it is incomplete.",
+    )
+    candidate_datasets: list[CandidateDatasetRecord] = Field(
+        default_factory=list,
+        description="Datasets to narrow the query to, when it matched several.",
+    )
+    version: int = Field(
+        default=DATA_QUERY_RESPONSE_VERSION, description="Schema version of this response."
+    )
+
+
+class McpAppQuery(AppJsonQueryWithMetadata):
+    """One query in the MCP-App payload: the SDMX query model plus its `queryId`."""
+
+    model_config = ConfigDict(serialize_by_alias=True)
+
+    query_id: str = Field(description="Id of this query within the response.")
+
+    @classmethod
+    def from_app_query(cls, query: AppJsonQueryWithMetadata, query_id: str) -> Self:
+        return cls(**query.model_dump(), query_id=query_id)
+
+
+class DataQueryMcpAppMeta(BaseYamlModel):
+    """The `{namespace}/mcp-app` payload: everything the UI widget renders and edits.
+
+    Null fields are kept rather than omitted, so the payload's shape does not change with the
+    outcome.
     """
 
     model_config = ConfigDict(serialize_by_alias=True)
@@ -32,14 +188,13 @@ class DataQueryStructuredContent(BaseYamlModel):
     status: DataQueryStatus = Field(
         description="Outcome of the data query pipeline (which branch produced the response)."
     )
-    queries: list[AppJsonQueryWithMetadata] = Field(
-        default_factory=list,
-        description="The queries, one per dataset. Present for the data_available, "
-        "executed_no_data, failed and not_executed outcomes.",
+    message: str | None = Field(
+        default=None, description="Human-readable message, e.g. why no data is available."
     )
-    python_code: str | None = Field(
-        default=None,
-        description="A self-contained sdmx1 snippet that reproduces the queries, when available.",
+    queries: list[McpAppQuery] = Field(
+        default_factory=list,
+        description="The queries, one per dataset. Present for the data_available,"
+        " executed_no_data, failed and not_executed outcomes.",
     )
     candidate_datasets: list[DataSetChoice] = Field(
         default_factory=list,
@@ -47,14 +202,60 @@ class DataQueryStructuredContent(BaseYamlModel):
     )
     missing_dimensions: MissingDimensionsInfo | None = Field(
         default=None,
-        description="Required dimensions to specify for the missing_dimensions outcome.",
+        description="Required dimensions to specify for the missing_dimensions outcome, with every"
+        " available value.",
     )
-    message: str | None = Field(
+    python_code: str | None = Field(
         default=None,
-        description="Human-readable message, e.g. explaining why no data is available.",
+        description="A self-contained sdmx1 snippet that reproduces the queries, when available.",
     )
     tools: DataQueryToolsInfo = Field(description="Companion MCP tools for these queries.")
-    version: int = Field(default=2, description="Schema version of this structured content.")
+    version: int = Field(
+        default=DATA_QUERY_RESPONSE_VERSION, description="Schema version of this response."
+    )
+
+
+class ClientQueryRecord(BaseYamlModel):
+    """One query as a programmatic client sees it: where to look at it, and what the result carries
+    for it."""
+
+    model_config = ConfigDict(serialize_by_alias=True)
+
+    query_id: str = Field(description="Id of this query within the response.")
+    urn: str = Field(description="URN of the queried dataset.")
+    dataset_name: str | None = Field(default=None, description="Dataset name, when known.")
+    data_explorer_url: str | None = Field(
+        default=None, description="Deep link that opens this query in the data explorer."
+    )
+    dataset_url: str | None = Field(default=None, description="Link to the dataset itself.")
+    resource_uris: list[str] = Field(
+        default_factory=list,
+        description="URIs of the resources this result carries for the query, as `content` has"
+        " them.",
+    )
+    series_count: int | None = Field(
+        default=None, description="Number of data series returned, when the query returned data."
+    )
+
+
+class DataQueryClientMeta(BaseYamlModel):
+    """The `{namespace}/client` payload: what a programmatic client (e.g. Deep Research) needs to
+    present and navigate the result."""
+
+    model_config = ConfigDict(serialize_by_alias=True)
+
+    status: DataQueryStatus = Field(
+        description="Outcome of the data query pipeline (which branch produced the response)."
+    )
+    message: str | None = Field(
+        default=None, description="Human-readable message, e.g. why no data is available."
+    )
+    queries: list[ClientQueryRecord] = Field(
+        default_factory=list, description="The queries, one per dataset."
+    )
+    version: int = Field(
+        default=DATA_QUERY_RESPONSE_VERSION, description="Schema version of this response."
+    )
 
 
 class SdmxProxyStructuredContent(BaseYamlModel):
