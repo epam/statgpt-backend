@@ -380,8 +380,8 @@ async def test_availability_query_is_structured_only():
         }
     )
 
-    # No text block: the complete result lives in structured content, with nulls omitted.
-    assert tool_result.content == []
+    # The text block repeats the structured content, which omits the null fields.
+    assert json.loads(tool_result.content[0].text) == tool_result.structured_content
     assert tool_result.structured_content == {
         "datasetId": "IMF:CPI(1.0.0)",
         "found": True,
@@ -461,7 +461,7 @@ async def test_availability_query_not_found():
         {"dataset_id": "IMF:NOPE(1.0)"}
     )
 
-    assert tool_result.content == []
+    assert json.loads(tool_result.content[0].text) == tool_result.structured_content
     assert tool_result.structured_content == {
         "datasetId": "IMF:NOPE(1.0)",
         "found": False,
