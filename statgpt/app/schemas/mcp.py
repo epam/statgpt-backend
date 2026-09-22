@@ -60,20 +60,15 @@ class QueryFilter(BaseYamlModel):
         default=None, description="Human-readable name of the dimension, when known."
     )
     operator: JsonQueryOperator = Field(description="How the values are applied.")
-    total_values: int | None = Field(
-        default=None,
-        description="Total number of filtered values. Present only when `values` is truncated.",
-    )
     values: list[FilterValue] = Field(
-        default_factory=list, description="The filtered values, truncated when there are many."
+        default_factory=list, description="Every value the filter applies."
     )
 
     @computed_field(  # type: ignore[prop-decorator]
-        description="Number of values listed in `values`. Lower than `totalValues` when the list"
-        " is truncated."
+        description="How many values the filter applies."
     )
     @property
-    def returned_values(self) -> int:
+    def value_count(self) -> int:
         return len(self.values)
 
 
