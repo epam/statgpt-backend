@@ -236,12 +236,6 @@ class DialRagAgentFactory(BaseRAGFactory):
 
         # suggest the unfiltered retry only when the empty result may be caused by a prefilter
         # built from the user query; never on eval calls with an injected target prefilter
-        suggest_unfiltered_retry = (
-            target_prefilter is None
-            and not search_all_publications
-            and pre_filter_response.rag_filter is not None
-        )
-
         inputs[self.FIELD_PRE_FILTER] = pre_filter_response
         inputs[self.FIELD_METADATA] = metadata
         inputs[self.FIELD_SEARCH_ALL_PUBLICATIONS] = search_all_publications
@@ -324,11 +318,6 @@ class DialRagAgentFactory(BaseRAGFactory):
                     msg += (
                         '\n\nThe following publications pre-filter was applied to this search:\n'
                         f'{rag_filter}'
-                    )
-                if suggest_unfiltered_retry:
-                    msg += (
-                        '\n\nTo search across all available publications, call this tool again '
-                        'with the same query and `search_all_publications=true`.'
                     )
                 inputs[self.FIELD_RESPONSE] = msg
                 inputs[self.FIELD_ANSWERED_BY] = 'LLM'
