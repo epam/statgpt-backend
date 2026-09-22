@@ -56,9 +56,9 @@ _EXECUTED_STATUSES = frozenset(
 )
 _QUERY_ID_PREFIX = "dq_"
 _QUERY_ID_DIGEST_SIZE = 5
-# A dimension filtered on more values than this is reported as a count plus the first few values:
-# the full list belongs in the client payload, not in what the model reads.
-_MAX_FILTER_VALUES = 10
+# How many of a dimension's available values are sampled when reporting a missing dimension. The
+# source there is the codelist, which can hold thousands of values.
+_MAX_SAMPLE_VALUES = 10
 
 
 def data_query_outcome_to_resources(
@@ -358,7 +358,7 @@ def _mcp_app_meta(
     outcome: DataQueryOutcome, channel_config: ChannelConfig, message: str | None
 ) -> DataQueryMcpAppMeta:
     """The MCP-App payload: the SDMX query model the widget renders and edits, with the pipeline
-    status, the full value lists, the reproducible python code and the companion tool names."""
+    status, the reproducible python code and the companion tool names."""
     status = outcome.state.status
     mcp_payload = outcome.mcp_payload
     sdmx_query_app = channel_config.sdmx_query_app
@@ -505,35 +505,25 @@ def _split_filters(
         if component.component_code == time_dimension:
             requested_period = _period_range(component)
             continue
-        values, total_values = _filter_values(
-            component, value_names.get(component.component_code, {})
-        )
         filters.append(
             QueryFilter(
                 dimension_id=component.component_code,
                 dimension_name=dimension_names.get(component.component_code),
                 operator=component.operator,
-                total_values=total_values,
-                values=values,
+                values=_filter_values(component, value_names.get(component.component_code, {})),
             )
         )
 
     return filters, requested_period
 
 
-def _filter_values(
-    component: JsonComponentQuery, names: dict[str, str]
-) -> tuple[list[FilterValue], int | None]:
-    """The component's values as records, truncated to `_MAX_FILTER_VALUES`.
+def _filter_values(component: JsonComponentQuery, names: dict[str, str]) -> list[FilterValue]:
+    """Every value the component filters on, as records.
 
-    The total is reported only when the list is truncated, so it does not restate `len(values)`.
+    The list is not truncated: it is what the query asked for, and the model cannot report on a
+    query whose filter it only sees part of.
     """
-    values = component.values
-    total_values = len(values) if len(values) > _MAX_FILTER_VALUES else None
-    records = [
-        FilterValue(id=value, name=names.get(value)) for value in values[:_MAX_FILTER_VALUES]
-    ]
-    return records, total_values
+    return [FilterValue(id=value, name=names.get(value)) for value in component.values]
 
 
 def _period_range(component: JsonComponentQuery) -> PeriodRange | None:
@@ -564,7 +554,7 @@ def _missing_dimensions_record(missing: MissingDimensionsInfo) -> MissingDimensi
                 total_values=len(dimension.available_values),
                 sample_values=[
                     FilterValue(id=value.id, name=value.name)
-                    for value in dimension.available_values[:_MAX_FILTER_VALUES]
+                    for value in dimension.available_values[:_MAX_SAMPLE_VALUES]
                 ],
             )
             for dimension in missing.dimensions

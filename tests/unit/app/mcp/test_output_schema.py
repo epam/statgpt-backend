@@ -1,10 +1,11 @@
 """Contract tests for MCP tool output schemas.
 
-Five tools declare an MCP output schema: the two glossary tools (available-terms,
-term-definitions), the two dataset-metadata tools (available-datasets, dataset-structure) and the
-data query tool. The first four are structured-only — they carry their whole result in
-`structuredContent` and emit no text block — while the data query tool also returns text and
-resources. Every other tool opts out (no declared schema), even where it emits structured content.
+Six tools declare an MCP output schema: the two glossary tools (available-terms,
+term-definitions), the three dataset-metadata tools (available-datasets, dataset-structure,
+availability-query) and the data query tool. The first five are structured-only — they carry their
+whole result in `structuredContent` and emit no text block — while the data query tool also returns
+text and resources. Every other tool opts out (no declared schema), even where it emits structured
+content.
 These tests fail the build when a scoped tool's runtime content drifts from its declared schema, and
 lock the reduced scope so a tool cannot silently gain or lose a schema. They double as the captured
 sample responses for the marketplace submission package.
@@ -18,6 +19,9 @@ from fastmcp.tools import ToolResult
 
 from statgpt.app.mcp.tools import StatGptMcpTool, mcp_tool_class_for
 from statgpt.app.schemas.mcp import (
+    AvailabilityDimensionRecord,
+    AvailabilityStructuredContent,
+    AvailabilityValueRecord,
     AvailableDatasetsStructuredContent,
     AvailableTermsStructuredContent,
     DataQueryStructuredContent,
@@ -33,6 +37,7 @@ from statgpt.app.schemas.mcp import (
     QueryFilter,
     QueryRecord,
     TermDefinitionsStructuredContent,
+    TimeCoverageRecord,
 )
 from statgpt.common.schemas import ToolTypes
 from statgpt.common.schemas.query import JsonQueryOperator
@@ -43,6 +48,7 @@ SCOPED_TOOL_TYPES = {
     ToolTypes.TERM_DEFINITIONS,
     ToolTypes.AVAILABLE_DATASETS,
     ToolTypes.DATASET_STRUCTURE,
+    ToolTypes.AVAILABILITY_QUERY,
     ToolTypes.DATA_QUERY,
 }
 # The scoped tools whose whole result is the structured content.
@@ -125,6 +131,26 @@ GENERIC_CASES: dict = {
             )
         ],
         attributes=[DatasetComponentRecord(id="UNIT_MULT", name="Unit multiplier", type="string")],
+    ),
+    ToolTypes.AVAILABILITY_QUERY: AvailabilityStructuredContent(
+        dataset_id="IMF:CPI(1.0.0)",
+        found=True,
+        dimensions=[
+            AvailabilityDimensionRecord(
+                id="REF_AREA",
+                name="Reference area",
+                total_available=2,
+                returned=2,
+                truncated=False,
+                values=[
+                    AvailabilityValueRecord(id="US", name="United States"),
+                    AvailabilityValueRecord(id="GB", name="United Kingdom"),
+                ],
+            )
+        ],
+        time_coverage=TimeCoverageRecord(
+            dimension_id="TIME_PERIOD", name="Time period", start="2000", end="2024"
+        ),
     ),
     ToolTypes.DATA_QUERY: DataQueryStructuredContent(
         queries=[

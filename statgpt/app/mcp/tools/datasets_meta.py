@@ -7,21 +7,35 @@ from fastmcp.exceptions import ToolError
 from fastmcp.tools import ToolResult
 from pydantic import PrivateAttr
 
+from statgpt.app.chains.datasets_meta.availability_tool import (
+    AvailabilityPayload,
+    AvailabilityQueryArgs,
+    build_availability_payload,
+    build_availability_query,
+    unknown_dimension_ids,
+    unknown_dimensions_message,
+    valid_dimension_ids,
+)
 from statgpt.app.chains.datasets_meta.available_datasets_tool import AvailableDatasetsRunner
 from statgpt.app.chains.datasets_meta.structure_tool import DatasetStructureArgs
 from statgpt.app.chains.tools import ToolArgs
 from statgpt.app.chains.utils import dataset_utils
 from statgpt.app.schemas.mcp import (
+    AvailabilityDimensionRecord,
+    AvailabilityStructuredContent,
+    AvailabilityValueRecord,
     AvailableDatasetsStructuredContent,
     DatasetComponentRecord,
     DatasetRecord,
     DatasetStructureStructuredContent,
     DatasetValueRecord,
     ProviderRecord,
+    TimeCoverageRecord,
 )
 from statgpt.app.utils.formatters.dataset_detailed import sample_component_values
 from statgpt.common.auth.auth_context import AuthContext
 from statgpt.common.data.base import Attribute, CategoricalDimension, DataSet, Dimension
+from statgpt.common.schemas import AvailabilityQueryTool as AvailabilityQueryToolConfig
 from statgpt.common.schemas import AvailableDatasetsTool as AvailableDatasetsToolConfig
 from statgpt.common.schemas import ChannelConfig
 from statgpt.common.schemas import DatasetStructureTool as DatasetStructureToolConfig
@@ -113,6 +127,40 @@ async def dataset_structure_to_structured_content(
         last_updated=await _dataset_last_updated(dataset, auth_context),
         dimensions=[_component_record(dim) for dim in dataset.dimensions()],
         attributes=[_component_record(attr) for attr in dataset.attributes()],
+    )
+
+
+def availability_payload_to_structured_content(
+    payload: AvailabilityPayload,
+) -> AvailabilityStructuredContent:
+    """Adapt the availability tool's payload to MCP structured content: the dimensions dict (keyed
+    by id) becomes a list of records carrying their id, matching the other datasets-meta tools."""
+    dimensions = [
+        AvailabilityDimensionRecord(
+            id=dimension_id,
+            name=coverage.name,
+            total_available=coverage.total_available,
+            returned=coverage.returned,
+            truncated=coverage.truncated,
+            values=[
+                AvailabilityValueRecord(id=value.id, name=value.name) for value in coverage.values
+            ],
+        )
+        for dimension_id, coverage in payload.dimensions.items()
+    ]
+    time_coverage = None
+    if payload.time_coverage is not None:
+        time_coverage = TimeCoverageRecord(
+            dimension_id=payload.time_coverage.dimension_id,
+            name=payload.time_coverage.name,
+            start=payload.time_coverage.start,
+            end=payload.time_coverage.end,
+        )
+    return AvailabilityStructuredContent(
+        dataset_id=payload.dataset_id,
+        found=True,
+        dimensions=dimensions,
+        time_coverage=time_coverage,
     )
 
 
@@ -210,3 +258,46 @@ class DatasetStructureMcpTool(
         return self._structured_only(
             await dataset_structure_to_structured_content(dataset, self._auth_context)
         )
+
+
+class AvailabilityQueryMcpTool(
+    StatGptMcpTool[AvailabilityQueryToolConfig, AvailabilityQueryArgs],
+    tool_type=ToolTypes.AVAILABILITY_QUERY,
+):
+    """Structured-only: the complete result lives in `structuredContent`, so no text block."""
+
+    @classmethod
+    def get_args_schema(
+        cls, tool_config: AvailabilityQueryToolConfig
+    ) -> type[AvailabilityQueryArgs]:
+        return AvailabilityQueryArgs
+
+    @classmethod
+    def get_output_model(cls) -> type[AvailabilityStructuredContent]:
+        return AvailabilityStructuredContent
+
+    async def _execute(self, args: AvailabilityQueryArgs) -> ToolResult:
+        dataset = await dataset_utils.get_dataset_by_source_id(args.inputs, args.dataset_id)
+        if dataset is None:
+            return self._structured_only(
+                AvailabilityStructuredContent(dataset_id=args.dataset_id, found=False)
+            )
+
+        valid_ids = valid_dimension_ids(dataset)
+        unknown = unknown_dimension_ids(valid_ids, args.partial_query, args.include_dimensions)
+        if unknown:
+            # A caller error the model can fix: surface the helpful message as a ToolError rather
+            # than a found result, so the invalid ids are not silently ignored.
+            raise ToolError(unknown_dimensions_message(unknown, sorted(valid_ids)))
+
+        query = build_availability_query(args.partial_query)
+        result = await dataset.availability_query(query, self._auth_context)
+
+        payload = build_availability_payload(
+            dataset,
+            result,
+            self._tool_config.details.hard_limit,
+            args.codes_per_dimension,
+            set(args.include_dimensions) if args.include_dimensions else None,
+        )
+        return self._structured_only(availability_payload_to_structured_content(payload))

@@ -481,7 +481,7 @@ def test_query_id_is_stable_for_the_same_query_on_the_same_date():
     assert query_id(_FIXED_TS) != query_id(_FIXED_TS, urn="BIS:IR(2.1.0)")
 
 
-def test_structured_content_truncates_a_long_value_list():
+def test_structured_content_reports_a_long_value_list_in_full():
     values = [f"C{i:02d}" for i in range(25)]
     query = _json_query("IMF:CPI(1.0.0)")
     query.filters = [
@@ -493,20 +493,8 @@ def test_structured_content_truncates_a_long_value_list():
 
     reported = data_query_outcome_to_structured_content(outcome).queries[0].filters[0]
 
-    assert reported.total_values == 25
-    assert reported.returned_values == 10
-    assert [value.id for value in reported.values] == values[:10]
-
-
-def test_structured_content_omits_the_total_when_nothing_is_truncated():
-    df = pd.DataFrame({"x": [1]})
-    outcome = _make_outcome(
-        {"ds1": _response("IMF:CPI(1.0.0)", df, json_query=_json_query("IMF:CPI(1.0.0)"))}
-    )
-
-    assert (
-        data_query_outcome_to_structured_content(outcome).queries[0].filters[0].total_values is None
-    )
+    assert reported.value_count == 25
+    assert [value.id for value in reported.values] == values
 
 
 def test_structured_content_preserves_insertion_order():

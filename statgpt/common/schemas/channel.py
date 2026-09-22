@@ -15,6 +15,7 @@ from .enums import ChannelIndexStatusScope, LocaleEnum, McpResourceTypes, Prepro
 from .model_config import LLMModelConfig
 from .onboarding import OnboardingConfig
 from .tools import (
+    AvailabilityQueryTool,
     AvailableDatasetsTool,
     AvailablePublicationsTool,
     AvailableTermsTool,
@@ -352,6 +353,7 @@ class ChannelConfig(BaseYamlModel):
     available_datasets: AvailableDatasetsTool | None = Field(None)
     datasets_metadata: DatasetsMetadataTool | None = Field(None)
     dataset_structure: DatasetStructureTool | None = Field(None)
+    availability_query: AvailabilityQueryTool | None = Field(None)
     available_publications: AvailablePublicationsTool | None = Field(None)
     available_terms: AvailableTermsTool | None = Field(None)
     data_query: DataQueryTool | None = Field(default=None)
@@ -378,6 +380,7 @@ class ChannelConfig(BaseYamlModel):
             'available_datasets',
             'datasets_metadata',
             'dataset_structure',
+            'availability_query',
             'available_publications',
             'available_terms',
             'data_query',

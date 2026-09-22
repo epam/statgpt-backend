@@ -70,6 +70,27 @@ tools:
         toolCallName: "Looking into structure of dataset '{dataset_id}'"
         toolResultName: "Structure of dataset '{dataset_id}'"
 
+  - type: availability_query
+    <<: *shared_settings
+    name: "Availability_Query"
+    description: >-
+      Reports which dimension values (codes) actually carry observations in a single dataset,
+      for an empty or partial key. Use it to answer coverage questions cheaply instead of running
+      a full `Query_Data` star query just to see what exists.
+
+      Returns each dimension's available codes with their names, so a separate code-list lookup
+      is not needed. Use `Dataset_Structure` first if you need the dimension IDs.
+
+      Example questions this tool can help to answer:
+      * Which reference areas carry series 51401?
+      * What frequencies / countries exist in the <X> dataset?
+
+      For fetching the actual data values you should refer to the `Query_Data` tool.
+    details:
+      stagesConfig:
+        toolCallName: "Checking availability in dataset '{dataset_id}'"
+        toolResultName: "Availability in dataset '{dataset_id}'"
+
   - type: data_query
     <<: *shared_settings
     name: "Query_Data"
