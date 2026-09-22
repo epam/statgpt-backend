@@ -209,7 +209,7 @@ def _component_record(component: Dimension | Attribute) -> DatasetComponentRecor
 class AvailableDatasetsMcpTool(
     StatGptMcpTool[AvailableDatasetsToolConfig, ToolArgs], tool_type=ToolTypes.AVAILABLE_DATASETS
 ):
-    """Structured-only: the complete result lives in `structuredContent`, so no text block."""
+    """Structured-only: the whole result is the structured content, also sent as JSON text."""
 
     _runner: AvailableDatasetsRunner = PrivateAttr()
 
@@ -241,7 +241,7 @@ class DatasetStructureMcpTool(
     StatGptMcpTool[DatasetStructureToolConfig, DatasetStructureArgs],
     tool_type=ToolTypes.DATASET_STRUCTURE,
 ):
-    """Structured-only: the complete result lives in `structuredContent`, so no text block."""
+    """Structured-only: the whole result is the structured content, also sent as JSON text."""
 
     @classmethod
     def get_args_schema(cls, tool_config: DatasetStructureToolConfig) -> type[DatasetStructureArgs]:

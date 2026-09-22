@@ -11,6 +11,7 @@ by `LangChainMcpTool`, which runs the LangChain tool and returns its text.
 """
 
 import asyncio
+import json
 import logging
 from abc import ABC, abstractmethod
 from typing import Any, ClassVar, Generic, TypeVar
@@ -205,11 +206,19 @@ class StatGptMcpTool(Tool, ABC, Generic[ToolConfigType, ArgsType]):
 
     @staticmethod
     def _structured_only(model: BaseModel) -> ToolResult:
-        """A result whose complete payload is the structured content: no text block (it would
-        only duplicate the payload) and null optional fields omitted for compactness."""
+        """A result whose complete payload is the structured content, with null optional fields
+        omitted for compactness.
+
+        The payload goes out twice: as `structuredContent`, and as its serialized JSON in a text
+        block. The text block is what a client reading only `content` receives; the MCP
+        specification asks for it, and LangChain-based clients need it, because they treat
+        `structuredContent` as program data and never show it to the model. One serialization
+        feeds both copies so they cannot drift.
+        """
+        payload = model.model_dump(mode="json", by_alias=True, exclude_none=True)
         return ToolResult(
-            content=[],
-            structured_content=model.model_dump(mode="json", by_alias=True, exclude_none=True),
+            content=[TextContent(type="text", text=json.dumps(payload, ensure_ascii=False))],
+            structured_content=payload,
         )
 
     # ~~~~~~~~~~~~~ factory ~~~~~~~~~~~~~

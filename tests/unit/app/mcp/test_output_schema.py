@@ -11,6 +11,8 @@ lock the reduced scope so a tool cannot silently gain or lose a schema. They dou
 sample responses for the marketplace submission package.
 """
 
+import json
+
 import jsonschema
 import pytest
 from fastmcp.tools import ToolResult
@@ -196,8 +198,11 @@ def test_scoped_tools_cover_the_generic_cases():
 
 
 @pytest.mark.parametrize("tool_type", sorted(STRUCTURED_ONLY_TOOL_TYPES, key=str))
-def test_structured_only_tool_drops_text(tool_type: ToolTypes):
-    assert _tool_result(tool_type).content == []
+def test_structured_only_tool_repeats_the_payload_as_json_text(tool_type: ToolTypes):
+    # A client that reads only `content` receives the same payload as `structuredContent`.
+    result = _tool_result(tool_type)
+    assert [block.type for block in result.content] == ["text"]
+    assert json.loads(result.content[0].text) == _structured_content(tool_type)
 
 
 def test_structured_only_tool_omits_null_fields():
