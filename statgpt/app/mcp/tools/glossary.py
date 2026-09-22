@@ -66,7 +66,7 @@ def term_definitions_structured_content(
 class AvailableTermsMcpTool(
     StatGptMcpTool[AvailableTermsToolConfig, ToolArgs], tool_type=ToolTypes.AVAILABLE_TERMS
 ):
-    """Structured-only: the complete result lives in `structuredContent`, so no text block."""
+    """Structured-only: the whole result is the structured content, also sent as JSON text."""
 
     _runner: AvailableTermsRunner = PrivateAttr()
 
@@ -99,7 +99,7 @@ class TermDefinitionsMcpTool(
     StatGptMcpTool[TermDefinitionsToolConfig, BaseTermDefinitionsArgs],
     tool_type=ToolTypes.TERM_DEFINITIONS,
 ):
-    """Structured-only: the complete result lives in `structuredContent`, so no text block."""
+    """Structured-only: the whole result is the structured content, also sent as JSON text."""
 
     _runner: TermDefinitionsRunner = PrivateAttr()
 

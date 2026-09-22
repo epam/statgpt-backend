@@ -1,3 +1,4 @@
+import json
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
@@ -45,8 +46,8 @@ async def test_available_terms_returns_records_only():
 
     tool_result = await _build(tool_config, inputs).run({})
 
-    # Structured-only: the text rendering would only duplicate the records.
-    assert tool_result.content == []
+    # The text block repeats the records, for a client that reads only `content`.
+    assert json.loads(tool_result.content[0].text) == tool_result.structured_content
     # `source` is dropped because the tool is not configured to expose it, `PPP`'s `domain` because
     # the glossary has no value for it.
     assert tool_result.structured_content == {
@@ -75,9 +76,9 @@ async def test_term_definitions_separates_found_and_missing_terms():
         {"terms": ["gdp ", "PPP", "unknown"]}
     )
 
-    # Structured-only, and a found term needs no `found` flag. `PPP` carries neither domain nor
-    # source because the glossary has no value for them.
-    assert tool_result.content == []
+    # The text block repeats the payload. A found term needs no `found` flag, and `PPP` carries
+    # neither domain nor source because the glossary has no value for them.
+    assert json.loads(tool_result.content[0].text) == tool_result.structured_content
     assert tool_result.structured_content == {
         "definitions": [
             {"term": "GDP", "definition": "Gross ...", "domain": "Economy", "source": "IMF"},
