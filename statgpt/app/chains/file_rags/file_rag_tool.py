@@ -37,9 +37,11 @@ The query to search an answer for.
     search_all_publications: bool = Field(
         default=False,
         description='''\
-Set to true to search across ALL available publications, without any publication filters.
-- Use ONLY as a fallback: when a call with this flag unset found no publications for the same user request.
-- Never set to true on the first call.
+Set to true to search across ALL available publications, without any publication filter.
+By default, the search may be restricted by a pre-filter built from the query (e.g. to the most
+recent publications); the applied pre-filter is reported in the tool response. This argument
+allows broadening a search that was too narrow — a typical scenario is repeating a query whose
+pre-filtered search found nothing.
 ''',
     )
     target_prefilter_json: t.Annotated[str | None, InjectedToolArg] = Field(
