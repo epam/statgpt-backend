@@ -22,9 +22,8 @@ from version 2.
 | `queries[].datasetUrn` | URN of the queried dataset. |
 | `queries[].datasetName` | Dataset name, when a response carried one. |
 | `queries[].executed` | `false` for a query that was constructed but never ran. |
-| `queries[].filters[]` | One entry per filtered dimension: `dimensionId`, `dimensionName`, `operator`, `values[].id` / `values[].name`. A dimension with no filter is not listed - every one of its values is included. |
-| `queries[].filters[].totalValues` | Present only when `values` was truncated to the first 10. |
-| `queries[].filters[].returnedValues` | How many values `values` lists. Lower than `totalValues` when the list was truncated. |
+| `queries[].filters[]` | One entry per filtered dimension: `dimensionId`, `dimensionName`, `operator`, `values[].id` / `values[].name`. `values` is complete - it is what the query asked for. A dimension with no filter is not listed - every one of its values is included. |
+| `queries[].filters[].valueCount` | How many values the filter applies. |
 | `queries[].requestedPeriod` | `startPeriod` / `endPeriod`, named after the SDMX REST query parameters. The time period is reported here, not as another filter. |
 | `queries[].factualPeriod` | The period the returned data actually covers. |
 | `queries[].seriesCount` | Number of series returned, absent when the query returned no data. |
@@ -98,7 +97,7 @@ The queries ran and returned data.
                 "name": "United States"
               }
             ],
-            "returnedValues": 1
+            "valueCount": 1
           },
           {
             "dimensionId": "INDICATOR",
@@ -114,7 +113,7 @@ The queries ran and returned data.
                 "name": "Gross domestic product (GDP), Current prices, US dollar"
               }
             ],
-            "returnedValues": 2
+            "valueCount": 2
           }
         ],
         "requestedPeriod": {
@@ -238,7 +237,7 @@ The queries ran and returned nothing. The model still sees what was asked, and `
                 "name": "United States"
               }
             ],
-            "returnedValues": 1
+            "valueCount": 1
           },
           {
             "dimensionId": "INDICATOR",
@@ -254,7 +253,7 @@ The queries ran and returned nothing. The model still sees what was asked, and `
                 "name": "Gross domestic product (GDP), Current prices, US dollar"
               }
             ],
-            "returnedValues": 2
+            "valueCount": 2
           }
         ],
         "requestedPeriod": {
@@ -365,7 +364,7 @@ The fetch or the parsing failed. Also the default status, in which case there ar
                 "name": "United States"
               }
             ],
-            "returnedValues": 1
+            "valueCount": 1
           },
           {
             "dimensionId": "INDICATOR",
@@ -381,7 +380,7 @@ The fetch or the parsing failed. Also the default status, in which case there ar
                 "name": "Gross domestic product (GDP), Current prices, US dollar"
               }
             ],
-            "returnedValues": 2
+            "valueCount": 2
           }
         ],
         "requestedPeriod": {
@@ -489,7 +488,7 @@ The queries were constructed but never ran: `executed` is `false`, and there is 
                 "id": "USA"
               }
             ],
-            "returnedValues": 1
+            "valueCount": 1
           },
           {
             "dimensionId": "INDICATOR",
@@ -502,7 +501,7 @@ The queries were constructed but never ran: `executed` is `false`, and there is 
                 "id": "NGDPD"
               }
             ],
-            "returnedValues": 2
+            "valueCount": 2
           }
         ],
         "requestedPeriod": {
