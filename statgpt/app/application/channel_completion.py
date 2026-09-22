@@ -227,7 +227,6 @@ class ChannelCompletion(ChatCompletion):
                     table = TokenUsageDisplayer.as_markdown_table(priced_usage)
                     stage.append_content(table)
 
-            cls._add_usage_per_model(priced_usage, response)
             cls.set_dial_state(state, choice)
             if dial_exception:
                 raise dial_exception
@@ -284,15 +283,6 @@ class ChannelCompletion(ChatCompletion):
                 if pricing := await getter.get_model_pricing(model):
                     res[model] = pricing
         return res
-
-    @staticmethod
-    def _add_usage_per_model(priced_usage: list[TokenUsagePricedItem], response: Response) -> None:
-        for item in priced_usage:
-            response.add_usage_per_model(
-                model=item.model,
-                prompt_tokens=item.prompt_tokens,
-                completion_tokens=item.completion_tokens,
-            )
 
     @staticmethod
     def set_dial_state(state: dict, choice: Choice) -> None:
