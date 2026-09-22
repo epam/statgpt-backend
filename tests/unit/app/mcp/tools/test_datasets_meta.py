@@ -1,3 +1,4 @@
+import json
 from datetime import datetime, timezone
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
@@ -122,8 +123,8 @@ async def test_available_datasets_is_structured_only():
 
     tool_result = await _build(tool_config, inputs).run({})
 
-    # No text block: the complete result lives in structured content, with nulls omitted.
-    assert tool_result.content == []
+    # The text block repeats the structured content, which omits the null fields.
+    assert json.loads(tool_result.content[0].text) == tool_result.structured_content
     assert tool_result.structured_content == {
         "providers": [{"name": "IMF", "datasetCount": 1}],
         "datasets": [
@@ -221,7 +222,7 @@ async def test_dataset_structure_found_uses_the_source_update_date():
         {"dataset_id": "IMF:CPI(1.0.0)"}
     )
 
-    assert tool_result.content == []
+    assert json.loads(tool_result.content[0].text) == tool_result.structured_content
     assert tool_result.structured_content == {
         "datasetId": "IMF:CPI(1.0.0)",
         "name": "Consumer Price Index",
