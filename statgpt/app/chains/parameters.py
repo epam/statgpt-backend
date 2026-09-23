@@ -60,7 +60,7 @@ class ChainParameters:
 
     @staticmethod
     def get_search_all_publications(data: dict) -> bool:
-        """Agent-requested RAG fallback: search all publications without a prefilter."""
+        """Broadened RAG search: search all publications without a prefilter."""
         return data.get(ChainParametersConfig.SEARCH_ALL_PUBLICATIONS, False)
 
     @staticmethod
