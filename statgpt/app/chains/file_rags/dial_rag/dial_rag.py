@@ -234,8 +234,6 @@ class DialRagAgentFactory(BaseRAGFactory):
                 auth_context=auth_context, query=query, target=target, reference_date=current_date
             )
 
-        # suggest the unfiltered retry only when the empty result may be caused by a prefilter
-        # built from the user query; never on eval calls with an injected target prefilter
         inputs[self.FIELD_PRE_FILTER] = pre_filter_response
         inputs[self.FIELD_METADATA] = metadata
         inputs[self.FIELD_SEARCH_ALL_PUBLICATIONS] = search_all_publications
