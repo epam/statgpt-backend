@@ -1,4 +1,5 @@
-from typing import Self
+from enum import StrEnum
+from typing import Literal, Self
 
 from pydantic import ConfigDict, Field, computed_field, model_validator
 
@@ -47,6 +48,16 @@ class PeriodRange(BaseYamlModel):
     end_period: str | None = Field(default=None, description="Last period covered.")
 
 
+class RequestedPeriod(PeriodRange):
+    """The time period a query asked for."""
+
+    is_default: bool = Field(
+        default=False,
+        description="Whether the period is the dataset's default, applied because the user did"
+        " not specify one.",
+    )
+
+
 class QueryFilter(BaseYamlModel):
     """The filter applied to one dimension.
 
@@ -63,6 +74,14 @@ class QueryFilter(BaseYamlModel):
     values: list[FilterValue] = Field(
         default_factory=list, description="Every value the filter applies."
     )
+    is_indicator: bool = Field(
+        default=False, description="Whether the dimension is one of the dataset's indicators."
+    )
+    is_default: bool = Field(
+        default=False,
+        description="Whether the filter is the dimension's default, applied because the user did"
+        " not specify it.",
+    )
 
     @computed_field(  # type: ignore[prop-decorator]
         description="How many values the filter applies."
@@ -70,6 +89,37 @@ class QueryFilter(BaseYamlModel):
     @property
     def value_count(self) -> int:
         return len(self.values)
+
+
+class ExecutionResult(StrEnum):
+    """How the execution of one query went."""
+
+    DATA_RECEIVED = "data_received"
+    PARTIALLY_PARSED = "partially_parsed"
+    PARSING_FAILED = "parsing_failed"
+    REQUEST_FAILED = "request_failed"
+    NO_DATA = "no_data"
+
+
+class QueryExecution(BaseYamlModel):
+    """The outcome of executing one query, with what to do about it."""
+
+    model_config = ConfigDict(serialize_by_alias=True)
+
+    result: ExecutionResult = Field(description="How the execution went.")
+    reason: str | None = Field(default=None, description="Why the execution did not succeed.")
+    advice: str | None = Field(default=None, description="How to proceed.")
+
+
+class InvalidPeriodRecord(BaseYamlModel):
+    """Why the requested time period was rejected: one bound is outside the available range. The
+    rejected period is not applied, so the query's `requestedPeriod` does not carry it."""
+
+    model_config = ConfigDict(serialize_by_alias=True)
+
+    rejected_bound: Literal["startPeriod", "endPeriod"] = Field(description="The rejected bound.")
+    requested_value: str = Field(description="The value requested for the rejected bound.")
+    available_period: PeriodRange = Field(description="The period the dataset has data for.")
 
 
 class QueryRecord(BaseYamlModel):
@@ -83,6 +133,17 @@ class QueryRecord(BaseYamlModel):
     )
     dataset_urn: str = Field(description="URN of the queried dataset, e.g. 'IMF:CPI(1.0.0)'.")
     dataset_name: str | None = Field(default=None, description="Dataset name, when known.")
+    is_official: bool | None = Field(
+        default=None, description="Whether the dataset is official, when the channel marks it."
+    )
+    provider: str | None = Field(default=None, description="The dataset's provider, when known.")
+    last_updated: str | None = Field(
+        default=None, description="Date the dataset was last updated (ISO 8601), when known."
+    )
+    dataset_url: str | None = Field(default=None, description="Link to the dataset, when known.")
+    query_summary: str | None = Field(
+        default=None, description="A short summary of what the query asks for."
+    )
     executed: bool = Field(
         description="Whether this query was executed. A constructed but unexecuted query describes"
         " what would be asked, not data that was returned."
@@ -90,14 +151,23 @@ class QueryRecord(BaseYamlModel):
     filters: list[QueryFilter] = Field(
         default_factory=list, description="The filters applied, one per filtered dimension."
     )
-    requested_period: PeriodRange | None = Field(
+    requested_period: RequestedPeriod | None = Field(
         default=None, description="The time period the query asked for."
+    )
+    invalid_period: InvalidPeriodRecord | None = Field(
+        default=None, description="Why the requested time period was rejected, if it was."
     )
     factual_period: PeriodRange | None = Field(
         default=None, description="The time period the returned data actually covers."
     )
     series_count: int | None = Field(
         default=None, description="Number of data series returned, when the query returned data."
+    )
+    execution: QueryExecution | None = Field(
+        default=None, description="How the execution went, for an executed query."
+    )
+    data_explorer_url: str | None = Field(
+        default=None, description="Link to the query's data in the data explorer."
     )
 
 
@@ -137,20 +207,31 @@ class CandidateDatasetRecord(BaseYamlModel):
 
     id: str = Field(description="Dataset URN. Name it in a follow-up query to pick this dataset.")
     name: str = Field(description="Human-readable dataset name.")
-    is_official: bool = Field(default=False, description="Whether the dataset is official.")
+    is_official: bool | None = Field(
+        default=None, description="Whether the dataset is official, when the channel marks it."
+    )
+    query: QueryRecord | None = Field(
+        default=None, description="The query that would run against this dataset."
+    )
 
 
 class DataQueryStructuredContent(BaseYamlModel):
-    """MCP structured content for the data query tool: the queries the pipeline produced, and what
-    a follow-up query would need when it produced none.
+    """MCP structured content for the data query tool: the outcome, the queries the pipeline
+    produced, and what a follow-up query would need when it produced none.
 
-    Written for the calling model. What a client needs instead - the pipeline status, the SDMX
-    wiring, links, python code - is carried in the result's `_meta`; the outcome itself is
-    explained in the text content block.
+    Written for the calling model. What a client needs instead - the SDMX wiring, python code,
+    resource URIs - is carried in the result's `_meta`.
     """
 
     model_config = ConfigDict(serialize_by_alias=True)
 
+    status: DataQueryStatus = Field(description="Which outcome the pipeline reached.")
+    message: str | None = Field(
+        default=None, description="What to know about the outcome, and how to proceed."
+    )
+    executed_at: str | None = Field(
+        default=None, description="When the queries were executed (ISO 8601)."
+    )
     queries: list[QueryRecord] = Field(
         default_factory=list, description="The queries, one per dataset."
     )

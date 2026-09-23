@@ -145,6 +145,16 @@ class ExplorerLinkPolicy(StrEnum):
     never = "never"
     """Never render the link."""
 
+    def includes_link(self, has_data: bool) -> bool:
+        """Whether a response that did (or did not) return data carries the link."""
+        match self:
+            case ExplorerLinkPolicy.always:
+                return True
+            case ExplorerLinkPolicy.only_when_no_data:
+                return not has_data
+            case ExplorerLinkPolicy.never:
+                return False
+
 
 class SpecialDimensionsProcessorType(StrEnum):
     LHCL = "large_hierarchical_codelist"

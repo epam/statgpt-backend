@@ -48,7 +48,12 @@ class DataQueryMcpTool(
     async def _execute(self, args: DataQueryArgs) -> ToolResult:
         outcome = await self._runner.run(args.inputs, args.query)
 
-        content = self._text_content(outcome.response)
+        # The model reads the structured content, also sent as its JSON text; the clients read
+        # `_meta`, one payload per audience.
+        result = self._structured_only(
+            data_query_outcome_to_structured_content(outcome, self._tool_config)
+        )
+        content = list(result.content)
         # The CSV and Markdown conversions are CPU-bound and can block on large dataframes;
         # offload them to a worker thread.
         content.extend(
@@ -58,20 +63,13 @@ class DataQueryMcpTool(
                 self._tool_config.details.mcp_resources,
             )
         )
-        # The model reads the structured content; the clients read `_meta`, one payload per
-        # audience. Null fields are dropped from what the model sees: they carry no information
-        # and the declared output schema marks them optional.
-        structured_content = data_query_outcome_to_structured_content(outcome).model_dump(
-            mode="json", by_alias=True, exclude_none=True
-        )
         meta = data_query_outcome_to_meta(
             outcome,
             self._channel_config,
             self._tool_config,
             message=outcome.response or None,
         )
-        # A content block of its own rather than a suffix on the response, which is also
-        # reported as `message` for a client to parse.
+        # A content block of its own: it comes from a lookup beside the query, not from its result.
         if discovery_block := outcome.discovery_block:
             content.append(TextContent(type="text", text=discovery_block))
-        return ToolResult(content=content, structured_content=structured_content, meta=meta)
+        return ToolResult(content=content, structured_content=result.structured_content, meta=meta)

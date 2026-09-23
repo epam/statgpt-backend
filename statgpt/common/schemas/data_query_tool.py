@@ -251,6 +251,22 @@ class DataQueryMcpResources(BaseYamlModel):
     )
 
 
+class DataQueryMcpStructuredContent(BaseYamlModel):
+    """Optional fields of the MCP data query `structuredContent`, each toggleable independently.
+
+    The data explorer link is governed by `explorer_link.mcp` instead.
+    """
+
+    executed_at: bool = Field(default=True, description="Report when the queries were executed.")
+    provider: bool = Field(default=True, description="Report each queried dataset's provider.")
+    dataset_url: bool = Field(default=True, description="Report each queried dataset's link.")
+    is_official: bool = Field(
+        default=False,
+        description="Report whether each dataset is official. Enable only for channels that mark"
+        " their official datasets.",
+    )
+
+
 class DataQueryMcpMeta(BaseYamlModel):
     """Audience-specific payloads the MCP data query result carries in `result._meta`.
 
@@ -599,6 +615,10 @@ class DataQueryDetails(BaseToolDetails):
     mcp_meta: DataQueryMcpMeta = Field(
         default_factory=DataQueryMcpMeta,
         description="Audience-specific payloads carried in the MCP result's `_meta`.",
+    )
+    mcp_structured_content: DataQueryMcpStructuredContent = Field(
+        default_factory=DataQueryMcpStructuredContent,
+        description="Optional fields of the MCP result's `structuredContent`.",
     )
     explorer_link: DataQueryExplorerLink = Field(
         default_factory=DataQueryExplorerLink,

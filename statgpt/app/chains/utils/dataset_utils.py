@@ -1,7 +1,10 @@
+from dateutil.parser import ParserError, parse
+
 from statgpt.app.chains.parameters import ChainParameters
 from statgpt.app.config import StateVarsConfig
 from statgpt.app.services.chat_facade import VersionedDataSet
 from statgpt.app.utils.dial_stages import optional_timed_stage
+from statgpt.common.auth.auth_context import AuthContext
 from statgpt.common.data.base import DataSet
 
 
@@ -29,3 +32,18 @@ async def get_dataset_by_source_id(inputs: dict, dataset_id: str) -> DataSet | N
     with optional_timed_stage(choice=choice, name=name, enabled=debug):
         dataset = await data_service.get_dataset_by_source_id(auth_context, dataset_id)
         return dataset
+
+
+async def dataset_last_updated(dataset: DataSet, auth_context: AuthContext) -> str | None:
+    """The dataset's last-updated date as an ISO 8601 date, from the source when known, otherwise
+    parsed from the citation's free-text value (the way the SDMX dataset resolves `updated_at`).
+    `None` when neither yields a date, so the field is never populated with unparsed text."""
+    if updated_at := await dataset.updated_at(auth_context):
+        return updated_at.date().isoformat()
+    citation = dataset.config.citation
+    if citation is None or not citation.last_updated:
+        return None
+    try:
+        return parse(citation.last_updated).date().isoformat()
+    except (ParserError, OverflowError):
+        return None

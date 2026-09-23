@@ -1,6 +1,7 @@
 from langchain_core.runnables import Runnable, RunnablePassthrough
 
 from statgpt.app.chains.data_query.parameters import DataQueryParameters
+from statgpt.app.chains.data_query.query_builder import mcp_details
 from statgpt.app.chains.parameters import ChainParameters
 from statgpt.common.schemas.data_query_tool import DataQueryMessages
 
@@ -20,4 +21,11 @@ class NoDataChain:
         message = self._get_message(inputs)
         target = ChainParameters.get_target(inputs)
         target.append_content(message)
-        return RunnablePassthrough.assign(**{DataQueryParameters.RESPONSE_FIELD: lambda _: message})
+        return RunnablePassthrough.assign(
+            **{
+                DataQueryParameters.RESPONSE_FIELD: lambda _: message,
+                DataQueryParameters.MCP_PAYLOAD: lambda d: mcp_details.updated_mcp_payload(
+                    d, message=message
+                ),
+            }
+        )

@@ -8,6 +8,7 @@ from langchain_core.runnables import (
 )
 
 from statgpt.app.chains.data_query.parameters import DataQueryParameters
+from statgpt.app.chains.data_query.query_builder import mcp_details
 from statgpt.app.chains.data_query.query_builder import utils as query_utils
 from statgpt.app.chains.parameters import ChainParameters
 from statgpt.app.config import ChainParametersConfig
@@ -97,6 +98,12 @@ class ExecuteQueryChain:
         response_content += f"\n[Data Query executed at {timestamp}]"
 
         inputs[DataQueryParameters.RESPONSE_FIELD] = response_content
+        inputs[DataQueryParameters.MCP_PAYLOAD] = mcp_details.updated_mcp_payload(
+            inputs,
+            query_details=await mcp_details.query_details_for_mcp(inputs),
+            message=executed_message or None,
+            executed_at=timestamp,
+        )
 
         query_utils.set_data_query_status(inputs, self._execution_status(data_responses))
         return inputs
@@ -106,16 +113,17 @@ class ExecuteQueryChain:
         """Classify the outcome of executed queries.
 
         Rows win: a partially failed fan-out that still returned data is reported as
-        ``data_available``. Otherwise a fetch or parse failure is reported as ``failed`` rather
-        than as an empty result — ``Sdmx21DataSet.query`` swallows those errors and returns an
-        empty response, so row count alone cannot tell them apart.
+        ``data_available``. Otherwise a fetch or parse failure, partial or not, is reported as
+        ``failed`` rather than as an empty result — ``Sdmx21DataSet.query`` swallows those errors
+        and returns an empty response, so row count alone cannot tell them apart.
         """
         responses = [r for r in (data_responses or {}).values() if r is not None]
         if any(not response.is_empty for response in responses):
             return DataQueryStatus.DATA_AVAILABLE
         if any(
             response.status.request_status == DataRequestStatus.FAILED
-            or response.status.parsing_status == DataParsingStatus.FAILED
+            or response.status.parsing_status
+            in (DataParsingStatus.FAILED, DataParsingStatus.PARTIALLY_FAILED)
             for response in responses
         ):
             return DataQueryStatus.FAILED

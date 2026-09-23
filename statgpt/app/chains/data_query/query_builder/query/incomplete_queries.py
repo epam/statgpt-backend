@@ -12,6 +12,7 @@ from langchain_core.prompts import (
 from langchain_core.runnables import Runnable, RunnablePassthrough
 
 from statgpt.app.chains.data_query.parameters import DataQueryParameters
+from statgpt.app.chains.data_query.query_builder import mcp_details
 from statgpt.app.chains.parameters import ChainParameters
 from statgpt.app.schemas.data_query_outcome import (
     DimensionValueInfo,
@@ -182,5 +183,10 @@ class IncompleteQueriesChain:
                 )
 
         return RunnablePassthrough.assign(
-            **{DataQueryParameters.RESPONSE_FIELD: lambda _: response_content},
+            **{
+                DataQueryParameters.RESPONSE_FIELD: lambda _: response_content,
+                DataQueryParameters.MCP_PAYLOAD: lambda d: mcp_details.updated_mcp_payload(
+                    d, message=response_content
+                ),
+            },
         )

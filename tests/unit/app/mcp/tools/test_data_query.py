@@ -1,3 +1,4 @@
+import json
 from datetime import datetime, timezone
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
@@ -13,12 +14,14 @@ from statgpt.app.schemas.discovery_datasets import (
     DiscoveryDatasetsOutcome,
 )
 from statgpt.app.schemas.tool_artifact import DataQueryOutcome
+from statgpt.common.data.base import DataResponseStatus
 from statgpt.common.schemas.data_query_tool import (
     DataQueryMcpMeta,
     DataQueryMcpResources,
     McpResource,
     ToggleableConfig,
 )
+from statgpt.common.schemas.enums import DataParsingStatus, DataRequestStatus
 from statgpt.common.schemas.query import JsonQueryMetadata, JsonQueryWithMetadata
 from statgpt.common.schemas.tools import DataQueryTool
 
@@ -91,6 +94,9 @@ def _data_response(df: pd.DataFrame) -> SimpleNamespace:
         time_period=("2020", "2024"),
         url_query="https://explorer.example/query",
         get_display_series_count=lambda: 2,
+        status=DataResponseStatus(
+            request_status=DataRequestStatus.SUCCESS, parsing_status=DataParsingStatus.SUCCESS
+        ),
     )
 
 
@@ -99,6 +105,7 @@ def _outcome(
     data_responses: dict | None = None,
     status: DataQueryStatus = DataQueryStatus.DATA_AVAILABLE,
     discovery: DiscoveryDatasetsOutcome | None = None,
+    message: str | None = None,
 ) -> DataQueryOutcome:
     # Bypass pydantic validation: the MCP tool only reads data_responses, state.status, mcp_payload
     # and discovery off the outcome.
@@ -106,21 +113,25 @@ def _outcome(
         response=response,
         data_responses=data_responses or {},
         state=SimpleNamespace(status=status, dimension_id_to_name={}),
-        mcp_payload=DataQueryMcpPayload(),
+        mcp_payload=DataQueryMcpPayload(message=message),
         discovery=discovery,
     )
 
 
-async def test_data_available_returns_text_csv_and_structured_content():
+async def test_data_available_returns_structured_content_its_json_text_and_csv():
     outcome = _outcome(data_responses={"ds1": _data_response(pd.DataFrame({"x": [1, 2]}))})
 
     tool_result = await _build(outcome).run({"query": "cpi"})
 
-    assert tool_result.content[0] == TextContent(type="text", text="answer")
-    resources = [c for c in tool_result.content if isinstance(c, EmbeddedResource)]
-    assert [r.resource.mimeType for r in resources] == ["text/csv"]
     structured = tool_result.structured_content
     assert structured is not None
+    # The rendered response is not sent: a client reading only `content` gets the same payload.
+    first = tool_result.content[0]
+    assert isinstance(first, TextContent)
+    assert json.loads(first.text) == structured
+    resources = [c for c in tool_result.content if isinstance(c, EmbeddedResource)]
+    assert [r.resource.mimeType for r in resources] == ["text/csv"]
+    assert structured["status"] == DataQueryStatus.DATA_AVAILABLE
     assert "version" not in structured
     assert [q["datasetUrn"] for q in structured["queries"]] == ["IMF:CPI(1.0.0)"]
     assert structured["queries"][0]["executed"] is True
@@ -149,18 +160,24 @@ async def test_data_available_carries_both_meta_audiences():
     ]
 
 
-async def test_no_data_reports_the_status_in_meta():
-    outcome = _outcome(response="No relevant data found.", status=DataQueryStatus.NO_DATA)
+async def test_no_data_reports_the_status_and_the_message():
+    outcome = _outcome(
+        response="No relevant data found.",
+        status=DataQueryStatus.NO_DATA,
+        message="No relevant data found.",
+    )
 
     tool_result = await _build(outcome).run({"query": "cpi"})
 
     structured = tool_result.structured_content
     assert structured is not None
     assert structured["queries"] == []
+    assert structured["status"] == DataQueryStatus.NO_DATA
+    assert structured["message"] == "No relevant data found."
     assert tool_result.meta is not None
     for payload in tool_result.meta.values():
         assert payload["status"] == DataQueryStatus.NO_DATA
-    # Only the widget payload carries the message; a client reads the text content block.
+    # Of the `_meta` payloads, only the widget's carries the message.
     assert tool_result.meta["statgpt.dialx.ai/mcp-app"]["message"] == "No relevant data found."
     assert "message" not in tool_result.meta["statgpt.dialx.ai/client"]
 
@@ -209,8 +226,7 @@ async def test_meta_is_omitted_when_no_audience_has_a_reader():
 
 
 async def test_discovery_block_is_a_content_block_of_its_own():
-    # Not folded into the response text: it would duplicate there and leave markdown in the
-    # `message` field a client parses rather than reads.
+    # It comes from a lookup beside the query, so it is not part of the structured content.
     discovery = DiscoveryDatasetsOutcome(
         rendered="### Datasets\n\n- Alpha",
         eval_attachment=DiscoveryDatasetsEvalAttachment(query="gdp", rendered="### Datasets"),
@@ -219,7 +235,7 @@ async def test_discovery_block_is_a_content_block_of_its_own():
     tool_result = await _build(_outcome(discovery=discovery)).run({"query": "gdp"})
 
     texts = [c.text for c in tool_result.content if isinstance(c, TextContent)]
-    assert texts == ["answer", "### Datasets\n\n- Alpha"]
+    assert texts == [json.dumps(tool_result.structured_content), "### Datasets\n\n- Alpha"]
 
 
 async def test_the_runner_receives_the_validated_query():

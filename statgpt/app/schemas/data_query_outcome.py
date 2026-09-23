@@ -6,6 +6,7 @@ the query builder runtime.
 """
 
 from enum import StrEnum
+from typing import Literal
 
 from pydantic import BaseModel, Field
 
@@ -84,6 +85,49 @@ class MissingDimensionsInfo(BaseYamlModel):
     )
 
 
+class InvalidPeriodInfo(BaseYamlModel):
+    """Why a query's requested time period was rejected: one bound falls outside the dataset's
+    available range."""
+
+    rejected_bound: Literal["start", "end"] = Field(description="The rejected bound.")
+    requested_value: str = Field(description="The value requested for the rejected bound.")
+    available_start: str | None = Field(default=None, description="First available period.")
+    available_end: str | None = Field(default=None, description="Last available period.")
+
+
+class QueryDetails(BaseYamlModel):
+    """What the MCP structured content reports about one dataset query beyond the query itself.
+
+    Collected by the chain that renders the response, after the queries were summarized.
+    """
+
+    dataset_urn: str = Field(description="Source id (URN) of the queried dataset.")
+    dataset_name: str = Field(description="Name of the queried dataset.")
+    json_query: AppJsonQueryWithMetadata | None = Field(
+        default=None,
+        description="The constructed query, for outcomes that report queries that did not run.",
+    )
+    summary: str | None = Field(default=None, description="The query's short summary.")
+    last_updated: str | None = Field(
+        default=None, description="Date the dataset was last updated (ISO 8601), if known."
+    )
+    provider: str | None = Field(default=None, description="The dataset's provider, if known.")
+    is_official: bool = Field(default=False, description="Whether the dataset is official.")
+    dimension_names: dict[str, str] = Field(
+        default_factory=dict, description="Dimension display names by entity id."
+    )
+    default_dimension_ids: list[str] = Field(
+        default_factory=list,
+        description="Dimensions filtered by a default rather than by the user's request.",
+    )
+    default_time_period: bool = Field(
+        default=False, description="Whether the time period is a default one."
+    )
+    invalid_period: InvalidPeriodInfo | None = Field(
+        default=None, description="Why the requested time period was rejected, if it was."
+    )
+
+
 class DataQueryMcpPayload(BaseModel):
     """MCP-response-only data captured for a single data query invocation.
 
@@ -103,4 +147,14 @@ class DataQueryMcpPayload(BaseModel):
     missing_dimensions: MissingDimensionsInfo | None = Field(
         default=None,
         description="Required dimensions the user must specify, when the query is incomplete.",
+    )
+    query_details: dict[str, QueryDetails] = Field(
+        default_factory=dict,
+        description="Per dataset id, what is reported about its query beyond the query itself.",
+    )
+    message: str | None = Field(
+        default=None, description="Text for the calling model explaining the outcome."
+    )
+    executed_at: str | None = Field(
+        default=None, description="When the queries were executed (ISO 8601)."
     )
