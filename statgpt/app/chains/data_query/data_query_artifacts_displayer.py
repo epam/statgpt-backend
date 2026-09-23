@@ -1,6 +1,7 @@
 import asyncio
 import json
 import string
+from typing import NamedTuple
 
 import pandas as pd
 import plotly.graph_objects as go
@@ -33,6 +34,11 @@ _PARSING_PARTIALLY_FAILED_DISCLAIMER = """
 IMPORTANT: Some of the data could not be parsed correctly and is not included in the data shown below. \
 It will be still visible to the user in the table view in the UI.
 """
+
+
+class _DatasetMessage(NamedTuple):
+    text: str
+    contains_data: bool
 
 
 class DataQueryArtifactDisplayer:
@@ -68,14 +74,19 @@ class DataQueryArtifactDisplayer:
     ) -> str:
         responses = self._merge_data_responses(data_query_artifacts)
 
-        datasets_content = [
-            self._get_system_message_content(response) for response in responses.values()
-        ]
-        datasets_content_filtered = list(filter(None, datasets_content))
+        messages = [self._get_system_message_content(response) for response in responses.values()]
+        datasets_messages = [msg for msg in messages if msg is not None]
 
-        return "\n\n".join(datasets_content_filtered)
+        content = "\n\n".join(msg.text for msg in datasets_messages)
 
-    def _get_system_message_content(self, response: DataResponse) -> str | None:
+        # The disclaimer describes the shared table format, so it is emitted once per message
+        # instead of being repeated for every dataset block.
+        if any(msg.contains_data for msg in datasets_messages):
+            content = _DATA_DISCLAIMER + "\n\n" + content
+
+        return content
+
+    def _get_system_message_content(self, response: DataResponse) -> _DatasetMessage | None:
         if response.status.parsing_status == DataParsingStatus.FAILED:
             return None
 
@@ -83,18 +94,22 @@ class DataQueryArtifactDisplayer:
         cells_number = df.shape[0] * df.shape[1]
 
         if cells_number == 0:
-            return self._get_no_data_message(response)
+            return _DatasetMessage(self._get_no_data_message(response), contains_data=False)
         elif cells_number <= self._max_cells:
             try:
-                return self._get_data_message(response, df)
+                return _DatasetMessage(self._get_data_message(response, df), contains_data=True)
             except Exception:
                 logger.exception(
                     "Failed to convert dataframe to tsv, displaying error message instead, data response: %s",
                     response,
                 )
-                return self._get_data_display_error_message(response)
+                return _DatasetMessage(
+                    self._get_data_display_error_message(response), contains_data=False
+                )
         else:
-            return self._get_data_too_large_message(response, cells_number)
+            return _DatasetMessage(
+                self._get_data_too_large_message(response, cells_number), contains_data=False
+            )
 
     @classmethod
     def _get_no_data_message(cls, response: DataResponse) -> str:
@@ -120,8 +135,7 @@ class DataQueryArtifactDisplayer:
         )
 
         result = (
-            _DATA_DISCLAIMER
-            + f"Data from dataset {response.dataset_name}: \n\n<DATA>\n"
+            f"Data from dataset {response.dataset_name}: \n\n<DATA>\n"
             + tsv
             + "\n</DATA>\n\n The data itself is shown to user in the table view in the UI. If citing the data, "
             + "make sure to use full precision values from the table."
