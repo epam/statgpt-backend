@@ -14,9 +14,10 @@ from statgpt.app.chains import MainChainFactory
 from statgpt.app.chains.parameters import ChainParameters
 from statgpt.app.config import ChainParametersConfig as ParamsConfig
 from statgpt.app.config import StateVarsConfig
+from statgpt.app.schemas import DeepResearchSession
 from statgpt.app.schemas.dial_app_configuration import StatGPTConfiguration
 from statgpt.app.security import create_auth_context
-from statgpt.app.services.chat_facade import ChannelServiceFacade
+from statgpt.app.services.chat_facade import ChannelServiceFacade, build_deep_research_form_schema
 from statgpt.app.settings.dial_app import dial_app_settings
 from statgpt.app.utils.dial_exceptions import RateLimitException
 from statgpt.app.utils.dial_stages import optional_timed_stage
@@ -26,6 +27,7 @@ from statgpt.app.utils.message_history import (
     InvalidHistoryError,
     dump_dial_messages,
 )
+from statgpt.common.auth.auth_context import AuthContext
 from statgpt.common.schemas.enums import InvocationSource
 from statgpt.common.schemas.token_usage import TokenUsagePricedItem
 from statgpt.common.settings.application import application_settings
@@ -228,9 +230,49 @@ class ChannelCompletion(ChatCompletion):
                     stage.append_content(table)
 
             cls._add_usage_per_model(priced_usage, response)
+            await cls._emit_deep_research_form_schema(
+                service, auth_context, state, configuration, choice
+            )
             cls.set_dial_state(state, choice)
             if dial_exception:
                 raise dial_exception
+
+    @classmethod
+    async def _emit_deep_research_form_schema(
+        cls,
+        service: ChannelServiceFacade,
+        auth_context: AuthContext,
+        state: dict,
+        configuration: StatGPTConfiguration,
+        choice: Choice,
+    ) -> None:
+        """Reflect the "Deep research" toggle state back to the UI for the next turn.
+
+        The deployment configuration schema is static per deployment, so it cannot express the
+        current toggle state per conversation. Instead each turn drives the toggle through a
+        per-message `custom_content.form_schema` whose `deep_research` control (matching the
+        configuration field) carries the value the toggle should hold on the next request. Emitted
+        only when Deep Research is available to the caller, i.e. only when the toggle exists.
+        """
+        if not await service.channel_config.is_deep_research_available_for(auth_context):
+            return
+        armed = cls._resolve_deep_research_toggle(state, configuration)
+        choice.set_form_schema(build_deep_research_form_schema(armed))
+
+    @staticmethod
+    def _resolve_deep_research_toggle(state: dict, configuration: StatGPTConfiguration) -> bool:
+        """The value the "Deep research" toggle should hold on the next request.
+
+        - The final report was delivered this turn -> disarm, so the follow-up goes to the normal,
+          cheap agent instead of silently launching a fresh, expensive Deep Research run.
+        - A run is still in progress (clarification / plan-for-approval turn) -> stay armed.
+        - Otherwise mirror the user's current selection, so a deliberately re-armed toggle stays on.
+        """
+        if state.get(StateVarsConfig.DEEP_RESEARCH_REPORT_DELIVERED):
+            return False
+        if DeepResearchSession.from_state(state) is not None:
+            return True
+        return configuration.deep_research
 
     @staticmethod
     def init_state(request: Request) -> dict:
