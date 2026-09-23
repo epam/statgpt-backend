@@ -290,6 +290,17 @@ class DialRagAgentFactory(BaseRAGFactory):
             except APIError as e:
                 logger.exception(e)
 
+            if rag_filter := pre_filter_response.rag_filter:
+                prefilter_note = (
+                    '\n\nThe following publications pre-filter was applied to this search:\n'
+                    f'{rag_filter}'
+                )
+            else:
+                prefilter_note = (
+                    '\n\nNo publications pre-filter was applied to this search: '
+                    'all available publications were searched.'
+                )
+
             # NOTE: append '---' to the end to create space between text and attachments
             if dial_streamer.attachments:
                 target.append_content(
@@ -301,7 +312,9 @@ class DialRagAgentFactory(BaseRAGFactory):
                 self._append_attachments(
                     self._attachments_sink(target, choice), dial_streamer.attachments
                 )
-                inputs[self.FIELD_RESPONSE] = dial_streamer.content_with_attachments_metadata
+                inputs[self.FIELD_RESPONSE] = (
+                    dial_streamer.content_with_attachments_metadata + prefilter_note
+                )
                 inputs[self.FIELD_ANSWERED_BY] = 'RAG'
                 inputs[self.FIELD_ATTACHMENTS] = dial_streamer.attachments
             else:
@@ -314,12 +327,7 @@ class DialRagAgentFactory(BaseRAGFactory):
                     f"{tool_name} was unable to find the relevant data for the query: {query}\nOriginal response: {dial_streamer.content_with_attachments_metadata}"
                 )
                 target.append_content(msg)
-                if rag_filter := pre_filter_response.rag_filter:
-                    msg += (
-                        '\n\nThe following publications pre-filter was applied to this search:\n'
-                        f'{rag_filter}'
-                    )
-                inputs[self.FIELD_RESPONSE] = msg
+                inputs[self.FIELD_RESPONSE] = msg + prefilter_note
                 inputs[self.FIELD_ANSWERED_BY] = 'LLM'
 
         duration_s = time.monotonic() - time_start
