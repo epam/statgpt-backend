@@ -134,7 +134,6 @@ GENERIC_CASES: dict = {
     ),
     ToolTypes.AVAILABILITY_QUERY: AvailabilityStructuredContent(
         dataset_id="IMF:CPI(1.0.0)",
-        found=True,
         dimensions=[
             AvailabilityDimensionRecord(
                 id="REF_AREA",

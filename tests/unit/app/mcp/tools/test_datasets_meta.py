@@ -384,7 +384,6 @@ async def test_availability_query_is_structured_only():
     assert json.loads(tool_result.content[0].text) == tool_result.structured_content
     assert tool_result.structured_content == {
         "datasetId": "IMF:CPI(1.0.0)",
-        "found": True,
         # include_dimensions restricts the result to COUNTRY only.
         "dimensions": [
             {
@@ -456,17 +455,39 @@ async def test_availability_query_surfaces_time_coverage():
     }
 
 
-async def test_availability_query_not_found():
-    tool_result = await _build(_availability_tool_config(), _availability_inputs(None)).run(
-        {"dataset_id": "IMF:NOPE(1.0)"}
-    )
+async def test_availability_query_not_found_is_a_tool_error():
+    # An unknown id is a tool error naming the available-datasets tool, consistent with the
+    # dataset-structure tool - not a payload the model has to interpret.
+    available_datasets = AvailableDatasetsTool(name="datasets", description="Datasets.")
 
-    assert json.loads(tool_result.content[0].text) == tool_result.structured_content
-    assert tool_result.structured_content == {
-        "datasetId": "IMF:NOPE(1.0)",
-        "found": False,
-        "dimensions": [],
-    }
+    tool = _build(
+        _availability_tool_config(),
+        _availability_inputs(None),
+        available_datasets=available_datasets,
+        tool_name_prefix="statgpt__",
+    )
+    with pytest.raises(ToolError) as exc_info:
+        await tool.run({"dataset_id": "IMF:NOPE(1.0)"})
+
+    message = str(exc_info.value)
+    assert "IMF:NOPE(1.0)" in message
+    assert "statgpt__datasets" in message
+
+
+async def test_availability_query_unknown_value_is_a_tool_error():
+    # An invalid code for a valid dimension is a fixable caller error, surfaced as a tool error
+    # rather than a result that silently found nothing.
+    freq = _availability_dimension("FREQ", "Frequency", {"A": "Annual"})
+    dataset = _availability_dataset([freq], DataSetAvailabilityQuery())
+
+    tool = _build(_availability_tool_config(), _availability_inputs(dataset))
+    with pytest.raises(ToolError) as exc_info:
+        await tool.run({"dataset_id": "IMF:CPI(1.0.0)", "partial_query": {"FREQ": ["NA"]}})
+
+    message = str(exc_info.value)
+    assert "FREQ" in message
+    assert "NA" in message
+    dataset.availability_query.assert_not_called()
 
 
 async def test_availability_query_unknown_dimension_raises():

@@ -495,12 +495,12 @@ class TimeCoverageRecord(BaseYamlModel):
 class AvailabilityStructuredContent(BaseYamlModel):
     """MCP structured content for the availability-query tool: per-dimension coverage for the
     (possibly partial) query, with a bounded sample of each dimension's available codes and the
-    time range when present. Optional fields are omitted when unknown."""
+    time range when present. An unknown dataset or invalid input is reported as a tool error, so
+    this content always describes a real query result. Optional fields are omitted when unknown."""
 
     model_config = ConfigDict(serialize_by_alias=True)
 
     dataset_id: str = Field(description="The requested dataset URN (source id).")
-    found: bool = Field(description="Whether a dataset with that URN was found.")
     dimensions: list[AvailabilityDimensionRecord] = Field(
         default_factory=list, description="Per-dimension availability coverage."
     )
