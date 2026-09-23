@@ -95,8 +95,6 @@ class SdmxCodeListDimension(CategoricalDimension[DimensionCodeCategory], SdmxDim
         return value.entity_id in self._code_list
 
     def name_by_query_id(self, query_id: str) -> str | None:
-        # Honor the Optional return: the codelist raises on an unknown id, so membership-check
-        # first. Callers (e.g. availability-query validation) rely on None for an unknown code.
         if query_id not in self._code_list:
             return None
         return self._code_list[query_id].name
