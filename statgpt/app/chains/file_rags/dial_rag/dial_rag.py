@@ -86,10 +86,15 @@ class DialRagAgentFactory(BaseRAGFactory):
         response so the agent can report the applied pre-filter and decide on retries."""
         if rag_filter := pre_filter_response.rag_filter:
             rag_filter_json = rag_filter.model_dump_json(indent=2, exclude_none=True)
-            return (
-                '\n\nThe following publications pre-filter was applied to this search:\n'
-                f'```json\n{rag_filter_json}\n```'
-            )
+            llm_output = pre_filter_response.llm_output
+            if llm_output is not None and llm_output.is_latest:
+                intent = (
+                    'The search was restricted to the most recent publications, '
+                    'decoded to the following concrete publications pre-filter:\n'
+                )
+            else:
+                intent = 'The following publications pre-filter was applied to this search:\n'
+            return f'\n\n{intent}```json\n{rag_filter_json}\n```'
         return (
             '\n\nNo publications pre-filter was applied to this search: '
             'all available publications were searched.'
