@@ -4,6 +4,7 @@ from aidial_sdk.chat_completion import Stage
 from langchain_core.runnables import Runnable, RunnableConfig, RunnableLambda, RunnablePassthrough
 
 from statgpt.app.chains.data_query.parameters import DataQueryParameters
+from statgpt.app.chains.data_query.query_builder import missing_dimensions
 from statgpt.app.chains.data_query.query_builder import utils as query_utils
 from statgpt.app.chains.data_query.query_constructor import QueryConstructorFactory
 from statgpt.app.chains.parameters import ChainParameters
@@ -482,7 +483,7 @@ class FinalizeQueryChainFactory:
             inputs,
             DataQueryStatus.MISSING_DIMENSIONS,
             payload_factory=lambda: DataQueryMcpPayload(
-                missing_dimensions=IncompleteQueriesChain.build_missing_dimensions_info(
+                missing_dimensions=missing_dimensions.build_missing_dimensions_info(
                     dataset_id,
                     chain_state.datasets_dict[dataset_id],
                     dataset_queries[dataset_id],

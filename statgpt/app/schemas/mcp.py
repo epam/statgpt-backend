@@ -111,6 +111,22 @@ class QueryExecution(BaseYamlModel):
     advice: str | None = Field(default=None, description="How to proceed.")
 
 
+class MissingDimensionRecord(BaseYamlModel):
+    """A required dimension the query does not specify yet."""
+
+    model_config = ConfigDict(serialize_by_alias=True)
+
+    dimension_id: str = Field(description="Entity id of the missing dimension.")
+    name: str = Field(description="Human-readable name of the dimension.")
+    total_values: int = Field(description="Total number of values available for it.")
+    sample_values: list[FilterValue] = Field(
+        default_factory=list,
+        description="Values available given the rest of the query: all of them when there are at"
+        " most 10, otherwise the first 10 (so this is not the full list when `totalValues` exceeds"
+        " the sample size).",
+    )
+
+
 class InvalidPeriodRecord(BaseYamlModel):
     """Why the requested time period was rejected: one bound is outside the available range. The
     rejected period is not applied, so the query's `requestedPeriod` does not carry it."""
@@ -120,6 +136,29 @@ class InvalidPeriodRecord(BaseYamlModel):
     rejected_bound: Literal["startPeriod", "endPeriod"] = Field(description="The rejected bound.")
     requested_value: str = Field(description="The value requested for the rejected bound.")
     available_period: PeriodRange = Field(description="The period the dataset has data for.")
+
+
+class InvalidityReason(StrEnum):
+    """Why a constructed query cannot run."""
+
+    INVALID_TIME_PERIOD = "invalid_time_period"
+    MISSING_DIMENSIONS = "missing_dimensions"
+
+
+class QueryInvalidity(BaseYamlModel):
+    """Why a constructed query cannot run, with what a follow-up query must change."""
+
+    model_config = ConfigDict(serialize_by_alias=True)
+
+    reason: InvalidityReason = Field(description="Why the query cannot run.")
+    explanation: str = Field(description="The reason, in words.")
+    rejected_period: InvalidPeriodRecord | None = Field(
+        default=None, description="For `invalid_time_period`: the rejected bound of the period."
+    )
+    missing_dimensions: list[MissingDimensionRecord] | None = Field(
+        default=None,
+        description="For `missing_dimensions`: the required dimensions the query does not specify.",
+    )
 
 
 class QueryRecord(BaseYamlModel):
@@ -154,8 +193,8 @@ class QueryRecord(BaseYamlModel):
     requested_period: RequestedPeriod | None = Field(
         default=None, description="The time period the query asked for."
     )
-    invalid_period: InvalidPeriodRecord | None = Field(
-        default=None, description="Why the requested time period was rejected, if it was."
+    invalidity: QueryInvalidity | None = Field(
+        default=None, description="Why the query cannot run, for an invalid constructed query."
     )
     factual_period: PeriodRange | None = Field(
         default=None, description="The time period the returned data actually covers."
@@ -168,22 +207,6 @@ class QueryRecord(BaseYamlModel):
     )
     data_explorer_url: str | None = Field(
         default=None, description="Link to the query's data in the data explorer."
-    )
-
-
-class MissingDimensionRecord(BaseYamlModel):
-    """A required dimension the query does not specify yet."""
-
-    model_config = ConfigDict(serialize_by_alias=True)
-
-    dimension_id: str = Field(description="Entity id of the missing dimension.")
-    name: str = Field(description="Human-readable name of the dimension.")
-    total_values: int = Field(description="Total number of values available for it.")
-    sample_values: list[FilterValue] = Field(
-        default_factory=list,
-        description="Values available given the rest of the query: all of them when there are at"
-        " most 10, otherwise the first 10 (so this is not the full list when `totalValues` exceeds"
-        " the sample size).",
     )
 
 

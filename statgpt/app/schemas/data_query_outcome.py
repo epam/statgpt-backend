@@ -89,7 +89,7 @@ class InvalidPeriodInfo(BaseYamlModel):
     """Why a query's requested time period was rejected: one bound falls outside the dataset's
     available range."""
 
-    rejected_bound: Literal["start", "end"] = Field(description="The rejected bound.")
+    rejected_bound: Literal["startPeriod", "endPeriod"] = Field(description="The rejected bound.")
     requested_value: str = Field(description="The value requested for the rejected bound.")
     available_start: str | None = Field(default=None, description="First available period.")
     available_end: str | None = Field(default=None, description="Last available period.")
@@ -125,6 +125,11 @@ class QueryDetails(BaseYamlModel):
     )
     invalid_period: InvalidPeriodInfo | None = Field(
         default=None, description="Why the requested time period was rejected, if it was."
+    )
+    missing_dimensions: MissingDimensionsInfo | None = Field(
+        default=None,
+        description="The required dimensions the query does not specify, when that is why it is"
+        " invalid.",
     )
 
 

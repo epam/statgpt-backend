@@ -33,7 +33,7 @@ from version 2.
 | `queries[].filters[].isDefault` | Whether the filter is the dimension's default, applied because the user did not specify it. |
 | `queries[].filters[].valueCount` | How many values the filter applies. |
 | `queries[].requestedPeriod` | `startPeriod` / `endPeriod`, named after the SDMX REST query parameters, and `isDefault` when the dataset's default period was applied. The time period is reported here, not as another filter. |
-| `queries[].invalidPeriod` | For `invalid_time_period`: the `rejectedBound`, its `requestedValue` and the `availablePeriod`. The rejected period is never applied, so `requestedPeriod` does not carry it. |
+| `queries[].invalidity` | For `invalid_time_period`: why each constructed query cannot run. `reason` is `invalid_time_period` or `missing_dimensions`, with an `explanation` in words, and the `rejectedPeriod` (`rejectedBound`, its `requestedValue`, the `availablePeriod`) or the `missingDimensions` (as in the top-level `missingDimensions`). A rejected period is never applied, so `requestedPeriod` does not carry it. |
 | `queries[].factualPeriod` | The period the returned data actually covers. |
 | `queries[].seriesCount` | Number of series returned, absent when the query returned no data. |
 | `queries[].execution` | How the execution went: `result` (`data_received`, `partially_parsed`, `parsing_failed`, `request_failed`, `no_data`), with a `reason` and an `advice` unless the data was received. The advice for a parse failure mentions the widget only when the tool binds one. |
@@ -915,7 +915,7 @@ The query is incomplete. The model gets a bounded sample of each dimension's val
 
 ### `invalid_time_period`
 
-The requested period is outside the dataset's range. The model gets the constructed queries with why their period was rejected: the rejected period was never applied to them, so `requestedPeriod` is absent and `invalidPeriod` carries it instead. The widget gets no queries.
+The requested period is outside the dataset's range. The model gets the constructed queries, each with the `invalidity` that keeps it from running: a rejected period was never applied, so `requestedPeriod` is absent and `invalidity.rejectedPeriod` carries it instead. A query that also misses a required dimension reports `missing_dimensions` there instead. The widget gets no queries.
 
 ```json
 {
@@ -948,12 +948,16 @@ The requested period is outside the dataset's range. The model gets the construc
             "valueCount": 1
           }
         ],
-        "invalidPeriod": {
-          "rejectedBound": "endPeriod",
-          "requestedValue": "2035",
-          "availablePeriod": {
-            "startPeriod": "1980",
-            "endPeriod": "2030"
+        "invalidity": {
+          "reason": "invalid_time_period",
+          "explanation": "The requested start period 2035 is after the last period the dataset has data for (2030).",
+          "rejectedPeriod": {
+            "rejectedBound": "startPeriod",
+            "requestedValue": "2035",
+            "availablePeriod": {
+              "startPeriod": "1980",
+              "endPeriod": "2030"
+            }
           }
         }
       }

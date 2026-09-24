@@ -52,7 +52,7 @@ Version 2 carried everything in `structuredContent`:
   `isDefault` on the filters and the requested period. The tools hint and its example are gone
   from the model's view unless the channel keeps them in `dataQueryExecutedMcpOnly`.
 - **`invalid_time_period` and `dataset_selection_required` report their queries**: the former with
-  the `invalidPeriod` that was rejected, the latter as `candidateDatasets[].query`.
+  the `invalidity` that keeps each from running, the latter as `candidateDatasets[].query`.
 - **`details.mcpStructuredContent`** turns `executedAt`, `provider` and `datasetUrl` off, and
   `isOfficial` on (it is off by default, since not every channel marks official datasets).
 

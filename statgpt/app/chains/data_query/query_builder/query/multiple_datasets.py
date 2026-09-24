@@ -52,8 +52,7 @@ class MultipleDatasetsChain:
         return f"{content}\n\n{self._model_message(inputs)}"
 
     def _model_message(self, inputs: dict) -> str:
-        """What the model is told besides the datasets: how to proceed, then the configured
-        message."""
+        """What the model is told besides the datasets: how to proceed, then the configured message."""
         agent_only_message = self._messages.get_multiple_datasets(
             ChainParameters.get_invocation_source(inputs)
         )
@@ -64,7 +63,10 @@ class MultipleDatasetsChain:
     async def _get_mcp_payload(self, inputs: dict) -> DataQueryMcpPayload:
         return mcp_details.updated_mcp_payload(
             inputs,
-            query_details=await mcp_details.query_details_for_mcp(inputs, include_query=True),
+            # The invalid queries have no candidate dataset to report them under.
+            query_details=await mcp_details.query_details_for_mcp(
+                inputs, include_query=True, valid_only=True
+            ),
             message=self._model_message(inputs),
         )
 

@@ -2,6 +2,8 @@ from datetime import datetime
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
+from dateutil.parser import ParserError
+
 from statgpt.app.chains.data_query.query_builder import mcp_details
 from statgpt.app.chains.data_query.query_builder.query.execute_query import ExecuteQueryChain
 from statgpt.app.schemas.data_query_outcome import DataQueryStatus
@@ -54,6 +56,7 @@ def _chain_state(query: DataSetQuery, dataset: SimpleNamespace | None = None) ->
     return SimpleNamespace(
         dataset_queries={"ds1": query},
         datasets_dict={"ds1": SimpleNamespace(data=dataset or _dataset())},
+        strong_availability={},
         auth_context=SimpleNamespace(),
     )
 
@@ -74,7 +77,7 @@ async def test_collect_query_details_reads_the_query_and_its_dataset():
         short_summary="Consumer prices in France.",
     )
 
-    details = (await mcp_details.collect_query_details(_chain_state(query)))["ds1"]  # type: ignore[arg-type]
+    details = (await mcp_details._collect_query_details(_chain_state(query)))["ds1"]  # type: ignore[arg-type]
 
     assert details.dataset_urn == "IMF:CPI(1.0.0)"
     assert details.dataset_name == "Consumer prices"
@@ -88,6 +91,7 @@ async def test_collect_query_details_reads_the_query_and_its_dataset():
     assert details.default_time_period is True
     assert details.json_query is None
     assert details.invalid_period is None
+    assert details.missing_dimensions is None
 
 
 async def test_collect_query_details_records_the_constructed_query_and_the_rejected_period():
@@ -108,7 +112,7 @@ async def test_collect_query_details_records_the_constructed_query_and_the_rejec
     )
 
     details = (
-        await mcp_details.collect_query_details(
+        await mcp_details._collect_query_details(
             _chain_state(query), include_query=True  # type: ignore[arg-type]
         )
     )["ds1"]
@@ -117,22 +121,63 @@ async def test_collect_query_details_records_the_constructed_query_and_the_rejec
     assert details.json_query.urn == "IMF:CPI(1.0.0)"
     assert details.invalid_period is not None
     assert details.invalid_period.model_dump() == {
-        "rejected_bound": "end",
+        "rejected_bound": "endPeriod",
         "requested_value": "2030",
         "available_start": "2000",
         "available_end": "2024",
     }
 
 
-async def test_collect_query_details_never_raises():
-    dataset = _dataset()
-    dataset.updated_at = AsyncMock(side_effect=RuntimeError("source down"))
+async def test_collect_query_details_leaves_out_only_the_dataset_that_fails():
+    failing = _dataset()
+    failing.updated_at = AsyncMock(side_effect=RuntimeError("source down"))
+    chain_state = _chain_state(DataSetQuery(dimensions_queries=[]))
+    chain_state.dataset_queries["ds2"] = DataSetQuery(dimensions_queries=[])
+    chain_state.datasets_dict["ds2"] = SimpleNamespace(data=failing)
 
-    details = await mcp_details.collect_query_details(
-        _chain_state(DataSetQuery(dimensions_queries=[]), dataset)  # type: ignore[arg-type]
+    details = await mcp_details._collect_query_details(chain_state)  # type: ignore[arg-type]
+
+    assert list(details) == ["ds1"]
+
+
+async def test_collect_query_details_can_skip_the_invalid_queries():
+    chain_state = _chain_state(DataSetQuery(dimensions_queries=[]))
+    chain_state.dataset_queries["ds2"] = DataSetQuery(dimensions_queries=[], is_valid=False)
+    chain_state.datasets_dict["ds2"] = SimpleNamespace(data=_dataset())
+
+    details = await mcp_details._collect_query_details(
+        chain_state, valid_only=True  # type: ignore[arg-type]
     )
 
-    assert details == {}
+    assert list(details) == ["ds1"]
+
+
+async def test_collect_query_details_records_the_dimensions_an_incomplete_query_misses():
+    # The query constructor marks a query missing a required dimension invalid, with no reason.
+    query = DataSetQuery(dimensions_queries=[], is_valid=False)
+
+    details = (
+        await mcp_details._collect_query_details(
+            _chain_state(query), include_query=True  # type: ignore[arg-type]
+        )
+    )["ds1"]
+
+    assert details.invalid_period is None
+    assert details.missing_dimensions is not None
+    assert details.missing_dimensions.dataset_urn == "IMF:CPI(1.0.0)"
+
+
+async def test_an_unparseable_citation_date_is_not_reported():
+    dataset = _dataset()
+    dataset.updated_at = AsyncMock(side_effect=ParserError("Unknown string format: %s", "Monthly"))
+
+    details = (
+        await mcp_details._collect_query_details(
+            _chain_state(DataSetQuery(dimensions_queries=[]), dataset)  # type: ignore[arg-type]
+        )
+    )["ds1"]
+
+    assert details.last_updated is None
 
 
 def _response(rows: bool, parsing_status: DataParsingStatus) -> SimpleNamespace:

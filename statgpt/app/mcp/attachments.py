@@ -27,6 +27,7 @@ from statgpt.app.schemas.mcp import (
     DataQueryToolsInfo,
     ExecutionResult,
     FilterValue,
+    InvalidityReason,
     InvalidPeriodRecord,
     McpAppQuery,
     MissingDimensionRecord,
@@ -34,6 +35,7 @@ from statgpt.app.schemas.mcp import (
     PeriodRange,
     QueryExecution,
     QueryFilter,
+    QueryInvalidity,
     QueryRecord,
     RequestedPeriod,
 )
@@ -89,6 +91,15 @@ _PARSING_FAILED_ADVICE = (
     "The data could not be read. Tell the user, and retry the query or look for the data in"
     " another dataset."
 )
+_REQUEST_FAILED_ADVICE = (
+    "This looks like a temporary issue with the data source. You may want to retry the query, or"
+    " try again shortly."
+)
+_NO_DATA_ADVICE = (
+    "Most likely, the query is generally correct, but there is no data for the specified time"
+    " period. You may want to try selecting a different time period. Another option is to try to"
+    " find relevant data in other datasets or using other tools."
+)
 
 
 @dataclass(frozen=True)
@@ -108,9 +119,9 @@ class _Reporting:
             widget_bound=tool_config.mcp_app_resource_uri is not None,
         )
 
-    def is_official(self, is_official: bool) -> bool | None:
+    def official_mark(self, value: bool) -> bool | None:
         """The official mark, when the channel reports it."""
-        return is_official if self.fields.is_official else None
+        return value if self.fields.is_official else None
 
 
 def data_query_outcome_to_resources(
@@ -335,7 +346,7 @@ def data_query_outcome_to_structured_content(
     follow-up query would need when it produced none. Per outcome:
     - ``data_available`` / ``executed_no_data`` / ``failed``: the executed queries.
     - ``not_executed``: the constructed queries, flagged as unexecuted.
-    - ``invalid_time_period``: the constructed queries, with why their period was rejected.
+    - ``invalid_time_period``: the constructed queries, each with why it cannot run.
     - ``dataset_selection_required``: the datasets to narrow the query to, with their queries.
     - ``missing_dimensions``: the dimensions the query must still specify.
     - ``no_data``: the message alone.
@@ -343,14 +354,17 @@ def data_query_outcome_to_structured_content(
     reporting = _Reporting.from_tool_config(tool_config)
     status = outcome.state.status
     mcp_payload = outcome.mcp_payload
-    content = DataQueryStructuredContent(status=status, message=mcp_payload.message)
+    queries: list[QueryRecord] = []
+    candidate_datasets: list[CandidateDatasetRecord] = []
+    missing_dimensions: MissingDimensionsRecord | None = None
+    executed_at: str | None = None
 
     if status in _EXECUTED_STATUSES:
-        content.queries = _executed_query_records(outcome, reporting)
+        queries = _executed_query_records(outcome, reporting)
         if reporting.fields.executed_at:
-            content.executed_at = mcp_payload.executed_at
+            executed_at = mcp_payload.executed_at
     elif status is DataQueryStatus.NOT_EXECUTED:
-        content.queries = [
+        queries = [
             _query_record(
                 query_id=_query_id(query, None),
                 json_query=query,
@@ -364,7 +378,7 @@ def data_query_outcome_to_structured_content(
         ]
     elif status is DataQueryStatus.INVALID_TIME_PERIOD:
         value_names = outcome.state.dimension_id_to_name
-        content.queries = [
+        queries = [
             record
             for dataset_id, details in mcp_payload.query_details.items()
             if (
@@ -372,13 +386,20 @@ def data_query_outcome_to_structured_content(
             )
         ]
     elif status is DataQueryStatus.DATASET_SELECTION_REQUIRED:
-        content.candidate_datasets = _candidate_dataset_records(outcome, reporting)
+        candidate_datasets = _candidate_dataset_records(outcome, reporting)
     elif (
         status is DataQueryStatus.MISSING_DIMENSIONS and mcp_payload.missing_dimensions is not None
     ):
-        content.missing_dimensions = _missing_dimensions_record(mcp_payload.missing_dimensions)
+        missing_dimensions = _missing_dimensions_record(mcp_payload.missing_dimensions)
 
-    return content
+    return DataQueryStructuredContent(
+        status=status,
+        message=mcp_payload.message,
+        executed_at=executed_at,
+        queries=queries,
+        candidate_datasets=candidate_datasets,
+        missing_dimensions=missing_dimensions,
+    )
 
 
 def data_query_outcome_to_meta(
@@ -561,7 +582,7 @@ def _candidate_dataset_records(
         CandidateDatasetRecord(
             id=candidate.id,
             name=candidate.name,
-            is_official=reporting.is_official(candidate.is_official),
+            is_official=reporting.official_mark(candidate.is_official),
             query=queries.get(candidate.id),
         )
         for candidate in outcome.mcp_payload.candidate_datasets
@@ -588,7 +609,7 @@ def _query_record(
         query_id=query_id,
         dataset_urn=json_query.urn,
         dataset_name=dataset_name,
-        is_official=reporting.is_official(details.is_official) if details is not None else None,
+        is_official=reporting.official_mark(details.is_official) if details is not None else None,
         provider=details.provider if details is not None and reporting.fields.provider else None,
         last_updated=details.last_updated if details is not None else None,
         dataset_url=json_query.metadata.dataset_url if reporting.fields.dataset_url else None,
@@ -596,11 +617,7 @@ def _query_record(
         executed=executed,
         filters=filters,
         requested_period=requested_period,
-        invalid_period=(
-            _invalid_period_record(details.invalid_period)
-            if details is not None and details.invalid_period is not None
-            else None
-        ),
+        invalidity=_invalidity(details) if details is not None else None,
         factual_period=factual_period,
         series_count=series_count,
         execution=execution,
@@ -674,14 +691,46 @@ def _period_range(component: JsonComponentQuery, is_default: bool) -> RequestedP
             )
 
 
-def _invalid_period_record(invalid_period: InvalidPeriodInfo) -> InvalidPeriodRecord:
-    return InvalidPeriodRecord(
-        rejected_bound="startPeriod" if invalid_period.rejected_bound == "start" else "endPeriod",
-        requested_value=invalid_period.requested_value,
-        available_period=PeriodRange(
-            start_period=invalid_period.available_start,
-            end_period=invalid_period.available_end,
-        ),
+def _invalidity(details: QueryDetails) -> QueryInvalidity | None:
+    """Why the query cannot run, or `None` for a valid query."""
+    if (invalid_period := details.invalid_period) is not None:
+        return QueryInvalidity(
+            reason=InvalidityReason.INVALID_TIME_PERIOD,
+            explanation=_invalid_period_explanation(invalid_period),
+            rejected_period=InvalidPeriodRecord(
+                rejected_bound=invalid_period.rejected_bound,
+                requested_value=invalid_period.requested_value,
+                available_period=PeriodRange(
+                    start_period=invalid_period.available_start,
+                    end_period=invalid_period.available_end,
+                ),
+            ),
+        )
+    if details.missing_dimensions is not None:
+        dimensions = _missing_dimensions_record(details.missing_dimensions).dimensions
+        names = ", ".join(dimension.name for dimension in dimensions)
+        return QueryInvalidity(
+            reason=InvalidityReason.MISSING_DIMENSIONS,
+            explanation=(
+                f"The query does not specify the required dimensions: {names}."
+                if names
+                else "The query does not specify every required dimension."
+            ),
+            missing_dimensions=dimensions,
+        )
+    return None
+
+
+def _invalid_period_explanation(invalid_period: InvalidPeriodInfo) -> str:
+    value = invalid_period.requested_value
+    if invalid_period.rejected_bound == "startPeriod":
+        return (
+            f"The requested start period {value} is after the last period the dataset has data"
+            f" for ({invalid_period.available_end})."
+        )
+    return (
+        f"The requested end period {value} is before the first period the dataset has data for"
+        f" ({invalid_period.available_start})."
     )
 
 
@@ -707,8 +756,7 @@ def _execution(response: DataResponse, widget_bound: bool) -> QueryExecution:
         return QueryExecution(
             result=ExecutionResult.REQUEST_FAILED,
             reason=status.reason or "The request to the data source failed.",
-            advice="This looks like a temporary issue with the data source. You may want to retry"
-            " the query, or try again shortly.",
+            advice=_REQUEST_FAILED_ADVICE,
         )
     if status.parsing_status in (DataParsingStatus.FAILED, DataParsingStatus.PARTIALLY_FAILED):
         return QueryExecution(
@@ -719,9 +767,7 @@ def _execution(response: DataResponse, widget_bound: bool) -> QueryExecution:
     return QueryExecution(
         result=ExecutionResult.NO_DATA,
         reason="A response was received, but it does not contain any data.",
-        advice="Most likely, the query is generally correct, but there is no data for the"
-        " specified time period. You may want to try selecting a different time period. Another"
-        " option is to try to find relevant data in other datasets or using other tools.",
+        advice=_NO_DATA_ADVICE,
     )
 
 

@@ -19,7 +19,7 @@ from statgpt.app.schemas.data_query_outcome import (
     MissingDimensionsInfo,
     QueryDetails,
 )
-from statgpt.app.schemas.mcp import ExecutionResult
+from statgpt.app.schemas.mcp import ExecutionResult, InvalidityReason
 from statgpt.app.schemas.query import AppJsonQueryWithMetadata
 from statgpt.app.schemas.tool_artifact import DataQueryOutcome
 from statgpt.common.data.base import DataResponseStatus
@@ -735,7 +735,7 @@ def test_structured_content_invalid_time_period_reports_why_the_period_was_rejec
     details = _details(
         json_query=_app_query("IMF:CPI(1.0.0)"),
         invalid_period=InvalidPeriodInfo(
-            rejected_bound="end",
+            rejected_bound="endPeriod",
             requested_value="2030",
             available_start="2000",
             available_end="2024",
@@ -754,12 +754,63 @@ def test_structured_content_invalid_time_period_reports_why_the_period_was_rejec
     assert query.executed is False
     # The rejected period was never applied, so the query carries the reason instead.
     assert query.requested_period is None
-    assert query.invalid_period is not None
-    assert query.invalid_period.model_dump(by_alias=True) == {
-        "rejectedBound": "endPeriod",
-        "requestedValue": "2030",
-        "availablePeriod": {"startPeriod": "2000", "endPeriod": "2024"},
+    assert query.invalidity is not None
+    assert query.invalidity.model_dump(by_alias=True, exclude_none=True) == {
+        "reason": "invalid_time_period",
+        "explanation": "The requested end period 2030 is before the first period the dataset has"
+        " data for (2000).",
+        "rejectedPeriod": {
+            "rejectedBound": "endPeriod",
+            "requestedValue": "2030",
+            "availablePeriod": {"startPeriod": "2000", "endPeriod": "2024"},
+        },
     }
+
+
+def test_structured_content_invalid_time_period_reports_why_the_other_queries_cannot_run():
+    rejected = _details(
+        json_query=_app_query("IMF:CPI(1.0.0)"),
+        invalid_period=InvalidPeriodInfo(
+            rejected_bound="startPeriod", requested_value="2030", available_end="2024"
+        ),
+    )
+    incomplete = _details(
+        dataset_urn="BIS:IR(2.1.0)",
+        json_query=_app_query("BIS:IR(2.1.0)"),
+        missing_dimensions=MissingDimensionsInfo(
+            dataset_id="ds2",
+            dataset_urn="BIS:IR(2.1.0)",
+            dimensions=[
+                MissingDimensionInfo(
+                    dimension_id="TENOR",
+                    name="Tenor",
+                    available_values=[DimensionValueInfo(id="1Y", name="One year")],
+                )
+            ],
+        ),
+    )
+    outcome = _make_outcome(
+        {},
+        state=_state(DataQueryStatus.INVALID_TIME_PERIOD),
+        mcp_payload=_mcp_payload(query_details={"ds1": rejected, "ds2": incomplete}),
+    )
+
+    cpi, rates = _structured(outcome).queries
+
+    assert cpi.invalidity is not None
+    assert cpi.invalidity.reason is InvalidityReason.INVALID_TIME_PERIOD
+    assert cpi.invalidity.explanation == (
+        "The requested start period 2030 is after the last period the dataset has data for (2024)."
+    )
+    assert rates.invalidity is not None
+    assert rates.invalidity.reason is InvalidityReason.MISSING_DIMENSIONS
+    assert (
+        rates.invalidity.explanation == "The query does not specify the required dimensions: Tenor."
+    )
+    assert rates.invalidity.rejected_period is None
+    assert rates.invalidity.missing_dimensions is not None
+    [dimension] = rates.invalidity.missing_dimensions
+    assert (dimension.dimension_id, dimension.total_values) == ("TENOR", 1)
 
 
 def test_structured_content_reports_the_query_details():
