@@ -47,14 +47,17 @@ Version 2 carried everything in `structuredContent`:
 - **Dimension and value display names** in `structuredContent.queries[].filters[]`, so the model
   reads `United States` rather than `USA` alone.
 - **What the text response told the model**, now in `structuredContent`: the `message` and
-  `executedAt`, and per query the `querySummary`, `provider`, `lastUpdated`, `datasetUrl`,
+  `executedAt`, and per query the `querySummary`, `provider`, `datasetLastUpdated`, `datasetUrl`,
   `dataExplorerUrl`, the `execution` result with its reason and advice, and `isIndicator` /
   `isDefault` on the filters and the requested period. The tools hint and its example are gone
   from the model's view unless the channel keeps them in `dataQueryExecutedMcpOnly`.
 - **`invalid_time_period` and `dataset_selection_required` report their queries**: the former with
   the `invalidity` that keeps each from running, the latter as `candidateDatasets[].query`.
-- **`details.mcpStructuredContent`** turns `executedAt`, `provider` and `datasetUrl` off, and
+- **`details.mcpStructuredContent`** turns `executedAt`, `provider` and `datasetUrl` off, sets
+  when `dataExplorerUrl` is reported (`always`, `only_when_no_data` or `never`), and turns
   `isOfficial` on (it is off by default, since not every channel marks official datasets).
+- **`details.explorerLink.mcp` moved** to `details.mcpStructuredContent.dataExplorerUrl`, which
+  governs the link across the whole MCP response.
 
 ## Resource URIs
 

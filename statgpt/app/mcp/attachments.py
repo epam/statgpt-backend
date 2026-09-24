@@ -49,7 +49,7 @@ from statgpt.common.schemas import (
     DataQueryMcpStructuredContent,
 )
 from statgpt.common.schemas import DataQueryTool as DataQueryToolConfig
-from statgpt.common.schemas.enums import DataParsingStatus, DataRequestStatus, ExplorerLinkPolicy
+from statgpt.common.schemas.enums import DataParsingStatus, DataRequestStatus
 from statgpt.common.schemas.query import (
     JsonComponentQuery,
     JsonQuery,
@@ -107,15 +107,12 @@ class _Reporting:
     """What the tool config lets the structured content report."""
 
     fields: DataQueryMcpStructuredContent
-    explorer_link: ExplorerLinkPolicy
     widget_bound: bool
 
     @classmethod
     def from_tool_config(cls, tool_config: DataQueryToolConfig) -> Self:
-        details = tool_config.details
         return cls(
-            fields=details.mcp_structured_content,
-            explorer_link=details.explorer_link.mcp,
+            fields=tool_config.details.mcp_structured_content,
             widget_bound=tool_config.mcp_app_resource_uri is not None,
         )
 
@@ -542,7 +539,7 @@ def _executed_query_records(outcome: DataQueryOutcome, reporting: _Reporting) ->
                 execution=_execution(response, reporting.widget_bound),
                 data_explorer_url=(
                     response.url_query
-                    if reporting.explorer_link.includes_link(not response.is_empty)
+                    if reporting.fields.data_explorer_url.includes_link(not response.is_empty)
                     else None
                 ),
             )
@@ -611,7 +608,7 @@ def _query_record(
         dataset_name=dataset_name,
         is_official=reporting.official_mark(details.is_official) if details is not None else None,
         provider=details.provider if details is not None and reporting.fields.provider else None,
-        last_updated=details.last_updated if details is not None else None,
+        dataset_last_updated=details.last_updated if details is not None else None,
         dataset_url=json_query.metadata.dataset_url if reporting.fields.dataset_url else None,
         query_summary=details.summary if details is not None else None,
         executed=executed,

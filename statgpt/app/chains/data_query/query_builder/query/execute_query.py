@@ -21,7 +21,12 @@ from statgpt.common.auth.auth_context import AuthContext
 from statgpt.common.data.base import DataResponse, DataSetQuery
 from statgpt.common.schemas import StagesConfig
 from statgpt.common.schemas.data_query_tool import DataQueryExplorerLink, DataQueryMessages
-from statgpt.common.schemas.enums import DataParsingStatus, DataRequestStatus, ExplorerLinkPolicy
+from statgpt.common.schemas.enums import (
+    DataParsingStatus,
+    DataRequestStatus,
+    ExplorerLinkPolicy,
+    InvocationSource,
+)
 from statgpt.common.schemas.tool_details import StageDescriptor
 
 from .summarize_query import SummarizeQueriesChain
@@ -34,12 +39,14 @@ class ExecuteQueryChain:
         stage: StageDescriptor,
         messages: DataQueryMessages,
         explorer_link: DataQueryExplorerLink,
+        mcp_explorer_link: ExplorerLinkPolicy,
         summarize_queries_chain: SummarizeQueriesChain,
     ):
         self._stages_config = stages_config
         self._stage = stage
         self._messages = messages
         self._explorer_link = explorer_link
+        self._mcp_explorer_link = mcp_explorer_link
         self._summarize_queries_chain = summarize_queries_chain
 
     async def summarize_dataset_queries(self, inputs: dict) -> dict:
@@ -75,8 +82,10 @@ class ExecuteQueryChain:
         # own explorer link policy - and its own rendering when the two differ. The second pass
         # is pure string building, and is skipped anyway when both surfaces agree.
         stage_policy = self._explorer_link.stage
-        response_policy = self._explorer_link.for_source(
-            ChainParameters.get_invocation_source(inputs)
+        response_policy = (
+            self._mcp_explorer_link
+            if ChainParameters.get_invocation_source(inputs) is InvocationSource.MCP
+            else self._explorer_link.agent
         )
 
         stage_content = await render(stage_policy)

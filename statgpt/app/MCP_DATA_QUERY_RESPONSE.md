@@ -25,7 +25,7 @@ from version 2.
 | `queries[].datasetUrn` | URN of the queried dataset. |
 | `queries[].datasetName` | Dataset name, when known. |
 | `queries[].isOfficial` | Whether the dataset is official. Only reported when `isOfficial` is enabled (see below). |
-| `queries[].provider` / `lastUpdated` / `datasetUrl` | The dataset's provider, last-updated date (ISO 8601) and link. |
+| `queries[].provider` / `datasetLastUpdated` / `datasetUrl` | The dataset's provider, last-updated date (ISO 8601) and link. |
 | `queries[].querySummary` | A short summary of what the query asks for. |
 | `queries[].executed` | `false` for a query that was constructed but never ran. |
 | `queries[].filters[]` | One entry per filtered dimension: `dimensionId`, `dimensionName`, `operator`, `values[].id` / `values[].name`. `values` is complete - it is what the query asked for. A dimension with no filter is not listed - every one of its values is included. |
@@ -37,7 +37,7 @@ from version 2.
 | `queries[].factualPeriod` | The period the returned data actually covers. |
 | `queries[].seriesCount` | Number of series returned, absent when the query returned no data. |
 | `queries[].execution` | How the execution went: `result` (`data_received`, `partially_parsed`, `parsing_failed`, `request_failed`, `no_data`), with a `reason` and an `advice` unless the data was received. The advice for a parse failure mentions the widget only when the tool binds one. |
-| `queries[].dataExplorerUrl` | Deep link to the query's data, governed by `explorerLink.mcp`. |
+| `queries[].dataExplorerUrl` | Deep link to the query's data. |
 | `missingDimensions` | The dimensions a follow-up query must specify, with `totalValues` and up to 10 `sampleValues` each. |
 | `candidateDatasets[]` | Datasets to narrow the query to, as `id` / `name` / `isOfficial` (when enabled), with the `query` that would run against each. |
 
@@ -52,9 +52,8 @@ details:
     executedAt: true        # `executedAt`
     provider: true          # `queries[].provider`
     datasetUrl: true        # `queries[].datasetUrl`
+    dataExplorerUrl: always # `queries[].dataExplorerUrl` and the widget `message`: always | only_when_no_data | never
     isOfficial: false       # `isOfficial`, everywhere; enable only for channels that mark official datasets
-  explorerLink:
-    mcp: always             # `queries[].dataExplorerUrl`: always | only_when_no_data | never
 ```
 
 ## `result._meta`
@@ -112,7 +111,7 @@ The queries ran and returned data.
         "datasetUrn": "IMF.RES:WEO(9.0.0)",
         "datasetName": "World Economic Outlook (WEO)",
         "provider": "IMF Research Department (RES)",
-        "lastUpdated": "2026-04-14",
+        "datasetLastUpdated": "2026-04-14",
         "datasetUrl": "https://data.imf.org/en/datasets/IMF.RES:WEO",
         "querySummary": "For the United States, Gross Domestic Product (GDP) in current prices, in domestic currency and US dollars, was retrieved from 2021 to 2026 from the World Economic Outlook.",
         "executed": true,
@@ -268,7 +267,7 @@ The queries ran and returned nothing. The model still sees what was asked, and `
         "datasetUrn": "IMF.RES:WEO(9.0.0)",
         "datasetName": "World Economic Outlook (WEO)",
         "provider": "IMF Research Department (RES)",
-        "lastUpdated": "2026-04-14",
+        "datasetLastUpdated": "2026-04-14",
         "datasetUrl": "https://data.imf.org/en/datasets/IMF.RES:WEO",
         "querySummary": "For the United States, Gross Domestic Product (GDP) in current prices, in domestic currency and US dollars, was retrieved from 2021 to 2026 from the World Economic Outlook.",
         "executed": true,
@@ -413,7 +412,7 @@ The fetch or the parsing failed. Also the default status, in which case there ar
         "datasetUrn": "IMF.RES:WEO(9.0.0)",
         "datasetName": "World Economic Outlook (WEO)",
         "provider": "IMF Research Department (RES)",
-        "lastUpdated": "2026-04-14",
+        "datasetLastUpdated": "2026-04-14",
         "datasetUrl": "https://data.imf.org/en/datasets/IMF.RES:WEO",
         "querySummary": "For the United States, Gross Domestic Product (GDP) in current prices, in domestic currency and US dollars, was retrieved from 2021 to 2026 from the World Economic Outlook.",
         "executed": true,
@@ -688,7 +687,7 @@ The query matched several datasets. The model gets the ids to narrow it down, ea
           "datasetUrn": "IMF.RES:WEO(9.0.0)",
           "datasetName": "World Economic Outlook (WEO)",
           "provider": "IMF Research Department (RES)",
-          "lastUpdated": "2026-04-14",
+          "datasetLastUpdated": "2026-04-14",
           "datasetUrl": "https://data.imf.org/en/datasets/IMF.RES:WEO",
           "querySummary": "For the United States, Gross Domestic Product (GDP) in current prices, in domestic currency and US dollars, was retrieved from 2021 to 2026 from the World Economic Outlook.",
           "executed": false,
@@ -928,7 +927,7 @@ The requested period is outside the dataset's range. The model gets the construc
         "datasetUrn": "IMF.RES:WEO(9.0.0)",
         "datasetName": "World Economic Outlook (WEO)",
         "provider": "IMF Research Department (RES)",
-        "lastUpdated": "2026-04-14",
+        "datasetLastUpdated": "2026-04-14",
         "datasetUrl": "https://data.imf.org/en/datasets/IMF.RES:WEO",
         "querySummary": "For the United States, Gross Domestic Product (GDP) in current prices, in domestic currency and US dollars, was retrieved from 2021 to 2026 from the World Economic Outlook.",
         "executed": false,

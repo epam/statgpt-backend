@@ -24,7 +24,6 @@ from statgpt.app.schemas.query import AppJsonQueryWithMetadata
 from statgpt.app.schemas.tool_artifact import DataQueryOutcome
 from statgpt.common.data.base import DataResponseStatus
 from statgpt.common.schemas.data_query_tool import (
-    DataQueryExplorerLink,
     DataQueryMcpMeta,
     DataQueryMcpResources,
     DataQueryMcpStructuredContent,
@@ -413,11 +412,10 @@ def _tool_config(
     namespace: str = "statgpt.dialx.ai",
     csv: bool = True,
     markdown: bool = False,
-    explorer_link: ExplorerLinkPolicy = ExplorerLinkPolicy.always,
-    **structured_content_fields: bool,
+    **structured_content_fields: bool | ExplorerLinkPolicy,
 ) -> SimpleNamespace:
     # The converters only read `mcp_app_resource_uri` off the tool config, and `mcp_meta` /
-    # `mcp_resources` / `mcp_structured_content` / `explorer_link` off its details.
+    # `mcp_resources` / `mcp_structured_content` off its details.
     return SimpleNamespace(
         mcp_app_resource_uri="ui://statgpt/data-widget.html" if mcp_app else None,
         details=SimpleNamespace(
@@ -429,7 +427,6 @@ def _tool_config(
                 markdown_table=McpResource(enabled_str=str(markdown)),
             ),
             mcp_structured_content=DataQueryMcpStructuredContent(**structured_content_fields),
-            explorer_link=DataQueryExplorerLink(mcp=explorer_link),
         ),
     )
 
@@ -842,7 +839,7 @@ def test_structured_content_reports_the_query_details():
     assert structured.executed_at == "2026-09-23T10:00:00+00:00"
     [record] = structured.queries
     assert record.query_summary == "Consumer prices in France and Germany."
-    assert record.last_updated == "2026-09-01"
+    assert record.dataset_last_updated == "2026-09-01"
     assert record.provider == "IMF"
     assert record.is_official is True
     assert record.dataset_url == "https://data.example/IMF:CPI"
@@ -867,7 +864,7 @@ def test_structured_content_omits_the_fields_the_config_disables():
         executed_at=False,
         provider=False,
         dataset_url=False,
-        explorer_link=ExplorerLinkPolicy.never,
+        data_explorer_url=ExplorerLinkPolicy.never,
     )
 
     assert structured.executed_at is None
@@ -890,7 +887,7 @@ def test_structured_content_explorer_link_only_when_no_data():
         }
     )
 
-    structured = _structured(outcome, explorer_link=ExplorerLinkPolicy.only_when_no_data)
+    structured = _structured(outcome, data_explorer_url=ExplorerLinkPolicy.only_when_no_data)
 
     assert [q.data_explorer_url for q in structured.queries] == [
         None,

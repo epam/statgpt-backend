@@ -176,7 +176,7 @@ class QueryRecord(BaseYamlModel):
         default=None, description="Whether the dataset is official, when the channel marks it."
     )
     provider: str | None = Field(default=None, description="The dataset's provider, when known.")
-    last_updated: str | None = Field(
+    dataset_last_updated: str | None = Field(
         default=None, description="Date the dataset was last updated (ISO 8601), when known."
     )
     dataset_url: str | None = Field(default=None, description="Link to the dataset, when known.")

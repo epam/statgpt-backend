@@ -155,20 +155,21 @@ tools:
         client:
           enabledStr: "True"
       # Optional fields of the MCP result's `structuredContent`. `isOfficial` is off by default:
-      # enable it only for channels that mark their official datasets.
+      # enable it only for channels that mark their official datasets. `dataExplorerUrl` governs
+      # the deep link across the MCP response and takes the same values as `explorerLink` below.
       mcpStructuredContent:
         executedAt: true
         provider: true
         datasetUrl: true
+        dataExplorerUrl: always
         isOfficial: false
-      # When each surface carries the "View data in explorer" deep link back to the source
+      # When each Supreme Agent surface carries the "View data in explorer" deep link back to the source
       # registry. One of: always | only_when_no_data | never. All default to `always`.
       # Set a surface to `only_when_no_data` to keep the link on the paths where StatGPT could
       # not deliver (no rows, or the query failed) and drop it from successful answers.
       explorerLink:
         stage: always
         agent: always
-        mcp: always
       stagesConfig:
         debugOnly: true
         toolCallName: "Searching for data: {query}"
