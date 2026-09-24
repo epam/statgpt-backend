@@ -5,8 +5,8 @@ reader:
 
 | Surface | Reader | Contents |
 |---|---|---|
-| `content` | the model, and the user through it | The rendered text response, plus one `text/csv` and/or `text/markdown` resource per dataset (see [`mcpResources`](README.md#mcp-server)). |
-| `structuredContent` | the calling model | The queries the pipeline produced, or what a follow-up query would need when it produced none. Validated against the tool's declared `outputSchema`. |
+| `content` | the model, and the user through it | The `structuredContent` serialized as JSON text, one `text/csv` and/or `text/markdown` resource per dataset (see [`mcpResources`](README.md#mcp-server)), then the discovery datasets block, when there is one. |
+| `structuredContent` | the calling model | The outcome, with the queries the pipeline produced, or what a follow-up query would need when it produced none. Validated against the tool's declared `outputSchema`. |
 | `result._meta` | the clients | One namespaced payload per audience: the MCP-App widget and programmatic clients (e.g. Deep Research). |
 
 The whole response carries one version number, `3`, in every `_meta` payload.
@@ -18,21 +18,43 @@ from version 2.
 
 | Field | Notes |
 |---|---|
+| `status` | The pipeline outcome; see [Examples](#examples) for each one. |
+| `message` | What the model should know about the outcome: the configured `*McpOnly` message (`dataQueryExecutedMcpOnly`, `multipleDatasetsMcpOnly`, `noDataMcpOnly`, `invalidTimePeriodMcpOnly`, with their non-MCP fallbacks), the default text when none is configured, or the question the pipeline asks about missing dimensions. |
+| `executedAt` | When the queries were executed, for the executed statuses. |
 | `queries[].queryId` | Short id of the query within the response. Joins it to its resources and to the `_meta` payloads. |
 | `queries[].datasetUrn` | URN of the queried dataset. |
-| `queries[].datasetName` | Dataset name, when a response carried one. |
+| `queries[].datasetName` | Dataset name, when known. |
+| `queries[].isOfficial` | Whether the dataset is official. Only reported when `isOfficial` is enabled (see below). |
+| `queries[].provider` / `datasetLastUpdated` / `datasetUrl` | The dataset's provider, last-updated date (ISO 8601) and link. |
+| `queries[].querySummary` | A short summary of what the query asks for. |
 | `queries[].executed` | `false` for a query that was constructed but never ran. |
 | `queries[].filters[]` | One entry per filtered dimension: `dimensionId`, `dimensionName`, `operator`, `values[].id` / `values[].name`. `values` is complete - it is what the query asked for. A dimension with no filter is not listed - every one of its values is included. |
+| `queries[].filters[].isIndicator` | Whether the dimension is one of the dataset's indicators. |
+| `queries[].filters[].isDefault` | Whether the filter is the dimension's default, applied because the user did not specify it. |
 | `queries[].filters[].valueCount` | How many values the filter applies. |
-| `queries[].requestedPeriod` | `startPeriod` / `endPeriod`, named after the SDMX REST query parameters. The time period is reported here, not as another filter. |
+| `queries[].requestedPeriod` | `startPeriod` / `endPeriod`, named after the SDMX REST query parameters, and `isDefault` when the dataset's default period was applied. The time period is reported here, not as another filter. |
+| `queries[].invalidity` | For `invalid_time_period`: why each constructed query cannot run. `reason` is `invalid_time_period` or `missing_dimensions`, with an `explanation` in words, and the `rejectedPeriod` (`rejectedBound`, its `requestedValue`, the `availablePeriod`) or the `missingDimensions` (as in the top-level `missingDimensions`). A rejected period is never applied, so `requestedPeriod` does not carry it. |
 | `queries[].factualPeriod` | The period the returned data actually covers. |
 | `queries[].seriesCount` | Number of series returned, absent when the query returned no data. |
+| `queries[].execution` | How the execution went: `result` (`data_received`, `partially_parsed`, `parsing_failed`, `request_failed`, `no_data`), with a `reason` and an `advice` unless the data was received. The advice for a parse failure mentions the widget only when the tool binds one. |
+| `queries[].dataExplorerUrl` | Deep link to the query's data. |
 | `missingDimensions` | The dimensions a follow-up query must specify, with `totalValues` and up to 10 `sampleValues` each. |
-| `candidateDatasets[]` | Datasets to narrow the query to, as `id` / `name` / `isOfficial`. |
+| `candidateDatasets[]` | Datasets to narrow the query to, as `id` / `name` / `isOfficial` (when enabled), with the `query` that would run against each. |
 
-Null fields are omitted. The pipeline status, the python snippet, the companion tool names and the
-response version are not here: the text block explains the outcome to the model, and the clients
-read `_meta`.
+Null fields are omitted. The python snippet, the companion tool names and the response version are
+not here: the clients read them from `_meta`.
+
+Some fields can be turned off per tool:
+
+```yaml
+details:
+  mcpStructuredContent:
+    executedAt: true        # `executedAt`
+    provider: true          # `queries[].provider`
+    datasetUrl: true        # `queries[].datasetUrl`
+    dataExplorerUrl: always # `queries[].dataExplorerUrl` and the widget `message`: always | only_when_no_data | never
+    isOfficial: false       # `isOfficial`, everywhere; enable only for channels that mark official datasets
+```
 
 ## `result._meta`
 
@@ -80,11 +102,18 @@ The queries ran and returned data.
 ```json
 {
   "structuredContent": {
+    "status": "data_available",
+    "message": "Do not reproduce the returned table: the user already sees the data in the widget.",
+    "executedAt": "2026-09-23T10:00:00.000000+00:00",
     "queries": [
       {
         "queryId": "dq_333e6e65fc",
         "datasetUrn": "IMF.RES:WEO(9.0.0)",
         "datasetName": "World Economic Outlook (WEO)",
+        "provider": "IMF Research Department (RES)",
+        "datasetLastUpdated": "2026-04-14",
+        "datasetUrl": "https://data.imf.org/en/datasets/IMF.RES:WEO",
+        "querySummary": "For the United States, Gross Domestic Product (GDP) in current prices, in domestic currency and US dollars, was retrieved from 2021 to 2026 from the World Economic Outlook.",
         "executed": true,
         "filters": [
           {
@@ -97,6 +126,8 @@ The queries ran and returned data.
                 "name": "United States"
               }
             ],
+            "isIndicator": false,
+            "isDefault": false,
             "valueCount": 1
           },
           {
@@ -113,18 +144,25 @@ The queries ran and returned data.
                 "name": "Gross domestic product (GDP), Current prices, US dollar"
               }
             ],
+            "isIndicator": true,
+            "isDefault": false,
             "valueCount": 2
           }
         ],
         "requestedPeriod": {
           "startPeriod": "2021-01-01",
-          "endPeriod": "2026-12-31"
+          "endPeriod": "2026-12-31",
+          "isDefault": false
         },
         "factualPeriod": {
           "startPeriod": "2021",
           "endPeriod": "2025"
         },
-        "seriesCount": 2
+        "seriesCount": 2,
+        "execution": {
+          "result": "data_received"
+        },
+        "dataExplorerUrl": "https://data.imf.org/en/Data-Explorer?datasetUrn=IMF.RES:WEO(9.0.0)&timeseriesName=USA.NGDP+NGDPD.*&startPeriod=2021-01-01&endPeriod=2026-12-31"
       }
     ],
     "candidateDatasets": []
@@ -220,11 +258,18 @@ The queries ran and returned nothing. The model still sees what was asked, and `
 ```json
 {
   "structuredContent": {
+    "status": "executed_no_data",
+    "message": "Do not reproduce the returned table: the user already sees the data in the widget.",
+    "executedAt": "2026-09-23T10:00:00.000000+00:00",
     "queries": [
       {
         "queryId": "dq_333e6e65fc",
         "datasetUrn": "IMF.RES:WEO(9.0.0)",
         "datasetName": "World Economic Outlook (WEO)",
+        "provider": "IMF Research Department (RES)",
+        "datasetLastUpdated": "2026-04-14",
+        "datasetUrl": "https://data.imf.org/en/datasets/IMF.RES:WEO",
+        "querySummary": "For the United States, Gross Domestic Product (GDP) in current prices, in domestic currency and US dollars, was retrieved from 2021 to 2026 from the World Economic Outlook.",
         "executed": true,
         "filters": [
           {
@@ -237,6 +282,8 @@ The queries ran and returned nothing. The model still sees what was asked, and `
                 "name": "United States"
               }
             ],
+            "isIndicator": false,
+            "isDefault": false,
             "valueCount": 1
           },
           {
@@ -253,13 +300,22 @@ The queries ran and returned nothing. The model still sees what was asked, and `
                 "name": "Gross domestic product (GDP), Current prices, US dollar"
               }
             ],
+            "isIndicator": true,
+            "isDefault": false,
             "valueCount": 2
           }
         ],
         "requestedPeriod": {
           "startPeriod": "2021-01-01",
-          "endPeriod": "2026-12-31"
-        }
+          "endPeriod": "2026-12-31",
+          "isDefault": false
+        },
+        "execution": {
+          "result": "no_data",
+          "reason": "A response was received, but it does not contain any data.",
+          "advice": "Most likely, the query is generally correct, but there is no data for the specified time period. You may want to try selecting a different time period. Another option is to try to find relevant data in other datasets or using other tools."
+        },
+        "dataExplorerUrl": "https://data.imf.org/en/Data-Explorer?datasetUrn=IMF.RES:WEO(9.0.0)&timeseriesName=USA.NGDP+NGDPD.*&startPeriod=2021-01-01&endPeriod=2026-12-31"
       }
     ],
     "candidateDatasets": []
@@ -347,11 +403,18 @@ The fetch or the parsing failed. Also the default status, in which case there ar
 ```json
 {
   "structuredContent": {
+    "status": "failed",
+    "message": "Do not reproduce the returned table: the user already sees the data in the widget.",
+    "executedAt": "2026-09-23T10:00:00.000000+00:00",
     "queries": [
       {
         "queryId": "dq_333e6e65fc",
         "datasetUrn": "IMF.RES:WEO(9.0.0)",
         "datasetName": "World Economic Outlook (WEO)",
+        "provider": "IMF Research Department (RES)",
+        "datasetLastUpdated": "2026-04-14",
+        "datasetUrl": "https://data.imf.org/en/datasets/IMF.RES:WEO",
+        "querySummary": "For the United States, Gross Domestic Product (GDP) in current prices, in domestic currency and US dollars, was retrieved from 2021 to 2026 from the World Economic Outlook.",
         "executed": true,
         "filters": [
           {
@@ -364,6 +427,8 @@ The fetch or the parsing failed. Also the default status, in which case there ar
                 "name": "United States"
               }
             ],
+            "isIndicator": false,
+            "isDefault": false,
             "valueCount": 1
           },
           {
@@ -380,13 +445,22 @@ The fetch or the parsing failed. Also the default status, in which case there ar
                 "name": "Gross domestic product (GDP), Current prices, US dollar"
               }
             ],
+            "isIndicator": true,
+            "isDefault": false,
             "valueCount": 2
           }
         ],
         "requestedPeriod": {
           "startPeriod": "2021-01-01",
-          "endPeriod": "2026-12-31"
-        }
+          "endPeriod": "2026-12-31",
+          "isDefault": false
+        },
+        "execution": {
+          "result": "request_failed",
+          "reason": "The request to the data source failed.",
+          "advice": "This looks like a temporary issue with the data source. You may want to retry the query, or try again shortly."
+        },
+        "dataExplorerUrl": "https://data.imf.org/en/Data-Explorer?datasetUrn=IMF.RES:WEO(9.0.0)&timeseriesName=USA.NGDP+NGDPD.*&startPeriod=2021-01-01&endPeriod=2026-12-31"
       }
     ],
     "candidateDatasets": []
@@ -469,15 +543,18 @@ The fetch or the parsing failed. Also the default status, in which case there ar
 
 ### `not_executed`
 
-The queries were constructed but never ran: `executed` is `false`, and there is no response to read the display names, the links or the resources off.
+The queries were constructed but never ran: `executed` is `false`, and there is no response to read the display names, the explorer link or the resources off.
 
 ```json
 {
   "structuredContent": {
+    "status": "not_executed",
+    "message": "data queries constructed. queries were not executed, their status (valid/invalid) is unknown, because data query post-processing is disabled in config",
     "queries": [
       {
         "queryId": "dq_6dd977de4c",
         "datasetUrn": "IMF.RES:WEO(9.0.0)",
+        "datasetUrl": "https://data.imf.org/en/datasets/IMF.RES:WEO",
         "executed": false,
         "filters": [
           {
@@ -488,6 +565,8 @@ The queries were constructed but never ran: `executed` is `false`, and there is 
                 "id": "USA"
               }
             ],
+            "isIndicator": false,
+            "isDefault": false,
             "valueCount": 1
           },
           {
@@ -501,12 +580,15 @@ The queries were constructed but never ran: `executed` is `false`, and there is 
                 "id": "NGDPD"
               }
             ],
+            "isIndicator": true,
+            "isDefault": false,
             "valueCount": 2
           }
         ],
         "requestedPeriod": {
           "startPeriod": "2021-01-01",
-          "endPeriod": "2026-12-31"
+          "endPeriod": "2026-12-31",
+          "isDefault": false
         }
       }
     ],
@@ -588,22 +670,53 @@ The queries were constructed but never ran: `executed` is `false`, and there is 
 
 ### `dataset_selection_required`
 
-The query matched several datasets. The model gets the ids to narrow it down; the widget gets the descriptions as well.
+The query matched several datasets. The model gets the ids to narrow it down, each with the query that would run against it; the widget gets the descriptions as well.
 
 ```json
 {
   "structuredContent": {
+    "status": "dataset_selection_required",
+    "message": "**Important**: at that point **no data is provided either to you or to user**, only query info. You may select one of the datasets without user's input, whenever you think it's possible, or ask user to select one of the datasets to proceed with query execution. When user selected something, call the same tool mentioning the dataset name or id in the tool call arguments.",
     "queries": [],
     "candidateDatasets": [
       {
         "id": "IMF.RES:WEO(9.0.0)",
         "name": "World Economic Outlook (WEO)",
-        "isOfficial": true
+        "query": {
+          "queryId": "dq_6dd977de4c",
+          "datasetUrn": "IMF.RES:WEO(9.0.0)",
+          "datasetName": "World Economic Outlook (WEO)",
+          "provider": "IMF Research Department (RES)",
+          "datasetLastUpdated": "2026-04-14",
+          "datasetUrl": "https://data.imf.org/en/datasets/IMF.RES:WEO",
+          "querySummary": "For the United States, Gross Domestic Product (GDP) in current prices, in domestic currency and US dollars, was retrieved from 2021 to 2026 from the World Economic Outlook.",
+          "executed": false,
+          "filters": [
+            {
+              "dimensionId": "COUNTRY",
+              "dimensionName": "Country",
+              "operator": "in",
+              "values": [
+                {
+                  "id": "USA",
+                  "name": "United States"
+                }
+              ],
+              "isIndicator": false,
+              "isDefault": false,
+              "valueCount": 1
+            }
+          ],
+          "requestedPeriod": {
+            "startPeriod": "2021-01-01",
+            "endPeriod": "2026-12-31",
+            "isDefault": false
+          }
+        }
       },
       {
         "id": "IMF.STA:NSDP(7.0.0)",
-        "name": "National Summary Data Page (NSDP)",
-        "isOfficial": false
+        "name": "National Summary Data Page (NSDP)"
       }
     ]
   },
@@ -649,6 +762,8 @@ The query is incomplete. The model gets a bounded sample of each dimension's val
 ```json
 {
   "structuredContent": {
+    "status": "missing_dimensions",
+    "message": "Which country are you interested in? For example: Country 0, Country 1 or Country 2.",
     "queries": [],
     "missingDimensions": {
       "datasetUrn": "IMF.STA:NSDP(7.0.0)",
@@ -799,12 +914,53 @@ The query is incomplete. The model gets a bounded sample of each dimension's val
 
 ### `invalid_time_period`
 
-The requested period is outside the dataset's range. The constructed queries are deliberately not reported: the rejected period was never applied to them, so they would describe a query the user did not ask for.
+The requested period is outside the dataset's range. The model gets the constructed queries, each with the `invalidity` that keeps it from running: a rejected period was never applied, so `requestedPeriod` is absent and `invalidity.rejectedPeriod` carries it instead. A query that also misses a required dimension reports `missing_dimensions` there instead. The widget gets no queries.
 
 ```json
 {
   "structuredContent": {
-    "queries": [],
+    "status": "invalid_time_period",
+    "message": "The created query contains data according to the selected filters, but the values are only available for a different time period. Please adjust the time period or modify the query.",
+    "queries": [
+      {
+        "queryId": "dq_6dd977de4c",
+        "datasetUrn": "IMF.RES:WEO(9.0.0)",
+        "datasetName": "World Economic Outlook (WEO)",
+        "provider": "IMF Research Department (RES)",
+        "datasetLastUpdated": "2026-04-14",
+        "datasetUrl": "https://data.imf.org/en/datasets/IMF.RES:WEO",
+        "querySummary": "For the United States, Gross Domestic Product (GDP) in current prices, in domestic currency and US dollars, was retrieved from 2021 to 2026 from the World Economic Outlook.",
+        "executed": false,
+        "filters": [
+          {
+            "dimensionId": "COUNTRY",
+            "dimensionName": "Country",
+            "operator": "in",
+            "values": [
+              {
+                "id": "USA",
+                "name": "United States"
+              }
+            ],
+            "isIndicator": false,
+            "isDefault": false,
+            "valueCount": 1
+          }
+        ],
+        "invalidity": {
+          "reason": "invalid_time_period",
+          "explanation": "The requested start period 2035 is after the last period the dataset has data for (2030).",
+          "rejectedPeriod": {
+            "rejectedBound": "startPeriod",
+            "requestedValue": "2035",
+            "availablePeriod": {
+              "startPeriod": "1980",
+              "endPeriod": "2030"
+            }
+          }
+        }
+      }
+    ],
     "candidateDatasets": []
   },
   "_meta": {
@@ -836,6 +992,8 @@ Nothing relevant was found, and no query was built.
 ```json
 {
   "structuredContent": {
+    "status": "no_data",
+    "message": "No relevant data was found for the provided query.",
     "queries": [],
     "candidateDatasets": []
   },
