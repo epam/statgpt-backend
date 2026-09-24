@@ -80,6 +80,21 @@ class DialRagAgentFactory(BaseRAGFactory):
             type=MediaTypes.MARKDOWN, title='Pre-filter, final', data=rag_filter_str
         )
 
+    @staticmethod
+    def _prefilter_note(pre_filter_response: PreFilterResponse) -> str:
+        """A human/LLM-readable note on how the search was filtered, appended to the tool
+        response so the agent can report the applied pre-filter and decide on retries."""
+        if rag_filter := pre_filter_response.rag_filter:
+            rag_filter_json = rag_filter.model_dump_json(indent=2, exclude_none=True)
+            return (
+                '\n\nThe following publications pre-filter was applied to this search:\n'
+                f'```json\n{rag_filter_json}\n```'
+            )
+        return (
+            '\n\nNo publications pre-filter was applied to this search: '
+            'all available publications were searched.'
+        )
+
     async def _run_prefilter_nonsafe(
         self, auth_context: AuthContext, query: str, reference_date: datetime.date | None
     ) -> tuple[PreFilterResponse, DialRagMetadata]:
@@ -242,12 +257,15 @@ class DialRagAgentFactory(BaseRAGFactory):
         )
         inputs[self.FIELD_CURRENT_DATE] = current_date
 
+        prefilter_note = self._prefilter_note(pre_filter_response)
+
         state = ChainParameters.get_state(inputs)
         skip = state.get(StateVarsConfig.CMD_RAG_PREFILTER_ONLY, False)
 
         if skip:
             inputs[self.FIELD_RESPONSE] = (
-                f'<call to RAG was skipped for debug purposes>\n\nquery: "{query}"\n\n---'
+                f'<call to RAG was skipped for debug purposes>\n\nquery: "{query}"'
+                f'{prefilter_note}\n\n---'
             )
             # NOTE: set to "RAG" but actually there was no any response
             inputs[self.FIELD_ANSWERED_BY] = 'RAG'
@@ -288,23 +306,13 @@ class DialRagAgentFactory(BaseRAGFactory):
             except APIError as e:
                 logger.exception(e)
 
-            if rag_filter := pre_filter_response.rag_filter:
-                prefilter_note = (
-                    '\n\nThe following publications pre-filter was applied to this search:\n'
-                    f'{rag_filter}'
-                )
-            else:
-                prefilter_note = (
-                    '\n\nNo publications pre-filter was applied to this search: '
-                    'all available publications were searched.'
-                )
-
             # NOTE: append '---' to the end to create space between text and attachments
             if dial_streamer.attachments:
                 target.append_content(
                     "Answer using the information found by RAG.\n\n---\n\n"
                     f'### Query\n\n{query}\n\n'
                     f"### Response\n\n{dial_streamer.content}"
+                    f"{prefilter_note}"
                     "\n\n---"
                 )
                 self._append_attachments(
@@ -319,13 +327,13 @@ class DialRagAgentFactory(BaseRAGFactory):
                 tool_name = self._tool_config.name.replace('_', ' ')
                 msg = (
                     f'{tool_name} was unable to find the relevant data for the query: "{query}"'
-                    '\n\n---'
+                    f'{prefilter_note}\n\n---'
                 )
                 logger.info(
                     f"{tool_name} was unable to find the relevant data for the query: {query}\nOriginal response: {dial_streamer.content_with_attachments_metadata}"
                 )
                 target.append_content(msg)
-                inputs[self.FIELD_RESPONSE] = msg + prefilter_note
+                inputs[self.FIELD_RESPONSE] = msg
                 inputs[self.FIELD_ANSWERED_BY] = 'LLM'
 
         duration_s = time.monotonic() - time_start
