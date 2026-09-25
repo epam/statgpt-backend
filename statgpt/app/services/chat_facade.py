@@ -52,6 +52,37 @@ _dataflow_loader_settings = DataflowLoaderSettings()
 
 _INDICATORS_TOTAL_TOKEN = "{indicators_total}"
 
+# Shared between the static deployment `configuration` field and the per-message toggle form schema:
+# the frontend only updates the existing toggle when the per-message control reuses the exact same
+# property name and title as the configuration field (see `build_deep_research_form_schema`).
+_DEEP_RESEARCH_FIELD = "deep_research"
+_DEEP_RESEARCH_TITLE = "Deep research"
+
+
+def build_deep_research_form_schema(value: bool) -> dict[str, Any]:
+    """Build the per-message ``custom_content.form_schema`` that drives the "Deep research" toggle.
+
+    The deployment ``configuration`` schema is static, so it cannot reflect per-conversation toggle
+    state. Instead each assistant turn emits a form schema whose ``deep_research`` control reuses the
+    configuration field's name and title and carries the value the toggle should hold on the next
+    request via ``const`` (the buttons widget the frontend already renders). ``value=True`` keeps the
+    toggle armed; ``value=False`` disarms it (the frontend also falls back to the configuration
+    default of ``False`` when the control is absent).
+    """
+    namespace: dict[str, Any] = {
+        "__module__": __name__,
+        "__qualname__": "DeepResearchToggleForm",
+        "__annotations__": {_DEEP_RESEARCH_FIELD: bool},
+        _DEEP_RESEARCH_FIELD: DialField(
+            title=_DEEP_RESEARCH_TITLE,
+            buttons=[Button(const=value, title=_DEEP_RESEARCH_TITLE)],
+        ),
+    }
+    form_cls: type[BaseModel] = FormMetaclass(  # type: ignore[assignment]
+        "DeepResearchToggleForm", (BaseModel,), namespace
+    )
+    return form_cls.model_json_schema()
+
 
 def _substitute_indicators_total(text: str | None, count: int) -> str | None:
     """Replace the supported `{indicators_total}` token with the live count."""
@@ -314,10 +345,10 @@ class ChannelServiceFacade:
             )
 
         if await self.channel_config.is_deep_research_available_for(auth_context):
-            optional_fields["deep_research"] = (
+            optional_fields[_DEEP_RESEARCH_FIELD] = (
                 bool,
                 DialField(
-                    title="Deep research",
+                    title=_DEEP_RESEARCH_TITLE,
                     description="Run the request in Deep Research mode.",
                     default=DEEP_RESEARCH_TOGGLE_DEFAULT,
                 ),
