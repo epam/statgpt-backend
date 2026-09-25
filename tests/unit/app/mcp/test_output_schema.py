@@ -3,8 +3,8 @@
 Six tools declare an MCP output schema: the two glossary tools (available-terms,
 term-definitions), the three dataset-metadata tools (available-datasets, dataset-structure,
 availability-query) and the data query tool. The first five are structured-only — they carry their
-whole result in `structuredContent` and emit no text block — while the data query tool also returns
-text and resources. Every other tool opts out (no declared schema), even where it emits structured
+whole result in `structuredContent`, repeated as its JSON text — while the data query tool also
+returns resources. Every other tool opts out (no declared schema), even where it emits structured
 content.
 These tests fail the build when a scoped tool's runtime content drifts from its declared schema, and
 lock the reduced scope so a tool cannot silently gain or lose a schema. They double as the captured
@@ -18,24 +18,30 @@ import pytest
 from fastmcp.tools import ToolResult
 
 from statgpt.app.mcp.tools import StatGptMcpTool, mcp_tool_class_for
+from statgpt.app.schemas.data_query_outcome import DataQueryStatus
 from statgpt.app.schemas.mcp import (
     AvailabilityDimensionRecord,
     AvailabilityStructuredContent,
     AvailabilityValueRecord,
     AvailableDatasetsStructuredContent,
     AvailableTermsStructuredContent,
+    CandidateDatasetRecord,
     DataQueryStructuredContent,
     DatasetComponentRecord,
     DatasetRecord,
     DatasetStructureStructuredContent,
     DatasetValueRecord,
+    ExecutionResult,
     FilterValue,
     GlossaryDefinitionRecord,
     GlossaryTermRecord,
+    InvalidPeriodRecord,
     PeriodRange,
     ProviderRecord,
+    QueryExecution,
     QueryFilter,
     QueryRecord,
+    RequestedPeriod,
     TermDefinitionsStructuredContent,
     TimeCoverageRecord,
 )
@@ -134,7 +140,6 @@ GENERIC_CASES: dict = {
     ),
     ToolTypes.AVAILABILITY_QUERY: AvailabilityStructuredContent(
         dataset_id="IMF:CPI(1.0.0)",
-        found=True,
         dimensions=[
             AvailabilityDimensionRecord(
                 id="REF_AREA",
@@ -153,11 +158,19 @@ GENERIC_CASES: dict = {
         ),
     ),
     ToolTypes.DATA_QUERY: DataQueryStructuredContent(
+        status=DataQueryStatus.DATA_AVAILABLE,
+        message="Tell the user where the data comes from.",
+        executed_at="2026-09-23T10:00:00+00:00",
         queries=[
             QueryRecord(
                 query_id="dq_ab12cd34ef",
                 dataset_urn="IMF:CPI(1.0.0)",
                 dataset_name="Consumer Price Index",
+                is_official=True,
+                provider="IMF",
+                dataset_last_updated="2026-09-01",
+                dataset_url="https://data.imf.org/en/datasets/IMF:CPI",
+                query_summary="Consumer prices in the United States from 2020 to 2024.",
                 executed=True,
                 filters=[
                     QueryFilter(
@@ -165,13 +178,44 @@ GENERIC_CASES: dict = {
                         dimension_name="Reference area",
                         operator=JsonQueryOperator.IN,
                         values=[FilterValue(id="US", name="United States")],
-                    )
+                    ),
+                    QueryFilter(
+                        dimension_id="INDICATOR",
+                        dimension_name="Indicator",
+                        operator=JsonQueryOperator.IN,
+                        values=[FilterValue(id="CPI", name="Consumer price index")],
+                        is_indicator=True,
+                        is_default=True,
+                    ),
                 ],
-                requested_period=PeriodRange(start_period="2020-01-01", end_period="2024-12-31"),
+                requested_period=RequestedPeriod(
+                    start_period="2020-01-01", end_period="2024-12-31", is_default=True
+                ),
+                invalid_period=InvalidPeriodRecord(
+                    rejected_bound="endPeriod",
+                    requested_value="2030",
+                    available_period=PeriodRange(start_period="2000", end_period="2024"),
+                ),
                 factual_period=PeriodRange(start_period="2020", end_period="2024"),
                 series_count=1,
+                execution=QueryExecution(
+                    result=ExecutionResult.PARTIALLY_PARSED,
+                    reason="Some of the data could not be parsed.",
+                    advice="Tell the user that the data is incomplete.",
+                ),
+                data_explorer_url="https://data.imf.org/en/Data-Explorer?datasetUrn=IMF:CPI",
             )
-        ]
+        ],
+        candidate_datasets=[
+            CandidateDatasetRecord(
+                id="IMF:CPI(1.0.0)",
+                name="Consumer Price Index",
+                is_official=True,
+                query=QueryRecord(
+                    query_id="dq_0011223344", dataset_urn="IMF:CPI(1.0.0)", executed=False
+                ),
+            )
+        ],
     ),
 }
 

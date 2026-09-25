@@ -2,7 +2,6 @@ import asyncio
 from collections import defaultdict
 from typing import Any
 
-from dateutil.parser import ParserError, parse
 from fastmcp.exceptions import ToolError
 from fastmcp.tools import ToolResult
 from pydantic import PrivateAttr
@@ -13,7 +12,9 @@ from statgpt.app.chains.datasets_meta.availability_tool import (
     build_availability_payload,
     build_availability_query,
     unknown_dimension_ids,
+    unknown_dimension_values,
     unknown_dimensions_message,
+    unknown_values_message,
     valid_dimension_ids,
 )
 from statgpt.app.chains.datasets_meta.available_datasets_tool import AvailableDatasetsRunner
@@ -46,21 +47,6 @@ from .base import StatGptMcpTool
 # ~~~~~~~~~~~~~ structured content builders ~~~~~~~~~~~~~
 
 
-async def _dataset_last_updated(dataset: DataSet, auth_context: AuthContext) -> str | None:
-    """The dataset's last-updated date as an ISO 8601 date, from the source when known, otherwise
-    parsed from the citation's free-text value (the way the SDMX dataset resolves `updated_at`).
-    `None` when neither yields a date, so the field is never populated with unparsed text."""
-    if updated_at := await dataset.updated_at(auth_context):
-        return updated_at.date().isoformat()
-    citation = dataset.config.citation
-    if citation is None or not citation.last_updated:
-        return None
-    try:
-        return parse(citation.last_updated).date().isoformat()
-    except (ParserError, OverflowError):
-        return None
-
-
 async def datasets_to_structured_content(
     datasets: list[DataSet],
     auth_context: AuthContext,
@@ -70,7 +56,7 @@ async def datasets_to_structured_content(
     keyed by its stable URN (source id), the distinct providers with their dataset counts, and
     channel-wide totals."""
     last_updated = await asyncio.gather(
-        *(_dataset_last_updated(ds, auth_context) for ds in datasets)
+        *(dataset_utils.dataset_last_updated(ds, auth_context) for ds in datasets)
     )
 
     records: list[DatasetRecord] = []
@@ -124,7 +110,7 @@ async def dataset_structure_to_structured_content(
     return DatasetStructureStructuredContent(
         dataset_id=dataset.source_id,
         name=dataset.name,
-        last_updated=await _dataset_last_updated(dataset, auth_context),
+        last_updated=await dataset_utils.dataset_last_updated(dataset, auth_context),
         dimensions=[_component_record(dim) for dim in dataset.dimensions()],
         attributes=[_component_record(attr) for attr in dataset.attributes()],
     )
@@ -158,7 +144,6 @@ def availability_payload_to_structured_content(
         )
     return AvailabilityStructuredContent(
         dataset_id=payload.dataset_id,
-        found=True,
         dimensions=dimensions,
         time_coverage=time_coverage,
     )
@@ -279,9 +264,7 @@ class AvailabilityQueryMcpTool(
     async def _execute(self, args: AvailabilityQueryArgs) -> ToolResult:
         dataset = await dataset_utils.get_dataset_by_source_id(args.inputs, args.dataset_id)
         if dataset is None:
-            return self._structured_only(
-                AvailabilityStructuredContent(dataset_id=args.dataset_id, found=False)
-            )
+            raise _dataset_not_found_error(args.dataset_id, self._channel_config)
 
         valid_ids = valid_dimension_ids(dataset)
         unknown = unknown_dimension_ids(valid_ids, args.partial_query, args.include_dimensions)
@@ -289,6 +272,12 @@ class AvailabilityQueryMcpTool(
             # A caller error the model can fix: surface the helpful message as a ToolError rather
             # than a found result, so the invalid ids are not silently ignored.
             raise ToolError(unknown_dimensions_message(unknown, sorted(valid_ids)))
+
+        unknown_values = unknown_dimension_values(dataset, args.partial_query)
+        if unknown_values:
+            # Same rationale: an invalid code for a valid dimension is a fixable caller error, not a
+            # result that found nothing.
+            raise ToolError(unknown_values_message(unknown_values))
 
         query = build_availability_query(args.partial_query)
         result = await dataset.availability_query(query, self._auth_context)

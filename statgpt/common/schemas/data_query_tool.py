@@ -251,6 +251,23 @@ class DataQueryMcpResources(BaseYamlModel):
     )
 
 
+class DataQueryMcpStructuredContent(BaseYamlModel):
+    """Optional fields of the MCP data query `structuredContent`, each toggleable independently."""
+
+    executed_at: bool = Field(default=True, description="Report when the queries were executed.")
+    provider: bool = Field(default=True, description="Report each queried dataset's provider.")
+    dataset_url: bool = Field(default=True, description="Report each queried dataset's link.")
+    data_explorer_url: ExplorerLinkPolicy = Field(
+        default=ExplorerLinkPolicy.always,
+        description="When the MCP response carries each query's data explorer deep link.",
+    )
+    is_official: bool = Field(
+        default=False,
+        description="Report whether each dataset is official. Enable only for channels that mark"
+        " their official datasets.",
+    )
+
+
 class DataQueryMcpMeta(BaseYamlModel):
     """Audience-specific payloads the MCP data query result carries in `result._meta`.
 
@@ -311,12 +328,14 @@ class DataQueryMcpMeta(BaseYamlModel):
 
 
 class DataQueryExplorerLink(BaseYamlModel):
-    """When each surface of the data query response carries the data explorer deep link.
+    """When each surface of the Supreme Agent flow carries the data explorer deep link.
 
-    The three surfaces are configured separately because they have different audiences: the
-    stage is read by the user, who may well want to go and look at the source, while the tool
-    response is read by the model, which tends to copy any link it is given into its answer.
+    The surfaces are configured separately because they have different audiences: the stage is
+    read by the user, who may well want to go and look at the source, while the tool response is
+    read by the model, which tends to copy any link it is given into its answer.
     The defaults reproduce the behavior that predates this config - the link everywhere.
+
+    The MCP path is governed by `mcp_structured_content.data_explorer_url` instead.
     """
 
     stage: ExplorerLinkPolicy = Field(
@@ -327,14 +346,6 @@ class DataQueryExplorerLink(BaseYamlModel):
         default=ExplorerLinkPolicy.always,
         description="Policy for the tool response the Supreme Agent reads.",
     )
-    mcp: ExplorerLinkPolicy = Field(
-        default=ExplorerLinkPolicy.always,
-        description="Policy for the tool response returned to an MCP client.",
-    )
-
-    def for_source(self, source: InvocationSource) -> ExplorerLinkPolicy:
-        """The policy for the tool response, given the flow the call belongs to."""
-        return self.mcp if source is InvocationSource.MCP else self.agent
 
 
 class DataQueryLLMModels(BaseYamlModel):
@@ -599,6 +610,10 @@ class DataQueryDetails(BaseToolDetails):
     mcp_meta: DataQueryMcpMeta = Field(
         default_factory=DataQueryMcpMeta,
         description="Audience-specific payloads carried in the MCP result's `_meta`.",
+    )
+    mcp_structured_content: DataQueryMcpStructuredContent = Field(
+        default_factory=DataQueryMcpStructuredContent,
+        description="Optional fields of the MCP result's `structuredContent`.",
     )
     explorer_link: DataQueryExplorerLink = Field(
         default_factory=DataQueryExplorerLink,

@@ -9,6 +9,7 @@ from langchain_core.runnables import (
 )
 
 from statgpt.app.chains.data_query.parameters import DataQueryParameters
+from statgpt.app.chains.data_query.query_builder import mcp_details
 from statgpt.app.chains.data_query.query_builder import utils as query_utils
 from statgpt.app.chains.parameters import ChainParameters
 from statgpt.app.schemas.data_query_outcome import DataQueryStatus
@@ -151,6 +152,9 @@ class DimensionSearchChainFactory(DimensionSearchChainFactoryBase):
                 pass  # key not found in message, keep the original message
 
             inputs[DataQueryParameters.RESPONSE_FIELD] = message
+            inputs[DataQueryParameters.MCP_PAYLOAD] = mcp_details.updated_mcp_payload(
+                inputs, message=message
+            )
             inputs['skip_finalization'] = True
             target = ChainParameters.get_target(inputs)
             target.append_content(message)

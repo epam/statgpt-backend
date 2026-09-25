@@ -14,17 +14,23 @@ from statgpt.app.schemas.data_query_outcome import (
     DataQueryStatus,
     DataSetChoice,
     DimensionValueInfo,
+    InvalidPeriodInfo,
     MissingDimensionInfo,
     MissingDimensionsInfo,
+    QueryDetails,
 )
+from statgpt.app.schemas.mcp import ExecutionResult, InvalidityReason
 from statgpt.app.schemas.query import AppJsonQueryWithMetadata
 from statgpt.app.schemas.tool_artifact import DataQueryOutcome
+from statgpt.common.data.base import DataResponseStatus
 from statgpt.common.schemas.data_query_tool import (
     DataQueryMcpMeta,
     DataQueryMcpResources,
+    DataQueryMcpStructuredContent,
     McpResource,
     ToggleableConfig,
 )
+from statgpt.common.schemas.enums import DataParsingStatus, DataRequestStatus, ExplorerLinkPolicy
 from statgpt.common.schemas.query import (
     JsonComponentQuery,
     JsonQueryMetadata,
@@ -49,11 +55,17 @@ def _mcp_payload(
     constructed_queries: list | None = None,
     candidate_datasets: list | None = None,
     missing_dimensions: MissingDimensionsInfo | None = None,
+    query_details: dict[str, QueryDetails] | None = None,
+    message: str | None = None,
+    executed_at: str | None = None,
 ) -> DataQueryMcpPayload:
     return DataQueryMcpPayload(
         constructed_queries=constructed_queries or [],
         candidate_datasets=candidate_datasets or [],
         missing_dimensions=missing_dimensions,
+        query_details=query_details or {},
+        message=message,
+        executed_at=executed_at,
     )
 
 
@@ -103,6 +115,9 @@ def _response(
     time_period: tuple[str, str] | None = ("2020", "2024"),
     url_query: str | None = "https://explorer.example/query",
     series_count: int = 3,
+    request_status: DataRequestStatus = DataRequestStatus.SUCCESS,
+    parsing_status: DataParsingStatus = DataParsingStatus.SUCCESS,
+    reason: str | None = None,
 ) -> SimpleNamespace:
     return SimpleNamespace(
         resource_path=resource_path,
@@ -116,6 +131,9 @@ def _response(
         time_period=time_period,
         url_query=url_query,
         get_display_series_count=lambda: series_count,
+        status=DataResponseStatus(
+            request_status=request_status, parsing_status=parsing_status, reason=reason
+        ),
     )
 
 
@@ -394,9 +412,10 @@ def _tool_config(
     namespace: str = "statgpt.dialx.ai",
     csv: bool = True,
     markdown: bool = False,
+    **structured_content_fields: bool | ExplorerLinkPolicy,
 ) -> SimpleNamespace:
-    # The converter only reads `mcp_app_resource_uri` off the tool config, and `mcp_meta` /
-    # `mcp_resources` off its details.
+    # The converters only read `mcp_app_resource_uri` off the tool config, and `mcp_meta` /
+    # `mcp_resources` / `mcp_structured_content` off its details.
     return SimpleNamespace(
         mcp_app_resource_uri="ui://statgpt/data-widget.html" if mcp_app else None,
         details=SimpleNamespace(
@@ -407,7 +426,20 @@ def _tool_config(
                 csv=McpResource(enabled_str=str(csv)),
                 markdown_table=McpResource(enabled_str=str(markdown)),
             ),
+            mcp_structured_content=DataQueryMcpStructuredContent(**structured_content_fields),
         ),
+    )
+
+
+def _structured(outcome: DataQueryOutcome, **tool_config):
+    return data_query_outcome_to_structured_content(outcome, _tool_config(**tool_config))
+
+
+def _details(**fields) -> QueryDetails:
+    return QueryDetails(
+        dataset_urn=fields.pop("dataset_urn", "IMF:CPI(1.0.0)"),
+        dataset_name=fields.pop("dataset_name", "Consumer prices"),
+        **fields,
     )
 
 
@@ -428,13 +460,11 @@ def test_structured_content_data_available_describes_the_executed_query():
         state=_state(dimension_id_to_name={"ds1": {"REF_AREA": {"FR": "France"}}}),
     )
 
-    data = data_query_outcome_to_structured_content(outcome).model_dump(
-        by_alias=True, exclude_none=True
-    )
+    data = _structured(outcome).model_dump(by_alias=True, exclude_none=True)
 
-    # The status, the python code, the companion tools and the version are client-facing: `_meta`
-    # carries them.
-    assert set(data) == {"queries", "candidateDatasets"}
+    # The python code, the companion tools and the version are client-facing: `_meta` carries them.
+    assert set(data) == {"status", "queries", "candidateDatasets"}
+    assert data["status"] == DataQueryStatus.DATA_AVAILABLE
     assert len(data["queries"]) == 1
     query = data["queries"][0]
     assert query["datasetUrn"] == "IMF:CPI(1.0.0)"
@@ -442,7 +472,13 @@ def test_structured_content_data_available_describes_the_executed_query():
     assert query["executed"] is True
     assert query["queryId"].startswith("dq_")
     assert query["seriesCount"] == 3
-    assert query["requestedPeriod"] == {"startPeriod": "2020-01-01", "endPeriod": "2024-12-31"}
+    assert query["requestedPeriod"] == {
+        "startPeriod": "2020-01-01",
+        "endPeriod": "2024-12-31",
+        "isDefault": False,
+    }
+    assert query["execution"] == {"result": ExecutionResult.DATA_RECEIVED}
+    assert query["dataExplorerUrl"] == "https://explorer.example/query"
     assert query["factualPeriod"] == {"startPeriod": "2020", "endPeriod": "2024"}
     # The time period is reported once, as requestedPeriod - not as another filter.
     assert [f["dimensionId"] for f in query["filters"]] == ["REF_AREA"]
@@ -450,6 +486,8 @@ def test_structured_content_data_available_describes_the_executed_query():
     assert query["filters"][0]["operator"] == JsonQueryOperator.IN
     # The name of a value is reported when the pipeline resolved it, the id alone otherwise.
     assert query["filters"][0]["values"] == [{"id": "FR", "name": "France"}, {"id": "DE"}]
+    assert query["filters"][0]["isIndicator"] is False
+    assert query["filters"][0]["isDefault"] is False
 
 
 def test_structured_content_reports_the_query_id_the_resources_use():
@@ -459,7 +497,7 @@ def test_structured_content_reports_the_query_id_the_resources_use():
         {"ds1": _response("IMF:CPI(1.0.0)", df, json_query=_json_query("IMF:CPI(1.0.0)"))}
     )
 
-    query_id = data_query_outcome_to_structured_content(outcome).queries[0].query_id
+    query_id = _structured(outcome).queries[0].query_id
 
     assert str(_resources(outcome)[0].resource.uri).endswith(f"/{query_id}.csv")
 
@@ -473,7 +511,7 @@ def test_query_id_is_stable_for_the_same_query_on_the_same_date():
         outcome = _make_outcome(
             {"ds1": _response(urn, df, created_at=created_at, json_query=_json_query(urn))}
         )
-        return data_query_outcome_to_structured_content(outcome).queries[0].query_id
+        return _structured(outcome).queries[0].query_id
 
     assert query_id(_FIXED_TS) == query_id(same_day)
     # The same query a month (or a day) later may well return different data.
@@ -481,7 +519,7 @@ def test_query_id_is_stable_for_the_same_query_on_the_same_date():
     assert query_id(_FIXED_TS) != query_id(_FIXED_TS, urn="BIS:IR(2.1.0)")
 
 
-def test_structured_content_truncates_a_long_value_list():
+def test_structured_content_reports_a_long_value_list_in_full():
     values = [f"C{i:02d}" for i in range(25)]
     query = _json_query("IMF:CPI(1.0.0)")
     query.filters = [
@@ -491,22 +529,10 @@ def test_structured_content_truncates_a_long_value_list():
         {"ds1": _response("IMF:CPI(1.0.0)", pd.DataFrame({"x": [1]}), json_query=query)}
     )
 
-    reported = data_query_outcome_to_structured_content(outcome).queries[0].filters[0]
+    reported = _structured(outcome).queries[0].filters[0]
 
-    assert reported.total_values == 25
-    assert reported.returned_values == 10
-    assert [value.id for value in reported.values] == values[:10]
-
-
-def test_structured_content_omits_the_total_when_nothing_is_truncated():
-    df = pd.DataFrame({"x": [1]})
-    outcome = _make_outcome(
-        {"ds1": _response("IMF:CPI(1.0.0)", df, json_query=_json_query("IMF:CPI(1.0.0)"))}
-    )
-
-    assert (
-        data_query_outcome_to_structured_content(outcome).queries[0].filters[0].total_values is None
-    )
+    assert reported.value_count == 25
+    assert [value.id for value in reported.values] == values
 
 
 def test_structured_content_preserves_insertion_order():
@@ -518,7 +544,7 @@ def test_structured_content_preserves_insertion_order():
         }
     )
 
-    structured = data_query_outcome_to_structured_content(outcome)
+    structured = _structured(outcome)
 
     assert [q.dataset_urn for q in structured.queries] == ["IMF:CPI(1.0.0)", "BIS:IR(2.1.0)"]
 
@@ -532,7 +558,7 @@ def test_structured_content_skips_responses_without_query():
         }
     )
 
-    structured = data_query_outcome_to_structured_content(outcome)
+    structured = _structured(outcome)
 
     assert [q.dataset_urn for q in structured.queries] == ["IMF:OK(1.0.0)"]
 
@@ -548,7 +574,7 @@ def test_structured_content_executed_no_data_still_reports_the_queries():
         state=_state(DataQueryStatus.EXECUTED_NO_DATA),
     )
 
-    structured = data_query_outcome_to_structured_content(outcome)
+    structured = _structured(outcome)
 
     assert [q.dataset_urn for q in structured.queries] == ["IMF:CPI(1.0.0)"]
     assert structured.queries[0].executed is True
@@ -565,17 +591,17 @@ def test_structured_content_failed_reports_the_queries_that_errored():
         state=_state(DataQueryStatus.FAILED),
     )
 
-    structured = data_query_outcome_to_structured_content(outcome)
+    structured = _structured(outcome)
 
     assert [q.dataset_urn for q in structured.queries] == ["IMF:CPI(1.0.0)"]
 
 
 def test_structured_content_failed_without_responses_has_no_queries():
     # `failed` is also the default status, reached when the pipeline errored before executing
-    # anything - there is nothing to report, and the text block explains it.
+    # anything - there is nothing to report.
     outcome = _make_outcome({}, state=_state(DataQueryStatus.FAILED))
 
-    assert data_query_outcome_to_structured_content(outcome).queries == []
+    assert _structured(outcome).queries == []
 
 
 def test_structured_content_not_executed_flags_the_constructed_queries():
@@ -585,7 +611,7 @@ def test_structured_content_not_executed_flags_the_constructed_queries():
         mcp_payload=_mcp_payload(constructed_queries=[_app_query("IMF:CPI(1.0.0)")]),
     )
 
-    structured = data_query_outcome_to_structured_content(outcome)
+    structured = _structured(outcome)
 
     assert [q.dataset_urn for q in structured.queries] == ["IMF:CPI(1.0.0)"]
     assert structured.queries[0].executed is False
@@ -606,13 +632,58 @@ def test_structured_content_dataset_selection_carries_candidates():
         mcp_payload=_mcp_payload(candidate_datasets=candidates),
     )
 
-    data = data_query_outcome_to_structured_content(outcome).model_dump(by_alias=True)
+    data = _structured(outcome).model_dump(by_alias=True, exclude_none=True)
 
+    # The official mark is reported only for channels that enable it.
     assert data["candidateDatasets"] == [
-        {"id": "IMF:CPI", "name": "CPI", "isOfficial": True},
-        {"id": "BIS:IR", "name": "Rates", "isOfficial": False},
+        {"id": "IMF:CPI", "name": "CPI"},
+        {"id": "BIS:IR", "name": "Rates"},
     ]
     assert data["queries"] == []
+
+
+def test_structured_content_dataset_selection_carries_each_candidates_query():
+    candidates = [
+        DataSetChoice(id="IMF:CPI(1.0.0)", name="CPI", is_official=True),
+        DataSetChoice(id="BIS:IR(2.1.0)", name="Rates"),
+    ]
+    details = {
+        "ds1": _details(
+            json_query=_app_query("IMF:CPI(1.0.0)"),
+            summary="Consumer prices in France and Germany.",
+            is_official=True,
+            dimension_names={"REF_AREA": "Reference area"},
+        ),
+        "ds2": _details(
+            dataset_urn="BIS:IR(2.1.0)",
+            dataset_name="Rates",
+            json_query=_app_query("BIS:IR(2.1.0)"),
+        ),
+    }
+    outcome = _make_outcome(
+        {},
+        state=_state(
+            DataQueryStatus.DATASET_SELECTION_REQUIRED,
+            dimension_id_to_name={"ds1": {"REF_AREA": {"FR": "France"}}},
+        ),
+        mcp_payload=_mcp_payload(
+            candidate_datasets=candidates, query_details=details, message="Pick a dataset."
+        ),
+    )
+
+    structured = _structured(outcome, is_official=True)
+
+    assert structured.message == "Pick a dataset."
+    cpi, rates = structured.candidate_datasets
+    assert (cpi.is_official, rates.is_official) == (True, False)
+    assert cpi.query is not None and rates.query is not None
+    assert cpi.query.executed is False
+    assert cpi.query.is_official is True
+    assert cpi.query.query_summary == "Consumer prices in France and Germany."
+    assert cpi.query.dataset_name == "Consumer prices"
+    assert cpi.query.filters[0].dimension_name == "Reference area"
+    assert cpi.query.filters[0].values[0].name == "France"
+    assert rates.query.dataset_urn == "BIS:IR(2.1.0)"
 
 
 def test_structured_content_missing_dimensions_samples_the_values():
@@ -630,7 +701,7 @@ def test_structured_content_missing_dimensions_samples_the_values():
         mcp_payload=_mcp_payload(missing_dimensions=missing),
     )
 
-    reported = data_query_outcome_to_structured_content(outcome).missing_dimensions
+    reported = _structured(outcome).missing_dimensions
 
     assert reported is not None
     assert reported.dataset_urn == "IMF:NSDP(7.0.0)"
@@ -640,27 +711,241 @@ def test_structured_content_missing_dimensions_samples_the_values():
     assert [value.id for value in dimension.sample_values] == [f"C{i:02d}" for i in range(10)]
 
 
-def test_structured_content_no_data_is_empty():
-    # The text content block explains the outcome; there is no query to report.
-    outcome = _make_outcome({}, state=_state(DataQueryStatus.NO_DATA))
-
-    data = data_query_outcome_to_structured_content(outcome).model_dump(
-        by_alias=True, exclude_none=True
+def test_structured_content_no_data_carries_the_message_alone():
+    outcome = _make_outcome(
+        {},
+        state=_state(DataQueryStatus.NO_DATA),
+        mcp_payload=_mcp_payload(message="No relevant data found."),
     )
 
-    assert data == {"queries": [], "candidateDatasets": []}
+    data = _structured(outcome).model_dump(by_alias=True, exclude_none=True)
+
+    assert data == {
+        "status": DataQueryStatus.NO_DATA,
+        "message": "No relevant data found.",
+        "queries": [],
+        "candidateDatasets": [],
+    }
 
 
-def test_structured_content_invalid_time_period_is_empty():
-    # The rejected time period was never applied to the constructed queries, so reporting them
-    # would describe a query the user did not ask for.
+def test_structured_content_invalid_time_period_reports_why_the_period_was_rejected():
+    details = _details(
+        json_query=_app_query("IMF:CPI(1.0.0)"),
+        invalid_period=InvalidPeriodInfo(
+            rejected_bound="endPeriod",
+            requested_value="2030",
+            available_start="2000",
+            available_end="2024",
+        ),
+    )
     outcome = _make_outcome(
         {},
         state=_state(DataQueryStatus.INVALID_TIME_PERIOD),
-        mcp_payload=_mcp_payload(constructed_queries=[_app_query("IMF:CPI(1.0.0)")]),
+        mcp_payload=_mcp_payload(query_details={"ds1": details}, message="Adjust the period."),
     )
 
-    assert data_query_outcome_to_structured_content(outcome).queries == []
+    structured = _structured(outcome)
+
+    assert structured.message == "Adjust the period."
+    [query] = structured.queries
+    assert query.executed is False
+    # The rejected period was never applied, so the query carries the reason instead.
+    assert query.requested_period is None
+    assert query.invalidity is not None
+    assert query.invalidity.model_dump(by_alias=True, exclude_none=True) == {
+        "reason": "invalid_time_period",
+        "explanation": "The requested end period 2030 is before the first period the dataset has"
+        " data for (2000).",
+        "rejectedPeriod": {
+            "rejectedBound": "endPeriod",
+            "requestedValue": "2030",
+            "availablePeriod": {"startPeriod": "2000", "endPeriod": "2024"},
+        },
+    }
+
+
+def test_structured_content_invalid_time_period_reports_why_the_other_queries_cannot_run():
+    rejected = _details(
+        json_query=_app_query("IMF:CPI(1.0.0)"),
+        invalid_period=InvalidPeriodInfo(
+            rejected_bound="startPeriod", requested_value="2030", available_end="2024"
+        ),
+    )
+    incomplete = _details(
+        dataset_urn="BIS:IR(2.1.0)",
+        json_query=_app_query("BIS:IR(2.1.0)"),
+        missing_dimensions=MissingDimensionsInfo(
+            dataset_id="ds2",
+            dataset_urn="BIS:IR(2.1.0)",
+            dimensions=[
+                MissingDimensionInfo(
+                    dimension_id="TENOR",
+                    name="Tenor",
+                    available_values=[DimensionValueInfo(id="1Y", name="One year")],
+                )
+            ],
+        ),
+    )
+    outcome = _make_outcome(
+        {},
+        state=_state(DataQueryStatus.INVALID_TIME_PERIOD),
+        mcp_payload=_mcp_payload(query_details={"ds1": rejected, "ds2": incomplete}),
+    )
+
+    cpi, rates = _structured(outcome).queries
+
+    assert cpi.invalidity is not None
+    assert cpi.invalidity.reason is InvalidityReason.INVALID_TIME_PERIOD
+    assert cpi.invalidity.explanation == (
+        "The requested start period 2030 is after the last period the dataset has data for (2024)."
+    )
+    assert rates.invalidity is not None
+    assert rates.invalidity.reason is InvalidityReason.MISSING_DIMENSIONS
+    assert (
+        rates.invalidity.explanation == "The query does not specify the required dimensions: Tenor."
+    )
+    assert rates.invalidity.rejected_period is None
+    assert rates.invalidity.missing_dimensions is not None
+    [dimension] = rates.invalidity.missing_dimensions
+    assert (dimension.dimension_id, dimension.total_values) == ("TENOR", 1)
+
+
+def test_structured_content_reports_the_query_details():
+    query = _timed_query("IMF:CPI(1.0.0)", ["2020-01-01", "2024-12-31"])
+    query.metadata.dataset_url = "https://data.example/IMF:CPI"
+    query.filters.append(
+        JsonComponentQuery(component_code="INDICATOR", operator=JsonQueryOperator.IN, values=["X"])
+    )
+    details = _details(
+        summary="Consumer prices in France and Germany.",
+        last_updated="2026-09-01",
+        provider="IMF",
+        is_official=True,
+        default_dimension_ids=["REF_AREA"],
+        default_time_period=True,
+    )
+    outcome = _make_outcome(
+        {"ds1": _response("IMF:CPI(1.0.0)", pd.DataFrame({"x": [1]}), json_query=query)},
+        mcp_payload=_mcp_payload(
+            query_details={"ds1": details},
+            message="Mention the source.",
+            executed_at="2026-09-23T10:00:00+00:00",
+        ),
+    )
+
+    structured = _structured(outcome, is_official=True)
+
+    assert structured.message == "Mention the source."
+    assert structured.executed_at == "2026-09-23T10:00:00+00:00"
+    [record] = structured.queries
+    assert record.query_summary == "Consumer prices in France and Germany."
+    assert record.dataset_last_updated == "2026-09-01"
+    assert record.provider == "IMF"
+    assert record.is_official is True
+    assert record.dataset_url == "https://data.example/IMF:CPI"
+    assert record.requested_period is not None and record.requested_period.is_default is True
+    flags = {f.dimension_id: (f.is_indicator, f.is_default) for f in record.filters}
+    assert flags == {"REF_AREA": (False, True), "INDICATOR": (True, False)}
+
+
+def test_structured_content_omits_the_fields_the_config_disables():
+    query = _json_query("IMF:CPI(1.0.0)")
+    query.metadata.dataset_url = "https://data.example/IMF:CPI"
+    outcome = _make_outcome(
+        {"ds1": _response("IMF:CPI(1.0.0)", pd.DataFrame({"x": [1]}), json_query=query)},
+        mcp_payload=_mcp_payload(
+            query_details={"ds1": _details(provider="IMF", is_official=True)},
+            executed_at="2026-09-23T10:00:00+00:00",
+        ),
+    )
+
+    structured = _structured(
+        outcome,
+        executed_at=False,
+        provider=False,
+        dataset_url=False,
+        data_explorer_url=ExplorerLinkPolicy.never,
+    )
+
+    assert structured.executed_at is None
+    [record] = structured.queries
+    assert record.provider is None
+    assert record.dataset_url is None
+    assert record.data_explorer_url is None
+    # Off by default: a channel that does not mark official datasets must not advertise it.
+    assert record.is_official is None
+
+
+def test_structured_content_explorer_link_only_when_no_data():
+    df = pd.DataFrame({"x": [1]})
+    outcome = _make_outcome(
+        {
+            "ds1": _response("IMF:CPI(1.0.0)", df, json_query=_json_query("IMF:CPI(1.0.0)")),
+            "ds2": _response(
+                "BIS:IR(2.1.0)", pd.DataFrame(), json_query=_json_query("BIS:IR(2.1.0)")
+            ),
+        }
+    )
+
+    structured = _structured(outcome, data_explorer_url=ExplorerLinkPolicy.only_when_no_data)
+
+    assert [q.data_explorer_url for q in structured.queries] == [
+        None,
+        "https://explorer.example/query",
+    ]
+
+
+def _execution(mcp_app: bool = True, df: pd.DataFrame | None = None, **status):
+    frame = pd.DataFrame() if df is None else df
+    outcome = _make_outcome(
+        {
+            "ds1": _response(
+                "IMF:CPI(1.0.0)", frame, json_query=_json_query("IMF:CPI(1.0.0)"), **status
+            )
+        }
+    )
+    execution = _structured(outcome, mcp_app=mcp_app).queries[0].execution
+    assert execution is not None
+    return execution
+
+
+def test_execution_reports_a_failed_request_with_its_reason():
+    execution = _execution(request_status=DataRequestStatus.FAILED, reason="Timed out.")
+
+    assert execution.result is ExecutionResult.REQUEST_FAILED
+    assert execution.reason == "Timed out."
+    assert execution.advice is not None and "retry" in execution.advice
+
+
+def test_execution_reports_no_data():
+    execution = _execution()
+
+    assert execution.result is ExecutionResult.NO_DATA
+    assert execution.advice is not None and "time period" in execution.advice
+
+
+def test_execution_parsing_failure_points_to_the_widget_only_when_one_is_bound():
+    with_widget = _execution(parsing_status=DataParsingStatus.FAILED)
+    without_widget = _execution(mcp_app=False, parsing_status=DataParsingStatus.FAILED)
+
+    assert with_widget.result is without_widget.result is ExecutionResult.PARSING_FAILED
+    assert with_widget.advice is not None and "widget" in with_widget.advice
+    assert without_widget.advice is not None and "widget" not in without_widget.advice
+
+
+def test_execution_reports_data_that_was_only_partly_parsed():
+    with_widget = _execution(
+        df=pd.DataFrame({"x": [1]}), parsing_status=DataParsingStatus.PARTIALLY_FAILED
+    )
+    without_widget = _execution(
+        mcp_app=False,
+        df=pd.DataFrame({"x": [1]}),
+        parsing_status=DataParsingStatus.PARTIALLY_FAILED,
+    )
+
+    assert with_widget.result is without_widget.result is ExecutionResult.PARTIALLY_PARSED
+    assert with_widget.advice is not None and "widget" in with_widget.advice
+    assert without_widget.advice is not None and "widget" not in without_widget.advice
 
 
 # ~~~~~~~~~~~~~ `_meta`: what the clients read ~~~~~~~~~~~~~
@@ -821,7 +1106,7 @@ def test_client_meta_reports_the_same_query_id_as_the_structured_content():
     )
 
     meta = data_query_outcome_to_meta(outcome, _channel_config(), _tool_config())
-    structured = data_query_outcome_to_structured_content(outcome)
+    structured = _structured(outcome)
 
     assert meta is not None
     query_id = structured.queries[0].query_id

@@ -2,16 +2,22 @@ import json
 import logging
 import numbers
 from collections.abc import Iterable
+from dataclasses import dataclass
 from datetime import date, datetime
 from hashlib import blake2s
-from typing import Any
+from typing import Any, Self
 from urllib.parse import quote
 
 import pandas as pd
 from mcp.types import Annotations, EmbeddedResource, TextResourceContents
 from pydantic import AnyUrl
 
-from statgpt.app.schemas.data_query_outcome import DataQueryStatus, MissingDimensionsInfo
+from statgpt.app.schemas.data_query_outcome import (
+    DataQueryStatus,
+    InvalidPeriodInfo,
+    MissingDimensionsInfo,
+    QueryDetails,
+)
 from statgpt.app.schemas.mcp import (
     CandidateDatasetRecord,
     ClientQueryRecord,
@@ -19,20 +25,31 @@ from statgpt.app.schemas.mcp import (
     DataQueryMcpAppMeta,
     DataQueryStructuredContent,
     DataQueryToolsInfo,
+    ExecutionResult,
     FilterValue,
+    InvalidityReason,
+    InvalidPeriodRecord,
     McpAppQuery,
     MissingDimensionRecord,
     MissingDimensionsRecord,
     PeriodRange,
+    QueryExecution,
     QueryFilter,
+    QueryInvalidity,
     QueryRecord,
+    RequestedPeriod,
 )
 from statgpt.app.schemas.query import AppJsonQueryWithMetadata
 from statgpt.app.schemas.tool_artifact import DataQueryOutcome
 from statgpt.app.services.python_code_generator import generate_merged_python_code
 from statgpt.common.data.base import DataResponse
-from statgpt.common.schemas import ChannelConfig, DataQueryMcpResources
+from statgpt.common.schemas import (
+    ChannelConfig,
+    DataQueryMcpResources,
+    DataQueryMcpStructuredContent,
+)
 from statgpt.common.schemas import DataQueryTool as DataQueryToolConfig
+from statgpt.common.schemas.enums import DataParsingStatus, DataRequestStatus
 from statgpt.common.schemas.query import (
     JsonComponentQuery,
     JsonQuery,
@@ -56,9 +73,52 @@ _EXECUTED_STATUSES = frozenset(
 )
 _QUERY_ID_PREFIX = "dq_"
 _QUERY_ID_DIGEST_SIZE = 5
-# A dimension filtered on more values than this is reported as a count plus the first few values:
-# the full list belongs in the client payload, not in what the model reads.
-_MAX_FILTER_VALUES = 10
+# How many of a dimension's available values are sampled when reporting a missing dimension. The
+# source there is the codelist, which can hold thousands of values.
+_MAX_SAMPLE_VALUES = 10
+_PARTIALLY_PARSED_WIDGET_ADVICE = (
+    "The missing data is still visible to the user in the widget. Tell the user that you could"
+    " only see part of the data."
+)
+_PARTIALLY_PARSED_ADVICE = (
+    "Tell the user that the returned data is incomplete, since part of it could not be parsed."
+)
+_PARSING_FAILED_WIDGET_ADVICE = (
+    "While the data is not visible to you, the user will be able to see it in the widget. Tell"
+    " the user that you were not able to see the data due to parsing issues."
+)
+_PARSING_FAILED_ADVICE = (
+    "The data could not be read. Tell the user, and retry the query or look for the data in"
+    " another dataset."
+)
+_REQUEST_FAILED_ADVICE = (
+    "This looks like a temporary issue with the data source. You may want to retry the query, or"
+    " try again shortly."
+)
+_NO_DATA_ADVICE = (
+    "Most likely, the query is generally correct, but there is no data for the specified time"
+    " period. You may want to try selecting a different time period. Another option is to try to"
+    " find relevant data in other datasets or using other tools."
+)
+
+
+@dataclass(frozen=True)
+class _Reporting:
+    """What the tool config lets the structured content report."""
+
+    fields: DataQueryMcpStructuredContent
+    widget_bound: bool
+
+    @classmethod
+    def from_tool_config(cls, tool_config: DataQueryToolConfig) -> Self:
+        return cls(
+            fields=tool_config.details.mcp_structured_content,
+            widget_bound=tool_config.mcp_app_resource_uri is not None,
+        )
+
+    def official_mark(self, value: bool) -> bool | None:
+        """The official mark, when the channel reports it."""
+        return value if self.fields.is_official else None
 
 
 def data_query_outcome_to_resources(
@@ -275,54 +335,68 @@ def _format_cell(value: Any) -> str:
 
 def data_query_outcome_to_structured_content(
     outcome: DataQueryOutcome,
+    tool_config: DataQueryToolConfig,
 ) -> DataQueryStructuredContent:
     """Build the data query tool's MCP structured content from the pipeline outcome.
 
-    Written for the calling model: the queries the pipeline produced, or what a follow-up query
-    would need when it produced none. Per outcome:
+    Written for the calling model: the outcome, with the queries the pipeline produced, or what a
+    follow-up query would need when it produced none. Per outcome:
     - ``data_available`` / ``executed_no_data`` / ``failed``: the executed queries.
     - ``not_executed``: the constructed queries, flagged as unexecuted.
-    - ``dataset_selection_required``: the datasets to narrow the query to.
+    - ``invalid_time_period``: the constructed queries, each with why it cannot run.
+    - ``dataset_selection_required``: the datasets to narrow the query to, with their queries.
     - ``missing_dimensions``: the dimensions the query must still specify.
-    - ``invalid_time_period`` / ``no_data``: nothing - the text content block explains the outcome.
+    - ``no_data``: the message alone.
     """
+    reporting = _Reporting.from_tool_config(tool_config)
     status = outcome.state.status
     mcp_payload = outcome.mcp_payload
+    queries: list[QueryRecord] = []
+    candidate_datasets: list[CandidateDatasetRecord] = []
+    missing_dimensions: MissingDimensionsRecord | None = None
+    executed_at: str | None = None
 
     if status in _EXECUTED_STATUSES:
-        return DataQueryStructuredContent(queries=_executed_query_records(outcome))
+        queries = _executed_query_records(outcome, reporting)
+        if reporting.fields.executed_at:
+            executed_at = mcp_payload.executed_at
+    elif status is DataQueryStatus.NOT_EXECUTED:
+        queries = [
+            _query_record(
+                query_id=_query_id(query, None),
+                json_query=query,
+                executed=False,
+                reporting=reporting,
+                # Nothing ran, so there is no response to read the names off.
+                dimension_names={},
+                value_names={},
+            )
+            for query in mcp_payload.constructed_queries
+        ]
+    elif status is DataQueryStatus.INVALID_TIME_PERIOD:
+        value_names = outcome.state.dimension_id_to_name
+        queries = [
+            record
+            for dataset_id, details in mcp_payload.query_details.items()
+            if (
+                record := _constructed_query_record(details, value_names.get(dataset_id), reporting)
+            )
+        ]
+    elif status is DataQueryStatus.DATASET_SELECTION_REQUIRED:
+        candidate_datasets = _candidate_dataset_records(outcome, reporting)
+    elif (
+        status is DataQueryStatus.MISSING_DIMENSIONS and mcp_payload.missing_dimensions is not None
+    ):
+        missing_dimensions = _missing_dimensions_record(mcp_payload.missing_dimensions)
 
-    if status is DataQueryStatus.NOT_EXECUTED:
-        return DataQueryStructuredContent(
-            queries=[
-                _query_record(
-                    query_id=_query_id(query, None),
-                    json_query=query,
-                    executed=False,
-                    # Nothing ran, so there is no response to read the names off.
-                    dimension_names={},
-                    value_names={},
-                )
-                for query in mcp_payload.constructed_queries
-            ]
-        )
-
-    if status is DataQueryStatus.DATASET_SELECTION_REQUIRED:
-        return DataQueryStructuredContent(
-            candidate_datasets=[
-                CandidateDatasetRecord(
-                    id=candidate.id, name=candidate.name, is_official=candidate.is_official
-                )
-                for candidate in mcp_payload.candidate_datasets
-            ]
-        )
-
-    if status is DataQueryStatus.MISSING_DIMENSIONS and mcp_payload.missing_dimensions is not None:
-        return DataQueryStructuredContent(
-            missing_dimensions=_missing_dimensions_record(mcp_payload.missing_dimensions)
-        )
-
-    return DataQueryStructuredContent()
+    return DataQueryStructuredContent(
+        status=status,
+        message=mcp_payload.message,
+        executed_at=executed_at,
+        queries=queries,
+        candidate_datasets=candidate_datasets,
+        missing_dimensions=missing_dimensions,
+    )
 
 
 def data_query_outcome_to_meta(
@@ -358,7 +432,7 @@ def _mcp_app_meta(
     outcome: DataQueryOutcome, channel_config: ChannelConfig, message: str | None
 ) -> DataQueryMcpAppMeta:
     """The MCP-App payload: the SDMX query model the widget renders and edits, with the pipeline
-    status, the full value lists, the reproducible python code and the companion tool names."""
+    status, the reproducible python code and the companion tool names."""
     status = outcome.state.status
     mcp_payload = outcome.mcp_payload
     sdmx_query_app = channel_config.sdmx_query_app
@@ -439,7 +513,7 @@ def _client_meta(
     return DataQueryClientMeta(status=status, queries=queries)
 
 
-def _executed_query_records(outcome: DataQueryOutcome) -> list[QueryRecord]:
+def _executed_query_records(outcome: DataQueryOutcome, reporting: _Reporting) -> list[QueryRecord]:
     """One record per response that carries a query, in `data_responses` insertion order."""
     value_names = outcome.state.dimension_id_to_name
     records = []
@@ -448,19 +522,68 @@ def _executed_query_records(outcome: DataQueryOutcome) -> list[QueryRecord]:
         query_id = _response_query_id(response)
         if json_query is None or query_id is None:
             continue
+        details = outcome.mcp_payload.query_details.get(dataset_id)
+        dimension_names = details.dimension_names if details is not None else {}
         records.append(
             _query_record(
                 query_id=query_id,
                 json_query=json_query,
                 executed=True,
+                reporting=reporting,
+                details=details,
                 dataset_name=response.dataset_name,
-                dimension_names=response.component_names,
+                dimension_names={**dimension_names, **response.component_names},
                 value_names=value_names.get(dataset_id, {}),
                 factual_period=_factual_period(response),
                 series_count=_series_count(response),
+                execution=_execution(response, reporting.widget_bound),
+                data_explorer_url=(
+                    response.url_query
+                    if reporting.fields.data_explorer_url.includes_link(not response.is_empty)
+                    else None
+                ),
             )
         )
     return records
+
+
+def _constructed_query_record(
+    details: QueryDetails, value_names: dict[str, dict[str, str]] | None, reporting: _Reporting
+) -> QueryRecord | None:
+    """The record of a query that was constructed but did not run, or `None` without a query."""
+    if details.json_query is None:
+        return None
+    return _query_record(
+        query_id=_query_id(details.json_query, None),
+        json_query=details.json_query,
+        executed=False,
+        reporting=reporting,
+        details=details,
+        dataset_name=details.dataset_name,
+        dimension_names=details.dimension_names,
+        value_names=value_names or {},
+    )
+
+
+def _candidate_dataset_records(
+    outcome: DataQueryOutcome, reporting: _Reporting
+) -> list[CandidateDatasetRecord]:
+    """The datasets to narrow the query to, each with the query that would run against it."""
+    value_names = outcome.state.dimension_id_to_name
+    queries = {
+        details.dataset_urn: record
+        for dataset_id, details in outcome.mcp_payload.query_details.items()
+        if (record := _constructed_query_record(details, value_names.get(dataset_id), reporting))
+    }
+    return [
+        CandidateDatasetRecord(
+            id=candidate.id,
+            name=candidate.name,
+            is_official=reporting.official_mark(candidate.is_official),
+            query=queries.get(candidate.id),
+        )
+        for candidate in outcome.mcp_payload.candidate_datasets
+    ]
 
 
 def _query_record(
@@ -468,22 +591,34 @@ def _query_record(
     query_id: str,
     json_query: JsonQueryWithMetadata,
     executed: bool,
+    reporting: _Reporting,
     dimension_names: dict[str, str],
     value_names: dict[str, dict[str, str]],
+    details: QueryDetails | None = None,
     dataset_name: str | None = None,
     factual_period: PeriodRange | None = None,
     series_count: int | None = None,
+    execution: QueryExecution | None = None,
+    data_explorer_url: str | None = None,
 ) -> QueryRecord:
-    filters, requested_period = _split_filters(json_query, dimension_names, value_names)
+    filters, requested_period = _split_filters(json_query, dimension_names, value_names, details)
     return QueryRecord(
         query_id=query_id,
         dataset_urn=json_query.urn,
         dataset_name=dataset_name,
+        is_official=reporting.official_mark(details.is_official) if details is not None else None,
+        provider=details.provider if details is not None and reporting.fields.provider else None,
+        dataset_last_updated=details.last_updated if details is not None else None,
+        dataset_url=json_query.metadata.dataset_url if reporting.fields.dataset_url else None,
+        query_summary=details.summary if details is not None else None,
         executed=executed,
         filters=filters,
         requested_period=requested_period,
+        invalidity=_invalidity(details) if details is not None else None,
         factual_period=factual_period,
         series_count=series_count,
+        execution=execution,
+        data_explorer_url=data_explorer_url,
     )
 
 
@@ -491,52 +626,50 @@ def _split_filters(
     json_query: JsonQueryWithMetadata,
     dimension_names: dict[str, str],
     value_names: dict[str, dict[str, str]],
-) -> tuple[list[QueryFilter], PeriodRange | None]:
+    details: QueryDetails | None,
+) -> tuple[list[QueryFilter], RequestedPeriod | None]:
     """Split the query's components into the dimension filters and the time period.
 
     The time period is reported once, as `requestedPeriod`, instead of as another filter: it is
     the one component whose values are dates rather than codes.
     """
-    time_dimension = json_query.metadata.time_period_dimension
+    metadata = json_query.metadata
+    indicator_ids = set(metadata.indicator_dimensions or [])
+    default_ids = set(details.default_dimension_ids) if details is not None else set()
     filters: list[QueryFilter] = []
-    requested_period: PeriodRange | None = None
+    requested_period: RequestedPeriod | None = None
 
     for component in json_query.filters:
-        if component.component_code == time_dimension:
-            requested_period = _period_range(component)
+        code = component.component_code
+        if code == metadata.time_period_dimension:
+            requested_period = _period_range(
+                component, is_default=details is not None and details.default_time_period
+            )
             continue
-        values, total_values = _filter_values(
-            component, value_names.get(component.component_code, {})
-        )
         filters.append(
             QueryFilter(
-                dimension_id=component.component_code,
-                dimension_name=dimension_names.get(component.component_code),
+                dimension_id=code,
+                dimension_name=dimension_names.get(code),
                 operator=component.operator,
-                total_values=total_values,
-                values=values,
+                values=_filter_values(component, value_names.get(code, {})),
+                is_indicator=code in indicator_ids,
+                is_default=code in default_ids,
             )
         )
 
     return filters, requested_period
 
 
-def _filter_values(
-    component: JsonComponentQuery, names: dict[str, str]
-) -> tuple[list[FilterValue], int | None]:
-    """The component's values as records, truncated to `_MAX_FILTER_VALUES`.
+def _filter_values(component: JsonComponentQuery, names: dict[str, str]) -> list[FilterValue]:
+    """Every value the component filters on, as records.
 
-    The total is reported only when the list is truncated, so it does not restate `len(values)`.
+    The list is not truncated: it is what the query asked for, and the model cannot report on a
+    query whose filter it only sees part of.
     """
-    values = component.values
-    total_values = len(values) if len(values) > _MAX_FILTER_VALUES else None
-    records = [
-        FilterValue(id=value, name=names.get(value)) for value in values[:_MAX_FILTER_VALUES]
-    ]
-    return records, total_values
+    return [FilterValue(id=value, name=names.get(value)) for value in component.values]
 
 
-def _period_range(component: JsonComponentQuery) -> PeriodRange | None:
+def _period_range(component: JsonComponentQuery, is_default: bool) -> RequestedPeriod | None:
     """The time period the component selects, as a start/end pair."""
     values = component.values
     if not values:
@@ -544,13 +677,95 @@ def _period_range(component: JsonComponentQuery) -> PeriodRange | None:
     match component.operator:
         case JsonQueryOperator.BETWEEN:
             end = values[1] if len(values) > 1 else None
-            return PeriodRange(start_period=values[0], end_period=end)
+            return RequestedPeriod(start_period=values[0], end_period=end, is_default=is_default)
         case JsonQueryOperator.GE | JsonQueryOperator.GT:
-            return PeriodRange(start_period=values[0])
+            return RequestedPeriod(start_period=values[0], is_default=is_default)
         case JsonQueryOperator.LE | JsonQueryOperator.LT:
-            return PeriodRange(end_period=values[0])
+            return RequestedPeriod(end_period=values[0], is_default=is_default)
         case _:
-            return PeriodRange(start_period=values[0], end_period=values[-1])
+            return RequestedPeriod(
+                start_period=values[0], end_period=values[-1], is_default=is_default
+            )
+
+
+def _invalidity(details: QueryDetails) -> QueryInvalidity | None:
+    """Why the query cannot run, or `None` for a valid query."""
+    if (invalid_period := details.invalid_period) is not None:
+        return QueryInvalidity(
+            reason=InvalidityReason.INVALID_TIME_PERIOD,
+            explanation=_invalid_period_explanation(invalid_period),
+            rejected_period=InvalidPeriodRecord(
+                rejected_bound=invalid_period.rejected_bound,
+                requested_value=invalid_period.requested_value,
+                available_period=PeriodRange(
+                    start_period=invalid_period.available_start,
+                    end_period=invalid_period.available_end,
+                ),
+            ),
+        )
+    if details.missing_dimensions is not None:
+        dimensions = _missing_dimensions_record(details.missing_dimensions).dimensions
+        names = ", ".join(dimension.name for dimension in dimensions)
+        return QueryInvalidity(
+            reason=InvalidityReason.MISSING_DIMENSIONS,
+            explanation=(
+                f"The query does not specify the required dimensions: {names}."
+                if names
+                else "The query does not specify every required dimension."
+            ),
+            missing_dimensions=dimensions,
+        )
+    return None
+
+
+def _invalid_period_explanation(invalid_period: InvalidPeriodInfo) -> str:
+    value = invalid_period.requested_value
+    if invalid_period.rejected_bound == "startPeriod":
+        return (
+            f"The requested start period {value} is after the last period the dataset has data"
+            f" for ({invalid_period.available_end})."
+        )
+    return (
+        f"The requested end period {value} is before the first period the dataset has data for"
+        f" ({invalid_period.available_start})."
+    )
+
+
+def _execution(response: DataResponse, widget_bound: bool) -> QueryExecution:
+    """How the execution of the response's query went, with what the model should do about it.
+
+    The widget fetches the data itself, so the user may see data the model could not read.
+    """
+    status = response.status
+
+    if not response.is_empty:
+        if status.parsing_status is DataParsingStatus.PARTIALLY_FAILED:
+            return QueryExecution(
+                result=ExecutionResult.PARTIALLY_PARSED,
+                reason="Some of the data could not be parsed, so the returned data is incomplete.",
+                advice=(
+                    _PARTIALLY_PARSED_WIDGET_ADVICE if widget_bound else _PARTIALLY_PARSED_ADVICE
+                ),
+            )
+        return QueryExecution(result=ExecutionResult.DATA_RECEIVED)
+
+    if status.request_status is DataRequestStatus.FAILED:
+        return QueryExecution(
+            result=ExecutionResult.REQUEST_FAILED,
+            reason=status.reason or "The request to the data source failed.",
+            advice=_REQUEST_FAILED_ADVICE,
+        )
+    if status.parsing_status in (DataParsingStatus.FAILED, DataParsingStatus.PARTIALLY_FAILED):
+        return QueryExecution(
+            result=ExecutionResult.PARSING_FAILED,
+            reason="The query was executed, but parsing the response failed.",
+            advice=_PARSING_FAILED_WIDGET_ADVICE if widget_bound else _PARSING_FAILED_ADVICE,
+        )
+    return QueryExecution(
+        result=ExecutionResult.NO_DATA,
+        reason="A response was received, but it does not contain any data.",
+        advice=_NO_DATA_ADVICE,
+    )
 
 
 def _missing_dimensions_record(missing: MissingDimensionsInfo) -> MissingDimensionsRecord:
@@ -564,7 +779,7 @@ def _missing_dimensions_record(missing: MissingDimensionsInfo) -> MissingDimensi
                 total_values=len(dimension.available_values),
                 sample_values=[
                     FilterValue(id=value.id, name=value.name)
-                    for value in dimension.available_values[:_MAX_FILTER_VALUES]
+                    for value in dimension.available_values[:_MAX_SAMPLE_VALUES]
                 ],
             )
             for dimension in missing.dimensions
