@@ -97,6 +97,31 @@ async def test_term_definitions_omits_not_found_when_every_term_resolves():
     assert "notFound" not in tool_result.structured_content
 
 
+async def test_term_definitions_dedups_requested_terms():
+    inputs, _ = _inputs([_GDP])
+
+    tool_result = await _build(_definitions_config(), inputs).run(
+        {"terms": ["GDP", " gdp", "unknown", "Unknown "]}
+    )
+
+    # Spellings that resolve to the same glossary key count once; the first spelling is kept.
+    assert tool_result.structured_content == {
+        "definitions": [
+            {"term": "GDP", "definition": "Gross ...", "domain": "Economy", "source": "IMF"},
+        ],
+        "notFound": ["unknown"],
+    }
+
+
+async def test_term_definitions_limit_counts_unique_terms():
+    inputs, _ = _inputs([_GDP])
+
+    tool_result = await _build(_definitions_config(limit=1), inputs).run({"terms": ["GDP", "gdp"]})
+
+    assert tool_result.structured_content is not None
+    assert len(tool_result.structured_content["definitions"]) == 1
+
+
 async def test_term_definitions_over_limit_raises():
     # An over-limit request fetches nothing and must be retried with fewer terms, so it fails
     # rather than returning an empty result that would read as "none of these terms exist".
