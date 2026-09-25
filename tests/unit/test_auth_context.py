@@ -167,7 +167,8 @@ class TestUserAuthContext:
     @pytest.mark.asyncio
     async def test_roles_resolved_once_per_request(self, mock_request):
         """Repeat role checks reuse the first lookup: DIAL is queried once per auth context, even
-        across `get_roles`/`has_role` calls, so gated features don't fan out user-info round-trips."""
+        across `get_roles`/`has_role` calls, so gated features don't fan out user-info round-trips.
+        """
         mock_request.bearer_token = "token123"
         context = UserAuthContext(mock_request)
         async with _patch_dial_roles(["dr_access"]) as captured:
