@@ -12,7 +12,9 @@ from statgpt.app.chains.datasets_meta.availability_tool import (
     build_availability_payload,
     build_availability_query,
     unknown_dimension_ids,
+    unknown_dimension_values,
     unknown_dimensions_message,
+    unknown_values_message,
     valid_dimension_ids,
 )
 from statgpt.app.chains.datasets_meta.available_datasets_tool import AvailableDatasetsRunner
@@ -142,7 +144,6 @@ def availability_payload_to_structured_content(
         )
     return AvailabilityStructuredContent(
         dataset_id=payload.dataset_id,
-        found=True,
         dimensions=dimensions,
         time_coverage=time_coverage,
     )
@@ -263,9 +264,7 @@ class AvailabilityQueryMcpTool(
     async def _execute(self, args: AvailabilityQueryArgs) -> ToolResult:
         dataset = await dataset_utils.get_dataset_by_source_id(args.inputs, args.dataset_id)
         if dataset is None:
-            return self._structured_only(
-                AvailabilityStructuredContent(dataset_id=args.dataset_id, found=False)
-            )
+            raise _dataset_not_found_error(args.dataset_id, self._channel_config)
 
         valid_ids = valid_dimension_ids(dataset)
         unknown = unknown_dimension_ids(valid_ids, args.partial_query, args.include_dimensions)
@@ -273,6 +272,12 @@ class AvailabilityQueryMcpTool(
             # A caller error the model can fix: surface the helpful message as a ToolError rather
             # than a found result, so the invalid ids are not silently ignored.
             raise ToolError(unknown_dimensions_message(unknown, sorted(valid_ids)))
+
+        unknown_values = unknown_dimension_values(dataset, args.partial_query)
+        if unknown_values:
+            # Same rationale: an invalid code for a valid dimension is a fixable caller error, not a
+            # result that found nothing.
+            raise ToolError(unknown_values_message(unknown_values))
 
         query = build_availability_query(args.partial_query)
         result = await dataset.availability_query(query, self._auth_context)

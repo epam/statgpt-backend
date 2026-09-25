@@ -58,6 +58,15 @@ def unknown_dimensions_message(unknown: list[str], valid: list[str]) -> str:
     )
 
 
+def unknown_values_message(unknown: dict[str, list[str]]) -> str:
+    parts = "; ".join(f"'{dim_id}': {codes}" for dim_id, codes in unknown.items())
+    return (
+        f"Unknown code value(s) for dimension(s) {parts}. "
+        f"Only codes from a dimension's codelist are valid; look them up (e.g. from the dataset "
+        f"structure, or an availability query for that dimension) before filtering on them."
+    )
+
+
 class DimensionValue(BaseModel):
     id: str
     name: str | None = None
@@ -104,6 +113,24 @@ def unknown_dimension_ids(
     does not have, sorted for a stable message."""
     requested_ids = list(partial_query.keys()) + (include_dimensions or [])
     return sorted({dim_id for dim_id in requested_ids if dim_id not in valid_ids})
+
+
+def unknown_dimension_values(
+    dataset: DataSet, partial_query: dict[str, list[str]]
+) -> dict[str, list[str]]:
+    """The code values in the partial query that a categorical dimension's codelist does not contain,
+    keyed by dimension id and sorted for a stable message. Dimension ids must be validated first, so
+    every key is a real dimension; non-categorical dimensions are skipped, as their values are not
+    drawn from a codelist."""
+    unknown: dict[str, list[str]] = {}
+    for dim_id, codes in partial_query.items():
+        dimension = dataset.dimension(dim_id)
+        if not isinstance(dimension, CategoricalDimension):
+            continue
+        missing = sorted({code for code in codes if dimension.name_by_query_id(code) is None})
+        if missing:
+            unknown[dim_id] = missing
+    return unknown
 
 
 def build_availability_query(partial_query: dict[str, list[str]]) -> DataSetAvailabilityQuery:
@@ -209,6 +236,13 @@ class AvailabilityQueryTool(
         unknown = unknown_dimension_ids(valid_ids, partial_query, include_dimensions)
         if unknown:
             response = unknown_dimensions_message(unknown, sorted(valid_ids))
+            if target:
+                target.append_content(response)
+            return response, artifact
+
+        unknown_values = unknown_dimension_values(dataset, partial_query)
+        if unknown_values:
+            response = unknown_values_message(unknown_values)
             if target:
                 target.append_content(response)
             return response, artifact

@@ -210,6 +210,23 @@ async def test_unknown_dimension_id_yields_a_helpful_error():
     dataset.availability_query.assert_not_called()
 
 
+async def test_unknown_dimension_value_yields_a_helpful_error():
+    freq = _categorical_dimension("FREQ", "Frequency", {"A": "Annual"})
+    result = DataSetAvailabilityQuery()
+    dataset = _dataset([freq], result)
+
+    content, _ = await _tool()._arun(
+        inputs=_inputs(dataset),
+        dataset_id="IMF:CPI(1.0.0)",
+        partial_query={"FREQ": ["NA"]},
+    )
+
+    assert "Unknown code value" in content
+    assert "FREQ" in content
+    assert "NA" in content
+    dataset.availability_query.assert_not_called()
+
+
 async def test_missing_dataset_returns_a_not_found_message():
     content, artifact = await _tool()._arun(
         inputs=_inputs(None),
