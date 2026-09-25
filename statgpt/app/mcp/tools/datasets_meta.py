@@ -2,7 +2,6 @@ import asyncio
 from collections import defaultdict
 from typing import Any
 
-from dateutil.parser import ParserError, parse
 from fastmcp.exceptions import ToolError
 from fastmcp.tools import ToolResult
 from pydantic import PrivateAttr
@@ -48,21 +47,6 @@ from .base import StatGptMcpTool
 # ~~~~~~~~~~~~~ structured content builders ~~~~~~~~~~~~~
 
 
-async def _dataset_last_updated(dataset: DataSet, auth_context: AuthContext) -> str | None:
-    """The dataset's last-updated date as an ISO 8601 date, from the source when known, otherwise
-    parsed from the citation's free-text value (the way the SDMX dataset resolves `updated_at`).
-    `None` when neither yields a date, so the field is never populated with unparsed text."""
-    if updated_at := await dataset.updated_at(auth_context):
-        return updated_at.date().isoformat()
-    citation = dataset.config.citation
-    if citation is None or not citation.last_updated:
-        return None
-    try:
-        return parse(citation.last_updated).date().isoformat()
-    except (ParserError, OverflowError):
-        return None
-
-
 async def datasets_to_structured_content(
     datasets: list[DataSet],
     auth_context: AuthContext,
@@ -72,7 +56,7 @@ async def datasets_to_structured_content(
     keyed by its stable URN (source id), the distinct providers with their dataset counts, and
     channel-wide totals."""
     last_updated = await asyncio.gather(
-        *(_dataset_last_updated(ds, auth_context) for ds in datasets)
+        *(dataset_utils.dataset_last_updated(ds, auth_context) for ds in datasets)
     )
 
     records: list[DatasetRecord] = []
@@ -126,7 +110,7 @@ async def dataset_structure_to_structured_content(
     return DatasetStructureStructuredContent(
         dataset_id=dataset.source_id,
         name=dataset.name,
-        last_updated=await _dataset_last_updated(dataset, auth_context),
+        last_updated=await dataset_utils.dataset_last_updated(dataset, auth_context),
         dimensions=[_component_record(dim) for dim in dataset.dimensions()],
         attributes=[_component_record(attr) for attr in dataset.attributes()],
     )

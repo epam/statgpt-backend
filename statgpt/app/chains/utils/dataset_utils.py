@@ -2,6 +2,7 @@ from statgpt.app.chains.parameters import ChainParameters
 from statgpt.app.config import StateVarsConfig
 from statgpt.app.services.chat_facade import VersionedDataSet
 from statgpt.app.utils.dial_stages import optional_timed_stage
+from statgpt.common.auth.auth_context import AuthContext
 from statgpt.common.data.base import DataSet
 
 
@@ -29,3 +30,10 @@ async def get_dataset_by_source_id(inputs: dict, dataset_id: str) -> DataSet | N
     with optional_timed_stage(choice=choice, name=name, enabled=debug):
         dataset = await data_service.get_dataset_by_source_id(auth_context, dataset_id)
         return dataset
+
+
+async def dataset_last_updated(dataset: DataSet, auth_context: AuthContext) -> str | None:
+    """The dataset's last-updated date as an ISO 8601 date, or `None` when the dataset doesn't
+    resolve one."""
+    updated_at = await dataset.updated_at(auth_context)
+    return updated_at.date().isoformat() if updated_at else None

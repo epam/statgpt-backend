@@ -1,29 +1,34 @@
 from langchain_core.runnables import RunnablePassthrough
 
 from statgpt.app.chains.data_query.parameters import DataQueryParameters
+from statgpt.app.chains.data_query.query_builder import mcp_details
 from statgpt.app.chains.parameters import ChainParameters
+from statgpt.app.schemas.data_query_outcome import DataQueryMcpPayload
 from statgpt.app.schemas.query_builder import ChainState
 from statgpt.app.utils.formatters import DatasetQueryFormatter, DatasetQueryFormatterConfig
 from statgpt.common.schemas.data_query_tool import DataQueryMessages
 
 
 class InvalidSelectedTimePeriodChain:
-    _DEFAULT_MESSAGE: str = (
-        "## Result of query construction"
-        "\n\nThe created query contains data according to the selected filters,"
+    _DEFAULT_EXPLANATION: str = (
+        "The created query contains data according to the selected filters,"
         " but the values are only available for a different time period."
         " Please adjust the time period or modify the query."
+    )
+    _DEFAULT_MESSAGE: str = (
+        "## Result of query construction"
+        f"\n\n{_DEFAULT_EXPLANATION}"
         "\n\n## Constructed queries for datasets"
     )
 
     def __init__(self, messages: DataQueryMessages):
         self._messages = messages
 
+    def _configured_message(self, inputs: dict) -> str | None:
+        return self._messages.get_invalid_time_period(ChainParameters.get_invocation_source(inputs))
+
     def _get_message(self, inputs: dict) -> str:
-        configured = self._messages.get_invalid_time_period(
-            ChainParameters.get_invocation_source(inputs)
-        )
-        return configured or self._DEFAULT_MESSAGE
+        return self._configured_message(inputs) or self._DEFAULT_MESSAGE
 
     async def _get_response_content(self, inputs: dict) -> str:
         chain_state = ChainState.model_validate(inputs)
@@ -47,9 +52,19 @@ class InvalidSelectedTimePeriodChain:
         chain_state.target.append_content(result)
         return result
 
+    async def _get_mcp_payload(self, inputs: dict) -> DataQueryMcpPayload:
+        # The rejected period was never applied to the queries, so they are reported with the
+        # reason it was rejected.
+        return mcp_details.updated_mcp_payload(
+            inputs,
+            query_details=await mcp_details.query_details_for_mcp(inputs, include_query=True),
+            message=self._configured_message(inputs) or self._DEFAULT_EXPLANATION,
+        )
+
     def create_chain(self):
         return RunnablePassthrough.assign(
             **{
                 DataQueryParameters.RESPONSE_FIELD: self._get_response_content,
+                DataQueryParameters.MCP_PAYLOAD: self._get_mcp_payload,
             }
         )

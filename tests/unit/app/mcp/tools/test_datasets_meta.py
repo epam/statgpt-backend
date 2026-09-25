@@ -36,7 +36,6 @@ def _dataset(
     entity_id: str = "cpi",
     provider: str | None = "IMF",
     updated_at: datetime | None = None,
-    citation_last_updated: str | None = "2023-06-15",
     provider_agencies: list | None = None,
     dimensions: list | None = None,
     attributes: list | None = None,
@@ -47,7 +46,6 @@ def _dataset(
             provider=provider,
             provider_agency_names_with_fallback_to_provider=[provider],
             provider_agencies=provider_agencies,
-            last_updated=citation_last_updated,
         )
         if provider
         else None
@@ -124,7 +122,12 @@ def _datasets_inputs(datasets: list, indicator_counts: dict[str, int] | None = N
 
 
 async def test_available_datasets_is_structured_only():
-    inputs = _datasets_inputs([_dataset(), _dataset(source_id="WB:GDP(1.0)", provider=None)])
+    inputs = _datasets_inputs(
+        [
+            _dataset(updated_at=datetime(2023, 6, 15)),
+            _dataset(source_id="WB:GDP(1.0)", provider=None),
+        ]
+    )
     tool_config = AvailableDatasetsTool(
         name="datasets",
         description="Datasets.",
@@ -150,18 +153,6 @@ async def test_available_datasets_is_structured_only():
         "totalDatasets": 2,
         "totalAgencies": 1,
     }
-
-
-async def test_available_datasets_omits_an_unparsable_citation_date():
-    # `lastUpdated` is an ISO 8601 contract: free text that cannot be parsed into a date is
-    # dropped rather than passed through.
-    inputs = _datasets_inputs([_dataset(citation_last_updated="Quarterly, when ready")])
-    tool_config = AvailableDatasetsTool(name="datasets", description="Datasets.")
-
-    structured = (await _build(tool_config, inputs).run({})).structured_content
-
-    assert structured is not None
-    assert "lastUpdated" not in structured["datasets"][0]
 
 
 async def test_available_datasets_reports_indicator_counts_when_configured():

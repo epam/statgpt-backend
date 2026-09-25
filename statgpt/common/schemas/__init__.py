@@ -32,6 +32,7 @@ from .data_query_tool import (
     DataQueryExplorerLink,
     DataQueryMcpMeta,
     DataQueryMcpResources,
+    DataQueryMcpStructuredContent,
     HybridSearchConfig,
 )
 from .data_source import DataSource, DataSourceBase, DataSourceType, DataSourceUpdate, Provider
