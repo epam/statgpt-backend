@@ -131,6 +131,7 @@ class TermDefinitionsRunner:
         self._details = details
 
     async def run(self, inputs: dict, terms: list[str]) -> TermDefinitionsOutcome:
+        terms = self.dedup(terms)
         limit = self._details.limit
         if limit and len(terms) > limit:
             # Over-limit: nothing is fetched; the interfaces explain the reason in their text.
@@ -141,10 +142,22 @@ class TermDefinitionsRunner:
         return TermDefinitionsOutcome(lookups=self.lookup(terms, all_terms))
 
     @staticmethod
-    def lookup(terms: list[str], all_terms: list[schemas.GlossaryTerm]) -> list[TermLookup]:
+    def _normalize(term: str) -> str:
+        return term.strip().lower()
+
+    @classmethod
+    def dedup(cls, terms: list[str]) -> list[str]:
+        """Drops the terms that resolve to the same glossary key as an earlier one, keeping order."""
+        unique: dict[str, str] = {}
+        for term in terms:
+            unique.setdefault(cls._normalize(term), term)
+        return list(unique.values())
+
+    @classmethod
+    def lookup(cls, terms: list[str], all_terms: list[schemas.GlossaryTerm]) -> list[TermLookup]:
         all_terms_dict = {term.term.lower(): term for term in all_terms}
         return [
-            TermLookup(requested=term, found=all_terms_dict.get(term.strip().lower()))
+            TermLookup(requested=term, found=all_terms_dict.get(cls._normalize(term)))
             for term in terms
         ]
 
