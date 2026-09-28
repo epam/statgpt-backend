@@ -315,6 +315,8 @@ async def test_forced_start_buffers_clarification_and_surfaces_remainder(monkeyp
     assert len(session.turns) == 1
     assert session.turns[0].user_message == "US GDP"
     assert session.turns[0].deep_research_state == {"preparation": {"research_started": False}}
+    # A clarification turn must not flag report delivery, so the toggle stays armed.
+    assert StateVarsConfig.DEEP_RESEARCH_REPORT_DELIVERED not in state
 
 
 async def test_forced_start_answers_from_context_then_delivers_report(monkeypatch):
@@ -347,6 +349,8 @@ async def test_forced_start_answers_from_context_then_delivers_report(monkeypatc
     assert choice.appended == ["# Final report\nBody."]
     # Research complete -> the finished session is dropped from state.
     assert DeepResearchSession.from_state(state) is None
+    # ...and the delivery turn is flagged so the per-message toggle form schema disarms the toggle.
+    assert state[StateVarsConfig.DEEP_RESEARCH_REPORT_DELIVERED] is True
     # The agent's second call answered from context, not the raw user text.
     assert captured["messages"][-1][-1] == {
         "role": "user",
@@ -539,6 +543,8 @@ async def test_forced_start_error_is_surfaced_once_and_session_untouched(monkeyp
     assert content == DEEP_RESEARCH_ERROR_MESSAGE
     assert choice.appended == [DEEP_RESEARCH_ERROR_MESSAGE]
     assert DeepResearchSession.from_state(state) is None
+    # Delivery never happened, so the toggle is left as-is (armed) for retry.
+    assert StateVarsConfig.DEEP_RESEARCH_REPORT_DELIVERED not in state
 
 
 async def test_deep_research_exchange_is_persisted_to_cross_turn_tool_state(monkeypatch):
