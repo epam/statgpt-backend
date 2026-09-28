@@ -275,21 +275,48 @@ class LLMSelectionDimensionCandidate(LLMSelectionCandidateBase, ScoredDimensionC
     # TODO: can separate dedup-propagate logic from concrete dimensions formatting
 
     index: int
-    dedup_key: t.ClassVar[tuple[str, ...]] = ('dimension', 'name')
+    is_all_values: bool = Field(
+        default=False,
+        description="Whether the candidate is a virtual 'all values' (wildcard) dimension term",
+    )
+    is_all_countries: bool = Field(
+        default=False,
+        description="Whether the candidate is the 'all values' term of the dataset's country dimension",
+    )
+    dedup_key: t.ClassVar[tuple[str, ...]] = (
+        'dedup_dimension_key',
+        'is_all_countries',
+        'is_all_values',
+        'name_key',
+    )
 
     @property
     def _id(self) -> str:
         return str(self.index)
 
     def to_df_row_dict(self) -> dict:
+        dimension = self.dimension_alias_or_name.strip()
+        dimension_key = dimension.casefold()
+        name = self.name.strip()
         res = {
             'id': self._id.strip(),
             # TODO: experiment with passing concept name instead of dimension name
-            'dimension': self.dimension_alias_or_name.strip(),
+            'dimension': dimension,
             # NOTE: use 'system_code' to avoid LLM confusing with 'id'
             'system_code': self.query_id.strip(),
-            'name': self.name.strip(),
+            'name': name,
             'score': self.score,  # used to sort candidates
+            # NOTE: dimension aliases of different datasets may differ only by case.
+            'dimension_key': dimension_key,
+            # dedup fields.
+            # NOTE: 'all countries' terms mean the same in every dataset,
+            # whatever the alias of the country dimension, so we dedup them across dimensions.
+            'dedup_dimension_key': '' if self.is_all_countries else dimension_key,
+            'is_all_countries': self.is_all_countries,
+            'is_all_values': self.is_all_values,
+            # NOTE: 'all values' terms are labeled differently in each dataset config,
+            # but mean the same, so we dedup them by dimension only.
+            'name_key': '' if self.is_all_values else name,
         }
         return res
 
@@ -315,12 +342,17 @@ class LLMSelectionDimensionCandidate(LLMSelectionCandidateBase, ScoredDimensionC
         NOTE: we drop duplicates to make it easier for LLM to select ALL relevant items. later we'll propagate selection status to dropped duplicates.
         """
         df = cls._candidates_to_df(candidates)
+        # NOTE: the first duplicate is kept, so a merged 'all values' term
+        # is shown with the label, system code and dimension of the first dataset.
+        # it doesn't affect the queries: the selection is propagated to every duplicate,
+        # and each duplicate keeps the 'all values' term of its own dataset.
         df.drop_duplicates(cls.dedup_key, inplace=True)
         df.sort_values('score', ascending=False, inplace=True)
 
         lines = []
-        grouped = df.groupby('dimension', sort=False)
-        for ix, (dim_name, df_group) in enumerate(grouped):
+        grouped = df.groupby('dimension_key', sort=False)
+        for ix, (_, df_group) in enumerate(grouped):
+            dim_name = df_group['dimension'].iloc[0]
             lines.append(f'## dimension: "{dim_name}"\n')
             lines.append(cls._format_df(df_group))
             if ix < len(grouped) - 1:
