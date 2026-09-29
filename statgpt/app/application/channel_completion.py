@@ -20,7 +20,7 @@ from statgpt.app.schemas.dial_app_configuration import StatGPTConfiguration
 from statgpt.app.security import create_auth_context
 from statgpt.app.services.chat_facade import ChannelServiceFacade, build_deep_research_form_schema
 from statgpt.app.settings.dial_app import dial_app_settings
-from statgpt.app.utils.dial_exceptions import RateLimitException
+from statgpt.app.utils.dial_exceptions import ForbiddenDeploymentException, RateLimitException
 from statgpt.app.utils.dial_stages import optional_timed_stage
 from statgpt.app.utils.message_history import (
     CommandOnlyMessageError,
@@ -203,6 +203,10 @@ class ChannelCompletion(ChatCompletion):
                     _log.warning("openai.RateLimitError", exc_info=e)
                     state[StateVarsConfig.ERROR] = str(e)
                     dial_exception = RateLimitException.from_openai_error(e)
+                except openai.PermissionDeniedError as e:
+                    _log.warning("openai.PermissionDeniedError", exc_info=e)
+                    state[StateVarsConfig.ERROR] = str(e)
+                    dial_exception = ForbiddenDeploymentException.from_openai_error(e)
                 except openai.BadRequestError as e:
                     _log.exception("openai.BadRequestError")
                     if isinstance(error := e.body, dict) and error.get("code") == "content_filter":
