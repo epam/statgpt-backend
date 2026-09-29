@@ -230,6 +230,10 @@ class DeepResearchRunner:
                 # the session instead of recording this turn.
                 self._deliver_report(choice, content, dial_streamer.attachments)
                 self._drop_session(state)
+                # Flag this one turn so the per-message toggle form schema disarms the "Deep
+                # research" toggle; set only after delivery succeeds, so a failure mid-run leaves
+                # the toggle armed for retry.
+                state[StateVarsConfig.DEEP_RESEARCH_REPORT_DELIVERED] = True
                 return DeepResearchTurnResult(content=content, report_delivered=True)
 
             # Clarification / plan-for-approval: show it in the tool-result stage (like other tools)
