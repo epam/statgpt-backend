@@ -20,7 +20,7 @@ from langchain_core.runnables import Runnable, RunnablePassthrough
 from statgpt.app.chains.data_query.data_query_artifacts_displayer import DataQueryArtifactDisplayer
 from statgpt.app.chains.deep_research import ResumeDeepResearchTool, surface_deep_research_error
 from statgpt.app.chains.parameters import ChainParameters
-from statgpt.app.chains.tools import StatGptTool
+from statgpt.app.chains.tools import StatGptTool, ToolUpstreamError
 from statgpt.app.config import ChainParametersConfig, StateVarsConfig
 from statgpt.app.default_prompts import supreme_agent_default_prompts
 from statgpt.app.schemas import (
@@ -128,7 +128,13 @@ class ToolCaller:
                         content=f"{tool.tool_type} tool failed to execute. error: {repr(e)}",
                         tool_call_id=tool_call['id'],
                         artifact=FailedToolArtifact(
-                            state=FailedToolMessageState(type=tool.tool_type, error=repr(e))
+                            state=FailedToolMessageState(
+                                type=tool.tool_type,
+                                error=repr(e),
+                                display_message=(
+                                    str(e) if isinstance(e, ToolUpstreamError) else None
+                                ),
+                            )
                         ),
                         status=ToolResponseStatus.ERROR.value,
                     )
@@ -530,7 +536,9 @@ class SupremeAgentExecutor:
                     tool_msg = await tool_caller.call_tool(tool_call, inputs, show_stage=True)
                     history.add_tool_message(tool_msg)
                     if tool_msg.status == ToolResponseStatus.ERROR.value:
-                        return surface_deep_research_error(choice)
+                        return surface_deep_research_error(
+                            choice, self._error_display_message(tool_msg)
+                        )
                     if self._report_delivered(tool_msg):
                         # The tool streamed the final report to the user; end the turn without
                         # letting the agent repeat it.
@@ -559,6 +567,12 @@ class SupremeAgentExecutor:
         user), so the turn must end without the agent repeating it."""
         artifact = tool_msg.artifact
         return isinstance(artifact, DeepResearchArtifact) and artifact.state.report_delivered
+
+    @staticmethod
+    def _error_display_message(tool_msg: ToolMessage) -> str | None:
+        """The user-facing message a failed tool call carries, if any."""
+        artifact = tool_msg.artifact
+        return artifact.state.display_message if isinstance(artifact, FailedToolArtifact) else None
 
     async def create_chain(self) -> Runnable:
         return RunnablePassthrough.assign(general_response=self.stream_response)

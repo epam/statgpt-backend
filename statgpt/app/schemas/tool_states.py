@@ -17,6 +17,9 @@ class ToolMessageState(BaseModel):
 
 class FailedToolMessageState(ToolMessageState):
     error: str = Field(description="Error message from the tool")
+    display_message: str | None = Field(
+        default=None, description="User-facing error message, when the tool provided one"
+    )
 
 
 class DeepResearchToolMessageState(ToolMessageState):
