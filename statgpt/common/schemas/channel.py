@@ -297,7 +297,6 @@ class ConversationStarterConfig(BaseYamlModel):
 
 class ConversationStartersConfig(BaseYamlModel):
     intro_text: str | None = Field(
-        default=None,
         description=(
             "Optional text displayed to the user when the conversation starts. "
             "If unset, no intro text is shown."
