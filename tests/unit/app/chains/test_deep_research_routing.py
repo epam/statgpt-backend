@@ -19,15 +19,17 @@ import itertools
 import json
 from unittest.mock import AsyncMock, MagicMock
 
+import httpx
+import pytest
 from aidial_sdk.chat_completion import Message as DialMessage
 from aidial_sdk.chat_completion import Role
 from langchain_core.messages import AIMessageChunk
 from langchain_core.runnables import RunnableLambda
-from openai import OpenAIError
+from openai import APIError, OpenAIError
 from openai.types.chat import ChatCompletionChunk
 
 from statgpt.app.chains import supreme_agent as supreme_agent_module
-from statgpt.app.chains.deep_research import DEEP_RESEARCH_ERROR_MESSAGE
+from statgpt.app.chains.deep_research import DEEP_RESEARCH_ERROR_MESSAGE, DeepResearchFailedError
 from statgpt.app.chains.deep_research import deep_research_tool as deep_research_module
 from statgpt.app.chains.supreme_agent import SupremeAgentExecutor, _DeepResearchMode
 from statgpt.app.config import ChainParametersConfig, StateVarsConfig
@@ -545,6 +547,60 @@ async def test_forced_start_error_is_surfaced_once_and_session_untouched(monkeyp
     assert DeepResearchSession.from_state(state) is None
     # Delivery never happened, so the toggle is left as-is (armed) for retry.
     assert StateVarsConfig.DEEP_RESEARCH_REPORT_DELIVERED not in state
+
+
+_DR_REQUEST = httpx.Request("POST", "http://dial/openai/deployments/dr-app/chat/completions")
+_DR_DISPLAY_MESSAGE = (
+    "A required service is currently rate-limiting requests. Please try again later."
+    " (error reference: 016ab904)"
+)
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        # Mid-stream error: the SDK passes the error object itself as the body.
+        {"message": _DR_DISPLAY_MESSAGE, "display_message": _DR_DISPLAY_MESSAGE, "code": "500"},
+        # HTTP error response: DIAL nests the error object under `error`.
+        {"error": {"message": "internal", "display_message": _DR_DISPLAY_MESSAGE}},
+    ],
+)
+async def test_deployment_error_aborts_the_turn_with_its_display_message(monkeypatch, body):
+    """A deployment (OpenAI) error aborts the turn as `DeepResearchFailedError` carrying the
+    deployment's `display_message`, so it is delivered as a DIAL error, not as answer content, and
+    leaves no session so the user can retry."""
+    _patch_scripted_agent(monkeypatch, [_tool_call_chunk("deep_research", {"query": "q"})])
+    _patch_dr_deployment_raises(
+        monkeypatch, APIError(_DR_DISPLAY_MESSAGE, request=_DR_REQUEST, body=body)
+    )
+
+    choice = _RecordingChoice()
+    state = {StateVarsConfig.SHOW_DEBUG_STAGES: False}
+    with pytest.raises(DeepResearchFailedError) as exc_info:
+        await SupremeAgentExecutor(_channel_config()).stream_response(
+            _inputs(state, "research US GDP", choice=choice)
+        )
+
+    assert exc_info.value.display_message == _DR_DISPLAY_MESSAGE
+    assert choice.appended == []
+    assert DeepResearchSession.from_state(state) is None
+
+
+@pytest.mark.parametrize(
+    "body", [None, {"message": "internal"}, {"display_message": "   "}, {"error": "boom"}]
+)
+async def test_deployment_error_without_display_message_uses_standard_text(monkeypatch, body):
+    """Without a usable `display_message` the error carries the standard text; the internal
+    `message` is never surfaced."""
+    _patch_scripted_agent(monkeypatch, [_tool_call_chunk("deep_research", {"query": "q"})])
+    _patch_dr_deployment_raises(monkeypatch, APIError("internal", request=_DR_REQUEST, body=body))
+
+    with pytest.raises(DeepResearchFailedError) as exc_info:
+        await SupremeAgentExecutor(_channel_config()).stream_response(
+            _inputs({StateVarsConfig.SHOW_DEBUG_STAGES: False}, "research US GDP")
+        )
+
+    assert exc_info.value.display_message == DEEP_RESEARCH_ERROR_MESSAGE.strip()
 
 
 async def test_deep_research_exchange_is_persisted_to_cross_turn_tool_state(monkeypatch):
