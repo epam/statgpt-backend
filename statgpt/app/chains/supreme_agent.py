@@ -18,7 +18,11 @@ from langchain_core.prompts import (
 from langchain_core.runnables import Runnable, RunnablePassthrough
 
 from statgpt.app.chains.data_query.data_query_artifacts_displayer import DataQueryArtifactDisplayer
-from statgpt.app.chains.deep_research import ResumeDeepResearchTool, surface_deep_research_error
+from statgpt.app.chains.deep_research import (
+    DeepResearchFailedError,
+    ResumeDeepResearchTool,
+    surface_deep_research_error,
+)
 from statgpt.app.chains.parameters import ChainParameters
 from statgpt.app.chains.tools import StatGptTool
 from statgpt.app.config import ChainParametersConfig, StateVarsConfig
@@ -122,6 +126,9 @@ class ToolCaller:
                     )
                 try:
                     tool_msg: ToolMessage = await tool.ainvoke(tool_call)
+                except DeepResearchFailedError:
+                    # Aborts the turn: delivered as a DIAL error by `ChannelCompletion`.
+                    raise
                 except Exception as e:
                     logger.exception(f"Error calling tool {tool.name}:\n{e}")
                     return ToolMessage(

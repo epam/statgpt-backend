@@ -1,8 +1,10 @@
 import time
 from typing import Annotated, Any, NamedTuple, Self
 
+from openai import APIError
 from pydantic import Field
 
+from statgpt.app.chains.deep_research.errors import DeepResearchFailedError
 from statgpt.app.chains.parameters import ChainParameters
 from statgpt.app.chains.tools import GuardrailInput, StatGptTool, ToolArgs
 from statgpt.app.config import StateVarsConfig
@@ -54,6 +56,19 @@ class DeepResearchTurnResult(NamedTuple):
 
     content: str
     report_delivered: bool
+
+
+def _get_display_message(e: APIError) -> str | None:
+    """The user-facing `display_message` of a DIAL error, if present.
+
+    Mid-stream errors carry the error object as the body; HTTP error responses nest it under
+    ``error``. Only `display_message` is user-safe by DIAL contract, so `message` is never used."""
+    body = e.body if isinstance(e.body, dict) else {}
+    error = body.get('error', body)
+    display_message = error.get('display_message') if isinstance(error, dict) else None
+    if isinstance(display_message, str) and (display_message := display_message.strip()):
+        return display_message
+    return None
 
 
 def _build_deep_research_artifact(
@@ -172,9 +187,11 @@ class DeepResearchRunner:
         the user verbatim once research has started. Persist the session between clarifications and
         drop it once the report is delivered.
 
-        Request/stream failures are not surfaced here: they propagate so `ToolCaller.call_tool`
-        records the error in the tool state (an ERROR tool message) and the Supreme Agent surfaces
-        the standard failure message once. The session is left untouched so the user can retry."""
+        Deployment failures (`openai.APIError`) are raised as `DeepResearchFailedError`, which aborts
+        the turn and is delivered to the user as a DIAL error carrying the deployment's
+        `display_message`. Other failures propagate so `ToolCaller.call_tool` records them in the
+        tool state (an ERROR tool message) and the Supreme Agent surfaces the standard failure
+        message once. Either way the session is left untouched so the user can retry."""
         auth_context = ChainParameters.get_auth_context(inputs)
         choice = ChainParameters.get_choice(inputs)
         target = ChainParameters.get_target(inputs)
@@ -243,6 +260,10 @@ class DeepResearchRunner:
             self._append_turn(session, user_message, content, deep_research_state or {})
             self._save_session(state, session)
             return DeepResearchTurnResult(content=content, report_delivered=False)
+        except APIError as e:
+            # Deep Research reports failures with a curated, user-safe `display_message` (carrying
+            # its error reference); deliver it to the user as a DIAL error.
+            raise DeepResearchFailedError(_get_display_message(e)) from e
         finally:
             duration_s = time.monotonic() - time_start
             if (duration_manager := get_llm_call_duration_manager()) is not None:
