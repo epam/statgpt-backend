@@ -36,6 +36,13 @@ StatGPT can expose its tools via the [Model Context Protocol (MCP)](https://mode
 
 The MCP server is mounted at `/api/v1/{deployment_id}/mcp`. The `{deployment_id}` placeholder is resolved per request from the URL path and is used to look up the channel configuration.
 
+### Data Query Response
+
+The Data Query tool's result is split by reader: the text and resources in `content`, the queries the calling model reads in `structuredContent`, and one payload per client audience in `result._meta`.
+
+- [Data Query MCP response](MCP_DATA_QUERY_RESPONSE.md) — the contract, the `_meta` configuration, and an example of every pipeline status.
+- [Migrating from version 2 to version 3](MCP_DATA_QUERY_RESPONSE_MIGRATION.md) — where each version 2 field went.
+
 ### Tool Names and Descriptions
 
 By default, tools are exposed via MCP under the same names and descriptions the internal agent uses. The channel configuration can customize the MCP-facing values without affecting the chat flow:

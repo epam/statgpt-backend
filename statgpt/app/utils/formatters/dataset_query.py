@@ -93,16 +93,6 @@ class DatasetQueryFormatter(BaseFormatter):
             header += f' {dial_app_settings.official_dataset_label}'
         return header
 
-    def _include_explorer_link(self, has_data: bool) -> bool:
-        """Whether this response's explorer deep link should be rendered."""
-        match self._config.explorer_link:
-            case ExplorerLinkPolicy.always:
-                return True
-            case ExplorerLinkPolicy.only_when_no_data:
-                return not has_data
-            case ExplorerLinkPolicy.never:
-                return False
-
     def _format_execution_result(self, data_response: DataResponse) -> list[str]:
         """Format execution result section."""
         lines = []
@@ -141,7 +131,7 @@ class DatasetQueryFormatter(BaseFormatter):
                 f'💡 **{self._("Advice")}:** {self._("Most likely, the query is generally correct, but there is no data for the specified time period.")} {self._("You may want to try selecting a different time period.")} {self._("Another option is to try to find relevant data in other datasets or using other tools.")}'
             )
 
-        if data_response.url_query and self._include_explorer_link(has_data):
+        if data_response.url_query and self._config.explorer_link.includes_link(has_data):
             lines.append("")
             lines.append(f'[🔍 {self._("View data in explorer")}]({data_response.url_query})')
 

@@ -30,7 +30,9 @@ from .composite import ChannelDatasetUpdateResult, DataSetUpdateResponse
 from .data_query_tool import (
     DataQueryDetails,
     DataQueryExplorerLink,
+    DataQueryMcpMeta,
     DataQueryMcpResources,
+    DataQueryMcpStructuredContent,
     HybridSearchConfig,
 )
 from .data_source import DataSource, DataSourceBase, DataSourceType, DataSourceUpdate, Provider
@@ -64,6 +66,7 @@ from .discovery_document import (
 )
 from .discovery_indexing_job import DiscoveryIndexingJob
 from .enums import (
+    AttachmentsTarget,
     AuditActionType,
     AuditEntityType,
     AutoUpdateResult,
@@ -102,6 +105,7 @@ from .jobs import ClearJobsResult, Job
 from .model_config import EmbeddingsModelConfig, LLMModelConfig
 from .tool_details import FakeCall, ResumeStagesConfig, SdmxQueryAppDetails, StagesConfig
 from .tools import (
+    AvailabilityQueryTool,
     AvailableDatasetsTool,
     AvailablePublicationsTool,
     BaseToolConfig,

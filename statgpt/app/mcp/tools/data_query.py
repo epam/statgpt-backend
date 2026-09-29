@@ -8,9 +8,11 @@ from pydantic import PrivateAttr
 from statgpt.app.chains.data_query.data_query_tool import DataQueryArgs
 from statgpt.app.chains.data_query.runner import DataQueryRunner
 from statgpt.app.mcp.attachments import (
+    data_query_outcome_to_meta,
     data_query_outcome_to_resources,
     data_query_outcome_to_structured_content,
 )
+from statgpt.app.schemas.mcp import DataQueryStructuredContent
 from statgpt.common.auth.auth_context import AuthContext
 from statgpt.common.schemas import ChannelConfig
 from statgpt.common.schemas import DataQueryTool as DataQueryToolConfig
@@ -39,10 +41,19 @@ class DataQueryMcpTool(
     def get_args_schema(cls, tool_config: DataQueryToolConfig) -> type[DataQueryArgs]:
         return DataQueryArgs
 
+    @classmethod
+    def get_output_model(cls) -> type[DataQueryStructuredContent]:
+        return DataQueryStructuredContent
+
     async def _execute(self, args: DataQueryArgs) -> ToolResult:
         outcome = await self._runner.run(args.inputs, args.query)
 
-        content = self._text_content(outcome.response)
+        # The model reads the structured content, also sent as its JSON text; the clients read
+        # `_meta`, one payload per audience.
+        result = self._structured_only(
+            data_query_outcome_to_structured_content(outcome, self._tool_config)
+        )
+        content = list(result.content)
         # The CSV and Markdown conversions are CPU-bound and can block on large dataframes;
         # offload them to a worker thread.
         content.extend(
@@ -52,11 +63,13 @@ class DataQueryMcpTool(
                 self._tool_config.details.mcp_resources,
             )
         )
-        structured_content = data_query_outcome_to_structured_content(
-            outcome, self._channel_config, message=outcome.response or None
+        meta = data_query_outcome_to_meta(
+            outcome,
+            self._channel_config,
+            self._tool_config,
+            message=outcome.response or None,
         )
-        # A content block of its own rather than a suffix on the response, which is also
-        # reported as `message` for a client to parse.
+        # A content block of its own: it comes from a lookup beside the query, not from its result.
         if discovery_block := outcome.discovery_block:
             content.append(TextContent(type="text", text=discovery_block))
-        return ToolResult(content=content, structured_content=structured_content)
+        return ToolResult(content=content, structured_content=result.structured_content, meta=meta)

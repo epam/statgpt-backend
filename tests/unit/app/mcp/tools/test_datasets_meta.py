@@ -1,14 +1,28 @@
+import json
 from datetime import datetime, timezone
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
+import pytest
+from fastmcp.exceptions import ToolError
+
 from statgpt.app.config import ChainParametersConfig
 from statgpt.app.mcp.tools import StatGptMcpTool
-from statgpt.common.data.base import Attribute, CategoricalDimension
-from statgpt.common.data.base.enums import AttributeType, DimensionDataType
+from statgpt.common.data.base import (
+    Attribute,
+    CategoricalDimension,
+    DataSetAvailabilityQuery,
+    Query,
+)
+from statgpt.common.data.base.enums import AttributeType, DimensionDataType, QueryOperator
+from statgpt.common.schemas.availability_query_tool import AvailabilityQueryToolDetails
 from statgpt.common.schemas.dataset_structure_tool import DatasetStructureToolDetails
 from statgpt.common.schemas.tool_details import AvailableDatasetsDetails
-from statgpt.common.schemas.tools import AvailableDatasetsTool, DatasetStructureTool
+from statgpt.common.schemas.tools import (
+    AvailabilityQueryTool,
+    AvailableDatasetsTool,
+    DatasetStructureTool,
+)
 
 _AUTH = SimpleNamespace()
 _AGENCIES = [
@@ -22,7 +36,6 @@ def _dataset(
     entity_id: str = "cpi",
     provider: str | None = "IMF",
     updated_at: datetime | None = None,
-    citation_last_updated: str | None = "2023-06-15",
     provider_agencies: list | None = None,
     dimensions: list | None = None,
     attributes: list | None = None,
@@ -33,7 +46,6 @@ def _dataset(
             provider=provider,
             provider_agency_names_with_fallback_to_provider=[provider],
             provider_agencies=provider_agencies,
-            last_updated=citation_last_updated,
         )
         if provider
         else None
@@ -73,12 +85,20 @@ def _attribute() -> MagicMock:
     return attr
 
 
-def _build(tool_config, inputs: dict) -> StatGptMcpTool:
+def _build(
+    tool_config,
+    inputs: dict,
+    available_datasets: AvailableDatasetsTool | None = None,
+    tool_name_prefix: str = "",
+) -> StatGptMcpTool:
     return StatGptMcpTool.from_config(
         tool_config,
         # out_of_scope=None disables the guardrail, so run() proceeds straight to the tool.
         SimpleNamespace(  # type: ignore[arg-type]
-            mcp=SimpleNamespace(tool_name_prefix=""), out_of_scope=None, locale="en"
+            mcp=SimpleNamespace(tool_name_prefix=tool_name_prefix),
+            out_of_scope=None,
+            locale="en",
+            available_datasets=available_datasets,
         ),
         inputs=inputs,
         auth_context=_AUTH,  # type: ignore[arg-type]
@@ -102,7 +122,12 @@ def _datasets_inputs(datasets: list, indicator_counts: dict[str, int] | None = N
 
 
 async def test_available_datasets_is_structured_only():
-    inputs = _datasets_inputs([_dataset(), _dataset(source_id="WB:GDP(1.0)", provider=None)])
+    inputs = _datasets_inputs(
+        [
+            _dataset(updated_at=datetime(2023, 6, 15)),
+            _dataset(source_id="WB:GDP(1.0)", provider=None),
+        ]
+    )
     tool_config = AvailableDatasetsTool(
         name="datasets",
         description="Datasets.",
@@ -111,8 +136,8 @@ async def test_available_datasets_is_structured_only():
 
     tool_result = await _build(tool_config, inputs).run({})
 
-    # No text block: the complete result lives in structured content, with nulls omitted.
-    assert tool_result.content == []
+    # The text block repeats the structured content, which omits the null fields.
+    assert json.loads(tool_result.content[0].text) == tool_result.structured_content
     assert tool_result.structured_content == {
         "providers": [{"name": "IMF", "datasetCount": 1}],
         "datasets": [
@@ -128,18 +153,6 @@ async def test_available_datasets_is_structured_only():
         "totalDatasets": 2,
         "totalAgencies": 1,
     }
-
-
-async def test_available_datasets_omits_an_unparsable_citation_date():
-    # `lastUpdated` is an ISO 8601 contract: free text that cannot be parsed into a date is
-    # dropped rather than passed through.
-    inputs = _datasets_inputs([_dataset(citation_last_updated="Quarterly, when ready")])
-    tool_config = AvailableDatasetsTool(name="datasets", description="Datasets.")
-
-    structured = (await _build(tool_config, inputs).run({})).structured_content
-
-    assert structured is not None
-    assert "lastUpdated" not in structured["datasets"][0]
 
 
 async def test_available_datasets_reports_indicator_counts_when_configured():
@@ -170,20 +183,36 @@ def _structure_inputs(dataset) -> dict:
     }
 
 
-async def test_dataset_structure_not_found():
+async def test_dataset_structure_not_found_is_an_error_naming_the_datasets_tool():
+    # An unknown id is a tool error, not a payload the model has to interpret. The hint names the
+    # available-datasets tool as MCP exposes it, prefix included.
+    tool_config = DatasetStructureTool(name="structure", description="Structure.")
+    available_datasets = AvailableDatasetsTool(name="datasets", description="Datasets.")
+
+    tool = _build(
+        tool_config,
+        _structure_inputs(None),
+        available_datasets=available_datasets,
+        tool_name_prefix="statgpt__",
+    )
+    with pytest.raises(ToolError) as exc_info:
+        await tool.run({"dataset_id": "IMF:NOPE(1.0)"})
+
+    message = str(exc_info.value)
+    assert "IMF:NOPE(1.0)" in message
+    assert "statgpt__datasets" in message
+
+
+async def test_dataset_structure_not_found_falls_back_to_the_urn_format():
+    # Without an available-datasets tool on the channel there is nothing to point at, so the hint
+    # states the expected id format instead.
     tool_config = DatasetStructureTool(name="structure", description="Structure.")
 
-    tool_result = await _build(tool_config, _structure_inputs(None)).run(
-        {"dataset_id": "IMF:NOPE(1.0)"}
-    )
+    tool = _build(tool_config, _structure_inputs(None))
+    with pytest.raises(ToolError) as exc_info:
+        await tool.run({"dataset_id": "IMF:NOPE(1.0)"})
 
-    assert tool_result.content == []
-    assert tool_result.structured_content == {
-        "datasetId": "IMF:NOPE(1.0)",
-        "found": False,
-        "dimensions": [],
-        "attributes": [],
-    }
+    assert "agency_id:resource_id(version)" in str(exc_info.value)
 
 
 async def test_dataset_structure_found_uses_the_source_update_date():
@@ -194,33 +223,20 @@ async def test_dataset_structure_found_uses_the_source_update_date():
         {"dataset_id": "IMF:CPI(1.0.0)"}
     )
 
-    assert tool_result.content == []
+    assert json.loads(tool_result.content[0].text) == tool_result.structured_content
     assert tool_result.structured_content == {
         "datasetId": "IMF:CPI(1.0.0)",
-        "found": True,
         "name": "Consumer Price Index",
-        "description": "Prices.",
-        "provider": "IMF",
         "lastUpdated": "2024-01-31",
         "dimensions": [],
         "attributes": [],
     }
 
 
-async def test_dataset_structure_hides_provider_agencies_by_default():
-    # Mirrors the text rendering: `include_provider_agencies` defaults to False.
-    tool_config = DatasetStructureTool(name="structure", description="Structure.")
-    dataset = _dataset(provider_agencies=_AGENCIES)
-
-    structured = (
-        await _build(tool_config, _structure_inputs(dataset)).run({"dataset_id": "IMF:CPI(1.0.0)"})
-    ).structured_content
-
-    assert structured is not None
-    assert "providerAgencies" not in structured
-
-
-async def test_dataset_structure_exposes_provider_agencies_when_configured():
+async def test_dataset_structure_omits_provenance():
+    # Provenance belongs to the available-datasets response; the structure response carries the
+    # dataset's identity and its components only, whatever the text rendering is configured to
+    # include.
     tool_config = DatasetStructureTool(
         name="structure",
         description="Structure.",
@@ -233,10 +249,7 @@ async def test_dataset_structure_exposes_provider_agencies_when_configured():
     ).structured_content
 
     assert structured is not None
-    assert structured["providerAgencies"] == [
-        {"id": "IMF", "name": "Intl Monetary Fund"},
-        {"id": "WB", "name": "World Bank"},
-    ]
+    assert not {"description", "provider", "url", "providerAgencies"} & structured.keys()
 
 
 async def test_dataset_structure_lists_every_value_of_a_small_dimension():
@@ -259,6 +272,7 @@ async def test_dataset_structure_lists_every_value_of_a_small_dimension():
                 {"id": "C1", "name": "Country 1"},
                 {"id": "C2", "name": "Country 2"},
             ],
+            "sampleValuesCount": 3,
         }
     ]
     assert structured["attributes"] == [
@@ -284,7 +298,197 @@ async def test_dataset_structure_samples_a_large_dimension_like_the_text_renderi
     assert structured is not None
     (dimension,) = structured["dimensions"]
     assert dimension["totalValues"] == 25
+    assert dimension["sampleValuesCount"] == 10
     sample_ids = [value["id"] for value in dimension["sampleValues"]]
     assert len(sample_ids) == 10
     assert len(set(sample_ids)) == 10
     assert set(sample_ids) <= {f"C{i}" for i in range(25)}
+
+
+# ~~~~~~~~~~~~~ availability query ~~~~~~~~~~~~~
+
+
+def _availability_dimension(entity_id: str, name: str, names_by_id: dict[str, str]) -> MagicMock:
+    # A spec'd mock passes the `isinstance(..., CategoricalDimension)` check the builder relies on.
+    dim = MagicMock(spec=CategoricalDimension)
+    dim.entity_id = entity_id
+    dim.name = name
+    dim.name_by_query_id.side_effect = lambda code: names_by_id.get(code)
+    return dim
+
+
+def _availability_dataset(
+    dimensions: list, availability_result: DataSetAvailabilityQuery, time_dimension=None
+) -> SimpleNamespace:
+    dims_by_id = {d.entity_id: d for d in dimensions}
+    return SimpleNamespace(
+        source_id="IMF:CPI(1.0.0)",
+        dimensions=lambda: dimensions,
+        dimension=lambda dim_id: dims_by_id[dim_id],
+        get_time_dimension=lambda: time_dimension,
+        availability_query=AsyncMock(return_value=availability_result),
+    )
+
+
+def _availability_inputs(dataset) -> dict:
+    data_service = SimpleNamespace(get_dataset_by_source_id=AsyncMock(return_value=dataset))
+    return {
+        ChainParametersConfig.DATA_SERVICE: data_service,
+        ChainParametersConfig.AUTH_CONTEXT: _AUTH,
+        ChainParametersConfig.CHOICE: None,
+        ChainParametersConfig.STATE: {},
+    }
+
+
+def _availability_tool_config(hard_limit: int = 500) -> AvailabilityQueryTool:
+    return AvailabilityQueryTool(
+        name="availability",
+        description="Availability.",
+        details=AvailabilityQueryToolDetails(hard_limit=hard_limit),
+    )
+
+
+async def test_availability_query_is_structured_only():
+    country = _availability_dimension(
+        "COUNTRY", "Reference area", {"USA": "United States", "GBR": "United Kingdom"}
+    )
+    freq = _availability_dimension("FREQ", "Frequency", {"A": "Annual"})
+    series = _availability_dimension("SERIES", "Series", {"51401": "Series 51401"})
+    result = DataSetAvailabilityQuery(
+        dimensions_queries_dict={
+            "COUNTRY": Query(values=["USA", "GBR"], operator=QueryOperator.IN),
+            "FREQ": Query(values=["A"], operator=QueryOperator.IN),
+        }
+    )
+    dataset = _availability_dataset([series, country, freq], result)
+
+    tool_result = await _build(_availability_tool_config(), _availability_inputs(dataset)).run(
+        {
+            "dataset_id": "IMF:CPI(1.0.0)",
+            "partial_query": {"SERIES": ["51401"]},
+            "codes_per_dimension": None,
+            "include_dimensions": ["COUNTRY"],
+        }
+    )
+
+    # The text block repeats the structured content, which omits the null fields.
+    assert json.loads(tool_result.content[0].text) == tool_result.structured_content
+    assert tool_result.structured_content == {
+        "datasetId": "IMF:CPI(1.0.0)",
+        # include_dimensions restricts the result to COUNTRY only.
+        "dimensions": [
+            {
+                "id": "COUNTRY",
+                "name": "Reference area",
+                "totalAvailable": 2,
+                "returned": 2,
+                "truncated": False,
+                "values": [
+                    {"id": "USA", "name": "United States"},
+                    {"id": "GBR", "name": "United Kingdom"},
+                ],
+            }
+        ],
+    }
+
+    # The partial key is forwarded as an IN query to the dataset.
+    forwarded_query = dataset.availability_query.call_args.args[0]
+    assert forwarded_query.dimensions_queries_dict["SERIES"].values == ["51401"]
+    assert forwarded_query.dimensions_queries_dict["SERIES"].operator == QueryOperator.IN
+
+
+async def test_availability_query_truncates_and_reports_the_total():
+    codes = [f"C{i}" for i in range(5)]
+    country = _availability_dimension(
+        "COUNTRY", "Reference area", {c: f"Country {c}" for c in codes}
+    )
+    result = DataSetAvailabilityQuery(
+        dimensions_queries_dict={"COUNTRY": Query(values=codes, operator=QueryOperator.IN)}
+    )
+    dataset = _availability_dataset([country], result)
+
+    structured = (
+        await _build(_availability_tool_config(), _availability_inputs(dataset)).run(
+            {"dataset_id": "IMF:CPI(1.0.0)", "partial_query": {}, "codes_per_dimension": 2}
+        )
+    ).structured_content
+
+    assert structured is not None
+    (dimension,) = structured["dimensions"]
+    assert dimension["totalAvailable"] == 5
+    assert dimension["returned"] == 2
+    assert dimension["truncated"] is True
+    assert [value["id"] for value in dimension["values"]] == ["C0", "C1"]
+
+
+async def test_availability_query_surfaces_time_coverage():
+    country = _availability_dimension("COUNTRY", "Reference area", {"USA": "United States"})
+    time_dimension = SimpleNamespace(entity_id="TIME_PERIOD", name="Time period")
+    result = DataSetAvailabilityQuery(
+        dimensions_queries_dict={"COUNTRY": Query(values=["USA"], operator=QueryOperator.IN)},
+        time_period_start="2000",
+        time_period_end="2024",
+    )
+    dataset = _availability_dataset([country], result, time_dimension=time_dimension)
+
+    structured = (
+        await _build(_availability_tool_config(), _availability_inputs(dataset)).run(
+            {"dataset_id": "IMF:CPI(1.0.0)", "partial_query": {}}
+        )
+    ).structured_content
+
+    assert structured is not None
+    assert structured["timeCoverage"] == {
+        "dimensionId": "TIME_PERIOD",
+        "name": "Time period",
+        "start": "2000",
+        "end": "2024",
+    }
+
+
+async def test_availability_query_not_found_is_a_tool_error():
+    # An unknown id is a tool error naming the available-datasets tool, consistent with the
+    # dataset-structure tool - not a payload the model has to interpret.
+    available_datasets = AvailableDatasetsTool(name="datasets", description="Datasets.")
+
+    tool = _build(
+        _availability_tool_config(),
+        _availability_inputs(None),
+        available_datasets=available_datasets,
+        tool_name_prefix="statgpt__",
+    )
+    with pytest.raises(ToolError) as exc_info:
+        await tool.run({"dataset_id": "IMF:NOPE(1.0)"})
+
+    message = str(exc_info.value)
+    assert "IMF:NOPE(1.0)" in message
+    assert "statgpt__datasets" in message
+
+
+async def test_availability_query_unknown_value_is_a_tool_error():
+    # An invalid code for a valid dimension is a fixable caller error, surfaced as a tool error
+    # rather than a result that silently found nothing.
+    freq = _availability_dimension("FREQ", "Frequency", {"A": "Annual"})
+    dataset = _availability_dataset([freq], DataSetAvailabilityQuery())
+
+    tool = _build(_availability_tool_config(), _availability_inputs(dataset))
+    with pytest.raises(ToolError) as exc_info:
+        await tool.run({"dataset_id": "IMF:CPI(1.0.0)", "partial_query": {"FREQ": ["NA"]}})
+
+    message = str(exc_info.value)
+    assert "FREQ" in message
+    assert "NA" in message
+    dataset.availability_query.assert_not_called()
+
+
+async def test_availability_query_unknown_dimension_raises():
+    country = _availability_dimension("COUNTRY", "Reference area", {"USA": "United States"})
+    result = DataSetAvailabilityQuery()
+    dataset = _availability_dataset([country], result)
+
+    with pytest.raises(ToolError, match="Unknown dimension"):
+        await _build(_availability_tool_config(), _availability_inputs(dataset)).run(
+            {"dataset_id": "IMF:CPI(1.0.0)", "partial_query": {"NOPE": ["x"]}}
+        )
+
+    dataset.availability_query.assert_not_called()

@@ -1,9 +1,9 @@
 import pytest
 
 from statgpt.common.schemas.data_query_tool import DataQueryDetails, DataQueryExplorerLink
-from statgpt.common.schemas.enums import ExplorerLinkPolicy, InvocationSource
+from statgpt.common.schemas.enums import ExplorerLinkPolicy
 
-_SURFACES = ["stage", "agent", "mcp"]
+_SURFACES = ["stage", "agent"]
 
 
 class TestDefaults:
@@ -20,40 +20,26 @@ class TestDefaults:
         assert getattr(details.explorer_link, surface) is ExplorerLinkPolicy.always
 
 
-class TestForSource:
-    """The tool response policy follows the flow the call belongs to."""
-
-    def test_agent_source_reads_the_agent_policy(self):
-        config = DataQueryExplorerLink(
-            agent=ExplorerLinkPolicy.only_when_no_data, mcp=ExplorerLinkPolicy.never
-        )
-        assert config.for_source(InvocationSource.AGENT) is ExplorerLinkPolicy.only_when_no_data
-
-    def test_mcp_source_reads_the_mcp_policy(self):
-        config = DataQueryExplorerLink(
-            agent=ExplorerLinkPolicy.only_when_no_data, mcp=ExplorerLinkPolicy.never
-        )
-        assert config.for_source(InvocationSource.MCP) is ExplorerLinkPolicy.never
-
-    def test_stage_policy_is_not_a_tool_response_policy(self):
-        """The stage setting must never leak into what the model reads."""
-        config = DataQueryExplorerLink(
-            stage=ExplorerLinkPolicy.always, agent=ExplorerLinkPolicy.never
-        )
-        assert config.for_source(InvocationSource.AGENT) is ExplorerLinkPolicy.never
-
-
 class TestYamlParsing:
     def test_camel_case_block_parses(self):
         details = DataQueryDetails.model_validate(
-            {"explorerLink": {"stage": "always", "agent": "only_when_no_data", "mcp": "never"}}
+            {"explorerLink": {"stage": "never", "agent": "only_when_no_data"}}
         )
-        assert details.explorer_link.stage is ExplorerLinkPolicy.always
+        assert details.explorer_link.stage is ExplorerLinkPolicy.never
         assert details.explorer_link.agent is ExplorerLinkPolicy.only_when_no_data
-        assert details.explorer_link.mcp is ExplorerLinkPolicy.never
+
+    def test_mcp_structured_content_explorer_link_parses(self):
+        details = DataQueryDetails.model_validate(
+            {"mcpStructuredContent": {"dataExplorerUrl": "only_when_no_data"}}
+        )
+        assert (
+            details.mcp_structured_content.data_explorer_url is ExplorerLinkPolicy.only_when_no_data
+        )
+        assert (
+            DataQueryDetails().mcp_structured_content.data_explorer_url is ExplorerLinkPolicy.always
+        )
 
     def test_partial_block_leaves_the_rest_on_the_default(self):
         details = DataQueryDetails.model_validate({"explorerLink": {"agent": "never"}})
         assert details.explorer_link.agent is ExplorerLinkPolicy.never
         assert details.explorer_link.stage is ExplorerLinkPolicy.always
-        assert details.explorer_link.mcp is ExplorerLinkPolicy.always

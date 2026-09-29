@@ -43,6 +43,7 @@ class ToolTypes(StrEnum):
     AVAILABLE_DATASETS = "AVAILABLE_DATASETS"
     DATASETS_METADATA = "DATASETS_METADATA"
     DATASET_STRUCTURE = "DATASET_STRUCTURE"
+    AVAILABILITY_QUERY = "AVAILABILITY_QUERY"
     AVAILABLE_PUBLICATIONS = "AVAILABLE_PUBLICATIONS"
     AVAILABLE_TERMS = "AVAILABLE_TERMS"
     DATA_QUERY = "DATA_QUERY"
@@ -92,6 +93,16 @@ class RAGVersion(StrEnum):
     """Generic RAG DIAL application (reuses the DIAL RAG transport)"""
 
 
+class AttachmentsTarget(StrEnum):
+    """Where a tool's attachments are attached."""
+
+    stage = "stage"
+    """Attach to the tool-result stage."""
+
+    choice = "choice"
+    """Attach to the assistant message."""
+
+
 class DecoderOfLatestEnum(StrEnum):
     """Function to create a time range corresponding to "latest" for a given publication type."""
 
@@ -133,6 +144,16 @@ class ExplorerLinkPolicy(StrEnum):
 
     never = "never"
     """Never render the link."""
+
+    def includes_link(self, has_data: bool) -> bool:
+        """Whether a response that did (or did not) return data carries the link."""
+        match self:
+            case ExplorerLinkPolicy.always:
+                return True
+            case ExplorerLinkPolicy.only_when_no_data:
+                return not has_data
+            case ExplorerLinkPolicy.never:
+                return False
 
 
 class SpecialDimensionsProcessorType(StrEnum):

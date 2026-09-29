@@ -164,6 +164,21 @@ def test_core_representation_used_when_no_local_representation() -> None:
     assert CODE_IN_BOTH in measure.code_list
 
 
+def test_name_by_query_id_returns_none_for_an_unknown_code() -> None:
+    """name_by_query_id honors its Optional return over a real codelist: a known code resolves to
+    its name, an unknown code yields None rather than raising a KeyError from indexing.
+
+    Regression test: availability-query validation treats a None result as "unknown code", so a
+    dimension that raised instead would crash the tool on the very input it means to reject.
+    """
+    core_codelist = _codelist(CORE_VERSION, [CODE_IN_BOTH])
+
+    measure = _create_measure_dimension(None, core_codelist)
+
+    assert measure.name_by_query_id(CODE_IN_BOTH) == f"{CODE_IN_BOTH} ({CORE_VERSION})"
+    assert measure.name_by_query_id("NOT_A_CODE") is None
+
+
 def test_time_range_on_a_code_list_dimension_is_logged(caplog) -> None:
     """A time range outside the time dimension yields no codes - say so out loud.
 

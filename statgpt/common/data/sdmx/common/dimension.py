@@ -95,10 +95,9 @@ class SdmxCodeListDimension(CategoricalDimension[DimensionCodeCategory], SdmxDim
         return value.entity_id in self._code_list
 
     def name_by_query_id(self, query_id: str) -> str | None:
-        code = self._code_list[query_id]
-        if code:
-            return code.name
-        return None
+        if query_id not in self._code_list:
+            return None
+        return self._code_list[query_id].name
 
     def format_value(self, value: DimensionCodeCategory) -> str:
         return f"id={value.entity_id}, name={value.name}, description={value.description}"

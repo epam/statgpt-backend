@@ -16,8 +16,10 @@ from statgpt.app.schemas import DialRagArtifact, DialRagState
 from statgpt.app.schemas.file_rags.dial_rag import DialRagMetadata, PreFilterResponse
 from statgpt.app.settings.dial_rag import dial_rag_settings
 from statgpt.app.utils import OpenAiToDialStreamer, openai, replace_dial_url
+from statgpt.app.utils.dial_stages import ChoiceI
 from statgpt.common.auth.auth_context import AuthContext
 from statgpt.common.config import multiline_logger as logger
+from statgpt.common.schemas import AttachmentsTarget
 from statgpt.common.schemas.llm_call_duration import LLMCallDurationItem
 from statgpt.common.utils import MediaTypes
 from statgpt.common.utils.llm_call_duration_context import get_llm_call_duration_manager
@@ -34,6 +36,7 @@ class DialRagAgentFactory(BaseRAGFactory):
     FIELD_METADATA = 'metadata'
     FIELD_PRE_FILTER_DECODER_OF_LATEST = 'prefilter_decoder_of_latest'
     FIELD_CURRENT_DATE = 'current_date'
+    FIELD_SEARCH_ALL_PUBLICATIONS = 'search_all_publications'
 
     def _init_dial_rag_client(self, auth_context: AuthContext):
         nondefault_dial_rag_pgvector_endpoint = dial_rag_settings.pgvector_url
@@ -75,6 +78,26 @@ class DialRagAgentFactory(BaseRAGFactory):
             rag_filter_str = 'No filter applied'
         target.add_attachment(
             type=MediaTypes.MARKDOWN, title='Pre-filter, final', data=rag_filter_str
+        )
+
+    @staticmethod
+    def _prefilter_note(pre_filter_response: PreFilterResponse) -> str:
+        """A human/LLM-readable note on how the search was filtered, appended to the tool
+        response so the agent can report the applied pre-filter and decide on retries."""
+        if rag_filter := pre_filter_response.rag_filter:
+            rag_filter_json = rag_filter.model_dump_json(indent=2, exclude_none=True)
+            llm_output = pre_filter_response.llm_output
+            if llm_output is not None and llm_output.is_latest:
+                intent = (
+                    'The search was restricted to the most recent publications, '
+                    'decoded to the following concrete publications pre-filter:\n'
+                )
+            else:
+                intent = 'The following publications pre-filter was applied to this search:\n'
+            return f'\n\n{intent}```json\n{rag_filter_json}\n```'
+        return (
+            '\n\nNo publications pre-filter was applied to this search: '
+            'all available publications were searched.'
         )
 
     async def _run_prefilter_nonsafe(
@@ -148,7 +171,16 @@ class DialRagAgentFactory(BaseRAGFactory):
 
         return pre_filter_response, metadata
 
-    def _append_attachments(self, target: Stage, attachments: list[dict[str, Any]]) -> None:
+    def _attachments_sink(self, target: Stage, choice: ChoiceI) -> ChoiceI | Stage:
+        """Where the RAG attachments are attached, per the tool's `attachments_target`.
+
+        The answer itself always goes to `target`; only the attachments move.
+        """
+        if self._tool_config.details.attachments_target is AttachmentsTarget.choice:
+            return choice
+        return target
+
+    def _append_attachments(self, sink: ChoiceI | Stage, attachments: list[dict[str, Any]]) -> None:
         attachment_url_override = self._tool_config.details.get_attachment_url_override()
 
         for attachment in attachments:
@@ -156,7 +188,7 @@ class DialRagAgentFactory(BaseRAGFactory):
             if attachment_url_override and reference_url:
                 reference_url = replace_dial_url(reference_url, attachment_url_override)
 
-            target.add_attachment(
+            sink.add_attachment(
                 type=attachment.get('type'),
                 title=attachment.get('title'),
                 data=attachment.get('data'),
@@ -192,6 +224,7 @@ class DialRagAgentFactory(BaseRAGFactory):
         query = ChainParameters.get_query(inputs)
 
         target_prefilter = ChainParameters.get_target_prefilter(inputs)
+        search_all_publications = ChainParameters.get_search_all_publications(inputs)
         current_date = ChainParameters.get_target_current_date(inputs)
         if current_date is not None:
             logger.info(f'received current date override: {current_date}')
@@ -206,6 +239,15 @@ class DialRagAgentFactory(BaseRAGFactory):
                 rag_filter=target_prefilter,
             )
             metadata = None  # not used as well
+        elif search_all_publications:
+            logger.info('agent requested search across all publications - skipping prefilter')
+            pre_filter_response = PreFilterResponse(llm_output=None, rag_filter=None)
+            metadata = None
+            target.add_attachment(
+                type=MediaTypes.MARKDOWN,
+                title='Pre-filter',
+                data="Skipped at the agent's request - searching across all publications.",
+            )
         else:
             logger.info(f'building prefilter from user query: "{query}"')
             pre_filter_response, metadata = await self._run_prefilter(
@@ -214,17 +256,21 @@ class DialRagAgentFactory(BaseRAGFactory):
 
         inputs[self.FIELD_PRE_FILTER] = pre_filter_response
         inputs[self.FIELD_METADATA] = metadata
+        inputs[self.FIELD_SEARCH_ALL_PUBLICATIONS] = search_all_publications
         inputs[self.FIELD_PRE_FILTER_DECODER_OF_LATEST] = (
             self._tool_config.details.decoder_of_latest
         )
         inputs[self.FIELD_CURRENT_DATE] = current_date
+
+        prefilter_note = self._prefilter_note(pre_filter_response)
 
         state = ChainParameters.get_state(inputs)
         skip = state.get(StateVarsConfig.CMD_RAG_PREFILTER_ONLY, False)
 
         if skip:
             inputs[self.FIELD_RESPONSE] = (
-                f'<call to RAG was skipped for debug purposes>\n\nquery: "{query}"\n\n---'
+                f'<call to RAG was skipped for debug purposes>\n\nquery: "{query}"'
+                f'{prefilter_note}\n\n---'
             )
             # NOTE: set to "RAG" but actually there was no any response
             inputs[self.FIELD_ANSWERED_BY] = 'RAG'
@@ -271,17 +317,22 @@ class DialRagAgentFactory(BaseRAGFactory):
                     "Answer using the information found by RAG.\n\n---\n\n"
                     f'### Query\n\n{query}\n\n'
                     f"### Response\n\n{dial_streamer.content}"
+                    f"{prefilter_note}"
                     "\n\n---"
                 )
-                self._append_attachments(target, dial_streamer.attachments)
-                inputs[self.FIELD_RESPONSE] = dial_streamer.content_with_attachments_metadata
+                self._append_attachments(
+                    self._attachments_sink(target, choice), dial_streamer.attachments
+                )
+                inputs[self.FIELD_RESPONSE] = (
+                    dial_streamer.content_with_attachments_metadata + prefilter_note
+                )
                 inputs[self.FIELD_ANSWERED_BY] = 'RAG'
                 inputs[self.FIELD_ATTACHMENTS] = dial_streamer.attachments
             else:
                 tool_name = self._tool_config.name.replace('_', ' ')
                 msg = (
                     f'{tool_name} was unable to find the relevant data for the query: "{query}"'
-                    '\n\n---'
+                    f'{prefilter_note}\n\n---'
                 )
                 logger.info(
                     f"{tool_name} was unable to find the relevant data for the query: {query}\nOriginal response: {dial_streamer.content_with_attachments_metadata}"

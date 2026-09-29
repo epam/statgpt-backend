@@ -7,7 +7,12 @@ from statgpt.common.config import LLMModelsEnum
 from statgpt.common.config import utils as config_utils
 
 from .base import BaseYamlModel
-from .enums import AvailableDatasetsHeaderFormat, AvailableDatasetsVersion, RAGVersion
+from .enums import (
+    AttachmentsTarget,
+    AvailableDatasetsHeaderFormat,
+    AvailableDatasetsVersion,
+    RAGVersion,
+)
 from .model_config import LLMModelConfig
 
 
@@ -148,6 +153,15 @@ class FileRagDetails(BaseToolDetails):
         description=(
             "Replace the attachment `reference_url` with this value if provided."
             " If None, the original URL will be used."
+        ),
+    )
+    attachments_target: AttachmentsTarget = Field(
+        default=AttachmentsTarget.stage,
+        description=(
+            "Where the attachments returned by the RAG are attached."
+            " `stage` attaches them to the tool-result stage (default);"
+            " `choice` attaches them to the assistant message instead."
+            " The RAG answer is always appended to the stage."
         ),
     )
     decoder_of_latest: dict[str, str] = Field(

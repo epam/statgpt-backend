@@ -1,6 +1,8 @@
-from typing import Any, Self
+import re
+from typing import Any, ClassVar, Self
 
 from pydantic import (
+    AliasChoices,
     Field,
     NonNegativeInt,
     PositiveInt,
@@ -249,13 +251,91 @@ class DataQueryMcpResources(BaseYamlModel):
     )
 
 
-class DataQueryExplorerLink(BaseYamlModel):
-    """When each surface of the data query response carries the data explorer deep link.
+class DataQueryMcpStructuredContent(BaseYamlModel):
+    """Optional fields of the MCP data query `structuredContent`, each toggleable independently."""
 
-    The three surfaces are configured separately because they have different audiences: the
-    stage is read by the user, who may well want to go and look at the source, while the tool
-    response is read by the model, which tends to copy any link it is given into its answer.
+    executed_at: bool = Field(default=True, description="Report when the queries were executed.")
+    provider: bool = Field(default=True, description="Report each queried dataset's provider.")
+    dataset_url: bool = Field(default=True, description="Report each queried dataset's link.")
+    data_explorer_url: ExplorerLinkPolicy = Field(
+        default=ExplorerLinkPolicy.always,
+        description="When the MCP response carries each query's data explorer deep link.",
+    )
+    is_official: bool = Field(
+        default=False,
+        description="Report whether each dataset is official. Enable only for channels that mark"
+        " their official datasets.",
+    )
+
+
+class DataQueryMcpMeta(BaseYamlModel):
+    """Audience-specific payloads the MCP data query result carries in `result._meta`.
+
+    Each payload is published under its own namespaced `_meta` key - `{namespace}/mcp-app` and
+    `{namespace}/client` - because the two audiences read different fields: the widget needs the
+    SDMX query model it renders and edits, a programmatic client needs links and resource URIs.
+
+    The MCP-App payload has no toggle of its own: it is carried exactly when the tool binds a
+    widget through `mcp_app_resource_uri`, which is what makes it readable in the first place.
+    """
+
+    namespace_raw: str = Field(
+        default="statgpt.dialx.ai",
+        validation_alias=AliasChoices("namespace", "namespaceRaw"),
+        serialization_alias="namespace",
+        description=(
+            "Reverse-DNS prefix of the `_meta` keys the result carries, as the MCP specification"
+            " requires for extension keys. Supports $env:{VAR} syntax."
+        ),
+    )
+    client: ToggleableConfig = Field(
+        default_factory=lambda: ToggleableConfig(enabled_str="False"),
+        description=(
+            "Payload for programmatic clients: the pipeline status, the data explorer deep link,"
+            " the dataset link and the URIs of the resources carried in the result."
+            " Off by default - enable it for a channel whose callers are programmatic."
+        ),
+    )
+
+    _NAMESPACE_PATTERN: ClassVar[re.Pattern[str]] = re.compile(r"^[A-Za-z0-9][A-Za-z0-9.-]*$")
+    # Prefixes the MCP specification reserves for itself.
+    _RESERVED_NAMESPACES: ClassVar[tuple[str, ...]] = ("modelcontextprotocol.io", "mcp")
+
+    def get_namespace(self) -> str:
+        return replace_env(self.namespace_raw).strip("/")
+
+    @property
+    def mcp_app_key(self) -> str:
+        return f"{self.get_namespace()}/mcp-app"
+
+    @property
+    def client_key(self) -> str:
+        return f"{self.get_namespace()}/client"
+
+    @model_validator(mode="after")
+    def _validate_namespace(self) -> Self:
+        # Resolve $env:{VAR} once at config-load time so a missing var or an unusable key fails
+        # fast here instead of on every tool call.
+        namespace = self.get_namespace()
+        if not self._NAMESPACE_PATTERN.match(namespace):
+            raise ValueError(
+                f"Invalid `_meta` namespace {namespace!r}: expected a reverse-DNS name such as"
+                " 'statgpt.dialx.ai'"
+            )
+        if namespace in self._RESERVED_NAMESPACES or namespace.startswith("mcp."):
+            raise ValueError(f"The `_meta` namespace {namespace!r} is reserved by the MCP spec")
+        return self
+
+
+class DataQueryExplorerLink(BaseYamlModel):
+    """When each surface of the Supreme Agent flow carries the data explorer deep link.
+
+    The surfaces are configured separately because they have different audiences: the stage is
+    read by the user, who may well want to go and look at the source, while the tool response is
+    read by the model, which tends to copy any link it is given into its answer.
     The defaults reproduce the behavior that predates this config - the link everywhere.
+
+    The MCP path is governed by `mcp_structured_content.data_explorer_url` instead.
     """
 
     stage: ExplorerLinkPolicy = Field(
@@ -266,14 +346,6 @@ class DataQueryExplorerLink(BaseYamlModel):
         default=ExplorerLinkPolicy.always,
         description="Policy for the tool response the Supreme Agent reads.",
     )
-    mcp: ExplorerLinkPolicy = Field(
-        default=ExplorerLinkPolicy.always,
-        description="Policy for the tool response returned to an MCP client.",
-    )
-
-    def for_source(self, source: InvocationSource) -> ExplorerLinkPolicy:
-        """The policy for the tool response, given the flow the call belongs to."""
-        return self.mcp if source is InvocationSource.MCP else self.agent
 
 
 class DataQueryLLMModels(BaseYamlModel):
@@ -535,6 +607,14 @@ class DataQueryDetails(BaseToolDetails):
     messages: DataQueryMessages = Field(default_factory=DataQueryMessages)  # type: ignore
     attachments: DataQueryAttachments = Field(default_factory=DataQueryAttachments)  # type: ignore
     mcp_resources: DataQueryMcpResources = Field(default_factory=DataQueryMcpResources)
+    mcp_meta: DataQueryMcpMeta = Field(
+        default_factory=DataQueryMcpMeta,
+        description="Audience-specific payloads carried in the MCP result's `_meta`.",
+    )
+    mcp_structured_content: DataQueryMcpStructuredContent = Field(
+        default_factory=DataQueryMcpStructuredContent,
+        description="Optional fields of the MCP result's `structuredContent`.",
+    )
     explorer_link: DataQueryExplorerLink = Field(
         default_factory=DataQueryExplorerLink,
         description="When the data explorer deep link is rendered, per output surface.",

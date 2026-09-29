@@ -70,6 +70,27 @@ tools:
         toolCallName: "Looking into structure of dataset '{dataset_id}'"
         toolResultName: "Structure of dataset '{dataset_id}'"
 
+  - type: availability_query
+    <<: *shared_settings
+    name: "Availability_Query"
+    description: >-
+      Reports which dimension values (codes) actually carry observations in a single dataset,
+      for an empty or partial key. Use it to answer coverage questions cheaply instead of running
+      a full `Query_Data` star query just to see what exists.
+
+      Returns each dimension's available codes with their names, so a separate code-list lookup
+      is not needed. Use `Dataset_Structure` first if you need the dimension IDs.
+
+      Example questions this tool can help to answer:
+      * Which reference areas carry series 51401?
+      * What frequencies / countries exist in the <X> dataset?
+
+      For fetching the actual data values you should refer to the `Query_Data` tool.
+    details:
+      stagesConfig:
+        toolCallName: "Checking availability in dataset '{dataset_id}'"
+        toolResultName: "Availability in dataset '{dataset_id}'"
+
   - type: data_query
     <<: *shared_settings
     name: "Query_Data"
@@ -126,14 +147,29 @@ tools:
           enabledStr: "False"
         markdownTable:
           enabledStr: "True"
-      # When each surface carries the "View data in explorer" deep link back to the source
+      # Audience-specific payloads carried in the MCP result's `_meta`, under
+      # `{namespace}/mcp-app` and `{namespace}/client`. The MCP-App payload is carried whenever
+      # the tool binds a widget via `mcp_app_resource_uri`; the client payload is opt-in.
+      mcpMeta:
+        namespace: "statgpt.dialx.ai"
+        client:
+          enabledStr: "True"
+      # Optional fields of the MCP result's `structuredContent`. `isOfficial` is off by default:
+      # enable it only for channels that mark their official datasets. `dataExplorerUrl` governs
+      # the deep link across the MCP response and takes the same values as `explorerLink` below.
+      mcpStructuredContent:
+        executedAt: true
+        provider: true
+        datasetUrl: true
+        dataExplorerUrl: always
+        isOfficial: false
+      # When each Supreme Agent surface carries the "View data in explorer" deep link back to the source
       # registry. One of: always | only_when_no_data | never. All default to `always`.
       # Set a surface to `only_when_no_data` to keep the link on the paths where StatGPT could
       # not deliver (no rows, or the query failed) and drop it from successful answers.
       explorerLink:
         stage: always
         agent: always
-        mcp: always
       stagesConfig:
         debugOnly: true
         toolCallName: "Searching for data: {query}"
