@@ -176,7 +176,7 @@ class NonIndicatorsSearchChainFactory(DimensionSearchChainFactoryBase):
         NOTE: candidates are marked with `is_all_values`, so the LLM sees a single
         'All values' term per dimension alias (case-insensitive), and its selection is propagated
         to every dataset, regardless of the term's label in each dataset config.
-        Terms of the country dimensions are also marked with `is_all_countries`,
+        Terms of the country dimensions are also marked with `is_country_dimension`,
         so the LLM sees a single 'All countries' term whatever the country dimension alias.
         Otherwise, datasets whose term was not selected lose their country query
         and are dropped by `_filter_strong_queries_by_countries`.
@@ -208,7 +208,7 @@ class NonIndicatorsSearchChainFactory(DimensionSearchChainFactoryBase):
                         ),
                         index=index,
                         is_all_values=True,
-                        is_all_countries=dim_id == country_dim_id,
+                        is_country_dimension=dim_id == country_dim_id,
                     )
                 )
                 index += 1
@@ -220,8 +220,17 @@ class NonIndicatorsSearchChainFactory(DimensionSearchChainFactoryBase):
     ) -> list[LLMSelectionDimensionCandidate]:
         search_input = SearchInput(**inputs)
         dimension_candidates = search_input.dimension_candidates
+        # NOTE: used to show the merged 'all countries' term next to the country terms
+        dataset_2_country_dim_id = {
+            ds_id: ds.data.config.country_dimension
+            for ds_id, ds in search_input.datasets_dict.items()
+        }
         res = [
-            LLMSelectionDimensionCandidate.from_scored_dimension_candidate(candidate=c, index=ix)
+            LLMSelectionDimensionCandidate.from_scored_dimension_candidate(
+                candidate=c,
+                index=ix,
+                is_country_dimension=c.dimension_id == dataset_2_country_dim_id.get(c.dataset_id),
+            )
             for ix, c in enumerate(dimension_candidates)
         ]
         return res

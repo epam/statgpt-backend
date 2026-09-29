@@ -4,14 +4,21 @@ import re
 from types import SimpleNamespace
 from unittest.mock import Mock
 
+from sdmx.model import common as sdmx_common
+
 from statgpt.app.chains.data_query.query_builder.dimensions.non_indicators import (
     NonIndicatorsSearchChainFactory,
 )
 from statgpt.app.schemas.query_builder import LLMSelectionDimensionCandidate
 from statgpt.app.schemas.selection_candidates import SelectedCandidates
-from statgpt.app.services.chat_facade import ChannelServiceFacade, VersionedDataSet
+from statgpt.app.services.chat_facade import (
+    ChannelServiceFacade,
+    ScoredDimensionCandidate,
+    VersionedDataSet,
+)
 from statgpt.common.auth.auth_context import AuthContext
 from statgpt.common.data.base import VirtualDimensionValue
+from statgpt.common.data.sdmx.common import DimensionCodeCategory
 from statgpt.common.data.sdmx.v21.dataset import Sdmx21DataSet
 from statgpt.common.schemas.enums import TimePeriodStrategy
 
@@ -76,6 +83,22 @@ def _make_inputs() -> dict:
     }
 
 
+def _code_candidate(
+    dataset_id: str, dimension_id: str, dimension_alias: str, code_id: str
+) -> ScoredDimensionCandidate:
+    return ScoredDimensionCandidate(
+        score=0.9,
+        dataset_id=dataset_id,
+        dimension_category=DimensionCodeCategory(
+            code=sdmx_common.Code(id=code_id, name=code_id),
+            locale='en',
+            dimension_id=dimension_id,
+            dimension_name=dimension_alias,
+            dimension_alias=dimension_alias,
+        ),
+    )
+
+
 def _make_factory() -> NonIndicatorsSearchChainFactory:
     factory = NonIndicatorsSearchChainFactory.__new__(NonIndicatorsSearchChainFactory)
     factory._config = SimpleNamespace(  # type: ignore[assignment]
@@ -108,6 +131,42 @@ def test_all_countries_terms_are_shown_to_llm_once():
     assert len(re.findall(r'\(id: (\d+),', text)) == 2
     assert len(_visible_country_terms_ids(candidates)) == 1
     assert '## dimension: "Counterpart area"' in text
+
+
+def test_country_dimension_terms_are_marked():
+    inputs = _make_inputs()
+    inputs['dimension_candidates'] = [
+        _code_candidate('ds_a', 'REF_AREA', 'Country/Reference area', 'FRA'),
+        _code_candidate('ds_a', 'COUNTERPART_AREA', 'Counterpart area', 'FRA'),
+        _code_candidate('ds_c', 'REP_COUNTRY', 'Reporting country', 'FR'),
+    ]
+
+    candidates = _make_factory()._prepare_dimension_candidates_for_llm(inputs)
+
+    assert [c.is_country_dimension for c in candidates] == [True, False, True]
+    assert not any(c.is_all_countries for c in candidates)
+
+
+def test_all_countries_term_is_shown_next_to_most_country_terms():
+    factory = _make_factory()
+    inputs = _make_inputs()
+    inputs['dimension_candidates'] = [
+        _code_candidate('ds_a', 'REF_AREA', 'Country/Reference area', 'FRA'),
+        *(
+            _code_candidate('ds_c', 'REP_COUNTRY', 'Reporting country', code_id)
+            for code_id in ('FR', 'DE', 'IT')
+        ),
+    ]
+    inputs['dimension_candidates_for_llm_selection'] = (
+        factory._prepare_dimension_candidates_for_llm(inputs)
+    )
+
+    candidates = factory._add_all_values_to_nonindicator_candidates(inputs)
+
+    text = LLMSelectionDimensionCandidate.candidates_to_llm_string(candidates)
+    # 'ds_a' term is the first one, but 'ds_c' dimension has the most country terms
+    reporting_country_terms = text.split('## dimension: "Reporting country"')[1].split('##')[0]
+    assert LLMSelectionDimensionCandidate.all_countries_label in reporting_country_terms
 
 
 def test_all_countries_selection_keeps_every_dataset_with_all_countries_query():
