@@ -29,7 +29,7 @@ from openai import APIError, OpenAIError
 from openai.types.chat import ChatCompletionChunk
 
 from statgpt.app.chains import supreme_agent as supreme_agent_module
-from statgpt.app.chains.deep_research import DEEP_RESEARCH_ERROR_MESSAGE
+from statgpt.app.chains.deep_research import DEEP_RESEARCH_ERROR_MESSAGE, DeepResearchFailedError
 from statgpt.app.chains.deep_research import deep_research_tool as deep_research_module
 from statgpt.app.chains.supreme_agent import SupremeAgentExecutor, _DeepResearchMode
 from statgpt.app.config import ChainParametersConfig, StateVarsConfig
@@ -565,9 +565,10 @@ _DR_DISPLAY_MESSAGE = (
         {"error": {"message": "internal", "display_message": _DR_DISPLAY_MESSAGE}},
     ],
 )
-async def test_deployment_display_message_is_surfaced_instead_of_standard_error(monkeypatch, body):
-    """A deployment error carrying a `display_message` is surfaced verbatim, once, in place of the
-    standard message, and leaves no session so the user can retry."""
+async def test_deployment_error_aborts_the_turn_with_its_display_message(monkeypatch, body):
+    """A deployment (OpenAI) error aborts the turn as `DeepResearchFailedError` carrying the
+    deployment's `display_message`, so it is delivered as a DIAL error, not as answer content, and
+    leaves no session so the user can retry."""
     _patch_scripted_agent(monkeypatch, [_tool_call_chunk("deep_research", {"query": "q"})])
     _patch_dr_deployment_raises(
         monkeypatch, APIError(_DR_DISPLAY_MESSAGE, request=_DR_REQUEST, body=body)
@@ -575,31 +576,31 @@ async def test_deployment_display_message_is_surfaced_instead_of_standard_error(
 
     choice = _RecordingChoice()
     state = {StateVarsConfig.SHOW_DEBUG_STAGES: False}
-    content = await SupremeAgentExecutor(_channel_config()).stream_response(
-        _inputs(state, "research US GDP", choice=choice)
-    )
+    with pytest.raises(DeepResearchFailedError) as exc_info:
+        await SupremeAgentExecutor(_channel_config()).stream_response(
+            _inputs(state, "research US GDP", choice=choice)
+        )
 
-    assert content == f"\n\n{_DR_DISPLAY_MESSAGE}"
-    assert choice.appended == [f"\n\n{_DR_DISPLAY_MESSAGE}"]
+    assert exc_info.value.display_message == _DR_DISPLAY_MESSAGE
+    assert choice.appended == []
     assert DeepResearchSession.from_state(state) is None
 
 
 @pytest.mark.parametrize(
     "body", [None, {"message": "internal"}, {"display_message": "   "}, {"error": "boom"}]
 )
-async def test_deployment_error_without_display_message_surfaces_standard_error(monkeypatch, body):
-    """Without a usable `display_message` the standard message is shown; the internal `message` is
-    never surfaced."""
+async def test_deployment_error_without_display_message_uses_standard_text(monkeypatch, body):
+    """Without a usable `display_message` the error carries the standard text; the internal
+    `message` is never surfaced."""
     _patch_scripted_agent(monkeypatch, [_tool_call_chunk("deep_research", {"query": "q"})])
     _patch_dr_deployment_raises(monkeypatch, APIError("internal", request=_DR_REQUEST, body=body))
 
-    choice = _RecordingChoice()
-    content = await SupremeAgentExecutor(_channel_config()).stream_response(
-        _inputs({StateVarsConfig.SHOW_DEBUG_STAGES: False}, "research US GDP", choice=choice)
-    )
+    with pytest.raises(DeepResearchFailedError) as exc_info:
+        await SupremeAgentExecutor(_channel_config()).stream_response(
+            _inputs({StateVarsConfig.SHOW_DEBUG_STAGES: False}, "research US GDP")
+        )
 
-    assert content == DEEP_RESEARCH_ERROR_MESSAGE
-    assert choice.appended == [DEEP_RESEARCH_ERROR_MESSAGE]
+    assert exc_info.value.display_message == DEEP_RESEARCH_ERROR_MESSAGE.strip()
 
 
 async def test_deep_research_exchange_is_persisted_to_cross_turn_tool_state(monkeypatch):

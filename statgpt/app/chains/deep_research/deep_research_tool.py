@@ -4,8 +4,9 @@ from typing import Annotated, Any, NamedTuple, Self
 from openai import APIError
 from pydantic import Field
 
+from statgpt.app.chains.deep_research.errors import DeepResearchFailedError
 from statgpt.app.chains.parameters import ChainParameters
-from statgpt.app.chains.tools import GuardrailInput, StatGptTool, ToolArgs, ToolUpstreamError
+from statgpt.app.chains.tools import GuardrailInput, StatGptTool, ToolArgs
 from statgpt.app.config import StateVarsConfig
 from statgpt.app.schemas import (
     DeepResearchArtifact,
@@ -186,11 +187,11 @@ class DeepResearchRunner:
         the user verbatim once research has started. Persist the session between clarifications and
         drop it once the report is delivered.
 
-        Request/stream failures are not surfaced here: they propagate so `ToolCaller.call_tool`
-        records the error in the tool state (an ERROR tool message) and the Supreme Agent surfaces
-        the failure message once — the deployment's `display_message` when it sent one (raised as
-        `ToolUpstreamError`), the standard message otherwise. The session is left untouched so the
-        user can retry."""
+        Deployment failures (`openai.APIError`) are raised as `DeepResearchFailedError`, which aborts
+        the turn and is delivered to the user as a DIAL error carrying the deployment's
+        `display_message`. Other failures propagate so `ToolCaller.call_tool` records them in the
+        tool state (an ERROR tool message) and the Supreme Agent surfaces the standard failure
+        message once. Either way the session is left untouched so the user can retry."""
         auth_context = ChainParameters.get_auth_context(inputs)
         choice = ChainParameters.get_choice(inputs)
         target = ChainParameters.get_target(inputs)
@@ -261,11 +262,8 @@ class DeepResearchRunner:
             return DeepResearchTurnResult(content=content, report_delivered=False)
         except APIError as e:
             # Deep Research reports failures with a curated, user-safe `display_message` (carrying
-            # its error reference); hand it on so the Supreme Agent shows it instead of the
-            # standard message.
-            if (display_message := _get_display_message(e)) is not None:
-                raise ToolUpstreamError(display_message) from e
-            raise
+            # its error reference); deliver it to the user as a DIAL error.
+            raise DeepResearchFailedError(_get_display_message(e)) from e
         finally:
             duration_s = time.monotonic() - time_start
             if (duration_manager := get_llm_call_duration_manager()) is not None:
