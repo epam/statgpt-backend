@@ -11,6 +11,7 @@ from aidial_sdk.exceptions import HTTPException as DIALException
 from aidial_sdk.exceptions import InternalServerError
 
 from statgpt.app.chains import MainChainFactory
+from statgpt.app.chains.deep_research import DeepResearchFailedError
 from statgpt.app.chains.parameters import ChainParameters
 from statgpt.app.config import ChainParametersConfig as ParamsConfig
 from statgpt.app.config import StateVarsConfig
@@ -19,7 +20,7 @@ from statgpt.app.schemas.dial_app_configuration import StatGPTConfiguration
 from statgpt.app.security import create_auth_context
 from statgpt.app.services.chat_facade import ChannelServiceFacade, build_deep_research_form_schema
 from statgpt.app.settings.dial_app import dial_app_settings
-from statgpt.app.utils.dial_exceptions import RateLimitException
+from statgpt.app.utils.dial_exceptions import ForbiddenDeploymentException, RateLimitException
 from statgpt.app.utils.dial_stages import optional_timed_stage
 from statgpt.app.utils.message_history import (
     CommandOnlyMessageError,
@@ -190,10 +191,22 @@ class ChannelCompletion(ChatCompletion):
                 except DIALException as e:
                     _log.warning(f"Request rejected: {e.message}")
                     raise
+                except DeepResearchFailedError as e:
+                    _log.warning("Deep Research failed", exc_info=e)
+                    state[StateVarsConfig.ERROR] = str(e)
+                    dial_exception = DIALException(
+                        message=e.display_message,
+                        status_code=500,
+                        display_message=e.display_message,
+                    )
                 except openai.RateLimitError as e:
                     _log.warning("openai.RateLimitError", exc_info=e)
                     state[StateVarsConfig.ERROR] = str(e)
                     dial_exception = RateLimitException.from_openai_error(e)
+                except openai.PermissionDeniedError as e:
+                    _log.warning("openai.PermissionDeniedError", exc_info=e)
+                    state[StateVarsConfig.ERROR] = str(e)
+                    dial_exception = ForbiddenDeploymentException.from_openai_error(e)
                 except openai.BadRequestError as e:
                     _log.exception("openai.BadRequestError")
                     if isinstance(error := e.body, dict) and error.get("code") == "content_filter":
