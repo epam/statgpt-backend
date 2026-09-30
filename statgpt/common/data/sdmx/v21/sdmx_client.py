@@ -362,6 +362,7 @@ class AsyncSdmxClient:
     async def _perform_request(self, req: PreparedRequest, max_retries=3, delay=3) -> Response:
         attempts = 0
         start = time.monotonic()
+        request_desc = f"{req.method} {req.url} body={req.body!r}"
         try:
             while True:
                 attempts += 1
@@ -375,36 +376,76 @@ class AsyncSdmxClient:
                     if attempts == max_retries or resp.status_code < 500:
                         resp.raise_for_status()
                         return resp
-                    else:
-                        logger.error(
-                            f"Server failed to respond after {attempts} attempts: {resp.status_code} {resp.text}\n"
-                            f"Retrying in {delay} seconds...\nRequest: {req.method} {req.url} body={req.body!r}"
-                        )
-                        await asyncio.sleep(delay)
+                    logger.error(
+                        f"SDMX server responded {resp.status_code} on attempt {attempts}/{max_retries}"
+                        f" ({time.monotonic() - start:.1f}s elapsed): {resp.text}\n"
+                        f"Retrying in {delay} seconds...\nRequest: {request_desc}"
+                    )
                 except httpx.TimeoutException as e:
+                    elapsed = time.monotonic() - start
                     if attempts == max_retries:
-                        elapsed = time.monotonic() - start
                         msg = (
                             f"SDMX request to {req.method} {req.url} timed out after "
                             f"{attempts} attempt(s), waited {elapsed:.1f}s total"
                         )
-                        logger.error(f"{msg}\nbody={req.body!r}")
-                        raise SdmxRequestTimeoutError(msg) from e
-                    else:
                         logger.error(
-                            f"Request timed out ({type(e).__name__}) after {attempts} attempts. "
-                            f"Retrying in {delay} seconds..."
-                            f"\nRequest: {req.method} {req.url} body={req.body!r}\n"
+                            f"{msg}\nCause: {self._describe_exception_chain(e)}\n"
+                            f"Timeouts: {self._httpx_client.timeout!r}\nbody={req.body!r}"
                         )
-                        await asyncio.sleep(delay)
+                        raise SdmxRequestTimeoutError(msg) from e
+                    logger.error(
+                        f"SDMX request timed out on attempt {attempts}/{max_retries}"
+                        f" ({elapsed:.1f}s elapsed): {self._describe_exception_chain(e)}\n"
+                        f"Retrying in {delay} seconds...\nRequest: {request_desc}"
+                    )
+                except (httpx.NetworkError, httpx.RemoteProtocolError) as e:
+                    # Transient transport failures (connection reset or refused, TLS handshake
+                    # aborted by the peer, server closed a keep-alive connection, etc.).
+                    if attempts == max_retries:
+                        raise
+                    logger.error(
+                        f"SDMX request failed with a transport error on attempt {attempts}/{max_retries}"
+                        f" ({time.monotonic() - start:.1f}s elapsed): {self._describe_exception_chain(e)}\n"
+                        f"Retrying in {delay} seconds...\nRequest: {request_desc}"
+                    )
+                await asyncio.sleep(delay)
         except SdmxRequestTimeoutError:
             raise  # already logged above with a specific, actionable message
-        except Exception:
+        except Exception as e:
             logger.exception(
-                f"Server failed to respond, after {attempts} attempts: "
-                f"{req.method} {req.url} body={req.body!r}"
+                f"SDMX request failed after {attempts} attempt(s)"
+                f" ({time.monotonic() - start:.1f}s elapsed): {self._describe_exception_chain(e)}\n"
+                f"Request: {request_desc}"
             )
             raise
+
+    @staticmethod
+    def _describe_exception_chain(exc: BaseException) -> str:
+        """Render the exception and its causes on one line, e.g.
+        ``httpx.ConnectError <- httpcore.ConnectError <- anyio.EndOfStream``.
+
+        httpx transport errors often have an empty message, and the actual reason
+        (e.g. an ``ssl.SSLError`` or a connection closed by the peer) is only visible
+        in the underlying cause.
+        """
+        parts = []
+        seen: set[int] = set()
+        current: BaseException | None = exc
+        while current is not None and id(current) not in seen:
+            seen.add(id(current))
+            exc_type = type(current)
+            module = exc_type.__module__.split('.')[0]
+            name = (
+                exc_type.__qualname__
+                if module == 'builtins'
+                else f"{module}.{exc_type.__qualname__}"
+            )
+            text = str(current)
+            parts.append(f"{name}: {text}" if text else name)
+            current = current.__cause__ or (
+                None if current.__suppress_context__ else current.__context__
+            )
+        return " <- ".join(parts)
 
     @staticmethod
     def _convert_response(httpx_resp: httpx.Response, req: PreparedRequest) -> requests.Response:
