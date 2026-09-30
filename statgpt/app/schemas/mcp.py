@@ -484,6 +484,32 @@ class AvailableDatasetsStructuredContent(BaseYamlModel):
     )
 
 
+class ClientDatasetRecord(BaseYamlModel):
+    """One dataset as a programmatic client sees it: where to look at it."""
+
+    model_config = ConfigDict(serialize_by_alias=True)
+
+    id: str = Field(description="Dataset URN (source id), the same key `structuredContent` has.")
+    data_explorer_url: str | None = Field(
+        default=None, description="Link to the dataset in the data explorer, if configured."
+    )
+    citation_url: str | None = Field(
+        default=None, description="Link from the dataset's citation, if configured."
+    )
+
+
+class AvailableDatasetsClientMeta(BaseYamlModel):
+    """The `{namespace}/client` payload of the available-datasets tool: each dataset's links,
+    resolved independently of the single `url` the structured content carries."""
+
+    model_config = ConfigDict(serialize_by_alias=True)
+
+    datasets: list[ClientDatasetRecord] = Field(
+        default_factory=list,
+        description="The datasets, one record each, in the order `structuredContent` has them.",
+    )
+
+
 class DatasetValueRecord(BaseYamlModel):
     """One value (code) of a dataset dimension."""
 
