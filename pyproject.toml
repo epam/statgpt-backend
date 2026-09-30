@@ -45,7 +45,7 @@ dependencies = [
 
     # Authentication & Security
     'azure-identity (>=1.25.1,<2.0.0)',          # Azure authentication
-    'PyJWT (>=2.13.0,<3.0.0)',                    # JSON Web Token support
+    'PyJWT (>=2.14.0,<3.0.0)',                    # JSON Web Token support
 
     # Configuration & File handling
     'python-dotenv (>=1.2.2,<2.0.0)',            # Environment variable management
