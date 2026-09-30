@@ -1,21 +1,11 @@
-import re
-from typing import Any, ClassVar, Self
+from typing import Any, Self
 
-from pydantic import (
-    AliasChoices,
-    Field,
-    NonNegativeInt,
-    PositiveInt,
-    TypeAdapter,
-    field_validator,
-    model_validator,
-)
+from pydantic import Field, NonNegativeInt, PositiveInt, field_validator, model_validator
 from pydantic_core.core_schema import FieldValidationInfo
 
 from statgpt.common.config import LLMModelsEnum
-from statgpt.common.config.utils import replace_env
 
-from .base import BaseYamlModel, SystemUserPrompt
+from .base import BaseYamlModel, SystemUserPrompt, ToggleableConfig, bool_from_str
 from .enums import (
     ExplorerLinkPolicy,
     IndexerVersion,
@@ -24,16 +14,9 @@ from .enums import (
     SpecialDimensionsProcessorType,
     TimePeriodStrategy,
 )
+from .mcp_meta import McpMeta
 from .model_config import LLMModelConfig
 from .tool_details import BaseToolDetails, StageDescriptor
-
-
-def bool_from_str(value: str) -> bool:
-    """
-    Converts a string to a boolean value.
-    If the string is an environment variable reference, it will be replaced with its value before conversion.
-    """
-    return TypeAdapter(bool).validate_python(replace_env(value))
 
 
 class DataQueryPrompts(BaseYamlModel):
@@ -135,31 +118,6 @@ class DataQueryMessages(BaseYamlModel):
 
     def get_invalid_time_period(self, source: InvocationSource) -> str | None:
         return self._pick(self.invalid_time_period, self.invalid_time_period_mcp_only, source)
-
-
-class ToggleableConfig(BaseYamlModel):
-    """A config block with an on/off flag that may reference an environment variable."""
-
-    enabled_str: str = Field(
-        description=(
-            "Whether the feature is enabled."
-            " The value can be a reference to an environment variable."
-        )
-    )
-
-    @field_validator('enabled_str', mode='after')
-    @classmethod
-    def validate_enabled(cls, enabled: str) -> str:
-        """Validate the `enabled` field to ensure it can return a boolean value."""
-        try:
-            bool_from_str(enabled)
-        except Exception as e:
-            raise ValueError(f"Invalid value for enabled_str: {enabled}. Error: {e}")
-        return enabled
-
-    @property
-    def enabled(self) -> bool:
-        return bool_from_str(self.enabled_str)
 
 
 class ToolAttachment(ToggleableConfig):
@@ -268,7 +226,7 @@ class DataQueryMcpStructuredContent(BaseYamlModel):
     )
 
 
-class DataQueryMcpMeta(BaseYamlModel):
+class DataQueryMcpMeta(McpMeta):
     """Audience-specific payloads the MCP data query result carries in `result._meta`.
 
     Each payload is published under its own namespaced `_meta` key - `{namespace}/mcp-app` and
@@ -279,15 +237,6 @@ class DataQueryMcpMeta(BaseYamlModel):
     widget through `mcp_app_resource_uri`, which is what makes it readable in the first place.
     """
 
-    namespace_raw: str = Field(
-        default="statgpt.dialx.ai",
-        validation_alias=AliasChoices("namespace", "namespaceRaw"),
-        serialization_alias="namespace",
-        description=(
-            "Reverse-DNS prefix of the `_meta` keys the result carries, as the MCP specification"
-            " requires for extension keys. Supports $env:{VAR} syntax."
-        ),
-    )
     client: ToggleableConfig = Field(
         default_factory=lambda: ToggleableConfig(enabled_str="False"),
         description=(
@@ -297,34 +246,9 @@ class DataQueryMcpMeta(BaseYamlModel):
         ),
     )
 
-    _NAMESPACE_PATTERN: ClassVar[re.Pattern[str]] = re.compile(r"^[A-Za-z0-9][A-Za-z0-9.-]*$")
-    # Prefixes the MCP specification reserves for itself.
-    _RESERVED_NAMESPACES: ClassVar[tuple[str, ...]] = ("modelcontextprotocol.io", "mcp")
-
-    def get_namespace(self) -> str:
-        return replace_env(self.namespace_raw).strip("/")
-
     @property
     def mcp_app_key(self) -> str:
         return f"{self.get_namespace()}/mcp-app"
-
-    @property
-    def client_key(self) -> str:
-        return f"{self.get_namespace()}/client"
-
-    @model_validator(mode="after")
-    def _validate_namespace(self) -> Self:
-        # Resolve $env:{VAR} once at config-load time so a missing var or an unusable key fails
-        # fast here instead of on every tool call.
-        namespace = self.get_namespace()
-        if not self._NAMESPACE_PATTERN.match(namespace):
-            raise ValueError(
-                f"Invalid `_meta` namespace {namespace!r}: expected a reverse-DNS name such as"
-                " 'statgpt.dialx.ai'"
-            )
-        if namespace in self._RESERVED_NAMESPACES or namespace.startswith("mcp."):
-            raise ValueError(f"The `_meta` namespace {namespace!r} is reserved by the MCP spec")
-        return self
 
 
 class DataQueryExplorerLink(BaseYamlModel):

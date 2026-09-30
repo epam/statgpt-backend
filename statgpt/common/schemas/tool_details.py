@@ -13,6 +13,7 @@ from .enums import (
     AvailableDatasetsVersion,
     RAGVersion,
 )
+from .mcp_meta import McpMeta
 from .model_config import LLMModelConfig
 
 
@@ -381,6 +382,13 @@ class AvailableDatasetsDetails(BaseToolDetails):
     stats_header_format: AvailableDatasetsHeaderFormat = Field(
         default=AvailableDatasetsHeaderFormat.totals,
         description="The format of the statistics header in the tool output.",
+    )
+    mcp_meta: McpMeta = Field(
+        default_factory=McpMeta,
+        description=(
+            "Audience-specific payloads carried in the MCP result's `_meta`. The client payload"
+            " carries each dataset's data explorer and citation links."
+        ),
     )
 
 
