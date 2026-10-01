@@ -27,6 +27,7 @@ from .channel_dataset import (
     StructureChange,
 )
 from .composite import ChannelDatasetUpdateResult, DataSetUpdateResponse
+from .custom_content_rewrite import CustomContentRewriteRule, FieldRewrite, RewriteSelector
 from .data_query_tool import (
     DataQueryDetails,
     DataQueryExplorerLink,
@@ -72,6 +73,7 @@ from .enums import (
     AutoUpdateResult,
     ChannelDatasetUpdateStatus,
     ChannelIndexStatusScope,
+    CustomContentKind,
     DecoderOfLatestEnum,
     DiscoveryGrade,
     DiscoveryIndexingStatus,
@@ -85,6 +87,9 @@ from .enums import (
     PreprocessingStatusEnum,
     RAGVersion,
     RecordUploadMode,
+    RewriteAppliesTo,
+    RewriteSelectorField,
+    RewriteTargetField,
     ToolTypes,
 )
 from .generic_rag import (
