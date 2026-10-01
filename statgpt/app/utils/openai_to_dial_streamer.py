@@ -5,6 +5,7 @@ from typing import Any
 from aidial_sdk.chat_completion import Stage
 from openai.types.chat import ChatCompletionChunk
 
+from statgpt.app.utils.custom_content_rewriter import CustomContentRewriter
 from statgpt.app.utils.dial_annotations import send_annotations
 from statgpt.app.utils.dial_stages import ChoiceI
 from statgpt.common.schemas import StagesConfig
@@ -34,6 +35,7 @@ class OpenAiToDialStreamer:
         stages_config: StagesConfig,
         annotation_index_space: AnnotationIndexSpace,
         stream_content: bool = True,
+        rewriter: CustomContentRewriter | None = None,
     ) -> None:
         """Creates a streamer that processes OpenAI ChatCompletionChunks and sends them to Dial.
 
@@ -45,6 +47,8 @@ class OpenAiToDialStreamer:
                 with every other streamer of the same response. Required rather than defaulted,
                 so a new call site fails loudly instead of numbering annotations on its own.
             stream_content: If True, the content will be appended to the `target` as it is received.
+            rewriter: If set, rewrites the annotations and attachments (including stage
+                attachments) before they are relayed.
             stream_stages: If True, the stages will be created with the content and attachments from the chunks.
         """
 
@@ -55,6 +59,7 @@ class OpenAiToDialStreamer:
         self._stages_config = stages_config
         self._annotation_index_space = annotation_index_space
         self._stream_content = stream_content
+        self._rewriter = rewriter
 
         self._content = ""
         self._stages: dict[int, Stage] = {}
@@ -141,6 +146,7 @@ class OpenAiToDialStreamer:
         if attachment.get('data') is None and attachment.get('url') is None:
             attachment['data'] = ''
 
+        attachment = self._rewrite_attachment(attachment)
         self._attachments.append(attachment)
         if self._stream_content:
             self._target.add_attachment(
@@ -157,11 +163,25 @@ class OpenAiToDialStreamer:
 
         They go to `_choice` and never to `_target`, which is a stage on some paths: an
         annotation claims a marker tag in a message, and a stage is not a message. Every field
-        is relayed unchanged except `index`.
+        is relayed unchanged except `index` and the fields modified by the `rewriter`.
         """
         send_annotations(
-            self._choice, [self._renumber_annotation(annotation) for annotation in annotations]
+            self._choice,
+            [
+                self._renumber_annotation(self._rewrite_annotation(annotation))
+                for annotation in annotations
+            ],
         )
+
+    def _rewrite_annotation(self, annotation: dict[str, Any]) -> dict[str, Any]:
+        if self._rewriter is None:
+            return annotation
+        return self._rewriter.rewrite_annotation(annotation)
+
+    def _rewrite_attachment(self, attachment: dict[str, Any]) -> dict[str, Any]:
+        if self._rewriter is None:
+            return attachment
+        return self._rewriter.rewrite_attachment(attachment)
 
     def _renumber_annotation(self, annotation: dict[str, Any]) -> dict[str, Any]:
         """Move the annotation's `index` into the index space of the whole response.
@@ -204,7 +224,7 @@ class OpenAiToDialStreamer:
             self._stages[index].append_content(content)
 
         if attachments := stage.get('attachments'):
-            for attachment in attachments:
+            for attachment in map(self._rewrite_attachment, attachments):
                 self._stages[index].add_attachment(
                     type=attachment.get('type'),
                     title=attachment.get('title'),

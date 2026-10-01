@@ -103,6 +103,44 @@ class AttachmentsTarget(StrEnum):
     """Attach to the assistant message."""
 
 
+class CustomContentKind(StrEnum):
+    """A kind of `custom_content` item relayed from a sub-deployment."""
+
+    annotation = "annotation"
+    attachment = "attachment"
+
+
+class RewriteAppliesTo(StrEnum):
+    """Which kinds of `custom_content` items a rewrite rule applies to."""
+
+    annotation = "annotation"
+    attachment = "attachment"
+    both = "both"
+
+    @property
+    def kinds(self) -> tuple[CustomContentKind, ...]:
+        if self is RewriteAppliesTo.both:
+            return CustomContentKind.annotation, CustomContentKind.attachment
+        return (CustomContentKind(self.value),)
+
+
+class RewriteSelectorField(StrEnum):
+    """A field of a `custom_content` item that a rewrite rule selector can match against."""
+
+    type = "type"
+    url = "url"
+    reference_url = "reference_url"
+    attachment_title = "attachment_title"
+    body_title = "body_title"
+
+
+class RewriteTargetField(StrEnum):
+    """A field of a `custom_content` item that a rewrite rule can modify."""
+
+    url = "url"
+    reference_url = "reference_url"
+
+
 class DecoderOfLatestEnum(StrEnum):
     """Function to create a time range corresponding to "latest" for a given publication type."""
 
