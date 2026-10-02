@@ -64,6 +64,7 @@ class OpenAiToDialStreamer:
         self._content = ""
         self._stages: dict[int, Stage] = {}
         self._attachments: list[dict[str, Any]] = []
+        self._annotations: list[dict[str, Any]] = []
         self._state: dict[str, Any] | None = None
         # This streamer's own annotations only: the index its sub-deployment gave one, mapped
         # to the index this response gave it. Dies with the streamer.
@@ -83,6 +84,11 @@ class OpenAiToDialStreamer:
     @property
     def attachments(self) -> list[dict[str, Any]]:
         return self._attachments
+
+    @property
+    def annotations(self) -> list[dict[str, Any]]:
+        """The annotations relayed to the choice, as sent (rewritten and renumbered)."""
+        return self._annotations
 
     @property
     def state(self) -> dict[str, Any] | None:
@@ -165,13 +171,12 @@ class OpenAiToDialStreamer:
         annotation claims a marker tag in a message, and a stage is not a message. Every field
         is relayed unchanged except `index` and the fields modified by the `rewriter`.
         """
-        send_annotations(
-            self._choice,
-            [
-                self._renumber_annotation(self._rewrite_annotation(annotation))
-                for annotation in annotations
-            ],
-        )
+        relayed = [
+            self._renumber_annotation(self._rewrite_annotation(annotation))
+            for annotation in annotations
+        ]
+        self._annotations.extend(relayed)
+        send_annotations(self._choice, relayed)
 
     def _rewrite_annotation(self, annotation: dict[str, Any]) -> dict[str, Any]:
         if self._rewriter is None:

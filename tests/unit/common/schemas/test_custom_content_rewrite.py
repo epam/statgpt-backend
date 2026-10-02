@@ -1,10 +1,10 @@
-"""Validation of the Deep Research `rewrite_rules` config."""
+"""Validation of the `rewrite_rules` config (Deep Research and File RAG)."""
 
 import pytest
 from pydantic import ValidationError
 
-from statgpt.common.schemas import CustomContentRewriteRule
-from statgpt.common.schemas.tool_details import DeepResearchDetails
+from statgpt.common.schemas import CustomContentRewriteRule, RAGVersion
+from statgpt.common.schemas.tool_details import DeepResearchDetails, FileRagDetails
 
 _REWRITE = {"field": "url", "pattern": "^files/", "replacement": "https://public/"}
 
@@ -33,6 +33,19 @@ def test_rewrite_rules_parsed_from_camel_case() -> None:
     )
     reference_url = details.rewrite_rules[0].selector.reference_url
     assert reference_url is not None and reference_url.pattern == "^files/"
+
+
+def test_file_rag_rewrite_rules_parsed() -> None:
+    details = FileRagDetails.model_validate(
+        {
+            "version": RAGVersion.GENERIC,
+            "rewriteRules": [
+                {"selector": {"appliesTo": "annotation", "url": "^files/"}, "rewrites": [_REWRITE]}
+            ],
+        }
+    )
+    assert FileRagDetails(version=RAGVersion.GENERIC).rewrite_rules == []
+    assert details.rewrite_rules[0].selector.url is not None
 
 
 def test_selector_requires_a_condition() -> None:

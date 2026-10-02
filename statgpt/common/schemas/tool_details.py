@@ -119,7 +119,18 @@ class BaseToolDetails(BaseYamlModel):
     stages_config: StagesConfig = Field(default_factory=StagesConfig)  # type: ignore
 
 
-class FileRagDetails(BaseToolDetails):
+class RewriteRulesMixin(BaseYamlModel):
+    rewrite_rules: list[CustomContentRewriteRule] = Field(
+        default_factory=list,
+        description=(
+            "Rules modifying the annotations and attachments received from the sub-deployment"
+            " (e.g. replacing DIAL file links with public ones)."
+            " Rules are checked in order and only the first matching rule is applied to an item."
+        ),
+    )
+
+
+class FileRagDetails(BaseToolDetails, RewriteRulesMixin):
     version: RAGVersion
     """RAG backend. `GENERIC` targets a Generic RAG DIAL application, reusing the same
     chat-completions transport (only the RAG configuration payload and metadata shape differ);
@@ -282,7 +293,7 @@ class ResumeStagesConfig(ToolStageNames):
     )
 
 
-class DeepResearchDetails(BaseToolDetails):
+class DeepResearchDetails(BaseToolDetails, RewriteRulesMixin):
     deployment_id_raw: str = Field(
         validation_alias=AliasChoices("deployment_id", "deploymentId"),
         description="The DIAL deployment_id of the Deep Research application. Supports $env:{VAR} syntax.",
@@ -332,14 +343,6 @@ class DeepResearchDetails(BaseToolDetails):
     resume_stages_config: ResumeStagesConfig = Field(
         default_factory=ResumeStagesConfig,
         description="The stage names of the internal tool that resumes a Deep Research session.",
-    )
-    rewrite_rules: list[CustomContentRewriteRule] = Field(
-        default_factory=list,
-        description=(
-            "Rules modifying the annotations and attachments received from the Deep Research"
-            " application (e.g. replacing DIAL file links with public ones)."
-            " Rules are checked in order and only the first matching rule is applied to an item."
-        ),
     )
 
     def get_deployment_id(self) -> str:
