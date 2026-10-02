@@ -485,16 +485,20 @@ class Sdmx21DataSet(
     @property
     def dataset_url(self) -> str | None:
         if self._datasource.config.use_data_explorer_for_dataset_url:
-            if base := self._resolved_data_explorer_base_url():
-                return build_data_explorer_dataset_url(
-                    base, self._short_urn, self._resolved_data_explorer_url_config()
-                )
+            if url := self.data_explorer_dataset_url:
+                return url
             _log.warning(
                 "Data explorer URL is not configured on the dataset or data source: %s",
                 self._datasource.source_id,
             )
-        if self.config.citation and self.config.citation.url:
-            return self.config.citation.get_url()
+        return self.citation_url
+
+    @property
+    def data_explorer_dataset_url(self) -> str | None:
+        if base := self._resolved_data_explorer_base_url():
+            return build_data_explorer_dataset_url(
+                base, self._short_urn, self._resolved_data_explorer_url_config()
+            )
         return None
 
     def _resolved_data_explorer_base_url(self) -> str | None:

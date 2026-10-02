@@ -14,7 +14,7 @@ from statgpt.app.schemas import (
     DeepResearchToolMessageState,
     DeepResearchTurn,
 )
-from statgpt.app.utils import OpenAiToDialStreamer, openai
+from statgpt.app.utils import CustomContentRewriter, OpenAiToDialStreamer, openai
 from statgpt.app.utils.dial_stages import ChoiceI
 from statgpt.common.schemas import ChannelConfig
 from statgpt.common.schemas import DeepResearchTool as DeepResearchToolConfig
@@ -234,6 +234,7 @@ class DeepResearchRunner:
                     show_debug_stages=show_debug_stages,
                     stages_config=details.stages_config,
                     annotation_index_space=ChainParameters.get_annotation_index_space(inputs),
+                    rewriter=CustomContentRewriter(details.rewrite_rules),
                 )
                 with dial_streamer:
                     stream = await client.chat.completions.create(**create_kwargs)

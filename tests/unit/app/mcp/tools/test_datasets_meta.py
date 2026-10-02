@@ -16,7 +16,9 @@ from statgpt.common.data.base import (
 )
 from statgpt.common.data.base.enums import AttributeType, DimensionDataType, QueryOperator
 from statgpt.common.schemas.availability_query_tool import AvailabilityQueryToolDetails
+from statgpt.common.schemas.base import ToggleableConfig
 from statgpt.common.schemas.dataset_structure_tool import DatasetStructureToolDetails
+from statgpt.common.schemas.mcp_meta import McpMeta
 from statgpt.common.schemas.tool_details import AvailableDatasetsDetails
 from statgpt.common.schemas.tools import (
     AvailabilityQueryTool,
@@ -39,6 +41,8 @@ def _dataset(
     provider_agencies: list | None = None,
     dimensions: list | None = None,
     attributes: list | None = None,
+    data_explorer_url: str | None = None,
+    citation_url: str | None = None,
 ) -> SimpleNamespace:
     citation = (
         SimpleNamespace(
@@ -56,6 +60,8 @@ def _dataset(
         name="Consumer Price Index",
         description="Prices.",
         dataset_url=None,
+        data_explorer_dataset_url=data_explorer_url,
+        citation_url=citation_url,
         config=SimpleNamespace(citation=citation),
         updated_at=AsyncMock(return_value=updated_at),
         dimensions=lambda: dimensions or [],
@@ -168,6 +174,59 @@ async def test_available_datasets_reports_indicator_counts_when_configured():
     assert structured is not None
     assert structured["datasets"][0]["numberOfIndicators"] == 42
     assert structured["totalIndicators"] == 42
+
+
+def _datasets_tool_config(
+    client: bool, namespace: str = "statgpt.dialx.ai"
+) -> AvailableDatasetsTool:
+    return AvailableDatasetsTool(
+        name="datasets",
+        description="Datasets.",
+        details=AvailableDatasetsDetails(
+            mcp_meta=McpMeta(namespace=namespace, client=ToggleableConfig(enabled_str=str(client)))
+        ),
+    )
+
+
+async def test_available_datasets_carries_no_meta_by_default():
+    tool_result = await _build(
+        _datasets_tool_config(client=False), _datasets_inputs([_dataset()])
+    ).run({})
+
+    assert tool_result.meta is None
+
+
+async def test_available_datasets_client_meta_carries_both_links():
+    inputs = _datasets_inputs(
+        [
+            _dataset(
+                data_explorer_url="https://explorer.example.org/IMF:CPI",
+                citation_url="https://data.example.org/cpi",
+            ),
+            _dataset(source_id="IMF:GDP(1.0)", citation_url="https://data.example.org/gdp"),
+            _dataset(source_id="WB:POP(1.0)"),
+        ]
+    )
+
+    tool_result = await _build(
+        _datasets_tool_config(client=True, namespace="data.example.org"), inputs
+    ).run({})
+
+    assert tool_result.meta == {
+        "data.example.org/client": {
+            "datasets": [
+                {
+                    "id": "IMF:CPI(1.0.0)",
+                    "dataExplorerUrl": "https://explorer.example.org/IMF:CPI",
+                    "citationUrl": "https://data.example.org/cpi",
+                },
+                {"id": "IMF:GDP(1.0)", "citationUrl": "https://data.example.org/gdp"},
+                {"id": "WB:POP(1.0)"},
+            ]
+        }
+    }
+    # The structured content is unaffected: the client links travel in `_meta` only.
+    assert json.loads(tool_result.content[0].text) == tool_result.structured_content
 
 
 # ~~~~~~~~~~~~~ dataset structure ~~~~~~~~~~~~~

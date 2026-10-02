@@ -25,7 +25,9 @@ from statgpt.app.schemas.mcp import (
     AvailabilityDimensionRecord,
     AvailabilityStructuredContent,
     AvailabilityValueRecord,
+    AvailableDatasetsClientMeta,
     AvailableDatasetsStructuredContent,
+    ClientDatasetRecord,
     DatasetComponentRecord,
     DatasetRecord,
     DatasetStructureStructuredContent,
@@ -41,6 +43,7 @@ from statgpt.common.schemas import AvailableDatasetsTool as AvailableDatasetsToo
 from statgpt.common.schemas import ChannelConfig
 from statgpt.common.schemas import DatasetStructureTool as DatasetStructureToolConfig
 from statgpt.common.schemas import ToolTypes
+from statgpt.common.schemas.mcp_meta import McpMeta
 
 from .base import StatGptMcpTool
 
@@ -99,6 +102,28 @@ async def datasets_to_structured_content(
         total_indicators=total_indicators,
         total_agencies=len(agencies),
     )
+
+
+def available_datasets_meta(datasets: list[DataSet], meta_config: McpMeta) -> dict[str, Any] | None:
+    """Build the result's ``_meta``: the client payload when the config enables it, ``None``
+    otherwise, so the result carries no ``_meta`` at all."""
+    if not meta_config.client.enabled:
+        return None
+    client_meta = AvailableDatasetsClientMeta(
+        datasets=[
+            ClientDatasetRecord(
+                id=dataset.source_id,
+                data_explorer_url=dataset.data_explorer_dataset_url,
+                citation_url=dataset.citation_url,
+            )
+            for dataset in datasets
+        ]
+    )
+    return {
+        meta_config.client_key: client_meta.model_dump(
+            mode="json", by_alias=True, exclude_none=True
+        )
+    }
 
 
 async def dataset_structure_to_structured_content(
@@ -215,10 +240,16 @@ class AvailableDatasetsMcpTool(
 
     async def _execute(self, args: ToolArgs) -> ToolResult:
         outcome = await self._runner.run(args.inputs)
-        return self._structured_only(
+        # The model reads the structured content, also sent as its JSON text; the clients read
+        # `_meta`.
+        result = self._structured_only(
             await datasets_to_structured_content(
                 outcome.datasets, self._auth_context, outcome.indicator_counts
             )
+        )
+        meta = available_datasets_meta(outcome.datasets, self._tool_config.details.mcp_meta)
+        return ToolResult(
+            content=result.content, structured_content=result.structured_content, meta=meta
         )
 
 
