@@ -57,7 +57,7 @@ async def test_upstream_error_responses_are_passed_through():
 async def test_absolute_urls_are_rejected_before_forwarding():
     tool, forward = _build()
 
-    with pytest.raises(ToolError, match="Invalid arguments"):
+    with pytest.raises(ToolError, match="Invalid input"):
         await tool.run({"path": "https://evil.test/structure"})
 
     forward.assert_not_called()

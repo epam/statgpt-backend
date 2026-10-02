@@ -1,7 +1,12 @@
+from types import SimpleNamespace
+
+import httpx
 import pytest
 from pydantic import ValidationError
 
-from statgpt.app.chains.sdmx_query_app import SdmxQueryAppArgs
+from statgpt.app.chains import sdmx_query_app as sdmx_module
+from statgpt.app.chains.sdmx_query_app import SdmxQueryAppArgs, SdmxQueryAppProxy
+from statgpt.app.chains.tools import ToolUpstreamError
 from statgpt.common.schemas.tool_details import SdmxQueryAppDetails
 
 
@@ -92,3 +97,27 @@ class TestBaseUrlTrailingSlash:
     def test_trailing_slashes_are_trimmed(self, raw: str, expected: str):
         details = SdmxQueryAppDetails(base_url_raw=raw)
         assert details.get_base_url() == expected
+
+
+class TestUpstreamErrorScrubbing:
+    """A backend connection failure is raised as an internals-free ``ToolUpstreamError``;
+    the underlying error (which can name the internal endpoint) stays in the server log only."""
+
+    def _proxy(self) -> SdmxQueryAppProxy:
+        return SdmxQueryAppProxy(SdmxQueryAppDetails(base_url_raw="https://sdmx-internal.svc/api"))
+
+    async def test_connection_error_does_not_leak_endpoint(self, monkeypatch):
+        class _FakeClient:
+            async def request(self, *, method, url, **kwargs):
+                raise httpx.ConnectError("connection failed", request=httpx.Request(method, url))
+
+        monkeypatch.setattr(
+            sdmx_module, "sdmx_query_app_http_client", SimpleNamespace(client=_FakeClient())
+        )
+
+        with pytest.raises(ToolUpstreamError) as exc_info:
+            await self._proxy().forward(path="/data")
+
+        message = str(exc_info.value)
+        assert message == "The SDMX backend could not be reached."
+        assert "sdmx-internal.svc" not in message
