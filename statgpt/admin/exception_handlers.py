@@ -2,13 +2,14 @@
 
 Inner layers raise domain errors; they become status codes here, at the edge. A router
 cannot carry exception handlers, and repeating try/except in every handler is how one gets
-missed and leaks as a 500.
+missed and leaks as a 500. What still leaks as a 500 is logged here, while the request's trace
+is current.
 """
 
 import logging
 
 from fastapi import FastAPI, Request, status
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, PlainTextResponse
 
 from statgpt.admin.services.exceptions import (
     DiscoveryDatasetConflictError,
@@ -95,3 +96,18 @@ def register_exception_handlers(app: FastAPI) -> None:
         """
         _log.warning(f"Generic RAG call failed while serving a request: {exc}")
         return JSONResponse(status_code=status.HTTP_502_BAD_GATEWAY, content={"detail": str(exc)})
+
+    @app.exception_handler(Exception)
+    async def _unhandled(request: Request, exc: Exception) -> PlainTextResponse:
+        """An error nothing above maps: logged with the request's `trace_id`, then a bare 500.
+
+        Starlette re-raises it for uvicorn to log, but uvicorn does that after the request's span
+        has ended, so its traceback carries no trace id and cannot be tied to the request's other
+        log lines or to its audit records. The response is Starlette's default 500.
+        """
+        _log.error(
+            f"Unhandled error while serving {request.method} {request.url.path}", exc_info=exc
+        )
+        return PlainTextResponse(
+            "Internal Server Error", status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
