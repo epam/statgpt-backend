@@ -1,9 +1,22 @@
-"""Unit tests for the logging redaction boundary."""
+"""Unit tests for the logging redaction boundary and the trace id stamping."""
 
 import logging
 import sys
+from collections.abc import Iterator
+from contextlib import contextmanager
 
-from statgpt.common.config.logging import RedactingFilter
+import pytest
+import uvicorn.logging
+from opentelemetry import context
+from opentelemetry.trace.propagation.tracecontext import TraceContextTextMapPropagator
+
+from statgpt.common.config.logging import LoggingConfig, RedactingFilter, TraceIdFilter
+from statgpt.common.settings.logging import LoggingSettings
+
+# What DIAL Core sends upstream: its trace id travels in `traceparent`, and it is the same id Core
+# returns to its caller as `X-DIAL-TRACE-ID`.
+_DIAL_TRACE_ID = "588a018d4087ae2597f0597919ba2236"
+_DIAL_TRACEPARENT = f"00-{_DIAL_TRACE_ID}-a58a212979b5b5ca-03"
 
 
 def _make_record(msg: str, args: tuple = (), exc_info=None) -> logging.LogRecord:
@@ -79,3 +92,87 @@ class TestRedactingFilter:
         assert RedactingFilter().filter(record) is True
         assert record.msg == "count=%d"
         assert record.args == ("not-a-number",)
+
+
+@contextmanager
+def _in_request_traced_by_dial_core() -> Iterator[None]:
+    """Make DIAL Core's propagated trace current, as the SDK's FastAPI instrumentation does for an
+    incoming request."""
+    extracted = TraceContextTextMapPropagator().extract({"traceparent": _DIAL_TRACEPARENT})
+    token = context.attach(extracted)
+    try:
+        yield
+    finally:
+        context.detach(token)
+
+
+class TestTraceIdFilter:
+    """Tests for ``TraceIdFilter`` — the trace id that correlates our logs with DIAL Core."""
+
+    def test_trace_id_is_the_one_dial_core_propagates(self) -> None:
+        record = _make_record("tools/call")
+        with _in_request_traced_by_dial_core():
+            TraceIdFilter().filter(record)
+        assert record.trace_id == _DIAL_TRACE_ID
+
+    def test_placeholder_outside_a_request(self) -> None:
+        record = _make_record("startup")
+        TraceIdFilter().filter(record)
+        assert record.trace_id == TraceIdFilter.NO_TRACE_ID
+
+    def test_filter_never_drops_records(self) -> None:
+        assert TraceIdFilter().filter(_make_record("anything")) is True
+
+    def test_default_format_renders_the_trace_id(self) -> None:
+        # The default format references `trace_id`; the filter must supply it or formatting fails.
+        # The field default is read directly so a local LOG_FORMAT override cannot mask it.
+        default_format = LoggingSettings.model_fields["format"].default
+        formatter = uvicorn.logging.DefaultFormatter(fmt=default_format, use_colors=False)
+        record = _make_record("tools/call")
+        with _in_request_traced_by_dial_core():
+            TraceIdFilter().filter(record)
+        assert f"| {_DIAL_TRACE_ID} | test | tools/call" in formatter.format(record)
+
+
+class TestLoggingConfig:
+    """Tests for how ``LoggingConfig`` wires the filters into the logging tree."""
+
+    def test_every_configured_handler_carries_the_filters(self) -> None:
+        # A handler whose format references `trace_id` but lacks the filter loses every line to a
+        # "Formatting field not found" error instead of crashing, so a dropped filter goes unnoticed.
+        # statgpt-ml has its own handler and doesn't propagate, so it must be covered too.
+        configured_handlers = [
+            handler
+            for handler in [
+                *logging.getLogger().handlers,
+                *logging.getLogger("statgpt-ml").handlers,
+            ]
+            if isinstance(handler.formatter, uvicorn.logging.DefaultFormatter)
+        ]
+        assert configured_handlers
+        for handler in configured_handlers:
+            filter_types = {type(f) for f in handler.filters}
+            assert {RedactingFilter, TraceIdFilter} <= filter_types
+
+    def test_uvicorn_access_lines_reach_the_root_handlers(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # The uvicorn CLI configures `uvicorn.access` before the app is imported: a handler of its
+        # own, not propagating, so access lines would bypass the root handlers and their filters.
+        access_logger = logging.getLogger("uvicorn.access")
+        monkeypatch.setattr(access_logger, "handlers", [logging.StreamHandler()])
+        monkeypatch.setattr(access_logger, "propagate", False)
+        # Reconfiguring also re-adds the health check filter and replaces the statgpt-ml handler.
+        monkeypatch.setattr(access_logger, "filters", list(access_logger.filters))
+        statgpt_ml_logger = logging.getLogger("statgpt-ml")
+        monkeypatch.setattr(statgpt_ml_logger, "handlers", statgpt_ml_logger.handlers)
+        root = logging.getLogger()
+        root_handlers = list(root.handlers)
+        try:
+            LoggingConfig.configure_logging()
+        finally:
+            for handler in set(root.handlers) - set(root_handlers):
+                root.removeHandler(handler)
+
+        assert access_logger.handlers == []
+        assert access_logger.propagate is True
