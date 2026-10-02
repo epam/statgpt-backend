@@ -73,6 +73,9 @@ class DatasetAvailabilityQueryFormatter(BaseFormatter):
                 dim_postfix = f" ({self._('Indicator')})"
 
             dimension_str = f'\t* _{cat_dimension.name}_{dim_postfix}'
+            if dim_query.is_all_selected:
+                # selected with the 'all values' term, which has no explicit values
+                return f"{dimension_str}: **\\***"
             values_concat = self._format_categorical_dimension_values(
                 cat_dimension, dim_query.values
             )
