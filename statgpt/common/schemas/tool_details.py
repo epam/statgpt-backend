@@ -163,9 +163,11 @@ class FileRagDetails(BaseToolDetails, RewriteRulesMixin):
     )
     attachment_url_override: str | None = Field(
         default=None,
+        deprecated="`attachment_url_override` is deprecated; use `rewrite_rules` instead.",
         description=(
-            "Replace the attachment `reference_url` with this value if provided."
-            " If None, the original URL will be used."
+            "Deprecated. Superseded by `rewrite_rules`, which also cover annotations and stage"
+            " attachments. Replace the attachment `reference_url` with this value if provided."
+            " If None, the original URL will be used. Applied after `rewrite_rules`."
         ),
     )
     attachments_target: AttachmentsTarget = Field(
@@ -190,9 +192,11 @@ class FileRagDetails(BaseToolDetails, RewriteRulesMixin):
         return config_utils.replace_env(self.metadata_endpoint_raw)
 
     def get_attachment_url_override(self) -> str | None:
-        if self.attachment_url_override is None or not self.attachment_url_override.strip():
+        # read via __dict__: attribute access on a deprecated field emits a DeprecationWarning
+        attachment_url_override: str | None = self.__dict__.get("attachment_url_override")
+        if attachment_url_override is None or not attachment_url_override.strip():
             return None
-        return config_utils.replace_env(self.attachment_url_override.strip())
+        return config_utils.replace_env(attachment_url_override.strip())
 
 
 class WebSearchDetails(BaseToolDetails):
