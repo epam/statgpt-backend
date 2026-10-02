@@ -200,6 +200,7 @@ def test_streamer_rewrites_annotations_report_and_stage_attachments() -> None:
     [annotation] = [a for cc in sent for a in cc.get("annotations", [])]
     assert _url(annotation) == _PUBLIC_URL
     assert annotation["index"] == 5
+    assert streamer.annotations == [annotation]
     assert streamer.attachments[0]["url"] == _PUBLIC_URL
     [stage_attachment] = [
         a for cc in sent for stage in cc.get("stages", []) for a in stage.get("attachments", [])
