@@ -12,6 +12,7 @@ import pytest
 from statgpt.app.chains.data_query import runner as runner_module
 from statgpt.app.chains.data_query.data_query_tool import DataQueryTool
 from statgpt.app.chains.data_query.parameters import DataQueryParameters
+from statgpt.app.config import StateVarsConfig
 from statgpt.app.schemas.discovery_datasets import (
     DiscoveryDatasetsEvalAttachment,
     DiscoveryDatasetsOutcome,
@@ -59,8 +60,10 @@ class _Chain:
         self._error = error
         self._started = started
         self._release = release
+        self.ran = False
 
     async def ainvoke(self, inputs: dict) -> dict:
+        self.ran = True
         if self._started is not None:
             self._started.set()
         if self._release is not None:
@@ -172,6 +175,59 @@ async def test_an_unconfigured_channel_runs_the_pipeline_alone(
 
     assert response == "Here is your data."
     assert artifact.discovery_datasets_eval_attachment is None
+
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~ the pre-filter-only dev command ~~~~~~~~~~~~~~~~~~~~~~~~
+#
+# `!discovery_prefilter_only` exists for the pre-filter eval suite (documentation repo,
+# `evaluation/grade_c_discovery/prefilter_eval_methodology.md`), which measures the pre-filter
+# and nothing else. What it has to guarantee here is that the expensive half of the tool is
+# never paid for.
+
+
+def _pre_filter_only_inputs() -> dict[str, Any]:
+    return {"state": {StateVarsConfig.CMD_DISCOVERY_PREFILTER_ONLY: True}}
+
+
+async def test_the_command_skips_the_pipeline_and_keeps_the_lookup(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    chain = _Chain("Here is your data.")
+    runner = _Runner(rendered=None)
+    _install(monkeypatch, chain, runner)
+
+    response, artifact = await _tool(with_discovery=True)._arun(_pre_filter_only_inputs(), "gdp")
+
+    assert chain.ran is False
+    assert response == "<data query was skipped for debug purposes>"
+    assert artifact.discovery_datasets_eval_attachment is not None
+    assert artifact.discovery_datasets_eval_attachment.query == "gdp"
+
+
+async def test_the_command_skips_the_pipeline_on_a_channel_without_the_lookup(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A misconfigured channel must not answer a pre-filter run with a full-cost data query.
+
+    The eval reports the missing attachment instead, which is the outcome that gets fixed.
+    """
+    chain = _Chain("Here is your data.")
+    _install(monkeypatch, chain, None)
+
+    response, artifact = await _tool(with_discovery=False)._arun(_pre_filter_only_inputs(), "gdp")
+
+    assert chain.ran is False
+    assert response == "<data query was skipped for debug purposes>"
+    assert artifact.discovery_datasets_eval_attachment is None
+
+
+async def test_without_the_command_the_pipeline_runs(monkeypatch: pytest.MonkeyPatch) -> None:
+    chain = _Chain("Here is your data.")
+    _install(monkeypatch, chain, _Runner())
+
+    await _tool(with_discovery=True)._arun({"state": {}}, "gdp")
+
+    assert chain.ran is True
 
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~ concurrency ~~~~~~~~~~~~~~~~~~~~~~~~~~~~

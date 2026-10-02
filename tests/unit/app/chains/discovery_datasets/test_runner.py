@@ -829,6 +829,51 @@ async def test_a_narrowed_search_that_works_keeps_the_cached_dimensions(
     assert forgotten == []
 
 
+async def test_the_pre_filter_only_command_stops_before_retrieval(
+    monkeypatch: pytest.MonkeyPatch, inputs: dict[str, Any]
+) -> None:
+    """The pre-filter eval measures this step alone, so nothing after it may cost anything."""
+    client = _FakeClient([_document(1, "Alpha")])
+    builder = _FakeBuilder(_narrowed())
+    judge = _install(monkeypatch, client, builder=builder)
+    inputs["state"] = {StateVarsConfig.CMD_DISCOVERY_PREFILTER_ONLY: True}
+
+    outcome = await DiscoveryDatasetsRunner(_details()).run("gdp", inputs)
+
+    assert outcome.rendered is None
+    assert client.search_calls == []
+    assert judge.calls == []
+    attachment = outcome.eval_attachment
+    assert attachment.stopped_after_pre_filter is True
+    assert attachment.pre_filter is builder.report
+    assert attachment.error is None
+
+
+async def test_an_ordinary_lookup_is_not_flagged_as_stopped(
+    monkeypatch: pytest.MonkeyPatch, inputs: dict[str, Any]
+) -> None:
+    """Otherwise the discovery eval would stand down on every data point."""
+    _install(monkeypatch, _FakeClient([_document(1, "Alpha")]))
+
+    outcome = await DiscoveryDatasetsRunner(_details()).run("gdp", inputs)
+
+    assert outcome.eval_attachment.stopped_after_pre_filter is False
+
+
+async def test_the_pre_filter_only_command_reports_to_the_debug_stage(
+    monkeypatch: pytest.MonkeyPatch, debug_inputs: dict[str, Any]
+) -> None:
+    _install(monkeypatch, _FakeClient([_document(1, "Alpha")]), builder=_FakeBuilder(_narrowed()))
+    debug_inputs["state"][StateVarsConfig.CMD_DISCOVERY_PREFILTER_ONLY] = True
+
+    await DiscoveryDatasetsRunner(_details()).run("gdp", debug_inputs)
+
+    sections = "".join(debug_inputs["choice"].stage.content)
+    assert "## Pre-filter" in sections
+    assert "## Stopped" in sections
+    assert "## Retrieved documents" not in sections
+
+
 async def test_the_pre_filter_report_survives_a_failed_lookup(
     monkeypatch: pytest.MonkeyPatch, inputs: dict[str, Any]
 ) -> None:
