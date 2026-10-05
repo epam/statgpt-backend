@@ -15,8 +15,11 @@ class LoggingSettings(BaseSettings):
     level_uvicorn: str = Field("INFO", description="Uvicorn logging level")
     level_httpcore: str = Field("WARNING", description="HTTPCore logging level")
     format: str = Field(
-        "%(levelprefix)s | %(asctime)s | %(process)d | %(name)s | %(message)s",
-        description="Logging format",
+        "%(levelprefix)s | %(asctime)s | %(process)d | %(trace_id)s | %(name)s | %(message)s",
+        description=(
+            "Logging format. `%(trace_id)s` is the OpenTelemetry trace id of the current request"
+            " (`-` outside a request); for requests routed through DIAL Core, it is Core's trace id"
+        ),
     )
     date_format: str = Field("%Y-%m-%d %H:%M:%S", description="Logging date format")
     multiline_mode_enabled: bool = Field(False, description="Enable multiline logging mode")

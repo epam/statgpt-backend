@@ -5,6 +5,7 @@ import sys
 
 import uvicorn.logging
 from aidial_sdk import logger as aidial_logger
+from opentelemetry import trace
 
 from statgpt.common.settings.logging import LoggingSettings
 
@@ -68,7 +69,27 @@ class RedactingFilter(logging.Filter):
         return True
 
 
+class TraceIdFilter(logging.Filter):
+    """Stamp every log record with the trace id of the request it was logged in.
+
+    DIAL Core propagates its trace to the application in the W3C ``traceparent`` header (it does
+    not forward ``X-DIAL-TRACE-ID``, which is a response header only), and the DIAL SDK's FastAPI
+    instrumentation makes that trace the current span. The id logged here is therefore the one
+    Core returns to its caller as ``X-DIAL-TRACE-ID``. Records logged outside a request get ``-``.
+    """
+
+    NO_TRACE_ID = "-"
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        span_context = trace.get_current_span().get_span_context()
+        record.trace_id = (
+            format(span_context.trace_id, "032x") if span_context.is_valid else self.NO_TRACE_ID
+        )
+        return True
+
+
 _redaction_filter = RedactingFilter()
+_trace_id_filter = TraceIdFilter()
 
 
 class LoggingConfig:
@@ -77,8 +98,14 @@ class LoggingConfig:
 
     @classmethod
     def configure_logging(cls):
-        # Making the uvicorn and dial_sdk loggers delegate its logging to the root logger
-        for logger in [logging.getLogger("uvicorn"), aidial_logger]:
+        # Making the uvicorn and dial_sdk loggers delegate its logging to the root logger.
+        # The uvicorn CLI gives `uvicorn.access` a non-propagating handler of its own before the
+        # app is imported, so without this the access lines would skip the filters attached below.
+        for logger in [
+            logging.getLogger("uvicorn"),
+            logging.getLogger("uvicorn.access"),
+            aidial_logger,
+        ]:
             logger.handlers = []
             logger.propagate = True
 
@@ -133,13 +160,13 @@ class LoggingConfig:
             statgpt_ml_logger.handlers = [console_single_line_handler]
             statgpt_ml_logger.propagate = False
 
-        # Attach the redaction filter at the write boundary. Every record reaching
-        # these handlers is scrubbed of secrets/PII. statgpt-ml uses its own handlers
-        # with propagation disabled, so it must be covered explicitly.
-        for handler in root.handlers:
+        # Attach the filters at the write boundary. Every record reaching these handlers is
+        # scrubbed of secrets/PII and carries the `trace_id` the log format references.
+        # statgpt-ml uses its own handlers with propagation disabled, so it must be covered
+        # explicitly.
+        for handler in [*root.handlers, *logging.getLogger("statgpt-ml").handlers]:
             handler.addFilter(_redaction_filter)
-        for handler in logging.getLogger("statgpt-ml").handlers:
-            handler.addFilter(_redaction_filter)
+            handler.addFilter(_trace_id_filter)
 
 
 LoggingConfig.configure_logging()
