@@ -35,6 +35,7 @@ from statgpt.app.chains.supreme_agent import SupremeAgentExecutor, _DeepResearch
 from statgpt.app.config import ChainParametersConfig, StateVarsConfig
 from statgpt.app.schemas import DeepResearchSession, DeepResearchTurn
 from statgpt.app.schemas.dial_app_configuration import StatGPTConfiguration
+from statgpt.app.utils.citation_ids import CitationIdSpace
 from statgpt.app.utils.dial_stages import DummyStage, NullChoice
 from statgpt.app.utils.message_history import History
 from statgpt.common.schemas.channel import ChannelConfig, SupremeAgentConfig
@@ -153,6 +154,7 @@ def _dr_chunk(
     content: str | None = None,
     state: dict | None = None,
     attachments: list[dict] | None = None,
+    annotations: list[dict] | None = None,
 ) -> ChatCompletionChunk:
     delta: dict = {}
     if content is not None:
@@ -162,6 +164,8 @@ def _dr_chunk(
         custom_content["state"] = state
     if attachments is not None:
         custom_content["attachments"] = attachments
+    if annotations is not None:
+        custom_content["annotations"] = annotations
     if custom_content:
         delta["custom_content"] = custom_content
     return ChatCompletionChunk.model_validate(
@@ -271,6 +275,7 @@ def _inputs(
         ),
         ChainParametersConfig.CONFIGURATION: StatGPTConfiguration(deep_research=deep_research),
         ChainParametersConfig.ANNOTATION_INDEX_SPACE: itertools.count(),
+        ChainParametersConfig.CITATION_ID_SPACE: CitationIdSpace(),
     }
 
 
@@ -528,6 +533,61 @@ async def test_report_delivered_verbatim_with_attachments(monkeypatch):
     assert len(choice.attachments) == 1
     assert choice.attachments[0]["type"] == "text/markdown"
     assert choice.attachments[0]["title"] == "Report.md"
+
+
+_CITED = 'GDP rose <cit data-id="dr-7"></cit>.'
+_CITATION = {
+    "index": 0,
+    "target": {"selector": {"type": "html_tag", "tag": "cit", "id": "dr-7"}},
+    "body": {"title": "Report.pdf, page 3"},
+}
+
+
+async def test_report_is_delivered_with_the_citation_ids_of_the_conversation(monkeypatch):
+    _patch_scripted_agent(
+        monkeypatch,
+        [_tool_call_chunk("resume_deep_research", {"message": "approved"})],
+    )
+    report = [
+        _dr_chunk(content=_CITED, annotations=[_CITATION]),
+        _dr_chunk(state={"preparation": {"research_started": True}}),
+    ]
+    _patch_dr_deployment(monkeypatch, [report], {})
+    state = _session_state(
+        DeepResearchTurn(user_message="give me US GDP", assistant_content="plan?")
+    )
+
+    choice = _RecordingChoice()
+    await SupremeAgentExecutor(_channel_config()).stream_response(
+        _inputs(state, "approve", choice=choice)
+    )
+
+    assert choice.content == 'GDP rose <cit data-id="citation001"></cit>.'
+
+
+async def test_clarification_citations_are_renumbered_for_the_agent_only(monkeypatch):
+    """The agent reads the citation ids of the conversation, while Deep Research is replayed the
+    ids it chose itself."""
+    _patch_scripted_agent(
+        monkeypatch,
+        [_tool_call_chunk("deep_research", {"query": "US GDP"}), _text_chunk("Which region?")],
+    )
+    clarification = [
+        _dr_chunk(content=_CITED, annotations=[_CITATION]),
+        _dr_chunk(state={"preparation": {"research_started": False}}),
+    ]
+    _patch_dr_deployment(monkeypatch, [clarification], {})
+
+    state = {StateVarsConfig.SHOW_DEBUG_STAGES: False}
+    inputs = _inputs(state, "research US GDP")
+    await SupremeAgentExecutor(_channel_config()).stream_response(inputs)
+
+    session = DeepResearchSession.from_state(state)
+    assert session is not None
+    assert session.turns[0].assistant_content == _CITED
+    inputs[ChainParametersConfig.HISTORY].dump_state(state)
+    [tool_response] = [m for m in state[StateVarsConfig.TOOL_MESSAGES] if m.get("type") == "tool"]
+    assert 'GDP rose <cit data-id="citation001"></cit>.' in tool_response["content"]
 
 
 async def test_forced_start_error_is_surfaced_once_and_session_untouched(monkeypatch):

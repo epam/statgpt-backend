@@ -5,7 +5,7 @@ from datetime import datetime
 
 import openai
 from aidial_client.types.model import ModelPricing
-from aidial_sdk.chat_completion import ChatCompletion, Choice, Request, Response
+from aidial_sdk.chat_completion import ChatCompletion, Choice, Request, Response, Role
 from aidial_sdk.deployment.configuration import ConfigurationRequest, ConfigurationResponse
 from aidial_sdk.exceptions import HTTPException as DIALException
 from aidial_sdk.exceptions import InternalServerError
@@ -20,6 +20,7 @@ from statgpt.app.schemas.dial_app_configuration import StatGPTConfiguration
 from statgpt.app.security import create_auth_context
 from statgpt.app.services.chat_facade import ChannelServiceFacade, build_deep_research_form_schema
 from statgpt.app.settings.dial_app import dial_app_settings
+from statgpt.app.utils.citation_ids import CitationIdSpace
 from statgpt.app.utils.dial_exceptions import ForbiddenDeploymentException, RateLimitException
 from statgpt.app.utils.dial_stages import optional_timed_stage
 from statgpt.app.utils.message_history import (
@@ -132,6 +133,7 @@ class ChannelCompletion(ChatCompletion):
                     message="An internal error occurred while processing your request."
                 )
 
+            citation_id_space = cls._init_citation_id_space(request)
             inputs = {
                 ParamsConfig.REQUEST: request,
                 ParamsConfig.AUTH_CONTEXT: auth_context,
@@ -145,6 +147,7 @@ class ChannelCompletion(ChatCompletion):
                 # Fresh index space: every annotation relayed during this response takes its
                 # index from this counter, whichever tool relays it.
                 ParamsConfig.ANNOTATION_INDEX_SPACE: itertools.count(),
+                ParamsConfig.CITATION_ID_SPACE: citation_id_space,
             }
 
             callbacks: list = []
@@ -245,6 +248,7 @@ class ChannelCompletion(ChatCompletion):
             await cls._emit_deep_research_form_schema(
                 service, auth_context, state, configuration, choice
             )
+            state[StateVarsConfig.CITATION_COUNT] = citation_id_space.count
             cls.set_dial_state(state, choice)
             if dial_exception:
                 raise dial_exception
@@ -313,6 +317,24 @@ class ChannelCompletion(ChatCompletion):
                     defaults[StateVarsConfig.DEEP_RESEARCH_SESSION] = dr_session
 
         return defaults
+
+    @staticmethod
+    def _init_citation_id_space(request: Request) -> CitationIdSpace:
+        """Continue the citation ids where the earlier responses of the conversation stopped.
+
+        The highest count of any earlier response is taken, not just the count of the last one:
+        a response that failed before setting its state has none, and starting over would reuse
+        the ids that the history still shows the agent.
+        """
+        counts = [
+            count
+            for message in request.messages
+            if message.role == Role.ASSISTANT
+            and message.custom_content is not None
+            and isinstance(state := message.custom_content.state, dict)
+            and isinstance(count := state.get(StateVarsConfig.CITATION_COUNT), int)
+        ]
+        return CitationIdSpace(max(counts, default=0))
 
     @classmethod
     async def _calc_token_usage_costs(

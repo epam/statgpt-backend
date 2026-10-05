@@ -1,5 +1,8 @@
 """A RAG answer is accepted when it cites at least one source, as an attachment or as an
 annotation. Otherwise the tool response is replaced with "unable to find the relevant data".
+
+The tool response names the source of every citation tag of the answer, so the agent can tell
+which publication backs a statement (#730).
 """
 
 import asyncio
@@ -15,6 +18,7 @@ from openai.types.chat import ChatCompletionChunk
 from statgpt.app.chains.file_rags.dial_rag import DialRagAgentFactory
 from statgpt.app.chains.file_rags.file_rag_tool import _RAG_IMPLEMENTATIONS
 from statgpt.app.config import ChainParametersConfig
+from statgpt.app.utils.citation_ids import CitationIdSpace
 from statgpt.common.schemas import FileRagTool as FileRagToolConfig
 from statgpt.common.schemas import RAGVersion
 from statgpt.common.schemas.tool_details import FileRagDetails
@@ -27,12 +31,16 @@ _REWRITE_RULES = [
         "rewrites": [{"field": "url", "pattern": "^files/.+/", "replacement": "https://public/"}],
     }
 ]
-_ANSWER = 'US GDP growth slows to 1.5%. <cit data-id="abc"></cit>'
+_ANSWER = 'US GDP growth slows to 1.5%. <cit data-id="94c80f43b36f40ffbd9063db0cdc35c6"></cit>'
+_RELAYED_ANSWER = 'US GDP growth slows to 1.5%. <cit data-id="citation004"></cit>'
 _ANNOTATION = {
     "index": 0,
-    "target": {"selector": {"type": "html_tag", "tag": "cit", "id": "abc"}},
+    "target": {
+        "selector": {"type": "html_tag", "tag": "cit", "id": "94c80f43b36f40ffbd9063db0cdc35c6"}
+    },
     "body": {
-        "title": "sigma 2/2025, page 8",
+        "title": "sigma 2/2025 – World insurance, page 8",
+        "quote": "Real GDP growth in the US is expected to slow to 1.5% in 2025.",
         "source": {
             "type": "attachment",
             "attachment": {"type": "application/pdf", "title": "report.pdf", "url": _DIAL_URL},
@@ -115,6 +123,8 @@ async def _run(
         ChainParametersConfig.SEARCH_ALL_PUBLICATIONS: True,
         ChainParametersConfig.STATE: {},
         ChainParametersConfig.ANNOTATION_INDEX_SPACE: itertools.count(),
+        # three citations were handed out by the earlier turns of the conversation
+        ChainParametersConfig.CITATION_ID_SPACE: CitationIdSpace(3),
     }
     result = await factory._stream_response(inputs)
     return result, target, choice
@@ -125,10 +135,27 @@ async def test_annotations_only_answer_is_accepted_and_rewritten():
     result, target, choice = await _run([_chunk(_ANSWER, annotations=[_ANNOTATION])])
 
     assert result[DialRagAgentFactory.FIELD_ANSWERED_BY] == 'RAG'
-    assert result[DialRagAgentFactory.FIELD_RESPONSE].startswith(_ANSWER)
-    assert _ANSWER in target.content
+    assert result[DialRagAgentFactory.FIELD_RESPONSE].startswith(_RELAYED_ANSWER)
+    assert _RELAYED_ANSWER in target.content
     [annotation] = _sent_annotations(choice)
     assert annotation["body"]["source"]["attachment"]["url"] == _PUBLIC_URL
+    assert annotation["target"]["selector"]["id"] == "citation004"
+
+
+@pytest.mark.asyncio
+async def test_response_names_the_source_of_every_citation_tag():
+    result, target, choice = await _run([_chunk(_ANSWER, annotations=[_ANNOTATION])])
+
+    response = result[DialRagAgentFactory.FIELD_RESPONSE]
+    assert (
+        '### Sources of the citation tags:\n\n```json\n'
+        '[{"id": "citation004", "title": "sigma 2/2025 – World insurance, page 8"}]\n```'
+    ) in response
+    assert _ANNOTATION["body"]["quote"] not in response
+    assert "Sources of the citation tags" not in target.content
+    # the client still receives the whole annotation, quote included
+    [annotation] = _sent_annotations(choice)
+    assert annotation["body"]["quote"] == _ANNOTATION["body"]["quote"]
 
 
 @pytest.mark.asyncio
@@ -138,6 +165,7 @@ async def test_attachments_only_answer_is_accepted_and_rewritten():
     assert result[DialRagAgentFactory.FIELD_ANSWERED_BY] == 'RAG'
     [attachment] = [a for a in target.attachments if a["title"] == "report.pdf"]
     assert attachment["url"] == _PUBLIC_URL
+    assert "Sources of the citation tags" not in result[DialRagAgentFactory.FIELD_RESPONSE]
 
 
 @pytest.mark.asyncio

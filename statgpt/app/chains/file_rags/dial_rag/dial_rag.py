@@ -302,6 +302,7 @@ class DialRagAgentFactory(BaseRAGFactory):
             show_debug_stages=state.get(StateVarsConfig.SHOW_DEBUG_STAGES, False),
             stages_config=self._tool_config.details.stages_config,
             annotation_index_space=ChainParameters.get_annotation_index_space(inputs),
+            citation_id_space=ChainParameters.get_citation_id_space(inputs),
             rewriter=CustomContentRewriter(self._tool_config.details.rewrite_rules),
         )
 
@@ -326,7 +327,9 @@ class DialRagAgentFactory(BaseRAGFactory):
                     self._attachments_sink(target, choice), dial_streamer.attachments
                 )
                 inputs[self.FIELD_RESPONSE] = (
-                    dial_streamer.content_with_attachments_metadata + prefilter_note
+                    dial_streamer.content_with_attachments_metadata
+                    + dial_streamer.citations_note
+                    + prefilter_note
                 )
                 inputs[self.FIELD_ANSWERED_BY] = 'RAG'
                 inputs[self.FIELD_ATTACHMENTS] = dial_streamer.attachments

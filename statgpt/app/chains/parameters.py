@@ -7,6 +7,7 @@ from statgpt.app.config import ChainParametersConfig
 from statgpt.app.schemas.dial_app_configuration import StatGPTConfiguration
 from statgpt.app.schemas.file_rags.dial_rag import RagFilterDial
 from statgpt.app.services.chat_facade import ChannelServiceFacade, VersionedDataSet
+from statgpt.app.utils.citation_ids import CitationIdSpace
 from statgpt.app.utils.dial_stages import ChoiceI
 from statgpt.app.utils.message_history import History
 from statgpt.app.utils.openai_to_dial_streamer import AnnotationIndexSpace
@@ -89,6 +90,17 @@ class ChainParameters:
         of ``statgpt.app.utils.dial_annotations``.
         """
         return data[ChainParametersConfig.ANNOTATION_INDEX_SPACE]
+
+    @staticmethod
+    def get_citation_id_space(data: dict) -> CitationIdSpace:
+        """The citation ids of the current conversation.
+
+        One per response, shared by every ``OpenAiToDialStreamer`` it creates so that no two
+        sources of the conversation are cited with the same id. Unlike the annotation index
+        space it outlives the response: its ``count`` is persisted to ``state`` and the next
+        response continues from it.
+        """
+        return data[ChainParametersConfig.CITATION_ID_SPACE]
 
     @staticmethod
     def get_history(data: dict) -> History:

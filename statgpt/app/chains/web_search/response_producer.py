@@ -32,6 +32,12 @@ class ResponseProducerABC(abc.ABC):
     async def run(self, inputs: dict, query: str) -> str:
         pass
 
+    @property
+    def writes_response_to_target(self) -> bool:
+        """Whether `run` has already written its response to the target, so the caller must not
+        append it again."""
+        return False
+
     def _construct_history(self, query: str) -> list[dict[str, Any]]:
         messages = []
 
@@ -62,6 +68,12 @@ class RagResponseProducer(ResponseProducerABC):
         )
         self._stream_content = stream_content
         self._attachments_metadata = attachments_metadata
+
+    @property
+    def writes_response_to_target(self) -> bool:
+        # The streamed text keeps the citation ids of the deployment, unlike the response the
+        # agent gets; the target is a stage, which shows no citation pills.
+        return self._stream_content
 
     async def run(self, inputs: dict, query: str) -> str:
         auth_context = ChainParameters.get_auth_context(inputs)
@@ -94,6 +106,7 @@ class RagResponseProducer(ResponseProducerABC):
             show_debug_stages=state.get(StateVarsConfig.SHOW_DEBUG_STAGES, False),
             stages_config=self._stages_config,
             annotation_index_space=ChainParameters.get_annotation_index_space(inputs),
+            citation_id_space=ChainParameters.get_citation_id_space(inputs),
         )
 
         res = None
@@ -105,6 +118,9 @@ class RagResponseProducer(ResponseProducerABC):
             except APIError as e:
                 logger.exception(e)
                 res = "<error>Something went wrong</error>"
+                if self._stream_content:
+                    # The text streamed so far is in the target already; the error is not.
+                    target.append_content(res)
 
             if res is None:
                 if self._attachments_metadata:
@@ -148,6 +164,7 @@ class UrlOnlyResponseProducer(ResponseProducerABC):
                 show_debug_stages=state.get(StateVarsConfig.SHOW_DEBUG_STAGES, False),
                 stages_config=self._stages_config,
                 annotation_index_space=ChainParameters.get_annotation_index_space(inputs),
+                citation_id_space=ChainParameters.get_citation_id_space(inputs),
             )
 
             with dial_streamer:
