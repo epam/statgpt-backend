@@ -2449,14 +2449,14 @@ langgraph-checkpoint = ">=2.1.0,<5.0.0"
 
 [[package]]
 name = "langgraph-sdk"
-version = "0.4.2"
+version = "0.4.5"
 description = "SDK for interacting with LangGraph API"
 optional = false
 python-versions = ">=3.10"
 groups = ["main"]
 files = [
-    {file = "langgraph_sdk-0.4.2-py3-none-any.whl", hash = "sha256:75fa5096c1177ce39c847096a8fe3745ffd480ddb412995f836e9f5f884c43dd"},
-    {file = "langgraph_sdk-0.4.2.tar.gz", hash = "sha256:b88f0f5f6328ac0680d6790614a905b2bcfa257f2276dba4e38f0e86db0aa738"},
+    {file = "langgraph_sdk-0.4.5-py3-none-any.whl", hash = "sha256:e03ef033a20d21288af496e9b6c08ae3afcc1b58dc5abcd37575bfd1a93045de"},
+    {file = "langgraph_sdk-0.4.5.tar.gz", hash = "sha256:d49a98a2ee8e0c494b101a7caf8061c8b4b94d3ee5ada0ea2dbe50903a5487b1"},
 ]
 
 [package.dependencies]
@@ -2464,7 +2464,7 @@ httpx = ">=0.25.2"
 langchain-core = ">=1.4.0,<2"
 langchain-protocol = ">=0.0.15"
 orjson = ">=3.11.5"
-websockets = ">=14,<16"
+websockets = ">=14,<17"
 
 [[package]]
 name = "langsmith"
