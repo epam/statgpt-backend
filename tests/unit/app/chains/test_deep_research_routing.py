@@ -12,9 +12,11 @@ Deep Research is excluded from ``ChannelConfig.tool_fields`` and is reachable on
 - the Deep Research <-> agent exchange runs on the main history, so it is persisted into the
   cross-turn tool state and stays visible to later turns.
 
-These tests pin that behaviour and the deterministic toggle/session routing.
+These tests pin that behaviour and the deterministic toggle/session routing, plus the check that
+the query suits Deep Research before a new session is started (#732).
 """
 
+import asyncio
 import itertools
 import json
 from unittest.mock import AsyncMock, MagicMock
@@ -23,16 +25,22 @@ import httpx
 import pytest
 from aidial_sdk.chat_completion import Message as DialMessage
 from aidial_sdk.chat_completion import Role
-from langchain_core.messages import AIMessageChunk
+from langchain_core.messages import AIMessageChunk, SystemMessage
 from langchain_core.runnables import RunnableLambda
 from openai import APIError, OpenAIError
 from openai.types.chat import ChatCompletionChunk
 
 from statgpt.app.chains import supreme_agent as supreme_agent_module
-from statgpt.app.chains.deep_research import DEEP_RESEARCH_ERROR_MESSAGE, DeepResearchFailedError
+from statgpt.app.chains.deep_research import (
+    DEEP_RESEARCH_ERROR_MESSAGE,
+    DeepResearchFailedError,
+    DeepResearchQueryChecker,
+)
 from statgpt.app.chains.deep_research import deep_research_tool as deep_research_module
+from statgpt.app.chains.parameters import ChainParameters
 from statgpt.app.chains.supreme_agent import SupremeAgentExecutor, _DeepResearchMode
 from statgpt.app.config import ChainParametersConfig, StateVarsConfig
+from statgpt.app.default_prompts import supreme_agent_default_prompts
 from statgpt.app.schemas import DeepResearchSession, DeepResearchTurn
 from statgpt.app.schemas.dial_app_configuration import StatGPTConfiguration
 from statgpt.app.utils.dial_stages import DummyStage, NullChoice
@@ -40,11 +48,27 @@ from statgpt.app.utils.message_history import History
 from statgpt.common.schemas.channel import ChannelConfig, SupremeAgentConfig
 from statgpt.common.schemas.tools import DataQueryTool, DeepResearchTool
 
+_ENABLED_NOTE = supreme_agent_default_prompts.deep_research_enabled_note
+_DISABLED_NOTE = supreme_agent_default_prompts.deep_research_disabled_note
 
-def _channel_config(*, access_claim_value: str | None = None) -> ChannelConfig:
+
+@pytest.fixture(autouse=True)
+def query_check(monkeypatch) -> AsyncMock:
+    """Stub the check that the query suits Deep Research (an LLM call). By default the query suits
+    Deep Research, so a START turn starts a session; tests flip `return_value` to skip it."""
+    check = AsyncMock(return_value=True)
+    monkeypatch.setattr(DeepResearchQueryChecker, "suits_deep_research", check)
+    return check
+
+
+def _channel_config(
+    *, access_claim_value: str | None = None, query_check: dict | None = None
+) -> ChannelConfig:
     details: dict = {"deployment_id": "dr-app"}
     if access_claim_value is not None:
         details["access_claim_value"] = access_claim_value
+    if query_check is not None:
+        details["query_check"] = query_check
     return ChannelConfig(
         supreme_agent=SupremeAgentConfig(name="X", domain="d", terminology_domain="t"),
         deep_research=DeepResearchTool(
@@ -115,17 +139,25 @@ def _text_chunk(text: str) -> AIMessageChunk:
     return AIMessageChunk(content=text)
 
 
-def _patch_scripted_agent(monkeypatch, responses: list[AIMessageChunk]) -> None:
+def _patch_scripted_agent(
+    monkeypatch, responses: list[AIMessageChunk], prompts: list | None = None
+) -> None:
     """Drive the Supreme Agent LLM with a scripted sequence of responses, one per agent run.
 
     A single shared model instance is returned for every ``get_chat_model`` call so the script is
-    consumed in order across the forced-start and free mediation agents."""
+    consumed in order across the forced-start and free mediation agents. If ``prompts`` is given,
+    the messages each agent run was prompted with are appended to it."""
 
     scripted = iter(responses)
 
+    def _respond(prompt_value):
+        if prompts is not None:
+            prompts.append(prompt_value.to_messages())
+        return next(scripted)
+
     class _SharedModel:
         def bind_tools(self, tools, **kwargs):
-            return RunnableLambda(lambda _inp: next(scripted))
+            return RunnableLambda(_respond)
 
     shared = _SharedModel()
     monkeypatch.setattr(supreme_agent_module, "get_chat_model", lambda **kwargs: shared)
@@ -271,6 +303,8 @@ def _inputs(
         ),
         ChainParametersConfig.CONFIGURATION: StatGPTConfiguration(deep_research=deep_research),
         ChainParametersConfig.ANNOTATION_INDEX_SPACE: itertools.count(),
+        # Read when the general agent finishes (a turn where Deep Research was not started).
+        ChainParametersConfig.PERFORMANCE_STAGE: None,
     }
 
 
@@ -805,3 +839,212 @@ async def test_deep_research_turn_runs_fake_tool_prelude(monkeypatch):
     history = inputs[ChainParametersConfig.HISTORY]
     messages = history.get_langchain_messages(include_tool_messages=False)
     assert any(getattr(m, "content", "") == "FAKE_PRELUDE_MARKER" for m in messages)
+
+
+# ~~~~~~~~~~~~~~~~ check that the query suits Deep Research (#732) ~~~~~~~~~~~~~~~~
+
+
+def _system_notes(messages) -> list[str]:
+    return [m.content for m in messages if isinstance(m, SystemMessage)]
+
+
+async def test_query_not_suiting_deep_research_is_handled_as_normal_turn(monkeypatch, query_check):
+    """A query that does not suit Deep Research (e.g. "What can you do?") is answered by the general
+    agent: Deep Research is never invoked, the user is told it was not started, and the agent is told
+    that Deep Research mode was disabled for the request."""
+    query_check.return_value = False
+    prompts: list = []
+    _patch_scripted_agent(monkeypatch, [_text_chunk("I can query datasets.")], prompts)
+    calls = _patch_dr_deployment_counting(monkeypatch)
+
+    channel_config = _channel_config()
+    skipped_message = channel_config.deep_research.details.query_check.skipped_message
+    choice = _RecordingChoice()
+    state = {StateVarsConfig.SHOW_DEBUG_STAGES: False}
+    inputs = _inputs(state, "What can you do?", choice=choice)
+    content = await SupremeAgentExecutor(channel_config).stream_response(inputs)
+
+    assert content == "I can query datasets."
+    # The notice precedes the agent's answer.
+    assert choice.appended == [f"{skipped_message}\n\n", "I can query datasets."]
+    assert calls["count"] == 0
+    query_check.assert_awaited_once()
+    # No session was started, and the toggle is left as the user set it.
+    assert DeepResearchSession.from_state(state) is None
+    assert StateVarsConfig.DEEP_RESEARCH_REPORT_DELIVERED not in state
+    # The general agent (not the Deep Research mediation) answered, prompted with the disabled note
+    # right after the user's query.
+    assert prompts[0][-2].content == "What can you do?"
+    assert prompts[0][-1] == SystemMessage(content=_DISABLED_NOTE)
+    assert "Deep Research Mode" not in prompts[0][0].content
+    # The note is persisted with the turn's tool messages, so later turns see it too.
+    history = inputs[ChainParametersConfig.HISTORY]
+    assert _system_notes(history.get_tool_messages()) == [_DISABLED_NOTE]
+
+
+async def test_empty_skipped_message_shows_no_notice(monkeypatch, query_check):
+    """With an empty `skipped_message`, only the agent's answer reaches the user."""
+    query_check.return_value = False
+    _patch_scripted_agent(monkeypatch, [_text_chunk("I can query datasets.")])
+    _patch_dr_deployment_counting(monkeypatch)
+
+    choice = _RecordingChoice()
+    await SupremeAgentExecutor(
+        _channel_config(query_check={"skipped_message": ""})
+    ).stream_response(
+        _inputs({StateVarsConfig.SHOW_DEBUG_STAGES: False}, "What can you do?", choice=choice)
+    )
+
+    assert choice.appended == ["I can query datasets."]
+
+
+async def test_query_suiting_deep_research_starts_session_and_tells_agent(monkeypatch, query_check):
+    """A query that suits Deep Research starts a session, and the agent is told that Deep Research
+    mode was enabled by the user before it is forced to call the start tool."""
+    prompts: list = []
+    _patch_scripted_agent(
+        monkeypatch,
+        [_tool_call_chunk("deep_research", {"query": "US GDP"}), _text_chunk("Which region?")],
+        prompts,
+    )
+    captured: dict = {}
+    _patch_dr_deployment(monkeypatch, [_clarification("Which region?")], captured)
+
+    state = {StateVarsConfig.SHOW_DEBUG_STAGES: False}
+    inputs = _inputs(state, "research US GDP")
+    await SupremeAgentExecutor(_channel_config()).stream_response(inputs)
+
+    query_check.assert_awaited_once()
+    assert len(captured["messages"]) == 1  # Deep Research was started
+    assert DeepResearchSession.from_state(state) is not None
+    # The forced-start run was prompted with the enabled note right after the user's query.
+    assert prompts[0][-2].content == "research US GDP"
+    assert prompts[0][-1] == SystemMessage(content=_ENABLED_NOTE)
+    history = inputs[ChainParametersConfig.HISTORY]
+    assert _system_notes(history.get_tool_messages()) == [_ENABLED_NOTE]
+
+
+async def test_resume_turn_is_not_checked(monkeypatch, query_check):
+    """Messages sent while a session is in progress (clarifications, plan approval) are not checked,
+    and no Deep Research mode note is added."""
+    query_check.return_value = False  # would skip Deep Research if it were consulted
+    _patch_scripted_agent(
+        monkeypatch, [_tool_call_chunk("resume_deep_research", {"message": "approved"})]
+    )
+    captured: dict = {}
+    _patch_dr_deployment(monkeypatch, [_report("Final report.")], captured)
+
+    prior = DeepResearchTurn(user_message="give me US GDP", assistant_content="plan?")
+    inputs = _inputs(_session_state(prior), "ok")
+    content = await SupremeAgentExecutor(_channel_config()).stream_response(inputs)
+
+    assert content == "Final report."
+    query_check.assert_not_awaited()
+    history = inputs[ChainParametersConfig.HISTORY]
+    assert _system_notes(history.get_tool_messages()) == []
+
+
+async def test_disabled_query_check_starts_deep_research_unchecked(monkeypatch, query_check):
+    """With the check disabled, every START turn starts Deep Research without consulting the LLM."""
+    query_check.return_value = False  # would skip Deep Research if it were consulted
+    _patch_scripted_agent(
+        monkeypatch,
+        [_tool_call_chunk("deep_research", {"query": "q"}), _text_chunk("Which region?")],
+    )
+    captured: dict = {}
+    _patch_dr_deployment(monkeypatch, [_clarification("Which region?")], captured)
+
+    inputs = _inputs({StateVarsConfig.SHOW_DEBUG_STAGES: False}, "What can you do?")
+    await SupremeAgentExecutor(_channel_config(query_check={"enabled": False})).stream_response(
+        inputs
+    )
+
+    query_check.assert_not_awaited()
+    assert len(captured["messages"]) == 1
+    history = inputs[ChainParametersConfig.HISTORY]
+    assert _system_notes(history.get_tool_messages()) == [_ENABLED_NOTE]
+
+
+async def test_query_check_sees_conversation_without_fake_tool_prelude(monkeypatch, query_check):
+    """The check runs before the fake-tool-call prelude is prepended, so it judges only the
+    conversation, not the prelude's (possibly long) tool results."""
+    seen: list = []
+
+    async def _check(inputs):
+        history = ChainParameters.get_history(inputs)
+        seen.extend(history.get_langchain_messages(include_tool_messages=False))
+        return False
+
+    query_check.side_effect = _check
+    _patch_scripted_agent(monkeypatch, [_text_chunk("I can query datasets.")])
+
+    async def _fake_prelude(self, tool_executor, inputs, show_stages):
+        prelude = History.create_empty()
+        prelude.add_dial_message(DialMessage(role=Role.ASSISTANT, content="FAKE_PRELUDE_MARKER"))
+        return prelude
+
+    monkeypatch.setattr(SupremeAgentExecutor, "_fake_tool_calls", _fake_prelude)
+
+    await SupremeAgentExecutor(_channel_config()).stream_response(
+        _inputs({StateVarsConfig.SHOW_DEBUG_STAGES: False}, "What can you do?")
+    )
+
+    assert [m.content for m in seen] == ["What can you do?"]
+
+
+async def test_query_check_runs_alongside_fake_tool_prelude(monkeypatch, query_check):
+    """The check runs concurrently with the fake-tool-call prelude, so it does not add its own
+    latency to the turn. Each waits for the other to start, which works only if they overlap."""
+    check_started = asyncio.Event()
+    prelude_started = asyncio.Event()
+
+    async def _check(inputs):
+        check_started.set()
+        await asyncio.wait_for(prelude_started.wait(), timeout=1)
+        return False
+
+    async def _fake_prelude(self, tool_executor, inputs, show_stages):
+        prelude_started.set()
+        await asyncio.wait_for(check_started.wait(), timeout=1)
+        return History.create_empty()
+
+    query_check.side_effect = _check
+    monkeypatch.setattr(SupremeAgentExecutor, "_fake_tool_calls", _fake_prelude)
+    _patch_scripted_agent(monkeypatch, [_text_chunk("I can query datasets.")])
+
+    content = await SupremeAgentExecutor(_channel_config()).stream_response(
+        _inputs({StateVarsConfig.SHOW_DEBUG_STAGES: False}, "What can you do?")
+    )
+
+    assert content == "I can query datasets."
+
+
+async def test_fake_tool_prelude_failure_cancels_the_query_check(monkeypatch, query_check):
+    """If the prelude fails, the check is cancelled instead of being left running past the failed
+    turn, and the prelude's error is raised as is (not wrapped in an ExceptionGroup)."""
+    check_cancelled = asyncio.Event()
+
+    async def _check(inputs):
+        try:
+            await asyncio.Event().wait()  # never finishes on its own
+        except asyncio.CancelledError:
+            check_cancelled.set()
+            raise
+
+    async def _failing_prelude(self, tool_executor, inputs, show_stages):
+        await asyncio.sleep(0)  # let the check start
+        raise RuntimeError("prelude failed")
+
+    query_check.side_effect = _check
+    monkeypatch.setattr(SupremeAgentExecutor, "_fake_tool_calls", _failing_prelude)
+
+    with pytest.raises(RuntimeError, match="prelude failed"):
+        # Bounded, so a check that is awaited before the prelude fails the test instead of hanging.
+        await asyncio.wait_for(
+            SupremeAgentExecutor(_channel_config()).stream_response(
+                _inputs({StateVarsConfig.SHOW_DEBUG_STAGES: False}, "What can you do?")
+            ),
+            timeout=1,
+        )
+
+    assert check_cancelled.is_set()

@@ -297,6 +297,55 @@ class ResumeStagesConfig(ToolStageNames):
     )
 
 
+class DeepResearchQueryCheckConfig(BaseYamlModel):
+    """The check that runs before a new Deep Research session is started.
+
+    A cheap LLM call decides whether the user's query suits Deep Research. If it does not (e.g.
+    "What can you do?"), the turn is handled as a normal Supreme Agent turn instead of launching a
+    slow, expensive Deep Research run. Messages sent while a session is in progress (answers to
+    clarifying questions, plan approval) are never checked."""
+
+    enabled: bool = Field(
+        default=True,
+        description=(
+            "Whether the check runs. When disabled, every message sent with Deep Research mode"
+            " turned on starts a Deep Research session."
+        ),
+    )
+    llm_model_config: LLMModelConfig = Field(
+        default_factory=LLMModelConfig,
+        description="The LLM model configuration for the check.",
+    )
+    timeout_seconds: float = Field(
+        default=10,
+        gt=0,
+        description=(
+            "The time limit of the check, in seconds, including the model client's retries. If the"
+            " check does not finish in time, Deep Research is started. Raise it for a slow (e.g."
+            " reasoning) model."
+        ),
+    )
+    excluded_topics: list[str] | None = Field(
+        default=None,
+        description=(
+            "Topics and kinds of questions Deep Research should not handle; such queries are"
+            " answered as a normal turn. If null, the default topics are used (questions about the"
+            " assistant's capabilities, tools or available content, navigation help, small talk)."
+            " Messages that are not research questions are not handled by Deep Research either way."
+        ),
+    )
+    skipped_message: str = Field(
+        default=(
+            "_Deep Research was not started: this request does not require in-depth research,"
+            " so it is answered directly._"
+        ),
+        description=(
+            "The message shown to the user, before the answer, when the check decides that the"
+            " query does not suit Deep Research. If empty, no message is shown."
+        ),
+    )
+
+
 class DeepResearchDetails(BaseToolDetails, RewriteRulesMixin):
     deployment_id_raw: str = Field(
         validation_alias=AliasChoices("deployment_id", "deploymentId"),
@@ -347,6 +396,13 @@ class DeepResearchDetails(BaseToolDetails, RewriteRulesMixin):
     resume_stages_config: ResumeStagesConfig = Field(
         default_factory=ResumeStagesConfig,
         description="The stage names of the internal tool that resumes a Deep Research session.",
+    )
+    query_check: DeepResearchQueryCheckConfig = Field(
+        default_factory=DeepResearchQueryCheckConfig,
+        description=(
+            "The check, run before a new Deep Research session is started, that the user's query"
+            " suits Deep Research."
+        ),
     )
 
     def get_deployment_id(self) -> str:
