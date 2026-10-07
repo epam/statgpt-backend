@@ -21,7 +21,7 @@ from statgpt.admin.audit.context import AuditContext, get_audit_context, update_
 from statgpt.admin.audit.decorators import audit_action
 from statgpt.admin.settings.exim import JobsConfig
 from statgpt.common.auth.auth_context import AuthContext
-from statgpt.common.schemas import AuditActionType, AuditEntityType
+from statgpt.common.schemas import AuditActionType, AuditEntityType, AuditScope
 from statgpt.common.settings.dial import dial_settings
 from statgpt.common.utils import (
     AttachmentsStorage,
@@ -177,7 +177,11 @@ class JobsService:
 
         return schemas.Job.model_validate(job, from_attributes=True)
 
-    @audit_action(entity_type=AuditEntityType.IMPORT_JOB, action_type=AuditActionType.CREATE)
+    @audit_action(
+        entity_type=AuditEntityType.IMPORT_JOB,
+        action_type=AuditActionType.CREATE,
+        scope=AuditScope.EX_IM,
+    )
     async def create_import_job(
         self,
         background_tasks: BackgroundTasks,
