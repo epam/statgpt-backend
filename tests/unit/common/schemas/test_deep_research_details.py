@@ -52,7 +52,7 @@ def test_query_check_defaults() -> None:
     assert query_check.enabled is True
     assert query_check.timeout_seconds == 10
     assert query_check.excluded_topics is None  # the default topics are used
-    assert query_check.skipped_message
+    assert query_check.deactivation_message_to_user
 
 
 def test_query_check_accepts_camel_case_aliases() -> None:
@@ -61,14 +61,14 @@ def test_query_check_accepts_camel_case_aliases() -> None:
             "enabled": False,
             "timeoutSeconds": 30,
             "excludedTopics": ["Weather"],
-            "skippedMessage": "",
+            "deactivationMessageToUser": "",
             "llmModelConfig": {"temperature": 0.5},
         }
     ).query_check
     assert query_check.enabled is False
     assert query_check.timeout_seconds == 30
     assert query_check.excluded_topics == ["Weather"]
-    assert query_check.skipped_message == ""
+    assert query_check.deactivation_message_to_user == ""
     assert query_check.llm_model_config.temperature == 0.5
 
 

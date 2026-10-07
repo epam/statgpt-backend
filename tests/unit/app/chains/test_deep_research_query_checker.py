@@ -128,8 +128,22 @@ async def test_empty_excluded_topics_omit_the_section(monkeypatch) -> None:
 async def test_fails_open_when_the_check_fails(monkeypatch) -> None:
     """The check only spares an unnecessary run, so a failure honors the user's choice."""
     _patch_model(monkeypatch, error=RuntimeError("LLM unavailable"))
+    choice = _StageRecordingChoice()
 
-    assert await _checker().suits_deep_research(_inputs()) is True
+    assert await _checker().suits_deep_research(_inputs(debug=True, choice=choice)) is True
+    assert choice.stage_content == ["The check failed, so Deep Research is started."]
+
+
+async def test_fails_open_when_preparing_the_check_fails(monkeypatch) -> None:
+    """Failing open covers the whole check, not only the LLM call."""
+    prompts = _patch_model(monkeypatch, suits=False)
+    inputs = _inputs()
+    inputs[ChainParametersConfig.HISTORY] = MagicMock(
+        get_langchain_messages=MagicMock(side_effect=RuntimeError("broken history"))
+    )
+
+    assert await _checker().suits_deep_research(inputs) is True
+    assert prompts == []
 
 
 async def test_fails_open_when_the_check_times_out(monkeypatch) -> None:

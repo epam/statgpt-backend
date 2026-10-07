@@ -74,8 +74,16 @@ class DeepResearchQueryChecker:
     async def suits_deep_research(self, inputs: dict) -> bool:
         """Whether the query of this turn suits Deep Research, judged from the conversation.
 
-        Fails open: the check only spares an unnecessary run, so if it fails or does not finish
-        within `timeout_seconds`, the user's explicit choice of Deep Research is honored."""
+        Fails open: the check only spares an unnecessary run, so if any part of it fails or it
+        does not finish within `timeout_seconds`, the user's explicit choice of Deep Research is
+        honored."""
+        try:
+            return await self._suits_deep_research(inputs)
+        except Exception:
+            logger.exception("Deep Research query check failed, starting Deep Research")
+            return True
+
+    async def _suits_deep_research(self, inputs: dict) -> bool:
         auth_context = ChainParameters.get_auth_context(inputs)
         choice = ChainParameters.get_choice(inputs)
         state = ChainParameters.get_state(inputs)
@@ -101,10 +109,11 @@ class DeepResearchQueryChecker:
                     stage.append_content("The check timed out, so Deep Research is started.")
                 return True
             except Exception:
-                logger.exception("Deep Research query check failed, starting Deep Research")
                 if stage:
                     stage.append_content("The check failed, so Deep Research is started.")
-                return True
+                # Logged and failed open by `suits_deep_research`, which also covers the rest of
+                # the check.
+                raise
 
             if stage:
                 verdict = "suits" if response.suits_deep_research else "does not suit"

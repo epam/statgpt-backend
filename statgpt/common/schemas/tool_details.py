@@ -334,7 +334,7 @@ class DeepResearchQueryCheckConfig(BaseYamlModel):
             " Messages that are not research questions are not handled by Deep Research either way."
         ),
     )
-    skipped_message: str = Field(
+    deactivation_message_to_user: str = Field(
         default=(
             "_Deep Research was not started: this request does not require in-depth research,"
             " so it is answered directly._"

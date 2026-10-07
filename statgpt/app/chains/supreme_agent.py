@@ -510,16 +510,20 @@ class SupremeAgentExecutor:
 
         if not suits_deep_research:
             query_check = self._deep_research_config().details.query_check
-            if query_check.skipped_message:
+            if query_check.deactivation_message_to_user:
                 choice = ChainParameters.get_choice(inputs)
-                choice.append_content(f"{query_check.skipped_message}\n\n")
+                choice.append_content(f"{query_check.deactivation_message_to_user}\n\n")
             history.add_tool_message(
-                SystemMessage(content=supreme_agent_default_prompts.deep_research_disabled_note)
+                SystemMessage(
+                    content=supreme_agent_default_prompts.deep_research_disabled_message_to_agent
+                )
             )
             return None
 
         history.add_tool_message(
-            SystemMessage(content=supreme_agent_default_prompts.deep_research_enabled_note)
+            SystemMessage(
+                content=supreme_agent_default_prompts.deep_research_enabled_message_to_agent
+            )
         )
         return _DeepResearchMode.START
 

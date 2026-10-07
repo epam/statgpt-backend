@@ -48,8 +48,8 @@ from statgpt.app.utils.message_history import History
 from statgpt.common.schemas.channel import ChannelConfig, SupremeAgentConfig
 from statgpt.common.schemas.tools import DataQueryTool, DeepResearchTool
 
-_ENABLED_NOTE = supreme_agent_default_prompts.deep_research_enabled_note
-_DISABLED_NOTE = supreme_agent_default_prompts.deep_research_disabled_note
+_ENABLED_MESSAGE_TO_AGENT = supreme_agent_default_prompts.deep_research_enabled_message_to_agent
+_DISABLED_MESSAGE_TO_AGENT = supreme_agent_default_prompts.deep_research_disabled_message_to_agent
 
 
 @pytest.fixture(autouse=True)
@@ -844,7 +844,7 @@ async def test_deep_research_turn_runs_fake_tool_prelude(monkeypatch):
 # ~~~~~~~~~~~~~~~~ check that the query suits Deep Research (#732) ~~~~~~~~~~~~~~~~
 
 
-def _system_notes(messages) -> list[str]:
+def _system_messages(messages) -> list[str]:
     return [m.content for m in messages if isinstance(m, SystemMessage)]
 
 
@@ -858,39 +858,42 @@ async def test_query_not_suiting_deep_research_is_handled_as_normal_turn(monkeyp
     calls = _patch_dr_deployment_counting(monkeypatch)
 
     channel_config = _channel_config()
-    skipped_message = channel_config.deep_research.details.query_check.skipped_message
+    query_check_config = channel_config.deep_research.details.query_check
     choice = _RecordingChoice()
     state = {StateVarsConfig.SHOW_DEBUG_STAGES: False}
     inputs = _inputs(state, "What can you do?", choice=choice)
     content = await SupremeAgentExecutor(channel_config).stream_response(inputs)
 
     assert content == "I can query datasets."
-    # The notice precedes the agent's answer.
-    assert choice.appended == [f"{skipped_message}\n\n", "I can query datasets."]
+    # The deactivation message precedes the agent's answer.
+    assert choice.appended == [
+        f"{query_check_config.deactivation_message_to_user}\n\n",
+        "I can query datasets.",
+    ]
     assert calls["count"] == 0
     query_check.assert_awaited_once()
     # No session was started, and the toggle is left as the user set it.
     assert DeepResearchSession.from_state(state) is None
     assert StateVarsConfig.DEEP_RESEARCH_REPORT_DELIVERED not in state
-    # The general agent (not the Deep Research mediation) answered, prompted with the disabled note
-    # right after the user's query.
+    # The general agent (not the Deep Research mediation) answered, prompted with the disabled
+    # message right after the user's query.
     assert prompts[0][-2].content == "What can you do?"
-    assert prompts[0][-1] == SystemMessage(content=_DISABLED_NOTE)
+    assert prompts[0][-1] == SystemMessage(content=_DISABLED_MESSAGE_TO_AGENT)
     assert "Deep Research Mode" not in prompts[0][0].content
-    # The note is persisted with the turn's tool messages, so later turns see it too.
+    # The message is persisted with the turn's tool messages, so later turns see it too.
     history = inputs[ChainParametersConfig.HISTORY]
-    assert _system_notes(history.get_tool_messages()) == [_DISABLED_NOTE]
+    assert _system_messages(history.get_tool_messages()) == [_DISABLED_MESSAGE_TO_AGENT]
 
 
-async def test_empty_skipped_message_shows_no_notice(monkeypatch, query_check):
-    """With an empty `skipped_message`, only the agent's answer reaches the user."""
+async def test_empty_deactivation_message_to_user_shows_no_message(monkeypatch, query_check):
+    """With an empty `deactivation_message_to_user`, only the agent's answer reaches the user."""
     query_check.return_value = False
     _patch_scripted_agent(monkeypatch, [_text_chunk("I can query datasets.")])
     _patch_dr_deployment_counting(monkeypatch)
 
     choice = _RecordingChoice()
     await SupremeAgentExecutor(
-        _channel_config(query_check={"skipped_message": ""})
+        _channel_config(query_check={"deactivation_message_to_user": ""})
     ).stream_response(
         _inputs({StateVarsConfig.SHOW_DEBUG_STAGES: False}, "What can you do?", choice=choice)
     )
@@ -917,16 +920,16 @@ async def test_query_suiting_deep_research_starts_session_and_tells_agent(monkey
     query_check.assert_awaited_once()
     assert len(captured["messages"]) == 1  # Deep Research was started
     assert DeepResearchSession.from_state(state) is not None
-    # The forced-start run was prompted with the enabled note right after the user's query.
+    # The forced-start run was prompted with the enabled message right after the user's query.
     assert prompts[0][-2].content == "research US GDP"
-    assert prompts[0][-1] == SystemMessage(content=_ENABLED_NOTE)
+    assert prompts[0][-1] == SystemMessage(content=_ENABLED_MESSAGE_TO_AGENT)
     history = inputs[ChainParametersConfig.HISTORY]
-    assert _system_notes(history.get_tool_messages()) == [_ENABLED_NOTE]
+    assert _system_messages(history.get_tool_messages()) == [_ENABLED_MESSAGE_TO_AGENT]
 
 
 async def test_resume_turn_is_not_checked(monkeypatch, query_check):
     """Messages sent while a session is in progress (clarifications, plan approval) are not checked,
-    and no Deep Research mode note is added."""
+    and no Deep Research mode message is added."""
     query_check.return_value = False  # would skip Deep Research if it were consulted
     _patch_scripted_agent(
         monkeypatch, [_tool_call_chunk("resume_deep_research", {"message": "approved"})]
@@ -941,7 +944,7 @@ async def test_resume_turn_is_not_checked(monkeypatch, query_check):
     assert content == "Final report."
     query_check.assert_not_awaited()
     history = inputs[ChainParametersConfig.HISTORY]
-    assert _system_notes(history.get_tool_messages()) == []
+    assert _system_messages(history.get_tool_messages()) == []
 
 
 async def test_disabled_query_check_starts_deep_research_unchecked(monkeypatch, query_check):
@@ -962,7 +965,7 @@ async def test_disabled_query_check_starts_deep_research_unchecked(monkeypatch, 
     query_check.assert_not_awaited()
     assert len(captured["messages"]) == 1
     history = inputs[ChainParametersConfig.HISTORY]
-    assert _system_notes(history.get_tool_messages()) == [_ENABLED_NOTE]
+    assert _system_messages(history.get_tool_messages()) == [_ENABLED_MESSAGE_TO_AGENT]
 
 
 async def test_query_check_sees_conversation_without_fake_tool_prelude(monkeypatch, query_check):
