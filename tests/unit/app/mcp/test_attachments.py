@@ -23,12 +23,12 @@ from statgpt.app.schemas.mcp import ExecutionResult, InvalidityReason
 from statgpt.app.schemas.query import AppJsonQueryWithMetadata
 from statgpt.app.schemas.tool_artifact import DataQueryOutcome
 from statgpt.common.data.base import DataResponseStatus
+from statgpt.common.schemas.base import ToggleableConfig
 from statgpt.common.schemas.data_query_tool import (
     DataQueryMcpMeta,
     DataQueryMcpResources,
     DataQueryMcpStructuredContent,
     McpResource,
-    ToggleableConfig,
 )
 from statgpt.common.schemas.enums import DataParsingStatus, DataRequestStatus, ExplorerLinkPolicy
 from statgpt.common.schemas.query import (

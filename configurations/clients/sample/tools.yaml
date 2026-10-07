@@ -46,6 +46,13 @@ tools:
         tool_call_id: *available_datasets_call_id
       version: full
       include_indicator_count: true
+      # Payload carried in the MCP result's `_meta` under `{namespace}/client`: each dataset's data
+      # explorer and citation links, resolved independently of the single `url` in
+      # `structuredContent`. Opt-in.
+      mcpMeta:
+        namespace: "statgpt.dialx.ai"
+        client:
+          enabledStr: "True"
 
   - type: dataset_structure
     <<: *shared_settings

@@ -15,7 +15,7 @@ from statgpt.app.config import StateVarsConfig
 from statgpt.app.schemas import DialRagArtifact, DialRagState
 from statgpt.app.schemas.file_rags.dial_rag import DialRagMetadata, PreFilterResponse
 from statgpt.app.settings.dial_rag import dial_rag_settings
-from statgpt.app.utils import OpenAiToDialStreamer, openai, replace_dial_url
+from statgpt.app.utils import CustomContentRewriter, OpenAiToDialStreamer, openai, replace_dial_url
 from statgpt.app.utils.dial_stages import ChoiceI
 from statgpt.common.auth.auth_context import AuthContext
 from statgpt.common.config import multiline_logger as logger
@@ -302,6 +302,7 @@ class DialRagAgentFactory(BaseRAGFactory):
             show_debug_stages=state.get(StateVarsConfig.SHOW_DEBUG_STAGES, False),
             stages_config=self._tool_config.details.stages_config,
             annotation_index_space=ChainParameters.get_annotation_index_space(inputs),
+            rewriter=CustomContentRewriter(self._tool_config.details.rewrite_rules),
         )
 
         with dial_streamer:
@@ -312,7 +313,8 @@ class DialRagAgentFactory(BaseRAGFactory):
                 logger.exception(e)
 
             # NOTE: append '---' to the end to create space between text and attachments
-            if dial_streamer.attachments:
+            # NOTE: the annotations are already relayed to the choice by the streamer
+            if dial_streamer.attachments or dial_streamer.annotations:
                 target.append_content(
                     "Answer using the information found by RAG.\n\n---\n\n"
                     f'### Query\n\n{query}\n\n'

@@ -15,11 +15,11 @@ from statgpt.app.schemas.discovery_datasets import (
 )
 from statgpt.app.schemas.tool_artifact import DataQueryOutcome
 from statgpt.common.data.base import DataResponseStatus
+from statgpt.common.schemas.base import ToggleableConfig
 from statgpt.common.schemas.data_query_tool import (
     DataQueryMcpMeta,
     DataQueryMcpResources,
     McpResource,
-    ToggleableConfig,
 )
 from statgpt.common.schemas.enums import DataParsingStatus, DataRequestStatus
 from statgpt.common.schemas.query import JsonQueryMetadata, JsonQueryWithMetadata

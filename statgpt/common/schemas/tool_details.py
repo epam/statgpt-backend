@@ -7,12 +7,14 @@ from statgpt.common.config import LLMModelsEnum
 from statgpt.common.config import utils as config_utils
 
 from .base import BaseYamlModel
+from .custom_content_rewrite import CustomContentRewriteRule
 from .enums import (
     AttachmentsTarget,
     AvailableDatasetsHeaderFormat,
     AvailableDatasetsVersion,
     RAGVersion,
 )
+from .mcp_meta import McpMeta
 from .model_config import LLMModelConfig
 
 
@@ -117,7 +119,18 @@ class BaseToolDetails(BaseYamlModel):
     stages_config: StagesConfig = Field(default_factory=StagesConfig)  # type: ignore
 
 
-class FileRagDetails(BaseToolDetails):
+class RewriteRulesMixin(BaseYamlModel):
+    rewrite_rules: list[CustomContentRewriteRule] = Field(
+        default_factory=list,
+        description=(
+            "Rules modifying the annotations and attachments received from the sub-deployment"
+            " (e.g. replacing DIAL file links with public ones)."
+            " Rules are checked in order and only the first matching rule is applied to an item."
+        ),
+    )
+
+
+class FileRagDetails(BaseToolDetails, RewriteRulesMixin):
     version: RAGVersion
     """RAG backend. `GENERIC` targets a Generic RAG DIAL application, reusing the same
     chat-completions transport (only the RAG configuration payload and metadata shape differ);
@@ -150,9 +163,11 @@ class FileRagDetails(BaseToolDetails):
     )
     attachment_url_override: str | None = Field(
         default=None,
+        deprecated="`attachment_url_override` is deprecated; use `rewrite_rules` instead.",
         description=(
-            "Replace the attachment `reference_url` with this value if provided."
-            " If None, the original URL will be used."
+            "Deprecated. Superseded by `rewrite_rules`, which also cover annotations and stage"
+            " attachments. Replace the attachment `reference_url` with this value if provided."
+            " If None, the original URL will be used. Applied after `rewrite_rules`."
         ),
     )
     attachments_target: AttachmentsTarget = Field(
@@ -177,9 +192,11 @@ class FileRagDetails(BaseToolDetails):
         return config_utils.replace_env(self.metadata_endpoint_raw)
 
     def get_attachment_url_override(self) -> str | None:
-        if self.attachment_url_override is None or not self.attachment_url_override.strip():
+        # read via __dict__: attribute access on a deprecated field emits a DeprecationWarning
+        attachment_url_override: str | None = self.__dict__.get("attachment_url_override")
+        if attachment_url_override is None or not attachment_url_override.strip():
             return None
-        return config_utils.replace_env(self.attachment_url_override.strip())
+        return config_utils.replace_env(attachment_url_override.strip())
 
 
 class WebSearchDetails(BaseToolDetails):
@@ -280,7 +297,7 @@ class ResumeStagesConfig(ToolStageNames):
     )
 
 
-class DeepResearchDetails(BaseToolDetails):
+class DeepResearchDetails(BaseToolDetails, RewriteRulesMixin):
     deployment_id_raw: str = Field(
         validation_alias=AliasChoices("deployment_id", "deploymentId"),
         description="The DIAL deployment_id of the Deep Research application. Supports $env:{VAR} syntax.",
@@ -381,6 +398,13 @@ class AvailableDatasetsDetails(BaseToolDetails):
     stats_header_format: AvailableDatasetsHeaderFormat = Field(
         default=AvailableDatasetsHeaderFormat.totals,
         description="The format of the statistics header in the tool output.",
+    )
+    mcp_meta: McpMeta = Field(
+        default_factory=McpMeta,
+        description=(
+            "Audience-specific payloads carried in the MCP result's `_meta`. The client payload"
+            " carries each dataset's data explorer and citation links."
+        ),
     )
 
 
