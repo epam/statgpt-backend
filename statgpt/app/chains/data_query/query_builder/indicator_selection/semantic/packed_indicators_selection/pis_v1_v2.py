@@ -155,6 +155,8 @@ NOTES:
 - select dimension values ONLY IF THEY WERE REQUIRED by user!
 - a value IS required when it is a kind of what the user asked for, even if its name does not repeat the user's words
   ("loss metrics" requires every loss metric)
+- when the user's term matches several variants of a measure (real/nominal, USD/local currency),
+  select ALL of them unless the user picked one
 - DO NOT INCLUDE the dimension if it does not have values explicitly required by user
 - you must maintain high precision and recall!
 - it is FORBIDDEN to include dimension values absent in the provided list of candidates
