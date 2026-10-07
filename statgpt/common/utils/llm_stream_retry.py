@@ -1,6 +1,5 @@
 import asyncio
 import itertools
-import random
 import time
 from collections.abc import AsyncIterator
 from typing import Any, TypeVar
@@ -27,9 +26,10 @@ _TRANSIENT_STREAM_ERRORS: tuple[type[Exception], ...] = (
 # Codes of an error event sent inside the stream that are worth retrying.
 _TRANSIENT_STREAM_ERROR_CODES = frozenset({'server_error', 'rate_limit_exceeded'})
 
-# Exponential backoff with jitter. No retry starts once it would end past the budget, counted from
-# the first attempt. A mid-stream 429 carries no `Retry-After`, so the budget alone has to be long
-# enough to outlast a rate-limit episode.
+# Exponential backoff (2s, 4s, 8s, ...). No retry starts once its backoff would end past the budget,
+# counted from the first failure, so a call that stalls for a long time before failing still gets
+# retried. A mid-stream 429 carries no `Retry-After`, so the budget alone has to be long enough to
+# outlast a rate-limit episode.
 _RETRY_BUDGET_SECONDS = 120.0
 _INITIAL_DELAY_SECONDS = 2.0
 
@@ -43,7 +43,7 @@ async def astream_with_retry(
     text content, so a failed attempt leaves nothing behind for the caller. Once text content has
     been yielded - and may have been shown to the user - a failure is raised as is.
     """
-    start = time.monotonic()
+    first_failure: float | None = None
     for attempt in itertools.count(1):
         held_back: list[_ChunkT] = []
         content_started = False
@@ -61,8 +61,11 @@ async def astream_with_retry(
         except Exception as e:
             if content_started or not _is_transient(e):
                 raise
-            delay = _INITIAL_DELAY_SECONDS * 2 ** (attempt - 1) + random.uniform(0, 1)
-            if time.monotonic() - start + delay > _RETRY_BUDGET_SECONDS:
+            now = time.monotonic()
+            if first_failure is None:
+                first_failure = now
+            delay = _INITIAL_DELAY_SECONDS * 2 ** (attempt - 1)
+            if now - first_failure + delay > _RETRY_BUDGET_SECONDS:
                 logger.error(
                     f"{name} LLM stream failed before any content, giving up after"
                     f" {attempt} attempt(s): {e!r}"

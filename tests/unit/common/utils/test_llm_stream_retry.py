@@ -50,7 +50,6 @@ class _ScriptedRunnable:
 def clock(monkeypatch: pytest.MonkeyPatch) -> _Clock:
     clock = _Clock()
     monkeypatch.setattr(llm_stream_retry, "time", SimpleNamespace(monotonic=clock.monotonic))
-    monkeypatch.setattr(llm_stream_retry, "random", SimpleNamespace(uniform=lambda a, b: 0))
     return clock
 
 
@@ -179,11 +178,23 @@ class TestAstreamWithRetry:
         assert sleeps == [2.0, 4.0, 8.0, 16.0, 32.0]
         assert runnable.calls == 6
 
-    async def test_stalls_count_towards_the_budget(self, clock, sleeps):
-        runnable = _ScriptedRunnable(clock, ([], httpx.ReadTimeout("")), stall_seconds=60)
+    @pytest.mark.parametrize(
+        "error, stall_seconds, expected_sleeps",
+        [
+            # The httpx read timeout: no bytes for 60s.
+            (httpx.ReadTimeout(""), 60, [2.0, 4.0]),
+            # langchain-openai's chunk timeout: keepalive bytes, but no chunk for 120s.
+            (StreamChunkTimeoutError(120), 120, [2.0]),
+        ],
+        ids=["60s-stall", "120s-stall"],
+    )
+    async def test_the_budget_starts_at_the_first_failure(
+        self, clock, sleeps, error, stall_seconds, expected_sleeps
+    ):
+        runnable = _ScriptedRunnable(clock, ([], error), stall_seconds=stall_seconds)
 
-        with pytest.raises(httpx.ReadTimeout):
+        with pytest.raises(type(error)):
             await _stream(runnable, [])
 
-        assert sleeps == [2.0]
-        assert runnable.calls == 2
+        assert sleeps == expected_sleeps
+        assert runnable.calls == len(expected_sleeps) + 1
