@@ -6,12 +6,12 @@ from typing import Any, TypeVar
 
 import httpx
 import openai
-from langchain_core.messages import BaseMessageChunk
+from langchain_core.messages import BaseMessage
 from langchain_core.runnables import Runnable
 
 from statgpt.common.config import multiline_logger as logger
 
-_ChunkT = TypeVar('_ChunkT', bound=BaseMessageChunk)
+_ChunkT = TypeVar('_ChunkT', bound=BaseMessage)
 
 # A stream that stalls or drops after the response headers arrived fails with one of these. The
 # openai client's `max_retries` covers only failures before the response starts, so a stream needs
