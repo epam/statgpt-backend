@@ -2,7 +2,6 @@ import asyncio
 import json
 
 import pandas as pd
-from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import (
     ChatPromptTemplate,
     HumanMessagePromptTemplate,
@@ -19,6 +18,7 @@ from statgpt.common.config import multiline_logger as logger
 from statgpt.common.data.base import DataSetAvailabilityQuery, DataSetQuery
 from statgpt.common.schemas import LLMModelConfig
 from statgpt.common.utils import AttachmentsStorage, MediaTypes, attachments_storage_factory
+from statgpt.common.utils.llm_stream_retry import astream_with_retry
 from statgpt.common.utils.models import get_chat_model
 
 
@@ -91,22 +91,18 @@ class IncompleteQueriesChain:
             ],
         )
 
-        chain = (
-            prompt_template
-            | get_chat_model(
-                api_key=api_key,
-                model_config=self._llm_model_config,
-            )
-            | StrOutputParser()
+        chain = prompt_template | get_chat_model(
+            api_key=api_key,
+            model_config=self._llm_model_config,
         )
         logger.info(
             f"{self.__class__.__name__} using LLM model: {self._llm_model_config.deployment.deployment_id}"
         )
         target = ChainParameters.get_target(inputs)
         response_content = ''
-        async for chunk in chain.astream(inputs):
-            target.append_content(chunk)
-            response_content += chunk
+        async for chunk in astream_with_retry(chain, inputs, name="Incomplete Queries"):
+            target.append_content(chunk.text)
+            response_content += chunk.text
 
         dataset_queries = ChainParameters.get_dataset_queries(inputs)
         if len(dataset_queries) > 1 or not dataset_queries:
