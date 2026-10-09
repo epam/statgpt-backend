@@ -282,7 +282,7 @@ class ChannelCompletion(ChatCompletion):
         - Otherwise mirror the user's current selection, so a deliberately re-armed toggle stays on.
         """
         if state.get(StateVarsConfig.DEEP_RESEARCH_REPORT_DELIVERED) or state.get(
-            StateVarsConfig.DEEP_RESEARCH_NOT_STARTED
+            StateVarsConfig.DEEP_RESEARCH_AUTO_DEACTIVATED
         ):
             return False
         if DeepResearchSession.from_state(state) is not None:

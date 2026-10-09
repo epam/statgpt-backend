@@ -27,7 +27,8 @@ class StateVarsConfig:
     # when emitting the per-message Deep Research toggle form schema so the toggle disarms itself.
     # One-shot by construction: `init_state` does not carry it forward to the next turn.
     DEEP_RESEARCH_REPORT_DELIVERED = "deep_research_report_delivered"
-    # Set for exactly one turn: the turn on which the query check decided that the query does not
-    # suit Deep Research, so it was answered as a normal turn. Disarms the toggle and is one-shot,
-    # like `DEEP_RESEARCH_REPORT_DELIVERED`.
-    DEEP_RESEARCH_NOT_STARTED = "deep_research_not_started"
+    # Set for exactly one turn: the turn on which the user had Deep Research mode on, but the query
+    # check decided that the query does not suit Deep Research and deactivated the mode, so the
+    # query was answered as a normal turn. Disarms the toggle and is one-shot, like
+    # `DEEP_RESEARCH_REPORT_DELIVERED`.
+    DEEP_RESEARCH_AUTO_DEACTIVATED = "deep_research_auto_deactivated"

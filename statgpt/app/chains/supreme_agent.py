@@ -517,7 +517,7 @@ class SupremeAgentExecutor:
         )
 
         if not suits_deep_research:
-            ChainParameters.get_state(inputs)[StateVarsConfig.DEEP_RESEARCH_NOT_STARTED] = True
+            ChainParameters.get_state(inputs)[StateVarsConfig.DEEP_RESEARCH_AUTO_DEACTIVATED] = True
             query_check = self._deep_research_config().details.query_check
             if query_check.deactivation_message_to_user:
                 choice = ChainParameters.get_choice(inputs)

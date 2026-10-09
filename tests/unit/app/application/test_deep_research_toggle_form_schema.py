@@ -74,7 +74,7 @@ def test_report_delivered_this_turn_disarms_even_if_selection_was_on() -> None:
 def test_query_answered_directly_disarms_even_if_selection_was_on() -> None:
     """When the query check answers the query directly instead of starting a run, the toggle is
     disarmed as after a delivered report, so the follow-up does not go to Deep Research again."""
-    state = {StateVarsConfig.DEEP_RESEARCH_NOT_STARTED: True}
+    state = {StateVarsConfig.DEEP_RESEARCH_AUTO_DEACTIVATED: True}
     configuration = StatGPTConfiguration(deep_research=True)
 
     assert ChannelCompletion._resolve_deep_research_toggle(state, configuration) is False
