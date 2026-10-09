@@ -39,6 +39,7 @@ from statgpt.app.schemas import (
 )
 from statgpt.app.schemas.dial_app_configuration import StatGPTConfiguration
 from statgpt.app.schemas.tool_artifact import DataQueryArtifact
+from statgpt.app.utils.citation_tags import CitationTagRepairer
 from statgpt.app.utils.dial_stages import (
     ChoiceI,
     optional_delayed_timed_stage,
@@ -186,6 +187,10 @@ class SupremeAgent:
         }
         first_token_time = None
         start_time = datetime.now()
+        # The agent copies the citation tags of tool responses into its answer and may mistype
+        # one, which the client then shows as literal text: repair them before they are sent.
+        citation_tags = CitationTagRepairer()
+        sent_length = 0
         try:
             async for chunk in astream_with_retry(self._chain, inputs, name="Supreme Agent"):
                 if chunk.content:
@@ -193,20 +198,25 @@ class SupremeAgent:
                         continue
                     if first_token_time is None:
                         first_token_time = datetime.now()
-                    self._choice.append_content(chunk.content)
+                    if text := citation_tags.feed(chunk.content):
+                        self._choice.append_content(text)
+                        sent_length += len(text)
 
                 if resp is None:
                     resp = chunk
                 else:
                     resp = resp + chunk  # type: ignore
 
+            if text := citation_tags.flush():
+                self._choice.append_content(text)
             finished = True
         except InvalidLLMStreamResponse as e:
             logger.warning(f"Error in the response from Supreme Agent: {e}")
             if resp is None:
                 raise
 
-            user_msg = f"<!-- delete_chars({len(resp.content) + 2}) -->"
+            # Deletes what was sent, which the repaired tags make differ from `resp.content`.
+            user_msg = f"<!-- delete_chars({sent_length + 2}) -->"
             self._choice.append_content(f"\n\n{user_msg}\n\n")
 
             llm_msg = (
