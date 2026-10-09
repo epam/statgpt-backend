@@ -51,6 +51,7 @@ from statgpt.common.schemas import DeepResearchTool as DeepResearchToolConfig
 from statgpt.common.schemas import FakeCall
 from statgpt.common.utils import InvalidLLMStreamResponse
 from statgpt.common.utils.llm_call_duration_context import get_llm_call_duration_manager
+from statgpt.common.utils.llm_stream_retry import astream_with_retry
 from statgpt.common.utils.markdown import format_as_markdown_list
 from statgpt.common.utils.models import get_chat_model
 
@@ -185,7 +186,7 @@ class SupremeAgent:
         first_token_time = None
         start_time = datetime.now()
         try:
-            async for chunk in self._chain.astream(inputs):
+            async for chunk in astream_with_retry(self._chain, inputs, name="Supreme Agent"):
                 if chunk.content:
                     if not isinstance(chunk.content, str):
                         continue
