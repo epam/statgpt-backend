@@ -218,3 +218,15 @@ deepResearchSection: |-
     or write the message the user should see — not both.
   - When Deep Research delivers its **final report**, it is shown to the user directly. Do not repeat
     or summarize it.
+
+deepResearchEnabledMessageToAgent: |-
+  Deep Research mode was enabled by the user.
+
+deepResearchDisabledMessageToAgent: |-
+  Deep Research mode was disabled for this request: the query is not appropriate for Deep Research.
+  Answer it as a regular request, without mentioning Deep Research unless the user asks about it.
+
+deepResearchReportDeliveredMessageToAgent: |-
+  Deep Research mode was disabled: Deep Research delivered its final report to the user, and the
+  session has ended. Handle later requests as regular requests unless the user enables Deep Research
+  mode again.
