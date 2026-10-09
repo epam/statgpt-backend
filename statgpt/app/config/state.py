@@ -20,6 +20,9 @@ class StateVarsConfig:
     OUT_OF_SCOPE = "out_of_scope"
     OUT_OF_SCOPE_REASONING = "out_of_scope_reasoning"
     TOOL_MESSAGES = "tool_messages"
+    # How many citation ids the conversation has handed out (see `CitationIdSpace`). The next
+    # response continues the numbering from it, so a citation id never names two sources.
+    CITATION_COUNT = "citation_count"
 
     # Supreme Agent <-> Deep Research clarification session, carried across turns.
     DEEP_RESEARCH_SESSION = "deep_research_session"

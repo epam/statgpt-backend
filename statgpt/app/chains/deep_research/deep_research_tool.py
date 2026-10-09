@@ -234,6 +234,7 @@ class DeepResearchRunner:
                     show_debug_stages=show_debug_stages,
                     stages_config=details.stages_config,
                     annotation_index_space=ChainParameters.get_annotation_index_space(inputs),
+                    citation_id_space=ChainParameters.get_citation_id_space(inputs),
                     rewriter=CustomContentRewriter(details.rewrite_rules),
                 )
                 with dial_streamer:
@@ -258,7 +259,10 @@ class DeepResearchRunner:
             # and hand the content back to the Supreme Agent, keeping the session so the next call can
             # resume from Deep Research's own state.
             target.append_content(content)
-            self._append_turn(session, user_message, content, deep_research_state or {})
+            # Replayed to Deep Research, so recorded with its own citation ids.
+            self._append_turn(
+                session, user_message, dial_streamer.verbatim_content, deep_research_state or {}
+            )
             self._save_session(state, session)
             return DeepResearchTurnResult(content=content, report_delivered=False)
         except APIError as e:

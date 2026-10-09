@@ -20,6 +20,7 @@ from statgpt.app.mcp.widget_resource import WidgetResource
 from statgpt.app.schemas.dial_app_configuration import StatGPTConfiguration
 from statgpt.app.security import DialAuthCredentials, create_auth_context
 from statgpt.app.services.chat_facade import ChannelServiceFacade
+from statgpt.app.utils.citation_ids import CitationIdSpace
 from statgpt.app.utils.dial_stages import DummyStage, NullChoice
 from statgpt.common.auth.auth_context import AuthContext
 from statgpt.common.schemas import InvocationSource, ProxiedResourceConfig
@@ -44,6 +45,9 @@ def _build_mcp_inputs(
         # Present so a tool that relays annotations can run here too. Nothing is emitted: the
         # MCP context has no choice to stream them on.
         ChainParametersConfig.ANNOTATION_INDEX_SPACE: itertools.count(),
+        # No state comes back from an MCP client, so a call cannot continue the citation ids of
+        # the calls before it; a scope of its own keeps them from naming another call's sources.
+        ChainParametersConfig.CITATION_ID_SPACE: CitationIdSpace.scoped(),
     }
 
 
