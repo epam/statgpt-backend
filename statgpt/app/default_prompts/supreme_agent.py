@@ -16,6 +16,9 @@ class SupremeAgentDefaultPrompts(DefaltPromptsBase):
     default_no_calculations_section: str
     default_data_presentation_section: str
     deep_research_section: str
+    deep_research_enabled_message_to_agent: str
+    deep_research_disabled_message_to_agent: str
+    deep_research_report_delivered_message_to_agent: str
     default_user_ui_context_section: str
 
 
