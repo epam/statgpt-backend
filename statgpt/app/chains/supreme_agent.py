@@ -505,9 +505,15 @@ class SupremeAgentExecutor:
         Deep Research was not started. Only the turn that would start a session is checked —
         messages sent while a session is in progress are not.
 
-        Either way, the agent is told whether Deep Research mode is on for this turn via a system
-        message, persisted with the turn's tool messages."""
+        Either way, the agent is told via system messages, persisted with the turn's tool messages,
+        that the user enabled Deep Research mode and, if the query does not suit it, that it was then
+        disabled for this turn."""
         history = ChainParameters.get_history(inputs)
+        history.add_tool_message(
+            SystemMessage(
+                content=supreme_agent_default_prompts.deep_research_enabled_message_to_agent
+            )
+        )
 
         if not suits_deep_research:
             query_check = self._deep_research_config().details.query_check
@@ -521,11 +527,6 @@ class SupremeAgentExecutor:
             )
             return None
 
-        history.add_tool_message(
-            SystemMessage(
-                content=supreme_agent_default_prompts.deep_research_enabled_message_to_agent
-            )
-        )
         return _DeepResearchMode.START
 
     def _deep_research_config(self) -> DeepResearchToolConfig:
@@ -613,8 +614,14 @@ class SupremeAgentExecutor:
                     if tool_msg.status == ToolResponseStatus.ERROR.value:
                         return surface_deep_research_error(choice)
                     if self._report_delivered(tool_msg):
-                        # The tool streamed the final report to the user; end the turn without
-                        # letting the agent repeat it.
+                        # The tool streamed the final report to the user and disarmed the toggle;
+                        # tell later turns that Deep Research mode is off, then end the turn without
+                        # letting the agent repeat the report.
+                        history.add_tool_message(
+                            SystemMessage(
+                                content=supreme_agent_default_prompts.deep_research_report_delivered_message_to_agent
+                            )
+                        )
                         return _content_to_str(tool_msg.content)
                 # Clarification recorded: loop so the agent can absorb it / surface the remainder.
             elif response.finished:

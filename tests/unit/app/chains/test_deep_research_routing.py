@@ -50,6 +50,9 @@ from statgpt.common.schemas.tools import DataQueryTool, DeepResearchTool
 
 _ENABLED_MESSAGE_TO_AGENT = supreme_agent_default_prompts.deep_research_enabled_message_to_agent
 _DISABLED_MESSAGE_TO_AGENT = supreme_agent_default_prompts.deep_research_disabled_message_to_agent
+_REPORT_DELIVERED_MESSAGE_TO_AGENT = (
+    supreme_agent_default_prompts.deep_research_report_delivered_message_to_agent
+)
 
 
 @pytest.fixture(autouse=True)
@@ -875,14 +878,18 @@ async def test_query_not_suiting_deep_research_is_handled_as_normal_turn(monkeyp
     # No session was started, and the toggle is left as the user set it.
     assert DeepResearchSession.from_state(state) is None
     assert StateVarsConfig.DEEP_RESEARCH_REPORT_DELIVERED not in state
-    # The general agent (not the Deep Research mediation) answered, prompted with the disabled
-    # message right after the user's query.
-    assert prompts[0][-2].content == "What can you do?"
+    # The general agent (not the Deep Research mediation) answered, prompted right after the user's
+    # query with the enabled message (the user did turn Deep Research on) and then the disabled one.
+    assert prompts[0][-3].content == "What can you do?"
+    assert prompts[0][-2] == SystemMessage(content=_ENABLED_MESSAGE_TO_AGENT)
     assert prompts[0][-1] == SystemMessage(content=_DISABLED_MESSAGE_TO_AGENT)
     assert "Deep Research Mode" not in prompts[0][0].content
-    # The message is persisted with the turn's tool messages, so later turns see it too.
+    # The messages are persisted with the turn's tool messages, so later turns see them too.
     history = inputs[ChainParametersConfig.HISTORY]
-    assert _system_messages(history.get_tool_messages()) == [_DISABLED_MESSAGE_TO_AGENT]
+    assert _system_messages(history.get_tool_messages()) == [
+        _ENABLED_MESSAGE_TO_AGENT,
+        _DISABLED_MESSAGE_TO_AGENT,
+    ]
 
 
 async def test_empty_deactivation_message_to_user_shows_no_message(monkeypatch, query_check):
@@ -927,9 +934,36 @@ async def test_query_suiting_deep_research_starts_session_and_tells_agent(monkey
     assert _system_messages(history.get_tool_messages()) == [_ENABLED_MESSAGE_TO_AGENT]
 
 
+async def test_report_delivery_tells_agent_deep_research_mode_was_disabled(monkeypatch):
+    """Once Deep Research delivers its final report (which disarms the toggle), the agent is told,
+    right after the report's tool response, that Deep Research mode was disabled. The message is
+    persisted with the turn's tool messages, so later turns know the session has ended."""
+    _patch_scripted_agent(monkeypatch, [_tool_call_chunk("deep_research", {"query": "US GDP"})])
+    captured: dict = {}
+    _patch_dr_deployment(monkeypatch, [_report("Final report.")], captured)
+
+    state = {StateVarsConfig.SHOW_DEBUG_STAGES: False}
+    inputs = _inputs(state, "research US GDP")
+    content = await SupremeAgentExecutor(_channel_config()).stream_response(inputs)
+
+    assert content == "Final report."
+    history = inputs[ChainParametersConfig.HISTORY]
+    tool_messages = history.get_tool_messages()
+    assert tool_messages[-2].type == "tool"
+    assert tool_messages[-1] == SystemMessage(content=_REPORT_DELIVERED_MESSAGE_TO_AGENT)
+    assert _system_messages(tool_messages) == [
+        _ENABLED_MESSAGE_TO_AGENT,
+        _REPORT_DELIVERED_MESSAGE_TO_AGENT,
+    ]
+    history.dump_state(state)
+    assert state[StateVarsConfig.TOOL_MESSAGES][-1]["type"] == "system"
+    assert state[StateVarsConfig.TOOL_MESSAGES][-1]["content"] == _REPORT_DELIVERED_MESSAGE_TO_AGENT
+
+
 async def test_resume_turn_is_not_checked(monkeypatch, query_check):
     """Messages sent while a session is in progress (clarifications, plan approval) are not checked,
-    and no Deep Research mode message is added."""
+    and no enabled / disabled message is added — only the report-delivered one, once the report
+    arrives."""
     query_check.return_value = False  # would skip Deep Research if it were consulted
     _patch_scripted_agent(
         monkeypatch, [_tool_call_chunk("resume_deep_research", {"message": "approved"})]
@@ -944,7 +978,7 @@ async def test_resume_turn_is_not_checked(monkeypatch, query_check):
     assert content == "Final report."
     query_check.assert_not_awaited()
     history = inputs[ChainParametersConfig.HISTORY]
-    assert _system_messages(history.get_tool_messages()) == []
+    assert _system_messages(history.get_tool_messages()) == [_REPORT_DELIVERED_MESSAGE_TO_AGENT]
 
 
 async def test_disabled_query_check_starts_deep_research_unchecked(monkeypatch, query_check):
