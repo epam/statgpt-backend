@@ -20,6 +20,7 @@ from langchain_core.runnables import Runnable, RunnablePassthrough
 from statgpt.app.chains.data_query.data_query_artifacts_displayer import DataQueryArtifactDisplayer
 from statgpt.app.chains.deep_research import (
     DeepResearchFailedError,
+    DeepResearchQueryChecker,
     ResumeDeepResearchTool,
     surface_deep_research_error,
 )
@@ -335,12 +336,20 @@ class SupremeAgentExecutor:
 
         tool_executor = ToolCaller.from_config(self._channel_config)
 
+        dr_mode = await self._resolve_deep_research_mode(inputs)
+
         # The fake-tool-call prelude runs for every turn, including Deep Research, so its tool
         # results are in the agent's context and can help answer Deep Research's clarifying questions.
-        fake_history = await self._fake_tool_calls(tool_executor, inputs, show_stages=debug)
+        if dr_mode is _DeepResearchMode.START:
+            fake_history, suits_deep_research = await self._fake_tool_calls_with_query_check(
+                tool_executor, inputs, show_stages=debug
+            )
+            dr_mode = self._confirm_deep_research_start(inputs, suits_deep_research)
+        else:
+            fake_history = await self._fake_tool_calls(tool_executor, inputs, show_stages=debug)
         history.prepend(fake_history)
 
-        if (dr_mode := await self._resolve_deep_research_mode(inputs)) is not None:
+        if dr_mode is not None:
             # A Deep Research turn is mediated in its own loop, bound only to the Deep Research
             # tools; it never runs the general agent below.
             return await self._run_deep_research_turn(
@@ -434,6 +443,9 @@ class SupremeAgentExecutor:
         - toggle off, session in progress -> abandon the run (drop the flag), handle normally.
         - otherwise -> a normal Supreme Agent turn (``None``).
 
+        A START is then confirmed by the check that the query suits Deep Research (see
+        `_fake_tool_calls_with_query_check` and `_confirm_deep_research_start`).
+
         Availability is resolved per user: when the tool is gated on an `access_claim_value`, a
         caller lacking that DIAL role can never enter a Deep Research turn even if they force the
         toggle.
@@ -454,6 +466,68 @@ class SupremeAgentExecutor:
             # resurrect on a later turn if the user re-enables the toggle in this chat.
             DeepResearchSession.drop_from_state(state)
         return None
+
+    async def _fake_tool_calls_with_query_check(
+        self, tool_executor: ToolCaller, inputs: dict, show_stages: bool
+    ) -> tuple[History, bool]:
+        """Run the fake-tool-call prelude and, alongside it, the check that the query suits Deep
+        Research, so the check delays the turn only by the time it outlasts the prelude.
+
+        The prelude is built in a separate history and prepended only once both are done, so the
+        check sees only the conversation. The check's outcome is applied afterwards, by
+        `_confirm_deep_research_start`, so the prelude never sees it half-applied."""
+        query_check = self._deep_research_config().details.query_check
+        if not query_check.enabled:
+            return await self._fake_tool_calls(tool_executor, inputs, show_stages), True
+
+        # Not a TaskGroup: it would wrap a prelude failure in an ExceptionGroup, changing what the
+        # turn raises.
+        check_task = asyncio.create_task(
+            DeepResearchQueryChecker(query_check).suits_deep_research(inputs)
+        )
+        try:
+            fake_history = await self._fake_tool_calls(tool_executor, inputs, show_stages)
+        except BaseException:
+            check_task.cancel()
+            # Awaited, not just cancelled: `cancel()` only schedules the CancelledError, and the
+            # check must not still be writing to its stage as the turn is torn down.
+            await asyncio.gather(check_task, return_exceptions=True)
+            raise
+        return fake_history, await check_task
+
+    def _confirm_deep_research_start(
+        self, inputs: dict, suits_deep_research: bool
+    ) -> _DeepResearchMode | None:
+        """Start a new Deep Research session only if the query suits Deep Research.
+
+        A query that does not (e.g. "What can you do?") is handled as a normal Supreme Agent turn
+        (``None``) instead of launching a slow, expensive Deep Research run; the user is told that
+        Deep Research was not started. Only the turn that would start a session is checked —
+        messages sent while a session is in progress are not.
+
+        Either way, the agent is told via system messages, persisted with the turn's tool messages,
+        that the user enabled Deep Research mode and, if the query does not suit it, that it was then
+        disabled for this turn."""
+        history = ChainParameters.get_history(inputs)
+        history.add_tool_message(
+            SystemMessage(
+                content=supreme_agent_default_prompts.deep_research_enabled_message_to_agent
+            )
+        )
+
+        if not suits_deep_research:
+            query_check = self._deep_research_config().details.query_check
+            if query_check.deactivation_message_to_user:
+                choice = ChainParameters.get_choice(inputs)
+                choice.append_content(f"{query_check.deactivation_message_to_user}\n\n")
+            history.add_tool_message(
+                SystemMessage(
+                    content=supreme_agent_default_prompts.deep_research_disabled_message_to_agent
+                )
+            )
+            return None
+
+        return _DeepResearchMode.START
 
     def _deep_research_config(self) -> DeepResearchToolConfig:
         """The channel's Deep Research config. Callers must gate on `is_deep_research_available`."""
@@ -540,8 +614,14 @@ class SupremeAgentExecutor:
                     if tool_msg.status == ToolResponseStatus.ERROR.value:
                         return surface_deep_research_error(choice)
                     if self._report_delivered(tool_msg):
-                        # The tool streamed the final report to the user; end the turn without
-                        # letting the agent repeat it.
+                        # The tool streamed the final report to the user and disarmed the toggle;
+                        # tell later turns that Deep Research mode is off, then end the turn without
+                        # letting the agent repeat the report.
+                        history.add_tool_message(
+                            SystemMessage(
+                                content=supreme_agent_default_prompts.deep_research_report_delivered_message_to_agent
+                            )
+                        )
                         return _content_to_str(tool_msg.content)
                 # Clarification recorded: loop so the agent can absorb it / surface the remainder.
             elif response.finished:
