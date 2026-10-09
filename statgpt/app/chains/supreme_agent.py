@@ -502,12 +502,13 @@ class SupremeAgentExecutor:
 
         A query that does not (e.g. "What can you do?") is handled as a normal Supreme Agent turn
         (``None``) instead of launching a slow, expensive Deep Research run; the user is told that
-        Deep Research was not started. Only the turn that would start a session is checked —
+        Deep Research was not started, and the toggle is disarmed, as after a delivered report, so
+        the follow-up is a normal turn too. Only the turn that would start a session is checked —
         messages sent while a session is in progress are not.
 
         Either way, the agent is told via system messages, persisted with the turn's tool messages,
         that the user enabled Deep Research mode and, if the query does not suit it, that it was then
-        disabled for this turn."""
+        disabled."""
         history = ChainParameters.get_history(inputs)
         history.add_tool_message(
             SystemMessage(
@@ -516,6 +517,7 @@ class SupremeAgentExecutor:
         )
 
         if not suits_deep_research:
+            ChainParameters.get_state(inputs)[StateVarsConfig.DEEP_RESEARCH_AUTO_DEACTIVATED] = True
             query_check = self._deep_research_config().details.query_check
             if query_check.deactivation_message_to_user:
                 choice = ChainParameters.get_choice(inputs)
