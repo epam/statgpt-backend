@@ -121,8 +121,8 @@ jobs:
           push-enabled: true
           trivy-enabled: true
           bypass-checks: false
-          trivy-severity: "CRITICAL,HIGH"
-          trivy-severity-for-sarif: "CRITICAL,HIGH"
+          trivy-severity: "CRITICAL,HIGH,MEDIUM,LOW"
+          trivy-severity-for-sarif: "CRITICAL,HIGH,MEDIUM,LOW"
           trivy-limit-severities-for-sarif: true
           platforms: "linux/amd64"
 
