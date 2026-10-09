@@ -853,8 +853,8 @@ def _system_messages(messages) -> list[str]:
 
 async def test_query_not_suiting_deep_research_is_handled_as_normal_turn(monkeypatch, query_check):
     """A query that does not suit Deep Research (e.g. "What can you do?") is answered by the general
-    agent: Deep Research is never invoked, the user is told it was not started, and the agent is told
-    that Deep Research mode was disabled for the request."""
+    agent: Deep Research is never invoked, the user is told it was not started, the toggle is
+    disarmed, and the agent is told that Deep Research mode was disabled."""
     query_check.return_value = False
     prompts: list = []
     _patch_scripted_agent(monkeypatch, [_text_chunk("I can query datasets.")], prompts)
@@ -875,8 +875,9 @@ async def test_query_not_suiting_deep_research_is_handled_as_normal_turn(monkeyp
     ]
     assert calls["count"] == 0
     query_check.assert_awaited_once()
-    # No session was started, and the toggle is left as the user set it.
+    # No session was started, and the toggle is disarmed (#745), not by a delivered report.
     assert DeepResearchSession.from_state(state) is None
+    assert state[StateVarsConfig.DEEP_RESEARCH_NOT_STARTED] is True
     assert StateVarsConfig.DEEP_RESEARCH_REPORT_DELIVERED not in state
     # The general agent (not the Deep Research mediation) answered, prompted right after the user's
     # query with the enabled message (the user did turn Deep Research on) and then the disabled one.
@@ -927,6 +928,7 @@ async def test_query_suiting_deep_research_starts_session_and_tells_agent(monkey
     query_check.assert_awaited_once()
     assert len(captured["messages"]) == 1  # Deep Research was started
     assert DeepResearchSession.from_state(state) is not None
+    assert StateVarsConfig.DEEP_RESEARCH_NOT_STARTED not in state
     # The forced-start run was prompted with the enabled message right after the user's query.
     assert prompts[0][-2].content == "research US GDP"
     assert prompts[0][-1] == SystemMessage(content=_ENABLED_MESSAGE_TO_AGENT)

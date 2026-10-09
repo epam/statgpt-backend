@@ -7,6 +7,7 @@ deployment. To disarm it without extra user interaction, every assistant turn em
 toggle should hold on the next request:
 
 - report delivered this turn  -> off (disarm, so the follow-up hits the normal, cheap agent);
+- query check skipped the run  -> off (the query was answered directly, #745);
 - run still in progress        -> on  (clarification / plan turns keep the toggle armed);
 - otherwise                    -> mirror the user's current selection (stays re-armable).
 
@@ -65,6 +66,15 @@ def test_report_delivered_this_turn_disarms_even_if_selection_was_on() -> None:
     """The delivery turn disarms the toggle; without this the next message would silently launch a
     fresh, expensive run. The report-delivered flag wins over the (still true) user selection."""
     state = {StateVarsConfig.DEEP_RESEARCH_REPORT_DELIVERED: True}
+    configuration = StatGPTConfiguration(deep_research=True)
+
+    assert ChannelCompletion._resolve_deep_research_toggle(state, configuration) is False
+
+
+def test_query_answered_directly_disarms_even_if_selection_was_on() -> None:
+    """When the query check answers the query directly instead of starting a run, the toggle is
+    disarmed as after a delivered report, so the follow-up does not go to Deep Research again."""
+    state = {StateVarsConfig.DEEP_RESEARCH_NOT_STARTED: True}
     configuration = StatGPTConfiguration(deep_research=True)
 
     assert ChannelCompletion._resolve_deep_research_toggle(state, configuration) is False

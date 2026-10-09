@@ -275,12 +275,15 @@ class ChannelCompletion(ChatCompletion):
     def _resolve_deep_research_toggle(state: dict, configuration: StatGPTConfiguration) -> bool:
         """The value the "Deep research" toggle should hold on the next request.
 
-        - The final report was delivered this turn -> disarm, so the follow-up goes to the normal,
-          cheap agent instead of silently launching a fresh, expensive Deep Research run.
+        - The final report was delivered this turn, or the query check answered this turn directly
+          instead of starting a run -> disarm, so the follow-up goes to the normal, cheap agent
+          instead of silently launching a fresh, expensive Deep Research run.
         - A run is still in progress (clarification / plan-for-approval turn) -> stay armed.
         - Otherwise mirror the user's current selection, so a deliberately re-armed toggle stays on.
         """
-        if state.get(StateVarsConfig.DEEP_RESEARCH_REPORT_DELIVERED):
+        if state.get(StateVarsConfig.DEEP_RESEARCH_REPORT_DELIVERED) or state.get(
+            StateVarsConfig.DEEP_RESEARCH_NOT_STARTED
+        ):
             return False
         if DeepResearchSession.from_state(state) is not None:
             return True
