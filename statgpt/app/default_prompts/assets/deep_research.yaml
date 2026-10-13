@@ -40,13 +40,18 @@ queryCheckPrompt: |-
 # Folded (`>-`) so that each topic renders as a single line of the numbered list in the prompt.
 defaultExcludedTopics:
 - >-
-   Questions about the Main Chatbot itself: its capabilities, tools, or smart agents, or how to use it
+   Questions about the Main Chatbot itself, its portal, or the organization behind them: what they are,
+   the chatbot's capabilities, tools, or smart agents, or how to use it
    (e.g. "What can you do?", "What tools do you have access to?", "What smart agents are available?").
 - >-
-   Questions about which datasets, publications, or other content are available
-   (e.g. "What datasets and publications are available to you?").
+   Questions about which datasets, publications, or other content are available, or about their
+   background, such as who publishes them or since when
+   (e.g. "What datasets and publications are available to you?", "Who publishes these reports?").
 - >-
    Requests for help navigating the application, e.g. finding dashboards or pages
    (e.g. "Help me navigate to dashboards").
+- >-
+   Requests to define a term, explain how a concept works, or interpret an indicator, rather than to
+   provide data or analysis (e.g. "What is market volatility?", "Explain how a bond works.").
 - >-
    Greetings, thanks, small talk, and other messages that do not ask for information.
