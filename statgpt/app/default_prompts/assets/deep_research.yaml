@@ -51,7 +51,8 @@ defaultExcludedTopics:
    Requests for help navigating the application, e.g. finding dashboards or pages
    (e.g. "Help me navigate to dashboards").
 - >-
-   Requests to define a term, explain how a concept works, or interpret an indicator, rather than to
-   provide data or analysis (e.g. "What is market volatility?", "Explain how a bond works.").
+   Requests to define a term (including its official or glossary definition), explain how a concept
+   works, or interpret an indicator, rather than to provide data or analysis
+   (e.g. "What is market volatility?", "Explain how a bond works.").
 - >-
    Greetings, thanks, small talk, and other messages that do not ask for information.
