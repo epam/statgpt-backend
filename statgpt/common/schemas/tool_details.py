@@ -330,7 +330,8 @@ class DeepResearchQueryCheckConfig(BaseYamlModel):
         description=(
             "Topics and kinds of questions Deep Research should not handle; such queries are"
             " answered as a normal turn. If null, the default topics are used (questions about the"
-            " assistant's capabilities, tools or available content, navigation help, small talk)."
+            " assistant's capabilities, tools or available content, navigation help, term"
+            " definitions and concept explanations, small talk)."
             " Messages that are not research questions are not handled by Deep Research either way."
         ),
     )
