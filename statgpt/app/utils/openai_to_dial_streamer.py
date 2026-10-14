@@ -5,6 +5,7 @@ from typing import Any
 from aidial_sdk.chat_completion import Stage
 from openai.types.chat import ChatCompletionChunk
 
+from statgpt.app.utils.citation_ids import Citation, get_source_title, get_tag_id
 from statgpt.app.utils.custom_content_rewriter import CustomContentRewriter
 from statgpt.app.utils.dial_annotations import send_annotations
 from statgpt.app.utils.dial_stages import ChoiceI
@@ -89,6 +90,41 @@ class OpenAiToDialStreamer:
     def annotations(self) -> list[dict[str, Any]]:
         """The annotations relayed to the choice, as sent (rewritten and renumbered)."""
         return self._annotations
+
+    @property
+    def citations(self) -> list[Citation]:
+        """Every citation tag the relayed annotations claim, with the source it cites.
+
+        A tag that cites several sources is listed once per source, and each source once: a
+        sub-deployment may re-send an annotation to extend it. A tag none of whose annotations
+        names its source (see `get_source_title`) is still listed, with no title, so the agent
+        is not left with an id it cannot look up.
+        """
+        titles: dict[str, list[str | None]] = {}
+        for annotation in self._annotations:
+            if (tag_id := get_tag_id(annotation)) is None:
+                continue
+            tag_titles = titles.setdefault(tag_id, [])
+            if (title := get_source_title(annotation)) is not None and title not in tag_titles:
+                tag_titles.append(title)
+        return [
+            Citation(id=tag_id, title=title)
+            for tag_id, tag_titles in titles.items()
+            for title in tag_titles or [None]
+        ]
+
+    @property
+    def citations_note(self) -> str:
+        """The source of every citation tag of the content, to append to a tool response so the
+        agent can tell which source backs a statement. Empty if the content cites nothing.
+
+        The quotes are left out to keep the response small; the annotations relayed to the client
+        are not affected.
+        """
+        if not (citations := self.citations):
+            return ''
+        citations_json = json.dumps([c.model_dump() for c in citations], ensure_ascii=False)
+        return f'\n\n### Sources of the citation tags:\n\n```json\n{citations_json}\n```'
 
     @property
     def state(self) -> dict[str, Any] | None:

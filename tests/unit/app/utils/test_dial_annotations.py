@@ -16,6 +16,7 @@ from aidial_sdk.chat_completion import Choice
 from aidial_sdk.chat_completion.chunks import BaseChunk
 from openai.types.chat import ChatCompletionChunk
 
+from statgpt.app.utils.citation_ids import Citation
 from statgpt.app.utils.dial_annotations import send_annotations
 from statgpt.app.utils.dial_stages import NullChoice
 from statgpt.app.utils.openai_to_dial_streamer import AnnotationIndexSpace, OpenAiToDialStreamer
@@ -246,3 +247,67 @@ class TestAnnotationIndexSpace:
         gc.collect()
 
         assert collected() is None
+
+
+def _titled(annotation: dict[str, Any], title: str | None) -> dict[str, Any]:
+    """The annotation with the body `title` replaced, or removed if `title` is None."""
+    body = {key: value for key, value in annotation["body"].items() if key != "title"}
+    if title is not None:
+        body["title"] = title
+    return {**annotation, "body": body}
+
+
+class TestCitations:
+    def test_list_each_source_of_a_tag_once(self):
+        streamer = _streamer(_open_choice())
+        streamer._process_custom_content(
+            {
+                "annotations": [
+                    _titled(_annotation(0), "Report, page 3"),
+                    _titled(_annotation(1), "Review, page 17"),
+                    _titled(_annotation(0), "Report, page 3"),
+                ]
+            }
+        )
+
+        assert streamer.citations == [
+            Citation(id="cit-1", title="Report, page 3"),
+            Citation(id="cit-1", title="Review, page 17"),
+        ]
+
+    def test_an_annotation_without_a_title_is_named_by_the_file_it_cites(self):
+        streamer = _streamer(_open_choice())
+        streamer._process_custom_content({"annotations": [_titled(_annotation(0), None)]})
+
+        assert streamer.citations == [Citation(id="cit-1", title="Report.pdf")]
+
+    def test_a_tag_whose_annotations_name_no_source_is_listed_without_a_title(self):
+        """The agent still learns the tag cites something, rather than meeting an id it cannot
+        look up."""
+        streamer = _streamer(_open_choice())
+        streamer._process_custom_content({"annotations": [{**_annotation(0), "body": {}}]})
+
+        assert streamer.citations == [Citation(id="cit-1", title=None)]
+
+    def test_a_resent_annotation_naming_no_source_adds_no_untitled_entry(self):
+        streamer = _streamer(_open_choice())
+        streamer._process_custom_content(
+            {"annotations": [_annotation(0), {**_annotation(0), "body": {"quote": "more"}}]}
+        )
+
+        assert streamer.citations == [Citation(id="cit-1", title="Report.pdf, page 3")]
+
+    def test_the_note_lists_the_id_and_the_title_of_every_citation(self):
+        streamer = _streamer(_open_choice())
+        streamer.send_chunk(_chunk([_titled(_annotation(0), "sigma 2/2025 – World insurance")]))
+
+        assert streamer.citations_note == (
+            '\n\n### Sources of the citation tags:\n\n```json\n'
+            '[{"id": "cit-1", "title": "sigma 2/2025 – World insurance"}]\n```'
+        )
+
+    def test_the_note_is_empty_without_citations(self):
+        streamer = _streamer(_open_choice())
+        streamer._process_content("GDP rose.")
+
+        assert streamer.citations_note == ""

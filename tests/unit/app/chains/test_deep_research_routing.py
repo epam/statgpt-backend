@@ -188,6 +188,7 @@ def _dr_chunk(
     content: str | None = None,
     state: dict | None = None,
     attachments: list[dict] | None = None,
+    annotations: list[dict] | None = None,
 ) -> ChatCompletionChunk:
     delta: dict = {}
     if content is not None:
@@ -197,6 +198,8 @@ def _dr_chunk(
         custom_content["state"] = state
     if attachments is not None:
         custom_content["attachments"] = attachments
+    if annotations is not None:
+        custom_content["annotations"] = annotations
     if custom_content:
         delta["custom_content"] = custom_content
     return ChatCompletionChunk.model_validate(
@@ -565,6 +568,65 @@ async def test_report_delivered_verbatim_with_attachments(monkeypatch):
     assert len(choice.attachments) == 1
     assert choice.attachments[0]["type"] == "text/markdown"
     assert choice.attachments[0]["title"] == "Report.md"
+
+
+_CITED = 'GDP rose <cit data-id="3f9a0c1b2d4e"></cit>.'
+# A document citation in the shape Deep Research sends it.
+_CITATION = {
+    "index": 0,
+    "target": {"selector": {"type": "html_tag", "tag": "cit", "id": "3f9a0c1b2d4e"}},
+    "body": {
+        "title": "Report.pdf, page 3",
+        "source": {
+            "type": "attachment",
+            "attachment": {
+                "type": "application/pdf",
+                "url": "files/bucket/Report.pdf",
+                "title": "Report.pdf, page 3",
+            },
+        },
+        "selector": {"type": "pdf_bbox", "page": 3, "x1": 0, "y1": 0, "x2": 0, "y2": 0},
+    },
+}
+
+
+async def test_report_tool_response_describes_its_citation_tags_to_the_agent_only(monkeypatch):
+    """The report stays in the agent's history as the tool response, which names the source of
+    each citation tag; the report shown to the user, and returned as the turn's answer, carries no
+    such note."""
+    _patch_scripted_agent(
+        monkeypatch,
+        [_tool_call_chunk("resume_deep_research", {"message": "approved"})],
+    )
+    report = [
+        _dr_chunk(content=_CITED, annotations=[_CITATION]),
+        _dr_chunk(state={"preparation": {"research_started": True}}),
+    ]
+    _patch_dr_deployment(monkeypatch, [report], {})
+    state = _session_state(
+        DeepResearchTurn(user_message="give me US GDP", assistant_content="plan?")
+    )
+
+    choice = _RecordingChoice()
+    inputs = _inputs(state, "approve", choice=choice)
+    content = await SupremeAgentExecutor(_channel_config()).stream_response(inputs)
+
+    inputs[ChainParametersConfig.HISTORY].dump_state(state)
+    [tool_response] = [m for m in state[StateVarsConfig.TOOL_MESSAGES] if m.get("type") == "tool"]
+    assert tool_response["content"] == (
+        f'{_CITED}\n\n'
+        '### Sources of the citation tags:\n\n'
+        '```json\n[{"id": "3f9a0c1b2d4e", "title": "Report.pdf, page 3"}]\n```'
+    )
+    assert choice.content == _CITED
+    assert content == _CITED
+    # The bare report rides on the artifact only: persisting it would store the report twice.
+    assert "report" not in tool_response["custom_content"]["state"]
+    # Nor is it logged twice: `ToolCaller.call_tool` logs the tool message's repr.
+    [tool_msg] = [
+        m for m in inputs[ChainParametersConfig.HISTORY].get_tool_messages() if m.type == "tool"
+    ]
+    assert repr(tool_msg).count(_CITED) == 1
 
 
 async def test_forced_start_error_is_surfaced_once_and_session_untouched(monkeypatch):
