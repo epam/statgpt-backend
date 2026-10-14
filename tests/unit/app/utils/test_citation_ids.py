@@ -33,7 +33,7 @@ class TestTagId:
 class TestSourceTitle:
     _ATTACHMENT = {"title": "report.pdf", "url": "https://public/report.pdf"}
 
-    def test_the_label_of_the_pill_comes_first(self):
+    def test_the_title_of_the_citation_card_comes_first(self):
         body = {"title": "Report, page 3", "source": {"attachment": self._ATTACHMENT}}
 
         assert get_source_title({"body": body}) == "Report, page 3"

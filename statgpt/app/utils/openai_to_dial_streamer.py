@@ -96,28 +96,22 @@ class OpenAiToDialStreamer:
         """Every citation tag the relayed annotations claim, with the source it cites and the
         passage it quotes.
 
-        A tag that cites several sources, or several passages of one, is listed once per passage,
-        and each passage once: a sub-deployment may re-send an annotation to extend it, e.g. with
-        the quote, so a source is listed without a quote only if none of its annotations quotes
-        it. A tag none of whose annotations names its source (see `get_source_title`) is still
-        listed, with no title, so the agent is not left with an id it cannot look up.
+        Each distinct combination of tag id, title and quote is listed once, in the order first
+        seen, so each entry matches one card in the pill's popup. Annotations are not merged by
+        `index`, as Deep Research does not re-send one to extend it. An annotation that names no
+        source (see `get_source_title`) is listed with no title, so the agent is not left with an
+        id it cannot look up.
         """
-        # The quotes of every source of every tag, in the order first seen.
-        sources: dict[str, dict[str | None, list[str | None]]] = {}
-        for annotation in self._annotations:
-            if (tag_id := get_tag_id(annotation)) is None:
-                continue
-            quotes = sources.setdefault(tag_id, {}).setdefault(get_source_title(annotation), [])
-            if (quote := get_source_quote(annotation)) is not None and quote not in quotes:
-                quotes.append(quote)
-        return [
-            Citation(id=tag_id, title=title, quote=quote)
-            for tag_id, tag_sources in sources.items()
-            for title, quotes in tag_sources.items()
-            # An annotation naming no source is listed only for a tag no annotation names one of.
-            if title is not None or len(tag_sources) == 1
-            for quote in quotes or [None]
-        ]
+        # One key per distinct (tag id, title, quote) combination. Each tuple is built from a single
+        # annotation, so its three values always belong together. `dict.fromkeys` drops a repeated
+        # key, and a dict keeps insertion order, so each entry stays where it was first seen.
+        # The keys are tuples because a plain pydantic model is not hashable.
+        keys = dict.fromkeys(
+            (tag_id, get_source_title(annotation), get_source_quote(annotation))
+            for annotation in self._annotations
+            if (tag_id := get_tag_id(annotation)) is not None
+        )
+        return [Citation(id=tag_id, title=title, quote=quote) for tag_id, title, quote in keys]
 
     @property
     def citations_note(self) -> str:

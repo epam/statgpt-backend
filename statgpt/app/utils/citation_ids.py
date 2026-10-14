@@ -11,9 +11,9 @@ from typing import Any
 
 from pydantic import BaseModel
 
-# Where an annotation names its source, best first: the label of the pill, then the title and the
-# url of the file it cites. The same fields the rewrite rules know as `body_title`,
-# `attachment_title` and `url`.
+# Where an annotation names its source, best first: the title of the citation card, then the
+# title and the url of the file it cites. The same fields the rewrite rules know as
+# `body_title`, `attachment_title` and `url`.
 _SOURCE_TITLE_PATHS = (
     ('body', 'title'),
     ('body', 'source', 'attachment', 'title'),

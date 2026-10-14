@@ -298,13 +298,17 @@ class TestCitations:
 
         assert streamer.citations == [Citation(id="cit-1", title=None)]
 
-    def test_a_resent_annotation_naming_no_source_adds_no_untitled_entry(self):
+    def test_an_annotation_naming_no_source_is_listed_apart_from_a_titled_one(self):
+        """Each annotation is a card of its own in the pill's popup, titled or not."""
         streamer = _streamer(_open_choice())
         streamer._process_custom_content(
-            {"annotations": [_annotation(0), {**_annotation(0), "body": {"quote": "more"}}]}
+            {"annotations": [_annotation(0), {**_annotation(1), "body": {"quote": "more"}}]}
         )
 
-        assert streamer.citations == [Citation(id="cit-1", title="Report.pdf, page 3")]
+        assert streamer.citations == [
+            Citation(id="cit-1", title="Report.pdf, page 3"),
+            Citation(id="cit-1", title=None, quote="more"),
+        ]
 
     def test_a_citation_gives_the_passage_it_quotes(self):
         streamer = _streamer(_open_choice())
@@ -314,15 +318,17 @@ class TestCitations:
             Citation(id="cit-1", title="Report.pdf, page 3", quote=_QUERY)
         ]
 
-    def test_a_source_cited_both_with_and_without_its_quote_is_listed_once_with_it(self):
-        """Deep Research may claim a tag twice for one dataset, quoting the query only once."""
+    def test_a_source_cited_both_with_and_without_its_quote_is_listed_both_ways(self):
+        """Deep Research may claim a tag twice for one dataset, quoting the query only once; the
+        pill's popup then shows two cards, so the note lists both."""
         streamer = _streamer(_open_choice())
         streamer._process_custom_content(
             {"annotations": [_annotation(0), _quoted(_annotation(1), _QUERY)]}
         )
 
         assert streamer.citations == [
-            Citation(id="cit-1", title="Report.pdf, page 3", quote=_QUERY)
+            Citation(id="cit-1", title="Report.pdf, page 3"),
+            Citation(id="cit-1", title="Report.pdf, page 3", quote=_QUERY),
         ]
 
     def test_list_each_passage_quoted_from_a_source_once(self):
