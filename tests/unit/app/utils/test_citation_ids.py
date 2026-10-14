@@ -4,7 +4,7 @@ from typing import Any
 
 import pytest
 
-from statgpt.app.utils.citation_ids import get_source_title, get_tag_id
+from statgpt.app.utils.citation_ids import get_source_quote, get_source_title, get_tag_id
 
 
 def _annotation(selector: dict[str, Any]) -> dict[str, Any]:
@@ -54,3 +54,23 @@ class TestSourceTitle:
     )
     def test_an_annotation_naming_no_source_has_no_title(self, annotation: dict[str, Any]):
         assert get_source_title(annotation) is None
+
+
+class TestSourceQuote:
+    def test_reads_the_quoted_passage(self):
+        annotation = {"body": {"title": "Economic data", "quote": "* Country: United States"}}
+
+        assert get_source_quote(annotation) == "* Country: United States"
+
+    @pytest.mark.parametrize(
+        "annotation",
+        [
+            {},
+            {"body": None},
+            {"body": {"title": "Report"}},
+            {"body": {"quote": ""}},
+            {"body": {"quote": 7}},
+        ],
+    )
+    def test_an_annotation_quoting_nothing_has_no_quote(self, annotation: dict[str, Any]):
+        assert get_source_quote(annotation) is None

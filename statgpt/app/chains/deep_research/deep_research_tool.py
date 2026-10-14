@@ -261,7 +261,7 @@ class DeepResearchRunner:
                 # the agent answer follow-up questions about its sources. The user is not shown it,
                 # and the turn's answer is `report`, not this response. The note is built from the
                 # annotations relayed now rather than from those the client replays with the report
-                # message, so it is persisted with the tool response (a few dozen bytes per tag),
+                # message, so it is persisted with the tool response (a title and a quote per tag),
                 # and a report delivered before the note was introduced has none.
                 return DeepResearchTurnResult(
                     content=content + dial_streamer.citations_note,

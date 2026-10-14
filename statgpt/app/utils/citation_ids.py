@@ -1,9 +1,10 @@
 """The citation tags of a sub-deployment's response and the sources they cite.
 
 A sub-deployment writes a `<cit data-id="...">` tag at each cited position and claims it with an
-annotation (see `dial_annotations`) that names the cited source. The client draws a pill from the
-annotation in place of the tag, but the agent reads only the tag, so `OpenAiToDialStreamer`
-lists the source of every claimed tag for the tool response to name them to the agent.
+annotation (see `dial_annotations`) that names the cited source, and may quote the cited passage.
+The client draws a pill from the annotation in place of the tag, but the agent reads only the tag,
+so `OpenAiToDialStreamer` lists the source and the quote of every claimed tag for the tool
+response to name them to the agent.
 """
 
 from typing import Any
@@ -26,6 +27,8 @@ class Citation(BaseModel):
     id: str
     # None if no annotation claiming the tag names its source.
     title: str | None
+    # The cited passage, e.g. the filters of a dataset query; None if the annotation quotes none.
+    quote: str | None = None
 
 
 def get_tag_id(annotation: dict[str, Any]) -> str | None:
@@ -47,3 +50,10 @@ def get_source_title(annotation: dict[str, Any]) -> str | None:
         if isinstance(value, str) and value:
             return value
     return None
+
+
+def get_source_quote(annotation: dict[str, Any]) -> str | None:
+    """The passage of the source the annotation quotes, or None."""
+    body = annotation.get('body')
+    quote = body.get('quote') if isinstance(body, dict) else None
+    return quote if isinstance(quote, str) and quote else None
