@@ -625,7 +625,7 @@ class SupremeAgentExecutor:
                     history.add_tool_message(tool_msg)
                     if tool_msg.status == ToolResponseStatus.ERROR.value:
                         return surface_deep_research_error(choice)
-                    if self._report_delivered(tool_msg):
+                    if (report := self._delivered_report(tool_msg)) is not None:
                         # The tool streamed the final report to the user and disarmed the toggle;
                         # tell later turns that Deep Research mode is off, then end the turn without
                         # letting the agent repeat the report.
@@ -634,7 +634,7 @@ class SupremeAgentExecutor:
                                 content=supreme_agent_default_prompts.deep_research_report_delivered_message_to_agent
                             )
                         )
-                        return _content_to_str(tool_msg.content)
+                        return report
                 # Clarification recorded: loop so the agent can absorb it / surface the remainder.
             elif response.finished:
                 # The agent answered the user directly, already streamed via `agent.run`: the
@@ -654,11 +654,16 @@ class SupremeAgentExecutor:
         return surface_deep_research_error(choice)
 
     @staticmethod
-    def _report_delivered(tool_msg: ToolMessage) -> bool:
-        """Whether Deep Research delivered its final report on this call (already streamed to the
-        user), so the turn must end without the agent repeating it."""
+    def _delivered_report(tool_msg: ToolMessage) -> str | None:
+        """The final report Deep Research delivered on this call (already streamed to the user),
+        so the turn must end without the agent repeating it; None if it delivered none.
+
+        Read from the artifact, not the tool response, which also carries the citations note
+        meant for the agent only."""
         artifact = tool_msg.artifact
-        return isinstance(artifact, DeepResearchArtifact) and artifact.state.report_delivered
+        if isinstance(artifact, DeepResearchArtifact) and artifact.state.report_delivered:
+            return artifact.report
+        return None
 
     async def create_chain(self) -> Runnable:
         return RunnablePassthrough.assign(general_response=self.stream_response)
