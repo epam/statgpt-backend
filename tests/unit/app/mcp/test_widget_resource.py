@@ -91,8 +91,11 @@ class TestRead:
         _patch_client(monkeypatch, fake_get)
         resource = WidgetResource.from_config(_config())
 
-        with pytest.raises(WidgetResourceError):
+        with pytest.raises(WidgetResourceError) as exc_info:
             await resource.read()
+
+        # The internal endpoint must not leak into the caller-visible error.
+        assert "widget-internal.svc" not in str(exc_info.value)
 
     async def test_failure_is_not_cached(self, monkeypatch):
         outcomes: list = [httpx.ConnectError("down"), _FakeResponse("<html>ok</html>")]
