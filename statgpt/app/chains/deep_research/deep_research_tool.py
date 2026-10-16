@@ -257,12 +257,13 @@ class DeepResearchRunner:
                 # research" toggle; set only after delivery succeeds, so a failure mid-run leaves
                 # the toggle armed for retry.
                 state[StateVarsConfig.DEEP_RESEARCH_REPORT_DELIVERED] = True
-                # The report stays in the agent's history as this tool response, so the note lets
-                # the agent answer follow-up questions about its sources. The user is not shown it,
-                # and the turn's answer is `report`, not this response. The note is built from the
-                # annotations relayed now rather than from those the client replays with the report
-                # message, so it is persisted with the tool response (a title and a quote per tag),
-                # and a report delivered before the note was introduced has none.
+                # The report stays in the agent's history as this tool response (`History` replaces
+                # the report message there with a placeholder, so the report is not repeated), and
+                # the note lets the agent answer follow-up questions about its sources. The user is
+                # not shown it, and the turn's answer is `report`, not this response. The note is
+                # built from the annotations relayed now rather than from those the client replays
+                # with the report message, so it is persisted with the tool response (a title and a
+                # quote per tag), and a report delivered before the note was introduced has none.
                 return DeepResearchTurnResult(
                     content=content + dial_streamer.citations_note,
                     report_delivered=True,

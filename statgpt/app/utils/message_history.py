@@ -16,6 +16,7 @@ from langchain_core.messages import ToolCall as LangChainToolCall
 from langchain_core.messages import ToolMessage
 
 from statgpt.app.config import StateVarsConfig
+from statgpt.app.default_prompts import supreme_agent_default_prompts
 from statgpt.app.schemas.tool_artifact import ToolArtifact
 from statgpt.app.services.chat_facade import ChannelServiceFacade
 from statgpt.app.utils.message_interceptors.commands_interceptor import CommandsInterceptor
@@ -283,7 +284,18 @@ class History:
             elif msg.role == Role.ASSISTANT:
                 if include_tool_messages:
                     chat_history.extend(self._extract_tool_messages_from_message(msg))
-                chat_history.append(self.dial_to_langchain_message(msg))
+                if include_tool_messages and self._is_deep_research_report(msg):
+                    # The report's tool response, just added, already carries the report, so do not
+                    # repeat it here. The tool response is the copy to keep: the agent answers
+                    # follow-up questions from a tool response, but checks its own earlier answer
+                    # again, e.g. by searching for the source of a figure in the report.
+                    chat_history.append(
+                        AIMessage(
+                            content=supreme_agent_default_prompts.deep_research_report_answer_placeholder
+                        )
+                    )
+                else:
+                    chat_history.append(self.dial_to_langchain_message(msg))
             elif msg.role == Role.TOOL:
                 chat_history.append(self.dial_to_langchain_message(msg))
             elif msg.role == Role.SYSTEM:
@@ -314,6 +326,15 @@ class History:
 
     def dump_state(self, state: dict) -> None:
         self._dump_tool_messages_to_state(state)
+
+    @staticmethod
+    def _is_deep_research_report(message: DialMessage) -> bool:
+        """Whether Deep Research delivered its final report as this assistant message."""
+        if message.custom_content is None or not isinstance(message.custom_content.state, dict):
+            return False
+        return bool(
+            message.custom_content.state.get(StateVarsConfig.DEEP_RESEARCH_REPORT_DELIVERED)
+        )
 
     @staticmethod
     def _extract_tool_messages_from_message(
