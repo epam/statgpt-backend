@@ -190,7 +190,7 @@ class _FakeBuilder:
 
 def _narrowed(channel: str = _CHANNEL, agency: str = "IMF") -> GenericRagDocumentMatcher:
     return GenericRagDocumentMatcher(
-        filters=[GenericRagDocumentFilter(statgpt_channel=channel, agency=agency)]
+        filters=[GenericRagDocumentFilter(statgpt_channel=channel, agency=[agency])]
     )
 
 
