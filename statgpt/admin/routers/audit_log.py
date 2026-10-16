@@ -23,6 +23,7 @@ async def get_audit_log_enum_values() -> dict[str, list[str]]:
     return {
         "entity_types": [entity_type.value for entity_type in schemas.AuditEntityType],
         "action_types": [action_type.value for action_type in schemas.AuditActionType],
+        "scopes": [scope.value for scope in schemas.AuditScope],
     }
 
 
@@ -43,6 +44,7 @@ async def get_audit_logs(
     offset: int = 0,
     entity_type: schemas.AuditEntityType | None = None,
     action_type: schemas.AuditActionType | None = None,
+    scope: schemas.AuditScope | None = None,
     item_id: int | None = None,
     entity_id: str | None = None,
     entity_name: str | None = None,
@@ -62,6 +64,7 @@ async def get_audit_logs(
         offset=offset,
         entity_type=entity_type,
         action_type=action_type,
+        scope=scope,
         item_id=item_id,
         entity_id=entity_id,
         entity_name=entity_name,
@@ -74,6 +77,7 @@ async def get_audit_logs(
     total = await service.get_count(
         entity_type=entity_type,
         action_type=action_type,
+        scope=scope,
         item_id=item_id,
         entity_id=entity_id,
         entity_name=entity_name,
@@ -96,6 +100,7 @@ async def get_audit_logs(
 async def export_audit_logs(
     entity_type: schemas.AuditEntityType | None = None,
     action_type: schemas.AuditActionType | None = None,
+    scope: schemas.AuditScope | None = None,
     item_id: int | None = None,
     entity_id: str | None = None,
     entity_name: str | None = None,
@@ -113,6 +118,7 @@ async def export_audit_logs(
     items = await service.get_logs(
         entity_type=entity_type,
         action_type=action_type,
+        scope=scope,
         item_id=item_id,
         entity_id=entity_id,
         entity_name=entity_name,

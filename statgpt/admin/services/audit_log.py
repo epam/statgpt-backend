@@ -7,10 +7,23 @@ from sqlalchemy.sql.expression import func
 import statgpt.common.models as models
 import statgpt.common.schemas as schemas
 
+# Keys never audited for an entity type but which older records may still contain.
+# Stripping them at read time keeps diffs clean without mutating immutable rows.
+_EXCLUDED_STATE_KEYS: dict[schemas.AuditEntityType, frozenset[str]] = {
+    schemas.AuditEntityType.DATASET: frozenset({"data_source"}),
+}
+
 
 class AdminAuditLogService:
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
+
+    @staticmethod
+    def _sanitize_state(entity_type: schemas.AuditEntityType, state: dict | None) -> dict | None:
+        excluded = _EXCLUDED_STATE_KEYS.get(entity_type)
+        if not excluded or state is None:
+            return state
+        return {key: value for key, value in state.items() if key not in excluded}
 
     async def get_by_id(self, item_id: int) -> schemas.AuditLogDetails:
         item = await self._session.get(models.AuditLog, item_id)
@@ -18,10 +31,14 @@ class AdminAuditLogService:
             raise ValueError(f"Audit log with id={item_id} not found")
         state_before = None
         if item.item_id is not None:
+            # Same-scope only: reindex/ds_link events share (entity_type, item_id)
+            # with config records but store a different state shape, which would
+            # otherwise corrupt the before/after diff.
             previous_query = (
                 select(models.AuditLog)
                 .where(
                     models.AuditLog.entity_type == item.entity_type,
+                    models.AuditLog.scope == item.scope,
                     models.AuditLog.item_id == item.item_id,
                     models.AuditLog.id < item.id,
                 )
@@ -36,6 +53,7 @@ class AdminAuditLogService:
             id=item.id,
             entity_type=item.entity_type,
             action_type=item.action_type,
+            scope=item.scope,
             item_id=item.item_id,
             entity_id=item.entity_id,
             entity_name=item.entity_name,
@@ -43,8 +61,8 @@ class AdminAuditLogService:
             performed_by_name=item.performed_by_name,
             trace_id=item.trace_id,
             created_at=item.created_at,
-            state_before=state_before,
-            state_after=item.state_after,
+            state_before=self._sanitize_state(item.entity_type, state_before),
+            state_after=self._sanitize_state(item.entity_type, item.state_after),
         )
 
     async def get_logs(
@@ -54,6 +72,7 @@ class AdminAuditLogService:
         offset: int | None = None,
         entity_type: schemas.AuditEntityType | None = None,
         action_type: schemas.AuditActionType | None = None,
+        scope: schemas.AuditScope | None = None,
         item_id: int | None = None,
         entity_id: str | None = None,
         entity_name: str | None = None,
@@ -68,6 +87,7 @@ class AdminAuditLogService:
             query=query,
             entity_type=entity_type,
             action_type=action_type,
+            scope=scope,
             item_id=item_id,
             entity_id=entity_id,
             entity_name=entity_name,
@@ -92,6 +112,7 @@ class AdminAuditLogService:
         *,
         entity_type: schemas.AuditEntityType | None = None,
         action_type: schemas.AuditActionType | None = None,
+        scope: schemas.AuditScope | None = None,
         item_id: int | None = None,
         entity_id: str | None = None,
         entity_name: str | None = None,
@@ -106,6 +127,7 @@ class AdminAuditLogService:
             query=query,
             entity_type=entity_type,
             action_type=action_type,
+            scope=scope,
             item_id=item_id,
             entity_id=entity_id,
             entity_name=entity_name,
@@ -127,6 +149,8 @@ class AdminAuditLogService:
             query = query.where(models.AuditLog.entity_type == filters["entity_type"])
         if filters["action_type"]:
             query = query.where(models.AuditLog.action_type == filters["action_type"])
+        if filters["scope"]:
+            query = query.where(models.AuditLog.scope == filters["scope"])
         if filters["item_id"] is not None:
             query = query.where(models.AuditLog.item_id == filters["item_id"])
         if filters["entity_id"]:
