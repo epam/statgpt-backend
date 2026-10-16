@@ -210,6 +210,13 @@ class DiscoveryDatasetsEvalAttachment(BaseModel):
     error: str | None = None
     """Why the lookup produced nothing, when it was a failure rather than an empty result."""
 
+    stopped_after_pre_filter: bool = False
+    """Whether the lookup was stopped by `!discovery_prefilter_only` before retrieving anything.
+
+    Recorded to distinguish from a lookup that retrieved nothing, so the discovery eval ignores it
+    instead of scoring an empty selection.
+    """
+
 
 class DiscoveryDatasetsOutcome(BaseModel):
     """What the runner hands back to the data query tool."""
