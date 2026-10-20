@@ -10,6 +10,7 @@ from statgpt.app.utils.citation_ids import (
     Citation,
     CitationIdSpace,
     find_tag_ids,
+    get_source_quote,
     get_source_title,
     get_tag_id,
     replace_tag_ids,
@@ -121,37 +122,40 @@ class OpenAiToDialStreamer:
 
     @property
     def citations(self) -> list[Citation]:
-        """Every citation tag the relayed annotations claim, with the source it cites.
+        """Every citation tag the relayed annotations claim, with the source it cites and the
+        passage it quotes.
 
-        A tag that cites several sources is listed once per source, and each source once: a
-        sub-deployment may re-send an annotation to extend it. A tag none of whose annotations
-        names its source (see `get_source_title`) is still listed, with no title, so the agent
-        is not left with an id it cannot look up.
+        Each distinct combination of tag id, title and quote is listed once, in the order first
+        seen, so each entry matches one card in the pill's popup. Annotations are not merged by
+        `index`, as Deep Research does not re-send one to extend it. An annotation that names no
+        source (see `get_source_title`) is listed with no title, so the agent is not left with an
+        id it cannot look up.
         """
-        titles: dict[str, list[str | None]] = {}
-        for annotation in self._annotations:
-            if (tag_id := get_tag_id(annotation)) is None:
-                continue
-            tag_titles = titles.setdefault(tag_id, [])
-            if (title := get_source_title(annotation)) is not None and title not in tag_titles:
-                tag_titles.append(title)
-        return [
-            Citation(id=tag_id, title=title)
-            for tag_id, tag_titles in titles.items()
-            for title in tag_titles or [None]
-        ]
+        # One key per distinct (tag id, title, quote) combination. Each tuple is built from a single
+        # annotation, so its three values always belong together. `dict.fromkeys` drops a repeated
+        # key, and a dict keeps insertion order, so each entry stays where it was first seen.
+        # The keys are tuples because a plain pydantic model is not hashable.
+        keys = dict.fromkeys(
+            (tag_id, get_source_title(annotation), get_source_quote(annotation))
+            for annotation in self._annotations
+            if (tag_id := get_tag_id(annotation)) is not None
+        )
+        return [Citation(id=tag_id, title=title, quote=quote) for tag_id, title, quote in keys]
 
     @property
     def citations_note(self) -> str:
         """The source of every citation tag of the content, to append to a tool response so the
         agent can tell which source backs a statement. Empty if the content cites nothing.
 
-        The quotes are left out to keep the response small; the annotations relayed to the client
-        are not affected.
+        A citation that quotes no passage, or names no source, leaves the field out; the rest of
+        the annotation, such as the cited file and page box, is left out to keep the response
+        small. The annotations relayed to the client are not affected.
         """
         if not (citations := self.citations):
             return ''
-        citations_json = json.dumps([c.model_dump() for c in citations], ensure_ascii=False)
+        citations_json = json.dumps(
+            [c.model_dump(exclude_none=True) for c in citations], ensure_ascii=False
+        )
         return f'\n\n### Sources of the citation tags:\n\n```json\n{citations_json}\n```'
 
     @property

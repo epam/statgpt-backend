@@ -1,4 +1,4 @@
-"""The citation tag ids of a conversation (#730)."""
+"""The citation tags of a sub-deployment's response, the sources they cite, and their ids (#730, #747)."""
 
 import re
 from typing import Any
@@ -8,6 +8,7 @@ import pytest
 from statgpt.app.utils.citation_ids import (
     CitationIdSpace,
     find_tag_ids,
+    get_source_quote,
     get_source_title,
     get_tag_id,
     replace_tag_ids,
@@ -71,7 +72,7 @@ class TestTagId:
 class TestSourceTitle:
     _ATTACHMENT = {"title": "report.pdf", "url": "https://public/report.pdf"}
 
-    def test_the_label_of_the_pill_comes_first(self):
+    def test_the_title_of_the_citation_card_comes_first(self):
         body = {"title": "Report, page 3", "source": {"attachment": self._ATTACHMENT}}
 
         assert get_source_title({"body": body}) == "Report, page 3"
@@ -136,3 +137,23 @@ def test_find_tag_ids_reads_the_tags_replace_tag_ids_recognises():
     )
 
     assert find_tag_ids(content) == {"a", "b", "c"}
+
+
+class TestSourceQuote:
+    def test_reads_the_quoted_passage(self):
+        annotation = {"body": {"title": "Economic data", "quote": "* Country: United States"}}
+
+        assert get_source_quote(annotation) == "* Country: United States"
+
+    @pytest.mark.parametrize(
+        "annotation",
+        [
+            {},
+            {"body": None},
+            {"body": {"title": "Report"}},
+            {"body": {"quote": ""}},
+            {"body": {"quote": 7}},
+        ],
+    )
+    def test_an_annotation_quoting_nothing_has_no_quote(self, annotation: dict[str, Any]):
+        assert get_source_quote(annotation) is None

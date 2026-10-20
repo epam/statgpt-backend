@@ -149,9 +149,9 @@ async def test_response_names_the_source_of_every_citation_tag():
     response = result[DialRagAgentFactory.FIELD_RESPONSE]
     assert (
         '### Sources of the citation tags:\n\n```json\n'
-        '[{"id": "citation004", "title": "sigma 2/2025 – World insurance, page 8"}]\n```'
+        '[{"id": "citation004", "title": "sigma 2/2025 – World insurance, page 8",'
+        ' "quote": "Real GDP growth in the US is expected to slow to 1.5% in 2025."}]\n```'
     ) in response
-    assert _ANNOTATION["body"]["quote"] not in response
     assert "Sources of the citation tags" not in target.content
     # the client still receives the whole annotation, quote included
     [annotation] = _sent_annotations(choice)

@@ -18,6 +18,7 @@ from statgpt.app.utils.dial_stages import ChoiceI, optional_timed_stage
 from statgpt.app.utils.message_history import History
 from statgpt.common.auth.auth_context import AuthContext
 from statgpt.common.schemas import ChannelConfig
+from statgpt.common.utils.llm_stream_retry import astream_with_retry
 from statgpt.common.utils.markdown import format_as_markdown_list
 from statgpt.common.utils.models import get_chat_model
 
@@ -239,7 +240,7 @@ class OutOfScopeChecker:
 
         response_chain = self.build_response_chain(messages, response.reasoning, auth_context)
 
-        async for chunk in response_chain.astream(inputs):
+        async for chunk in astream_with_retry(response_chain, inputs, name="Out-of-scope response"):
             if isinstance(chunk.content, str):
                 choice.append_content(chunk.content)
 

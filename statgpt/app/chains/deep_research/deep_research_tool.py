@@ -51,11 +51,13 @@ class DeepResearchTurnResult(NamedTuple):
 
     ``report_delivered`` is True only when the deployment delivered its final report (research
     complete). The report is already streamed to the user verbatim, so the Supreme Agent must end
-    the turn without repeating it. Otherwise ``content`` is a clarification / plan-for-approval that
-    the Supreme Agent mediates."""
+    the turn without repeating it. ``content`` is then the report plus the citations note meant for
+    the agent only, and ``report`` the report alone, as the user got it. Otherwise ``content`` is a
+    clarification / plan-for-approval that the Supreme Agent mediates."""
 
     content: str
     report_delivered: bool
+    report: str = ''
 
 
 def _get_display_message(e: APIError) -> str | None:
@@ -75,7 +77,10 @@ def _build_deep_research_artifact(
     tool_type: ToolTypes, result: DeepResearchTurnResult
 ) -> DeepResearchArtifact:
     return DeepResearchArtifact(
-        state=DeepResearchToolMessageState(type=tool_type, report_delivered=result.report_delivered)
+        state=DeepResearchToolMessageState(
+            type=tool_type, report_delivered=result.report_delivered
+        ),
+        report=result.report,
     )
 
 
@@ -253,7 +258,18 @@ class DeepResearchRunner:
                 # research" toggle; set only after delivery succeeds, so a failure mid-run leaves
                 # the toggle armed for retry.
                 state[StateVarsConfig.DEEP_RESEARCH_REPORT_DELIVERED] = True
-                return DeepResearchTurnResult(content=content, report_delivered=True)
+                # The report stays in the agent's history as this tool response (`History` replaces
+                # the report message there with a placeholder, so the report is not repeated), and
+                # the note lets the agent answer follow-up questions about its sources. The user is
+                # not shown it, and the turn's answer is `report`, not this response. The note is
+                # built from the annotations relayed now rather than from those the client replays
+                # with the report message, so it is persisted with the tool response (a title and a
+                # quote per tag), and a report delivered before the note was introduced has none.
+                return DeepResearchTurnResult(
+                    content=content + dial_streamer.citations_note,
+                    report_delivered=True,
+                    report=content,
+                )
 
             # Clarification / plan-for-approval: show it in the tool-result stage (like other tools)
             # and hand the content back to the Supreme Agent, keeping the session so the next call can

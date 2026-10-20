@@ -1,12 +1,18 @@
-"""The citation tag ids of a conversation: `citation001`, `citation002`, ...
+"""The citation tags of a sub-deployment's response, the sources they cite, and their ids.
 
 A sub-deployment writes a `<cit data-id="...">` tag at each cited position and claims it with an
-annotation (see `dial_annotations`). The ids it picks are its own: a long hash such as
+annotation (see `dial_annotations`) that names the cited source, and may quote the cited passage.
+The client draws a pill from the annotation in place of the tag, but the agent reads only the tag,
+so `OpenAiToDialStreamer` lists the source and the quote of every claimed tag for the tool
+response to name them to the agent.
+
+The ids a sub-deployment picks are its own: a long hash such as
 `94c80f43b36f40ffbd9063db0cdc35c6`, or a counter such as `cit-1` that the next tool call starts
 again. The agent has to copy the tags of a tool response into its answer verbatim for the client
 to resolve them, so `OpenAiToDialStreamer` renumbers every claimed id into the one id space of
-the conversation. A short id is copied without typos, is easy to match against the sources note
-of a tool response, and never names two sources in one conversation, whichever tool cited them.
+the conversation: `citation001`, `citation002`, ... A short id is copied without typos, is easy to
+match against the sources note of a tool response, and never names two sources in one
+conversation, whichever tool cited them.
 """
 
 import re
@@ -22,9 +28,9 @@ from pydantic import BaseModel
 # claimed tag it could not renumber. Groups: everything up to the opening quote, the quote, the id.
 _TAG_ID_ATTRIBUTE = re.compile(r'''(<\w[^>]*?\sdata-id\s*=\s*(["']))(.*?)\2''')
 
-# Where an annotation names its source, best first: the label of the pill, then the title and the
-# url of the file it cites. The same fields the rewrite rules know as `body_title`,
-# `attachment_title` and `url`.
+# Where an annotation names its source, best first: the title of the citation card, then the
+# title and the url of the file it cites. The same fields the rewrite rules know as
+# `body_title`, `attachment_title` and `url`.
 _SOURCE_TITLE_PATHS = (
     ('body', 'title'),
     ('body', 'source', 'attachment', 'title'),
@@ -41,6 +47,8 @@ class Citation(BaseModel):
     id: str
     # None if no annotation claiming the tag names its source.
     title: str | None
+    # The cited passage, e.g. the filters of a dataset query; None if the annotation quotes none.
+    quote: str | None = None
 
 
 class CitationIdSpace:
@@ -96,6 +104,13 @@ def get_source_title(annotation: dict[str, Any]) -> str | None:
         if isinstance(value, str) and value:
             return value
     return None
+
+
+def get_source_quote(annotation: dict[str, Any]) -> str | None:
+    """The passage of the source the annotation quotes, or None."""
+    body = annotation.get('body')
+    quote = body.get('quote') if isinstance(body, dict) else None
+    return quote if isinstance(quote, str) and quote else None
 
 
 def with_tag_id(annotation: dict[str, Any], tag_id: str) -> dict[str, Any]:
