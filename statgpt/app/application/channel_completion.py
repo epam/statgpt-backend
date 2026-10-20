@@ -313,8 +313,8 @@ class ChannelCompletion(ChatCompletion):
             StateVarsConfig.CMD_SKIP_TOOLS_EXECUTION: dial_app_settings.cmd_skip_tools_execution,
         }
 
-        # for some commands, we set their values
-        # to be the same as in previous assistant response (if available)
+        # for some commands, we set their values to be the same as
+        # in the latest assistant response that has a state (if available)
         if state := cls._latest_response_state(request.messages):
             if (show_debug_stages := state.get(StateVarsConfig.SHOW_DEBUG_STAGES)) is not None:
                 defaults[StateVarsConfig.SHOW_DEBUG_STAGES] = show_debug_stages
