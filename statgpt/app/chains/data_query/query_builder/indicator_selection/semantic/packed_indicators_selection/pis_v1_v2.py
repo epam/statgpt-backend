@@ -149,11 +149,19 @@ in the summary:
     - mention dimension values in the following format: "value name [value id]"
     - group dimension values by dataset and dimension
     - DO NOT focus only on the MOST relevant values. reason about ALL relevant values.
+    - when the user asks about a concept, first name the measures an analyst would use to assess it, then match them to the values
 2. based on your relevance summary, build queries
 
 NOTES:
-- select dimension values ONLY IF THEY WERE REQUIRED by user!
-- DO NOT INCLUDE the dimension if it does not have values explicitly required by user
+- select dimension values ONLY IF THEY WERE REQUIRED by user! A value is required when it falls under
+  what the user asked for, judged by MEANING, not by matching words: a term for a group or family of measures
+  requires every member of it (all variants such as real/nominal or currency, derived shares and ratios, and the
+  standard companion measures of the same concept) unless the user narrowed it. A collective term ("X metrics", "X indicators") asks for the set of
+  measures used to assess X, not for the single series whose name matches X; include the measures reported
+  alongside it for the same purpose (e.g. a ratio and its per-capita counterpart).
+  If the user's term matches a value of a dimension and also narrower kinds of it ("X" and "Natural X"), select the value
+  that matches the term and leave out the narrower kinds.
+- DO NOT INCLUDE a dimension the user said nothing about
 - you must maintain high precision and recall!
 - it is FORBIDDEN to include dimension values absent in the provided list of candidates
 
