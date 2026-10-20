@@ -16,10 +16,11 @@ from statgpt.app.schemas import DialRagArtifact, DialRagState
 from statgpt.app.schemas.file_rags.dial_rag import DialRagMetadata, PreFilterResponse
 from statgpt.app.settings.dial_rag import dial_rag_settings
 from statgpt.app.utils import CustomContentRewriter, OpenAiToDialStreamer, openai, replace_dial_url
+from statgpt.app.utils.citation_ids import to_plain_text_references
 from statgpt.app.utils.dial_stages import ChoiceI
 from statgpt.common.auth.auth_context import AuthContext
 from statgpt.common.config import multiline_logger as logger
-from statgpt.common.schemas import AttachmentsTarget
+from statgpt.common.schemas import AttachmentsTarget, InvocationSource
 from statgpt.common.schemas.llm_call_duration import LLMCallDurationItem
 from statgpt.common.utils import MediaTypes
 from statgpt.common.utils.llm_call_duration_context import get_llm_call_duration_manager
@@ -326,11 +327,17 @@ class DialRagAgentFactory(BaseRAGFactory):
                 self._append_attachments(
                     self._attachments_sink(target, choice), dial_streamer.attachments
                 )
-                inputs[self.FIELD_RESPONSE] = (
-                    dial_streamer.content_with_attachments_metadata
-                    + dial_streamer.citations_note
-                    + prefilter_note
-                )
+                if ChainParameters.get_invocation_source(inputs) is InvocationSource.MCP:
+                    # No annotation reaches an MCP client, which could not resolve the tags.
+                    response = to_plain_text_references(
+                        dial_streamer.content_with_attachments_metadata, dial_streamer.citations
+                    )
+                else:
+                    response = (
+                        dial_streamer.content_with_attachments_metadata
+                        + dial_streamer.citations_note
+                    )
+                inputs[self.FIELD_RESPONSE] = response + prefilter_note
                 inputs[self.FIELD_ANSWERED_BY] = 'RAG'
                 inputs[self.FIELD_ATTACHMENTS] = dial_streamer.attachments
             else:

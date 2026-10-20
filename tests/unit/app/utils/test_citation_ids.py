@@ -1,4 +1,5 @@
-"""The citation tags of a sub-deployment's response, the sources they cite, and their ids (#730, #747)."""
+"""The citation tags of a sub-deployment's response, the sources they cite, and their ids
+(#730, #747)."""
 
 import re
 from typing import Any
@@ -6,12 +7,14 @@ from typing import Any
 import pytest
 
 from statgpt.app.utils.citation_ids import (
+    Citation,
     CitationIdSpace,
     find_tag_ids,
     get_source_quote,
     get_source_title,
     get_tag_id,
     replace_tag_ids,
+    to_plain_text_references,
     with_tag_id,
 )
 
@@ -21,25 +24,19 @@ def _annotation(selector: dict[str, Any]) -> dict[str, Any]:
 
 
 class TestCitationIdSpace:
-    def test_hands_out_short_numbered_ids(self):
-        space = CitationIdSpace()
-
-        assert [space.next_id(), space.next_id()] == ["citation001", "citation002"]
-        assert space.count == 2
-
-    def test_continues_from_the_count(self):
-        space = CitationIdSpace(998)
-
-        assert [space.next_id(), space.next_id()] == ["citation999", "citation1000"]
-
-    def test_a_scope_is_appended_to_every_id(self):
+    def test_hands_out_short_numbered_ids_in_its_scope(self):
         space = CitationIdSpace(scope="k3f9")
 
         assert [space.next_id(), space.next_id()] == ["citation001-k3f9", "citation002-k3f9"]
 
-    def test_a_scoped_space_gets_a_short_random_scope(self):
-        """For an MCP tool call, which cannot continue the ids of the calls before it."""
-        assert re.fullmatch(r"citation001-[a-z0-9]{4}", CitationIdSpace.scoped().next_id())
+    def test_the_scope_of_a_response_is_short_and_random(self):
+        """It keeps the ids of a response apart from those of the other responses, so a
+        response that was stopped before saving its state cannot make the next one reuse them."""
+        first, second = CitationIdSpace().next_id(), CitationIdSpace().next_id()
+
+        assert re.fullmatch(r"citation001-[a-z0-9]{4}", first)
+        assert re.fullmatch(r"citation001-[a-z0-9]{4}", second)
+        assert first != second
 
 
 class TestTagId:
@@ -72,20 +69,21 @@ class TestTagId:
 class TestSourceTitle:
     _ATTACHMENT = {"title": "report.pdf", "url": "https://public/report.pdf"}
 
-    def test_the_title_of_the_citation_card_comes_first(self):
+    def test_reads_the_title_of_the_citation_card(self):
         body = {"title": "Report, page 3", "source": {"attachment": self._ATTACHMENT}}
 
         assert get_source_title({"body": body}) == "Report, page 3"
 
-    def test_falls_back_to_the_title_of_the_cited_file(self):
-        body = {"title": "", "source": {"attachment": self._ATTACHMENT}}
-
-        assert get_source_title({"body": body}) == "report.pdf"
-
-    def test_then_to_the_url_of_the_cited_file(self):
-        body = {"source": {"attachment": {"url": "https://public/report.pdf"}}}
-
-        assert get_source_title({"body": body}) == "https://public/report.pdf"
+    @pytest.mark.parametrize(
+        "body",
+        [
+            {"title": "", "source": {"attachment": _ATTACHMENT}},
+            {"source": {"attachment": _ATTACHMENT}},
+        ],
+    )
+    def test_never_falls_back_to_the_title_or_the_url_of_the_cited_file(self, body: dict[str, Any]):
+        """They name the file, the label of the pill, not the cited passage."""
+        assert get_source_title({"body": body}) is None
 
     @pytest.mark.parametrize(
         "annotation",
@@ -157,3 +155,39 @@ class TestSourceQuote:
     )
     def test_an_annotation_quoting_nothing_has_no_quote(self, annotation: dict[str, Any]):
         assert get_source_quote(annotation) is None
+
+    def test_a_long_quote_is_cut_short(self):
+        """A quote is often a long page excerpt; its start tells the agent the passage."""
+        assert get_source_quote({"body": {"quote": "x" * 501}}) == "x" * 500 + "…"
+        assert get_source_quote({"body": {"quote": "x" * 500}}) == "x" * 500
+
+
+class TestPlainTextReferences:
+    _CONTENT = 'GDP rose <cit data-id="c1"></cit>. Inflation fell <cit data-id="c2"/>.'
+
+    def test_numbers_the_tags_and_lists_their_sources(self):
+        citations = [
+            Citation(id="c1", title="Report, page 3", quote="GDP rose\nby 2%."),
+            Citation(id="c1", title="Review, page 17"),
+            Citation(id="c2", title=None, quote="Inflation fell."),
+        ]
+
+        assert to_plain_text_references(self._CONTENT, citations) == (
+            'GDP rose [1]. Inflation fell [2].\n\n'
+            '### References:\n\n'
+            '- [1] Report, page 3: "GDP rose by 2%."\n'
+            '- [1] Review, page 17\n'
+            '- [2] "Inflation fell."'
+        )
+
+    def test_drops_a_tag_that_cites_nothing(self):
+        citations = [Citation(id="c2", title=None)]
+
+        assert to_plain_text_references(self._CONTENT, citations) == (
+            'GDP rose. Inflation fell [1].\n\n'
+            '### References:\n\n'
+            '- [1] (the source is not named)'
+        )
+
+    def test_content_citing_nothing_gets_no_references(self):
+        assert to_plain_text_references("GDP rose.", []) == "GDP rose."

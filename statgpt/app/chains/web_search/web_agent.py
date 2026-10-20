@@ -52,8 +52,7 @@ class WebSearchAgentTool(StatGptTool[WebSearchToolConfig], tool_type=ToolTypes.W
         target = ChainParameters.get_target(inputs)
 
         str_response = await self._response_producer.run(inputs=inputs, query=query)
-        if not self._response_producer.writes_response_to_target:
-            target.append_content(str_response)
+        target.append_content(str_response)
 
         artifact = ToolArtifact(state=ToolMessageState(type=self.tool_type))
         return str_response, artifact

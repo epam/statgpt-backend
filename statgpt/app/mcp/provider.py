@@ -45,9 +45,9 @@ def _build_mcp_inputs(
         # Present so a tool that relays annotations can run here too. Nothing is emitted: the
         # MCP context has no choice to stream them on.
         ChainParametersConfig.ANNOTATION_INDEX_SPACE: itertools.count(),
-        # No state comes back from an MCP client, so a call cannot continue the citation ids of
-        # the calls before it; a scope of its own keeps them from naming another call's sources.
-        ChainParametersConfig.CITATION_ID_SPACE: CitationIdSpace.scoped(),
+        # Likewise for citation ids, which an MCP client never sees: a tool that relays
+        # annotations gives it plain-text references instead of citation tags.
+        ChainParametersConfig.CITATION_ID_SPACE: CitationIdSpace(),
     }
 
 

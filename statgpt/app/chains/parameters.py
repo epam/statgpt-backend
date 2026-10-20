@@ -93,12 +93,11 @@ class ChainParameters:
 
     @staticmethod
     def get_citation_id_space(data: dict) -> CitationIdSpace:
-        """The citation ids of the current conversation.
+        """The citation ids of the current response.
 
         One per response, shared by every ``OpenAiToDialStreamer`` it creates so that no two
-        sources of the conversation are cited with the same id. Unlike the annotation index
-        space it outlives the response: its ``count`` is persisted to ``state`` and the next
-        response continues from it.
+        sources of the conversation are cited with the same id: its random scope keeps the ids
+        apart from those of the other responses.
         """
         return data[ChainParametersConfig.CITATION_ID_SPACE]
 

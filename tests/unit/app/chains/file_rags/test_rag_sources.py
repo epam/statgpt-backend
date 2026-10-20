@@ -2,7 +2,8 @@
 annotation. Otherwise the tool response is replaced with "unable to find the relevant data".
 
 The tool response names the source of every citation tag of the answer, so the agent can tell
-which publication backs a statement (#730).
+which publication backs a statement. An MCP client, which gets no annotations, gets plain-text
+references instead of the tags (#730).
 """
 
 import asyncio
@@ -20,7 +21,7 @@ from statgpt.app.chains.file_rags.file_rag_tool import _RAG_IMPLEMENTATIONS
 from statgpt.app.config import ChainParametersConfig
 from statgpt.app.utils.citation_ids import CitationIdSpace
 from statgpt.common.schemas import FileRagTool as FileRagToolConfig
-from statgpt.common.schemas import RAGVersion
+from statgpt.common.schemas import InvocationSource, RAGVersion
 from statgpt.common.schemas.tool_details import FileRagDetails
 
 _DIAL_URL = "files/bucket/appdata/statgpt-generic-rag/sigma/report.pdf"
@@ -32,7 +33,7 @@ _REWRITE_RULES = [
     }
 ]
 _ANSWER = 'US GDP growth slows to 1.5%. <cit data-id="94c80f43b36f40ffbd9063db0cdc35c6"></cit>'
-_RELAYED_ANSWER = 'US GDP growth slows to 1.5%. <cit data-id="citation004"></cit>'
+_RELAYED_ANSWER = 'US GDP growth slows to 1.5%. <cit data-id="citation001-k3f9"></cit>'
 _ANNOTATION = {
     "index": 0,
     "target": {
@@ -105,6 +106,7 @@ def _sent_annotations(choice: Choice) -> list[dict[str, Any]]:
 
 async def _run(
     chunks: list[ChatCompletionChunk],
+    invocation_source: InvocationSource = InvocationSource.AGENT,
 ) -> tuple[dict[str, Any], FakeStage, Choice]:
     factory = _factory()
     client = Mock()
@@ -123,8 +125,8 @@ async def _run(
         ChainParametersConfig.SEARCH_ALL_PUBLICATIONS: True,
         ChainParametersConfig.STATE: {},
         ChainParametersConfig.ANNOTATION_INDEX_SPACE: itertools.count(),
-        # three citations were handed out by the earlier turns of the conversation
-        ChainParametersConfig.CITATION_ID_SPACE: CitationIdSpace(3),
+        ChainParametersConfig.CITATION_ID_SPACE: CitationIdSpace(scope="k3f9"),
+        ChainParametersConfig.INVOCATION_SOURCE: invocation_source,
     }
     result = await factory._stream_response(inputs)
     return result, target, choice
@@ -139,7 +141,7 @@ async def test_annotations_only_answer_is_accepted_and_rewritten():
     assert _RELAYED_ANSWER in target.content
     [annotation] = _sent_annotations(choice)
     assert annotation["body"]["source"]["attachment"]["url"] == _PUBLIC_URL
-    assert annotation["target"]["selector"]["id"] == "citation004"
+    assert annotation["target"]["selector"]["id"] == "citation001-k3f9"
 
 
 @pytest.mark.asyncio
@@ -149,13 +151,31 @@ async def test_response_names_the_source_of_every_citation_tag():
     response = result[DialRagAgentFactory.FIELD_RESPONSE]
     assert (
         '### Sources of the citation tags:\n\n```json\n'
-        '[{"id": "citation004", "title": "sigma 2/2025 – World insurance, page 8",'
+        '[{"id": "citation001-k3f9", "title": "sigma 2/2025 – World insurance, page 8",'
         ' "quote": "Real GDP growth in the US is expected to slow to 1.5% in 2025."}]\n```'
     ) in response
     assert "Sources of the citation tags" not in target.content
     # the client still receives the whole annotation, quote included
     [annotation] = _sent_annotations(choice)
     assert annotation["body"]["quote"] == _ANNOTATION["body"]["quote"]
+
+
+@pytest.mark.asyncio
+async def test_an_mcp_client_gets_plain_text_references_instead_of_the_tags():
+    """No annotation reaches an MCP client, so it could not resolve a citation tag."""
+    result, _, _ = await _run(
+        [_chunk(_ANSWER, annotations=[_ANNOTATION])], invocation_source=InvocationSource.MCP
+    )
+
+    response = result[DialRagAgentFactory.FIELD_RESPONSE]
+    assert response.startswith(
+        'US GDP growth slows to 1.5%. [1]\n\n'
+        '### References:\n\n'
+        '- [1] sigma 2/2025 – World insurance, page 8:'
+        ' "Real GDP growth in the US is expected to slow to 1.5% in 2025."'
+    )
+    assert "<cit" not in response
+    assert "Sources of the citation tags" not in response
 
 
 @pytest.mark.asyncio

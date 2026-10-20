@@ -60,11 +60,12 @@ class OpenAiToDialStreamer:
             annotation_index_space: The annotation index counter of the whole response, shared
                 with every other streamer of the same response. Required rather than defaulted,
                 so a new call site fails loudly instead of numbering annotations on its own.
-            citation_id_space: The citation ids of the whole conversation, shared with every
-                other streamer of the same response. Required for the same reason.
+            citation_id_space: The citation ids of the whole response, shared with every other
+                streamer of the same response. Required for the same reason.
             stream_content: If True, the content will be appended to the `target` as it is received.
                 The streamed content keeps the citation ids of the sub-deployment, which match no
-                relayed annotation, so stream only to a stage: a stage shows no citation pills.
+                relayed annotation, so stream only to a stage: DIAL Chat resolves no citation tag
+                in a stage anyway.
             rewriter: If set, rewrites the annotations and attachments (including stage
                 attachments) before they are relayed.
             stream_stages: If True, the stages will be created with the content and attachments from the chunks.
@@ -88,8 +89,8 @@ class OpenAiToDialStreamer:
         # This streamer's own annotations only: the index its sub-deployment gave one, mapped
         # to the index this response gave it. Dies with the streamer.
         self._annotation_indexes: dict[int, int] = {}
-        # Likewise for citations: the tag id its sub-deployment gave one, mapped to the id of the
-        # conversation it was given.
+        # Likewise for citations: the tag id its sub-deployment gave one, mapped to the id this
+        # response gave it.
         self._citation_ids: dict[str, str] = {}
 
     def __enter__(self):
@@ -105,11 +106,6 @@ class OpenAiToDialStreamer:
     def content(self) -> str:
         """The content, its citation tags renumbered like the relayed annotations claiming them."""
         return replace_tag_ids(self._content, self._citation_ids)
-
-    @property
-    def verbatim_content(self) -> str:
-        """The content as the sub-deployment sent it, for replaying it to that deployment."""
-        return self._content
 
     @property
     def attachments(self) -> list[dict[str, Any]]:
@@ -285,11 +281,11 @@ class OpenAiToDialStreamer:
         return {**annotation, 'index': self._annotation_indexes[index]}
 
     def _renumber_citation(self, annotation: dict[str, Any]) -> dict[str, Any]:
-        """Move the id of the tag the annotation claims into the id space of the conversation.
+        """Move the id of the tag the annotation claims into the id space of the response.
 
         The agent copies the tags of a tool response into its answer, and the client resolves
         each tag to the annotations claiming its id. The ids of a sub-deployment are long hashes
-        or counters that start over on every call, so they are swapped for `citation001`, ...
+        or counters that start over on every call, so they are swapped for `citation001-k3f9`, ...
         here and in `content` alike (see `citation_ids`). Every annotation claiming one tag keeps
         claiming one tag. An annotation that claims no tag is relayed unchanged.
 

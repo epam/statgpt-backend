@@ -312,7 +312,7 @@ def _inputs(
         ),
         ChainParametersConfig.CONFIGURATION: StatGPTConfiguration(deep_research=deep_research),
         ChainParametersConfig.ANNOTATION_INDEX_SPACE: itertools.count(),
-        ChainParametersConfig.CITATION_ID_SPACE: CitationIdSpace(),
+        ChainParametersConfig.CITATION_ID_SPACE: CitationIdSpace(scope="k3f9"),
         # Read when the general agent finishes (a turn where Deep Research was not started).
         ChainParametersConfig.PERFORMANCE_STAGE: None,
     }
@@ -575,8 +575,8 @@ async def test_report_delivered_verbatim_with_attachments(monkeypatch):
 
 
 _CITED = 'GDP rose <cit data-id="3f9a0c1b2d4e"></cit>.'
-# As the agent and the user get it, with the citation id of the conversation.
-_RENUMBERED = 'GDP rose <cit data-id="citation001"></cit>.'
+# As the agent and the user get it, with the citation id of the response.
+_RENUMBERED = 'GDP rose <cit data-id="citation001-k3f9"></cit>.'
 # A document citation in the shape Deep Research sends it.
 _CITATION = {
     "index": 0,
@@ -599,7 +599,7 @@ _CITATION = {
 async def test_report_tool_response_describes_its_citation_tags_to_the_agent_only(monkeypatch):
     """The report stays in the agent's history as the tool response, which names the source of
     each citation tag; the report shown to the user, and returned as the turn's answer, carries no
-    such note. Both carry the citation ids of the conversation."""
+    such note. Both carry the citation ids of the response."""
     _patch_scripted_agent(
         monkeypatch,
         [_tool_call_chunk("resume_deep_research", {"message": "approved"})],
@@ -622,7 +622,7 @@ async def test_report_tool_response_describes_its_citation_tags_to_the_agent_onl
     assert tool_response["content"] == (
         f'{_RENUMBERED}\n\n'
         '### Sources of the citation tags:\n\n'
-        '```json\n[{"id": "citation001", "title": "Report.pdf, page 3"}]\n```'
+        '```json\n[{"id": "citation001-k3f9", "title": "Report.pdf, page 3"}]\n```'
     )
     assert choice.content == _RENUMBERED
     assert content == _RENUMBERED
@@ -633,31 +633,6 @@ async def test_report_tool_response_describes_its_citation_tags_to_the_agent_onl
         m for m in inputs[ChainParametersConfig.HISTORY].get_tool_messages() if m.type == "tool"
     ]
     assert repr(tool_msg).count(_RENUMBERED) == 1
-
-
-async def test_clarification_citations_are_renumbered_for_the_agent_only(monkeypatch):
-    """The agent reads the citation ids of the conversation, while Deep Research is replayed the
-    ids it chose itself."""
-    _patch_scripted_agent(
-        monkeypatch,
-        [_tool_call_chunk("deep_research", {"query": "US GDP"}), _text_chunk("Which region?")],
-    )
-    clarification = [
-        _dr_chunk(content=_CITED, annotations=[_CITATION]),
-        _dr_chunk(state={"preparation": {"research_started": False}}),
-    ]
-    _patch_dr_deployment(monkeypatch, [clarification], {})
-
-    state = {StateVarsConfig.SHOW_DEBUG_STAGES: False}
-    inputs = _inputs(state, "research US GDP")
-    await SupremeAgentExecutor(_channel_config()).stream_response(inputs)
-
-    session = DeepResearchSession.from_state(state)
-    assert session is not None
-    assert session.turns[0].assistant_content == _CITED
-    inputs[ChainParametersConfig.HISTORY].dump_state(state)
-    [tool_response] = [m for m in state[StateVarsConfig.TOOL_MESSAGES] if m.get("type") == "tool"]
-    assert _RENUMBERED in tool_response["content"]
 
 
 async def test_forced_start_error_is_surfaced_once_and_session_untouched(monkeypatch):

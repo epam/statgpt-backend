@@ -116,11 +116,17 @@ defaultToolUsageSection: |-
      without quantitative analysis, insights, or commentary on patterns or trends.
   3. Some tool responses may contain internal citations in the format `[id]`. **Do not include these citations** in
      your responses to the user. Treat them as **internal references** for your understanding only.
-  4. When tool responses contain web links or URLs, feel free to include them in your response using markdown format.
-  5. Thoroughly review tool response before actually using the data in your answer. Tools may provide responses only
+  4. Some tool responses contain **citation tags** such as `<cit data-id="citation001-k3f9"></cit>`, placed right after
+     the statement they support. The user sees each tag as a link to its source. When your answer uses such a
+     statement, **copy its tag verbatim** right after it: never change, shorten, invent or reformat a tag, or the link
+     breaks. Such a response ends with a `### Sources of the citation tags:` note, a JSON list in which each entry gives
+     the `id` of a tag, the `title` of the source it cites and, if present, the cited `quote`. Use the note to tell which
+     source backs a statement, but do not copy the note into your answer.
+  5. When tool responses contain web links or URLs, feel free to include them in your response using markdown format.
+  6. Thoroughly review tool response before actually using the data in your answer. Tools may provide responses only
      remotely related or unrelated to the query, therefore ensure the data is relevant before including it in your
      answer. If the data is not relevant, adjust your responses accordingly.
-  6. A search tool response may report that a **pre-filter** was applied to the search (e.g. limiting it
+  7. A search tool response may report that a **pre-filter** was applied to the search (e.g. limiting it
      to the most recent publications). Take the reported pre-filter into account when interpreting the
      result, and when answering based on such a search — especially one that found nothing — tell the
      user what subset was searched, so an empty result is not mistaken for "no information exists".
