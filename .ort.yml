@@ -22,6 +22,9 @@ resolutions:
       comment: "MIT License: https://github.com/fastapi/annotated-doc/blob/main/LICENSE"
 
     # HTTP / networking
+    - message: ".*PyPI::aiohttp:3\\..*"
+      reason: "CANT_FIX_EXCEPTION"
+      comment: "Apache 2.0 AND MIT License (declared via PEP 639 License-Expression): https://github.com/aio-libs/aiohttp/blob/master/LICENSE.txt"
     - message: ".*PyPI::httpcore:1\\..*"
       reason: "CANT_FIX_EXCEPTION"
       comment: "BSD 3-Clause License: https://github.com/encode/httpcore/blob/master/LICENSE.md"
