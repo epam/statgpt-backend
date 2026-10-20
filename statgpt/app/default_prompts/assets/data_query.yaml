@@ -193,9 +193,12 @@ normalizationPrompt: >-
   "EU" must be resolved to "European Union", but it MUST NOT be expanded
   to its member countries.
 
-  - if the query asks for data at a global/worldwide scope (words like "global",
-  "globally", "worldwide", "world"), rewrite it so the reference area is explicitly
-  the "World" region; keep the rest of the query unchanged.
+  - rewrite the reference area as the "World" region ONLY IF the query EXPLICITLY asks
+  for a global/worldwide scope (words like "global", "globally", "worldwide", "world");
+  keep the rest of the query unchanged.
+
+  - if the query does not mention any geography, DO NOT add one.
+  An unspecified geography IS NOT a request for global/worldwide data.
 
   Examples:
 
@@ -203,6 +206,8 @@ normalizationPrompt: >-
   2. give me consumer price index for Germany -> give me consumer price index (CPI) for Germany
   3. what is global unemployment? -> what is unemployment for the World?
   4. show me worldwide population -> show me population for the World
+  5. show me unemployment rate -> show me unemployment rate
+  (no geography mentioned, so none is added)
 namedEntitiesPrompt: >-
   You are an expert in named entity recognition and text labeling.
 

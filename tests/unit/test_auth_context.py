@@ -18,11 +18,14 @@ async def _patch_dial_roles(roles: list[str] | None = None, *, raises: Exception
 
     Yields a mock whose `.bearer_token` records the token the factory was called with, so tests
     can assert DIAL is queried with the caller's access token rather than the api key.
+    `.factory_calls` counts how many times a DIAL client was created, i.e. how many role lookups
+    actually reached DIAL (one per cache miss).
     """
-    captured = MagicMock(bearer_token=None)
+    captured = MagicMock(bearer_token=None, factory_calls=0)
 
     @asynccontextmanager
     async def _factory(*args, **kwargs):
+        captured.factory_calls += 1
         captured.bearer_token = kwargs.get("bearer_token")
         dial = MagicMock()
         dial.user.info = (
@@ -160,6 +163,40 @@ class TestUserAuthContext:
         context = UserAuthContext(mock_request)
         async with _patch_dial_roles(raises=DialException("boom")):
             assert await context.get_roles() == []
+
+    @pytest.mark.asyncio
+    async def test_roles_resolved_once_per_request(self, mock_request):
+        """Repeat role checks reuse the first lookup: DIAL is queried once per auth context, even
+        across `get_roles`/`has_role` calls, so gated features don't fan out user-info round-trips.
+        """
+        mock_request.bearer_token = "token123"
+        context = UserAuthContext(mock_request)
+        async with _patch_dial_roles(["dr_access"]) as captured:
+            assert await context.get_roles() == ["dr_access"]
+            assert await context.get_roles() == ["dr_access"]
+            assert await context.has_role("dr_access") is True
+        assert captured.factory_calls == 1
+
+    @pytest.mark.asyncio
+    async def test_fail_closed_result_is_cached(self, mock_request):
+        """A fail-closed empty result is cached too, so a flaky DIAL call isn't retried mid-request
+        (and can't flip a later check from deny to allow within the same request)."""
+        mock_request.bearer_token = "token123"
+        context = UserAuthContext(mock_request)
+        async with _patch_dial_roles(raises=DialException("boom")) as captured:
+            assert await context.get_roles() == []
+            assert await context.get_roles() == []
+        assert captured.factory_calls == 1
+
+    @pytest.mark.asyncio
+    async def test_roles_cache_is_per_instance(self, mock_request):
+        """The cache lives on the instance (not the class), so a second context re-resolves and one
+        request's roles can never leak into another."""
+        mock_request.bearer_token = "token123"
+        async with _patch_dial_roles(["dr_access"]) as captured:
+            assert await UserAuthContext(mock_request).get_roles() == ["dr_access"]
+            assert await UserAuthContext(mock_request).get_roles() == ["dr_access"]
+        assert captured.factory_calls == 2
 
     @pytest.mark.asyncio
     async def test_has_role_true_when_present(self, mock_request):

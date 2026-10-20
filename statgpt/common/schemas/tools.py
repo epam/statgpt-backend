@@ -2,6 +2,7 @@ from typing import Literal
 
 from pydantic import Field
 
+from .availability_query_tool import AvailabilityQueryToolDetails
 from .base import BaseYamlModel
 from .data_query_tool import DataQueryDetails
 from .dataset_structure_tool import DatasetStructureToolDetails
@@ -105,6 +106,11 @@ class DatasetsMetadataTool(BaseToolConfig):
 class DatasetStructureTool(BaseToolConfig):
     type: ToolTypes = ToolTypes.DATASET_STRUCTURE
     details: DatasetStructureToolDetails = Field(default_factory=DatasetStructureToolDetails)
+
+
+class AvailabilityQueryTool(BaseToolConfig):
+    type: ToolTypes = ToolTypes.AVAILABILITY_QUERY
+    details: AvailabilityQueryToolDetails = Field(default_factory=AvailabilityQueryToolDetails)
 
 
 class DataQueryTool(BaseToolConfig):

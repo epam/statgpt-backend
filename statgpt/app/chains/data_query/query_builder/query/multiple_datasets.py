@@ -1,8 +1,9 @@
 from langchain_core.runnables import Runnable, RunnablePassthrough
 
 from statgpt.app.chains.data_query.parameters import DataQueryParameters
+from statgpt.app.chains.data_query.query_builder import mcp_details
 from statgpt.app.chains.parameters import ChainParameters
-from statgpt.app.schemas.data_query_outcome import DataSetChoice
+from statgpt.app.schemas.data_query_outcome import DataQueryMcpPayload, DataSetChoice
 from statgpt.app.schemas.query_builder import ChainState
 from statgpt.app.services.chat_facade import VersionedDataSet
 from statgpt.app.utils.formatters import DatasetQueryFormatter, DatasetQueryFormatterConfig
@@ -11,6 +12,12 @@ from statgpt.common.schemas.data_query_tool import DataQueryMessages
 
 
 class MultipleDatasetsChain:
+    _INSTRUCTION: str = (
+        "**Important**: at that point **no data is provided either to you or to user**, only query info. "
+        "You may select one of the datasets without user's input, whenever you think it's possible, "
+        "or ask user to select one of the datasets to proceed with query execution. When user selected something, "
+        "call the same tool mentioning the dataset name or id in the tool call arguments."
+    )
 
     def __init__(self, messages: DataQueryMessages):
         self._messages = messages
@@ -42,18 +49,26 @@ class MultipleDatasetsChain:
         content = f"Relevant data can be pulled from the following datasets:\n{datasets_list}"
         target = ChainParameters.get_target(inputs)
         target.append_content(content)
-        content += (
-            "\n\n**Important**: at that point **no data is provided either to you or to user**, only query info. "
-            "You may select one of the datasets without user's input, whenever you think it's possible, "
-            "or ask user to select one of the datasets to proceed with query execution. When user selected something, "
-            "call the same tool mentioning the dataset name or id in the tool call arguments."
-        )
+        return f"{content}\n\n{self._model_message(inputs)}"
+
+    def _model_message(self, inputs: dict) -> str:
+        """What the model is told besides the datasets: how to proceed, then the configured message."""
         agent_only_message = self._messages.get_multiple_datasets(
             ChainParameters.get_invocation_source(inputs)
         )
         if agent_only_message:
-            content += f"\n\n{agent_only_message}"
-        return content
+            return f"{self._INSTRUCTION}\n\n{agent_only_message}"
+        return self._INSTRUCTION
+
+    async def _get_mcp_payload(self, inputs: dict) -> DataQueryMcpPayload:
+        return mcp_details.updated_mcp_payload(
+            inputs,
+            # The invalid queries have no candidate dataset to report them under.
+            query_details=await mcp_details.query_details_for_mcp(
+                inputs, include_query=True, valid_only=True
+            ),
+            message=self._model_message(inputs),
+        )
 
     @staticmethod
     def build_dataset_choices(
@@ -84,5 +99,6 @@ class MultipleDatasetsChain:
         return RunnablePassthrough.assign(
             **{
                 DataQueryParameters.RESPONSE_FIELD: self._get_response_content,
+                DataQueryParameters.MCP_PAYLOAD: self._get_mcp_payload,
             }
         )

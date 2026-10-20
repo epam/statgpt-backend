@@ -1,8 +1,10 @@
 import time
 from typing import Annotated, Any, NamedTuple, Self
 
+from openai import APIError
 from pydantic import Field
 
+from statgpt.app.chains.deep_research.errors import DeepResearchFailedError
 from statgpt.app.chains.parameters import ChainParameters
 from statgpt.app.chains.tools import GuardrailInput, StatGptTool, ToolArgs
 from statgpt.app.config import StateVarsConfig
@@ -12,7 +14,7 @@ from statgpt.app.schemas import (
     DeepResearchToolMessageState,
     DeepResearchTurn,
 )
-from statgpt.app.utils import OpenAiToDialStreamer, openai
+from statgpt.app.utils import CustomContentRewriter, OpenAiToDialStreamer, openai
 from statgpt.app.utils.dial_stages import ChoiceI
 from statgpt.common.schemas import ChannelConfig
 from statgpt.common.schemas import DeepResearchTool as DeepResearchToolConfig
@@ -49,18 +51,36 @@ class DeepResearchTurnResult(NamedTuple):
 
     ``report_delivered`` is True only when the deployment delivered its final report (research
     complete). The report is already streamed to the user verbatim, so the Supreme Agent must end
-    the turn without repeating it. Otherwise ``content`` is a clarification / plan-for-approval that
-    the Supreme Agent mediates."""
+    the turn without repeating it. ``content`` is then the report plus the citations note meant for
+    the agent only, and ``report`` the report alone, as the user got it. Otherwise ``content`` is a
+    clarification / plan-for-approval that the Supreme Agent mediates."""
 
     content: str
     report_delivered: bool
+    report: str = ''
+
+
+def _get_display_message(e: APIError) -> str | None:
+    """The user-facing `display_message` of a DIAL error, if present.
+
+    Mid-stream errors carry the error object as the body; HTTP error responses nest it under
+    ``error``. Only `display_message` is user-safe by DIAL contract, so `message` is never used."""
+    body = e.body if isinstance(e.body, dict) else {}
+    error = body.get('error', body)
+    display_message = error.get('display_message') if isinstance(error, dict) else None
+    if isinstance(display_message, str) and (display_message := display_message.strip()):
+        return display_message
+    return None
 
 
 def _build_deep_research_artifact(
     tool_type: ToolTypes, result: DeepResearchTurnResult
 ) -> DeepResearchArtifact:
     return DeepResearchArtifact(
-        state=DeepResearchToolMessageState(type=tool_type, report_delivered=result.report_delivered)
+        state=DeepResearchToolMessageState(
+            type=tool_type, report_delivered=result.report_delivered
+        ),
+        report=result.report,
     )
 
 
@@ -172,9 +192,11 @@ class DeepResearchRunner:
         the user verbatim once research has started. Persist the session between clarifications and
         drop it once the report is delivered.
 
-        Request/stream failures are not surfaced here: they propagate so `ToolCaller.call_tool`
-        records the error in the tool state (an ERROR tool message) and the Supreme Agent surfaces
-        the standard failure message once. The session is left untouched so the user can retry."""
+        Deployment failures (`openai.APIError`) are raised as `DeepResearchFailedError`, which aborts
+        the turn and is delivered to the user as a DIAL error carrying the deployment's
+        `display_message`. Other failures propagate so `ToolCaller.call_tool` records them in the
+        tool state (an ERROR tool message) and the Supreme Agent surfaces the standard failure
+        message once. Either way the session is left untouched so the user can retry."""
         auth_context = ChainParameters.get_auth_context(inputs)
         choice = ChainParameters.get_choice(inputs)
         target = ChainParameters.get_target(inputs)
@@ -195,7 +217,11 @@ class DeepResearchRunner:
         # that field to renumber the annotations, and it cannot tell a stripped array from one
         # that never had indexes, so the report's citations would silently break.
         create_kwargs: dict[str, Any] = dict(model=deployment_id, stream=True, messages=messages)
-        client = openai.get_async_client(api_key=auth_context.api_key)
+        # Deep Research reaches back into this app's MCP server to query data, so it needs the
+        # caller's access token (not just the API key) to authorize downstream data sources.
+        client = openai.get_async_client(
+            api_key=auth_context.api_key, access_token=auth_context.dial_access_token
+        )
         time_start = time.monotonic()
         try:
             async with client:
@@ -213,6 +239,7 @@ class DeepResearchRunner:
                     show_debug_stages=show_debug_stages,
                     stages_config=details.stages_config,
                     annotation_index_space=ChainParameters.get_annotation_index_space(inputs),
+                    rewriter=CustomContentRewriter(details.rewrite_rules),
                 )
                 with dial_streamer:
                     stream = await client.chat.completions.create(**create_kwargs)
@@ -226,7 +253,22 @@ class DeepResearchRunner:
                 # the session instead of recording this turn.
                 self._deliver_report(choice, content, dial_streamer.attachments)
                 self._drop_session(state)
-                return DeepResearchTurnResult(content=content, report_delivered=True)
+                # Flag this one turn so the per-message toggle form schema disarms the "Deep
+                # research" toggle; set only after delivery succeeds, so a failure mid-run leaves
+                # the toggle armed for retry.
+                state[StateVarsConfig.DEEP_RESEARCH_REPORT_DELIVERED] = True
+                # The report stays in the agent's history as this tool response (`History` replaces
+                # the report message there with a placeholder, so the report is not repeated), and
+                # the note lets the agent answer follow-up questions about its sources. The user is
+                # not shown it, and the turn's answer is `report`, not this response. The note is
+                # built from the annotations relayed now rather than from those the client replays
+                # with the report message, so it is persisted with the tool response (a title and a
+                # quote per tag), and a report delivered before the note was introduced has none.
+                return DeepResearchTurnResult(
+                    content=content + dial_streamer.citations_note,
+                    report_delivered=True,
+                    report=content,
+                )
 
             # Clarification / plan-for-approval: show it in the tool-result stage (like other tools)
             # and hand the content back to the Supreme Agent, keeping the session so the next call can
@@ -235,6 +277,10 @@ class DeepResearchRunner:
             self._append_turn(session, user_message, content, deep_research_state or {})
             self._save_session(state, session)
             return DeepResearchTurnResult(content=content, report_delivered=False)
+        except APIError as e:
+            # Deep Research reports failures with a curated, user-safe `display_message` (carrying
+            # its error reference); deliver it to the user as a DIAL error.
+            raise DeepResearchFailedError(_get_display_message(e)) from e
         finally:
             duration_s = time.monotonic() - time_start
             if (duration_manager := get_llm_call_duration_manager()) is not None:

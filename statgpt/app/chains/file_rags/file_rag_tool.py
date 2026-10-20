@@ -34,6 +34,16 @@ The query to search an answer for.
   query.
 - Keep query concise and to the point, any politeness or greetings should be omitted
 ''')
+    search_all_publications: bool = Field(
+        default=False,
+        description='''\
+Set to true to search across ALL available publications, without any publication filter.
+By default, the search may be restricted by a pre-filter built from the query (e.g. to the most
+recent publications); the applied pre-filter is reported in the tool response. This argument
+allows broadening a search that was too narrow — a typical scenario is repeating a query whose
+pre-filtered search found nothing.
+''',
+    )
     target_prefilter_json: t.Annotated[str | None, InjectedToolArg] = Field(
         default=None,
         description='prefilter to be used in RAG, instead of constructing it from scratch. '
@@ -60,6 +70,7 @@ class FileRagTool(StatGptTool[FileRagToolConfig], tool_type=ToolTypes.FILE_RAG):
         self,
         inputs: dict,
         query: str,
+        search_all_publications: bool = False,
         target_prefilter_json: str | None = None,
         target_current_date: str | None = None,
     ) -> tuple[str, BaseFileRagArtifact]:
@@ -75,6 +86,7 @@ class FileRagTool(StatGptTool[FileRagToolConfig], tool_type=ToolTypes.FILE_RAG):
             else None
         )
         inputs[ChainParametersConfig.QUERY] = query
+        inputs[ChainParametersConfig.SEARCH_ALL_PUBLICATIONS] = search_all_publications
         inputs[ChainParametersConfig.TARGET_PREFILTER] = target_prefilter
         inputs[ChainParametersConfig.TARGET_CURRENT_DATE] = (
             datetime.date.fromisoformat(target_current_date) if target_current_date else None

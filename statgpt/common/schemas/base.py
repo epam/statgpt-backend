@@ -3,9 +3,18 @@ import typing as t
 from typing import Generic, TypeVar
 
 from langchain_core.prompts import ChatPromptTemplate
-from pydantic import BaseModel, ConfigDict, alias_generators
+from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, alias_generators, field_validator
 
+from statgpt.common.config.utils import replace_env
 from statgpt.common.utils.files import read_yaml
+
+
+def bool_from_str(value: str) -> bool:
+    """
+    Converts a string to a boolean value.
+    If the string is an environment variable reference, it will be replaced with its value before conversion.
+    """
+    return TypeAdapter(bool).validate_python(replace_env(value))
 
 
 class DbDefaultBase(BaseModel):
@@ -31,6 +40,31 @@ class BaseYamlModel(BaseModel):
     model_config = ConfigDict(
         alias_generator=alias_generators.to_camel, populate_by_name=True, extra="ignore"
     )
+
+
+class ToggleableConfig(BaseYamlModel):
+    """A config block with an on/off flag that may reference an environment variable."""
+
+    enabled_str: str = Field(
+        description=(
+            "Whether the feature is enabled."
+            " The value can be a reference to an environment variable."
+        )
+    )
+
+    @field_validator('enabled_str', mode='after')
+    @classmethod
+    def validate_enabled(cls, enabled: str) -> str:
+        """Validate the `enabled` field to ensure it can return a boolean value."""
+        try:
+            bool_from_str(enabled)
+        except Exception as e:
+            raise ValueError(f"Invalid value for enabled_str: {enabled}. Error: {e}")
+        return enabled
+
+    @property
+    def enabled(self) -> bool:
+        return bool_from_str(self.enabled_str)
 
 
 class DefaltPromptsBase(BaseModel):

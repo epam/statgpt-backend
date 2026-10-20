@@ -29,9 +29,9 @@ jobs:
       code-checks-bypassed: false
       ort-enabled: true
       ort-bypassed: false
-      ort-version: "85.0.0" # HACK: pin ORT version due to java.util.NoSuchElementException in 85.1.0
+      ort-version: "97.0.0"
       ort-config-repository: "https://github.com/oss-review-toolkit/ort-config.git"
-      ort-config-revision: "5650fed55a20397b9abb9017a0c6bb674dc8481d"
+      ort-config-revision: "5075f4308109384c98a6a2fab53246f7b60d59f4"
       python-version: "3.11"
       poetry-version: "2.1.1"
       runs-on: '["ubuntu-24.04"]'
@@ -90,7 +90,7 @@ jobs:
           dockerfile-path: ${{ matrix.dockerfile }}
           trivy-enabled: true
           bypass-checks: false
-          trivy-severity: "CRITICAL,HIGH"
-          trivy-severity-for-sarif: "CRITICAL,HIGH"
+          trivy-severity: "CRITICAL,HIGH,MEDIUM,LOW"
+          trivy-severity-for-sarif: "CRITICAL,HIGH,MEDIUM,LOW"
           trivy-limit-severities-for-sarif: true
           platforms: "linux/amd64"

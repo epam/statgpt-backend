@@ -268,6 +268,10 @@ class AsyncStatGptSdmxProxyClient(AsyncSdmxClient):
         response, req = await self._perform_get(url, Resource.data)
         if response is None:
             return DataMessage()
+        if not response.content.strip():
+            # The proxy returns 200 with an empty body when the registry has no series for the query
+            logger.warning(f"Empty data response for URL {url!r}")
+            return DataMessage()
 
         requests_response = self._convert_response(response, req)
         try:

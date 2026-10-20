@@ -43,6 +43,7 @@ class ToolTypes(StrEnum):
     AVAILABLE_DATASETS = "AVAILABLE_DATASETS"
     DATASETS_METADATA = "DATASETS_METADATA"
     DATASET_STRUCTURE = "DATASET_STRUCTURE"
+    AVAILABILITY_QUERY = "AVAILABILITY_QUERY"
     AVAILABLE_PUBLICATIONS = "AVAILABLE_PUBLICATIONS"
     AVAILABLE_TERMS = "AVAILABLE_TERMS"
     DATA_QUERY = "DATA_QUERY"
@@ -92,6 +93,54 @@ class RAGVersion(StrEnum):
     """Generic RAG DIAL application (reuses the DIAL RAG transport)"""
 
 
+class AttachmentsTarget(StrEnum):
+    """Where a tool's attachments are attached."""
+
+    stage = "stage"
+    """Attach to the tool-result stage."""
+
+    choice = "choice"
+    """Attach to the assistant message."""
+
+
+class CustomContentKind(StrEnum):
+    """A kind of `custom_content` item relayed from a sub-deployment."""
+
+    annotation = "annotation"
+    attachment = "attachment"
+
+
+class RewriteAppliesTo(StrEnum):
+    """Which kinds of `custom_content` items a rewrite rule applies to."""
+
+    annotation = "annotation"
+    attachment = "attachment"
+    both = "both"
+
+    @property
+    def kinds(self) -> tuple[CustomContentKind, ...]:
+        if self is RewriteAppliesTo.both:
+            return CustomContentKind.annotation, CustomContentKind.attachment
+        return (CustomContentKind(self.value),)
+
+
+class RewriteSelectorField(StrEnum):
+    """A field of a `custom_content` item that a rewrite rule selector can match against."""
+
+    type = "type"
+    url = "url"
+    reference_url = "reference_url"
+    attachment_title = "attachment_title"
+    body_title = "body_title"
+
+
+class RewriteTargetField(StrEnum):
+    """A field of a `custom_content` item that a rewrite rule can modify."""
+
+    url = "url"
+    reference_url = "reference_url"
+
+
 class DecoderOfLatestEnum(StrEnum):
     """Function to create a time range corresponding to "latest" for a given publication type."""
 
@@ -133,6 +182,16 @@ class ExplorerLinkPolicy(StrEnum):
 
     never = "never"
     """Never render the link."""
+
+    def includes_link(self, has_data: bool) -> bool:
+        """Whether a response that did (or did not) return data carries the link."""
+        match self:
+            case ExplorerLinkPolicy.always:
+                return True
+            case ExplorerLinkPolicy.only_when_no_data:
+                return not has_data
+            case ExplorerLinkPolicy.never:
+                return False
 
 
 class SpecialDimensionsProcessorType(StrEnum):

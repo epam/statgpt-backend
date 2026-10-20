@@ -40,12 +40,12 @@ dependencies = [
     # HTTP & Networking
     'aidial-client (>=0.14.0,<1.0.0)',           # DIAL API client
     'httpx (>=0.28.1,<0.29.0)',                  # HTTP client (used directly in this project)
-    'aiohttp (>=3.14.3,<3.15.0)',                # Async HTTP client/server
+    'aiohttp (>=3.14.4,<3.15.0)',                # Async HTTP client/server
     'requests (>=2.32.5,<3.0.0)',                # HTTP library
 
     # Authentication & Security
     'azure-identity (>=1.25.1,<2.0.0)',          # Azure authentication
-    'PyJWT (>=2.13.0,<3.0.0)',                    # JSON Web Token support
+    'PyJWT (>=2.15.0,<3.0.0)',                    # JSON Web Token support
 
     # Configuration & File handling
     'python-dotenv (>=1.2.2,<2.0.0)',            # Environment variable management

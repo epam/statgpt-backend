@@ -12,6 +12,7 @@ from statgpt.common.schemas import ChannelConfig
 from statgpt.common.schemas import DatasetsMetadataTool as DatasetsMetadataToolConfig
 from statgpt.common.schemas import ToolTypes
 from statgpt.common.schemas.enums import AvailableDatasetsVersion
+from statgpt.common.utils.llm_stream_retry import astream_with_retry
 from statgpt.common.utils.models import get_chat_model
 
 from ._utils import _create_formatter_config
@@ -72,7 +73,7 @@ class DatasetsMetadataTool(
         chain = prompt_template | llm
         response = ""
 
-        async for chunk in chain.astream(dict(query=query)):
+        async for chunk in astream_with_retry(chain, dict(query=query), name="Datasets Metadata"):
             content = chunk.content
             response += content  # type: ignore[operator]
             if target:

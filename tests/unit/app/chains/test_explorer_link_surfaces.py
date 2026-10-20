@@ -62,10 +62,13 @@ def _versioned_dataset() -> VersionedDataSet:
     return VersionedDataSet(version=Mock(), data=data)
 
 
-def _chain(explorer_link: DataQueryExplorerLink) -> ExecuteQueryChain:
+def _chain(
+    explorer_link: DataQueryExplorerLink, mcp_explorer_link: ExplorerLinkPolicy
+) -> ExecuteQueryChain:
     chain = ExecuteQueryChain.__new__(ExecuteQueryChain)
     chain._messages = DataQueryMessages()  # type: ignore[attr-defined]
     chain._explorer_link = explorer_link  # type: ignore[attr-defined]
+    chain._mcp_explorer_link = mcp_explorer_link  # type: ignore[attr-defined]
     return chain
 
 
@@ -91,9 +94,14 @@ def _inputs(source: InvocationSource, has_data: bool = True) -> dict:
     }
 
 
-async def _run(explorer_link: DataQueryExplorerLink, source: InvocationSource, **kwargs: Any):
+async def _run(
+    explorer_link: DataQueryExplorerLink,
+    source: InvocationSource,
+    mcp_explorer_link: ExplorerLinkPolicy = ExplorerLinkPolicy.always,
+    **kwargs: Any,
+):
     inputs = _inputs(source, **kwargs)
-    result = await _chain(explorer_link).summarize_dataset_queries(inputs)
+    result = await _chain(explorer_link, mcp_explorer_link).summarize_dataset_queries(inputs)
     return inputs["target"].content, result[DataQueryParameters.RESPONSE_FIELD]
 
 
@@ -128,10 +136,14 @@ async def test_only_when_no_data_still_links_where_nothing_was_delivered():
 
 
 async def test_mcp_policy_applies_only_on_the_mcp_path():
-    config = DataQueryExplorerLink(agent=ExplorerLinkPolicy.always, mcp=ExplorerLinkPolicy.never)
+    config = DataQueryExplorerLink(stage=ExplorerLinkPolicy.always, agent=ExplorerLinkPolicy.always)
 
-    _, agent_response = await _run(config, InvocationSource.AGENT)
-    _, mcp_response = await _run(config, InvocationSource.MCP)
+    _, agent_response = await _run(
+        config, InvocationSource.AGENT, mcp_explorer_link=ExplorerLinkPolicy.never
+    )
+    _, mcp_response = await _run(
+        config, InvocationSource.MCP, mcp_explorer_link=ExplorerLinkPolicy.never
+    )
 
     assert _URL in agent_response
     assert _URL not in mcp_response

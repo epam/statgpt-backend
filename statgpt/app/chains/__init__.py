@@ -4,6 +4,7 @@ from .candidates_selection_mapping import CandidatesSelectionMappingChainFactory
 from .candidates_selection_simple import CandidatesSelectionSimpleChainFactory
 from .chain_factory import ChainFactory
 from .data_query import DataQueryTool
+from .datasets_meta.availability_tool import AvailabilityQueryTool
 from .datasets_meta.available_datasets_tool import AvailableDatasetsTool
 from .datasets_meta.metadata_tool import DatasetsMetadataTool
 from .datasets_meta.structure_tool import DatasetStructureTool
