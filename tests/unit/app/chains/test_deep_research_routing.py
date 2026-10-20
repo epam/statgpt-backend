@@ -704,6 +704,180 @@ async def test_deployment_error_without_display_message_uses_standard_text(monke
     assert exc_info.value.display_message == DEEP_RESEARCH_ERROR_MESSAGE.strip()
 
 
+# ~~~~~~~~~~~~~~~~~~~~~~ failed turn kept for resume (#760) ~~~~~~~~~~~~~~~~~~~~~~
+
+_QUOTA_MESSAGE = "You've exceeded your daily token limit"
+_QUOTA_ERROR = APIError(
+    _QUOTA_MESSAGE,
+    request=_DR_REQUEST,
+    body={"message": _QUOTA_MESSAGE, "display_message": _QUOTA_MESSAGE},
+)
+_SAVED_PROGRESS = {"preparation": {"research_started": False}, "snapshot": {"version": 1}}
+
+
+class _FailingStream(_FakeStream):
+    """Yields its chunks, then raises, like a stream that ends with a DIAL error."""
+
+    def __init__(self, chunks: list[ChatCompletionChunk], error: Exception) -> None:
+        super().__init__(chunks)
+        self._error = error
+
+    async def __anext__(self) -> ChatCompletionChunk:
+        if (chunk := next(self._it, None)) is None:
+            raise self._error
+        return chunk
+
+
+def _patch_dr_deployment_fails_mid_stream(
+    monkeypatch, chunks: list[ChatCompletionChunk], error: Exception
+) -> None:
+    class _FailingCompletions:
+        async def create(self, **kwargs):
+            return _FailingStream(chunks, error)
+
+    class _FailingClient:
+        chat = type("_Chat", (), {"completions": _FailingCompletions()})()
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *exc):
+            return False
+
+    monkeypatch.setattr(
+        deep_research_module.openai, "get_async_client", lambda *a, **k: _FailingClient()
+    )
+
+
+async def _run_failed_start_turn(monkeypatch, state: dict) -> dict:
+    """A START turn whose Deep Research call sends its progress, then fails."""
+    _patch_scripted_agent(monkeypatch, [_tool_call_chunk("deep_research", {"query": "US GDP"})])
+    _patch_dr_deployment_fails_mid_stream(
+        monkeypatch, [_dr_chunk(state=_SAVED_PROGRESS)], _QUOTA_ERROR
+    )
+
+    inputs = _inputs(state, "research US GDP")
+    with pytest.raises(DeepResearchFailedError):
+        await SupremeAgentExecutor(_channel_config()).stream_response(inputs)
+    return inputs
+
+
+async def test_failed_turn_with_state_is_kept_in_session(monkeypatch):
+    """The failed turn is kept with Deep Research's state, the failed call is answered with an
+    error, and a note tells later turns how to continue."""
+    state = {StateVarsConfig.SHOW_DEBUG_STAGES: False}
+    inputs = await _run_failed_start_turn(monkeypatch, state)
+
+    session = DeepResearchSession.from_state(state)
+    assert session is not None
+    assert [(t.user_message, t.deep_research_state) for t in session.turns] == [
+        ("US GDP", _SAVED_PROGRESS)
+    ]
+
+    tool_messages = inputs[ChainParametersConfig.HISTORY].get_tool_messages()
+    assert [m.type for m in tool_messages] == ["system", "ai", "tool", "system"]
+    assert (tool_messages[2].tool_call_id, tool_messages[2].status) == ("c1", "error")
+    assert "`resume_deep_research`" in tool_messages[3].content
+    assert _QUOTA_MESSAGE not in tool_messages[3].content
+
+
+async def test_failure_without_state_keeps_the_earlier_failed_turn(monkeypatch):
+    """A failure that sent no state, e.g. while the quota is still exhausted, leaves the session
+    as it was."""
+    _patch_scripted_agent(
+        monkeypatch, [_tool_call_chunk("resume_deep_research", {"message": "continue"})]
+    )
+    _patch_dr_deployment_raises(monkeypatch, _QUOTA_ERROR)
+
+    failed = DeepResearchTurn(
+        user_message="go", assistant_content="", deep_research_state=_SAVED_PROGRESS
+    )
+    state = _session_state(failed)
+    inputs = _inputs(state, "continue")
+    with pytest.raises(DeepResearchFailedError):
+        await SupremeAgentExecutor(_channel_config()).stream_response(inputs)
+
+    session = DeepResearchSession.from_state(state)
+    assert session is not None
+    assert session.turns == [failed]
+    assert [m.type for m in inputs[ChainParametersConfig.HISTORY].get_tool_messages()] == [
+        "ai",
+        "tool",
+        "system",
+    ]
+
+
+async def test_failure_without_session_adds_no_note(monkeypatch):
+    """Without a session there is nothing to continue: the failed call is answered, no note."""
+    _patch_scripted_agent(monkeypatch, [_tool_call_chunk("deep_research", {"query": "q"})])
+    _patch_dr_deployment_raises(monkeypatch, _QUOTA_ERROR)
+
+    state = {StateVarsConfig.SHOW_DEBUG_STAGES: False}
+    inputs = _inputs(state, "research US GDP")
+    with pytest.raises(DeepResearchFailedError):
+        await SupremeAgentExecutor(_channel_config()).stream_response(inputs)
+
+    assert DeepResearchSession.from_state(state) is None
+    assert [m.type for m in inputs[ChainParametersConfig.HISTORY].get_tool_messages()] == [
+        "system",
+        "ai",
+        "tool",
+    ]
+
+
+async def test_next_turn_sees_the_failure_and_replays_the_failed_turn(monkeypatch):
+    """On the next turn the agent sees the failed call and the note in place, and the resume call
+    replays the failed turn with Deep Research's state."""
+    state = {StateVarsConfig.SHOW_DEBUG_STAGES: False}
+    inputs = await _run_failed_start_turn(monkeypatch, state)
+    inputs[ChainParametersConfig.HISTORY].dump_state(state)  # as `ChannelCompletion` does
+
+    prompts: list = []
+    _patch_scripted_agent(
+        monkeypatch,
+        [_tool_call_chunk("resume_deep_research", {"message": "continue"}, "c2")],
+        prompts,
+    )
+    captured: dict = {}
+    _patch_dr_deployment(monkeypatch, [_report("Final report.")], captured)
+
+    next_state = {
+        StateVarsConfig.SHOW_DEBUG_STAGES: False,
+        StateVarsConfig.DEEP_RESEARCH_SESSION: state[StateVarsConfig.DEEP_RESEARCH_SESSION],
+    }
+    next_inputs = _inputs(next_state, "continue")
+    next_inputs[ChainParametersConfig.HISTORY] = History(
+        messages=[
+            DialMessage(role=Role.USER, content="research US GDP"),
+            DialMessage(
+                role=Role.ASSISTANT,
+                content="",
+                custom_content=CustomContent(state=json.loads(json.dumps(state))),
+            ),
+            DialMessage(role=Role.USER, content="continue"),
+        ]
+    )
+    content = await SupremeAgentExecutor(_channel_config()).stream_response(next_inputs)
+
+    assert content == "Final report."
+    # system prompt, then: the request, the failed turn's tool messages, its empty answer, "continue"
+    assert [m.type for m in prompts[0]] == [
+        "system",
+        "human",
+        "system",
+        "ai",
+        "tool",
+        "system",
+        "ai",
+        "human",
+    ]
+    assert captured["messages"][-1] == [
+        {"role": "user", "content": "US GDP"},
+        {"role": "assistant", "content": "", "custom_content": {"state": _SAVED_PROGRESS}},
+        {"role": "user", "content": "continue"},
+    ]
+
+
 async def test_deep_research_exchange_is_persisted_to_cross_turn_tool_state(monkeypatch):
     """The Deep Research <-> agent tool exchange runs on the main history, so its tool calls/responses
     are persisted into the cross-turn tool-message state and stay visible to later turns."""

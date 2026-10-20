@@ -196,7 +196,8 @@ class DeepResearchRunner:
         the turn and is delivered to the user as a DIAL error carrying the deployment's
         `display_message`. Other failures propagate so `ToolCaller.call_tool` records them in the
         tool state (an ERROR tool message) and the Supreme Agent surfaces the standard failure
-        message once. Either way the session is left untouched so the user can retry."""
+        message once. The session is left untouched so the user can retry, unless Deep Research
+        sent a state before failing: then the failed turn is kept, so the run can resume from it."""
         auth_context = ChainParameters.get_auth_context(inputs)
         choice = ChainParameters.get_choice(inputs)
         target = ChainParameters.get_target(inputs)
@@ -223,6 +224,7 @@ class DeepResearchRunner:
             api_key=auth_context.api_key, access_token=auth_context.dial_access_token
         )
         time_start = time.monotonic()
+        dial_streamer: OpenAiToDialStreamer | None = None
         try:
             async with client:
                 # Buffer content (`stream_content=False`) so it can be routed once the run ends:
@@ -278,6 +280,10 @@ class DeepResearchRunner:
             self._save_session(state, session)
             return DeepResearchTurnResult(content=content, report_delivered=False)
         except APIError as e:
+            # Deep Research sends its progress as the state before the error; keep it to resume.
+            if dial_streamer is not None and dial_streamer.state:
+                self._append_turn(session, user_message, dial_streamer.content, dial_streamer.state)
+                self._save_session(state, session)
             # Deep Research reports failures with a curated, user-safe `display_message` (carrying
             # its error reference); deliver it to the user as a DIAL error.
             raise DeepResearchFailedError(_get_display_message(e)) from e

@@ -66,6 +66,8 @@ FAKE_TOOL_STAGE_PREFIX = '[FAKE TOOL] '
 # far above any realistic number of clarification rounds so it never cuts a genuine flow short.
 _MAX_DEEP_RESEARCH_MEDIATION_ITERATIONS = 50
 
+_DEEP_RESEARCH_FAILED_TOOL_RESPONSE = "Deep Research failed with an error before it finished."
+
 
 class ToolCaller:
     def __init__(self, tools: list[StatGptTool]):
@@ -621,7 +623,11 @@ class SupremeAgentExecutor:
                 for tool_call in tool_calls:
                     # `show_stage=True`: Deep Research runs its output into the visible tool-result
                     # stage (a clarification / plan), like other tools — not only in debug mode.
-                    tool_msg = await tool_caller.call_tool(tool_call, inputs, show_stage=True)
+                    try:
+                        tool_msg = await tool_caller.call_tool(tool_call, inputs, show_stage=True)
+                    except DeepResearchFailedError:
+                        self._record_failed_call(inputs, tool_call, resume_tool.name)
+                        raise
                     history.add_tool_message(tool_msg)
                     if tool_msg.status == ToolResponseStatus.ERROR.value:
                         return surface_deep_research_error(choice)
@@ -652,6 +658,27 @@ class SupremeAgentExecutor:
             _MAX_DEEP_RESEARCH_MEDIATION_ITERATIONS,
         )
         return surface_deep_research_error(choice)
+
+    @staticmethod
+    def _record_failed_call(inputs: dict, tool_call: ToolCall, resume_tool_name: str) -> None:
+        """Answer the failed call with an error and, if the session is kept, add a note on how to
+        continue. Persisted with the failed turn by `ChannelCompletion`."""
+        history = ChainParameters.get_history(inputs)
+        history.add_tool_message(
+            ToolMessage(
+                content=_DEEP_RESEARCH_FAILED_TOOL_RESPONSE,
+                tool_call_id=tool_call['id'],
+                status=ToolResponseStatus.ERROR.value,
+            )
+        )
+        if DeepResearchSession.from_state(ChainParameters.get_state(inputs)) is not None:
+            history.add_tool_message(
+                SystemMessage(
+                    content=supreme_agent_default_prompts.deep_research_failed_message_to_agent.format(
+                        resume_tool_name=resume_tool_name
+                    )
+                )
+            )
 
     @staticmethod
     def _delivered_report(tool_msg: ToolMessage) -> str | None:

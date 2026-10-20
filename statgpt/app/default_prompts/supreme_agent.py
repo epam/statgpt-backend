@@ -19,6 +19,7 @@ class SupremeAgentDefaultPrompts(DefaltPromptsBase):
     deep_research_enabled_message_to_agent: str
     deep_research_disabled_message_to_agent: str
     deep_research_report_delivered_message_to_agent: str
+    deep_research_failed_message_to_agent: str
     deep_research_report_answer_placeholder: str
     default_user_ui_context_section: str
 
