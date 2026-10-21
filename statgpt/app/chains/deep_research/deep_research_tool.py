@@ -266,7 +266,7 @@ class DeepResearchRunner:
                 # with the report message, so it is persisted with the tool response (a title and a
                 # quote per tag), and a report delivered before the note was introduced has none.
                 return DeepResearchTurnResult(
-                    content=content + dial_streamer.citations_note,
+                    content=content + dial_streamer.citations_note(quotes=True),
                     report_delivered=True,
                     report=content,
                 )

@@ -13,6 +13,7 @@ import weakref
 from typing import Any
 from unittest.mock import Mock
 
+import pytest
 from aidial_sdk.chat_completion import Choice
 from aidial_sdk.chat_completion.chunks import BaseChunk
 from openai.types.chat import ChatCompletionChunk
@@ -20,7 +21,11 @@ from openai.types.chat import ChatCompletionChunk
 from statgpt.app.utils.citation_ids import Citation, CitationIdSpace, with_tag_id
 from statgpt.app.utils.dial_annotations import send_annotations
 from statgpt.app.utils.dial_stages import NullChoice
-from statgpt.app.utils.openai_to_dial_streamer import AnnotationIndexSpace, OpenAiToDialStreamer
+from statgpt.app.utils.openai_to_dial_streamer import (
+    _CITATIONS_NOTE_HEADER,
+    AnnotationIndexSpace,
+    OpenAiToDialStreamer,
+)
 
 
 def _annotation(index: int | None, tag_id: str = "cit-1", page: int = 3) -> dict[str, Any]:
@@ -467,25 +472,54 @@ class TestCitations:
         streamer = _streamer(_open_choice())
         streamer.send_chunk(_chunk([_titled(_annotation(0), "sigma 2/2025 – World insurance")]))
 
-        assert streamer.citations_note == (
-            '\n\n### Sources of the citation tags:\n\n```json\n'
+        assert streamer.citations_note(quotes=False) == (
+            f'\n\n{_CITATIONS_NOTE_HEADER}\n\n```json\n'
             '[{"id": "citation001-k3f9", "title": "sigma 2/2025 – World insurance"}]\n```'
         )
 
-    def test_the_note_gives_the_quote_of_a_citation_quoting_a_passage(self):
+    def test_the_note_says_how_to_use_the_tags(self):
+        """A channel may replace the part of the system prompt that says it."""
+        streamer = _streamer(_open_choice())
+        streamer.send_chunk(_chunk([_annotation(0)]))
+
+        note = streamer.citations_note(quotes=False)
+        assert "copy its citation tag verbatim" in note
+        assert "Do not copy this list into your answer." in note
+
+    def test_the_note_gives_the_quote_of_a_citation_quoting_a_passage_if_asked(self):
         dataset = _quoted(_titled(_annotation(0, tag_id="cit-1"), "Economic data"), _QUERY)
         streamer = _streamer(_open_choice())
         streamer.send_chunk(_chunk([dataset, _annotation(1, tag_id="cit-2")]))
 
-        assert streamer.citations_note == (
-            '\n\n### Sources of the citation tags:\n\n```json\n'
+        assert streamer.citations_note(quotes=True) == (
+            f'\n\n{_CITATIONS_NOTE_HEADER}\n\n```json\n'
             '[{"id": "citation001-k3f9", "title": "Economic data", "quote": "* Country: United States\\n'
             '* Frequency: Annual\\n* Series: Inflation\\n* From 2020-01-01"}, '
             '{"id": "citation002-k3f9", "title": "Report.pdf, page 3"}]\n```'
         )
 
-    def test_the_note_is_empty_without_citations(self):
+    def test_the_note_without_quotes_lists_each_source_of_a_tag_once(self):
+        """Two passages quoted from one page read the same once their quotes are left out."""
+        streamer = _streamer(_open_choice())
+        streamer.send_chunk(
+            _chunk(
+                [
+                    _quoted(_annotation(0), "GDP rose."),
+                    _quoted(_annotation(1), "Inflation fell."),
+                    _titled(_annotation(2), "Review, page 17"),
+                ]
+            )
+        )
+
+        assert streamer.citations_note(quotes=False) == (
+            f'\n\n{_CITATIONS_NOTE_HEADER}\n\n```json\n'
+            '[{"id": "citation001-k3f9", "title": "Report.pdf, page 3"}, '
+            '{"id": "citation001-k3f9", "title": "Review, page 17"}]\n```'
+        )
+
+    @pytest.mark.parametrize("quotes", [True, False])
+    def test_the_note_is_empty_without_citations(self, quotes: bool):
         streamer = _streamer(_open_choice())
         streamer._process_content("GDP rose.")
 
-        assert streamer.citations_note == ""
+        assert streamer.citations_note(quotes=quotes) == ""

@@ -37,6 +37,15 @@ _log = logging.getLogger(__name__)
 # threads it — see the module docstring of `dial_annotations` for the full list.
 AnnotationIndexSpace = Iterator[int]
 
+# Heads the citations note of a tool response (see `OpenAiToDialStreamer.citations_note`). Says
+# how to use the tags in the note itself, since a channel may replace the part of the system
+# prompt that says it too.
+_CITATIONS_NOTE_HEADER = (
+    '### Sources of the citation tags:\n\n'
+    'When your answer uses a statement cited above, copy its citation tag verbatim right after'
+    ' it: never change, shorten or invent a tag. Do not copy this list into your answer.'
+)
+
 
 class OpenAiToDialStreamer:
     def __init__(
@@ -138,21 +147,34 @@ class OpenAiToDialStreamer:
         )
         return [Citation(id=tag_id, title=title, quote=quote) for tag_id, title, quote in keys]
 
-    @property
-    def citations_note(self) -> str:
+    def citations_note(self, *, quotes: bool) -> str:
         """The source of every citation tag of the content, to append to a tool response so the
         agent can tell which source backs a statement. Empty if the content cites nothing.
 
-        A citation that quotes no passage, or names no source, leaves the field out; the rest of
-        the annotation, such as the cited file and page box, is left out to keep the response
-        small. The annotations relayed to the client are not affected.
+        The note starts with how to use the tags, so the agent learns it whatever the system
+        prompt of the channel says. A citation that names no source leaves the title out; the
+        rest of the annotation, such as the cited file and page box, is left out to keep the
+        response small. The annotations relayed to the client are not affected.
+
+        Args:
+            quotes: Whether to give the passage each citation quotes. A quote is often a long page
+                excerpt, and the tool response stays in the agent's history for the rest of the
+                conversation, so give them only where the title alone does not tell the cited
+                passage, such as the dataset query a Deep Research citation quotes.
         """
-        if not (citations := self.citations):
+        citations = self.citations
+        if not quotes:
+            # Without their quotes, two citations of one tag may read the same: list them once.
+            citations = [
+                Citation(id=tag_id, title=title)
+                for tag_id, title in dict.fromkeys((c.id, c.title) for c in citations)
+            ]
+        if not citations:
             return ''
         citations_json = json.dumps(
             [c.model_dump(exclude_none=True) for c in citations], ensure_ascii=False
         )
-        return f'\n\n### Sources of the citation tags:\n\n```json\n{citations_json}\n```'
+        return f'\n\n{_CITATIONS_NOTE_HEADER}\n\n```json\n{citations_json}\n```'
 
     @property
     def state(self) -> dict[str, Any] | None:

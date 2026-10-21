@@ -7,7 +7,6 @@ from typing import Any
 import pytest
 
 from statgpt.app.utils.citation_ids import (
-    Citation,
     CitationIdSpace,
     find_tag_ids,
     get_source_quote,
@@ -162,17 +161,23 @@ class TestSourceQuote:
         assert get_source_quote({"body": {"quote": "x" * 500}}) == "x" * 500
 
 
+def _cited(tag_id: str, **body: Any) -> dict[str, Any]:
+    """An annotation claiming the tag `tag_id`, its body made of `body`."""
+    return {"target": {"selector": {"type": "html_tag", "tag": "cit", "id": tag_id}}, "body": body}
+
+
 class TestPlainTextReferences:
     _CONTENT = 'GDP rose <cit data-id="c1"></cit>. Inflation fell <cit data-id="c2"/>.'
 
-    def test_numbers_the_tags_and_lists_their_sources(self):
-        citations = [
-            Citation(id="c1", title="Report, page 3", quote="GDP rose\nby 2%."),
-            Citation(id="c1", title="Review, page 17"),
-            Citation(id="c2", title=None, quote="Inflation fell."),
+    def test_numbers_the_tags_and_lists_each_of_their_sources_once(self):
+        annotations = [
+            _cited("c1", title="Report, page 3", quote="GDP rose\nby 2%."),
+            _cited("c1", title="Review, page 17"),
+            _cited("c2", quote="Inflation fell."),
+            _cited("c1", title="Report, page 3", quote="GDP rose\nby 2%."),
         ]
 
-        assert to_plain_text_references(self._CONTENT, citations) == (
+        assert to_plain_text_references(self._CONTENT, annotations) == (
             'GDP rose [1]. Inflation fell [2].\n\n'
             '### References:\n\n'
             '- [1] Report, page 3: "GDP rose by 2%."\n'
@@ -180,13 +185,56 @@ class TestPlainTextReferences:
             '- [2] "Inflation fell."'
         )
 
-    def test_drops_a_tag_that_cites_nothing(self):
-        citations = [Citation(id="c2", title=None)]
+    def test_names_and_links_the_cited_file(self):
+        """No pill names the cited file to the client, so the reference does: by the title of
+        the file if the citation card has none, and by its url."""
+        file = {"title": "report.pdf", "url": "https://public/report.pdf"}
+        annotations = [
+            _cited("c1", title="Report, page 3", source={"attachment": file}),
+            _cited("c2", source={"attachment": file}),
+        ]
 
-        assert to_plain_text_references(self._CONTENT, citations) == (
+        assert to_plain_text_references(self._CONTENT, annotations).endswith(
+            '- [1] Report, page 3 (https://public/report.pdf)\n'
+            '- [2] report.pdf (https://public/report.pdf)'
+        )
+
+    def test_a_url_names_a_source_without_a_title(self):
+        annotations = [_cited("c1", source={"attachment": {"url": "https://public/report.pdf"}})]
+
+        assert to_plain_text_references(self._CONTENT, annotations).endswith(
+            '- [1] https://public/report.pdf'
+        )
+
+    def test_leaves_out_a_url_only_dial_can_open(self):
+        """A DIAL file url is relative to DIAL Core, which the client does not call."""
+        file = {"url": "files/bucket/appdata/rag/report.pdf"}
+        annotations = [_cited("c1", title="Report, page 3", source={"attachment": file})]
+
+        assert to_plain_text_references(self._CONTENT, annotations).endswith('- [1] Report, page 3')
+
+    def test_drops_a_tag_that_cites_nothing(self):
+        assert to_plain_text_references(self._CONTENT, [_cited("c2")]) == (
             'GDP rose. Inflation fell [1].\n\n'
             '### References:\n\n'
             '- [1] (the source is not named)'
+        )
+
+    @pytest.mark.parametrize(
+        ("content", "expected"),
+        [
+            (
+                'X <cit data-id="a">see</cit> Y <cit data-id="c1"></cit> Z',
+                'X <cit data-id="a">see</cit> Y [1] Z',
+            ),
+            ('X <cit data-id="a"> Y <cit data-id="c1"></cit> Z', 'X <cit data-id="a"> Y [1] Z'),
+        ],
+    )
+    def test_keeps_the_text_after_a_tag_that_is_not_empty(self, content: str, expected: str):
+        """Such a tag is left as it is; its id must not grow up to the quote of the next tag and
+        swallow the text between them."""
+        assert to_plain_text_references(content, [_cited("c1", title="Report")]) == (
+            f'{expected}\n\n### References:\n\n- [1] Report'
         )
 
     def test_content_citing_nothing_gets_no_references(self):

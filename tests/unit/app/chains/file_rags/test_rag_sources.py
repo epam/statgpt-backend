@@ -145,15 +145,18 @@ async def test_annotations_only_answer_is_accepted_and_rewritten():
 
 
 @pytest.mark.asyncio
-async def test_response_names_the_source_of_every_citation_tag():
+async def test_response_ends_naming_the_source_of_every_citation_tag():
+    """The note comes after the pre-filter note, last, as the agent's prompt says. It leaves the
+    quotes out: they are long page excerpts, and the response stays in the agent's history."""
     result, target, choice = await _run([_chunk(_ANSWER, annotations=[_ANNOTATION])])
 
     response = result[DialRagAgentFactory.FIELD_RESPONSE]
-    assert (
-        '### Sources of the citation tags:\n\n```json\n'
-        '[{"id": "citation001-k3f9", "title": "sigma 2/2025 – World insurance, page 8",'
-        ' "quote": "Real GDP growth in the US is expected to slow to 1.5% in 2025."}]\n```'
-    ) in response
+    assert response.endswith(
+        'Do not copy this list into your answer.\n\n```json\n'
+        '[{"id": "citation001-k3f9", "title": "sigma 2/2025 – World insurance, page 8"}]\n```'
+    )
+    assert response.index("pre-filter") < response.index("### Sources of the citation tags:")
+    assert _ANNOTATION["body"]["quote"] not in response
     assert "Sources of the citation tags" not in target.content
     # the client still receives the whole annotation, quote included
     [annotation] = _sent_annotations(choice)
@@ -162,7 +165,8 @@ async def test_response_names_the_source_of_every_citation_tag():
 
 @pytest.mark.asyncio
 async def test_an_mcp_client_gets_plain_text_references_instead_of_the_tags():
-    """No annotation reaches an MCP client, so it could not resolve a citation tag."""
+    """No annotation reaches an MCP client, so it could not resolve a citation tag. Nor does a
+    pill name the cited file to it, so the reference links the file at its public url."""
     result, _, _ = await _run(
         [_chunk(_ANSWER, annotations=[_ANNOTATION])], invocation_source=InvocationSource.MCP
     )
@@ -171,7 +175,7 @@ async def test_an_mcp_client_gets_plain_text_references_instead_of_the_tags():
     assert response.startswith(
         'US GDP growth slows to 1.5%. [1]\n\n'
         '### References:\n\n'
-        '- [1] sigma 2/2025 – World insurance, page 8:'
+        f'- [1] sigma 2/2025 – World insurance, page 8 ({_PUBLIC_URL}):'
         ' "Real GDP growth in the US is expected to slow to 1.5% in 2025."'
     )
     assert "<cit" not in response

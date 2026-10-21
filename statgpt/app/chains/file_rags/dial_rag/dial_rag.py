@@ -329,15 +329,22 @@ class DialRagAgentFactory(BaseRAGFactory):
                 )
                 if ChainParameters.get_invocation_source(inputs) is InvocationSource.MCP:
                     # No annotation reaches an MCP client, which could not resolve the tags.
-                    response = to_plain_text_references(
-                        dial_streamer.content_with_attachments_metadata, dial_streamer.citations
+                    response = (
+                        to_plain_text_references(
+                            dial_streamer.content_with_attachments_metadata,
+                            dial_streamer.annotations,
+                        )
+                        + prefilter_note
                     )
                 else:
+                    # The citations note comes last, as the agent's prompt says. No quotes: the
+                    # title of a citation card already names the publication and the page.
                     response = (
                         dial_streamer.content_with_attachments_metadata
-                        + dial_streamer.citations_note
+                        + prefilter_note
+                        + dial_streamer.citations_note(quotes=False)
                     )
-                inputs[self.FIELD_RESPONSE] = response + prefilter_note
+                inputs[self.FIELD_RESPONSE] = response
                 inputs[self.FIELD_ANSWERED_BY] = 'RAG'
                 inputs[self.FIELD_ATTACHMENTS] = dial_streamer.attachments
             else:

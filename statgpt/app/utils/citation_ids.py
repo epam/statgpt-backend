@@ -3,8 +3,8 @@
 A sub-deployment writes a `<cit data-id="...">` tag at each cited position and claims it with an
 annotation (see `dial_annotations`) that names the cited source, and may quote the cited passage.
 The client draws a pill from the annotation in place of the tag, but the agent reads only the tag,
-so `OpenAiToDialStreamer` lists the source and the quote of every claimed tag for the tool
-response to name them to the agent.
+so `OpenAiToDialStreamer` lists the source of every claimed tag, and if asked the quote, for the
+tool response to name them to the agent.
 
 The ids a sub-deployment picks are its own: a long hash such as
 `94c80f43b36f40ffbd9063db0cdc35c6`, or a counter such as `cit-1` that the next tool call starts
@@ -19,7 +19,7 @@ import re
 import secrets
 import string
 from collections.abc import Mapping, Sequence
-from typing import Any
+from typing import Any, NamedTuple
 
 from pydantic import BaseModel
 
@@ -29,13 +29,16 @@ from pydantic import BaseModel
 _TAG_ID_ATTRIBUTE = re.compile(r'''(<\w[^>]*?\sdata-id\s*=\s*(["']))(.*?)\2''')
 
 # A whole, empty citation tag, `<cit data-id="..."></cit>` or `<cit data-id="..." />`, its id
-# quoted as `_TAG_ID_ATTRIBUTE` reads it, and the spaces before it on its line.
+# quoted as `_TAG_ID_ATTRIBUTE` reads it, and the spaces before it on its line. The id can't hold a
+# quote or an angle bracket: an id that could would grow past a tag that is not empty, such as
+# `<cit data-id="a">text</cit>`, up to the quote of the next tag, and swallow the text between.
 _CITATION_TAG = re.compile(
-    r'''(?P<space>[ \t]*)<cit\b[^>]*?\sdata-id\s*=\s*(["'])(?P<id>.*?)\2[^>]*?(?:/>|>\s*</cit\s*>)'''
+    r'''(?P<space>[ \t]*)<cit\b[^>]*?\sdata-id\s*=\s*(["'])(?P<id>[^"'<>]*)\2[^>]*?'''
+    r'''(?:/>|>\s*</cit\s*>)'''
 )
 
-# A quote longer than this is cut short in the note: it is often a long page excerpt, and the
-# start of it is enough for the agent to tell the cited passage.
+# A quote longer than this is cut short in a note or a reference: it is often a long page excerpt,
+# and the start of it is enough to tell the cited passage.
 _MAX_QUOTE_LENGTH = 500
 
 _SCOPE_ALPHABET = string.ascii_lowercase + string.digits
@@ -91,7 +94,8 @@ def get_source_title(annotation: dict[str, Any]) -> str | None:
     """The title of the citation card (`body.title`), or None.
 
     The title of the cited file (the label of the pill) and its url are not used: they name the
-    file, not the cited passage.
+    file, not the cited passage. Only a plain-text reference, which no pill comes with, falls back
+    to them (see `to_plain_text_references`).
     """
     body = annotation.get('body')
     title = body.get('title') if isinstance(body, dict) else None
@@ -127,26 +131,80 @@ def replace_tag_ids(content: str, tag_ids: Mapping[str, str]) -> str:
     return _TAG_ID_ATTRIBUTE.sub(lambda m: m[1] + tag_ids.get(m[3], m[3]) + m[2], content)
 
 
-def to_plain_text_references(content: str, citations: Sequence[Citation]) -> str:
+class _Reference(NamedTuple):
+    """A source of a citation tag, as a plain-text reference names it."""
+
+    tag_id: str
+    title: str | None
+    url: str | None
+    quote: str | None
+
+
+def to_plain_text_references(content: str, annotations: Sequence[dict[str, Any]]) -> str:
     """`content` with plain-text references in place of its citation tags, for a client that
     gets no annotations to resolve the tags with, such as an MCP client.
 
-    Each cited tag becomes `[1]`, `[2]`, ..., in the order the tags were first claimed, and the
-    references are listed after the content. A tag that cites nothing is dropped.
+    `annotations` are the annotations relayed with `content`. Each cited tag becomes `[1]`, `[2]`,
+    ..., in the order the tags were first claimed, and the references are listed after the
+    content, each distinct source of a tag once. A tag that cites nothing is dropped.
+
+    No pill names the cited file to such a client, so a reference falls back to the title of the
+    file if the citation card has none, and gives the url of the file if the client can open it.
     """
-    numbers = {tag_id: n for n, tag_id in enumerate(dict.fromkeys(c.id for c in citations), 1)}
+    references = list(
+        dict.fromkeys(
+            _Reference(
+                tag_id=tag_id,
+                title=get_source_title(annotation) or _get_file_title(annotation),
+                url=_get_file_link(annotation),
+                quote=get_source_quote(annotation),
+            )
+            for annotation in annotations
+            if (tag_id := get_tag_id(annotation)) is not None
+        )
+    )
+    numbers = {tag_id: n for n, tag_id in enumerate(dict.fromkeys(r.tag_id for r in references), 1)}
     text = _CITATION_TAG.sub(
         lambda m: f'{m["space"]}[{numbers[m["id"]]}]' if m['id'] in numbers else '', content
     )
     if not numbers:
         return text
-    references = '\n'.join(_format_reference(numbers[c.id], c) for c in citations)
-    return f'{text}\n\n### References:\n\n{references}'
+    lines = '\n'.join(_format_reference(numbers[r.tag_id], r) for r in references)
+    return f'{text}\n\n### References:\n\n{lines}'
 
 
-def _format_reference(number: int, citation: Citation) -> str:
-    """One item of the references list: `- [1] Title: "quote"`, leaving out what is missing."""
+def _get_cited_file(annotation: dict[str, Any]) -> dict[str, Any]:
+    """The file the annotation cites (`body.source.attachment`), or an empty dict."""
+    value: Any = annotation
+    for key in ('body', 'source', 'attachment'):
+        value = value.get(key) if isinstance(value, dict) else None
+    return value if isinstance(value, dict) else {}
+
+
+def _get_file_title(annotation: dict[str, Any]) -> str | None:
+    title = _get_cited_file(annotation).get('title')
+    return title if isinstance(title, str) and title else None
+
+
+def _get_file_link(annotation: dict[str, Any]) -> str | None:
+    """The url of the cited file if a client outside DIAL can open it, or None.
+
+    A DIAL file url, `files/...`, is relative to DIAL Core: it is left out unless a rewrite rule
+    of the tool made it public.
+    """
+    url = _get_cited_file(annotation).get('url')
+    return url if isinstance(url, str) and url.startswith(('https://', 'http://')) else None
+
+
+def _format_reference(number: int, reference: _Reference) -> str:
+    """One item of the references list: `- [1] Title (url): "quote"`, leaving out what is
+    missing."""
+    name: str | None
+    if reference.title and reference.url:
+        name = f'{reference.title} ({reference.url})'
+    else:
+        name = reference.title or reference.url
     # The quote on one line, so that each reference is one item of the list.
-    quote = f'"{" ".join(citation.quote.split())}"' if citation.quote else None
-    source = ': '.join(part for part in (citation.title, quote) if part)
+    quote = f'"{" ".join(reference.quote.split())}"' if reference.quote else None
+    source = ': '.join(part for part in (name, quote) if part)
     return f'- [{number}] {source or "(the source is not named)"}'

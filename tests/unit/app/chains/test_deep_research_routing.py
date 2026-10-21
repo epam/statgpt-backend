@@ -622,6 +622,8 @@ async def test_report_tool_response_describes_its_citation_tags_to_the_agent_onl
     assert tool_response["content"] == (
         f'{_RENUMBERED}\n\n'
         '### Sources of the citation tags:\n\n'
+        'When your answer uses a statement cited above, copy its citation tag verbatim right after'
+        ' it: never change, shorten or invent a tag. Do not copy this list into your answer.\n\n'
         '```json\n[{"id": "citation001-k3f9", "title": "Report.pdf, page 3"}]\n```'
     )
     assert choice.content == _RENUMBERED
