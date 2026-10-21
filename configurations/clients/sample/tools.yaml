@@ -261,7 +261,6 @@ tools:
             - Time coverage: {time_coverage}
             - Frequency coverage: {frequency_coverage}
             - Indicators coverage: {indicators_coverage}
-            - Missing indicators: {missing_indicators}
 
   - type: sdmx_query_app
     <<: *shared_settings

@@ -9,7 +9,8 @@ openpyxl is used directly rather than ``pandas.read_excel``: pandas coerces colu
 discards the cell coordinates the error report needs.
 
 A workbook is two shapes at once. The `Datasets` sheet holds one row per dataset, and each
-dataset's indicators live on a sheet of their own, named with the dataset's ID. A CSV stays
+dataset's indicators live on a sheet of their own, named with the dataset's ID; a sheet no
+dataset names is ignored, and never read. A CSV stays
 flat: the indicators arrive as one already-joined column, which is also how the export
 writes them.
 """
@@ -19,8 +20,8 @@ import datetime
 import io
 import logging
 import zipfile
-from collections.abc import Iterable, Sequence
-from dataclasses import dataclass, field
+from collections.abc import Iterable, Sequence, Set
+from dataclasses import dataclass, field, replace
 from enum import StrEnum, auto
 from typing import Any
 
@@ -131,7 +132,8 @@ def _build_header_aliases() -> dict[str, str]:
 _HEADER_ALIASES: dict[str, str] = _build_header_aliases()
 
 _DATASETS_SHEET_NAME: str = "datasets"
-_INSTRUCTIONS_SHEET_NAME: str = "instructions"
+_RESERVED_SHEET_KEYS: frozenset[str] = frozenset({_DATASETS_SHEET_NAME, "instructions"})
+"""Sheets of the template itself, as folded keys: never an indicators sheet, never an ID."""
 _XLSX_SIGNATURE = b"PK\x03\x04"
 _XLS_SIGNATURE = b"\xd0\xcf\x11\xe0"
 
@@ -213,9 +215,6 @@ class _SheetProblem:
 @dataclass(frozen=True)
 class _IndicatorSheet:
     """One dataset's indicators, as a sheet supplied them."""
-
-    title: str
-    """The sheet name, as the workbook spells it. Paired with a dataset ID folded."""
 
     text: str = ""
     """The joined cell this sheet becomes. Empty for a sheet holding no indicators."""
@@ -418,9 +417,9 @@ def _get_worksheet(workbook: Workbook) -> ReadOnlyWorksheet:
 
 
 def _check_dataset_ids(
-    rows: Sequence[ParsedRow], column_letters: dict[str, str]
+    rows: Sequence[ParsedRow], column_letters: dict[str, str], reserved: Set[str]
 ) -> list[schemas.DiscoveryPayloadProblem]:
-    """Report a dataset ID a previous row already claimed.
+    """Report a dataset ID a template sheet already holds, or a previous row already claimed.
 
     Workbook-wide and ignoring the agency, unlike the natural key: the ID names a sheet, so
     two records whose IDs agree cannot both carry indicators in one workbook however
@@ -436,6 +435,20 @@ def _check_dataset_ids(
         if not value:
             continue
         key = normalize_key_part(value)
+        if key in reserved:
+            problems.append(
+                schemas.DiscoveryPayloadProblem(
+                    message=(
+                        f"Dataset ID {value!r} is the name of one of the workbook's own"
+                        f" sheets, so no indicators sheet can be named after it. Upload this"
+                        f" dataset as a CSV."
+                    ),
+                    field="dataset_id",
+                    row=row.row_number,
+                    cell=_cell_reference(column_letters, "dataset_id", row.row_number),
+                )
+            )
+            continue
         first = first_seen.setdefault(key, row)
         if first is row:
             continue
@@ -470,7 +483,11 @@ def _resolve_indicator_headers(header_cells: Sequence[Any]) -> dict[str, int] | 
 
     if _INDICATOR_NAME in resolved:
         return resolved
-    if len(header_cells) == _INDICATOR_SHEET_WIDTH:
+    # Read-only rows are padded out to the sheet's widest row, so trailing blanks do not count.
+    width = len(header_cells)
+    while width and not _coerce_cell(header_cells[width - 1]).strip():
+        width -= 1
+    if width == _INDICATOR_SHEET_WIDTH:
         return {_INDICATOR_NAME: 0, _INDICATOR_UNITS: 1}
     return None
 
@@ -497,18 +514,18 @@ def _parse_indicator_sheet(
     try:
         header_cells = list(next(rows_iter))
     except StopIteration:
-        return _IndicatorSheet(title=title)
+        return _IndicatorSheet()
 
     headers = _resolve_indicator_headers(header_cells)
     if headers is None:
         return _IndicatorSheet(
-            title=title,
             problems=[
                 _SheetProblem(
                     message=(
                         f"Sheet {title!r} has no 'Indicator' column, so this dataset's"
                         f" indicators could not be read. Expected 'Indicator' and"
-                        f" 'Units of measure'."
+                        f" 'Units of measure', or exactly {_INDICATOR_SHEET_WIDTH} columns in"
+                        f" template order."
                     ),
                     cell=f"'{title}'!A1",
                 )
@@ -545,86 +562,80 @@ def _parse_indicator_sheet(
                 f" Shorten the list, or split the dataset."
             )
 
-    return _IndicatorSheet(title=title, text=_INDICATOR_SEPARATOR.join(entries), problems=problems)
+    return _IndicatorSheet(text=_INDICATOR_SEPARATOR.join(entries), problems=problems)
 
 
-def _parse_indicator_sheets(
-    workbook: Workbook, datasets_title: str, max_indicators_per_dataset: int
-) -> tuple[dict[str, _IndicatorSheet], list[_IndicatorSheet]]:
-    """Read every indicator sheet, keyed the way a dataset ID folds.
+def _index_sheet_titles(workbook: Workbook, reserved: Set[str]) -> dict[str, list[str]]:
+    """Sheet titles keyed the way a dataset ID folds, the template's own sheets left out.
 
-    Returns the index and the sheets that could not enter it - two sheet names folding onto
-    one key. Those are reported like a sheet no dataset claims, since neither is reachable
-    from the `Datasets` sheet.
+    Reads names only: a sheet's rows are loaded once a dataset row names it, so a sheet
+    nothing refers to costs nothing.
     """
-    index: dict[str, _IndicatorSheet] = {}
-    shadowed: list[_IndicatorSheet] = []
-
+    index: dict[str, list[str]] = {}
     for title in workbook.sheetnames:
-        if title == datasets_title or title.strip().casefold() == _INSTRUCTIONS_SHEET_NAME:
-            continue
-        sheet = _parse_indicator_sheet(workbook[title], max_indicators_per_dataset)
         key = normalize_key_part(title)
-        if key in index:
-            shadowed.append(sheet)
-        else:
-            index[key] = sheet
-
-    return index, shadowed
-
-
-def _orphan_problem(sheet: _IndicatorSheet) -> schemas.DiscoveryPayloadProblem:
-    """Report an indicator sheet no dataset row claims.
-
-    Not silently ignored, unlike an unrecognized column: a sheet that is there holds
-    indicators someone authored, and an upload that dropped them without saying so would
-    leave the dataset looking as though it had none.
-    """
-    return schemas.DiscoveryPayloadProblem(
-        message=(
-            f"Sheet {sheet.title!r} lists indicators, but no row of the"
-            f" {_DATASETS_SHEET_NAME.title()!r} sheet has that Dataset ID, so they would"
-            f" not be uploaded at all."
-        ),
-        field="dataset_id",
-        cell=f"'{sheet.title}'!A1",
-    )
+        if key not in reserved:
+            index.setdefault(key, []).append(title)
+    return index
 
 
 def _apply_indicator_sheets(
+    workbook: Workbook,
     rows: Sequence[ParsedRow],
-    sheets: dict[str, _IndicatorSheet],
-    shadowed: Sequence[_IndicatorSheet],
-) -> list[schemas.DiscoveryPayloadProblem]:
-    """Write each dataset's indicators onto its row, and report the sheets left over.
+    titles: dict[str, list[str]],
+    column_letters: dict[str, str],
+    max_indicators_per_dataset: int,
+) -> tuple[list[ParsedRow], list[schemas.DiscoveryPayloadProblem]]:
+    """Give each dataset row the indicators its sheet lists.
 
     A dataset row with no sheet and one whose sheet holds nothing both get an empty cell:
     the parser records how many indicators a dataset has, and validation decides whether
-    that is allowed.
+    that is allowed. A sheet no row names is ignored - a misspelt one leaves its dataset with
+    no indicators, which validation reports against the dataset.
     """
+    result: list[ParsedRow] = []
     problems: list[schemas.DiscoveryPayloadProblem] = []
-    claimed: set[str] = set()
+    parsed: dict[str, _IndicatorSheet] = {}
 
     for row in rows:
         key = normalize_key_part(row.values.get("dataset_id", ""))
-        sheet = sheets.get(key)
-        row.values["indicators_coverage"] = sheet.text if sheet else ""
-        if sheet is None:
-            continue
-        claimed.add(key)
-        problems.extend(
-            schemas.DiscoveryPayloadProblem(
-                message=problem.message,
-                field="indicators_coverage",
-                row=row.row_number,
-                cell=problem.cell,
+        matches = titles.get(key, [])
+        sheet = _IndicatorSheet()
+        if len(matches) > 1:
+            problems.append(
+                schemas.DiscoveryPayloadProblem(
+                    message=(
+                        f"Sheets {', '.join(repr(title) for title in matches)} all match"
+                        f" Dataset ID {row.values['dataset_id']!r}, so it is unclear which"
+                        f" holds its indicators. Keep one of them."
+                    ),
+                    field="dataset_id",
+                    row=row.row_number,
+                    cell=_cell_reference(column_letters, "dataset_id", row.row_number),
+                )
             )
-            for problem in sheet.problems
-        )
+        elif matches:
+            if key not in parsed:
+                parsed[key] = _parse_indicator_sheet(
+                    workbook[matches[0]], max_indicators_per_dataset
+                )
+            sheet = parsed[key]
+            problems.extend(
+                schemas.DiscoveryPayloadProblem(
+                    message=problem.message,
+                    field="indicators_coverage",
+                    row=row.row_number,
+                    cell=problem.cell,
+                )
+                for problem in sheet.problems
+            )
+        result.append(replace(row, values={**row.values, "indicators_coverage": sheet.text}))
 
-    unclaimed = [sheet for key, sheet in sheets.items() if key not in claimed]
-    problems.extend(_orphan_problem(sheet) for sheet in [*unclaimed, *shadowed])
-    return problems
+    named = {normalize_key_part(row.values.get("dataset_id", "")) for row in rows}
+    if unnamed := [title for key, group in titles.items() if key not in named for title in group]:
+        _log.warning(f"Ignoring workbook sheets no Dataset ID names: {unnamed}.")
+
+    return result, problems
 
 
 def _parse_workbook(data: bytes, max_rows: int, max_indicators_per_dataset: int) -> ParsedFile:
@@ -651,11 +662,18 @@ def _parse_workbook(data: bytes, max_rows: int, max_indicators_per_dataset: int)
         rows = _build_rows(enumerate(rows_iter, start=2), headers, max_rows)
         column_letters = _column_letters(headers)
 
-        problems = _check_dataset_ids(rows, column_letters)
-        sheets, shadowed = _parse_indicator_sheets(
-            workbook, worksheet.title, max_indicators_per_dataset
+        # The fallback may read another sheet as the datasets one, so its own title is
+        # reserved alongside the template's.
+        reserved = _RESERVED_SHEET_KEYS | {normalize_key_part(worksheet.title)}
+        problems = _check_dataset_ids(rows, column_letters, reserved)
+        rows, sheet_problems = _apply_indicator_sheets(
+            workbook,
+            rows,
+            _index_sheet_titles(workbook, reserved),
+            column_letters,
+            max_indicators_per_dataset,
         )
-        problems.extend(_apply_indicator_sheets(rows, sheets, shadowed))
+        problems.extend(sheet_problems)
     finally:
         workbook.close()
 

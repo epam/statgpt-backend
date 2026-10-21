@@ -80,7 +80,7 @@ class DiscoveryCheck:
 
 
 def _check_frequency_coverage(record: DiscoveryRecord) -> Iterable[DiscoveryValidationIssue]:
-    """Column J must name at least one frequency, each from the template's vocabulary.
+    """Column I must name at least one frequency, each from the template's vocabulary.
 
     An empty cell is an issue rather than absent information: the chat-time pre-filter narrows
     the candidate set by frequency, and a record that names none is a record that no query
@@ -128,7 +128,7 @@ def _check_reference_area(record: DiscoveryRecord) -> Iterable[DiscoveryValidati
 
 
 def _check_url(record: DiscoveryRecord) -> Iterable[DiscoveryValidationIssue]:
-    """Column H must be a web address, since referring a user to it is the record's purpose.
+    """Column G must be a web address, since referring a user to it is the record's purpose.
 
     ``http`` is accepted alongside ``https``: an invalid record is not published, so
     demanding https would delist an agency that publishes over plain http - a warning
@@ -167,7 +167,7 @@ def _check_indicators_coverage(record: DiscoveryRecord) -> Iterable[DiscoveryVal
 
 
 def _check_description(record: DiscoveryRecord) -> Iterable[DiscoveryValidationIssue]:
-    """Column G must say something, because it is the whole of the published document.
+    """Column F must say something, because it is the whole of the published document.
 
     Every other field travels as document metadata; the description is the document's
     content. A record without one is published as an empty document, which retrieval can

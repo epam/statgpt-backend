@@ -20,7 +20,7 @@ class DiscoveryUploadSettings(BaseSettings):
     max_indicators_per_dataset: int = Field(
         default=50_000,
         ge=1,
-        description="Reject a workbook whose indicators sheet lists more rows than this.",
+        description="Reject a workbook whose indicators sheet lists more indicators than this.",
     )
     max_reported_problems: int = Field(
         default=200,

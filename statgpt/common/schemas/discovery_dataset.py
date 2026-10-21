@@ -40,6 +40,9 @@ MAX_DATASET_ID_LENGTH = 31
 FORBIDDEN_DATASET_ID_CHARS = ":\\/?*[]"
 """What Excel refuses in a sheet name."""
 
+_RESERVED_SHEET_NAME = "history"
+"""The one name Excel keeps for itself, whatever the case."""
+
 
 def _require_sheet_name_safe(value: str) -> str:
     """Refuse an id Excel could not name a sheet after.
@@ -58,6 +61,16 @@ def _require_sheet_name_safe(value: str) -> str:
         raise ValueError(
             f"must not contain {' '.join(forbidden)}, since it also names the dataset's"
             f" indicators sheet"
+        )
+    if value.startswith("'") or value.endswith("'"):
+        raise ValueError(
+            "must not start or end with an apostrophe, since it also names the dataset's"
+            " indicators sheet"
+        )
+    if value.lower() == _RESERVED_SHEET_NAME:
+        raise ValueError(
+            f"must not be {value!r}, a sheet name Excel reserves, since it also names the"
+            f" dataset's indicators sheet"
         )
     return value
 

@@ -352,27 +352,43 @@ def test_units_without_an_indicator_name_are_reported_at_their_cell() -> None:
     assert parsed.rows[0].values["indicators_coverage"] == "broad money (M2) (billions of Rp)"
 
 
-def test_a_sheet_no_dataset_row_claims_is_reported() -> None:
-    """Indicators someone authored that the upload would otherwise drop without saying so."""
-    sheets = {"TABEL1_1": list(_INDICATORS), "TABEL9_9": list(_INDICATORS)}
+def test_a_sheet_no_dataset_row_names_is_ignored_unread() -> None:
+    """Never parsed, so even a sheet over the indicator cap does not refuse the upload."""
+    sheets = {
+        "TABEL1_1": list(_INDICATORS),
+        "Sheet1": [[f"indicator {index}", "percent"] for index in range(4)],
+    }
+
+    parsed = _parse(_workbook([_ROW], indicator_sheets=sheets), max_indicators=3)
+
+    assert not parsed.problems
+    assert parsed.rows[0].values["indicators_coverage"].startswith("broad money (M2)")
+
+
+def test_two_sheets_folding_onto_one_dataset_id_are_reported_on_its_row() -> None:
+    """Neither can be picked over the other, so the row says which sheets collide."""
+    sheets = {"TABEL1_1": list(_INDICATORS), "tabel1_1 ": [["policy rate", "percent"]]}
 
     parsed = _parse(_workbook([_ROW], indicator_sheets=sheets))
 
     assert len(parsed.problems) == 1
     problem = parsed.problems[0]
-    assert problem.row is None
-    assert problem.cell == "'TABEL9_9'!A1"
-    assert "TABEL9_9" in problem.message
+    assert problem.field == "dataset_id"
+    assert problem.cell == "D2"
+    assert "'TABEL1_1', 'tabel1_1 '" in problem.message
+    assert parsed.rows[0].values["indicators_coverage"] == ""
 
 
-def test_two_sheets_folding_onto_one_name_leave_the_second_unreachable() -> None:
-    """Only one of them can be paired, so the other is reported rather than dropped."""
-    sheets = {"TABEL1_1": list(_INDICATORS), "tabel1_1 ": [["policy rate", "percent"]]}
+@pytest.mark.parametrize("dataset_id", ["Instructions", "datasets "])
+def test_a_dataset_id_naming_a_template_sheet_is_reported(dataset_id: str) -> None:
+    row = list(_ROW)
+    row[3] = dataset_id
 
-    parsed = _parse(_workbook([_ROW], indicator_sheets=sheets))
+    parsed = _parse(_workbook([row], indicator_sheets={}))
 
-    assert [problem.cell for problem in parsed.problems] == ["'tabel1_1 '!A1"]
-    assert parsed.rows[0].values["indicators_coverage"].startswith("broad money (M2)")
+    assert [(problem.field, problem.cell) for problem in parsed.problems] == [("dataset_id", "D2")]
+    assert "workbook's own sheets" in parsed.problems[0].message
+    assert parsed.rows[0].values["indicators_coverage"] == ""
 
 
 def test_an_indicator_sheet_without_an_indicator_column_is_reported() -> None:
@@ -395,6 +411,20 @@ def test_a_two_column_indicator_sheet_falls_back_to_column_order() -> None:
     )
 
     assert parsed.rows[0].values["indicators_coverage"].startswith("broad money (M2)")
+    assert not parsed.problems
+
+
+def test_the_column_order_fallback_ignores_trailing_blank_header_cells() -> None:
+    """A stray cell further right widens every row the sheet yields, the header included."""
+    sheets = {"TABEL1_1": [["broad money (M2)", "billions of Rp", "note"]]}
+
+    parsed = _parse(
+        _workbook(
+            [_ROW], indicator_sheets=sheets, indicator_headers=["Name", "Unit of measurement"]
+        )
+    )
+
+    assert parsed.rows[0].values["indicators_coverage"] == "broad money (M2) (billions of Rp)"
     assert not parsed.problems
 
 
