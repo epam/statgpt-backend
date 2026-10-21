@@ -631,7 +631,8 @@ class SupremeAgentExecutor:
                         # letting the agent repeat the report.
                         history.add_tool_message(
                             SystemMessage(
-                                content=supreme_agent_default_prompts.deep_research_report_delivered_message_to_agent
+                                content=dr_config.details.report_delivered_message_to_agent
+                                or supreme_agent_default_prompts.deep_research_report_delivered_message_to_agent
                             )
                         )
                         return report
