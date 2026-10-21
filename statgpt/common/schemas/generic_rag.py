@@ -131,8 +131,11 @@ class GenericRagDocumentFilter(BaseModel):
 
     Two properties of the service's model decide the shape of everything built out of this:
 
-    Each field takes a *single* value, not a list - an array field matches when any element of
-    the *document's* array equals it. Several values on one axis therefore mean several entries.
+    A field takes either one value or a list meaning "any of these" - a string field matches
+    when the document's value is among them, an array field when any element of the
+    *document's* array is. Several values on one axis are therefore one field of one entry
+    rather than several entries: the fields the pre-filter narrows on are lists, while the
+    scoping fields, which only ever carry one value, are not.
 
     The accepted values are exactly the ones the channel currently holds, since the service
     types each field as a `Literal` over its dimensions. A value outside them fails the whole
@@ -158,17 +161,17 @@ class GenericRagDocumentFilter(BaseModel):
     An array on the document, so this matches an entry naming this role among others.
     """
 
-    agency: str | None = None
-    """Publisher of the discovery record."""
+    agency: list[str] | None = None
+    """Publishers of the discovery record, any of which matches."""
 
-    parsed_reference_areas: str | None = None
-    """One subject reference area the record covers."""
+    parsed_reference_areas: list[str] | None = None
+    """Subject reference areas, matching a record that covers any of them."""
 
-    parsed_partner_reference_areas: str | None = None
-    """One partner reference area the record covers."""
+    parsed_partner_reference_areas: list[str] | None = None
+    """Partner reference areas, matching a record that covers any of them."""
 
-    parsed_frequencies: str | None = None
-    """One frequency the record publishes at."""
+    parsed_frequencies: list[str] | None = None
+    """Frequencies, matching a record that publishes at any of them."""
 
 
 class GenericRagDocumentMatcher(BaseModel):
