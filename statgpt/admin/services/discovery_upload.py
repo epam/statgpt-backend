@@ -700,19 +700,59 @@ def _csv_dialect(text: str) -> type[csv.Dialect] | csv.Dialect:
         return csv.excel
 
 
-def _parse_csv(data: bytes, max_rows: int) -> ParsedFile:
+def allow_csv_fields_up_to(limit: int) -> None:
+    """Lift Python's 131,072-character default, which one indicators column can exceed.
+
+    The limit is process-wide, so it is only ever raised. The input it guards is already
+    bounded by the caller's byte cap.
+    """
+    if csv.field_size_limit() < limit:
+        csv.field_size_limit(limit)
+
+
+def _check_indicator_counts(
+    rows: Sequence[ParsedRow], max_indicators_per_dataset: int
+) -> list[schemas.DiscoveryPayloadProblem]:
+    """Hold a CSV's indicators column to the cap a workbook's indicators sheet is held to.
+
+    Reported per row rather than raised as the sheet parser does: that one refuses mid-read
+    to bound memory, while a CSV is already in memory under the upload's byte cap.
+    """
+    problems: list[schemas.DiscoveryPayloadProblem] = []
+    for row in rows:
+        entries = row.values.get("indicators_coverage", "").split(";")
+        count = sum(1 for entry in entries if entry.strip())
+        if count > max_indicators_per_dataset:
+            problems.append(
+                schemas.DiscoveryPayloadProblem(
+                    message=(
+                        f"Indicators coverage lists {count} indicators, more than"
+                        f" {max_indicators_per_dataset}. Shorten the list, or split the dataset."
+                    ),
+                    field="indicators_coverage",
+                    row=row.row_number,
+                )
+            )
+    return problems
+
+
+def _parse_csv(data: bytes, max_rows: int, max_indicators_per_dataset: int) -> ParsedFile:
     text = _decode_csv(data)
+    # No field can be longer than the text holding it, so this bounds nothing the byte cap
+    # on the upload does not already.
+    allow_csv_fields_up_to(len(text))
     reader = csv.reader(io.StringIO(text, newline=""), dialect=_csv_dialect(text))
 
     try:
         header_cells = next(reader)
+        headers = _resolve_headers_or_positional(header_cells, _DiscoveryFileFormat.CSV)
+        rows = _build_rows(enumerate(reader, start=2), headers, max_rows)
     except StopIteration as e:
         raise DiscoveryUploadFormatError("The CSV file is empty.") from e
-
-    headers = _resolve_headers_or_positional(header_cells, _DiscoveryFileFormat.CSV)
-    rows = _build_rows(enumerate(reader, start=2), headers, max_rows)
+    except csv.Error as e:
+        raise DiscoveryUploadFormatError(f"The CSV file could not be read: {e}.") from e
     # A CSV has no spreadsheet coordinates, so problems are reported by row only.
-    return ParsedFile(rows=rows)
+    return ParsedFile(rows=rows, problems=_check_indicator_counts(rows, max_indicators_per_dataset))
 
 
 def parse_discovery_file(
@@ -732,4 +772,4 @@ def parse_discovery_file(
 
     if file_format is _DiscoveryFileFormat.XLSX:
         return _parse_workbook(data, max_rows, max_indicators_per_dataset)
-    return _parse_csv(data, max_rows)
+    return _parse_csv(data, max_rows, max_indicators_per_dataset)

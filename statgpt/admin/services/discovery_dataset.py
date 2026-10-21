@@ -28,11 +28,18 @@ from statgpt.common.services import (
 
 from .discovery_area_publisher import ReferenceAreaPublisher
 from .discovery_publisher import withdraw_documents
-from .discovery_upload import FIELD_LABELS, RECORD_FIELDS, REQUIRED_FIELDS, parse_discovery_file
+from .discovery_upload import (
+    FIELD_LABELS,
+    RECORD_FIELDS,
+    REQUIRED_FIELDS,
+    allow_csv_fields_up_to,
+    parse_discovery_file,
+)
 from .exceptions import (
     DiscoveryDatasetConflictError,
     DiscoveryDatasetNotFoundError,
     DiscoveryPayloadError,
+    DiscoveryUploadFormatError,
     DiscoveryUploadTooLargeError,
     raise_for_conflict,
 )
@@ -766,9 +773,17 @@ class AdminPortalDiscoveryDatasetService(DiscoveryDatasetService):
             return
 
         _log.info("Importing discovery datasets from zip file.")
+        # An export can be uploaded to another channel unchanged, so the upload's byte cap
+        # bounds a field of one too.
+        allow_csv_fields_up_to(self._UPLOAD_SETTINGS.max_file_size_bytes)
         with zip_file.open(JobsConfig.DISCOVERY_DATASETS_FILE) as file:
             reader = csv.DictReader(io.TextIOWrapper(file, encoding="utf-8", newline=""))
-            raw = [_RawRecord(values=row, index=index) for index, row in enumerate(reader)]
+            try:
+                raw = [_RawRecord(values=row, index=index) for index, row in enumerate(reader)]
+            except csv.Error as e:
+                raise DiscoveryUploadFormatError(
+                    f"The archive's {JobsConfig.DISCOVERY_DATASETS_FILE!r} could not be read: {e}."
+                ) from e
 
         # Validated row by row rather than in a comprehension: an archive whose CSV was edited
         # by hand still has to say which row is at fault, in the failure reason of the import

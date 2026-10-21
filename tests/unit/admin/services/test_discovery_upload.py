@@ -6,6 +6,7 @@ from typing import Any
 import openpyxl
 import pytest
 
+from statgpt.admin.services import discovery_upload
 from statgpt.admin.services.discovery_upload import (
     DATASETS_SHEET_FIELDS,
     RECORD_FIELDS,
@@ -523,3 +524,41 @@ def test_csv_with_bom_and_cp1252_fallback() -> None:
 def test_empty_csv_is_rejected() -> None:
     with pytest.raises(DiscoveryUploadFormatError, match="empty"):
         _parse(b"", "x.csv")
+
+
+def test_csv_reads_an_indicators_column_longer_than_pythons_field_limit(
+    default_csv_field_limit: int,
+) -> None:
+    """A workbook's indicators sheet has no cell limit, so its export can exceed this."""
+    coverage = "; ".join(f"indicator {i} (units)" for i in range(10_000))
+    assert len(coverage) > default_csv_field_limit
+    row = dict(zip(DATASETS_SHEET_FIELDS, _ROW), indicators_coverage=coverage)
+
+    parsed = _parse(_csv_bytes([row], list(RECORD_FIELDS)), "x.csv", max_indicators=10_000)
+
+    assert parsed.rows[0].values["indicators_coverage"] == coverage
+    assert not parsed.problems
+
+
+def test_csv_indicator_cap_is_reported_against_the_row() -> None:
+    """The cap a workbook's indicators sheet is held to, so the two formats agree."""
+    within = dict(zip(DATASETS_SHEET_FIELDS, _ROW), indicators_coverage="a (x); b (x); c (x)")
+    over = {**within, "dataset_id": "TABEL1_2", "indicators_coverage": "a; b;; c; d;"}
+
+    parsed = _parse(_csv_bytes([within, over], list(RECORD_FIELDS)), "x.csv", max_indicators=3)
+
+    [problem] = parsed.problems
+    assert problem.field == "indicators_coverage"
+    assert problem.row == 3
+    assert "4 indicators, more than 3" in problem.message
+    assert len(parsed.rows) == 2
+
+
+def test_unreadable_csv_is_a_format_error(
+    default_csv_field_limit: int, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(discovery_upload, "allow_csv_fields_up_to", lambda limit: None)
+    row = dict(zip(DATASETS_SHEET_FIELDS, _ROW), description="x" * (default_csv_field_limit + 1))
+
+    with pytest.raises(DiscoveryUploadFormatError, match="could not be read"):
+        _parse(_csv_bytes([row], list(DATASETS_SHEET_FIELDS)), "x.csv")
