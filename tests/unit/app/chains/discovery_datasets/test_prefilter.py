@@ -230,8 +230,10 @@ def _report_of(
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~ building the matcher ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 
-async def test_the_axes_combine_into_a_cross_product(monkeypatch: pytest.MonkeyPatch) -> None:
-    """A filter entry takes one value per field, so several values mean several entries."""
+async def test_each_axis_is_one_field_carrying_everything_it_selected(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A field matches any of its values, so several values on several axes are one entry."""
     result, _, _ = await _build(
         monkeypatch,
         {
@@ -245,36 +247,71 @@ async def test_the_axes_combine_into_a_cross_product(monkeypatch: pytest.MonkeyP
         filters=[
             GenericRagDocumentFilter(
                 statgpt_channel=_CHANNEL,
-                parsed_reference_areas=area,
-                parsed_frequencies="Monthly",
-                agency=agency,
+                parsed_reference_areas=["France", "Euro area"],
+                parsed_frequencies=["Monthly"],
+                agency=["IMF", "Eurostat"],
             )
-            for area in ("France", "Euro area")
-            for agency in ("IMF", "Eurostat")
         ]
     )
-    assert result.report.filters == 4
+    assert result.report.filters == 1
     assert result.report.fallback_reason is None
+
+
+async def test_an_axis_is_not_limited_by_how_many_values_it_selected(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Values no longer multiply into entries, so there is nothing to cap an axis at."""
+    many = [f"Area {index}" for index in range(50)]
+    discovery = _FakeClient(
+        dimensions={
+            "parsed_reference_areas": many,
+            "parsed_frequencies": ["Monthly", "Annual"],
+            "agency": ["IMF", "Eurostat"],
+        }
+    )
+    areas = _FakeClient(
+        documents=[_area_document(index, value) for index, value in enumerate(many, start=1)]
+    )
+
+    result, _, _ = await _build(
+        monkeypatch,
+        {
+            DiscoveryPreFilterAxis.REFERENCE_AREA: many,
+            DiscoveryPreFilterAxis.FREQUENCY: ["Monthly", "Annual"],
+            DiscoveryPreFilterAxis.AGENCY: ["IMF", "Eurostat"],
+        },
+        details=_details(pre_filter={"referenceAreaTopN": len(many)}),
+        discovery=discovery,
+        areas=areas,
+    )
+
+    assert result.matcher is not None
+    assert result.report.filters == 1
+    assert result.matcher.filters[0].parsed_reference_areas == many
 
 
 async def test_every_entry_carries_the_channel_scope(monkeypatch: pytest.MonkeyPatch) -> None:
     """Without it, one entry would let another channel's documents through the whole matcher."""
     result, _, _ = await _build(
-        monkeypatch, {DiscoveryPreFilterAxis.REFERENCE_AREA: ["France", "Germany"]}
+        monkeypatch,
+        {
+            DiscoveryPreFilterAxis.REFERENCE_AREA: ["France", "Germany"],
+            DiscoveryPreFilterAxis.PARTNER_REFERENCE_AREA: ["China"],
+        },
     )
 
     assert result.matcher is not None
     assert [entry.statgpt_channel for entry in result.matcher.filters] == [_CHANNEL, _CHANNEL]
 
 
-async def test_an_axis_with_no_selection_drops_out_of_the_product(
+async def test_an_axis_with_no_selection_drops_out_of_the_entry(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """It must not empty the product: a query naming no frequency restricts no frequency."""
+    """It must not empty the matcher: a query naming no frequency restricts no frequency."""
     result, _, _ = await _build(monkeypatch, {DiscoveryPreFilterAxis.AGENCY: ["IMF"]})
 
     assert result.matcher == GenericRagDocumentMatcher(
-        filters=[GenericRagDocumentFilter(statgpt_channel=_CHANNEL, agency="IMF")]
+        filters=[GenericRagDocumentFilter(statgpt_channel=_CHANNEL, agency=["IMF"])]
     )
 
 
@@ -283,8 +320,8 @@ async def test_the_two_area_axes_are_alternatives_rather_than_a_further_dimensio
 ) -> None:
     """A record covering an area as its subject and one covering it as a partner both answer.
 
-    So the two area axes share a slot of the product: multiplying them together would demand
-    both at once, which no record naming one country twice would satisfy.
+    So each area axis is an entry of its own, carrying the other axes too: two fields of one
+    entry would demand both at once, which no record naming one country twice would satisfy.
     """
     discovery = _FakeClient(
         dimensions={
@@ -316,26 +353,17 @@ async def test_the_two_area_axes_are_alternatives_rather_than_a_further_dimensio
         filters=[
             GenericRagDocumentFilter(
                 statgpt_channel=_CHANNEL,
-                parsed_reference_areas="USA",
-                parsed_frequencies="Annual",
+                parsed_reference_areas=both,
+                parsed_frequencies=["Annual"],
             ),
             GenericRagDocumentFilter(
                 statgpt_channel=_CHANNEL,
-                parsed_reference_areas="Canada",
-                parsed_frequencies="Annual",
-            ),
-            GenericRagDocumentFilter(
-                statgpt_channel=_CHANNEL,
-                parsed_partner_reference_areas="USA",
-                parsed_frequencies="Annual",
-            ),
-            GenericRagDocumentFilter(
-                statgpt_channel=_CHANNEL,
-                parsed_partner_reference_areas="Canada",
-                parsed_frequencies="Annual",
+                parsed_partner_reference_areas=both,
+                parsed_frequencies=["Annual"],
             ),
         ]
     )
+    assert result.report.filters == 2
 
 
 async def test_dropping_the_partner_axis_leaves_one_vocabulary_search(
@@ -356,7 +384,7 @@ async def test_dropping_the_partner_axis_leaves_one_vocabulary_search(
     assert DiscoveryPreFilterAxis.PARTNER_REFERENCE_AREA not in llm.asked
     assert result.matcher == GenericRagDocumentMatcher(
         filters=[
-            GenericRagDocumentFilter(statgpt_channel=_CHANNEL, parsed_reference_areas="France")
+            GenericRagDocumentFilter(statgpt_channel=_CHANNEL, parsed_reference_areas=["France"])
         ]
     )
 
@@ -371,7 +399,7 @@ async def test_only_the_configured_axes_are_asked_about(monkeypatch: pytest.Monk
     assert llm.asked == [DiscoveryPreFilterAxis.AGENCY]
     assert [item.axis for item in result.report.axes] == [DiscoveryPreFilterAxis.AGENCY]
     assert result.matcher == GenericRagDocumentMatcher(
-        filters=[GenericRagDocumentFilter(statgpt_channel=_CHANNEL, agency="IMF")]
+        filters=[GenericRagDocumentFilter(statgpt_channel=_CHANNEL, agency=["IMF"])]
     )
 
 
@@ -393,7 +421,7 @@ async def test_a_value_the_channel_does_not_hold_is_dropped(
 
     assert result.matcher == GenericRagDocumentMatcher(
         filters=[
-            GenericRagDocumentFilter(statgpt_channel=_CHANNEL, parsed_reference_areas="France")
+            GenericRagDocumentFilter(statgpt_channel=_CHANNEL, parsed_reference_areas=["France"])
         ]
     )
     report = _report_of(result, DiscoveryPreFilterAxis.REFERENCE_AREA)
@@ -409,7 +437,7 @@ async def test_a_recased_value_is_kept_under_the_channels_spelling(
 
     assert result.matcher == GenericRagDocumentMatcher(
         filters=[
-            GenericRagDocumentFilter(statgpt_channel=_CHANNEL, parsed_reference_areas="Euro area")
+            GenericRagDocumentFilter(statgpt_channel=_CHANNEL, parsed_reference_areas=["Euro area"])
         ]
     )
 
@@ -417,14 +445,14 @@ async def test_a_recased_value_is_kept_under_the_channels_spelling(
 async def test_two_selections_folding_onto_one_value_make_one_entry(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Both are one requirement, so keeping both would only duplicate the cross product."""
+    """Both are one requirement, so sending both would only repeat a value the field accepts."""
     result, _, _ = await _build(
         monkeypatch, {DiscoveryPreFilterAxis.REFERENCE_AREA: ["France", "france", " FRANCE "]}
     )
 
     assert result.matcher == GenericRagDocumentMatcher(
         filters=[
-            GenericRagDocumentFilter(statgpt_channel=_CHANNEL, parsed_reference_areas="France")
+            GenericRagDocumentFilter(statgpt_channel=_CHANNEL, parsed_reference_areas=["France"])
         ]
     )
     assert _report_of(result, DiscoveryPreFilterAxis.REFERENCE_AREA).grounded == ["France"]
@@ -437,7 +465,7 @@ async def test_a_padded_value_is_recovered_rather_than_dropped(
     result, _, _ = await _build(monkeypatch, {DiscoveryPreFilterAxis.AGENCY: ["  IMF ", "   "]})
 
     assert result.matcher == GenericRagDocumentMatcher(
-        filters=[GenericRagDocumentFilter(statgpt_channel=_CHANNEL, agency="IMF")]
+        filters=[GenericRagDocumentFilter(statgpt_channel=_CHANNEL, agency=["IMF"])]
     )
     assert _report_of(result, DiscoveryPreFilterAxis.AGENCY).selected == ["IMF"]
 
@@ -564,7 +592,7 @@ async def test_a_failed_vocabulary_search_costs_only_its_own_axis(
 
     assert result.matcher == GenericRagDocumentMatcher(
         filters=[
-            GenericRagDocumentFilter(statgpt_channel=_CHANNEL, parsed_reference_areas="France")
+            GenericRagDocumentFilter(statgpt_channel=_CHANNEL, parsed_reference_areas=["France"])
         ]
     )
     assert _report_of(result, DiscoveryPreFilterAxis.REFERENCE_AREA).offered == ["France"]
@@ -583,7 +611,7 @@ async def test_no_vocabulary_channel_leaves_the_other_axes_standing(
     )
 
     assert result.matcher == GenericRagDocumentMatcher(
-        filters=[GenericRagDocumentFilter(statgpt_channel=_CHANNEL, agency="IMF")]
+        filters=[GenericRagDocumentFilter(statgpt_channel=_CHANNEL, agency=["IMF"])]
     )
     for axis in (
         DiscoveryPreFilterAxis.REFERENCE_AREA,

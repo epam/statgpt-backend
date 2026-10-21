@@ -76,8 +76,7 @@ class DiscoveryPreFilterConfig(BaseYamlModel):
         default=20,
         description=(
             "How many reference-area candidates the vocabulary search offers the model, per area"
-            " axis. Bounds both the prompt and, with the other axes, the number of filters a"
-            " search carries."
+            " axis. Bounds the prompt and how many areas an axis can narrow the search to."
         ),
     )
     llm_model_config: LLMModelConfig = Field(default_factory=LLMModelConfig)
