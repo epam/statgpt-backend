@@ -15,6 +15,7 @@ to match against the sources note of a tool response, and never names two source
 conversation, whichever tool cited them.
 """
 
+import itertools
 import re
 import secrets
 import string
@@ -145,8 +146,8 @@ def to_plain_text_references(content: str, annotations: Sequence[dict[str, Any]]
     gets no annotations to resolve the tags with, such as an MCP client.
 
     `annotations` are the annotations relayed with `content`. Each cited tag becomes `[1]`, `[2]`,
-    ..., in the order the tags were first claimed, and the references are listed after the
-    content, each distinct source of a tag once. A tag that cites nothing is dropped.
+    ..., in the order the tags first appear in `content`, and the references are listed after the
+    content by number, each distinct source of a tag once. A tag that cites nothing is dropped.
 
     No pill names the cited file to such a client, so a reference falls back to the title of the
     file if the citation card has none, and gives the url of the file if the client can open it.
@@ -163,13 +164,22 @@ def to_plain_text_references(content: str, annotations: Sequence[dict[str, Any]]
             if (tag_id := get_tag_id(annotation)) is not None
         )
     )
-    numbers = {tag_id: n for n, tag_id in enumerate(dict.fromkeys(r.tag_id for r in references), 1)}
+    claimed = {r.tag_id for r in references}
+    # Numbered as the text shows the tags, so that it reads `[1]`, `[2]`, ...: the order of the
+    # annotations need not match it. A claimed tag the text does not show comes last.
+    in_text = (m['id'] for m in _CITATION_TAG.finditer(content) if m['id'] in claimed)
+    order = dict.fromkeys(itertools.chain(in_text, (r.tag_id for r in references)))
+    numbers = {tag_id: n for n, tag_id in enumerate(order, 1)}
     text = _CITATION_TAG.sub(
         lambda m: f'{m["space"]}[{numbers[m["id"]]}]' if m['id'] in numbers else '', content
     )
     if not numbers:
         return text
-    lines = '\n'.join(_format_reference(numbers[r.tag_id], r) for r in references)
+    # The sources of one tag together, in the order they were claimed: the sort is stable.
+    lines = '\n'.join(
+        _format_reference(numbers[r.tag_id], r)
+        for r in sorted(references, key=lambda r: numbers[r.tag_id])
+    )
     return f'{text}\n\n### References:\n\n{lines}'
 
 

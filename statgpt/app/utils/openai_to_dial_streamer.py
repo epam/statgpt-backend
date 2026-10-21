@@ -217,6 +217,9 @@ class OpenAiToDialStreamer:
         self._content += content
 
         if self._stream_content:
+            # TODO: renumber the citation tags streamed here once DIAL Chat resolves the tags of a
+            # stage (epam/ai-dial-chat#9257). They keep the ids of the sub-deployment, which match
+            # no relayed annotation, and the annotations claiming them may not have arrived yet.
             self._target.append_content(content)
 
     def _process_custom_content(self, custom_content: dict[str, Any]) -> None:
@@ -348,6 +351,8 @@ class OpenAiToDialStreamer:
             self._stages[index].append_name(name)
 
         if content := stage.get('content'):
+            # TODO: likewise for the citation tags of the sub-deployment's own stages, relayed
+            # with their ids unchanged (see `_process_content`, epam/ai-dial-chat#9257).
             self._stages[index].append_content(content)
 
         if attachments := stage.get('attachments'):

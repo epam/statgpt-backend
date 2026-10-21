@@ -185,6 +185,35 @@ class TestPlainTextReferences:
             '- [2] "Inflation fell."'
         )
 
+    def test_numbers_the_tags_in_the_order_the_text_shows_them(self):
+        """The annotations may claim the tags in another order; the text still reads [1], [2]."""
+        annotations = [_cited("c2", title="Review, page 17"), _cited("c1", title="Report, page 3")]
+
+        assert to_plain_text_references(self._CONTENT, annotations) == (
+            'GDP rose [1]. Inflation fell [2].\n\n'
+            '### References:\n\n'
+            '- [1] Report, page 3\n'
+            '- [2] Review, page 17'
+        )
+
+    def test_lists_the_sources_of_a_tag_together(self):
+        annotations = [
+            _cited("c1", title="Report, page 3"),
+            _cited("c2", title="Review, page 17"),
+            _cited("c1", title="Report, page 5"),
+        ]
+
+        assert to_plain_text_references(self._CONTENT, annotations).endswith(
+            '- [1] Report, page 3\n- [1] Report, page 5\n- [2] Review, page 17'
+        )
+
+    def test_a_claimed_tag_the_text_does_not_show_comes_last(self):
+        annotations = [_cited("c9", title="Annex"), _cited("c1", title="Report, page 3")]
+
+        assert to_plain_text_references('GDP rose <cit data-id="c1"></cit>.', annotations) == (
+            'GDP rose [1].\n\n### References:\n\n- [1] Report, page 3\n- [2] Annex'
+        )
+
     def test_names_and_links_the_cited_file(self):
         """No pill names the cited file to the client, so the reference does: by the title of
         the file if the citation card has none, and by its url."""
