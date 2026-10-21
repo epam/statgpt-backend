@@ -405,6 +405,14 @@ class DeepResearchDetails(BaseToolDetails, RewriteRulesMixin):
             " suits Deep Research."
         ),
     )
+    report_delivered_message_to_agent: str | None = Field(
+        default=None,
+        description=(
+            "The system message the agent gets right after Deep Research delivers its final report."
+            " It is saved with the report's turn, so later turns see it too. If not set or empty, the"
+            " default message is used."
+        ),
+    )
 
     def get_deployment_id(self) -> str:
         return config_utils.replace_env(self.deployment_id_raw)
