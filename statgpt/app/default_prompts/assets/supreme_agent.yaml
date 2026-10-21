@@ -232,14 +232,5 @@ deepResearchReportDeliveredMessageToAgent: |-
   session has ended. Handle later requests as regular requests unless the user enables Deep Research
   mode again.
 
-  When you search publications after the report, write dates in the search query so that the
-  publication filter can use them:
-  - For information newer than the report, find the newest publication date in the report's
-    References table (check every row; the table is not sorted by date) and write "published after
-    <that date>", e.g. "published after 19 November 2025".
-  - To check what a publication from the References says, write "in publications published between
-    <date> and <date>" with its publication date twice, e.g. "In publications published between
-    29 April 2025 and 29 April 2025, does <publication title> state that ...?".
-
 deepResearchReportAnswerPlaceholder: |-
   I delivered the Deep Research report above to the user verbatim.
