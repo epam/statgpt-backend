@@ -38,9 +38,10 @@ _ACTIVE_STATUSES = (
 class AdminPortalDiscoveryIndexingJobService(DbServiceBase):
     """Creates, reports on, and runs indexing jobs over a channel's discovery datasets.
 
-    Owns the run's two stages: validate every record, then reconcile the channel's Generic
-    RAG documents with them. Only the sequencing lives here - what a record becomes, and
-    what happens to its document, belongs to `DiscoveryPublisher`.
+    Owns the run's stages: validate every record, derive what each valid one publishes as its
+    indicator list, then reconcile the channel's Generic RAG documents with them. Only the
+    sequencing lives here - what a record becomes, and what happens to its document, belongs
+    to `DiscoveryPublisher`.
     """
 
     def __init__(self, session: AsyncSession | None = None) -> None:
@@ -186,7 +187,7 @@ class AdminPortalDiscoveryIndexingJobService(DbServiceBase):
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~ the run ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
     async def process_job(self, job_id: int, force: bool = False) -> None:
-        """Run a job to completion: validate every record, then publish the valid ones.
+        """Run a job to completion: validate every record, derive, then publish the valid ones.
 
         A per-record failure never aborts the run; it is recorded on the record. Only a
         failure of the run itself marks the job FAILED.
@@ -205,12 +206,14 @@ class AdminPortalDiscoveryIndexingJobService(DbServiceBase):
                     job.channel_id, limit=None, offset=0
                 )
                 valid, invalid = self._validate_records(records)
+                self._derive_indicator_summaries(records)
 
                 job.records_total = len(records)
                 job.records_valid = valid
                 job.records_invalid = invalid
-                # Commit the verdicts before the network stage: they are established, and a
-                # publish stage that dies should not take them down with it.
+                # Commit the verdicts and what was derived from them before the network
+                # stage: they are established, and a publish stage that dies should not take
+                # them down with it.
                 await session.commit()
 
                 counts, vocabulary = await self._publish_records(channel, records, force=force)
@@ -261,6 +264,25 @@ class AdminPortalDiscoveryIndexingJobService(DbServiceBase):
                 valid += 1
 
         return valid, invalid
+
+    @staticmethod
+    def _derive_indicator_summaries(records: list[models.DiscoveryDataset]) -> None:
+        """Fill in what each valid record publishes as its indicator list, in place.
+
+        A verbatim copy of the submitted list today. It is a stage of the run rather than an
+        assignment on the write path because the derivation is about to stop being a copy: a
+        long list has to be collapsed into indicator groups before it is indexed, and that is
+        an LLM call per record, which an upload request cannot absorb.
+
+        Only valid records, and only where the two columns differ - an unchanged record must
+        not be rewritten, since an untouched record is what tells the publisher it has nothing
+        to do.
+        """
+        for record in records:
+            if record.validation_status is not schemas.DiscoveryValidationStatus.VALID:
+                continue
+            if record.indicators_summary != record.indicators_coverage:
+                record.indicators_summary = record.indicators_coverage
 
     async def _publish_records(
         self, channel: models.Channel, records: list[models.DiscoveryDataset], force: bool

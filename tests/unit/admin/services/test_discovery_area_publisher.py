@@ -17,7 +17,7 @@ from statgpt.admin.services.discovery_area_publisher import (
     area_roles,
     document_filename,
 )
-from statgpt.admin.services.discovery_upload import COLUMN_FIELDS
+from statgpt.admin.services.discovery_upload import RECORD_FIELDS
 from statgpt.admin.services.exceptions import (
     DiscoveryMetadataSchemaError,
     DiscoveryReferenceAreaIndexingError,
@@ -42,7 +42,7 @@ def _record(
     item_id: int = 1,
     status: DiscoveryValidationStatus = DiscoveryValidationStatus.VALID,
 ) -> models.DiscoveryDataset:
-    values: dict[str, object] = {name: "" for name in COLUMN_FIELDS}
+    values: dict[str, object] = {name: "" for name in RECORD_FIELDS}
     values.update(id=item_id, reference_area=reference_area, validation_status=status)
     return cast(models.DiscoveryDataset, SimpleNamespace(**values))
 

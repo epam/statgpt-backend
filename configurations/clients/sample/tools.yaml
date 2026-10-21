@@ -258,11 +258,9 @@ tools:
             - Dataset ID: {dataset_id}
             - Reference area: {reference_area}
             - Regional coverage: {regional_coverage}
-            - Excluded regional values: {excluded_regional_values}
             - Time coverage: {time_coverage}
             - Frequency coverage: {frequency_coverage}
             - Indicators coverage: {indicators_coverage}
-            - Missing indicators: {missing_indicators}
 
   - type: sdmx_query_app
     <<: *shared_settings

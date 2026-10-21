@@ -21,6 +21,7 @@ Usage:
 
 import argparse
 import json
+import re
 import sys
 from pathlib import Path
 from typing import Any
@@ -42,16 +43,79 @@ query's reference areas are resolved against before the records are searched.
 """
 
 
+_DECODER = json.JSONDecoder()
+_WHITESPACE = re.compile(r"[ \t\n\r]*")
+_DEFAULT_INDENT = 2
+
+
+def _skip_whitespace(text: str, position: int) -> int:
+    match = _WHITESPACE.match(text, position)
+    assert match is not None  # the pattern matches the empty string
+    return match.end()
+
+
+def _member_span(text: str, start: int, key: str) -> tuple[int, int] | None:
+    """Locate the value of `key` among the members of the object opening at `start`.
+
+    Walks the object's direct members only, so a same-named key nested deeper is never taken
+    for it. The last occurrence wins, as it does when the file is loaded.
+    """
+    span = None
+    position = _skip_whitespace(text, start + 1)
+    while text[position] != "}":
+        name, position = _DECODER.raw_decode(text, position)
+        value_start = _skip_whitespace(text, _skip_whitespace(text, position) + 1)
+        _, value_end = _DECODER.raw_decode(text, value_start)
+        if name == key:
+            span = value_start, value_end
+        position = _skip_whitespace(text, value_end)
+        if text[position] == ",":
+            position = _skip_whitespace(text, position + 1)
+    return span
+
+
+def _render_in_place(text: str, start: int, end: int, value: Any) -> str:
+    """Render `value` to replace `text[start:end]`, laid out the way the file already is."""
+    newline = "\r\n" if "\r\n" in text else "\n"
+    line_start = text.rfind("\n", 0, start) + 1
+    indent = text[line_start : _skip_whitespace(text, line_start)]
+    old = text[start:end]
+    step = _DEFAULT_INDENT
+    if "\n" in old:
+        inner = old.split("\n", 1)[1]
+        step = len(inner) - len(inner.lstrip(" ")) - len(indent) or _DEFAULT_INDENT
+    return json.dumps(value, indent=step, ensure_ascii=False).replace("\n", newline + indent)
+
+
 def _patch(config_path: Path, application: str, schema: dict[str, Any]) -> None:
-    config = json.loads(config_path.read_text(encoding="utf-8"))
-    applications = config.get("applications", {})
+    """Replace the application's metadata schema, leaving every other byte of the file as is.
+
+    The config is hand-maintained, so rewriting it whole would reformat what this has no
+    business touching.
+    """
+    text = config_path.read_bytes().decode("utf-8")
+    applications = json.loads(text).get("applications", {})
     if application not in applications:
         known = ", ".join(sorted(applications)) or "none"
         sys.exit(f"No application {application!r} in {config_path}. Found: {known}.")
 
-    applications[application].setdefault("applicationProperties", {})
-    applications[application]["applicationProperties"]["metadata_schema"] = schema
-    config_path.write_text(json.dumps(config, indent=2) + "\n", encoding="utf-8")
+    start, end = 0, 0
+    object_start = _skip_whitespace(text, 0)
+    for key in ("applications", application, "applicationProperties", "metadata_schema"):
+        span = _member_span(text, object_start, key)
+        if span is None:
+            sys.exit(
+                f"{application!r} in {config_path} has no applicationProperties.metadata_schema"
+                ' to replace. Add an empty one ("metadata_schema": {}) and run this again.'
+            )
+        start, end = span
+        object_start = start
+
+    rendered = _render_in_place(text, start, end, schema)
+    if text[start:end] == rendered:
+        print(f"The metadata schema of {application!r} in {config_path} is up to date.")
+        return
+    config_path.write_bytes((text[:start] + rendered + text[end:]).encode("utf-8"))
     print(f"Updated the metadata schema of {application!r} in {config_path}.")
 
 

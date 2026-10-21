@@ -18,7 +18,7 @@ from statgpt.admin.services.discovery_publisher import (
     render_document_body,
     withdraw_documents,
 )
-from statgpt.admin.services.discovery_upload import COLUMN_FIELDS
+from statgpt.admin.services.discovery_upload import RECORD_FIELDS
 from statgpt.admin.services.exceptions import DiscoveryMetadataSchemaError
 from statgpt.common import models
 from statgpt.common.schemas import (
@@ -37,7 +37,6 @@ _CHANNEL = "statgpt-gtdc"
 _FULL_RECORD = {
     "reference_area": "Indonesia (IDN)",
     "regional_coverage": "None",
-    "excluded_regional_values": "",
     "agency": "Bank Indonesia (BI)",
     "dataset_id": "TABEL1_1",
     "name": "I.1. Broad Money and its Affecting Factors",
@@ -46,13 +45,14 @@ _FULL_RECORD = {
     "time_coverage": "From 1989-01 to 2026-06",
     "frequency_coverage": "Monthly",
     "indicators_coverage": "broad money (M2) (Rp billions)",
+    "indicators_summary": "broad money (M2) (Rp billions)",
     "missing_indicators": "policy interest rates",
 }
 
 
 def _record(**overrides: object) -> models.DiscoveryDataset:
     """A stand-in for a stored row, carrying only the columns the publisher touches."""
-    values: dict[str, object] = {name: "" for name in COLUMN_FIELDS}
+    values: dict[str, object] = {name: "" for name in RECORD_FIELDS}
     values.update(_FULL_RECORD)
     values.update(
         id=1,
@@ -226,9 +226,25 @@ def test_the_metadata_carries_every_field_except_the_description() -> None:
     assert dumped["statgpt_channel"] == _CHANNEL
     for field, value in _FULL_RECORD.items():
         if field == "description":
+            # The body, not metadata.
+            assert field not in dumped
+        elif field == "indicators_summary":
+            # Travels under the `indicators_coverage` key - see the test below.
             assert field not in dumped
         else:
             assert dumped[field] == value
+
+
+def test_the_published_indicator_list_is_the_derived_one() -> None:
+    """The raw list stays on the record; what the run derived from it is what is indexed."""
+    record = _record(
+        indicators_coverage="one of nine thousand names; another one",
+        indicators_summary="monetary aggregates; interest rates",
+    )
+
+    metadata = build_metadata(record, _CHANNEL, DiscoveryGrade.C)
+
+    assert metadata.indicators_coverage == "monetary aggregates; interest rates"
 
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~ matching documents to records ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
