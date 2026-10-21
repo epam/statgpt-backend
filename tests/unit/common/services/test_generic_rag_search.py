@@ -91,6 +91,37 @@ async def test_the_matcher_is_sent_as_a_metadata_filter() -> None:
     assert json.loads(bodies[1])["matcher"] == {"filters": [{"statgpt_channel": "statgpt-gtdc"}]}
 
 
+async def test_several_values_on_one_field_are_sent_as_one_list() -> None:
+    """The service reads a list as "any of these", so one entry carries a whole axis."""
+    bodies: list[bytes] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        bodies.append(request.content)
+        return httpx.Response(200, json=[])
+
+    matcher = GenericRagDocumentMatcher(
+        filters=[
+            GenericRagDocumentFilter(
+                statgpt_channel="statgpt-gtdc",
+                parsed_reference_areas=["France", "Germany"],
+                agency=["IMF"],
+            )
+        ]
+    )
+    async with _client(handler) as client:
+        await client.search_documents("q", limit=1, matcher=matcher)
+
+    assert json.loads(bodies[0])["matcher"] == {
+        "filters": [
+            {
+                "statgpt_channel": "statgpt-gtdc",
+                "parsed_reference_areas": ["France", "Germany"],
+                "agency": ["IMF"],
+            }
+        ]
+    }
+
+
 async def test_search_returns_the_documents_in_the_order_the_service_gave_them() -> None:
     """The order is the only relevance signal: the endpoint returns no scores."""
 
