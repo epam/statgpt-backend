@@ -23,9 +23,10 @@ from unittest.mock import AsyncMock, MagicMock
 
 import httpx
 import pytest
+from aidial_sdk.chat_completion import CustomContent
 from aidial_sdk.chat_completion import Message as DialMessage
 from aidial_sdk.chat_completion import Role
-from langchain_core.messages import AIMessageChunk, SystemMessage
+from langchain_core.messages import AIMessage, AIMessageChunk, SystemMessage
 from langchain_core.runnables import RunnableLambda
 from openai import APIError, OpenAIError
 from openai.types.chat import ChatCompletionChunk
@@ -53,6 +54,7 @@ _DISABLED_MESSAGE_TO_AGENT = supreme_agent_default_prompts.deep_research_disable
 _REPORT_DELIVERED_MESSAGE_TO_AGENT = (
     supreme_agent_default_prompts.deep_research_report_delivered_message_to_agent
 )
+_REPORT_ANSWER_PLACEHOLDER = supreme_agent_default_prompts.deep_research_report_answer_placeholder
 
 
 @pytest.fixture(autouse=True)
@@ -188,6 +190,7 @@ def _dr_chunk(
     content: str | None = None,
     state: dict | None = None,
     attachments: list[dict] | None = None,
+    annotations: list[dict] | None = None,
 ) -> ChatCompletionChunk:
     delta: dict = {}
     if content is not None:
@@ -197,6 +200,8 @@ def _dr_chunk(
         custom_content["state"] = state
     if attachments is not None:
         custom_content["attachments"] = attachments
+    if annotations is not None:
+        custom_content["annotations"] = annotations
     if custom_content:
         delta["custom_content"] = custom_content
     return ChatCompletionChunk.model_validate(
@@ -565,6 +570,65 @@ async def test_report_delivered_verbatim_with_attachments(monkeypatch):
     assert len(choice.attachments) == 1
     assert choice.attachments[0]["type"] == "text/markdown"
     assert choice.attachments[0]["title"] == "Report.md"
+
+
+_CITED = 'GDP rose <cit data-id="3f9a0c1b2d4e"></cit>.'
+# A document citation in the shape Deep Research sends it.
+_CITATION = {
+    "index": 0,
+    "target": {"selector": {"type": "html_tag", "tag": "cit", "id": "3f9a0c1b2d4e"}},
+    "body": {
+        "title": "Report.pdf, page 3",
+        "source": {
+            "type": "attachment",
+            "attachment": {
+                "type": "application/pdf",
+                "url": "files/bucket/Report.pdf",
+                "title": "Report.pdf, page 3",
+            },
+        },
+        "selector": {"type": "pdf_bbox", "page": 3, "x1": 0, "y1": 0, "x2": 0, "y2": 0},
+    },
+}
+
+
+async def test_report_tool_response_describes_its_citation_tags_to_the_agent_only(monkeypatch):
+    """The report stays in the agent's history as the tool response, which names the source of
+    each citation tag; the report shown to the user, and returned as the turn's answer, carries no
+    such note."""
+    _patch_scripted_agent(
+        monkeypatch,
+        [_tool_call_chunk("resume_deep_research", {"message": "approved"})],
+    )
+    report = [
+        _dr_chunk(content=_CITED, annotations=[_CITATION]),
+        _dr_chunk(state={"preparation": {"research_started": True}}),
+    ]
+    _patch_dr_deployment(monkeypatch, [report], {})
+    state = _session_state(
+        DeepResearchTurn(user_message="give me US GDP", assistant_content="plan?")
+    )
+
+    choice = _RecordingChoice()
+    inputs = _inputs(state, "approve", choice=choice)
+    content = await SupremeAgentExecutor(_channel_config()).stream_response(inputs)
+
+    inputs[ChainParametersConfig.HISTORY].dump_state(state)
+    [tool_response] = [m for m in state[StateVarsConfig.TOOL_MESSAGES] if m.get("type") == "tool"]
+    assert tool_response["content"] == (
+        f'{_CITED}\n\n'
+        '### Sources of the citation tags:\n\n'
+        '```json\n[{"id": "3f9a0c1b2d4e", "title": "Report.pdf, page 3"}]\n```'
+    )
+    assert choice.content == _CITED
+    assert content == _CITED
+    # The bare report rides on the artifact only: persisting it would store the report twice.
+    assert "report" not in tool_response["custom_content"]["state"]
+    # Nor is it logged twice: `ToolCaller.call_tool` logs the tool message's repr.
+    [tool_msg] = [
+        m for m in inputs[ChainParametersConfig.HISTORY].get_tool_messages() if m.type == "tool"
+    ]
+    assert repr(tool_msg).count(_CITED) == 1
 
 
 async def test_forced_start_error_is_surfaced_once_and_session_untouched(monkeypatch):
@@ -960,6 +1024,48 @@ async def test_report_delivery_tells_agent_deep_research_mode_was_disabled(monke
     history.dump_state(state)
     assert state[StateVarsConfig.TOOL_MESSAGES][-1]["type"] == "system"
     assert state[StateVarsConfig.TOOL_MESSAGES][-1]["content"] == _REPORT_DELIVERED_MESSAGE_TO_AGENT
+
+
+async def test_report_reaches_the_agent_once_on_later_turns(monkeypatch):
+    """On later turns the agent reads the report once, as its tool response: the report message is
+    replaced there with a placeholder. Without tool messages (the guardrails, the Deep Research
+    query check), the history keeps the report message, as the tool response is not there."""
+    _patch_scripted_agent(monkeypatch, [_tool_call_chunk("deep_research", {"query": "US GDP"})])
+    _patch_dr_deployment(monkeypatch, [_report("Final report.")], {})
+
+    state = {StateVarsConfig.SHOW_DEBUG_STAGES: False}
+    inputs = _inputs(state, "research US GDP")
+    content = await SupremeAgentExecutor(_channel_config()).stream_response(inputs)
+    inputs[ChainParametersConfig.HISTORY].dump_state(state)
+
+    # The next turn's history, rebuilt from the messages the client sends back.
+    history = History(
+        messages=[
+            DialMessage(role=Role.USER, content="hi"),
+            DialMessage(role=Role.ASSISTANT, content="Hello."),
+            DialMessage(role=Role.USER, content="research US GDP"),
+            DialMessage(
+                role=Role.ASSISTANT,
+                content=content,
+                custom_content=CustomContent(state=json.loads(json.dumps(state))),
+            ),
+            DialMessage(role=Role.USER, content="Where does the 2024 figure come from?"),
+        ]
+    )
+
+    messages = history.get_langchain_messages(include_tool_messages=True)
+    assert [m.type for m in messages if "Final report." in m.content] == ["tool"]
+    assert messages[-2] == AIMessage(content=_REPORT_ANSWER_PLACEHOLDER)
+    # Other assistant messages are kept as they are.
+    assert messages[1] == AIMessage(content="Hello.")
+
+    assert [m.content for m in history.get_langchain_messages(include_tool_messages=False)] == [
+        "hi",
+        "Hello.",
+        "research US GDP",
+        "Final report.",
+        "Where does the 2024 figure come from?",
+    ]
 
 
 async def test_resume_turn_is_not_checked(monkeypatch, query_check):

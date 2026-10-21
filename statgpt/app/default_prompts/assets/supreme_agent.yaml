@@ -231,3 +231,6 @@ deepResearchReportDeliveredMessageToAgent: |-
   Deep Research mode was disabled: Deep Research delivered its final report to the user, and the
   session has ended. Handle later requests as regular requests unless the user enables Deep Research
   mode again.
+
+deepResearchReportAnswerPlaceholder: |-
+  I delivered the Deep Research report above to the user verbatim.
