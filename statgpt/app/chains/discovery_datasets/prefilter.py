@@ -12,8 +12,9 @@ existed. The caller gets a matcher or `None`, never an exception.
 
 Two properties of the RAG channel's filter language shape the result:
 
-A filter entry carries one value per field and entries are OR-ed, so several values on several
-axes are a cross product of entries rather than one entry holding lists.
+A field of a filter entry takes a list of values and matches any of them, the fields of an entry
+are AND-ed and entries are OR-ed - so each axis is one field carrying everything selected on it,
+and one entry holding every axis is "in one of these countries, at one of these frequencies".
 
 The values a request may carry are exactly the ones the channel currently holds - the service
 types each filterable field as a `Literal` over its own dimensions. A value outside them fails
@@ -22,12 +23,11 @@ with `dimensions` before it is allowed into a matcher.
 
 The two area axes are the one place where axes are not independent. A record covering the United
 States as its subject and one covering it as a trade partner are both answers to a query naming
-it, so the two are alternatives to each other: they contribute to the same slot of the cross
-product rather than being multiplied together, which would demand both at once.
+it, so the two are alternatives to each other: each becomes an entry of its own, carrying the
+other axes too, rather than a second field of one entry, which would demand both at once.
 """
 
 import asyncio
-import itertools
 import logging
 from collections.abc import Sequence
 from dataclasses import dataclass, field
@@ -77,14 +77,11 @@ not a value the partner axis may narrow by, and offering it would spend the voca
 limit on candidates grounding would drop anyway.
 """
 
-_AREA_GROUP = "reference_area"
-"""The cross-product slot the two area axes share - see `_cross_product`."""
-
 _UNCONFIGURED_VOCABULARY = "no reference-area vocabulary is configured for this channel"
 _UNREADABLE_VOCABULARY = "the reference-area vocabulary could not be read"
 
-_Assignment = tuple[str, str]
-"""One filterable field and the single value an entry may carry on it."""
+_Assignments = dict[str, list[str]]
+"""Filterable fields and the values an entry accepts on each, any of which matches."""
 
 _dimensions_cache: AsyncLoadingCache[dict[str, list[str]]] = AsyncLoadingCache(
     ttl=dial_app_settings.discovery_datasets_pre_filter_dimensions_ttl
@@ -182,20 +179,25 @@ class DiscoveryPreFilterBuilder:
         offered = {axis: self._offered(axis, dimensions, areas) for axis in axes}
         selections = await self._select(query, auth_context, axes, offered)
 
-        groups: dict[str, list[_Assignment]] = {}
+        shared: _Assignments = {}
+        alternatives: list[_Assignments] = []
         for axis in axes:
             axis_report = DiscoveryPreFilterAxisReport(
                 axis=axis, offered=offered[axis], selected=selections.get(axis, [])
             )
             if (vocabulary := areas.get(axis)) is not None:
                 axis_report.error = vocabulary.reason
-            assignments = self._ground(axis, axis_report.selected, dimensions)
-            axis_report.grounded = sorted({value for _, value in assignments})
+            axis_report.grounded = self._ground(axis, axis_report.selected, dimensions)
             report.axes.append(axis_report)
-            if assignments:
-                groups.setdefault(_group_of(axis), []).extend(assignments)
+            if not axis_report.grounded:
+                continue
+            assignment = {_AXIS_FIELDS[axis]: axis_report.grounded}
+            if axis in _AREA_AXIS_ROLES:
+                alternatives.append(assignment)
+            else:
+                shared.update(assignment)
 
-        filters = self._cross_product(channel, list(groups.values()))
+        filters = self._entries(channel, shared, alternatives)
         report.filters = len(filters)
         if not filters:
             report.fallback_reason = (
@@ -424,8 +426,8 @@ class DiscoveryPreFilterBuilder:
         axis: DiscoveryPreFilterAxis,
         selected: Sequence[str],
         dimensions: dict[str, list[str]],
-    ) -> list[_Assignment]:
-        """The field assignments one axis's selection is allowed to produce.
+    ) -> list[str]:
+        """The values one axis's selection is allowed to put on its field, in selection order.
 
         A value is kept only if the target field's dimensions hold it, and it is kept under the
         channel's own spelling: the service compares filter values exactly, so a re-cased answer
@@ -435,45 +437,42 @@ class DiscoveryPreFilterBuilder:
         given the values verbatim and usually returns them verbatim, but a re-cased answer is a
         correct answer, and dropping it would narrow nothing where it should narrow well.
         """
-        name = _AXIS_FIELDS[axis]
-        known = {value.casefold(): value for value in dimensions.get(name, [])}
+        known = {value.casefold(): value for value in dimensions.get(_AXIS_FIELDS[axis], [])}
         # De-duplicated: two selections folding onto one channel value are one requirement, and
-        # keeping both would multiply the cross product by entries identical to each other.
+        # sending both would only repeat a value the field already accepts.
         grounded: dict[str, None] = {}
         for value in selected:
             canonical = known.get(value.casefold())
             if canonical is not None:
                 grounded.setdefault(canonical, None)
-        return [(name, value) for value in grounded]
+        return list(grounded)
 
     @staticmethod
-    def _cross_product(
-        channel: str, groups: Sequence[Sequence[_Assignment]]
+    def _entries(
+        channel: str, shared: _Assignments, alternatives: Sequence[_Assignments]
     ) -> list[GenericRagDocumentFilter]:
-        """Every combination of one assignment per surviving group, as one filter entry each.
+        """The matcher's filter entries: one per alternative, each also carrying `shared`.
 
-        The entries are OR-ed by the service and the fields within an entry are AND-ed, so this
-        is what "in one of these countries, at one of these frequencies" has to be expressed as.
-
-        A group is one requirement the query makes, which is not always one axis: covering an
-        area as a subject and covering it as a partner are two ways of satisfying "about this
-        country", so the two area axes arrive here as one group and become alternative entries
-        instead of a demand for both at once.
+        A field matches any of the values it carries and the fields of an entry are AND-ed, so
+        every axis that is a requirement of its own fits in one entry. Only the area axes are
+        not: covering an area as a subject and covering it as a partner are two ways of
+        satisfying "about this country", so each is an entry of its own - the service OR-s them -
+        instead of a demand for both at once. That bounds a matcher at two entries, however many
+        values each axis selected.
 
         The channel scope is repeated in every entry: without it, one entry would let another
         channel's documents through the whole matcher.
         """
-        if not groups:
+        if not shared and not alternatives:
             return []
+        # Validated from a mapping rather than spread into the constructor, whose typed signature
+        # cannot take one mapping for both the scalar channel scope and the list-typed axes.
         return [
-            GenericRagDocumentFilter(statgpt_channel=channel, **dict(combination))
-            for combination in itertools.product(*groups)
+            GenericRagDocumentFilter.model_validate(
+                {"statgpt_channel": channel, **shared, **alternative}
+            )
+            for alternative in alternatives or [{}]
         ]
-
-
-def _group_of(axis: DiscoveryPreFilterAxis) -> str:
-    """Which of the query's requirements an axis helps satisfy - see `_cross_product`."""
-    return _AREA_GROUP if axis in _AREA_AXIS_ROLES else axis.value
 
 
 def _values_of(answer: object) -> list[str]:
