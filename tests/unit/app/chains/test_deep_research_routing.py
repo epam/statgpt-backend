@@ -782,8 +782,8 @@ async def test_failed_turn_with_state_is_kept_in_session(monkeypatch):
 
 
 async def test_failure_without_state_keeps_the_earlier_failed_turn(monkeypatch):
-    """A failure that sent no state, e.g. while the quota is still exhausted, leaves the session
-    as it was."""
+    """A failure that sent no state, e.g. when Deep Research could not be reached, leaves the
+    session as it was."""
     _patch_scripted_agent(
         monkeypatch, [_tool_call_chunk("resume_deep_research", {"message": "continue"})]
     )

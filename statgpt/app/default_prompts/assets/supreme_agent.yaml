@@ -234,10 +234,9 @@ deepResearchReportDeliveredMessageToAgent: |-
 
 deepResearchFailedMessageToAgent: |-
   The Deep Research call above failed with an error before it finished, and nothing of it was
-  delivered to the user. The Deep Research session and its progress were kept.
+  delivered to the user.
   - If the user asks to continue or to retry, call `{resume_tool_name}` and pass the request on.
-  - If the user asks what happened, say that the research stopped because of an error, and that it
-    can be continued.
+  - If the user asks what happened, say that the research stopped because of an error.
 
 deepResearchReportAnswerPlaceholder: |-
   I delivered the Deep Research report above to the user verbatim.

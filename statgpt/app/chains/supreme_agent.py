@@ -671,8 +671,8 @@ class SupremeAgentExecutor:
                 status=ToolResponseStatus.ERROR.value,
             )
         )
-        # No session means the run's first call failed before Deep Research sent a state, so there is
-        # nothing to resume and the next turn starts a new run.
+        # No session means Deep Research sent no state with this failure and no earlier turn created a
+        # session, for example when Deep Research could not be reached. The next turn starts a new run.
         if DeepResearchSession.from_state(ChainParameters.get_state(inputs)) is not None:
             history.add_tool_message(
                 SystemMessage(

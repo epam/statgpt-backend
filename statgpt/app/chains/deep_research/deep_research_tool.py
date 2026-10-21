@@ -196,8 +196,9 @@ class DeepResearchRunner:
         the turn and is delivered to the user as a DIAL error carrying the deployment's
         `display_message`. Other failures propagate so `ToolCaller.call_tool` records them in the
         tool state (an ERROR tool message) and the Supreme Agent surfaces the standard failure
-        message once. The session is left untouched so the user can retry, unless Deep Research
-        sent a state before failing: then the failed turn is kept, so the run can resume from it."""
+        message once. If Deep Research sent a state before a deployment failure, the failed turn is
+        kept with it, so Deep Research's next call sees it and decides whether to resume; otherwise
+        the session is left untouched for a retry."""
         auth_context = ChainParameters.get_auth_context(inputs)
         choice = ChainParameters.get_choice(inputs)
         target = ChainParameters.get_target(inputs)
@@ -280,7 +281,8 @@ class DeepResearchRunner:
             self._save_session(state, session)
             return DeepResearchTurnResult(content=content, report_delivered=False)
         except APIError as e:
-            # Deep Research sends its progress as the state before the error; keep it to resume.
+            # Deep Research sends a state before the error, with its saved progress or only a record
+            # that the turn failed; keep it so its next call sees it.
             if dial_streamer is not None and dial_streamer.state:
                 self._append_turn(session, user_message, dial_streamer.content, dial_streamer.state)
                 self._save_session(state, session)
