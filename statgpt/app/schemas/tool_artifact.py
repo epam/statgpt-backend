@@ -31,6 +31,17 @@ class DeepResearchArtifact(ToolArtifact):
     can end the turn without repeating the report (the tool streams it to the user directly)."""
 
     state: DeepResearchToolMessageState
+    report: str = Field(
+        default='',
+        description=(
+            "The final report as streamed to the user, without the citations note that the tool"
+            " response adds for the agent. Empty unless `state.report_delivered`. Not persisted to"
+            " the tool state."
+        ),
+        # Left out of the repr: the tool message's content already carries the report, and
+        # `ToolCaller.call_tool` logs the message's repr, artifact included.
+        repr=False,
+    )
 
 
 class DataQueryOutcome(BaseModel):

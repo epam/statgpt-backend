@@ -6,6 +6,7 @@ from typing import Any
 from aidial_sdk.chat_completion import Stage, Status
 from openai.types.chat import ChatCompletionChunk
 
+from statgpt.app.utils.citation_ids import Citation, get_source_quote, get_source_title, get_tag_id
 from statgpt.app.utils.custom_content_rewriter import CustomContentRewriter
 from statgpt.app.utils.dial_annotations import send_annotations
 from statgpt.app.utils.dial_stages import ChoiceI
@@ -95,6 +96,44 @@ class OpenAiToDialStreamer:
     def annotations(self) -> list[dict[str, Any]]:
         """The annotations relayed to the choice, as sent (rewritten and renumbered)."""
         return self._annotations
+
+    @property
+    def citations(self) -> list[Citation]:
+        """Every citation tag the relayed annotations claim, with the source it cites and the
+        passage it quotes.
+
+        Each distinct combination of tag id, title and quote is listed once, in the order first
+        seen, so each entry matches one card in the pill's popup. Annotations are not merged by
+        `index`, as Deep Research does not re-send one to extend it. An annotation that names no
+        source (see `get_source_title`) is listed with no title, so the agent is not left with an
+        id it cannot look up.
+        """
+        # One key per distinct (tag id, title, quote) combination. Each tuple is built from a single
+        # annotation, so its three values always belong together. `dict.fromkeys` drops a repeated
+        # key, and a dict keeps insertion order, so each entry stays where it was first seen.
+        # The keys are tuples because a plain pydantic model is not hashable.
+        keys = dict.fromkeys(
+            (tag_id, get_source_title(annotation), get_source_quote(annotation))
+            for annotation in self._annotations
+            if (tag_id := get_tag_id(annotation)) is not None
+        )
+        return [Citation(id=tag_id, title=title, quote=quote) for tag_id, title, quote in keys]
+
+    @property
+    def citations_note(self) -> str:
+        """The source of every citation tag of the content, to append to a tool response so the
+        agent can tell which source backs a statement. Empty if the content cites nothing.
+
+        A citation that quotes no passage, or names no source, leaves the field out; the rest of
+        the annotation, such as the cited file and page box, is left out to keep the response
+        small. The annotations relayed to the client are not affected.
+        """
+        if not (citations := self.citations):
+            return ''
+        citations_json = json.dumps(
+            [c.model_dump(exclude_none=True) for c in citations], ensure_ascii=False
+        )
+        return f'\n\n### Sources of the citation tags:\n\n```json\n{citations_json}\n```'
 
     @property
     def state(self) -> dict[str, Any] | None:
