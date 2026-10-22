@@ -11,6 +11,7 @@ from statgpt.app.chains.datasets_meta.availability_tool import (
     AvailabilityQueryArgs,
     build_availability_payload,
     build_availability_query,
+    partial_query_to_dict,
     unknown_dimension_ids,
     unknown_dimension_values,
     unknown_dimensions_message,
@@ -297,20 +298,21 @@ class AvailabilityQueryMcpTool(
         if dataset is None:
             raise _dataset_not_found_error(args.dataset_id, self._channel_config)
 
+        codes_by_dimension = partial_query_to_dict(args.partial_query)
         valid_ids = valid_dimension_ids(dataset)
-        unknown = unknown_dimension_ids(valid_ids, args.partial_query, args.include_dimensions)
+        unknown = unknown_dimension_ids(valid_ids, codes_by_dimension, args.include_dimensions)
         if unknown:
             # A caller error the model can fix: surface the helpful message as a ToolError rather
             # than a found result, so the invalid ids are not silently ignored.
             raise ToolError(unknown_dimensions_message(unknown, sorted(valid_ids)))
 
-        unknown_values = unknown_dimension_values(dataset, args.partial_query)
+        unknown_values = unknown_dimension_values(dataset, codes_by_dimension)
         if unknown_values:
             # Same rationale: an invalid code for a valid dimension is a fixable caller error, not a
             # result that found nothing.
             raise ToolError(unknown_values_message(unknown_values))
 
-        query = build_availability_query(args.partial_query)
+        query = build_availability_query(codes_by_dimension)
         result = await dataset.availability_query(query, self._auth_context)
 
         payload = build_availability_payload(
