@@ -58,8 +58,10 @@ def _require_sheet_name_safe(value: str) -> str:
         )
     forbidden = sorted({char for char in value if char in FORBIDDEN_DATASET_ID_CHARS})
     if forbidden:
+        # Quoted, so the punctuation of the sentence around them is not read as one more.
+        listed = " ".join(f'"{char}"' for char in forbidden)
         raise ValueError(
-            f"must not contain {' '.join(forbidden)}, since it also names the dataset's"
+            f"must not contain the characters {listed}, since it also names the dataset's"
             f" indicators sheet"
         )
     if value.startswith("'") or value.endswith("'"):
