@@ -12,7 +12,7 @@ def _record(dataset_id: str) -> DiscoveryDatasetBase:
     "dataset_id, reason",
     [
         ("X" * 32, "at most 31 characters"),
-        ("IMF/IFS", "must not contain /"),
+        ("IMF/IFS", 'must not contain the characters "/"'),
         ("'TABEL1_1", "apostrophe"),
         ("TABEL1_1'", "apostrophe"),
         ("History", "Excel reserves"),
@@ -22,6 +22,16 @@ def _record(dataset_id: str) -> DiscoveryDatasetBase:
 def test_an_id_no_sheet_can_be_named_after_is_refused(dataset_id: str, reason: str) -> None:
     with pytest.raises(ValidationError, match=reason):
         _record(dataset_id)
+
+
+def test_forbidden_characters_are_quoted_apart_from_the_sentence() -> None:
+    with pytest.raises(ValidationError) as excinfo:
+        _record("A:B?C[D")
+
+    assert excinfo.value.errors()[0]["msg"] == (
+        'Value error, must not contain the characters ":" "?" "[", since it also names the'
+        " dataset's indicators sheet"
+    )
 
 
 @pytest.mark.parametrize("dataset_id", ["X" * 31, "TABEL1_1", "it's", "History of prices"])
