@@ -12,6 +12,7 @@ from sdmx.session import ResponseIO
 from statgpt.common.auth.auth_context import AuthContext
 from statgpt.common.config import multiline_logger as logger
 from statgpt.common.data.base.sdmx_schemas import SdmxPlusAvailabilityRequestBody
+from statgpt.common.data.sdmx.common.json_reader import SdmxJsonDataReader
 from statgpt.common.data.sdmx.v21.ratelimiter import SdmxRateLimiter
 from statgpt.common.data.sdmx.v21.sdmx_client import AsyncSdmxClient
 from statgpt.common.data.statgpt_sdmx_proxy.config import StatGptSdmxProxyDataSourceConfig
@@ -19,7 +20,6 @@ from statgpt.common.data.statgpt_sdmx_proxy.sdmx_schemas.structure_message impor
     ProxyAgencySchemeResponseBody,
     ProxyAvailabilityResponseBody,
 )
-from statgpt.common.data.statgpt_sdmx_proxy.v30.reader import StatGptSdmxProxyDataReader
 from statgpt.common.utils import TtlCache
 
 
@@ -164,7 +164,7 @@ class AsyncStatGptSdmxProxyClient(AsyncSdmxClient):
             requests_response = self._convert_response(response, req)
             response_content: io.IOBase = ResponseIO(response)
             try:
-                msg = StatGptSdmxProxyDataReader().convert(response_content, structure=None)
+                msg = SdmxJsonDataReader().convert(response_content, structure=None)
                 msg.response = requests_response
             except Exception:
                 logger.error(
@@ -276,7 +276,7 @@ class AsyncStatGptSdmxProxyClient(AsyncSdmxClient):
         requests_response = self._convert_response(response, req)
         try:
             response_content: io.IOBase = ResponseIO(response)
-            msg = StatGptSdmxProxyDataReader().convert(response_content, structure=dsd)
+            msg = SdmxJsonDataReader().convert(response_content, structure=dsd)
             msg.response = requests_response
         except Exception:
             logger.error(

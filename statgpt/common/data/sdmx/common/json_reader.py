@@ -1,4 +1,8 @@
-"""SDMX-JSON data message reader supporting both proxy and standard SDMX 3.0 APIs.
+"""SDMX-JSON data message reader supporting SDMX-JSON 1.0 and both proxy and standard SDMX 3.0 APIs.
+
+Replaces :class:`sdmx.reader.json.Reader`, which resolves series attributes from the
+``dataSet`` attribute array, never attaches ``dataSet`` attributes, and discards
+attributes without values (shifting the positions of the following ones).
 
 Both the ``dimensionGroup`` attribute category and the ``dimensionGroupAttributes``
 data container are part of the standard SDMX-JSON 2.0.0 data schema — the schema
@@ -31,7 +35,17 @@ therefore supports both variants seen in practice:
    - Attribute/dimension value objects may carry additional ``name`` and
      ``description`` fields alongside ``id``.
 
-The reader normalises both variants so that downstream consumers receive
+3. **SDMX-JSON 1.0** (SDMX 2.1 APIs, e.g. QuantHub or IMF):
+
+   - The message has top-level ``header``, ``structure`` and ``dataSets`` instead of
+     ``meta`` and ``data``.
+   - Like the standard 2.0.0 variant, attributes related to a subset of the series
+     dimensions are listed under ``series``.  Some servers (e.g. IMF) list their values
+     in the structure but leave ``null`` in every series data array; such an attribute
+     is applied to all series when it has a single value (see
+     :meth:`SdmxJsonDataReader._make_unreferenced_series_attrs`).
+
+The reader normalises all variants so that downstream consumers receive
 identical :class:`~sdmx.model.v21.DataSet` objects regardless of which API
 produced the JSON.
 
@@ -82,12 +96,13 @@ are not accepted by :class:`Code` and would raise :exc:`TypeError`.
 """
 
 
-class StatGptSdmxProxyDataReader(Reader):
+class SdmxJsonDataReader(Reader):
     """Read SDMX-JSON and expose it as instances from :mod:`sdmx.model`.
 
     Handles group attributes carried in ``dimensionGroupAttributes`` (proxy
     SDMX-JSON, using the standard ``dimensionGroup`` category) as well as the
-    variant where servers fold those attributes under ``series`` instead.
+    variant where servers fold those attributes under ``series`` instead
+    (standard SDMX-JSON 2.0.0 and SDMX-JSON 1.0).
 
     See the module docstring for a detailed comparison of both formats.
     """
@@ -224,7 +239,9 @@ class StatGptSdmxProxyDataReader(Reader):
 
         ds_key = self._make_key("dataSet")
 
-        for ds in tree["data"]["dataSets"]:
+        # SDMX-JSON 1.0 has top-level ``dataSets``, 2.0 nests them under ``data``
+        datasets = tree["dataSets"] if "dataSets" in tree else tree["data"]["dataSets"]
+        for ds in datasets:
             msg.data.append(self.read_dataset(ds, ds_key))
 
         return msg
@@ -240,11 +257,14 @@ class StatGptSdmxProxyDataReader(Reader):
         # dimensions (e.g. per INDICATOR or per COUNTRY+INDICATOR).  Each group
         # is applied to every series whose key matches the group's partial key.
         dim_group_attrs = self._make_dimension_group_attrs(root.get("dimensionGroupAttributes", {}))
+        unreferenced_attrs = self._make_unreferenced_series_attrs(root.get("series", {}))
 
         # Process series
         for key_values, elem in root.get("series", {}).items():
             series_key = self._make_key("series", key_values, base=ds_key)
-            series_key.attrib = self._make_attrs("series", elem.get("attributes", []))
+            series_key.attrib = unreferenced_attrs | self._make_attrs(
+                "series", elem.get("attributes", [])
+            )
             for dim_filter, attrs in dim_group_attrs:
                 if self._series_matches_dimension_group(series_key, dim_filter):
                     series_key.attrib.update(attrs)
@@ -303,6 +323,29 @@ class StatGptSdmxProxyDataReader(Reader):
             av = self._attr_values[attr][index]
             result[av.value_for.id] = av
         return result
+
+    def _make_unreferenced_series_attrs(
+        self, series: dict[str, dict[str, Any]]
+    ) -> dict[str, AttributeValue]:
+        """Resolve ``series`` attributes that no series data array references.
+
+        Some servers (e.g. IMF) list the value of an attribute related to a subset of the
+        series dimensions in the structure, but leave ``null`` at its position in every
+        series data array.  When such an attribute has exactly one coded value, that value
+        is the only one present in the message and is applied to every series.
+        """
+        attrs = [a for a in self.msg.structure.attributes if self._attr_level[a] == "series"]
+        referenced = {
+            position
+            for elem in series.values()
+            for position, slot in enumerate(elem.get("attributes", []))
+            if slot is not None
+        }
+        return {
+            attr.id: self._attr_values[attr][0]
+            for position, attr in enumerate(attrs)
+            if position not in referenced and len(self._attr_values.get(attr, [])) == 1
+        }
 
     def _make_dataset_level_attrs(self, values: list[Any]) -> dict[str, AttributeValue]:
         """Resolve ``dataSets[].attributes`` for components at the ``dataSet`` level.
