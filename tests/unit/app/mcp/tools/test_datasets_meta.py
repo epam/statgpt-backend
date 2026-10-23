@@ -424,7 +424,7 @@ async def test_availability_query_is_structured_only():
     tool_result = await _build(_availability_tool_config(), _availability_inputs(dataset)).run(
         {
             "dataset_id": "IMF:CPI(1.0.0)",
-            "partial_query": {"SERIES": ["51401"]},
+            "partial_query": [{"dimension_id": "SERIES", "codes": ["51401"]}],
             "codes_per_dimension": None,
             "include_dimensions": ["COUNTRY"],
         }
@@ -468,7 +468,7 @@ async def test_availability_query_truncates_and_reports_the_total():
 
     structured = (
         await _build(_availability_tool_config(), _availability_inputs(dataset)).run(
-            {"dataset_id": "IMF:CPI(1.0.0)", "partial_query": {}, "codes_per_dimension": 2}
+            {"dataset_id": "IMF:CPI(1.0.0)", "partial_query": [], "codes_per_dimension": 2}
         )
     ).structured_content
 
@@ -492,7 +492,7 @@ async def test_availability_query_surfaces_time_coverage():
 
     structured = (
         await _build(_availability_tool_config(), _availability_inputs(dataset)).run(
-            {"dataset_id": "IMF:CPI(1.0.0)", "partial_query": {}}
+            {"dataset_id": "IMF:CPI(1.0.0)", "partial_query": []}
         )
     ).structured_content
 
@@ -532,7 +532,12 @@ async def test_availability_query_unknown_value_is_a_tool_error():
 
     tool = _build(_availability_tool_config(), _availability_inputs(dataset))
     with pytest.raises(ToolError) as exc_info:
-        await tool.run({"dataset_id": "IMF:CPI(1.0.0)", "partial_query": {"FREQ": ["NA"]}})
+        await tool.run(
+            {
+                "dataset_id": "IMF:CPI(1.0.0)",
+                "partial_query": [{"dimension_id": "FREQ", "codes": ["NA"]}],
+            }
+        )
 
     message = str(exc_info.value)
     assert "FREQ" in message
@@ -547,7 +552,10 @@ async def test_availability_query_unknown_dimension_raises():
 
     with pytest.raises(ToolError, match="Unknown dimension"):
         await _build(_availability_tool_config(), _availability_inputs(dataset)).run(
-            {"dataset_id": "IMF:CPI(1.0.0)", "partial_query": {"NOPE": ["x"]}}
+            {
+                "dataset_id": "IMF:CPI(1.0.0)",
+                "partial_query": [{"dimension_id": "NOPE", "codes": ["x"]}],
+            }
         )
 
     dataset.availability_query.assert_not_called()
