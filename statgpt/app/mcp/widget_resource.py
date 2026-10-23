@@ -38,8 +38,10 @@ async def _fetch_html(url: str) -> str:
     except httpx.TimeoutException as e:
         raise WidgetResourceError("The widget endpoint did not respond in time (timeout).") from e
     except httpx.HTTPError as e:
-        # Connection errors, DNS failures, non-2xx status, protocol errors, etc.
-        raise WidgetResourceError(f"Could not fetch the widget HTML: {e}") from e
+        # Connection errors, DNS failures, non-2xx status, protocol errors, etc. Keep the
+        # underlying error (which can name the internal endpoint) in the server log only.
+        _log.warning("Failed to fetch MCP-App widget HTML from %s: %s", url, e)
+        raise WidgetResourceError("The widget HTML could not be fetched at this time.") from e
     return response.text
 
 
