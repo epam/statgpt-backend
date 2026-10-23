@@ -14,13 +14,15 @@ class QuanthubDataSetConfig(SdmxDataSetConfig):
     updated_at: list[PropertySource] = Field(
         min_length=1,
         default_factory=lambda: [
+            PropertySource(source=PropertySourceEnum.ANNOTATION, field="dataUpdatedAt"),
             PropertySource(source=PropertySourceEnum.ANNOTATION, field="lastUpdatedAt"),
             PropertySource(source=PropertySourceEnum.CITATION, field="last_updated"),
         ],
         description=(
             "A list of sources ordered by priority for obtaining the dataset's update date."
-            " By default, it first tries to get it from the 'lastUpdatedAt' annotation,"
-            " and if not found, from the 'last_updated' field in the citation."
+            " By default, it first tries to get it from the 'dataUpdatedAt' annotation,"
+            " then from the 'lastUpdatedAt' annotation,"
+            " and if neither is found, from the 'last_updated' field in the citation."
         ),
     )
 
