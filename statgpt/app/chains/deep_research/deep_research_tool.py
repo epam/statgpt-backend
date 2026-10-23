@@ -239,6 +239,7 @@ class DeepResearchRunner:
                     show_debug_stages=show_debug_stages,
                     stages_config=details.stages_config,
                     annotation_index_space=ChainParameters.get_annotation_index_space(inputs),
+                    citation_id_space=ChainParameters.get_citation_id_space(inputs),
                     rewriter=CustomContentRewriter(details.rewrite_rules),
                 )
                 with dial_streamer:
@@ -265,7 +266,7 @@ class DeepResearchRunner:
                 # with the report message, so it is persisted with the tool response (a title and a
                 # quote per tag), and a report delivered before the note was introduced has none.
                 return DeepResearchTurnResult(
-                    content=content + dial_streamer.citations_note,
+                    content=content + dial_streamer.citations_note(quotes=True),
                     report_delivered=True,
                     report=content,
                 )

@@ -20,6 +20,7 @@ from statgpt.app.schemas.dial_app_configuration import StatGPTConfiguration
 from statgpt.app.security import create_auth_context
 from statgpt.app.services.chat_facade import ChannelServiceFacade, build_deep_research_form_schema
 from statgpt.app.settings.dial_app import dial_app_settings
+from statgpt.app.utils.citation_ids import CitationIdSpace
 from statgpt.app.utils.dial_exceptions import ForbiddenDeploymentException, RateLimitException
 from statgpt.app.utils.dial_stages import optional_timed_stage
 from statgpt.app.utils.message_history import (
@@ -145,6 +146,8 @@ class ChannelCompletion(ChatCompletion):
                 # Fresh index space: every annotation relayed during this response takes its
                 # index from this counter, whichever tool relays it.
                 ParamsConfig.ANNOTATION_INDEX_SPACE: itertools.count(),
+                # Fresh citation ids, in a random scope of their own: see `CitationIdSpace`.
+                ParamsConfig.CITATION_ID_SPACE: CitationIdSpace(),
             }
 
             callbacks: list = []
