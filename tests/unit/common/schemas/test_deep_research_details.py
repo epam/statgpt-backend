@@ -1,6 +1,7 @@
 """Tests for `DeepResearchDetails`: `get_access_claim_value`, the accessor that resolves the Deep
 Research access role — including its `$env:{VAR}` support — before it is checked against the
-caller's DIAL roles, and the `query_check` config of the check run before a session is started.
+caller's DIAL roles, the `query_check` config of the check run before a session is started, and
+the message the agent gets after a report.
 """
 
 import pytest
@@ -76,3 +77,12 @@ def test_query_check_accepts_camel_case_aliases() -> None:
 def test_query_check_timeout_must_be_positive(timeout_seconds: float) -> None:
     with pytest.raises(ValidationError):
         _details(queryCheck={"timeoutSeconds": timeout_seconds})
+
+
+def test_report_delivered_message_to_agent_defaults_to_none() -> None:
+    assert _details().report_delivered_message_to_agent is None
+
+
+def test_report_delivered_message_to_agent_accepts_camel_case_alias() -> None:
+    details = _details(reportDeliveredMessageToAgent="Use dates in search queries.")
+    assert details.report_delivered_message_to_agent == "Use dates in search queries."

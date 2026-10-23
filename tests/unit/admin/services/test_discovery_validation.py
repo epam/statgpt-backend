@@ -17,6 +17,7 @@ def _record(**overrides: str) -> DiscoveryDatasetBase:
         "description": "Money and Banking table.",
         "reference_area": "Indonesia",
         "frequency_coverage": "Monthly",
+        "indicators_coverage": "broad money (M2) (billions of Rp)",
         "url": "https://www.bi.go.id/SEKI/tabel/TABEL1_1.xls",
     }
     values.update(overrides)
@@ -106,6 +107,23 @@ def test_a_record_without_a_description_is_reported() -> None:
 def test_group_and_partner_reference_areas_are_not_flagged(reference_area: str) -> None:
     """The template allows group labels and partner lists, so there is no ISO-code check."""
     assert DiscoveryValidator().validate(_record(reference_area=reference_area)) == []
+
+
+@pytest.mark.parametrize("indicators", ["", "   ", ";", " ; ;"])
+def test_a_record_listing_no_indicators_is_reported(indicators: str) -> None:
+    """A record naming no indicator cannot be reached by a question about one.
+
+    The only place emptiness is caught: an absent indicators sheet, a CSV without the
+    column, and a row stored empty under the old template all arrive here.
+    """
+    issues = DiscoveryValidator().validate(_record(indicators_coverage=indicators))
+
+    assert [issue.field for issue in issues] == ["indicators_coverage"]
+    assert "at least one indicator is required" in issues[0].message.casefold()
+
+
+def test_a_record_listing_one_indicator_is_not_reported() -> None:
+    assert DiscoveryValidator().validate(_record(indicators_coverage="broad money (M2)")) == []
 
 
 def test_all_issues_are_collected_not_just_the_first() -> None:

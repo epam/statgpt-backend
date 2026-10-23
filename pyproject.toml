@@ -8,7 +8,7 @@ license = "MIT"
 license-files = ["LICENSE"]
 dependencies = [
     # Core framework & API
-    'aidial-sdk[telemetry] (>=0.39.0,<0.40.0)',  # DIAL integration SDK
+    'aidial-sdk[telemetry] (>=0.45.0,<0.46.0)',  # DIAL integration SDK
     'fastapi (>=0.133.0,<1.0.0)',                # Web framework; >=0.133 required for starlette 1.x
     'pydantic (>=2.11.7,<3.0.0)',                # Data validation
     'pydantic-core (>=2.33.2,<3.0.0)',           # Pydantic core functionality
@@ -167,7 +167,7 @@ optional = true
 [tool.poetry.group.dev.dependencies]
 # Formatters & linters
 autoflake = "^2.3.1"
-black = "^26.3.1"
+black = "^26.10.1"
 flake8 = "^7.2.0"
 isort = "^5.13.2"
 

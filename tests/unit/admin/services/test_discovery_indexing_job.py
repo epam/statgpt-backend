@@ -76,7 +76,6 @@ def _record(**overrides: Any) -> models.DiscoveryDataset:
         "channel_id": 7,
         "reference_area": "Indonesia (IDN)",
         "regional_coverage": "",
-        "excluded_regional_values": "",
         "agency": "Bank Indonesia (BI)",
         "dataset_id": "TABEL1_1",
         "name": "Broad Money",
@@ -85,6 +84,7 @@ def _record(**overrides: Any) -> models.DiscoveryDataset:
         "time_coverage": "From 1989-01 to 2026-06",
         "frequency_coverage": "Monthly",
         "indicators_coverage": "broad money (M2)",
+        "indicators_summary": "",
         "missing_indicators": "",
         "validation_status": schemas.DiscoveryValidationStatus.NOT_VALIDATED,
         "validation_issues": None,
@@ -217,6 +217,7 @@ class _Spy:
                 "published_calls": len(self.published),
                 "validation": [record.validation_status for record in self.records],
                 "indexing": [record.indexing_status for record in self.records],
+                "summaries": [record.indicators_summary for record in self.records],
             }
         )
 
@@ -361,6 +362,35 @@ async def test_an_invalid_record_is_reported_as_invalid(monkeypatch: pytest.Monk
     assert spy.job.records_invalid == 1
     assert spy.records[0].validation_status is schemas.DiscoveryValidationStatus.INVALID
     assert spy.records[0].validation_issues
+
+
+async def test_a_valid_record_gets_the_indicator_list_it_publishes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A copy today; #664 replaces it with the calls that collapse a long list into groups."""
+    spy = _Spy(monkeypatch, records=[_record(indicators_coverage="broad money (M2)")])
+
+    await spy.service.process_job(job_id=42)
+
+    assert spy.records[0].indicators_summary == "broad money (M2)"
+    # Derived with the verdicts, so the publish stage reads a committed value.
+    assert spy.commits[1]["summaries"] == ["broad money (M2)"]
+    assert spy.commits[1]["published_calls"] == 0
+
+
+async def test_an_invalid_record_keeps_the_summary_it_had(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Nothing is published for it, so there is nothing to derive."""
+    record = _record(
+        url="not-a-url", indicators_coverage="broad money (M2)", indicators_summary="stale"
+    )
+    spy = _Spy(monkeypatch, records=[record])
+
+    await spy.service.process_job(job_id=42)
+
+    assert spy.records[0].validation_status is schemas.DiscoveryValidationStatus.INVALID
+    assert spy.records[0].indicators_summary == "stale"
 
 
 async def test_a_run_publishes_into_the_configured_application(

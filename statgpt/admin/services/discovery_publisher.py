@@ -3,9 +3,10 @@
 Maps a stored record onto one RAG document and reconciles what the channel holds with what
 the records say it should hold. Run by an indexing job, after validation.
 
-Nothing here derives, paraphrases or summarizes: the document carries the submitted metadata
-verbatim, so how discoverable a dataset is stays a property of the source's own metadata
-rather than of an algorithm here.
+Nothing here derives, paraphrases or summarizes: the document carries what the record holds,
+so how discoverable a dataset is stays a property of the source's own metadata rather than of
+an algorithm here. The one field the record itself derives - the published form of the
+indicator list - is derived by the run before this stage and read from its own column.
 
 The split between the document's body and its metadata is decided by how the application
 indexes them: its indexes are document-level and span the metadata fields alongside the
@@ -19,6 +20,7 @@ import logging
 from collections.abc import Collection, Iterable, Sequence
 from dataclasses import dataclass, field
 from time import monotonic
+from typing import Protocol
 
 from statgpt.admin.settings.discovery import DiscoveryPublishSettings
 from statgpt.common import models, schemas
@@ -55,6 +57,22 @@ The interval doubles up to this, so a channel that indexes a handful of small do
 done in about a second, while one still working after half a minute is not asked every
 second for as long as it takes.
 """
+
+
+class PublishableRecord(DiscoveryRecord, Protocol):
+    """A record as the publisher reads it: what was submitted, plus what the run derived.
+
+    Kept apart from `DiscoveryRecord` rather than folded into it, because the derived columns
+    are none of validation's business: a check runs before the run has filled them in, so a
+    protocol demanding them there would ask every check for a value it must not read.
+    """
+
+    @property
+    def indicators_summary(self) -> str: ...
+
+    @property
+    def missing_indicators(self) -> str: ...
+
 
 _INDEXING_FAILED = (
     "The discovery RAG channel accepted this document and then failed to parse or index it,"
@@ -127,9 +145,9 @@ def render_document(
 
 
 def build_metadata(
-    record: DiscoveryRecord, channel: str, grade: schemas.DiscoveryGrade
+    record: PublishableRecord, channel: str, grade: schemas.DiscoveryGrade
 ) -> schemas.DiscoveryDocumentMetadata:
-    """Build the document metadata: every workbook field except the description.
+    """Build the document metadata: every submitted field except the description.
 
     The description is the one field left out, because it is the body. Everything else is
     carried here and nowhere else, and the application's indexes reach it here.
@@ -152,10 +170,10 @@ def build_metadata(
         name=record.name,
         url=record.url,
         regional_coverage=record.regional_coverage,
-        excluded_regional_values=record.excluded_regional_values,
         time_coverage=record.time_coverage,
         frequency_coverage=record.frequency_coverage,
-        indicators_coverage=record.indicators_coverage,
+        # The published form of the indicator list, not the raw one the submitter authored.
+        indicators_coverage=record.indicators_summary,
         missing_indicators=record.missing_indicators,
     )
 

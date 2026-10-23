@@ -16,7 +16,7 @@ import pytest
 
 from statgpt.admin.services import discovery_dataset as service_module
 from statgpt.admin.services.discovery_dataset import AdminPortalDiscoveryDatasetService
-from statgpt.admin.services.discovery_upload import COLUMN_FIELDS
+from statgpt.admin.services.discovery_upload import RECORD_FIELDS
 from statgpt.common import models
 from statgpt.common.schemas import DiscoveryIndexingStatus, DiscoveryValidationStatus
 from statgpt.common.services import GenericRagIngestionError, record_key
@@ -32,7 +32,7 @@ def _stored(
     dataset_id: str = "TABEL1_1",
 ) -> models.DiscoveryDataset:
     """A stand-in for a stored row, carrying the columns the service reads."""
-    values: dict[str, object] = {name: "" for name in COLUMN_FIELDS}
+    values: dict[str, object] = {name: "" for name in RECORD_FIELDS}
     values.update(
         id=item_id,
         channel_id=channel_id,

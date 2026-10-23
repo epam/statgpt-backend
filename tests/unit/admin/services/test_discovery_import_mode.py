@@ -8,7 +8,9 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from statgpt.admin.services.discovery_dataset import AdminPortalDiscoveryDatasetService
-from statgpt.admin.services.discovery_upload import COLUMN_FIELDS
+from statgpt.admin.services.discovery_upload import RECORD_FIELDS
+from statgpt.admin.services.exceptions import DiscoveryUploadFormatError
+from statgpt.admin.settings.discovery import DiscoveryUploadSettings
 from statgpt.admin.settings.exim import JobsConfig
 from statgpt.common.schemas import DiscoveryUploadSummary
 
@@ -20,7 +22,7 @@ def _make_zip(rows: list[dict[str, str]] | None) -> zipfile.ZipFile:
         archive.writestr("metadata.json", "{}")
         if rows is not None:
             csv_buffer = io.StringIO()
-            writer = csv.DictWriter(csv_buffer, fieldnames=list(COLUMN_FIELDS))
+            writer = csv.DictWriter(csv_buffer, fieldnames=list(RECORD_FIELDS))
             writer.writeheader()
             writer.writerows(rows)
             archive.writestr(JobsConfig.DISCOVERY_DATASETS_FILE, csv_buffer.getvalue())
@@ -29,7 +31,7 @@ def _make_zip(rows: list[dict[str, str]] | None) -> zipfile.ZipFile:
 
 
 def _row(agency: str = "IMF", dataset_id: str = "TABEL1_1") -> dict[str, str]:
-    row = {name: "" for name in COLUMN_FIELDS}
+    row = {name: "" for name in RECORD_FIELDS}
     row.update(agency=agency, dataset_id=dataset_id)
     return row
 
@@ -80,5 +82,38 @@ async def test_upsert_leaves_the_channel_alone_when_the_archive_carries_no_recor
     service = _service()
 
     await service.import_discovery_datasets_from_zip(_make_zip(None), channel_id=1)
+
+    service._upsert.assert_not_awaited()  # type: ignore[attr-defined]
+
+
+@pytest.mark.asyncio
+async def test_imports_an_indicators_column_longer_than_pythons_field_limit(
+    default_csv_field_limit: int,
+) -> None:
+    service = _service()
+    coverage = "; ".join(f"indicator {i} (units)" for i in range(10_000))
+    assert len(coverage) > default_csv_field_limit
+
+    await service.import_discovery_datasets_from_zip(
+        _make_zip([{**_row(), "indicators_coverage": coverage}]), channel_id=1
+    )
+
+    [candidate] = service._upsert.await_args.args[1]  # type: ignore[attr-defined]
+    assert candidate.record.indicators_coverage == coverage
+
+
+@pytest.mark.asyncio
+async def test_an_unreadable_records_file_is_a_format_error(
+    default_csv_field_limit: int, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Named in the import job's failure reason, rather than surfacing as a raw `_csv.Error`."""
+    service = _service()
+    monkeypatch.setattr(
+        service, "_UPLOAD_SETTINGS", DiscoveryUploadSettings(max_file_size_bytes=1000)
+    )
+    row = {**_row(), "description": "x" * (default_csv_field_limit + 1)}
+
+    with pytest.raises(DiscoveryUploadFormatError, match="could not be read"):
+        await service.import_discovery_datasets_from_zip(_make_zip([row]), channel_id=1)
 
     service._upsert.assert_not_awaited()  # type: ignore[attr-defined]

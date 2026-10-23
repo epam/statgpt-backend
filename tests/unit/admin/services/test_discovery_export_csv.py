@@ -11,7 +11,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from statgpt.admin.services.discovery_dataset import AdminPortalDiscoveryDatasetService
-from statgpt.admin.services.discovery_upload import COLUMN_FIELDS
+from statgpt.admin.services.discovery_upload import RECORD_FIELDS, parse_discovery_file
 from statgpt.common import models, utils
 from statgpt.common.schemas import (
     DiscoveryDatasetBase,
@@ -25,7 +25,7 @@ def _stored(agency: str = "IMF", dataset_id: str = "TABEL1_1", **overrides: obje
 
     The point of several of these tests is that the state does not reach the file.
     """
-    values: dict[str, object] = {name: "" for name in COLUMN_FIELDS}
+    values: dict[str, object] = {name: "" for name in RECORD_FIELDS}
     values.update(agency=agency, dataset_id=dataset_id)
     values.update(overrides)
     values.setdefault("id", 1)
@@ -97,3 +97,19 @@ async def test_the_download_matches_what_the_channel_export_writes(tmp_path) -> 
     written = tmp_path / "discovery_datasets.csv"
     utils.write_csv_from_dict_list(service._export_rows(records), str(written))
     assert downloaded.encode("utf-8") == written.read_bytes()
+
+
+@pytest.mark.asyncio
+async def test_an_export_longer_than_pythons_field_limit_uploads_unchanged(
+    default_csv_field_limit: int,
+) -> None:
+    coverage = "; ".join(f"indicator {i} (units)" for i in range(10_000))
+    assert len(coverage) > default_csv_field_limit
+    service = _service([_stored(indicators_coverage=coverage)])
+
+    content = await service.export_discovery_datasets_to_csv(channel_id=1)
+    parsed = parse_discovery_file(
+        content.encode("utf-8"), "export.csv", max_rows=10, max_indicators_per_dataset=50_000
+    )
+
+    assert parsed.rows[0].values["indicators_coverage"] == coverage
