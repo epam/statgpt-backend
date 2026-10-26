@@ -1,7 +1,6 @@
 """Tests for :class:`SdmxJsonDataReader` on SDMX-JSON 1.0 messages (SDMX 2.1 APIs).
 
-The SDMX-JSON 2.0.0 variants are covered in
-``tests/unit/common/data/statgpt_sdmx_proxy/v30/test_reader.py``.
+The SDMX-JSON 2.0.0 variants are covered in ``test_json_reader_2_0.py``.
 
 ``sdmx_json_1_0_attribute_levels.json`` has two series that differ only by ``INDICATOR``
 and ``SCALE``.  The empty ``UNIT`` attribute sits between ``CURRENCY`` and ``SCALE``

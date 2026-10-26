@@ -1,4 +1,4 @@
-"""SDMX-JSON data message reader supporting SDMX-JSON 1.0 and both proxy and standard SDMX 3.0 APIs.
+"""SDMX-JSON data message reader for SDMX 2.1 and both proxy and standard SDMX 3.0 APIs.
 
 Replaces :class:`sdmx.reader.json.Reader`, which resolves series attributes from the
 ``dataSet`` attribute array, never attaches ``dataSet`` attributes, and discards
@@ -104,7 +104,7 @@ class SdmxJsonDataReader(Reader):
     variant where servers fold those attributes under ``series`` instead
     (standard SDMX-JSON 2.0.0 and SDMX-JSON 1.0).
 
-    See the module docstring for a detailed comparison of both formats.
+    See the module docstring for a detailed comparison of the supported variants.
     """
 
     @classmethod

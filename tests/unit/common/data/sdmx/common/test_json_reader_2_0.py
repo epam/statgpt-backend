@@ -1,4 +1,6 @@
-"""Tests for :class:`SdmxJsonDataReader`.
+"""Tests for :class:`SdmxJsonDataReader` on SDMX-JSON 2.0.0 messages (SDMX 3.0 APIs).
+
+SDMX-JSON 1.0 is covered in ``test_json_reader_1_0.py``.
 
 The reader normalises two SDMX-JSON 2.0.0 variants into identical models.  Two
 small hand-crafted fixtures keep each variant isolated so a regression in one

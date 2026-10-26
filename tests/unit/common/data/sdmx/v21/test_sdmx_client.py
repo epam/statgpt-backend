@@ -1,4 +1,4 @@
-"""Tests for AsyncSdmxClient._perform_request's timeout retry/error behavior."""
+"""Tests for AsyncSdmxClient request and response handling."""
 
 from pathlib import Path
 
