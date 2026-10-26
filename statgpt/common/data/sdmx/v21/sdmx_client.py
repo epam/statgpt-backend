@@ -7,6 +7,7 @@ from typing import IO, Any
 import httpx
 import requests
 import sdmx
+import sdmx.reader.json
 from httpx import Response
 from requests import PreparedRequest
 from sdmx import Client, Resource
@@ -19,6 +20,7 @@ from statgpt.common.auth.auth_context import AuthContext
 from statgpt.common.config import multiline_logger as logger
 from statgpt.common.data.sdmx.common.authorizer import IAuthorizer
 from statgpt.common.data.sdmx.common.config import SdmxDataSourceConfig
+from statgpt.common.data.sdmx.common.json_reader import SdmxJsonDataReader
 from statgpt.common.data.sdmx.v21.ratelimiter import SdmxRateLimiter
 from statgpt.common.settings.sdmx import sdmx_settings
 from statgpt.common.utils import AsyncLoadingCache
@@ -489,6 +491,10 @@ class AsyncSdmxClient:
                 + repr(response.headers.get("content-type", None))
                 + f" and url {response.url}"
             ) from None
+
+        # sdmx1's JSON reader loses series and dataSet attributes, see `SdmxJsonDataReader`
+        if reader_class is sdmx.reader.json.Reader:
+            reader_class = SdmxJsonDataReader
 
         # Instantiate reader from class
         reader = reader_class()
