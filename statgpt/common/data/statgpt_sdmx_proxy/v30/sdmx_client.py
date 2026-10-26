@@ -45,6 +45,10 @@ def proxy_structure_extra_headers(dsd_urn: str | None) -> dict[str, str] | None:
     return {"X-Source-Artefact-Urn": dsd_urn} if dsd_urn else None
 
 
+# Some dynamic annotations (e.g. `dataUpdatedAt`) are omitted from the dataflow unless forced
+PROXY_DATAFLOW_EXTRA_PARAMS = {"forceDataflowDynamicAnnotations": "true"}
+
+
 # TODO: move this to the data source config
 _SDMX_v30_STRUCTURE_ACCEPT_HEADER = "application/vnd.sdmx.structure+json;version=2.0.0"
 

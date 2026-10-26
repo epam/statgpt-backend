@@ -79,7 +79,13 @@ class AsyncSdmxClient:
         version: str,
         params: dict[str, Any],
         use_cache: bool = False,
+        extra_params: dict[str, str] | None = None,
     ) -> StructureMessage:
+        """Fetch dataflows.
+
+        `extra_params` are non-standard query params (e.g. provider-specific flags) that sdmx1
+        would reject in `params`; they are appended to the URL as is.
+        """
         return await self._get_structure(  # type: ignore[return-value]
             resource_type=Resource.dataflow,
             agency_id=agency_id,
@@ -87,6 +93,7 @@ class AsyncSdmxClient:
             version=version,
             params=params,
             use_cache=use_cache,
+            extra_params=extra_params,
         )
 
     async def agencyscheme(
@@ -234,6 +241,7 @@ class AsyncSdmxClient:
         use_cache: bool = False,
         tofile: os.PathLike | IO | None = None,
         extra_headers: dict[str, str] | None = None,
+        extra_params: dict[str, str] | None = None,
     ) -> Message:
         async with self._rate_limiter.structure_limiter():
             return await self._get(
@@ -247,6 +255,7 @@ class AsyncSdmxClient:
                 use_cache=use_cache,
                 tofile=tofile,
                 extra_headers=extra_headers,
+                extra_params=extra_params,
             )
 
     async def _get_availability(
@@ -320,6 +329,7 @@ class AsyncSdmxClient:
         use_cache: bool = False,
         tofile: os.PathLike | IO | None = None,
         extra_headers: dict[str, str] | None = None,
+        extra_params: dict[str, str] | None = None,
     ) -> Message:
         params = params or {}
         headers = await self._construct_headers({}, resource_type)
@@ -335,6 +345,9 @@ class AsyncSdmxClient:
             dsd=dsd,
             **{k: v for k, v in [('agency_id', agency_id), ('version', version)] if v is not None},  # type: ignore[arg-type]
         )
+        if extra_params:
+            # Appended after sdmx1 builds the URL: it rejects params it doesn't know
+            req.prepare_url(req.url, extra_params)
 
         if use_cache:
             return await self._cache.get(
