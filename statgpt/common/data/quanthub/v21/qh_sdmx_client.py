@@ -173,7 +173,8 @@ class AsyncQuanthubClient(AsyncSdmxClient):
 
         params = {
             "references": "none",
-            # "forceDataflowDynamicAnnotations": "true",
+            # QuantHub omits some dynamic annotations (e.g. `dataUpdatedAt`) unless forced
+            "forceDataflowDynamicAnnotations": "true",
         }
 
         async with self._rate_limiter.structure_limiter():

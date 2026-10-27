@@ -1,10 +1,15 @@
-"""Tests for AsyncSdmxClient._perform_request's timeout retry/error behavior."""
+"""Tests for AsyncSdmxClient request and response handling."""
+
+from pathlib import Path
 
 import httpx
 import pytest
 import requests
+from sdmx.message import DataMessage
 
 from statgpt.common.data.sdmx.v21.sdmx_client import AsyncSdmxClient, SdmxRequestTimeoutError
+
+SDMX_JSON_FIXTURE = Path(__file__).parents[1] / "common" / "sdmx_json_1_0_attribute_levels.json"
 
 
 def _prepared_request() -> requests.PreparedRequest:
@@ -115,3 +120,16 @@ def test_describe_exception_chain_includes_empty_message_causes() -> None:
         description = AsyncSdmxClient._describe_exception_chain(e)
 
     assert description == "httpx.ConnectError <- ConnectionResetError: peer reset"
+
+
+def test_parse_response_resolves_attributes_of_each_sdmx_json_series() -> None:
+    response = requests.Response()
+    response.status_code = 200
+    response.url = "https://example.invalid/data"
+    response.headers["content-type"] = "text/json"
+    response._content = SDMX_JSON_FIXTURE.read_bytes()
+
+    msg = AsyncSdmxClient._parse_response(response)
+    assert isinstance(msg, DataMessage)
+
+    assert {sk.attrib["SCALE"].value.id for sk in msg.data[0].series} == {"9", "6"}
