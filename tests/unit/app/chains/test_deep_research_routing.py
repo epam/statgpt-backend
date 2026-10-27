@@ -68,13 +68,18 @@ def query_check(monkeypatch) -> AsyncMock:
 
 
 def _channel_config(
-    *, access_claim_value: str | None = None, query_check: dict | None = None
+    *,
+    access_claim_value: str | None = None,
+    query_check: dict | None = None,
+    report_delivered_message_to_agent: str | None = None,
 ) -> ChannelConfig:
     details: dict = {"deployment_id": "dr-app"}
     if access_claim_value is not None:
         details["access_claim_value"] = access_claim_value
     if query_check is not None:
         details["query_check"] = query_check
+    if report_delivered_message_to_agent is not None:
+        details["report_delivered_message_to_agent"] = report_delivered_message_to_agent
     return ChannelConfig(
         supreme_agent=SupremeAgentConfig(name="X", domain="d", terminology_domain="t"),
         deep_research=DeepResearchTool(
@@ -1030,6 +1035,33 @@ async def test_report_delivery_tells_agent_deep_research_mode_was_disabled(monke
     history.dump_state(state)
     assert state[StateVarsConfig.TOOL_MESSAGES][-1]["type"] == "system"
     assert state[StateVarsConfig.TOOL_MESSAGES][-1]["content"] == _REPORT_DELIVERED_MESSAGE_TO_AGENT
+
+
+@pytest.mark.parametrize(
+    ("configured", "expected"),
+    [
+        ("Channel message after the report.", "Channel message after the report."),
+        ("", _REPORT_DELIVERED_MESSAGE_TO_AGENT),
+    ],
+)
+async def test_report_delivered_message_comes_from_the_channel_config(
+    monkeypatch, configured, expected
+):
+    """The message after the report is the one set in the Deep Research tool config; an empty
+    setting falls back to the default."""
+    _patch_scripted_agent(monkeypatch, [_tool_call_chunk("deep_research", {"query": "US GDP"})])
+    captured: dict = {}
+    _patch_dr_deployment(monkeypatch, [_report("Final report.")], captured)
+
+    state = {StateVarsConfig.SHOW_DEBUG_STAGES: False}
+    inputs = _inputs(state, "research US GDP")
+    config = _channel_config(report_delivered_message_to_agent=configured)
+    await SupremeAgentExecutor(config).stream_response(inputs)
+
+    history = inputs[ChainParametersConfig.HISTORY]
+    assert _system_messages(history.get_tool_messages()) == [_ENABLED_MESSAGE_TO_AGENT, expected]
+    history.dump_state(state)
+    assert state[StateVarsConfig.TOOL_MESSAGES][-1]["content"] == expected
 
 
 async def test_report_reaches_the_agent_once_on_later_turns(monkeypatch):

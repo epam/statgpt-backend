@@ -3,7 +3,7 @@ import logging
 from collections.abc import Iterator
 from typing import Any
 
-from aidial_sdk.chat_completion import Stage
+from aidial_sdk.chat_completion import Stage, Status
 from openai.types.chat import ChatCompletionChunk
 
 from statgpt.app.utils.citation_ids import (
@@ -91,7 +91,10 @@ class OpenAiToDialStreamer:
         self._rewriter = rewriter
 
         self._content = ""
+        # The relayed stages, keyed by the index the deployment gave them.
         self._stages: dict[int, Stage] = {}
+        # The keys of those still open: only an open stage can take a child.
+        self._open_stages: set[int] = set()
         self._attachments: list[dict[str, Any]] = []
         self._annotations: list[dict[str, Any]] = []
         self._state: dict[str, Any] | None = None
@@ -345,8 +348,7 @@ class OpenAiToDialStreamer:
         name = stage.get('name')
 
         if index not in self._stages:
-            self._stages[index] = self._choice.create_stage(name or '')
-            self._stages[index].open()
+            self._open_stage(index, name or '', stage.get('parent_stage_index'))
         elif name:
             self._stages[index].append_name(name)
 
@@ -366,11 +368,42 @@ class OpenAiToDialStreamer:
                     reference_type=attachment.get('reference_type'),
                 )
 
-        if stage.get('status') == 'completed':
-            self._stages[index].close()
+        # Relay the status the deployment closed the stage with: a stage left open here would be
+        # closed as `completed` on exit, so a step that failed downstream would show as done.
+        if (status := stage.get('status')) is not None:
+            self._stages[index].close(Status(status))
+            self._open_stages.discard(index)
+
+    def _open_stage(self, index: int, name: str, parent_index: int | None) -> None:
+        """Open the relayed stage under the relayed stage the deployment nested it in.
+
+        A stage the deployment opened at the root opens at the root of the choice. So does a
+        stage whose parent this streamer never relayed or has already closed: the SDK refuses to
+        open a stage under such a parent, and a stage out of place is better than a failed
+        response.
+        """
+        if parent_index is None:
+            stage = self._choice.create_stage(name)
+        elif parent_index in self._open_stages:
+            stage = self._stages[parent_index].create_stage(name)
+        else:
+            _log.warning(
+                "Relaying the stage %s of `%s` at the root: its parent stage %s is unknown"
+                " or already closed",
+                index,
+                self._deployment,
+                parent_index,
+            )
+            stage = self._choice.create_stage(name)
+
+        stage.open()
+        self._stages[index] = stage
+        self._open_stages.add(index)
 
     def _exit_opened_stages(self, exc_type, exc_val, exc_tb) -> None:
-        for stage in self._stages.values():
+        # A child is always relayed after its parent, so the reverse order closes every child
+        # before its parent: the SDK warns about a stage closed while a child of it is open.
+        for stage in reversed(self._stages.values()):
             stage.__exit__(exc_type, exc_val, exc_tb)
 
     def _update_token_usage(self, usages: list[dict[str, int | str]]) -> None:

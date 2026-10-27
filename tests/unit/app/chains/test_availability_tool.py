@@ -2,9 +2,12 @@ import json
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
+from langchain_core.utils.function_calling import convert_to_openai_tool
+
 from statgpt.app.chains.datasets_meta.availability_tool import (
     AvailabilityQueryArgs,
     AvailabilityQueryTool,
+    DimensionFilter,
 )
 from statgpt.app.config import ChainParametersConfig
 from statgpt.common.data.base import CategoricalDimension, DataSetAvailabilityQuery, Query
@@ -65,7 +68,7 @@ def _tool(hard_limit: int = 500) -> AvailabilityQueryTool:
 
 def test_args_apply_the_documented_defaults():
     args = AvailabilityQueryArgs(inputs={}, dataset_id="IMF:CPI(1.0.0)")
-    assert args.partial_query == {}
+    assert args.partial_query == []
     assert args.codes_per_dimension == 10
     assert args.include_dimensions is None
 
@@ -74,6 +77,24 @@ def test_public_schema_hides_the_injected_inputs_field():
     schema = AvailabilityQueryArgs.get_public_schema()
     assert "inputs" not in schema["properties"]
     assert "dataset_id" in schema["properties"]
+
+
+def test_strict_tool_schema_declares_the_properties_of_every_object():
+    # OpenAI strict function calling rejects an object without declared properties (a free-form map).
+    def objects(node):
+        if isinstance(node, dict):
+            if node.get("type") == "object":
+                yield node
+            for value in node.values():
+                yield from objects(value)
+        elif isinstance(node, list):
+            for item in node:
+                yield from objects(item)
+
+    parameters = convert_to_openai_tool(_tool(), strict=True)["function"]["parameters"]
+    for node in objects(parameters):
+        assert node.get("properties")
+        assert sorted(node["required"]) == sorted(node["properties"])
 
 
 # ~~~~~~~~~~~~~ _arun ~~~~~~~~~~~~~
@@ -96,7 +117,7 @@ async def test_partial_query_returns_named_codes_for_the_included_dimension():
     content, artifact = await _tool()._arun(
         inputs=_inputs(dataset),
         dataset_id="IMF:CPI(1.0.0)",
-        partial_query={"SERIES": ["51401"]},
+        partial_query=[DimensionFilter(dimension_id="SERIES", codes=["51401"])],
         codes_per_dimension=None,
         include_dimensions=["COUNTRY"],
     )
@@ -136,7 +157,7 @@ async def test_codes_per_dimension_truncates_and_reports_the_total():
     content, _ = await _tool()._arun(
         inputs=_inputs(dataset),
         dataset_id="IMF:CPI(1.0.0)",
-        partial_query={},
+        partial_query=[],
         codes_per_dimension=2,
     )
 
@@ -160,7 +181,7 @@ async def test_hard_limit_caps_an_unbounded_request():
     content, _ = await _tool(hard_limit=3)._arun(
         inputs=_inputs(dataset),
         dataset_id="IMF:CPI(1.0.0)",
-        partial_query={},
+        partial_query=[],
         codes_per_dimension=None,
     )
 
@@ -182,7 +203,7 @@ async def test_time_coverage_is_surfaced_when_present():
     content, _ = await _tool()._arun(
         inputs=_inputs(dataset),
         dataset_id="IMF:CPI(1.0.0)",
-        partial_query={},
+        partial_query=[],
     )
 
     payload = json.loads(content)
@@ -202,7 +223,7 @@ async def test_unknown_dimension_id_yields_a_helpful_error():
     content, _ = await _tool()._arun(
         inputs=_inputs(dataset),
         dataset_id="IMF:CPI(1.0.0)",
-        partial_query={"NOPE": ["x"]},
+        partial_query=[DimensionFilter(dimension_id="NOPE", codes=["x"])],
     )
 
     assert "Unknown dimension" in content
@@ -218,7 +239,7 @@ async def test_unknown_dimension_value_yields_a_helpful_error():
     content, _ = await _tool()._arun(
         inputs=_inputs(dataset),
         dataset_id="IMF:CPI(1.0.0)",
-        partial_query={"FREQ": ["NA"]},
+        partial_query=[DimensionFilter(dimension_id="FREQ", codes=["NA"])],
     )
 
     assert "Unknown code value" in content

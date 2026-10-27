@@ -145,7 +145,8 @@ class DiscoveryPreFilterReport(BaseModel):
     axes: list[DiscoveryPreFilterAxisReport] = Field(default_factory=list)
 
     filters: int = 0
-    """How many filter entries the matcher carried: the product of the surviving axes."""
+    """How many filter entries the matcher carried: one per area axis that grounded a value, or
+    one when neither did and another axis did."""
 
     applied: bool = False
     """Whether the documents the judge saw came from the narrowed search or from the fallback."""

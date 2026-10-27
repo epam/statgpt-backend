@@ -8,7 +8,7 @@ license = "MIT"
 license-files = ["LICENSE"]
 dependencies = [
     # Core framework & API
-    'aidial-sdk[telemetry] (>=0.39.0,<0.40.0)',  # DIAL integration SDK
+    'aidial-sdk[telemetry] (>=0.45.0,<0.46.0)',  # DIAL integration SDK
     'fastapi (>=0.133.0,<1.0.0)',                # Web framework; >=0.133 required for starlette 1.x
     'pydantic (>=2.11.7,<3.0.0)',                # Data validation
     'pydantic-core (>=2.33.2,<3.0.0)',           # Pydantic core functionality
@@ -59,7 +59,7 @@ dependencies = [
     'async-lru (>=2.0.5,<3.0.0)',                # Async LRU cache
     'tabulate (>=0.9.0,<0.10.0)',                # Table formatting
     'markdown (>=3.7,<4.0)',                     # Markdown processing
-    'setuptools (>=83.0.0,<84.0.0)',             # Package management
+    'setuptools (>=84.1.0,<85.0.0)',             # Package management
     'babel (>=2.17.0,<3.0.0)',                   # Internationalization
     'aiofiles (>=25.1.0,<26.0.0)',               # Async file operations
     'pyarrow (>=23.0.1,<24.0.0)',                # Parquet support for import/export
@@ -74,7 +74,7 @@ cli = [
     "python-keycloak>=4.0.0,<5.0.0",
 ]
 mcp = [
-    "fastmcp>=3.4.3,<4.0.0",
+    "fastmcp>=3.4.10,<4.0.0",
 ]
 
 [project.scripts]
@@ -167,7 +167,7 @@ optional = true
 [tool.poetry.group.dev.dependencies]
 # Formatters & linters
 autoflake = "^2.3.1"
-black = "^26.3.1"
+black = "^26.10.1"
 flake8 = "^7.2.0"
 isort = "^5.13.2"
 

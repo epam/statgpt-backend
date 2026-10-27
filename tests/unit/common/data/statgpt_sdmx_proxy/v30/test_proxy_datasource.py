@@ -1,13 +1,16 @@
 """Tests for the StatGPT SDMX proxy data source handler."""
 
 from pathlib import Path
+from urllib.parse import parse_qs, urlsplit
 
 import httpx
 import pytest
+from requests import PreparedRequest
 from sdmx.message import StructureMessage
 from sdmx.model.common import Agency, AgencyScheme, InternationalString
 
 from statgpt.common.data.sdmx.common.config import SdmxConfig
+from statgpt.common.data.sdmx.v21.schemas import Urn
 from statgpt.common.data.statgpt_sdmx_proxy.config import StatGptSdmxProxyDataSourceConfig
 from statgpt.common.data.statgpt_sdmx_proxy.v30.datasource import StatGptSdmxProxyDataSourceHandler
 from statgpt.common.schemas.data_source import Provider
@@ -102,3 +105,26 @@ async def test_proxy_list_providers_falls_back_to_any_localization() -> None:
     assert providers == [
         Provider(id="OECD", name="Organisation de coopération et de développement"),
     ]
+
+
+async def test_proxy_dataflow_load_forces_dynamic_annotations(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    handler = StatGptSdmxProxyDataSourceHandler(_proxy_config())
+    client = await handler.create_sdmx_client(auth_context=None)  # type: ignore[arg-type]
+    sent: list[PreparedRequest] = []
+
+    async def fake_fetch(req: PreparedRequest, tofile=None) -> StructureMessage:
+        sent.append(req)
+        return StructureMessage()
+
+    monkeypatch.setattr(client, "_fetch", fake_fetch)
+
+    urn = Urn(agency_id="AGENCY", resource_id="FORCED_ANNOTATIONS", version="1.0.0")
+    await handler._create_dataflow_loader(client)._load_dataflow(urn)
+
+    assert len(sent) == 1
+    assert parse_qs(urlsplit(str(sent[0].url)).query) == {
+        "references": ["datastructure"],
+        "forceDataflowDynamicAnnotations": ["true"],
+    }

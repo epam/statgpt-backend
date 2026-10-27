@@ -15,16 +15,23 @@ from statgpt.common.schemas import AvailabilityQueryTool as AvailabilityQueryToo
 from statgpt.common.schemas import ToolTypes
 
 
+class DimensionFilter(BaseModel):
+    dimension_id: str = Field(description="Dimension ID, e.g. 'SERIES'.")
+    codes: list[str] = Field(description="Code IDs to fix for this dimension, e.g. ['51401'].")
+
+
 class AvailabilityQueryArgs(ToolArgs):
     dataset_id: str = Field(
         description="Dataset ID (URN) in the format 'agency_id:resource_id(version)'."
     )
-    partial_query: dict[str, list[str]] = Field(
-        default_factory=dict,
+    # A list of typed filters rather than a free-form map: OpenAI strict function calling rejects
+    # objects without declared properties.
+    partial_query: list[DimensionFilter] = Field(
+        default_factory=list,
         description=(
-            "Partial key mapping a dimension ID to the code IDs to fix, e.g."
-            ' {"SERIES": ["51401"]}. Pass an empty object ({}) to get availability across the'
-            " whole dataset."
+            "Partial key: the dimensions to fix and their code IDs, e.g."
+            ' [{"dimension_id": "SERIES", "codes": ["51401"]}]. Pass an empty list ([]) to get'
+            " availability across the whole dataset."
         ),
     )
     codes_per_dimension: int | None = Field(
@@ -98,6 +105,15 @@ def resolve_codes_limit(hard_limit: int, requested: int | None) -> int:
     if requested is None:
         return hard_limit
     return min(requested, hard_limit)
+
+
+def partial_query_to_dict(partial_query: list[DimensionFilter]) -> dict[str, list[str]]:
+    """Map each dimension ID to its codes, merging filters that repeat a dimension."""
+    codes_by_dimension: dict[str, list[str]] = {}
+    for dimension_filter in partial_query:
+        codes = codes_by_dimension.setdefault(dimension_filter.dimension_id, [])
+        codes.extend(code for code in dimension_filter.codes if code not in codes)
+    return codes_by_dimension
 
 
 def valid_dimension_ids(dataset: DataSet) -> set[str]:
@@ -215,12 +231,12 @@ class AvailabilityQueryTool(
         self,
         inputs: dict,
         dataset_id: str,
-        partial_query: dict[str, list[str]] | None = None,
+        partial_query: list[DimensionFilter] | None = None,
         codes_per_dimension: int | None = 10,
         include_dimensions: list[str] | None = None,
         **kwargs,
     ) -> tuple[str, ToolArtifact]:
-        partial_query = partial_query or {}
+        codes_by_dimension = partial_query_to_dict(partial_query or [])
         auth_context = ChainParameters.get_auth_context(inputs)
         target = ChainParameters.get_target(inputs)
         artifact = ToolArtifact(state=ToolMessageState(type=self.tool_type))
@@ -233,21 +249,21 @@ class AvailabilityQueryTool(
             return response, artifact
 
         valid_ids = valid_dimension_ids(dataset)
-        unknown = unknown_dimension_ids(valid_ids, partial_query, include_dimensions)
+        unknown = unknown_dimension_ids(valid_ids, codes_by_dimension, include_dimensions)
         if unknown:
             response = unknown_dimensions_message(unknown, sorted(valid_ids))
             if target:
                 target.append_content(response)
             return response, artifact
 
-        unknown_values = unknown_dimension_values(dataset, partial_query)
+        unknown_values = unknown_dimension_values(dataset, codes_by_dimension)
         if unknown_values:
             response = unknown_values_message(unknown_values)
             if target:
                 target.append_content(response)
             return response, artifact
 
-        query = build_availability_query(partial_query)
+        query = build_availability_query(codes_by_dimension)
         result = await dataset.availability_query(query, auth_context)
 
         payload = build_availability_payload(

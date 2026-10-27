@@ -9,7 +9,7 @@ This module is a stand-in for an SDK method that does not exist yet, and is mean
 rather than maintained. `Choice` numbers every child it knows about from its own counter —
 `create_stage` from `_last_stage_index`, `add_attachment` from `_last_attachment_index` — which
 is why `OpenAiToDialStreamer._process_stage` and `_process_attachment` hand over a payload and
-never an index. `aidial_sdk` (pinned `>=0.39.0,<0.40.0`) has no concept of an annotation, so
+never an index. `aidial_sdk` (as of 0.45) has no concept of an annotation, so
 there is no counter to borrow and no method to hand the array to.
 
 If the SDK grows a `Choice.add_annotation`, delete this module together with

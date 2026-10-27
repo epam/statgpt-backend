@@ -25,9 +25,11 @@ class DataflowLoader:
         client: AsyncSdmxClient,
         *,
         structure_extra_headers: Callable[[str | None], dict[str, str] | None] | None = None,
+        dataflow_extra_params: dict[str, str] | None = None,
     ):
         self._client: AsyncSdmxClient = client
         self._structure_extra_headers = structure_extra_headers
+        self._dataflow_extra_params = dataflow_extra_params
 
     async def load_structure_message(
         self, urn: Urn, mode: Literal['full', 'shallow']
@@ -90,6 +92,7 @@ class DataflowLoader:
             version=urn.version,
             params={'references': 'datastructure'},
             use_cache=True,
+            extra_params=self._dataflow_extra_params,
         )
 
     async def _load_constraints(self, urn: Urn) -> StructureMessage:
