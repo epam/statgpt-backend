@@ -303,6 +303,13 @@ class TestCitationIds:
 
         assert streamer.content == 'GDP rose <cit data-id="citation001-k3f9"></cit>.'
 
+    def test_raw_content_keeps_the_ids_of_the_sub_deployment(self):
+        """Replayed to the sub-deployment, which knows only the ids it gave its tags."""
+        streamer = _streamer(_open_choice())
+        streamer.send_chunk(_chunk([_annotation(0)]))
+
+        assert streamer.raw_content == 'GDP rose <cit data-id="cit-1"></cit>.'
+
     def test_one_tag_keeps_one_id(self):
         """A re-sent annotation, or another source cited by the same tag, still claims the tag
         the first annotation claimed."""

@@ -120,6 +120,12 @@ class OpenAiToDialStreamer:
         return replace_tag_ids(self._content, self._citation_ids)
 
     @property
+    def raw_content(self) -> str:
+        """The content as the deployment sent it, its citation tags not renumbered. Replay this,
+        not `content`, to the deployment: the ids of `content` are not ids it gave its tags."""
+        return self._content
+
+    @property
     def attachments(self) -> list[dict[str, Any]]:
         return self._attachments
 
@@ -216,7 +222,7 @@ class OpenAiToDialStreamer:
             self._update_token_usage(usages)
 
     def _process_content(self, content: str) -> None:
-        # `_content` is always the deployment's verbatim output (used for state/session replay).
+        # Kept verbatim (see `raw_content`): `content` renumbers its citation tags on every read.
         self._content += content
 
         if self._stream_content:

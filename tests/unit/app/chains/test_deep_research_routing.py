@@ -642,6 +642,40 @@ async def test_report_tool_response_describes_its_citation_tags_to_the_agent_onl
     assert repr(tool_msg).count(_RENUMBERED) == 1
 
 
+async def test_clarification_is_replayed_to_deep_research_with_its_own_citation_ids(monkeypatch):
+    """Deep Research resumes from its own earlier output, so the session replays a clarification
+    with the ids Deep Research gave its citation tags; the agent gets the ids of the response,
+    like the annotations relayed to the user."""
+    _patch_scripted_agent(
+        monkeypatch,
+        [
+            _tool_call_chunk("deep_research", {"query": "US GDP"}),
+            _tool_call_chunk("resume_deep_research", {"message": "approved"}, "c2"),
+        ],
+    )
+    clarification = [
+        _dr_chunk(content=_CITED, annotations=[_CITATION]),
+        _dr_chunk(state={"preparation": {"research_started": False}}),
+    ]
+    captured: dict = {}
+    _patch_dr_deployment(monkeypatch, [clarification, _report("Final report.")], captured)
+
+    state = {StateVarsConfig.SHOW_DEBUG_STAGES: False}
+    inputs = _inputs(state, "research US GDP")
+    await SupremeAgentExecutor(_channel_config()).stream_response(inputs)
+
+    assert captured["messages"][-1][1] == {
+        "role": "assistant",
+        "content": _CITED,
+        "custom_content": {"state": {"preparation": {"research_started": False}}},
+    }
+    inputs[ChainParametersConfig.HISTORY].dump_state(state)
+    [clarification_response, _] = [
+        m for m in state[StateVarsConfig.TOOL_MESSAGES] if m.get("type") == "tool"
+    ]
+    assert clarification_response["content"] == _RENUMBERED
+
+
 async def test_forced_start_error_is_surfaced_once_and_session_untouched(monkeypatch):
     """A deployment failure on the forced-start turn is surfaced with the standard message exactly
     once (not double-appended) and leaves no session so the user can retry."""
