@@ -34,6 +34,56 @@ must follow the normalizer - reversed, `'   '` passes as a three-character strin
 normalized to `''` on its way into the database.
 """
 
+MAX_DATASET_ID_LENGTH = 31
+"""What Excel allows in a sheet name, which is what a dataset id has to fit into."""
+
+FORBIDDEN_DATASET_ID_CHARS = ":\\/?*[]"
+"""What Excel refuses in a sheet name."""
+
+_RESERVED_SHEET_NAME = "history"
+"""The one name Excel keeps for itself, whatever the case."""
+
+
+def _require_sheet_name_safe(value: str) -> str:
+    """Refuse an id Excel could not name a sheet after.
+
+    The reason lives with the type rather than with the workbook parser: the id is the only
+    thing pairing a dataset row with its indicators sheet, so an id no sheet can be named
+    after is a dataset whose indicators can never be uploaded - whichever path stored it.
+    """
+    if len(value) > MAX_DATASET_ID_LENGTH:
+        raise ValueError(
+            f"must be at most {MAX_DATASET_ID_LENGTH} characters, since it also names the"
+            f" dataset's indicators sheet"
+        )
+    forbidden = sorted({char for char in value if char in FORBIDDEN_DATASET_ID_CHARS})
+    if forbidden:
+        # Quoted, so the punctuation of the sentence around them is not read as one more.
+        listed = " ".join(f'"{char}"' for char in forbidden)
+        raise ValueError(
+            f"must not contain the characters {listed}, since it also names the dataset's"
+            f" indicators sheet"
+        )
+    if value.startswith("'") or value.endswith("'"):
+        raise ValueError(
+            "must not start or end with an apostrophe, since it also names the dataset's"
+            " indicators sheet"
+        )
+    if value.lower() == _RESERVED_SHEET_NAME:
+        raise ValueError(
+            f"must not be {value!r}, a sheet name Excel reserves, since it also names the"
+            f" dataset's indicators sheet"
+        )
+    return value
+
+
+DatasetIdKey = Annotated[NormalizedKey, AfterValidator(_require_sheet_name_safe)]
+"""The dataset half of the natural key, which doubles as the name of its indicators sheet.
+
+Order is load-bearing here too: the length is counted after normalization, so padding does
+not spend the 31 characters Excel allows.
+"""
+
 
 class DiscoveryValidationIssue(BaseYamlModel):
     """One reason a discovery dataset record cannot be indexed."""
@@ -48,7 +98,10 @@ class DiscoveryValidationIssue(BaseYamlModel):
 
 
 class DiscoveryDatasetBase(BaseYamlModel):
-    """One dataset described for discovery, as filled in on the Datasets sheet.
+    """One dataset described for discovery, as a submitter fills it in.
+
+    Columns A-I come from the workbook's `Datasets` sheet; `indicators_coverage` is assembled
+    from the dataset's own indicators sheet, or supplied as a flat column by a CSV.
 
     Makes a dataset discoverable without onboarding it (Grade C): the agent can
     recognize the dataset exists and refer the user to its official source. Every
@@ -68,41 +121,66 @@ class DiscoveryDatasetBase(BaseYamlModel):
     regional_coverage: NormalizedStr = ""
     """Column B. Sub-national levels the data is broken down by; 'None' for national totals only."""
 
-    excluded_regional_values: NormalizedStr = ""
-    """Column C. Sub-national values a user could expect but the dataset does not contain."""
-
     agency: NormalizedKey
-    """Column D. Official English name of the publisher + acronym. Half of the natural key."""
+    """Column C. Official English name of the publisher + acronym. Half of the natural key."""
 
-    dataset_id: NormalizedKey
-    """Column E. The source's own dataset identifier, verbatim. Half of the natural key."""
+    dataset_id: DatasetIdKey
+    """Column D. The source's own dataset identifier, verbatim. Half of the natural key.
+
+    Also the name of the dataset's indicators sheet, which is what constrains its shape.
+    """
 
     name: NormalizedStr = ""
-    """Column F. The official dataset title, in English, as published."""
+    """Column E. The official dataset title, in English, as published."""
 
     description: NormalizedStr = ""
-    """Column G. What is measured, how it is broken down, and whether values are adjusted."""
+    """Column F. What is measured, how it is broken down, and whether values are adjusted."""
 
     url: NormalizedStr = ""
-    """Column H. Deepest stable public URL for the dataset - what a referral links to."""
+    """Column G. Deepest stable public URL for the dataset - what a referral links to."""
 
     time_coverage: NormalizedStr = ""
-    """Column I. 'From A to B' at the dataset's own granularity."""
+    """Column H. 'From A to B' at the dataset's own granularity."""
 
     frequency_coverage: NormalizedStr = ""
-    """Column J. ';'-separated frequencies from the template's vocabulary."""
+    """Column I. ';'-separated frequencies from the template's vocabulary."""
 
     indicators_coverage: NormalizedStr = ""
-    """Column K. The indicators, ';'-separated, each with its units of measure in parentheses."""
+    """The dataset's complete indicator list, each entry with its units of measure in
+    parentheses, ';'-separated.
 
-    missing_indicators: NormalizedStr = ""
-    """Column L. Indicators a user could expect but the dataset does not contain."""
+    No column of the `Datasets` sheet: a workbook assembles it from the dataset's own
+    indicators sheet, one row per indicator. A CSV carries it as this one flat column, which
+    is also how the export writes it.
+    """
 
 
 class DiscoveryDataset(DiscoveryDatasetBase, DbDefaultBase):
-    """A stored discovery dataset record, with its validation and indexing state."""
+    """A stored discovery dataset record, with its derived, validation and indexing state."""
 
     channel_id: int = Field(description="The ID of the channel this record belongs to.")
+
+    dataset_id: NormalizedKey
+    """Relaxed back to the plain key: reading a record must never fail on its own contents.
+
+    Records stored before the indicators sheet existed can hold an id no sheet could be
+    named after. The rule applies to what a write submits, so those rows keep being read,
+    exported and published; only resubmitting such an id is refused.
+    """
+
+    indicators_summary: str = ""
+    """What of `indicators_coverage` is published, derived by the indexing run. Read-only.
+
+    Today a verbatim copy of the raw list, made before the run publishes. It is a column of
+    its own because the raw list is what a submitter authored and must not be overwritten.
+    """
+
+    missing_indicators: str = ""
+    """Indicators a user could expect but the dataset does not contain. Read-only.
+
+    Derived by the indexing run, no longer submitted. Values authored under the old template
+    are kept until a run overwrites them.
+    """
 
     validation_status: DiscoveryValidationStatus
     """Verdict of the last indexing job to evaluate this record."""
@@ -132,20 +210,21 @@ class DiscoveryDatasetUpdate(BaseYamlModel):
 
     The two halves of the natural key are the exception: they can be corrected but not
     cleared, since a record with no key cannot be matched against a channel's contents.
+
+    `indicators_summary` and `missing_indicators` are absent because the indexing run derives
+    them; an edit that could set them would be overwritten by the next run.
     """
 
     reference_area: NormalizedStr | None = None
     regional_coverage: NormalizedStr | None = None
-    excluded_regional_values: NormalizedStr | None = None
     agency: NormalizedKey | None = None
-    dataset_id: NormalizedKey | None = None
+    dataset_id: DatasetIdKey | None = None
     name: NormalizedStr | None = None
     description: NormalizedStr | None = None
     url: NormalizedStr | None = None
     time_coverage: NormalizedStr | None = None
     frequency_coverage: NormalizedStr | None = None
     indicators_coverage: NormalizedStr | None = None
-    missing_indicators: NormalizedStr | None = None
 
 
 class DiscoveryDatasetUpdateBulk(DiscoveryDatasetUpdate):

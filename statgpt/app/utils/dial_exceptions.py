@@ -21,6 +21,42 @@ _DURATION_UNITS = [
 ]
 
 
+def _get_underlying_deployment(e: openai.APIStatusError) -> str | None:
+    try:
+        url = str(e.response.request.url)
+        match = _DEPLOYMENT_PATH_PATTERN.search(url)
+        return match.group(1) if match else None
+    except Exception:
+        return None
+
+
+class ForbiddenDeploymentException(DIALException):
+    TYPE = "forbidden_deployment"
+
+    def __init__(self, message: str, **kwargs) -> None:
+        super().__init__(
+            status_code=403,
+            message=message,
+            code="403",
+            type=self.TYPE,
+            **kwargs,
+        )
+
+    @classmethod
+    def from_openai_error(cls, e: openai.PermissionDeniedError) -> "ForbiddenDeploymentException":
+        deployment = _get_underlying_deployment(e)
+        deployment_hint = f" '{deployment}'" if deployment else ""
+        return cls(
+            message=e.message,
+            display_message=(
+                f"You don't have access to the underlying deployment{deployment_hint}."
+                " Please contact your administrator."
+            ),
+            original_error=e.body,
+            underlying_deployment=deployment,
+        )
+
+
 class RateLimitException(DIALException):
     TYPE = "rate_limit_exceeded"
 
@@ -36,7 +72,7 @@ class RateLimitException(DIALException):
 
     @classmethod
     def from_openai_error(cls, e: openai.RateLimitError) -> "RateLimitException":
-        model = cls._get_underlying_model(e)
+        deployment = _get_underlying_deployment(e)
         retry_after = e.response.headers.get("retry-after")
         exceeded_limits = cls._get_exceeded_limits(e)
         display_message = cls._get_display_message(exceeded_limits, retry_after)
@@ -45,19 +81,10 @@ class RateLimitException(DIALException):
             message=e.message,
             display_message=display_message,
             original_error=e.body,
-            underlying_model=model,
+            underlying_deployment=deployment,
             retry_after=retry_after,
             exceeded_limit=exceeded_limits,
         )
-
-    @staticmethod
-    def _get_underlying_model(e: openai.RateLimitError) -> str | None:
-        try:
-            url = str(e.response.request.url)
-            match = _DEPLOYMENT_PATH_PATTERN.search(url)
-            return match.group(1) if match else None
-        except Exception:
-            return None
 
     @staticmethod
     def _get_exceeded_limits(e: openai.RateLimitError) -> list[str]:
@@ -80,10 +107,10 @@ class RateLimitException(DIALException):
         if exceeded_limits:
             labels = ", ".join(exceeded_limits)
             return (
-                f"You've exceeded your {labels} token limit for the underlying LLM model."
+                f"You've exceeded your {labels} token limit for the underlying deployment."
                 f" Please try again {retry_hint}"
             )
-        return f"You've exceeded your token limit for the underlying LLM model. Please try again {retry_hint}"
+        return f"You've exceeded your token limit for the underlying deployment. Please try again {retry_hint}"
 
     @staticmethod
     def _format_duration(total_seconds: int) -> str:

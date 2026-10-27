@@ -1,4 +1,5 @@
 import logging
+from collections.abc import Sequence
 from typing import Never
 
 from statgpt.app.schemas.query import AppJsonQueryWithMetadata
@@ -156,20 +157,20 @@ def _snippet_or_placeholder(query: AppJsonQueryWithMetadata, suffix: str = "") -
         return f"# Unable to generate a reproducible sdmx1 snippet for {query.urn}."
 
 
-def generate_merged_python_code(queries: list[AppJsonQueryWithMetadata]) -> str:
-    queries = [
+def generate_merged_python_code(queries: Sequence[AppJsonQueryWithMetadata]) -> str:
+    enabled = [
         q
         for q in queries
         if not q.disabled and not any(f.operator == JsonQueryOperator.EXCLUDED for f in q.filters)
     ]
-    if not queries:
+    if not enabled:
         return PYTHON_SDMX1_HEADER
-    if len(queries) == 1:
-        body = _snippet_or_placeholder(queries[0])
+    if len(enabled) == 1:
+        body = _snippet_or_placeholder(enabled[0])
     else:
         sections = [
             f"# Dataset: {query.urn}\n{_snippet_or_placeholder(query, suffix=f'_{i}')}"
-            for i, query in enumerate(queries, start=1)
+            for i, query in enumerate(enabled, start=1)
         ]
         body = "\n\n".join(sections)
 

@@ -7,6 +7,7 @@ from typing import IO, Any
 import httpx
 import requests
 import sdmx
+import sdmx.reader.json
 from httpx import Response
 from requests import PreparedRequest
 from sdmx import Client, Resource
@@ -19,6 +20,7 @@ from statgpt.common.auth.auth_context import AuthContext
 from statgpt.common.config import multiline_logger as logger
 from statgpt.common.data.sdmx.common.authorizer import IAuthorizer
 from statgpt.common.data.sdmx.common.config import SdmxDataSourceConfig
+from statgpt.common.data.sdmx.common.json_reader import SdmxJsonDataReader
 from statgpt.common.data.sdmx.v21.ratelimiter import SdmxRateLimiter
 from statgpt.common.settings.sdmx import sdmx_settings
 from statgpt.common.utils import AsyncLoadingCache
@@ -79,7 +81,13 @@ class AsyncSdmxClient:
         version: str,
         params: dict[str, Any],
         use_cache: bool = False,
+        extra_params: dict[str, str] | None = None,
     ) -> StructureMessage:
+        """Fetch dataflows.
+
+        `extra_params` are non-standard query params (e.g. provider-specific flags) that sdmx1
+        would reject in `params`; they are appended to the URL as is.
+        """
         return await self._get_structure(  # type: ignore[return-value]
             resource_type=Resource.dataflow,
             agency_id=agency_id,
@@ -87,6 +95,7 @@ class AsyncSdmxClient:
             version=version,
             params=params,
             use_cache=use_cache,
+            extra_params=extra_params,
         )
 
     async def agencyscheme(
@@ -234,6 +243,7 @@ class AsyncSdmxClient:
         use_cache: bool = False,
         tofile: os.PathLike | IO | None = None,
         extra_headers: dict[str, str] | None = None,
+        extra_params: dict[str, str] | None = None,
     ) -> Message:
         async with self._rate_limiter.structure_limiter():
             return await self._get(
@@ -247,6 +257,7 @@ class AsyncSdmxClient:
                 use_cache=use_cache,
                 tofile=tofile,
                 extra_headers=extra_headers,
+                extra_params=extra_params,
             )
 
     async def _get_availability(
@@ -320,6 +331,7 @@ class AsyncSdmxClient:
         use_cache: bool = False,
         tofile: os.PathLike | IO | None = None,
         extra_headers: dict[str, str] | None = None,
+        extra_params: dict[str, str] | None = None,
     ) -> Message:
         params = params or {}
         headers = await self._construct_headers({}, resource_type)
@@ -335,6 +347,9 @@ class AsyncSdmxClient:
             dsd=dsd,
             **{k: v for k, v in [('agency_id', agency_id), ('version', version)] if v is not None},  # type: ignore[arg-type]
         )
+        if extra_params:
+            # Appended after sdmx1 builds the URL: it rejects params it doesn't know
+            req.prepare_url(req.url, extra_params)
 
         if use_cache:
             return await self._cache.get(
@@ -362,6 +377,7 @@ class AsyncSdmxClient:
     async def _perform_request(self, req: PreparedRequest, max_retries=3, delay=3) -> Response:
         attempts = 0
         start = time.monotonic()
+        request_desc = f"{req.method} {req.url} body={req.body!r}"
         try:
             while True:
                 attempts += 1
@@ -375,36 +391,76 @@ class AsyncSdmxClient:
                     if attempts == max_retries or resp.status_code < 500:
                         resp.raise_for_status()
                         return resp
-                    else:
-                        logger.error(
-                            f"Server failed to respond after {attempts} attempts: {resp.status_code} {resp.text}\n"
-                            f"Retrying in {delay} seconds...\nRequest: {req.method} {req.url} body={req.body!r}"
-                        )
-                        await asyncio.sleep(delay)
+                    logger.error(
+                        f"SDMX server responded {resp.status_code} on attempt {attempts}/{max_retries}"
+                        f" ({time.monotonic() - start:.1f}s elapsed): {resp.text}\n"
+                        f"Retrying in {delay} seconds...\nRequest: {request_desc}"
+                    )
                 except httpx.TimeoutException as e:
+                    elapsed = time.monotonic() - start
                     if attempts == max_retries:
-                        elapsed = time.monotonic() - start
                         msg = (
                             f"SDMX request to {req.method} {req.url} timed out after "
                             f"{attempts} attempt(s), waited {elapsed:.1f}s total"
                         )
-                        logger.error(f"{msg}\nbody={req.body!r}")
-                        raise SdmxRequestTimeoutError(msg) from e
-                    else:
                         logger.error(
-                            f"Request timed out ({type(e).__name__}) after {attempts} attempts. "
-                            f"Retrying in {delay} seconds..."
-                            f"\nRequest: {req.method} {req.url} body={req.body!r}\n"
+                            f"{msg}\nCause: {self._describe_exception_chain(e)}\n"
+                            f"Timeouts: {self._httpx_client.timeout!r}\nbody={req.body!r}"
                         )
-                        await asyncio.sleep(delay)
+                        raise SdmxRequestTimeoutError(msg) from e
+                    logger.error(
+                        f"SDMX request timed out on attempt {attempts}/{max_retries}"
+                        f" ({elapsed:.1f}s elapsed): {self._describe_exception_chain(e)}\n"
+                        f"Retrying in {delay} seconds...\nRequest: {request_desc}"
+                    )
+                except (httpx.NetworkError, httpx.RemoteProtocolError) as e:
+                    # Transient transport failures (connection reset or refused, TLS handshake
+                    # aborted by the peer, server closed a keep-alive connection, etc.).
+                    if attempts == max_retries:
+                        raise
+                    logger.error(
+                        f"SDMX request failed with a transport error on attempt {attempts}/{max_retries}"
+                        f" ({time.monotonic() - start:.1f}s elapsed): {self._describe_exception_chain(e)}\n"
+                        f"Retrying in {delay} seconds...\nRequest: {request_desc}"
+                    )
+                await asyncio.sleep(delay)
         except SdmxRequestTimeoutError:
             raise  # already logged above with a specific, actionable message
-        except Exception:
+        except Exception as e:
             logger.exception(
-                f"Server failed to respond, after {attempts} attempts: "
-                f"{req.method} {req.url} body={req.body!r}"
+                f"SDMX request failed after {attempts} attempt(s)"
+                f" ({time.monotonic() - start:.1f}s elapsed): {self._describe_exception_chain(e)}\n"
+                f"Request: {request_desc}"
             )
             raise
+
+    @staticmethod
+    def _describe_exception_chain(exc: BaseException) -> str:
+        """Render the exception and its causes on one line, e.g.
+        ``httpx.ConnectError <- httpcore.ConnectError <- anyio.EndOfStream``.
+
+        httpx transport errors often have an empty message, and the actual reason
+        (e.g. an ``ssl.SSLError`` or a connection closed by the peer) is only visible
+        in the underlying cause.
+        """
+        parts = []
+        seen: set[int] = set()
+        current: BaseException | None = exc
+        while current is not None and id(current) not in seen:
+            seen.add(id(current))
+            exc_type = type(current)
+            module = exc_type.__module__.split('.')[0]
+            name = (
+                exc_type.__qualname__
+                if module == 'builtins'
+                else f"{module}.{exc_type.__qualname__}"
+            )
+            text = str(current)
+            parts.append(f"{name}: {text}" if text else name)
+            current = current.__cause__ or (
+                None if current.__suppress_context__ else current.__context__
+            )
+        return " <- ".join(parts)
 
     @staticmethod
     def _convert_response(httpx_resp: httpx.Response, req: PreparedRequest) -> requests.Response:
@@ -435,6 +491,10 @@ class AsyncSdmxClient:
                 + repr(response.headers.get("content-type", None))
                 + f" and url {response.url}"
             ) from None
+
+        # sdmx1's JSON reader loses series and dataSet attributes, see `SdmxJsonDataReader`
+        if reader_class is sdmx.reader.json.Reader:
+            reader_class = SdmxJsonDataReader
 
         # Instantiate reader from class
         reader = reader_class()

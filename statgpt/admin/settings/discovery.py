@@ -17,6 +17,14 @@ class DiscoveryUploadSettings(BaseSettings):
         ge=1,
         description="Reject a file with more data rows than this.",
     )
+    max_indicators_per_dataset: int = Field(
+        default=50_000,
+        ge=1,
+        description=(
+            "Reject a dataset whose indicators sheet, or CSV indicators column, lists more"
+            " indicators than this."
+        ),
+    )
     max_reported_problems: int = Field(
         default=200,
         ge=1,

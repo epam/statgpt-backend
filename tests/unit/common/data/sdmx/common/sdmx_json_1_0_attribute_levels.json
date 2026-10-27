@@ -1,0 +1,68 @@
+{
+  "header": {
+    "id": "DS1",
+    "prepared": "2026-01-01T00:00:00Z",
+    "test": true,
+    "sender": {"id": "TEST", "name": "Test sender"}
+  },
+  "dataSets": [
+    {
+      "action": "Replace",
+      "attributes": [0],
+      "series": {
+        "0:0:0": {
+          "attributes": [0, null, 0, 0, null],
+          "observations": {"0": ["1250.5"], "1": ["1310.2"]}
+        },
+        "0:0:1": {
+          "attributes": [0, null, 1, null, null],
+          "observations": {"0": ["12.5"], "1": ["13.1"]}
+        }
+      }
+    }
+  ],
+  "structure": {
+    "name": "Test data",
+    "dimensions": {
+      "dataset": [],
+      "series": [
+        {"id": "FREQUENCY", "name": "Frequency", "keyPosition": 0, "values": [{"id": "A", "name": "Annual"}]},
+        {"id": "COUNTRY", "name": "Country", "keyPosition": 1, "values": [{"id": "US", "name": "United States"}]},
+        {
+          "id": "INDICATOR",
+          "name": "Indicator",
+          "keyPosition": 2,
+          "values": [
+            {"id": "IND_A", "name": "Indicator A"},
+            {"id": "IND_B", "name": "Indicator B"}
+          ]
+        }
+      ],
+      "observation": [
+        {
+          "id": "TIME_PERIOD",
+          "name": "Time Period",
+          "keyPosition": 3,
+          "role": "time",
+          "values": [
+            {"start": "2021-01-01T00:00:00Z", "end": "2021-12-31T23:59:59Z", "id": "2021", "name": "2021"},
+            {"start": "2022-01-01T00:00:00Z", "end": "2022-12-31T23:59:59Z", "id": "2022", "name": "2022"}
+          ]
+        }
+      ]
+    },
+    "attributes": {
+      "dataSet": [
+        {"id": "COMMENT", "name": "Comment", "values": [{"id": "Test comment", "name": "Test comment"}]}
+      ],
+      "series": [
+        {"id": "CURRENCY", "name": "Currency", "values": [{"id": "USD", "name": "USD"}]},
+        {"id": "UNIT", "name": "Unit", "values": []},
+        {"id": "SCALE", "name": "Scale", "values": [{"id": "9", "name": "Billions"}, {"id": "6", "name": "Millions"}]},
+        {"id": "NOTE", "name": "Note", "values": [{"id": "EST", "name": "Estimated"}]},
+        {"id": "METHODOLOGY", "name": "Methodology", "values": [{"id": "SNA2008", "name": "SNA 2008"}]}
+      ],
+      "observation": []
+    }
+  }
+}

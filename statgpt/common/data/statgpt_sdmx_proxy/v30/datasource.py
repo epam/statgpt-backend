@@ -20,6 +20,7 @@ from statgpt.common.data.sdmx.v21.sdmx_client import SdmxRequestTimeoutError
 from statgpt.common.data.sdmx.v21.urn_utils import is_wildcarded_version, lookup_urn
 from statgpt.common.data.statgpt_sdmx_proxy.config import StatGptSdmxProxyDataSourceConfig
 from statgpt.common.data.statgpt_sdmx_proxy.v30.dataset import StatGptSdmxProxyDataSet
+from statgpt.common.data.statgpt_sdmx_proxy.v30.sdmx_client import PROXY_DATAFLOW_EXTRA_PARAMS
 from statgpt.common.data.statgpt_sdmx_proxy.v30.sdmx_client import (
     AsyncStatGptSdmxProxyClient as SdmxClient,
 )
@@ -64,7 +65,11 @@ class StatGptSdmxProxyDataSourceHandler(Sdmx21DataSourceHandler):
         return SdmxClient.from_config(self._config, auth_context, rate_limiter)
 
     def _create_dataflow_loader(self, sdmx_client: SdmxClient) -> DataflowLoader:  # type: ignore[override]
-        return DataflowLoader(sdmx_client, structure_extra_headers=proxy_structure_extra_headers)
+        return DataflowLoader(
+            sdmx_client,
+            structure_extra_headers=proxy_structure_extra_headers,
+            dataflow_extra_params=PROXY_DATAFLOW_EXTRA_PARAMS,
+        )
 
     @staticmethod
     def _to_proxy_annotation(annotation: BaseAnnotation) -> Sdmx30AnnotationModel:

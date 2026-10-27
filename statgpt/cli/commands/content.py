@@ -684,15 +684,21 @@ async def _process_channels(
 
 
 def _warn_if_deprecated_rag(ch_cfg: dict[str, Any]) -> None:
-    """Warn if the channel uses the deprecated DIAL file RAG backend."""
+    """Warn if the channel uses the deprecated DIAL file RAG backend or settings."""
     file_rag = ch_cfg.get("details", {}).get("file_rag")
     if not file_rag:
         return
-    version = file_rag.get("details", {}).get("version")
+    details = file_rag.get("details", {})
+    version = details.get("version")
     if version == RAGVersion.DIAL.value:
         print_warning(
             f"The '{RAGVersion.DIAL.value}' file RAG backend is deprecated; "
             f"use '{RAGVersion.GENERIC.value}' instead."
+        )
+    url_override = details.get("attachmentUrlOverride") or details.get("attachment_url_override")
+    if url_override and url_override.strip():
+        print_warning(
+            "The file RAG 'attachmentUrlOverride' setting is deprecated; use 'rewriteRules' instead."
         )
 
 

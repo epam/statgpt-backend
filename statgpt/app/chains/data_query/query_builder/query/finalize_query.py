@@ -4,6 +4,7 @@ from aidial_sdk.chat_completion import Stage
 from langchain_core.runnables import Runnable, RunnableConfig, RunnableLambda, RunnablePassthrough
 
 from statgpt.app.chains.data_query.parameters import DataQueryParameters
+from statgpt.app.chains.data_query.query_builder import missing_dimensions
 from statgpt.app.chains.data_query.query_builder import utils as query_utils
 from statgpt.app.chains.data_query.query_constructor import QueryConstructorFactory
 from statgpt.app.chains.parameters import ChainParameters
@@ -61,6 +62,7 @@ class FinalizeQueryChainFactory:
             stage=self._config.pipeline_stage_names.executing_data_query,
             messages=messages,
             explorer_link=self._config.explorer_link,
+            mcp_explorer_link=self._config.mcp_structured_content.data_explorer_url,
             summarize_queries_chain=self._summarize_queries_chain,
         )
         self._no_data_chain = NoDataChain(messages=messages)
@@ -429,7 +431,8 @@ class FinalizeQueryChainFactory:
                 payload_factory=lambda: DataQueryMcpPayload(
                     constructed_queries=self._build_constructed_queries(
                         dataset_queries, chain_state.datasets_dict
-                    )
+                    ),
+                    message=response,
                 ),
             )
             return RunnablePassthrough.assign(
@@ -464,10 +467,9 @@ class FinalizeQueryChainFactory:
             )
 
         if any(q.invalidity_reason is not None for q in dataset_queries.values()):
-            # No queries are surfaced here on purpose: the rejected time period was never applied
-            # to them (see `_apply_selected_time_period_to_query`), so serializing them would
-            # describe a query the user did not ask for — one that would happily return data.
-            # The response text names the requested period and the available range instead.
+            # The rejected time period was never applied to the queries (see
+            # `_apply_selected_time_period_to_query`): the invalid-period chain reports them with
+            # the reason it was rejected, so they don't read as a query the user asked for.
             self._stamp_state(inputs, DataQueryStatus.INVALID_TIME_PERIOD)
             return (
                 self._summarize_queries_chain.create_chain
@@ -482,7 +484,7 @@ class FinalizeQueryChainFactory:
             inputs,
             DataQueryStatus.MISSING_DIMENSIONS,
             payload_factory=lambda: DataQueryMcpPayload(
-                missing_dimensions=IncompleteQueriesChain.build_missing_dimensions_info(
+                missing_dimensions=missing_dimensions.build_missing_dimensions_info(
                     dataset_id,
                     chain_state.datasets_dict[dataset_id],
                     dataset_queries[dataset_id],

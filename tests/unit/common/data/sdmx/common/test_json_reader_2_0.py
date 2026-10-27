@@ -1,4 +1,6 @@
-"""Tests for :class:`StatGptSdmxProxyDataReader`.
+"""Tests for :class:`SdmxJsonDataReader` on SDMX-JSON 2.0.0 messages (SDMX 3.0 APIs).
+
+SDMX-JSON 1.0 is covered in ``test_json_reader_1_0.py``.
 
 The reader normalises two SDMX-JSON 2.0.0 variants into identical models.  Two
 small hand-crafted fixtures keep each variant isolated so a regression in one
@@ -23,7 +25,7 @@ import pytest
 from sdmx.message import DataMessage
 from sdmx.model.v21 import AllDimensions, AttributeValue, Code, DataSet, Observation, SeriesKey
 
-from statgpt.common.data.statgpt_sdmx_proxy.v30.reader import StatGptSdmxProxyDataReader
+from statgpt.common.data.sdmx.common.json_reader import SdmxJsonDataReader
 from statgpt.common.data.statgpt_sdmx_proxy.v30.sdmx_client import (
     _dataset_level_attribute_map_from_data_message,
 )
@@ -32,7 +34,7 @@ STANDARD_FIXTURE = Path(__file__).parent / "standard_attribute_levels.json"
 
 
 def _parse_standard() -> DataMessage:
-    return StatGptSdmxProxyDataReader().convert(io.BytesIO(STANDARD_FIXTURE.read_bytes()))
+    return SdmxJsonDataReader().convert(io.BytesIO(STANDARD_FIXTURE.read_bytes()))
 
 
 def _attr_code_id(av: AttributeValue) -> str | None:
@@ -76,8 +78,9 @@ class TestStandardFormatReader:
         # (else TypeError) while keeping the code id.
         assert _attr_code_id(series_key.attrib["SCALE"]) == "9"
 
-    def test_sparse_series_null_slot_skipped(self, series_key: SeriesKey) -> None:
-        assert "DECIMALS" not in series_key.attrib
+    def test_unreferenced_single_value_series_attr_applied(self, series_key: SeriesKey) -> None:
+        # DECIMALS is null in every series data array; its single coded value is inferred.
+        assert _attr_code_id(series_key.attrib["DECIMALS"]) == "3"
 
     def test_dataset_attr_empty_coded_list_is_none(self, dataset: DataSet) -> None:
         assert dataset.attrib["DOI"].value is None
@@ -101,11 +104,11 @@ FIXTURE = Path(__file__).parent / "data_all_attribute_levels.json"
 
 
 def _parse_payload(payload: dict) -> DataMessage:
-    return StatGptSdmxProxyDataReader().convert(io.BytesIO(json.dumps(payload).encode()))
+    return SdmxJsonDataReader().convert(io.BytesIO(json.dumps(payload).encode()))
 
 
 def _parse_fixture() -> DataMessage:
-    return StatGptSdmxProxyDataReader().convert(io.BytesIO(FIXTURE.read_bytes()), structure=None)
+    return SdmxJsonDataReader().convert(io.BytesIO(FIXTURE.read_bytes()), structure=None)
 
 
 def _attr_display(attrib: dict[str, AttributeValue]) -> dict[str, str | None]:
@@ -131,7 +134,7 @@ def _obs_by_time(observations: list[Observation]) -> dict[str, Observation]:
 
 def test_proxy_fixture_uses_dimension_group_attribute_category() -> None:
     """Proxy payloads keep group attributes separate from series attributes."""
-    reader = StatGptSdmxProxyDataReader()
+    reader = SdmxJsonDataReader()
     reader.convert(io.BytesIO(FIXTURE.read_bytes()))
     attr_levels = {attr.id: level for attr, level in reader._attr_level.items()}
 

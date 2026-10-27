@@ -326,6 +326,11 @@ class DialRagState(BaseRagState):
 
     version: RAGVersion = RAGVersion.DIAL
     pre_filter: PreFilterResponse | None = None
+    search_all_publications: bool = Field(
+        default=False,
+        description="True when the agent requested to skip the prefilter "
+        "and search across all publications.",
+    )
     metadata: DialRagMetadata | None = None
     current_date: datetime.date | None = Field(
         default=None,

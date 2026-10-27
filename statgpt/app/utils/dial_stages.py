@@ -1,4 +1,3 @@
-import asyncio
 import logging
 from collections.abc import Callable
 from contextlib import AbstractContextManager, contextmanager
@@ -8,7 +7,7 @@ from typing import Any, Protocol, runtime_checkable
 
 from aidial_sdk.chat_completion import Attachment, Stage
 from aidial_sdk.chat_completion.enums import Status
-from aidial_sdk.chat_completion.stage import ChunkQueue, ContentStream
+from aidial_sdk.chat_completion.stage import ContentStream
 
 from statgpt.app.settings.dial_app import dial_app_settings
 
@@ -181,12 +180,14 @@ class DummyStage(StageI):
     def close(self, status: Status = Status.COMPLETED):
         pass
 
+    def create_stage(self, name: str | None = None) -> "DummyStage":
+        """A child of a dummy stage is a dummy too: ``NullChoice`` relays nested stages this way."""
+        return DummyStage()
+
     @property
     def content_stream(self) -> ContentStream:
-        # Return an empty ContentStream
-        queue: ChunkQueue = asyncio.Queue()
-        dummy_stage = Stage(queue, 0, 0, name="Dummy Stage")
-        return dummy_stage.content_stream
+        # Writes go to `append_content`, so they are dropped like any other content
+        return ContentStream(self)
 
     def __enter__(self):
         return self

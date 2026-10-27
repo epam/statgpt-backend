@@ -27,10 +27,13 @@ from .channel_dataset import (
     StructureChange,
 )
 from .composite import ChannelDatasetUpdateResult, DataSetUpdateResponse
+from .custom_content_rewrite import CustomContentRewriteRule, FieldRewrite, RewriteSelector
 from .data_query_tool import (
     DataQueryDetails,
     DataQueryExplorerLink,
+    DataQueryMcpMeta,
     DataQueryMcpResources,
+    DataQueryMcpStructuredContent,
     HybridSearchConfig,
 )
 from .data_source import DataSource, DataSourceBase, DataSourceType, DataSourceUpdate, Provider
@@ -70,6 +73,7 @@ from .enums import (
     AutoUpdateResult,
     ChannelDatasetUpdateStatus,
     ChannelIndexStatusScope,
+    CustomContentKind,
     DecoderOfLatestEnum,
     DiscoveryGrade,
     DiscoveryIndexingStatus,
@@ -83,6 +87,9 @@ from .enums import (
     PreprocessingStatusEnum,
     RAGVersion,
     RecordUploadMode,
+    RewriteAppliesTo,
+    RewriteSelectorField,
+    RewriteTargetField,
     ToolTypes,
 )
 from .generic_rag import (
@@ -101,8 +108,15 @@ from .glossary_of_terms import (
 )
 from .jobs import ClearJobsResult, Job
 from .model_config import EmbeddingsModelConfig, LLMModelConfig
-from .tool_details import FakeCall, ResumeStagesConfig, SdmxQueryAppDetails, StagesConfig
+from .tool_details import (
+    DeepResearchQueryCheckConfig,
+    FakeCall,
+    ResumeStagesConfig,
+    SdmxQueryAppDetails,
+    StagesConfig,
+)
 from .tools import (
+    AvailabilityQueryTool,
     AvailableDatasetsTool,
     AvailablePublicationsTool,
     BaseToolConfig,

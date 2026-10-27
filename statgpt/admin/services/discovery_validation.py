@@ -28,7 +28,10 @@ _ALLOWED_URL_SCHEMES = ("http", "https")
 
 
 class DiscoveryRecord(Protocol):
-    """The descriptive half of a discovery dataset record.
+    """The submitted half of a discovery dataset record.
+
+    What a submitter wrote, and so the only thing a check may read: the columns the indexing
+    run derives are filled in after validation has already had its say.
 
     A narrow read-only view, so a check can be run against a stored row, an unsaved
     schema, or a test stub alike. The members are properties rather than attributes so the
@@ -41,9 +44,6 @@ class DiscoveryRecord(Protocol):
 
     @property
     def regional_coverage(self) -> str: ...
-
-    @property
-    def excluded_regional_values(self) -> str: ...
 
     @property
     def agency(self) -> str: ...
@@ -69,9 +69,6 @@ class DiscoveryRecord(Protocol):
     @property
     def indicators_coverage(self) -> str: ...
 
-    @property
-    def missing_indicators(self) -> str: ...
-
 
 _CheckFn = Callable[[DiscoveryRecord], Iterable[DiscoveryValidationIssue]]
 
@@ -83,7 +80,7 @@ class DiscoveryCheck:
 
 
 def _check_frequency_coverage(record: DiscoveryRecord) -> Iterable[DiscoveryValidationIssue]:
-    """Column J must name at least one frequency, each from the template's vocabulary.
+    """Column I must name at least one frequency, each from the template's vocabulary.
 
     An empty cell is an issue rather than absent information: the chat-time pre-filter narrows
     the candidate set by frequency, and a record that names none is a record that no query
@@ -131,7 +128,7 @@ def _check_reference_area(record: DiscoveryRecord) -> Iterable[DiscoveryValidati
 
 
 def _check_url(record: DiscoveryRecord) -> Iterable[DiscoveryValidationIssue]:
-    """Column H must be a web address, since referring a user to it is the record's purpose.
+    """Column G must be a web address, since referring a user to it is the record's purpose.
 
     ``http`` is accepted alongside ``https``: an invalid record is not published, so
     demanding https would delist an agency that publishes over plain http - a warning
@@ -148,8 +145,29 @@ def _check_url(record: DiscoveryRecord) -> Iterable[DiscoveryValidationIssue]:
         )
 
 
+def _check_indicators_coverage(record: DiscoveryRecord) -> Iterable[DiscoveryValidationIssue]:
+    """The dataset's indicator list must name at least one indicator.
+
+    An empty list clears the same bar an empty frequency does: a record that names no
+    indicator is one that no question about an indicator can reach, so it would be published
+    and then never surfaced.
+
+    The only place emptiness is caught. No write path refuses it, so this one check covers a
+    dataset whose indicators sheet is missing or holds only its header, a CSV without the
+    column, a JSON write that omits it, and a row stored empty under the old template.
+    """
+    if not split_cell(record.indicators_coverage):
+        yield DiscoveryValidationIssue(
+            field="indicators_coverage",
+            message=(
+                "At least one indicator is required: search narrows by it. List the"
+                " dataset's indicators on its own sheet, named with the dataset's ID."
+            ),
+        )
+
+
 def _check_description(record: DiscoveryRecord) -> Iterable[DiscoveryValidationIssue]:
-    """Column G must say something, because it is the whole of the published document.
+    """Column F must say something, because it is the whole of the published document.
 
     Every other field travels as document metadata; the description is the document's
     content. A record without one is published as an empty document, which retrieval can
@@ -166,6 +184,7 @@ DEFAULT_CHECKS: tuple[DiscoveryCheck, ...] = (
     DiscoveryCheck(name="description", run=_check_description),
     DiscoveryCheck(name="reference_area", run=_check_reference_area),
     DiscoveryCheck(name="frequency_coverage", run=_check_frequency_coverage),
+    DiscoveryCheck(name="indicators_coverage", run=_check_indicators_coverage),
     DiscoveryCheck(name="url", run=_check_url),
 )
 """The check set as it stands.
@@ -176,10 +195,10 @@ would silently make records unindexable. `reference_area` is therefore checked f
 present, never against ISO codes: the template explicitly allows group labels such as
 'Euro area' or 'World'.
 
-Three things clear that bar rather than being nitpicks. An absent description leaves the
-published document with nothing in it. An absent reference area or frequency leaves the
-record outside every pre-filtered search, so it would be indexed and never surfaced - a
-worse outcome than telling the submitter which cell to fill in.
+Four things clear that bar rather than being nitpicks. An absent description leaves the
+published document with nothing in it. An absent reference area, frequency or indicator list
+leaves the record outside every pre-filtered search, so it would be indexed and never
+surfaced - a worse outcome than telling the submitter which cell to fill in.
 """
 
 

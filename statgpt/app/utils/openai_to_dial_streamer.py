@@ -1,15 +1,20 @@
 import json
+import logging
 from collections.abc import Iterator
 from typing import Any
 
-from aidial_sdk.chat_completion import Stage
+from aidial_sdk.chat_completion import Stage, Status
 from openai.types.chat import ChatCompletionChunk
 
+from statgpt.app.utils.citation_ids import Citation, get_source_quote, get_source_title, get_tag_id
+from statgpt.app.utils.custom_content_rewriter import CustomContentRewriter
 from statgpt.app.utils.dial_annotations import send_annotations
 from statgpt.app.utils.dial_stages import ChoiceI
 from statgpt.common.schemas import StagesConfig
 from statgpt.common.schemas.token_usage import TokenUsageItem
 from statgpt.common.utils.token_usage_context import get_token_usage_manager
+
+_log = logging.getLogger(__name__)
 
 # Hands out the index this response gives a relayed annotation. One counter per response,
 # created with `itertools.count()` and shared by every streamer of that response: see
@@ -34,6 +39,7 @@ class OpenAiToDialStreamer:
         stages_config: StagesConfig,
         annotation_index_space: AnnotationIndexSpace,
         stream_content: bool = True,
+        rewriter: CustomContentRewriter | None = None,
     ) -> None:
         """Creates a streamer that processes OpenAI ChatCompletionChunks and sends them to Dial.
 
@@ -45,6 +51,8 @@ class OpenAiToDialStreamer:
                 with every other streamer of the same response. Required rather than defaulted,
                 so a new call site fails loudly instead of numbering annotations on its own.
             stream_content: If True, the content will be appended to the `target` as it is received.
+            rewriter: If set, rewrites the annotations and attachments (including stage
+                attachments) before they are relayed.
             stream_stages: If True, the stages will be created with the content and attachments from the chunks.
         """
 
@@ -55,10 +63,15 @@ class OpenAiToDialStreamer:
         self._stages_config = stages_config
         self._annotation_index_space = annotation_index_space
         self._stream_content = stream_content
+        self._rewriter = rewriter
 
         self._content = ""
+        # The relayed stages, keyed by the index the deployment gave them.
         self._stages: dict[int, Stage] = {}
+        # The keys of those still open: only an open stage can take a child.
+        self._open_stages: set[int] = set()
         self._attachments: list[dict[str, Any]] = []
+        self._annotations: list[dict[str, Any]] = []
         self._state: dict[str, Any] | None = None
         # This streamer's own annotations only: the index its sub-deployment gave one, mapped
         # to the index this response gave it. Dies with the streamer.
@@ -78,6 +91,49 @@ class OpenAiToDialStreamer:
     @property
     def attachments(self) -> list[dict[str, Any]]:
         return self._attachments
+
+    @property
+    def annotations(self) -> list[dict[str, Any]]:
+        """The annotations relayed to the choice, as sent (rewritten and renumbered)."""
+        return self._annotations
+
+    @property
+    def citations(self) -> list[Citation]:
+        """Every citation tag the relayed annotations claim, with the source it cites and the
+        passage it quotes.
+
+        Each distinct combination of tag id, title and quote is listed once, in the order first
+        seen, so each entry matches one card in the pill's popup. Annotations are not merged by
+        `index`, as Deep Research does not re-send one to extend it. An annotation that names no
+        source (see `get_source_title`) is listed with no title, so the agent is not left with an
+        id it cannot look up.
+        """
+        # One key per distinct (tag id, title, quote) combination. Each tuple is built from a single
+        # annotation, so its three values always belong together. `dict.fromkeys` drops a repeated
+        # key, and a dict keeps insertion order, so each entry stays where it was first seen.
+        # The keys are tuples because a plain pydantic model is not hashable.
+        keys = dict.fromkeys(
+            (tag_id, get_source_title(annotation), get_source_quote(annotation))
+            for annotation in self._annotations
+            if (tag_id := get_tag_id(annotation)) is not None
+        )
+        return [Citation(id=tag_id, title=title, quote=quote) for tag_id, title, quote in keys]
+
+    @property
+    def citations_note(self) -> str:
+        """The source of every citation tag of the content, to append to a tool response so the
+        agent can tell which source backs a statement. Empty if the content cites nothing.
+
+        A citation that quotes no passage, or names no source, leaves the field out; the rest of
+        the annotation, such as the cited file and page box, is left out to keep the response
+        small. The annotations relayed to the client are not affected.
+        """
+        if not (citations := self.citations):
+            return ''
+        citations_json = json.dumps(
+            [c.model_dump(exclude_none=True) for c in citations], ensure_ascii=False
+        )
+        return f'\n\n### Sources of the citation tags:\n\n```json\n{citations_json}\n```'
 
     @property
     def state(self) -> dict[str, Any] | None:
@@ -141,6 +197,7 @@ class OpenAiToDialStreamer:
         if attachment.get('data') is None and attachment.get('url') is None:
             attachment['data'] = ''
 
+        attachment = self._rewrite_attachment(attachment)
         self._attachments.append(attachment)
         if self._stream_content:
             self._target.add_attachment(
@@ -157,11 +214,24 @@ class OpenAiToDialStreamer:
 
         They go to `_choice` and never to `_target`, which is a stage on some paths: an
         annotation claims a marker tag in a message, and a stage is not a message. Every field
-        is relayed unchanged except `index`.
+        is relayed unchanged except `index` and the fields modified by the `rewriter`.
         """
-        send_annotations(
-            self._choice, [self._renumber_annotation(annotation) for annotation in annotations]
-        )
+        relayed = [
+            self._renumber_annotation(self._rewrite_annotation(annotation))
+            for annotation in annotations
+        ]
+        self._annotations.extend(relayed)
+        send_annotations(self._choice, relayed)
+
+    def _rewrite_annotation(self, annotation: dict[str, Any]) -> dict[str, Any]:
+        if self._rewriter is None:
+            return annotation
+        return self._rewriter.rewrite_annotation(annotation)
+
+    def _rewrite_attachment(self, attachment: dict[str, Any]) -> dict[str, Any]:
+        if self._rewriter is None:
+            return attachment
+        return self._rewriter.rewrite_attachment(attachment)
 
     def _renumber_annotation(self, annotation: dict[str, Any]) -> dict[str, Any]:
         """Move the annotation's `index` into the index space of the whole response.
@@ -195,8 +265,7 @@ class OpenAiToDialStreamer:
         name = stage.get('name')
 
         if index not in self._stages:
-            self._stages[index] = self._choice.create_stage(name or '')
-            self._stages[index].open()
+            self._open_stage(index, name or '', stage.get('parent_stage_index'))
         elif name:
             self._stages[index].append_name(name)
 
@@ -204,7 +273,7 @@ class OpenAiToDialStreamer:
             self._stages[index].append_content(content)
 
         if attachments := stage.get('attachments'):
-            for attachment in attachments:
+            for attachment in map(self._rewrite_attachment, attachments):
                 self._stages[index].add_attachment(
                     type=attachment.get('type'),
                     title=attachment.get('title'),
@@ -214,11 +283,42 @@ class OpenAiToDialStreamer:
                     reference_type=attachment.get('reference_type'),
                 )
 
-        if stage.get('status') == 'completed':
-            self._stages[index].close()
+        # Relay the status the deployment closed the stage with: a stage left open here would be
+        # closed as `completed` on exit, so a step that failed downstream would show as done.
+        if (status := stage.get('status')) is not None:
+            self._stages[index].close(Status(status))
+            self._open_stages.discard(index)
+
+    def _open_stage(self, index: int, name: str, parent_index: int | None) -> None:
+        """Open the relayed stage under the relayed stage the deployment nested it in.
+
+        A stage the deployment opened at the root opens at the root of the choice. So does a
+        stage whose parent this streamer never relayed or has already closed: the SDK refuses to
+        open a stage under such a parent, and a stage out of place is better than a failed
+        response.
+        """
+        if parent_index is None:
+            stage = self._choice.create_stage(name)
+        elif parent_index in self._open_stages:
+            stage = self._stages[parent_index].create_stage(name)
+        else:
+            _log.warning(
+                "Relaying the stage %s of `%s` at the root: its parent stage %s is unknown"
+                " or already closed",
+                index,
+                self._deployment,
+                parent_index,
+            )
+            stage = self._choice.create_stage(name)
+
+        stage.open()
+        self._stages[index] = stage
+        self._open_stages.add(index)
 
     def _exit_opened_stages(self, exc_type, exc_val, exc_tb) -> None:
-        for stage in self._stages.values():
+        # A child is always relayed after its parent, so the reverse order closes every child
+        # before its parent: the SDK warns about a stage closed while a child of it is open.
+        for stage in reversed(self._stages.values()):
             stage.__exit__(exc_type, exc_val, exc_tb)
 
     def _update_token_usage(self, usages: list[dict[str, int | str]]) -> None:

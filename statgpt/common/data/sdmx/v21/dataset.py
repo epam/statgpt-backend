@@ -14,7 +14,7 @@ from functools import cached_property, partial
 import pandas as pd
 import plotly.graph_objects as go
 import sdmx.model.common
-from dateutil.parser import parse
+from dateutil.parser import ParserError, parse
 from sdmx.message import DataMessage, StructureMessage
 from sdmx.model.common import Code
 from sdmx.model.v21 import DataflowDefinition as DataFlow
@@ -421,10 +421,18 @@ class Sdmx21DataSet(
         return None
 
     async def updated_at(self, auth_context: AuthContext) -> datetime | None:
-        if self.config.citation:
-            if self.config.citation.last_updated:
-                return parse(self.config.citation.last_updated)
-        return None
+        citation = self.config.citation
+        if citation is None or not citation.last_updated:
+            return None
+        try:
+            return parse(citation.last_updated)
+        except (ParserError, OverflowError):
+            _log.warning(
+                "Failed to parse last-updated date %r of dataset %s",
+                citation.last_updated,
+                self.entity_id,
+            )
+            return None
 
     def get_resolved_config(self) -> dict:
         """
@@ -477,16 +485,20 @@ class Sdmx21DataSet(
     @property
     def dataset_url(self) -> str | None:
         if self._datasource.config.use_data_explorer_for_dataset_url:
-            if base := self._resolved_data_explorer_base_url():
-                return build_data_explorer_dataset_url(
-                    base, self._short_urn, self._resolved_data_explorer_url_config()
-                )
+            if url := self.data_explorer_dataset_url:
+                return url
             _log.warning(
                 "Data explorer URL is not configured on the dataset or data source: %s",
                 self._datasource.source_id,
             )
-        if self.config.citation and self.config.citation.url:
-            return self.config.citation.get_url()
+        return self.citation_url
+
+    @property
+    def data_explorer_dataset_url(self) -> str | None:
+        if base := self._resolved_data_explorer_base_url():
+            return build_data_explorer_dataset_url(
+                base, self._short_urn, self._resolved_data_explorer_url_config()
+            )
         return None
 
     def _resolved_data_explorer_base_url(self) -> str | None:

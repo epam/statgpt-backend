@@ -15,7 +15,7 @@ from statgpt.admin.services.discovery_dataset import (
     _raise_for_problems,
     _RawRecord,
 )
-from statgpt.admin.services.discovery_upload import COLUMN_FIELDS
+from statgpt.admin.services.discovery_upload import RECORD_FIELDS
 from statgpt.admin.services.exceptions import DiscoveryPayloadError
 from statgpt.common import models
 from statgpt.common.schemas import (
@@ -48,7 +48,7 @@ def _stored(
     Cast rather than built, so the service's own signatures still type-check at the call
     sites below; constructing a real mapped instance would need a session.
     """
-    values: dict[str, object] = {name: "" for name in COLUMN_FIELDS}
+    values: dict[str, object] = {name: "" for name in RECORD_FIELDS}
     values.update(agency=agency, dataset_id=dataset_id)
     values.update(overrides)
     values.setdefault("id", 1)

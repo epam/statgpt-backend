@@ -248,6 +248,18 @@ class DataSet(BaseEntity, Generic[DataSetConfigType, DataSourceHandlerType], ABC
         pass
 
     @property
+    def citation_url(self) -> str | None:
+        """The dataset's citation link, whatever `dataset_url` resolves to."""
+        if self.config.citation:
+            return self.config.citation.get_url()
+        return None
+
+    @property
+    def data_explorer_dataset_url(self) -> str | None:
+        """The dataset's page in the data explorer, whatever `dataset_url` resolves to."""
+        return None
+
+    @property
     def config(self) -> DataSetConfigType:
         return self._config
 
@@ -382,6 +394,10 @@ class OfflineDataSet(DataSet, Generic[DataSetConfigType, DataSourceHandlerType],
 
     @property
     def dataset_url(self) -> str | None:
+        return None
+
+    @property
+    def citation_url(self) -> str | None:
         return None
 
     def dimensions(self) -> list[Dimension]:

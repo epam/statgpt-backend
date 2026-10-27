@@ -12,6 +12,7 @@ from sdmx.session import ResponseIO
 from statgpt.common.auth.auth_context import AuthContext
 from statgpt.common.config import multiline_logger as logger
 from statgpt.common.data.base.sdmx_schemas import SdmxPlusAvailabilityRequestBody
+from statgpt.common.data.sdmx.common.json_reader import SdmxJsonDataReader
 from statgpt.common.data.sdmx.v21.ratelimiter import SdmxRateLimiter
 from statgpt.common.data.sdmx.v21.sdmx_client import AsyncSdmxClient
 from statgpt.common.data.statgpt_sdmx_proxy.config import StatGptSdmxProxyDataSourceConfig
@@ -19,7 +20,6 @@ from statgpt.common.data.statgpt_sdmx_proxy.sdmx_schemas.structure_message impor
     ProxyAgencySchemeResponseBody,
     ProxyAvailabilityResponseBody,
 )
-from statgpt.common.data.statgpt_sdmx_proxy.v30.reader import StatGptSdmxProxyDataReader
 from statgpt.common.utils import TtlCache
 
 
@@ -43,6 +43,10 @@ def _dataset_level_attribute_map_from_data_message(msg: DataMessage) -> dict[str
 def proxy_structure_extra_headers(dsd_urn: str | None) -> dict[str, str] | None:
     """Headers for proxy structure requests (disambiguates artefacts that share identity)."""
     return {"X-Source-Artefact-Urn": dsd_urn} if dsd_urn else None
+
+
+# Some dynamic annotations (e.g. `dataUpdatedAt`) are omitted from the dataflow unless forced
+PROXY_DATAFLOW_EXTRA_PARAMS = {"forceDataflowDynamicAnnotations": "true"}
 
 
 # TODO: move this to the data source config
@@ -164,7 +168,7 @@ class AsyncStatGptSdmxProxyClient(AsyncSdmxClient):
             requests_response = self._convert_response(response, req)
             response_content: io.IOBase = ResponseIO(response)
             try:
-                msg = StatGptSdmxProxyDataReader().convert(response_content, structure=None)
+                msg = SdmxJsonDataReader().convert(response_content, structure=None)
                 msg.response = requests_response
             except Exception:
                 logger.error(
@@ -268,11 +272,15 @@ class AsyncStatGptSdmxProxyClient(AsyncSdmxClient):
         response, req = await self._perform_get(url, Resource.data)
         if response is None:
             return DataMessage()
+        if not response.content.strip():
+            # The proxy returns 200 with an empty body when the registry has no series for the query
+            logger.warning(f"Empty data response for URL {url!r}")
+            return DataMessage()
 
         requests_response = self._convert_response(response, req)
         try:
             response_content: io.IOBase = ResponseIO(response)
-            msg = StatGptSdmxProxyDataReader().convert(response_content, structure=dsd)
+            msg = SdmxJsonDataReader().convert(response_content, structure=dsd)
             msg.response = requests_response
         except Exception:
             logger.error(

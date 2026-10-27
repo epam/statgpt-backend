@@ -7,12 +7,14 @@ from statgpt.common.config import LLMModelsEnum
 from statgpt.common.config import utils as config_utils
 
 from .base import BaseYamlModel
+from .custom_content_rewrite import CustomContentRewriteRule
 from .enums import (
     AttachmentsTarget,
     AvailableDatasetsHeaderFormat,
     AvailableDatasetsVersion,
     RAGVersion,
 )
+from .mcp_meta import McpMeta
 from .model_config import LLMModelConfig
 
 
@@ -117,7 +119,18 @@ class BaseToolDetails(BaseYamlModel):
     stages_config: StagesConfig = Field(default_factory=StagesConfig)  # type: ignore
 
 
-class FileRagDetails(BaseToolDetails):
+class RewriteRulesMixin(BaseYamlModel):
+    rewrite_rules: list[CustomContentRewriteRule] = Field(
+        default_factory=list,
+        description=(
+            "Rules modifying the annotations and attachments received from the sub-deployment"
+            " (e.g. replacing DIAL file links with public ones)."
+            " Rules are checked in order and only the first matching rule is applied to an item."
+        ),
+    )
+
+
+class FileRagDetails(BaseToolDetails, RewriteRulesMixin):
     version: RAGVersion
     """RAG backend. `GENERIC` targets a Generic RAG DIAL application, reusing the same
     chat-completions transport (only the RAG configuration payload and metadata shape differ);
@@ -150,9 +163,11 @@ class FileRagDetails(BaseToolDetails):
     )
     attachment_url_override: str | None = Field(
         default=None,
+        deprecated="`attachment_url_override` is deprecated; use `rewrite_rules` instead.",
         description=(
-            "Replace the attachment `reference_url` with this value if provided."
-            " If None, the original URL will be used."
+            "Deprecated. Superseded by `rewrite_rules`, which also cover annotations and stage"
+            " attachments. Replace the attachment `reference_url` with this value if provided."
+            " If None, the original URL will be used. Applied after `rewrite_rules`."
         ),
     )
     attachments_target: AttachmentsTarget = Field(
@@ -177,9 +192,11 @@ class FileRagDetails(BaseToolDetails):
         return config_utils.replace_env(self.metadata_endpoint_raw)
 
     def get_attachment_url_override(self) -> str | None:
-        if self.attachment_url_override is None or not self.attachment_url_override.strip():
+        # read via __dict__: attribute access on a deprecated field emits a DeprecationWarning
+        attachment_url_override: str | None = self.__dict__.get("attachment_url_override")
+        if attachment_url_override is None or not attachment_url_override.strip():
             return None
-        return config_utils.replace_env(self.attachment_url_override.strip())
+        return config_utils.replace_env(attachment_url_override.strip())
 
 
 class WebSearchDetails(BaseToolDetails):
@@ -280,7 +297,57 @@ class ResumeStagesConfig(ToolStageNames):
     )
 
 
-class DeepResearchDetails(BaseToolDetails):
+class DeepResearchQueryCheckConfig(BaseYamlModel):
+    """The check that runs before a new Deep Research session is started.
+
+    A cheap LLM call decides whether the user's query suits Deep Research. If it does not (e.g.
+    "What can you do?"), the turn is handled as a normal Supreme Agent turn instead of launching a
+    slow, expensive Deep Research run. Messages sent while a session is in progress (answers to
+    clarifying questions, plan approval) are never checked."""
+
+    enabled: bool = Field(
+        default=True,
+        description=(
+            "Whether the check runs. When disabled, every message sent with Deep Research mode"
+            " turned on starts a Deep Research session."
+        ),
+    )
+    llm_model_config: LLMModelConfig = Field(
+        default_factory=LLMModelConfig,
+        description="The LLM model configuration for the check.",
+    )
+    timeout_seconds: float = Field(
+        default=10,
+        gt=0,
+        description=(
+            "The time limit of the check, in seconds, including the model client's retries. If the"
+            " check does not finish in time, Deep Research is started. Raise it for a slow (e.g."
+            " reasoning) model."
+        ),
+    )
+    excluded_topics: list[str] | None = Field(
+        default=None,
+        description=(
+            "Topics and kinds of questions Deep Research should not handle; such queries are"
+            " answered as a normal turn. If null, the default topics are used (questions about the"
+            " assistant's capabilities, tools or available content, navigation help, term"
+            " definitions and concept explanations, small talk)."
+            " Messages that are not research questions are not handled by Deep Research either way."
+        ),
+    )
+    deactivation_message_to_user: str = Field(
+        default=(
+            "_Deep Research was not started: this request does not require in-depth research,"
+            " so it is answered directly._"
+        ),
+        description=(
+            "The message shown to the user, before the answer, when the check decides that the"
+            " query does not suit Deep Research. If empty, no message is shown."
+        ),
+    )
+
+
+class DeepResearchDetails(BaseToolDetails, RewriteRulesMixin):
     deployment_id_raw: str = Field(
         validation_alias=AliasChoices("deployment_id", "deploymentId"),
         description="The DIAL deployment_id of the Deep Research application. Supports $env:{VAR} syntax.",
@@ -330,6 +397,21 @@ class DeepResearchDetails(BaseToolDetails):
     resume_stages_config: ResumeStagesConfig = Field(
         default_factory=ResumeStagesConfig,
         description="The stage names of the internal tool that resumes a Deep Research session.",
+    )
+    query_check: DeepResearchQueryCheckConfig = Field(
+        default_factory=DeepResearchQueryCheckConfig,
+        description=(
+            "The check, run before a new Deep Research session is started, that the user's query"
+            " suits Deep Research."
+        ),
+    )
+    report_delivered_message_to_agent: str | None = Field(
+        default=None,
+        description=(
+            "The system message the agent gets right after Deep Research delivers its final report."
+            " It is saved with the report's turn, so later turns see it too. If not set or empty, the"
+            " default message is used."
+        ),
     )
 
     def get_deployment_id(self) -> str:
@@ -381,6 +463,13 @@ class AvailableDatasetsDetails(BaseToolDetails):
     stats_header_format: AvailableDatasetsHeaderFormat = Field(
         default=AvailableDatasetsHeaderFormat.totals,
         description="The format of the statistics header in the tool output.",
+    )
+    mcp_meta: McpMeta = Field(
+        default_factory=McpMeta,
+        description=(
+            "Audience-specific payloads carried in the MCP result's `_meta`. The client payload"
+            " carries each dataset's data explorer and citation links."
+        ),
     )
 
 

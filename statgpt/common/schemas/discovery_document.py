@@ -153,10 +153,18 @@ class DiscoveryDocumentMetadata(ChannelDocumentMetadata):
     name: str = ""
     url: str = ""
     regional_coverage: str = ""
-    excluded_regional_values: str = ""
     time_coverage: str = ""
+
     indicators_coverage: str = ""
+    """What the dataset's indicators are, as the record's `indicators_summary` holds them.
+
+    The record keeps the submitter's complete list and the published form apart; only the
+    published form travels, because indexing thousands of indicator names verbatim would
+    drown the description a question is meant to match.
+    """
+
     missing_indicators: str = ""
+    """Indicators a user could expect but the dataset does not contain."""
 
 
 class ReferenceAreaDocumentMetadata(ChannelDocumentMetadata):
