@@ -188,18 +188,27 @@ Codes](#batch-summaries-and-exit-codes).
 
 ### discovery reindex
 
-Re-validates every discovery record of a channel and reconciles the channel's documents in its
-Generic RAG application: valid records are published, invalid ones withdrawn, and documents no
-record claims any more removed. Polls the job to completion and prints its counts.
+Re-validates every discovery record of a channel, summarizes the indicator list of each valid
+one, and reconciles the channel's documents in its Generic RAG application: valid records are
+published, invalid ones withdrawn, and documents no record claims any more removed. Polls the job
+to completion and prints its counts, including how many indicator lists an LLM summarized and
+how many records failed.
 
 ```
 statgpt> discovery reindex -c my-channel
+statgpt> discovery reindex -c my-channel --force summarization
+statgpt> discovery reindex -c my-channel --force summarization,publishing
 ```
 
-| Option          | Description                                                                                          |
-|-----------------|------------------------------------------------------------------------------------------------------|
-| `-c, --channel` | Channel deployment ID (interactive if omitted)                                                       |
-| `--force`       | Rebuild every document even if nothing changed; each rebuilt record is briefly absent from the index |
+| Option             | Description                                                                           |
+|--------------------|---------------------------------------------------------------------------------------|
+| `-c, --channel`    | Channel deployment ID (interactive if omitted)                                        |
+| `--force <stages>` | Comma-separated stages to redo even if nothing changed: `summarization`, `publishing` |
+
+`--force summarization` re-summarizes every indicator list, even one already derived from the
+same list and configuration; a record whose summary comes out different is republished.
+`--force publishing` rebuilds every document; each rebuilt record is briefly absent from the
+index.
 
 Requires a `discoveryDatasets` block in the channel configuration, and refuses to start while
 another job for the channel is running.

@@ -24,7 +24,12 @@ from statgpt.cli.shared import (
     select_channel,
     spinner_status,
 )
-from statgpt.common.schemas import DiscoveryIndexingJob, PreprocessingStatusEnum, RecordUploadMode
+from statgpt.common.schemas import (
+    DiscoveryIndexingJob,
+    DiscoveryIndexingStage,
+    PreprocessingStatusEnum,
+    RecordUploadMode,
+)
 
 POLL_INTERVAL = 1  # seconds
 
@@ -108,6 +113,8 @@ def _render_job_results(job: DiscoveryIndexingJob) -> None:
         ("Records evaluated", job.records_total),
         ("Records valid", job.records_valid),
         ("Records invalid", job.records_invalid),
+        ("Records summarized", job.records_summarized),
+        ("Records failed", job.records_failed),
         ("Documents published", job.documents_upserted),
         ("Documents removed", job.documents_deleted),
     ]
@@ -119,8 +126,24 @@ def _render_job_results(job: DiscoveryIndexingJob) -> None:
         console.print(f"[dim]{job.details}[/dim]")
 
 
-async def reindex_handler(channel: str | None = None, force: bool = False) -> None:
-    """Re-validate and re-publish a channel's discovery datasets."""
+def _parse_force(force: str | None) -> frozenset[DiscoveryIndexingStage]:
+    """Parse and validate the stage list of the --force option."""
+    if not force:
+        return frozenset()
+
+    values = {value.strip().lower() for value in force.split(",") if value.strip()}
+    valid = {stage.value for stage in DiscoveryIndexingStage}
+    invalid = values - valid
+    if invalid:
+        raise ValueError(
+            f"Invalid stages: {', '.join(sorted(invalid))}. Valid: {', '.join(sorted(valid))}"
+        )
+    return frozenset(DiscoveryIndexingStage(value) for value in values)
+
+
+async def reindex_handler(channel: str | None = None, force: str | None = None) -> None:
+    """Re-validate, summarize and re-publish a channel's discovery datasets."""
+    stages = _parse_force(force)
     async with get_admin_client() as client:
         selected_channel = await select_channel(client, channel)
         if not selected_channel:
@@ -129,7 +152,7 @@ async def reindex_handler(channel: str | None = None, force: bool = False) -> No
         print_info(f"Reindexing discovery datasets of: {selected_channel.title}")
 
         with spinner_status("Starting discovery indexing...") as status:
-            job = await client.trigger_discovery_indexing(selected_channel.id, force=force)
+            job = await client.trigger_discovery_indexing(selected_channel.id, force=stages)
             print_info(f"Discovery indexing job started: {job.id}")
 
             while True:
@@ -210,7 +233,7 @@ upload_command = Command(
 
 reindex_command = Command(
     name="reindex",
-    description="Re-validate and re-publish the discovery datasets of a channel",
+    description="Re-validate, summarize and re-publish the discovery datasets of a channel",
     handler=reindex_handler,
     args=[
         CommandArg(
@@ -221,10 +244,10 @@ reindex_command = Command(
         CommandArg(
             name="force",
             description=(
-                "Rebuild every document even if nothing changed;"
-                " each rebuilt record is briefly absent from the index"
+                "Comma-separated stages to redo even if nothing changed:"
+                " summarization re-summarizes every indicator list, publishing rebuilds every"
+                " document (each rebuilt record is briefly absent from the index)"
             ),
-            is_flag=True,
         ),
     ],
 )

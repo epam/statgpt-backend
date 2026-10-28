@@ -8,6 +8,7 @@ import pytest
 
 from statgpt.common.utils import (
     FREQUENCY_VOCABULARY,
+    compact_units,
     is_known_frequency,
     parse_frequencies,
     parse_reference_areas,
@@ -87,3 +88,40 @@ def test_every_vocabulary_frequency_is_recognized_whatever_its_casing(frequency:
     assert is_known_frequency(frequency)
     assert is_known_frequency(frequency.upper())
     assert not is_known_frequency(f"{frequency} ish")
+
+
+@pytest.mark.parametrize(
+    ("entries", "expected"),
+    [
+        (["M1 (Rp billions)", "M2 (Rp billions)"], ("Rp billions", ["M1", "M2"])),
+        # Nested parentheses belong to the unit: it is the whole trailing group.
+        (["Rate (% (p.a.))", "Yield (% (p.a.))"], ("% (p.a.)", ["Rate", "Yield"])),
+        # Parentheses inside a name stay with the name.
+        (
+            ["Broad money (M2) (Rp billions)", "M1 (Rp billions)"],
+            ("Rp billions", ["Broad money (M2)", "M1"]),
+        ),
+        # Units that differ only in whitespace are one unit.
+        (["M1 ( Rp  billions )", "M2 (Rp billions)"], ("Rp billions", ["M1", "M2"])),
+    ],
+)
+def test_a_unit_every_entry_shares_is_factored_out(
+    entries: list[str], expected: tuple[str, list[str]]
+) -> None:
+    assert compact_units(entries) == expected
+
+
+@pytest.mark.parametrize(
+    "entries",
+    [
+        ["M1 (Rp billions)", "M2 (USD millions)"],
+        # Case-sensitive: `USD` and `usd` are kept apart, as submitted.
+        ["M1 (USD)", "M2 (usd)"],
+        ["M1 (Rp billions)", "M2"],
+        ["M1 (Rp billions)", "M2 (Rp billions"],
+        ["(Rp billions)", "M2 (Rp billions)"],
+        ["M1 ()", "M2 ()"],
+    ],
+)
+def test_a_list_without_one_shared_unit_is_left_as_it_is(entries: list[str]) -> None:
+    assert compact_units(entries) == (None, entries)

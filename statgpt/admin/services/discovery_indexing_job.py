@@ -1,4 +1,5 @@
 import logging
+from collections.abc import Collection
 
 from fastapi import BackgroundTasks
 from sqlalchemy import func, select
@@ -18,6 +19,7 @@ from statgpt.common.utils import format_exception_reason, get_ts_utcnow
 from .background_tasks import background_task
 from .discovery_area_publisher import ReferenceAreaPublisher
 from .discovery_publisher import DiscoveryPublisher, PublishCounts
+from .discovery_summarization import DiscoveryIndicatorSummarizer, SummarizeOutcome
 from .discovery_validation import DiscoveryValidator
 from .exceptions import (
     DiscoveryIndexingJobNotFoundError,
@@ -38,10 +40,10 @@ _ACTIVE_STATUSES = (
 class AdminPortalDiscoveryIndexingJobService(DbServiceBase):
     """Creates, reports on, and runs indexing jobs over a channel's discovery datasets.
 
-    Owns the run's stages: validate every record, derive what each valid one publishes as its
-    indicator list, then reconcile the channel's Generic RAG documents with them. Only the
-    sequencing lives here - what a record becomes, and what happens to its document, belongs
-    to `DiscoveryPublisher`.
+    Owns the run's stages: validate every record, summarize what each valid one publishes as
+    its indicator list, then reconcile the channel's Generic RAG documents with them. Only the
+    sequencing lives here - what a record's indicator list becomes belongs to
+    `DiscoveryIndicatorSummarizer`, and what happens to its document to `DiscoveryPublisher`.
     """
 
     def __init__(self, session: AsyncSession | None = None) -> None:
@@ -58,6 +60,14 @@ class AdminPortalDiscoveryIndexingJobService(DbServiceBase):
         if application_id is None:
             raise DiscoveryRagNotConfiguredError(channel.id)
         return application_id
+
+    @staticmethod
+    def _indexing_config(channel: models.Channel) -> schemas.DiscoveryIndexingConfig:
+        """How the channel's indicator lists are summarized."""
+        discovery = ChannelSerializer.db_to_schema(channel).details.discovery_datasets
+        if discovery is None:
+            raise DiscoveryRagNotConfiguredError(channel.id)
+        return discovery.details.indexing
 
     @staticmethod
     def _reference_area_application_id(channel: models.Channel) -> str | None:
@@ -85,7 +95,10 @@ class AdminPortalDiscoveryIndexingJobService(DbServiceBase):
             return (await session.execute(query)).scalar_one_or_none()
 
     async def trigger(
-        self, background_tasks: BackgroundTasks, channel_id: int, force: bool = False
+        self,
+        background_tasks: BackgroundTasks,
+        channel_id: int,
+        force: frozenset[schemas.DiscoveryIndexingStage] = frozenset(),
     ) -> schemas.DiscoveryIndexingJob:
         """Create a job, schedule the run in the background, and return the job.
 
@@ -186,14 +199,18 @@ class AdminPortalDiscoveryIndexingJobService(DbServiceBase):
 
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~ the run ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-    async def process_job(self, job_id: int, force: bool = False) -> None:
-        """Run a job to completion: validate every record, derive, then publish the valid ones.
+    async def process_job(
+        self, job_id: int, force: frozenset[schemas.DiscoveryIndexingStage] = frozenset()
+    ) -> None:
+        """Run a job to completion: validate every record, summarize, then publish the valid ones.
 
         A per-record failure never aborts the run; it is recorded on the record. Only a
         failure of the run itself marks the job FAILED.
 
-        `force` republishes every valid record, including those already indexed and
-        unchanged - see `DiscoveryPublisher`.
+        `force` names the stages that redo their work on every valid record, including those
+        whose inputs are unchanged: summarization re-derives every indicator summary, and
+        publishing republishes every record - see `DiscoveryIndicatorSummarizer` and
+        `DiscoveryPublisher`.
         """
         async with self._scoped_session() as session:
             job = await self._get_job_model_or_raise(job_id)
@@ -206,23 +223,35 @@ class AdminPortalDiscoveryIndexingJobService(DbServiceBase):
                     job.channel_id, limit=None, offset=0
                 )
                 valid, invalid = self._validate_records(records)
-                self._derive_indicator_summaries(records)
 
                 job.records_total = len(records)
                 job.records_valid = valid
                 job.records_invalid = invalid
-                # Commit the verdicts and what was derived from them before the network
-                # stage: they are established, and a publish stage that dies should not take
-                # them down with it.
+                # Commit each stage's results before the next network stage: they are
+                # established, and a later stage that dies should not take them down with it.
                 await session.commit()
 
-                counts, vocabulary = await self._publish_records(channel, records, force=force)
+                summarized = await DiscoveryIndicatorSummarizer(
+                    self._indexing_config(channel),
+                    force=schemas.DiscoveryIndexingStage.SUMMARIZATION in force,
+                ).summarize(records)
+                await session.commit()
+
+                counts, vocabulary = await self._publish_records(
+                    channel,
+                    records,
+                    held=summarized.failed_ids,
+                    force=schemas.DiscoveryIndexingStage.PUBLISHING in force,
+                )
 
                 job.documents_upserted = counts.upserted
                 job.documents_deleted = counts.deleted
+                job.records_summarized = summarized.summarized
+                job.records_failed = len(summarized.failed_ids) + counts.failed
                 job.details = (
-                    f"{'Forced rebuild. ' if force else ''}"
+                    f"{_forced_details(force)}"
                     f"Validated {len(records)} record(s): {valid} valid, {invalid} invalid."
+                    f"{_summary_details(summarized)}"
                     f" Published {counts.upserted}, removed {counts.deleted} document(s),"
                     f" skipped {counts.skipped} already indexed, failed {counts.failed}."
                     f"{_vocabulary_details(vocabulary)}"
@@ -265,32 +294,21 @@ class AdminPortalDiscoveryIndexingJobService(DbServiceBase):
 
         return valid, invalid
 
-    @staticmethod
-    def _derive_indicator_summaries(records: list[models.DiscoveryDataset]) -> None:
-        """Fill in what each valid record publishes as its indicator list, in place.
-
-        A verbatim copy of the submitted list today. It is a stage of the run rather than an
-        assignment on the write path because the derivation is about to stop being a copy: a
-        long list has to be collapsed into indicator groups before it is indexed, and that is
-        an LLM call per record, which an upload request cannot absorb.
-
-        Only valid records, and only where the two columns differ - an unchanged record must
-        not be rewritten, since an untouched record is what tells the publisher it has nothing
-        to do.
-        """
-        for record in records:
-            if record.validation_status is not schemas.DiscoveryValidationStatus.VALID:
-                continue
-            if record.indicators_summary != record.indicators_coverage:
-                record.indicators_summary = record.indicators_coverage
-
     async def _publish_records(
-        self, channel: models.Channel, records: list[models.DiscoveryDataset], force: bool
+        self,
+        channel: models.Channel,
+        records: list[models.DiscoveryDataset],
+        held: Collection[int],
+        force: bool,
     ) -> tuple[PublishCounts, PublishCounts | None]:
         """Reconcile the channel's RAG documents, and then its vocabulary, with the records.
 
         Returns the documents' counts and the vocabulary's, the latter `None` when the channel
         publishes no vocabulary.
+
+        `held` records keep their documents as they are - see `DiscoveryPublisher.publish`. The
+        vocabulary is not told about them: a held record is valid and its document stays live,
+        so its areas stay in the vocabulary too.
 
         Both schemas are verified before either channel is written to. A schema is one cheap
         read, and a vocabulary channel found misconfigured afterwards would fail the job having
@@ -316,7 +334,7 @@ class AdminPortalDiscoveryIndexingJobService(DbServiceBase):
 
             if vocabulary_application_id is None:
                 await publisher.verify_metadata_schema()
-                return await publisher.publish(records), None
+                return await publisher.publish(records, held=held), None
 
             async with GenericRagIngestionClient.for_application(
                 vocabulary_application_id
@@ -327,8 +345,24 @@ class AdminPortalDiscoveryIndexingJobService(DbServiceBase):
                 await publisher.verify_metadata_schema()
                 await vocabulary_publisher.verify_metadata_schema()
 
-                counts = await publisher.publish(records)
+                counts = await publisher.publish(records, held=held)
                 return counts, await vocabulary_publisher.publish(records)
+
+
+def _forced_details(force: frozenset[schemas.DiscoveryIndexingStage]) -> str:
+    """Which stages the run was forced to redo, or nothing if none."""
+    if not force:
+        return ""
+    stages = ", ".join(stage for stage in schemas.DiscoveryIndexingStage if stage in force)
+    return f"Forced: {stages}. "
+
+
+def _summary_details(outcome: SummarizeOutcome) -> str:
+    """What the run did to the records' indicator summaries."""
+    return (
+        f" Indicator summaries: summarized {outcome.summarized}, copied {outcome.copied},"
+        f" unchanged {outcome.unchanged}, failed {len(outcome.failed_ids)}."
+    )
 
 
 def _vocabulary_details(counts: PublishCounts | None) -> str:
@@ -342,7 +376,9 @@ def _vocabulary_details(counts: PublishCounts | None) -> str:
 
 
 @background_task
-async def run_discovery_indexing_in_background_task(job_id: int, force: bool = False) -> None:
+async def run_discovery_indexing_in_background_task(
+    job_id: int, force: frozenset[schemas.DiscoveryIndexingStage] = frozenset()
+) -> None:
     try:
         await AdminPortalDiscoveryIndexingJobService().process_job(job_id=job_id, force=force)
     except Exception:

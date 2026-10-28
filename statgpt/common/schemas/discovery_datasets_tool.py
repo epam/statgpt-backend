@@ -83,6 +83,46 @@ class DiscoveryPreFilterConfig(BaseYamlModel):
     prompts: DiscoveryPreFilterPrompts = Field(default_factory=DiscoveryPreFilterPrompts)  # type: ignore[assignment]
 
 
+class DiscoveryIndexingPrompts(BaseYamlModel):
+    """The indicator-summarization prompts. Each falls back to the built-in default when unset.
+
+    Both are given `{unit}` (empty when the indicators share none), `{max_groups}` and
+    `{max_group_chars}`. The chunk prompt is given `{indicators}`, one per line; the merge
+    prompt is given `{groups}`, the groups of every chunk, one per line.
+    """
+
+    chunk_summary_prompt: SystemUserPrompt | None = None
+    merge_summary_prompt: SystemUserPrompt | None = None
+
+
+class DiscoveryIndexingConfig(BaseYamlModel):
+    """How an indexing run derives the indicator list a discovery document is published with."""
+
+    summary_threshold_chars: PositiveInt = Field(
+        default=4000,
+        description=(
+            "Longest parsed indicator list that is published as it is. A longer one is"
+            " summarized by an LLM into indicator groups."
+        ),
+    )
+    chunk_size_chars: PositiveInt = Field(
+        default=50_000,
+        description=(
+            "Longest part of an indicator list given to one summarization call. A longer list"
+            " is split between indicators, and the groups of its parts are merged by one more"
+            " call."
+        ),
+    )
+    max_groups: PositiveInt = Field(
+        default=30, description="Most indicator groups one summarization call may return."
+    )
+    max_group_chars: PositiveInt = Field(
+        default=120, description="Longest indicator group one summarization call may return."
+    )
+    llm_model_config: LLMModelConfig = Field(default_factory=LLMModelConfig)
+    prompts: DiscoveryIndexingPrompts = Field(default_factory=DiscoveryIndexingPrompts)  # type: ignore[assignment]
+
+
 class DiscoveryDatasetsTemplates(BaseYamlModel):
     """How the datasets the model kept are rendered into the data query response."""
 
@@ -138,6 +178,7 @@ class DiscoveryDatasetsDetails(BaseToolDetails):
         ),
     )
     pre_filter: DiscoveryPreFilterConfig = Field(default_factory=DiscoveryPreFilterConfig)  # type: ignore[assignment]
+    indexing: DiscoveryIndexingConfig = Field(default_factory=DiscoveryIndexingConfig)  # type: ignore[assignment]
     llm_model_config: LLMModelConfig = Field(default_factory=LLMModelConfig)
     prompts: DiscoveryDatasetsPrompts = Field(default_factory=DiscoveryDatasetsPrompts)  # type: ignore[assignment]
     templates: DiscoveryDatasetsTemplates

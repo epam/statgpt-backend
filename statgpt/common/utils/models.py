@@ -38,6 +38,7 @@ def get_chat_model(
     model_config: LLMModelConfig,
     azure_endpoint: str = dial_settings.url,
     timeout: httpx.Timeout | None = None,
+    max_retries: int = 10,
 ) -> AzureChatOpenAI:
     if not isinstance(api_key, SecretStr):
         api_key = SecretStr(api_key)
@@ -47,7 +48,7 @@ def get_chat_model(
         azure_endpoint=azure_endpoint,
         api_version=model_config.api_version,
         azure_deployment=model_config.deployment.deployment_id,
-        max_retries=10,
+        max_retries=max_retries,
         api_key=api_key,  # since we use SecretStr, it won't be logged
         timeout=timeout,  # timeouts are crucial!
         http_async_client=get_shared_llm_http_client(),  # shared pool; per-request timeout still applies

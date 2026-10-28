@@ -8,7 +8,7 @@ import httpx
 import pytest
 
 from statgpt.cli.shared.admin_client import AdminAPIError, AdminClient, DiscoveryPayloadError
-from statgpt.common.schemas import DiscoveryIndexingStatus, RecordUploadMode
+from statgpt.common.schemas import DiscoveryIndexingStage, DiscoveryIndexingStatus, RecordUploadMode
 
 _CHANNEL_ID = 7
 
@@ -126,11 +126,18 @@ async def test_indexing_is_triggered_with_force_and_polled_by_job_id() -> None:
     }
     client, requests = _client(lambda request: httpx.Response(202, json=job))
 
-    triggered = await client.trigger_discovery_indexing(_CHANNEL_ID, force=True)
+    triggered = await client.trigger_discovery_indexing(
+        _CHANNEL_ID, force=frozenset(DiscoveryIndexingStage)
+    )
 
     assert requests[0].url.path == "/admin/api/v1/channels/7/discovery-datasets/indexing-jobs"
-    assert requests[0].url.params["force"] == "true"
+    # One parameter per stage, never the deprecated boolean.
+    assert requests[0].url.params.get_list("force") == ["summarization", "publishing"]
     assert triggered.id == 17
+
+    client, requests = _client(lambda request: httpx.Response(202, json=job))
+    await client.trigger_discovery_indexing(_CHANNEL_ID)
+    assert "force" not in requests[0].url.params
 
     client, requests = _client(lambda request: httpx.Response(200, json=job))
     await client.get_discovery_indexing_job(17)

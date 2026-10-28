@@ -285,6 +285,19 @@ class DiscoveryIndexingStatus(StrEnum):
     FAILED = "FAILED"
 
 
+class DiscoveryIndexingStage(StrEnum):
+    """A stage of a discovery indexing run that can be forced to redo its work.
+
+    Validation is not one: it reruns on every record regardless.
+    """
+
+    SUMMARIZATION = "summarization"
+    """Re-summarize every valid record's indicator list, even if nothing it depends on changed."""
+
+    PUBLISHING = "publishing"
+    """Republish every valid record, including those already indexed and unchanged."""
+
+
 class RecordUploadMode(StrEnum):
     """How a loaded file is reconciled with the records a channel already holds.
 

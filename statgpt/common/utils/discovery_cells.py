@@ -64,6 +64,49 @@ def split_cell(cell: str) -> list[str]:
     return values
 
 
+def compact_units(entries: list[str]) -> tuple[str | None, list[str]]:
+    """Factor a units of measure shared by every entry out of an indicator list.
+
+    Returns `(unit, names)`: each entry's last balanced `(...)` is its unit, and when every
+    entry has one and they are all equal - after whitespace normalization, case-sensitive - the
+    names come back without it. Otherwise `(None, entries)`, the entries untouched: a list
+    whose units differ, or where one entry has none, keeps every unit where it was written.
+    """
+    names: list[str] = []
+    units: set[str] = set()
+    for entry in entries:
+        split = _split_trailing_unit(entry)
+        if split is None:
+            return None, entries
+        names.append(split[0])
+        units.add(split[1])
+    if len(units) != 1:
+        return None, entries
+    return units.pop(), names
+
+
+def _split_trailing_unit(entry: str) -> tuple[str, str] | None:
+    """`(name, unit)` of an entry ending in a balanced `(...)`, or `None` if it does not.
+
+    The unit is the whole trailing group, nested parentheses included, so `Rate (% (p.a.))`
+    has the unit `% (p.a.)`. An entry that is nothing but the group has no name to keep and
+    is not split either.
+    """
+    if not entry.endswith(")"):
+        return None
+    depth = 0
+    for i in range(len(entry) - 1, -1, -1):
+        if entry[i] == ")":
+            depth += 1
+        elif entry[i] == "(":
+            depth -= 1
+            if depth == 0:
+                name = entry[:i].strip()
+                unit = normalize_whitespace(entry[i + 1 : -1])
+                return (name, unit) if name and unit else None
+    return None
+
+
 def parse_reference_areas(cell: str) -> tuple[list[str], list[str]]:
     """Split a reference-area cell into its subject areas and its partner areas.
 

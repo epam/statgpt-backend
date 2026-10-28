@@ -2,6 +2,7 @@
 
 import logging
 import os
+from collections.abc import Collection
 from contextlib import asynccontextmanager
 from typing import Any, AsyncGenerator
 
@@ -24,6 +25,7 @@ from statgpt.common.schemas import (
     DiscoveryDataset,
     DiscoveryDatasetStats,
     DiscoveryIndexingJob,
+    DiscoveryIndexingStage,
     DiscoveryPayloadErrorDetail,
     DiscoveryUploadSummary,
     GlossaryTerm,
@@ -404,16 +406,18 @@ class AdminClient:
         return _discovery_datasets_adapter.validate_python(resp.json())
 
     async def trigger_discovery_indexing(
-        self, channel_id: int, force: bool = False
+        self, channel_id: int, force: Collection[DiscoveryIndexingStage] = ()
     ) -> DiscoveryIndexingJob:
         """Trigger a discovery indexing job; returns the created job for polling.
+
+        `force` names the stages to redo on every record, sent as one `force` parameter each.
 
         A 409 - a job is already running, or the channel has no discovery RAG application -
         is answered with the API's own one-line reason rather than a dump of the response.
         """
         resp = await self._client.post(
             self._url(f"/channels/{channel_id}/discovery-datasets/indexing-jobs"),
-            params={"force": str(force).lower()},
+            params=[("force", stage.value) for stage in DiscoveryIndexingStage if stage in force],
         )
         if resp.status_code == 409:
             raise AdminAPIError(_describe_error(resp), status_code=resp.status_code)

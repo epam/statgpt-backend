@@ -171,15 +171,23 @@ class DiscoveryDataset(DiscoveryDatasetBase, DbDefaultBase):
     indicators_summary: str = ""
     """What of `indicators_coverage` is published, derived by the indexing run. Read-only.
 
-    Today a verbatim copy of the raw list, made before the run publishes. It is a column of
-    its own because the raw list is what a submitter authored and must not be overwritten.
+    The parsed list, with a units of measure shared by every indicator stated once as a
+    `Unit: ...` prefix. A list longer than the channel's threshold is summarized by an LLM into
+    indicator groups instead. It is a column of its own because the raw list is what a
+    submitter authored and must not be overwritten.
+    """
+
+    indicators_summarized_at: datetime.datetime | None = None
+    """When an LLM last produced `indicators_summary`. Read-only.
+
+    `None` when the summary is a copy of the parsed list, or has not been derived yet.
     """
 
     missing_indicators: str = ""
     """Indicators a user could expect but the dataset does not contain. Read-only.
 
-    Derived by the indexing run, no longer submitted. Values authored under the old template
-    are kept until a run overwrites them.
+    No longer submitted nor derived: the indexing run leaves it empty, clearing values
+    authored under the old template.
     """
 
     validation_status: DiscoveryValidationStatus
@@ -211,8 +219,9 @@ class DiscoveryDatasetUpdate(BaseYamlModel):
     The two halves of the natural key are the exception: they can be corrected but not
     cleared, since a record with no key cannot be matched against a channel's contents.
 
-    `indicators_summary` and `missing_indicators` are absent because the indexing run derives
-    them; an edit that could set them would be overwritten by the next run.
+    `indicators_summary`, `indicators_summarized_at` and `missing_indicators` are absent because
+    the indexing run owns them; an edit that could set them would be overwritten by the next
+    run.
     """
 
     reference_area: NormalizedStr | None = None
