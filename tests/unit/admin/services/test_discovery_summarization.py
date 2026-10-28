@@ -159,10 +159,28 @@ async def test_a_long_list_is_summarized_by_one_call_when_it_fits_one_chunk(
     assert record.indicators_summary == f"Unit: {_UNIT}; Indicators by number; Other, more"
     assert record.indicators_summarized_at is not None
     assert (outcome.summarized, outcome.copied) == (1, 0)
-    _, user = llm.calls[0]
-    assert _UNIT in user
-    assert f"({_UNIT})" not in user
+    system, user = llm.calls[0]
+    assert f"Every indicator is measured in {_UNIT}." in system
+    assert _UNIT not in user
     assert "Indicator number 0\n" in user
+
+
+async def test_units_that_differ_are_left_in_the_list_for_the_model_to_summarize(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    llm = _install(monkeypatch, _groups("Money supply (Rp billions, USD millions)"))
+    coverage = "; ".join(
+        f"Indicator number {i} ({'Rp billions' if i % 2 else 'USD millions'})" for i in range(60)
+    )
+    record = _record(indicators_coverage=coverage)
+
+    await _summarizer().summarize([record])
+
+    system, user = llm.calls[0]
+    assert "Summarize them as well" in system
+    assert "Every indicator is measured in" not in system
+    assert "Indicator number 0 (USD millions)\n" in user
+    assert record.indicators_summary == "Money supply (Rp billions, USD millions)"
 
 
 async def test_a_list_longer_than_a_chunk_is_summarized_in_parts_and_merged(
@@ -185,7 +203,7 @@ async def test_a_list_longer_than_a_chunk_is_summarized_in_parts_and_merged(
     # The merge is given every chunk's groups, and every call is given the unit.
     assert _MERGE_HEADING in merge_call[1]
     assert merge_call[1].count("Group from Indicator number") == len(chunk_calls)
-    assert all(_UNIT in user for _, user in llm.calls)
+    assert all(_UNIT in system for system, _ in llm.calls)
     assert record.indicators_summary == f"Unit: {_UNIT}; Merged indicators"
 
 
@@ -284,8 +302,8 @@ async def test_an_answer_past_the_limits_after_every_retry_fails_the_record(
 
 
 async def test_one_failing_record_does_not_stop_the_others(monkeypatch: pytest.MonkeyPatch) -> None:
-    def responder(_system: str, user: str) -> list[str]:
-        if "broken" in user:
+    def responder(system: str, _user: str) -> list[str]:
+        if "broken" in system:
             raise RuntimeError("model unavailable")
         return ["Group"]
 

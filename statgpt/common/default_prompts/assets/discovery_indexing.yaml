@@ -16,13 +16,10 @@ chunkSummaryPrompt:
       acronyms as they appear in the list.
     - Cover every indicator of the list by some group. Never add an indicator the list does not
       contain.
-    - Do not state units of measure: they are published separately.
+    {units_instruction}
     - Never use ';' inside a group.
     - Write the groups in the same language as the indicators. Do not translate them.
   userMessage: |-
-    # Unit of measure shared by every indicator (empty when each indicator has its own)
-    {unit}
-
     # Indicators, one per line
     {indicators}
 
@@ -44,12 +41,18 @@ mergeSummaryPrompt:
     - Keep the terms a user would search for: named aggregates, instruments, sectors and
       acronyms as they appear in the groups.
     - Cover every group you are given. Never add an indicator the groups do not mention.
-    - Do not state units of measure: they are published separately.
+    {units_instruction}
     - Never use ';' inside a group.
     - Write the groups in the same language as the groups you are given. Do not translate them.
   userMessage: |-
-    # Unit of measure shared by every indicator (empty when each indicator has its own)
-    {unit}
-
     # Groups of every part, one per line
     {groups}
+
+sharedUnitInstruction: |-
+  - Every indicator is measured in {unit}. Do not state units of measure: they are published
+    separately.
+
+perIndicatorUnitsInstruction: |-
+  - Units of measure differ between indicators and are given in the parentheses closing an
+    indicator. Summarize them as well: end each group with the units of measure of the
+    indicators it covers, in parentheses.

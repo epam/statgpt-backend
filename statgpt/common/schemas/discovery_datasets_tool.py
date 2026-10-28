@@ -86,9 +86,11 @@ class DiscoveryPreFilterConfig(BaseYamlModel):
 class DiscoveryIndexingPrompts(BaseYamlModel):
     """The indicator-summarization prompts. Each falls back to the built-in default when unset.
 
-    Both are given `{unit}` (empty when the indicators share none), `{max_groups}` and
-    `{max_group_chars}`. The chunk prompt is given `{indicators}`, one per line; the merge
-    prompt is given `{groups}`, the groups of every chunk, one per line.
+    Both are given `{unit}` (empty when the indicators share none), `{units_instruction}`,
+    `{max_groups}` and `{max_group_chars}`. `{units_instruction}` is an instruction line: not to
+    state the shared unit, or, when the indicators keep their own units, to summarize them with
+    the groups. The chunk prompt is given `{indicators}`, one per line; the merge prompt is given
+    `{groups}`, the groups of every chunk, one per line.
     """
 
     chunk_summary_prompt: SystemUserPrompt | None = None

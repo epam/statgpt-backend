@@ -8,10 +8,11 @@ description a question is meant to match, so a run derives `indicators_summary` 
   `Unit: ...` prefix, instead of after every name;
 - a list that is still longer than the channel's threshold is collapsed by an LLM into
   indicator groups. A list too long for one call is split between indicators, each part is
-  summarized on its own, and the parts' groups are merged by one more call.
+  summarized on its own, and the parts' groups are merged by one more call. Units the indicators
+  do not share are summarized by the model along with the groups.
 
-The prefix is added here, never by the model, so the unit a document states is the one the
-submitter wrote.
+The prefix is added here, never by the model, so the shared unit a document states is the one
+the submitter wrote.
 """
 
 import asyncio
@@ -95,6 +96,13 @@ def _render_indicators(unit: str | None, items: Sequence[str]) -> str:
     return f"{_UNIT_PREFIX}{unit}{_SEPARATOR}{joined}" if unit else joined
 
 
+def _units_instruction(unit: str | None) -> str:
+    """The prompts' units line: leave a shared unit to the prefix, or summarize differing ones."""
+    if unit:
+        return discovery_indexing_default_prompts.shared_unit_instruction.format(unit=unit)
+    return discovery_indexing_default_prompts.per_indicator_units_instruction
+
+
 class _Result(StrEnum):
     SUMMARIZED = "summarized"
     COPIED = "copied"
@@ -171,7 +179,11 @@ class DiscoveryIndicatorSummarizer:
                 )
             }
         )
-        self._fingerprint = f"{_DERIVATION_VERSION}\0{self._config.model_dump_json()}"
+        self._fingerprint = (
+            f"{_DERIVATION_VERSION}\0{self._config.model_dump_json()}"
+            f"\0{discovery_indexing_default_prompts.shared_unit_instruction}"
+            f"\0{discovery_indexing_default_prompts.per_indicator_units_instruction}"
+        )
         self._output_model = _output_model(self._config)
         self._auth_context = auth_context
         self._persist = persist
@@ -315,6 +327,7 @@ class DiscoveryIndicatorSummarizer:
             await chain.ainvoke(
                 {
                     "unit": unit or "",
+                    "units_instruction": _units_instruction(unit),
                     "max_groups": self._config.max_groups,
                     "max_group_chars": self._config.max_group_chars,
                     **inputs,
