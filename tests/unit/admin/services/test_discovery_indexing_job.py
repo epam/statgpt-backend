@@ -7,6 +7,8 @@ next network stage, holding back the records summarization failed on, routing ea
 stage to the stage it names, and reporting the run on the job row.
 """
 
+import asyncio
+from collections.abc import Awaitable, Callable, Collection
 from types import SimpleNamespace
 from typing import Any, cast
 from unittest.mock import AsyncMock, MagicMock
@@ -137,6 +139,7 @@ class _Spy:
         self.area_counts = area_counts or PublishCounts(upserted=2, deleted=1, skipped=3)
         self.commits: list[dict[str, Any]] = []
         self.published: list[dict[str, Any]] = []
+        self.area_records: list[models.DiscoveryDataset] = []
         self.stages: list[str] = []
         self.applications: list[str] = []
         self.closed = False
@@ -189,9 +192,17 @@ class _Spy:
 
         return _Client()
 
-    def _summarizer(self, config: schemas.DiscoveryIndexingConfig, *, force: bool) -> Any:
+    def _summarizer(
+        self,
+        config: schemas.DiscoveryIndexingConfig,
+        auth_context: Any,
+        persist: Callable[[], Awaitable[None]],
+        *,
+        force: bool,
+    ) -> Any:
         self.summarizer_config = config
         self.summarizer_force = force
+        self._persist = persist
         return SimpleNamespace(summarize=self._summarize)
 
     async def _summarize(self, records: list[models.DiscoveryDataset]) -> SummarizeOutcome:
@@ -201,6 +212,7 @@ class _Spy:
         for record in records:
             if record.validation_status is schemas.DiscoveryValidationStatus.VALID:
                 record.indicators_summary = f"summary of {record.indicators_coverage}"
+                await self._persist()
         return self.outcome
 
     def _publisher(self, client: Any, *, channel: str, force: bool) -> Any:
@@ -219,14 +231,15 @@ class _Spy:
         return verify
 
     async def _publish(
-        self, records: list[models.DiscoveryDataset], held: Any = ()
+        self, records: list[models.DiscoveryDataset], held: Collection[int] = ()
     ) -> PublishCounts:
         if self._publish_error is not None:
             raise self._publish_error
         self.published.append({"count": len(records), "held": set(held)})
         self.stages.append("documents")
         for record in records:
-            record.indexing_status = schemas.DiscoveryIndexingStatus.INDEXED
+            if record.id not in held:
+                record.indexing_status = schemas.DiscoveryIndexingStatus.INDEXED
         return self.counts
 
     def _area_publisher(self, client: Any, *, channel: str, force: bool) -> Any:
@@ -240,6 +253,7 @@ class _Spy:
         if self._area_error is not None:
             raise self._area_error
         self.stages.append("reference-areas")
+        self.area_records = list(records)
         return self.area_counts
 
     async def _on_commit(self) -> None:
@@ -404,14 +418,19 @@ async def test_the_summaries_are_committed_before_the_publish_stage(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """LLM work is the costliest in the run, and a publish stage that dies must not lose it."""
-    spy = _Spy(monkeypatch, records=[_record(indicators_coverage="broad money (M2)")])
+    records = [
+        _record(id=1, indicators_coverage="broad money (M2)"),
+        _record(id=2, dataset_id="TABEL1_2", indicators_coverage="narrow money (M1)"),
+    ]
+    spy = _Spy(monkeypatch, records=records)
 
     await spy.service.process_job(job_id=42)
 
-    summaries = spy.commits[2]
-    assert summaries["stages"] == ["summarize"]
-    assert summaries["summaries"] == ["summary of broad money (M2)"]
-    assert summaries["published_calls"] == 0
+    # The summarizer persists after every record, each commit carrying the ones done so far.
+    first, second = spy.commits[2], spy.commits[3]
+    assert first["summaries"] == ["summary of broad money (M2)", ""]
+    assert second["summaries"] == ["summary of broad money (M2)", "summary of narrow money (M1)"]
+    assert second["published_calls"] == 0
     assert spy.stages == ["summarize", "verify:documents", "documents"]
 
 
@@ -436,6 +455,22 @@ async def test_the_records_summarization_failed_on_are_held_back_from_publishing
     assert "Indicator summaries: summarized 1, copied 0, unchanged 0, failed 1." in (
         spy.job.details
     )
+
+
+async def test_a_cancelled_run_fails_the_job_and_keeps_what_was_summarized(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A timed-out run left IN_PROGRESS would refuse every new run of the channel."""
+    spy = _Spy(monkeypatch, summarize_error=asyncio.CancelledError())
+
+    with pytest.raises(asyncio.CancelledError):
+        await spy.service.process_job(job_id=42)
+
+    assert spy.job.status is schemas.PreprocessingStatusEnum.FAILED
+    assert spy.job.reason_for_failure is not None
+    assert "Cancelled" in spy.job.reason_for_failure
+    assert spy.commits[-1]["job_status"] is schemas.PreprocessingStatusEnum.FAILED
+    assert spy.published == []
 
 
 async def test_the_summarizer_is_given_the_channels_indexing_config(
@@ -585,6 +620,25 @@ async def test_a_failed_vocabulary_fails_the_job(monkeypatch: pytest.MonkeyPatch
     # The records were published all the same, and their statuses were committed.
     assert spy.stages == ["summarize", "verify:documents", "verify:reference-areas", "documents"]
     assert spy.records[0].indexing_status is schemas.DiscoveryIndexingStatus.INDEXED
+
+
+async def test_the_vocabulary_covers_only_records_with_a_live_document(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A held record keeps its areas only if an earlier run published it."""
+    published = _record(id=1)
+    held_live = _record(id=2, dataset_id="TABEL1_2", indexed_at=get_ts_utcnow())
+    held_never_published = _record(id=3, dataset_id="TABEL1_3")
+    spy = _Spy(
+        monkeypatch,
+        channel=_channel(reference_areas=True),
+        records=[published, held_live, held_never_published],
+        outcome=SummarizeOutcome(copied=1, failed_ids={2, 3}),
+    )
+
+    await spy.service.process_job(job_id=42)
+
+    assert [record.id for record in spy.area_records] == [1, 2]
 
 
 async def test_a_misconfigured_vocabulary_channel_stops_the_run_before_it_publishes(

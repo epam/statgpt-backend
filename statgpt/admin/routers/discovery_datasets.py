@@ -9,12 +9,9 @@ Records are shaped like glossary terms: the channel-scoped routes below cover a 
 collection, while a single record is addressed globally under `/discovery-datasets`.
 """
 
-import logging
 from typing import Annotated, Any
 
 from fastapi import APIRouter, BackgroundTasks, Depends, Query, Response, UploadFile, status
-from fastapi.exceptions import RequestValidationError
-from pydantic import TypeAdapter, ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 import statgpt.common.models as models
@@ -26,8 +23,6 @@ from statgpt.admin.settings.exim import JobsConfig
 from statgpt.common.models import get_session_context_manager
 from statgpt.common.utils import MediaTypes
 from statgpt.common.utils.cancel_dependency import cancel_on_disconnect
-
-_log = logging.getLogger(__name__)
 
 channel_discovery_datasets_router = APIRouter(
     prefix="/{channel_id}/discovery-datasets",
@@ -48,58 +43,6 @@ _PAYLOAD_ERROR_RESPONSE: dict[int | str, dict[str, Any]] = {
 The point of refusing a write with one entry per offending record is that a caller can act
 on it; a generated client cannot unless the shape is advertised.
 """
-
-_BOOL = TypeAdapter(bool)
-
-_FORCE_DESCRIPTION = (
-    "Stages to redo on every valid record, even if nothing they depend on changed. Repeat the"
-    " parameter to force several: "
-    + ", ".join(f"`{stage}`" for stage in schemas.DiscoveryIndexingStage)
-    + ". Deprecated, to be removed in a future release: `true` forces every stage, `false`"
-    " none; neither may be combined with a stage."
-)
-
-
-def parse_force_stages(values: list[str]) -> frozenset[schemas.DiscoveryIndexingStage]:
-    """The stages a `force` query names. Raises `ValueError` on a value it cannot read.
-
-    A boolean is still accepted, in any spelling FastAPI reads as one, so callers written
-    against the old `force: bool` keep working until it is removed.
-    """
-    booleans: list[bool] = []
-    stages: set[schemas.DiscoveryIndexingStage] = set()
-    for value in values:
-        try:
-            stages.add(schemas.DiscoveryIndexingStage(value))
-            continue
-        except ValueError:
-            pass
-        try:
-            booleans.append(_BOOL.validate_python(value))
-        except ValidationError:
-            allowed = ", ".join(schemas.DiscoveryIndexingStage)
-            raise ValueError(f"Unknown stage {value!r}; expected one of: {allowed}.") from None
-
-    if not booleans:
-        return frozenset(stages)
-    if stages or len(booleans) > 1:
-        raise ValueError("A boolean `force` cannot be combined with other values.")
-    _log.warning(
-        "A boolean `force` on a discovery indexing trigger is deprecated; name the stages to"
-        " force instead."
-    )
-    return frozenset(schemas.DiscoveryIndexingStage) if booleans[0] else frozenset()
-
-
-def _force_stages(
-    force: Annotated[list[str], Query(description=_FORCE_DESCRIPTION)] = [],
-) -> frozenset[schemas.DiscoveryIndexingStage]:
-    try:
-        return parse_force_stages(force)
-    except ValueError as e:
-        raise RequestValidationError(
-            [{"type": "value_error", "loc": ("query", "force"), "msg": str(e), "input": force}]
-        ) from None
 
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~ channel-scoped ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -254,7 +197,15 @@ async def upload_discovery_datasets(
 async def trigger_discovery_indexing(
     background_tasks: BackgroundTasks,
     channel_id: int,
-    force: frozenset[schemas.DiscoveryIndexingStage] = Depends(_force_stages),
+    force: Annotated[
+        list[schemas.DiscoveryIndexingStage] | None,
+        Query(
+            description=(
+                "Stages to redo on every valid record, even if nothing they depend on changed."
+                " Repeat the parameter to force several."
+            )
+        ),
+    ] = None,
 ) -> schemas.DiscoveryIndexingJob:
     """Re-validate, summarize and re-publish every discovery dataset of the channel.
 
@@ -281,13 +232,12 @@ async def trigger_discovery_indexing(
       changed, or the RAG channel was reconfigured. It is not a fix for a broken index: it
       rebuilds documents from records, and every rebuilt record is briefly absent from the
       channel while its document is replaced.
-
-    `force=true` (every stage) and `force=false` (none) are deprecated and will be removed in a
-    future release.
     """
     async with get_session_context_manager() as session:
         return await IndexingJobService(session).trigger(
-            background_tasks=background_tasks, channel_id=channel_id, force=force
+            background_tasks=background_tasks,
+            channel_id=channel_id,
+            force=frozenset(force or ()),
         )
 
 

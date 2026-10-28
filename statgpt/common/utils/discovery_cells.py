@@ -14,7 +14,11 @@ already enforces: a token is folded onto its vocabulary spelling so `annual` and
 one filter value rather than two.
 """
 
+import re
+
 from statgpt.common.utils.misc import normalize_whitespace
+
+_TRAILING_UNIT = re.compile(r"(?P<name>.*)\((?P<unit>[^()]*)\)")
 
 FREQUENCY_VOCABULARY: tuple[str, ...] = (
     "Daily",
@@ -67,10 +71,15 @@ def split_cell(cell: str) -> list[str]:
 def compact_units(entries: list[str]) -> tuple[str | None, list[str]]:
     """Factor a units of measure shared by every entry out of an indicator list.
 
-    Returns `(unit, names)`: each entry's last balanced `(...)` is its unit, and when every
-    entry has one and they are all equal - after whitespace normalization, case-sensitive - the
-    names come back without it. Otherwise `(None, entries)`, the entries untouched: a list
-    whose units differ, or where one entry has none, keeps every unit where it was written.
+    Returns `(unit, names)`: an entry's unit is its last `(...)`, closing the entry and holding
+    no parentheses of its own, and when every entry has one and they are all equal - after
+    whitespace normalization, case-sensitive - the names come back without it. Otherwise
+    `(None, entries)`, the entries untouched: a list whose units differ, or where one entry has
+    none, keeps every unit where it was written.
+
+    Whatever sits in those parentheses is taken as the unit - the template's convention for
+    the column. A list whose entries all end in some other shared qualifier, `(SA)` say, has
+    it stated once as its unit.
     """
     names: list[str] = []
     units: set[str] = set()
@@ -86,25 +95,18 @@ def compact_units(entries: list[str]) -> tuple[str | None, list[str]]:
 
 
 def _split_trailing_unit(entry: str) -> tuple[str, str] | None:
-    """`(name, unit)` of an entry ending in a balanced `(...)`, or `None` if it does not.
+    """`(name, unit)` of an entry ending in a `(...)`, or `None` if it does not.
 
-    The unit is the whole trailing group, nested parentheses included, so `Rate (% (p.a.))`
-    has the unit `% (p.a.)`. An entry that is nothing but the group has no name to keep and
-    is not split either.
+    Only the last parentheses count, so `Debt (% of GDP) (USD)` has the unit `USD`, and an
+    entry whose last parentheses nest, `Rate (% (p.a.))`, has none. An entry that is nothing
+    but the parentheses has no name to keep and is not split either.
     """
-    if not entry.endswith(")"):
+    match = _TRAILING_UNIT.fullmatch(entry)
+    if match is None:
         return None
-    depth = 0
-    for i in range(len(entry) - 1, -1, -1):
-        if entry[i] == ")":
-            depth += 1
-        elif entry[i] == "(":
-            depth -= 1
-            if depth == 0:
-                name = entry[:i].strip()
-                unit = normalize_whitespace(entry[i + 1 : -1])
-                return (name, unit) if name and unit else None
-    return None
+    name = match["name"].strip()
+    unit = normalize_whitespace(match["unit"])
+    return (name, unit) if name and unit else None
 
 
 def parse_reference_areas(cell: str) -> tuple[list[str], list[str]]:

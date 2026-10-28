@@ -94,8 +94,6 @@ def test_every_vocabulary_frequency_is_recognized_whatever_its_casing(frequency:
     ("entries", "expected"),
     [
         (["M1 (Rp billions)", "M2 (Rp billions)"], ("Rp billions", ["M1", "M2"])),
-        # Nested parentheses belong to the unit: it is the whole trailing group.
-        (["Rate (% (p.a.))", "Yield (% (p.a.))"], ("% (p.a.)", ["Rate", "Yield"])),
         # Parentheses inside a name stay with the name.
         (
             ["Broad money (M2) (Rp billions)", "M1 (Rp billions)"],
@@ -121,6 +119,8 @@ def test_a_unit_every_entry_shares_is_factored_out(
         ["M1 (Rp billions)", "M2 (Rp billions"],
         ["(Rp billions)", "M2 (Rp billions)"],
         ["M1 ()", "M2 ()"],
+        # Only the last parentheses are a unit, and they must not nest.
+        ["Rate (% (p.a.))", "Yield (% (p.a.))"],
     ],
 )
 def test_a_list_without_one_shared_unit_is_left_as_it_is(entries: list[str]) -> None:

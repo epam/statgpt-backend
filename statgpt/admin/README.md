@@ -153,6 +153,12 @@ after falling back to the defaults included - has changed since it was made, or 
 forces the `summarization` stage. A summary that changes marks an indexed record `OUTDATED`, so
 the same run republishes it.
 
+Each record is saved as soon as its summary is derived. A run cut short - by
+`BACKGROUND_TASKS_TASK_TIMEOUT` on a channel of long lists, say - is marked `FAILED`, and the
+next run picks up where it stopped. The reference-area vocabulary covers only records with a
+live document, so a record whose summarization failed before it was ever published adds none
+of its areas.
+
 ### Validation
 
 Records are validated at the start of every run, and an invalid record is withdrawn from the

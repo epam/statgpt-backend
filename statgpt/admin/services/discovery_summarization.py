@@ -14,9 +14,10 @@ The prefix is added here, never by the model, so the unit a document states is t
 submitter wrote.
 """
 
+import asyncio
 import hashlib
 import logging
-from collections.abc import Sequence
+from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import Annotated, cast
@@ -28,16 +29,16 @@ from pydantic import BaseModel, Field, StringConstraints, ValidationError, creat
 
 from statgpt.admin.settings.discovery import DiscoverySummarizeSettings
 from statgpt.common import models, schemas
+from statgpt.common.auth.auth_context import AuthContext
 from statgpt.common.default_prompts import discovery_indexing_default_prompts
-from statgpt.common.settings.dial import dial_settings
 from statgpt.common.utils import (
     async_utils,
     compact_units,
     format_exception_reason,
     get_ts_utcnow,
+    normalize_whitespace,
     split_cell,
 )
-from statgpt.common.utils.misc import normalize_whitespace
 from statgpt.common.utils.models import get_chat_model
 
 _log = logging.getLogger(__name__)
@@ -46,6 +47,10 @@ _SETTINGS = DiscoverySummarizeSettings()
 
 _SEPARATOR = "; "
 _UNIT_PREFIX = "Unit: "
+
+_DERIVATION_VERSION = 1
+"""Part of the source hash. Bump it when what this module makes of a list changes - the unit
+parsing, the published form, the output model - so existing summaries are derived again."""
 
 _HTTP_RETRIES = 3
 """Retries of a failed request. Fewer than the default: a run waits on every one of them."""
@@ -72,6 +77,7 @@ def _output_model(config: schemas.DiscoveryIndexingConfig) -> type[_IndicatorGro
     return create_model(
         "IndicatorGroups",
         __base__=_IndicatorGroups,
+        __doc__="Indicator groups that together cover every indicator of the dataset.",
         groups=(
             list[group],  # type: ignore[valid-type]
             Field(
@@ -83,26 +89,7 @@ def _output_model(config: schemas.DiscoveryIndexingConfig) -> type[_IndicatorGro
     )
 
 
-def _effective_config(config: schemas.DiscoveryIndexingConfig) -> schemas.DiscoveryIndexingConfig:
-    """The config with every unset prompt replaced by its default.
-
-    What a summary depends on, so it is also what the source hash covers: a changed default
-    prompt re-derives the summaries made with the old one.
-    """
-    prompts = schemas.DiscoveryIndexingPrompts(
-        chunk_summary_prompt=(
-            config.prompts.chunk_summary_prompt
-            or discovery_indexing_default_prompts.chunk_summary_prompt
-        ),
-        merge_summary_prompt=(
-            config.prompts.merge_summary_prompt
-            or discovery_indexing_default_prompts.merge_summary_prompt
-        ),
-    )
-    return config.model_copy(update={"prompts": prompts})
-
-
-def render_indicators(unit: str | None, items: Sequence[str]) -> str:
+def _render_indicators(unit: str | None, items: Sequence[str]) -> str:
     """Join indicators or groups into the published form, the shared unit leading."""
     joined = _SEPARATOR.join(items)
     return f"{_UNIT_PREFIX}{unit}{_SEPARATOR}{joined}" if unit else joined
@@ -113,6 +100,14 @@ class _Result(StrEnum):
     COPIED = "copied"
     UNCHANGED = "unchanged"
     FAILED = "failed"
+
+
+@dataclass(frozen=True)
+class _Summary:
+    """A derived summary, not yet written to its record."""
+
+    text: str
+    by_llm: bool
 
 
 @dataclass
@@ -135,13 +130,16 @@ class SummarizeOutcome:
 class DiscoveryIndicatorSummarizer:
     """Derives `indicators_summary` for a run's valid records, in place.
 
-    One instance per run. Mutates the records it is given and leaves persisting them to the
-    caller.
+    One instance per run. Mutates the records it is given and calls `persist` after each one,
+    so a run that dies midway - the job timing out on a channel of long lists, say - keeps
+    every summary it had already paid for, and the next run skips them by their hash.
     """
 
     def __init__(
         self,
         config: schemas.DiscoveryIndexingConfig,
+        auth_context: AuthContext,
+        persist: Callable[[], Awaitable[None]],
         *,
         force: bool = False,
         concurrency: int | None = None,
@@ -150,11 +148,36 @@ class DiscoveryIndicatorSummarizer:
     ) -> None:
         """`force` re-derives every valid record's summary, even if its source hash matches.
 
+        `persist` writes the records' pending changes; it is never awaited concurrently.
+
         The concurrency, timeout and retries default to the configured settings.
         """
-        self._config = _effective_config(config)
-        self._fingerprint = self._config.model_dump_json()
+        self._chunk_prompt = (
+            config.prompts.chunk_summary_prompt
+            or discovery_indexing_default_prompts.chunk_summary_prompt
+        )
+        self._merge_prompt = (
+            config.prompts.merge_summary_prompt
+            or discovery_indexing_default_prompts.merge_summary_prompt
+        )
+        # The config with the defaults filled in is what a summary depends on, so it is what
+        # the source hash covers: a changed default prompt re-derives the summaries made with
+        # the old one. So does any field added to the config, or to its model config.
+        self._config = config.model_copy(
+            update={
+                "prompts": schemas.DiscoveryIndexingPrompts(
+                    chunk_summary_prompt=self._chunk_prompt,
+                    merge_summary_prompt=self._merge_prompt,
+                )
+            }
+        )
+        self._fingerprint = f"{_DERIVATION_VERSION}\0{self._config.model_dump_json()}"
         self._output_model = _output_model(self._config)
+        self._auth_context = auth_context
+        self._persist = persist
+        # Every write to a record happens under it, with the commit: a commit flushes every
+        # pending change, and one made while another turn's flush is in flight could be lost.
+        self._write_lock = asyncio.Lock()
         self._force = force
         self._concurrency = concurrency if concurrency is not None else _SETTINGS.concurrency
         self._timeout_seconds = (
@@ -169,7 +192,8 @@ class DiscoveryIndicatorSummarizer:
     async def summarize(self, records: Sequence[models.DiscoveryDataset]) -> SummarizeOutcome:
         """Derive the summary of every valid record. Invalid records are not touched.
 
-        A failure on one record is recorded on that record and the run continues.
+        A failure on one record is recorded on that record and the run continues. A failure to
+        persist is the run's own and propagates.
         """
         valid = [
             record
@@ -177,7 +201,7 @@ class DiscoveryIndicatorSummarizer:
             if record.validation_status is schemas.DiscoveryValidationStatus.VALID
         ]
         results: list[_Result] = await async_utils.gather_with_concurrency(
-            self._concurrency, *(self._summarize_safely(record) for record in valid)
+            self._concurrency, *(self._summarize_record(record) for record in valid)
         )
 
         outcome = SummarizeOutcome()
@@ -193,54 +217,61 @@ class DiscoveryIndicatorSummarizer:
                     outcome.failed_ids.add(record.id)
         return outcome
 
-    async def _summarize_safely(self, record: models.DiscoveryDataset) -> _Result:
-        """One record's turn, which must not raise.
+    async def _summarize_record(self, record: models.DiscoveryDataset) -> _Result:
+        """One record's turn. Only `persist` may raise out of it.
 
-        The turns share a task group, so an exception escaping here would cancel every other
-        record's turn.
+        The turns share a task group, so a summarization failure escaping here would cancel
+        every other record's turn.
 
         A failure leaves the summary and its hash as they were, so the next run tries again,
         and marks the record FAILED, which keeps its live document from being touched.
         """
-        previous = (record.indicators_summary, record.missing_indicators)
-        record.missing_indicators = ""
+        source_hash = self._source_hash(record.indicators_coverage)
+        if not self._force and record.indicators_summary_source_hash == source_hash:
+            return _Result.UNCHANGED
+
         try:
-            result = await self._summarize(record)
+            summary = await self._derive(record.indicators_coverage)
         except Exception as e:
             _log.exception(
                 f"Failed to summarize the indicators of discovery record {record.id}"
                 f" (agency={record.agency!r} dataset_id={record.dataset_id!r})"
             )
-            record.indexing_status = schemas.DiscoveryIndexingStatus.FAILED
-            record.index_error = (
-                f"Summarizing the indicator list failed: {format_exception_reason(e)}"
-            )
+            async with self._write_lock:
+                record.indexing_status = schemas.DiscoveryIndexingStatus.FAILED
+                record.index_error = (
+                    f"Summarizing the indicator list failed: {format_exception_reason(e)}"
+                )
+                await self._persist()
             return _Result.FAILED
 
-        changed = (record.indicators_summary, record.missing_indicators) != previous
+        async with self._write_lock:
+            self._apply(record, summary, source_hash)
+            await self._persist()
+        return _Result.SUMMARIZED if summary.by_llm else _Result.COPIED
+
+    @staticmethod
+    def _apply(record: models.DiscoveryDataset, summary: _Summary, source_hash: str) -> None:
+        """Write a derived summary to its record, outdating an indexed record it changes.
+
+        `missing_indicators` is cleared on the way: it is no longer derived, and what the old
+        template left in it would otherwise stay published.
+        """
+        changed = (record.indicators_summary, record.missing_indicators) != (summary.text, "")
+        record.indicators_summary = summary.text
+        record.missing_indicators = ""
+        record.indicators_summarized_at = get_ts_utcnow() if summary.by_llm else None
+        record.indicators_summary_source_hash = source_hash
         if changed and record.indexing_status is schemas.DiscoveryIndexingStatus.INDEXED:
             record.indexing_status = schemas.DiscoveryIndexingStatus.OUTDATED
-        return result
 
-    async def _summarize(self, record: models.DiscoveryDataset) -> _Result:
-        source_hash = self._source_hash(record.indicators_coverage)
-        if not self._force and record.indicators_summary_source_hash == source_hash:
-            return _Result.UNCHANGED
-
-        unit, names = compact_units(split_cell(record.indicators_coverage))
-        compacted = render_indicators(unit, names)
+    async def _derive(self, indicators_coverage: str) -> _Summary:
+        unit, names = compact_units(split_cell(indicators_coverage))
+        compacted = _render_indicators(unit, names)
         if len(compacted) <= self._config.summary_threshold_chars:
-            record.indicators_summary = compacted
-            record.indicators_summarized_at = None
-            result = _Result.COPIED
-        else:
-            groups = await self._summarize_names(unit, names)
-            record.indicators_summary = render_indicators(unit, groups)
-            record.indicators_summarized_at = get_ts_utcnow()
-            result = _Result.SUMMARIZED
-
-        record.indicators_summary_source_hash = source_hash
-        return result
+            return _Summary(text=compacted, by_llm=False)
+        groups = await self._summarize_names(unit, names)
+        return _Summary(text=_render_indicators(unit, groups), by_llm=True)
 
     def _source_hash(self, indicators_coverage: str) -> str:
         """What the summary was derived from: the submitted list and the effective config."""
@@ -253,15 +284,9 @@ class DiscoveryIndicatorSummarizer:
         chunks = self._chunk(unit, names)
         groups: list[str] = []
         for chunk in chunks:
-            groups.extend(
-                await self._ask(
-                    self._config.prompts.chunk_summary_prompt, unit, indicators="\n".join(chunk)
-                )
-            )
+            groups.extend(await self._ask(self._chunk_prompt, unit, indicators="\n".join(chunk)))
         if len(chunks) > 1:
-            groups = await self._ask(
-                self._config.prompts.merge_summary_prompt, unit, groups="\n".join(groups)
-            )
+            groups = await self._ask(self._merge_prompt, unit, groups="\n".join(groups))
         return groups
 
     def _chunk(self, unit: str | None, names: list[str]) -> list[list[str]]:
@@ -282,9 +307,8 @@ class DiscoveryIndicatorSummarizer:
         return chunks
 
     async def _ask(
-        self, prompt: schemas.SystemUserPrompt | None, unit: str | None, **inputs: str
+        self, prompt: schemas.SystemUserPrompt, unit: str | None, **inputs: str
     ) -> list[str]:
-        assert prompt is not None, "every prompt falls back to its default"
         chain = prompt.get_template() | self._structured_llm()
         response = cast(
             _IndicatorGroups,
@@ -304,7 +328,7 @@ class DiscoveryIndicatorSummarizer:
         if self._llm is None:
             self._llm = (
                 get_chat_model(
-                    api_key=dial_settings.api_key.get_secret_value(),
+                    api_key=self._auth_context.api_key,
                     model_config=self._config.llm_model_config,
                     timeout=httpx.Timeout(self._timeout_seconds, connect=_CONNECT_TIMEOUT_SECONDS),
                     max_retries=_HTTP_RETRIES,

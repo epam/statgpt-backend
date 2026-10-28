@@ -1,9 +1,10 @@
 """Tests for the `--force` option of `discovery reindex`.
 
-It names the stages to redo. The API still reads a boolean, but the CLI no longer sends one.
+It names the stages to redo, sent to the API as one repeated `force` parameter each.
 """
 
 import datetime
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from typing import Any
 
@@ -77,7 +78,7 @@ def client(monkeypatch: pytest.MonkeyPatch) -> _StubAdminClient:
     stub = _StubAdminClient()
 
     @asynccontextmanager
-    async def get_admin_client(*_: Any, **__: Any):
+    async def get_admin_client(*_: Any, **__: Any) -> AsyncIterator[_StubAdminClient]:
         yield stub
 
     monkeypatch.setattr(discovery_module, "get_admin_client", get_admin_client)

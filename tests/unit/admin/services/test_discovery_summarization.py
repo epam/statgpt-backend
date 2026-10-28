@@ -4,7 +4,7 @@ The LLM is replaced at `get_chat_model`, below the structured-output and retry l
 is tested includes how an answer past the output limits is retried and then failed.
 """
 
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from types import SimpleNamespace
 from typing import Any, cast
 
@@ -16,6 +16,7 @@ from pydantic import BaseModel
 from statgpt.admin.services import discovery_summarization as summarization_module
 from statgpt.admin.services.discovery_summarization import DiscoveryIndicatorSummarizer
 from statgpt.common import models, schemas
+from statgpt.common.auth.auth_context import AuthContext
 from statgpt.common.default_prompts import discovery_indexing_default_prompts
 
 _UNIT = "Rp billions"
@@ -31,11 +32,8 @@ class _FakeLlm:
     def __init__(self, responder: Responder) -> None:
         self._responder = responder
         self.calls: list[tuple[str, str]] = []
-        self.structured_kwargs: dict[str, Any] = {}
 
-    def with_structured_output(self, schema: type[BaseModel], **kwargs: Any) -> RunnableLambda:
-        self.structured_kwargs = kwargs
-
+    def with_structured_output(self, schema: type[BaseModel], **_: Any) -> RunnableLambda:
         def answer(prompt: ChatPromptValue) -> BaseModel:
             system, user = (str(message.content) for message in prompt.to_messages())
             self.calls.append((system, user))
@@ -84,13 +82,20 @@ def _config(**overrides: Any) -> schemas.DiscoveryIndexingConfig:
     return schemas.DiscoveryIndexingConfig(**values)
 
 
+async def _no_persist() -> None:
+    pass
+
+
 def _summarizer(
-    config: schemas.DiscoveryIndexingConfig | None = None, **kwargs: Any
+    config: schemas.DiscoveryIndexingConfig | None = None,
+    persist: Callable[[], Awaitable[None]] = _no_persist,
+    **kwargs: Any,
 ) -> DiscoveryIndicatorSummarizer:
     kwargs.setdefault("concurrency", 4)
     kwargs.setdefault("timeout_seconds", 1)
     kwargs.setdefault("validation_retries", 2)
-    return DiscoveryIndicatorSummarizer(config or _config(), **kwargs)
+    auth_context = cast(AuthContext, SimpleNamespace(api_key="test-key"))
+    return DiscoveryIndicatorSummarizer(config or _config(), auth_context, persist, **kwargs)
 
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~ copied lists ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -229,14 +234,6 @@ async def test_a_configured_prompt_replaces_the_default(monkeypatch: pytest.Monk
     assert user.startswith("Indicator number 0\n")
 
 
-async def test_the_answer_is_requested_in_strict_mode(monkeypatch: pytest.MonkeyPatch) -> None:
-    llm = _install(monkeypatch, _groups("Group"))
-
-    await _summarizer().summarize([_record(indicators_coverage=_long_coverage())])
-
-    assert llm.structured_kwargs == {"method": "json_schema", "strict": True}
-
-
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~ output limits ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 
@@ -303,6 +300,49 @@ async def test_one_failing_record_does_not_stop_the_others(monkeypatch: pytest.M
     assert "model unavailable" in (broken.index_error or "")
     assert healthy.indicators_summary == f"Unit: {_UNIT}; Group"
     assert healthy.indexing_status is schemas.DiscoveryIndexingStatus.NEW
+
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~ persisting ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
+async def test_every_derived_record_is_persisted_as_soon_as_it_is_done(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A run cut short keeps what it had derived; an unchanged record has nothing to persist."""
+    _install(monkeypatch, _groups("Group"))
+    summarized = _record(id=1, indicators_coverage=_long_coverage())
+    copied = _record(id=2)
+    unchanged = _record(id=3)
+    await _summarizer().summarize([unchanged])
+    persisted: list[dict[int, str]] = []
+    records = [summarized, copied, unchanged]
+
+    async def persist() -> None:
+        persisted.append({record.id: record.indicators_summary for record in records})
+
+    await _summarizer(persist=persist, concurrency=1).summarize(records)
+
+    assert len(persisted) == 2
+    assert persisted[0][1] == f"Unit: {_UNIT}; Group"
+    assert persisted[1][2] == f"Unit: {_UNIT}; M1; M2"
+
+
+async def test_a_failed_record_is_persisted_with_its_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def responder(_system: str, _user: str) -> list[str]:
+        raise RuntimeError("model unavailable")
+
+    _install(monkeypatch, responder)
+    record = _record(indicators_coverage=_long_coverage())
+    persisted: list[schemas.DiscoveryIndexingStatus] = []
+
+    async def persist() -> None:
+        persisted.append(record.indexing_status)
+
+    await _summarizer(persist=persist).summarize([record])
+
+    assert persisted == [schemas.DiscoveryIndexingStatus.FAILED]
 
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~ change detection ~~~~~~~~~~~~~~~~~~~~~~~~~~~~

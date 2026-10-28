@@ -1,11 +1,13 @@
+import asyncio
 import logging
-from collections.abc import Collection
+from collections.abc import Collection, Sequence
 
 from fastapi import BackgroundTasks
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from statgpt.admin.auth.auth_context import SystemUserAuthContext
 from statgpt.common import models, schemas
 from statgpt.common.services import (
     ChannelSerializer,
@@ -231,11 +233,14 @@ class AdminPortalDiscoveryIndexingJobService(DbServiceBase):
                 # established, and a later stage that dies should not take them down with it.
                 await session.commit()
 
+                # Commits after every record: its LLM calls are the slowest part of a run, and
+                # a run cut short keeps what it had derived.
                 summarized = await DiscoveryIndicatorSummarizer(
                     self._indexing_config(channel),
+                    SystemUserAuthContext(),
+                    persist=session.commit,
                     force=schemas.DiscoveryIndexingStage.SUMMARIZATION in force,
                 ).summarize(records)
-                await session.commit()
 
                 counts, vocabulary = await self._publish_records(
                     channel,
@@ -258,16 +263,34 @@ class AdminPortalDiscoveryIndexingJobService(DbServiceBase):
                 )
                 job.status = schemas.PreprocessingStatusEnum.COMPLETED
                 await session.commit()
+            except asyncio.CancelledError:
+                # Not an `Exception`, so caught on its own: left unrecorded, the job would stay
+                # IN_PROGRESS and refuse every new run of the channel until it went stale.
+                _log.error(
+                    f"Discovery indexing job {job_id} was cancelled before it finished, most"
+                    " likely by the background task timeout"
+                )
+                await self._fail_job(
+                    session,
+                    job_id,
+                    "Cancelled before it finished, most likely by the background task timeout."
+                    " Records summarized so far are kept, and the next run resumes from them.",
+                )
+                raise
             except Exception as e:
                 _log.exception(f"Discovery indexing job {job_id} failed")
-                await session.rollback()
-                job = await self._get_job_model_or_raise(job_id)
-                job.reason_for_failure = format_exception_reason(e)
-                job.status = schemas.PreprocessingStatusEnum.FAILED
-                await session.commit()
+                await self._fail_job(session, job_id, format_exception_reason(e))
                 return
 
             _log.info(f"Discovery indexing job {job_id} completed: {job.details}")
+
+    async def _fail_job(self, session: AsyncSession, job_id: int, reason: str) -> None:
+        """Mark the job FAILED, discarding whatever the failed stage left uncommitted."""
+        await session.rollback()
+        job = await self._get_job_model_or_raise(job_id)
+        job.reason_for_failure = reason
+        job.status = schemas.PreprocessingStatusEnum.FAILED
+        await session.commit()
 
     @staticmethod
     def _validate_records(records: list[models.DiscoveryDataset]) -> tuple[int, int]:
@@ -306,9 +329,10 @@ class AdminPortalDiscoveryIndexingJobService(DbServiceBase):
         Returns the documents' counts and the vocabulary's, the latter `None` when the channel
         publishes no vocabulary.
 
-        `held` records keep their documents as they are - see `DiscoveryPublisher.publish`. The
-        vocabulary is not told about them: a held record is valid and its document stays live,
-        so its areas stay in the vocabulary too.
+        `held` records keep their documents as they are - see `DiscoveryPublisher.publish`.
+
+        The vocabulary covers only the records with a live document once the documents are
+        published - see `_with_live_document`.
 
         Both schemas are verified before either channel is written to. A schema is one cheap
         read, and a vocabulary channel found misconfigured afterwards would fail the job having
@@ -346,7 +370,26 @@ class AdminPortalDiscoveryIndexingJobService(DbServiceBase):
                 await vocabulary_publisher.verify_metadata_schema()
 
                 counts = await publisher.publish(records, held=held)
-                return counts, await vocabulary_publisher.publish(records)
+                return counts, await vocabulary_publisher.publish(
+                    _with_live_document(records, held)
+                )
+
+
+def _with_live_document(
+    records: Sequence[models.DiscoveryDataset], held: Collection[int]
+) -> list[models.DiscoveryDataset]:
+    """The records whose document is live after publishing.
+
+    Those the publisher indexed, and the held ones published by an earlier run: their documents
+    were left as they were. A held record never published, or one whose publish failed, has
+    nothing a search could return, so a label only it names must not be offered as a filter.
+    """
+    return [
+        record
+        for record in records
+        if record.indexing_status is schemas.DiscoveryIndexingStatus.INDEXED
+        or (record.id in held and record.indexed_at is not None)
+    ]
 
 
 def _forced_details(force: frozenset[schemas.DiscoveryIndexingStage]) -> str:
