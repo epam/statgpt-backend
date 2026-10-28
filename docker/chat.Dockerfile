@@ -25,8 +25,8 @@ COPY ./statgpt/app $APP_HOME/statgpt/app
 COPY ./statgpt/common $APP_HOME/statgpt/common
 RUN poetry install --no-interaction --no-ansi --no-cache --no-root --only main -E mcp
 
-# CVE-2026-23949 (jaraco.context vendored in setuptools), CVE-2026-24049 (wheel vendored in setuptools)
-RUN .venv/bin/pip install "setuptools==80.10.2" "wheel==0.46.2"
+# CVE-2026-59890 (setuptools sdist MANIFEST.in exclusion bypass), GHSA-xmj3-9gf7-h52w (setuptools Windows path escape)
+RUN .venv/bin/pip install "setuptools==84.2.1" "wheel==0.46.2"
 
 ############################
 # Runtime stage
@@ -36,8 +36,10 @@ FROM python:3.11-alpine AS server
 # Security patches (consolidated into single layer)
 # CVE-2023-52425 (libexpat), CVE-2025-6965 (sqlite-libs), libcrypto3/libssl3
 # CVE-2026-40200 (musl)
+# CVE-2026-53612/53613/53614/76642/78408/78409/78410 (libuuid/util-linux)
 RUN apk update && apk upgrade --no-cache \
     libcrypto3 libssl3 libexpat sqlite-libs zlib musl musl-utils \
+  && apk add --no-cache --upgrade "libuuid>=2.42.3-r1" \
   && apk add --no-cache ca-certificates \
   && update-ca-certificates \
   && rm -rf /var/cache/apk/*
