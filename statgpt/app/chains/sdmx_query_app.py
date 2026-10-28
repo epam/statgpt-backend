@@ -103,7 +103,7 @@ class SdmxQueryAppProxy:
                 json=body if method == "POST" else None,
             )
         except httpx.TimeoutException as e:
-            raise ToolUpstreamError("The SDMX backend did not respond in time (timeout).") from e
+            raise ToolUpstreamError("The SDMX backend did not respond in time.") from e
         except httpx.HTTPError as e:
             # Connection errors, DNS failures, protocol errors, etc. Keep the underlying error
             # (which can name the internal endpoint) in the server log only; the surfaced reason

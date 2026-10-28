@@ -107,12 +107,16 @@ class TestUpstreamErrorScrubbing:
         return SdmxQueryAppProxy(SdmxQueryAppDetails(base_url_raw="https://sdmx-internal.svc/api"))
 
     async def test_connection_error_does_not_leak_endpoint(self, monkeypatch):
-        class _FakeClient:
-            async def request(self, *, method, url, **kwargs):
-                raise httpx.ConnectError("connection failed", request=httpx.Request(method, url))
+        async def fake_request(*, method: str, url: str, **kwargs):
+            raise httpx.ConnectError(
+                f"failed to connect to {url}", request=httpx.Request(method, url)
+            )
 
+        # Seed the managed client's lazy slot with a fake so the `client` property returns it.
         monkeypatch.setattr(
-            sdmx_module, "sdmx_query_app_http_client", SimpleNamespace(client=_FakeClient())
+            sdmx_module.sdmx_query_app_http_client,
+            "_client",
+            SimpleNamespace(request=fake_request),
         )
 
         with pytest.raises(ToolUpstreamError) as exc_info:

@@ -8,8 +8,10 @@ trace/request identifiers) never reaches the caller: it is logged server-side on
 """
 
 import logging
-from enum import Enum
+import math
+from enum import StrEnum
 
+import httpx
 import openai
 from aidial_sdk.exceptions import HTTPException as DIALException
 from fastmcp.exceptions import ToolError
@@ -17,7 +19,7 @@ from pydantic import ValidationError
 
 from statgpt.app.chains.tools import ToolUpstreamError
 from statgpt.app.security.exceptions import AuthenticationError, AuthorizationError
-from statgpt.app.utils.dial_exceptions import RateLimitException
+from statgpt.app.utils.dial_exceptions import RateLimitException, format_duration
 
 _log = logging.getLogger(__name__)
 
@@ -26,10 +28,10 @@ _log = logging.getLogger(__name__)
 _MAX_VALIDATION_FIELDS = 5
 
 # OpenAI error codes that mean the request/result exceeded the model's context window.
-_CONTEXT_LENGTH_CODES = {"context_length_exceeded", "string_above_max_length"}
+_CONTEXT_LENGTH_CODES = frozenset({"context_length_exceeded", "string_above_max_length"})
 
 
-class McpErrorClass(str, Enum):
+class McpErrorClass(StrEnum):
     """The error classes surfaced to an MCP caller."""
 
     INVALID_INPUT = "invalid_input"
@@ -41,35 +43,37 @@ class McpErrorClass(str, Enum):
     INTERNAL_ERROR = "internal_error"
 
 
-# One message template per class. ``{when}`` in RATE_LIMITED is filled by ``build_tool_error``.
-_MESSAGES: dict[McpErrorClass, str] = {
+# One message template per class: what happened, then the concrete next step. A caller-safe
+# detail, when there is one, goes between the two. ``{when}`` in RATE_LIMITED is filled by
+# ``_build_tool_error``.
+_MESSAGES: dict[McpErrorClass, tuple[str, str]] = {
     McpErrorClass.INVALID_INPUT: (
-        "Invalid input: the request arguments were not accepted. "
-        "Correct the arguments and call the tool again."
+        "Invalid input: the request arguments were not accepted.",
+        "Correct the arguments and call the tool again.",
     ),
     McpErrorClass.MISSING_AUTHORIZATION: (
-        "Authentication required: this tool needs a valid access token. "
-        "Sign in (or supply a valid token) and try again."
+        "Authentication required: this tool needs a valid access token.",
+        "Sign in (or supply a valid token) and try again.",
     ),
     McpErrorClass.INSUFFICIENT_SCOPE: (
-        "Access denied: your account is not permitted to use this tool. "
-        "Request the required access from your administrator, then try again."
+        "Access denied: your account is not permitted to use this tool.",
+        "Request the required access from your administrator, then try again.",
     ),
     McpErrorClass.RATE_LIMITED: (
-        "Rate limit reached: too many requests were made in a short period. "
-        "Wait {when} and try again."
+        "Rate limit reached: too many requests were made in a short period.",
+        "Wait {when} and try again.",
     ),
     McpErrorClass.UPSTREAM_UNAVAILABLE: (
-        "Service temporarily unavailable: a required data service could not be reached. "
-        "Try again in a few moments."
+        "Service temporarily unavailable: a required data service could not be reached.",
+        "Try again in a few moments.",
     ),
     McpErrorClass.RESULT_TOO_LARGE: (
-        "Result too large: the query returned more data than can be sent back. "
-        "Narrow the request (add filters, a shorter time range, or fewer items) and try again."
+        "Result too large: the query returned more data than can be sent back.",
+        "Narrow the request (add filters, a shorter time range, or fewer items) and try again.",
     ),
     McpErrorClass.INTERNAL_ERROR: (
-        "Internal error: the tool could not complete the request. "
-        "The issue has been logged; try again, and contact support if it persists."
+        "Internal error: the tool could not complete the request.",
+        "The issue has been logged; try again, and contact support if it persists.",
     ),
 }
 
@@ -85,6 +89,13 @@ _LOG_LEVELS: dict[McpErrorClass, int] = {
     McpErrorClass.INTERNAL_ERROR: logging.ERROR,
 }
 
+# HTTP statuses that map to a class of their own, for DIAL exceptions and upstream HTTP errors.
+_STATUS_CLASSES: dict[int, McpErrorClass] = {
+    401: McpErrorClass.MISSING_AUTHORIZATION,
+    403: McpErrorClass.INSUFFICIENT_SCOPE,
+    429: McpErrorClass.RATE_LIMITED,
+}
+
 
 def _is_context_length_error(exc: openai.BadRequestError) -> bool:
     if getattr(exc, "code", None) in _CONTEXT_LENGTH_CODES:
@@ -93,22 +104,23 @@ def _is_context_length_error(exc: openai.BadRequestError) -> bool:
     return "context length" in text or "maximum context" in text
 
 
-def _classify_dial_exception(exc: DIALException) -> McpErrorClass:
-    return {
-        401: McpErrorClass.MISSING_AUTHORIZATION,
-        403: McpErrorClass.INSUFFICIENT_SCOPE,
-        429: McpErrorClass.RATE_LIMITED,
-    }.get(exc.status_code, McpErrorClass.INTERNAL_ERROR)
+def _classify_upstream_status(status_code: int) -> McpErrorClass:
+    """Classify an error response from an upstream service (DIAL, an LLM, a data backend)."""
+    if status_code >= 500:
+        return McpErrorClass.UPSTREAM_UNAVAILABLE
+    return _STATUS_CLASSES.get(status_code, McpErrorClass.INTERNAL_ERROR)
 
 
-def classify_exception(exc: BaseException) -> McpErrorClass:
+def _classify_exception(exc: BaseException) -> McpErrorClass:
     """Map an execution error to its taxonomy class.
 
-    Specific StatGPT/library exceptions take precedence; the remaining ``DIALException``s
-    are classified by HTTP status. Anything unrecognised is an internal error.
+    Specific StatGPT/library exceptions take precedence; ``DIALException``s and upstream HTTP
+    errors are then classified by status, and connection failures and timeouts mean the
+    upstream is unavailable. Anything unrecognised is an internal error. That includes a
+    pydantic ``ValidationError``: raised during execution it means an internal model rejected
+    some data (e.g. an upstream payload), not that the caller's arguments were wrong. The
+    argument-validation site passes ``INVALID_INPUT`` to ``to_tool_error`` explicitly.
     """
-    if isinstance(exc, ValidationError):
-        return McpErrorClass.INVALID_INPUT
     if isinstance(exc, ToolUpstreamError):
         return McpErrorClass.UPSTREAM_UNAVAILABLE
     if isinstance(exc, (openai.RateLimitError, RateLimitException)):
@@ -120,16 +132,24 @@ def classify_exception(exc: BaseException) -> McpErrorClass:
     if isinstance(exc, AuthorizationError):
         return McpErrorClass.INSUFFICIENT_SCOPE
     if isinstance(exc, DIALException):
-        return _classify_dial_exception(exc)
+        # Raised by StatGPT itself, so a 5xx is our own fault rather than an upstream outage.
+        return _STATUS_CLASSES.get(exc.status_code, McpErrorClass.INTERNAL_ERROR)
+    if isinstance(exc, openai.APIStatusError):
+        return _classify_upstream_status(exc.status_code)
+    if isinstance(exc, httpx.HTTPStatusError):
+        return _classify_upstream_status(exc.response.status_code)
+    if isinstance(exc, (openai.APIConnectionError, httpx.TransportError, TimeoutError)):
+        # Includes the openai/httpx timeouts, and a downstream TimeoutError that is not the
+        # tool's own deadline.
+        return McpErrorClass.UPSTREAM_UNAVAILABLE
     return McpErrorClass.INTERNAL_ERROR
 
 
 def _retry_after_seconds(exc: BaseException) -> int | None:
     value: str | int | None = None
-    if isinstance(exc, openai.APIStatusError):
-        headers = getattr(getattr(exc, "response", None), "headers", None)
-        if headers:
-            value = headers.get("retry-after") or headers.get("Retry-After")
+    if isinstance(exc, (openai.APIStatusError, httpx.HTTPStatusError)):
+        # httpx headers are case-insensitive.
+        value = exc.response.headers.get("retry-after")
     elif isinstance(exc, DIALException):
         if exc.headers:
             value = exc.headers.get("retry-after") or exc.headers.get("Retry-After")
@@ -137,76 +157,98 @@ def _retry_after_seconds(exc: BaseException) -> int | None:
             # DIAL's RateLimitException carries the upstream Retry-After in extra_fields
             # rather than as a forwarded response header.
             value = exc.extra_fields.get("retry_after")
-    try:
-        return int(value) if value is not None else None
-    except (ValueError, TypeError):
+    if value is None:
         return None
+    try:
+        # Delay-seconds may be fractional; round up so the caller never retries too early.
+        # An HTTP-date value is not parsed: the message falls back to "a moment".
+        seconds = math.ceil(float(value))
+    except (ValueError, TypeError, OverflowError):
+        return None
+    return seconds if seconds > 0 else None
 
 
 def _summarize_validation_error(exc: ValidationError) -> str:
     """Name the offending fields (location + reason) without echoing their values."""
-    parts = []
+    parts: list[str] = []
     for err in exc.errors()[:_MAX_VALIDATION_FIELDS]:
         loc = ".".join(str(p) for p in err.get("loc", ())) or "(root)"
         parts.append(f"{loc}: {err.get('msg', 'invalid')}")
     return "; ".join(parts)
 
 
-def build_tool_error(
+def _caller_safe_detail(error_class: McpErrorClass, exc: BaseException) -> str | None:
+    """The detail beyond the class template that is safe to show the caller, if any."""
+    if error_class is McpErrorClass.INVALID_INPUT and isinstance(exc, ValidationError):
+        return _summarize_validation_error(exc)
+    if isinstance(exc, ToolUpstreamError):
+        # Its message is written to be shown to the caller.
+        return str(exc)
+    if isinstance(exc, DIALException) and not isinstance(exc, RateLimitException):
+        # DIAL's curated, user-facing text (e.g. which deployment access is missing). A
+        # RateLimitException's only restates the retry hint the template already renders.
+        return exc.display_message
+    return None
+
+
+def _as_sentence(text: str) -> str:
+    text = text.strip()
+    return text if text.endswith((".", "!", "?")) else f"{text}."
+
+
+def _build_tool_error(
     error_class: McpErrorClass,
     *,
     detail: str | None = None,
     retry_after_seconds: int | None = None,
-    log_level: int | None = None,
 ) -> ToolError:
     """Build the ``ToolError`` for a class from its template.
 
-    ``detail`` must already be safe to show the caller (e.g. a ``ToolUpstreamError``
-    message crafted for that purpose); it is appended in parentheses.
-
-    ``log_level`` sets the severity FastMCP uses when it re-logs the raised ``ToolError``.
-    It defaults to the class severity, so a direct caller gets one log line at the right
-    level; ``to_tool_error`` overrides it (having already logged the full detail itself).
+    ``detail`` must already be safe to show the caller (see ``_caller_safe_detail``); it is
+    placed between what happened and the next step.
     """
-    message = _MESSAGES[error_class]
+    summary, next_step = _MESSAGES[error_class]
     if error_class is McpErrorClass.RATE_LIMITED:
-        when = f"{retry_after_seconds} seconds" if retry_after_seconds else "a moment"
-        message = message.format(when=when)
-    if detail:
-        message = f"{message} ({detail})"
-    level = log_level if log_level is not None else _LOG_LEVELS[error_class]
-    return ToolError(message, log_level=level)
+        when = format_duration(retry_after_seconds) if retry_after_seconds else "a moment"
+        next_step = next_step.format(when=when)
+    parts = [summary, _as_sentence(detail) if detail else None, next_step]
+    # ``to_tool_error`` has already logged the full error at its real severity; keep FastMCP's
+    # own re-log of the raised ToolError (see fastmcp server.py) quiet to avoid a duplicate.
+    return ToolError(" ".join(p for p in parts if p), log_level=logging.DEBUG)
 
 
-def to_tool_error(exc: BaseException, *, tool_name: str) -> ToolError:
+def to_tool_error(
+    exc: BaseException, *, tool_name: str, error_class: McpErrorClass | None = None
+) -> ToolError:
     """Translate an execution error into a scrubbed, actionable MCP ``ToolError``.
 
     Logs the full exception server-side at a severity matching its class, then returns
     a ``ToolError`` whose text is a fixed template — no stack trace, upstream body,
     hostname or identifier leaks into what the caller sees. The only caller-visible
-    detail beyond the template is the named invalid field (invalid input) or a
-    safe-by-design upstream reason (upstream unavailable).
+    detail beyond the template is the named invalid field (invalid input), a
+    safe-by-design upstream reason (``ToolUpstreamError``) or DIAL's user-facing
+    ``display_message``.
+
+    ``error_class`` overrides the classification of ``exc``. The argument-validation site
+    passes ``INVALID_INPUT``: only there does a ``ValidationError`` mean the caller's
+    arguments were rejected.
     """
-    error_class = classify_exception(exc)
+    if error_class is None:
+        error_class = _classify_exception(exc)
     level = _LOG_LEVELS[error_class]
     _log.log(
         level,
         "MCP tool %s failed [%s]: %s",
         tool_name,
-        error_class.value,
+        error_class,
         exc,
         exc_info=(level >= logging.ERROR),
     )
-    detail: str | None = None
-    if error_class is McpErrorClass.INVALID_INPUT and isinstance(exc, ValidationError):
-        detail = _summarize_validation_error(exc)
-    elif error_class is McpErrorClass.UPSTREAM_UNAVAILABLE:
-        detail = str(exc)
-    return build_tool_error(
+    retry_after_seconds = (
+        _retry_after_seconds(exc) if error_class is McpErrorClass.RATE_LIMITED else None
+    )
+    return _build_tool_error(
         error_class,
-        detail=detail,
-        retry_after_seconds=_retry_after_seconds(exc),
-        # The full error was just logged above at its real severity; keep FastMCP's own
-        # re-log of the raised ToolError (see fastmcp server.py) quiet to avoid a duplicate.
-        log_level=logging.DEBUG,
+        detail=_caller_safe_detail(error_class, exc),
+        retry_after_seconds=retry_after_seconds,
     )

@@ -10,6 +10,7 @@ from fastmcp.exceptions import ToolError
 from langchain_core.messages import AIMessage
 from langchain_core.runnables import Runnable, RunnableLambda
 from mcp.types import TextContent
+from pydantic import BaseModel, ValidationError
 
 from statgpt.app.chains.out_of_scope_checker import OutOfScopeCheckerResponse
 from statgpt.app.chains.tools import StatGptTool, ToolUpstreamError
@@ -149,6 +150,22 @@ async def test_upstream_error_surfaces_its_message(monkeypatch):
         await _build().run({})
 
 
+async def test_validation_error_during_execution_is_an_internal_error(monkeypatch):
+    # A pydantic error raised while executing (e.g. parsing an upstream payload) is not the
+    # caller's fault: it must not tell the caller to correct the arguments, nor name the field.
+    class _UpstreamPayload(BaseModel):
+        series_key: int
+
+    with pytest.raises(ValidationError) as validation:
+        _UpstreamPayload(series_key="not-a-number")
+    _fake_langchain_tool(monkeypatch, error=validation.value)
+
+    with pytest.raises(ToolError, match="Internal error") as exc_info:
+        await _build().run({})
+
+    assert "series_key" not in str(exc_info.value)
+
+
 async def test_invalid_arguments_raise_tool_error_naming_the_field(monkeypatch):
     # The datasets-metadata tool requires a `query`; leaving it out is an argument-schema failure
     # that must surface a concise ToolError naming the field so the caller can correct the request.
@@ -213,17 +230,19 @@ async def test_run_completes_within_deadline(monkeypatch):
     assert tool_result.content[0].text == "hello"
 
 
-async def test_run_passes_through_non_deadline_timeout_error(monkeypatch):
-    # A TimeoutError that is not our own deadline expiring must propagate unchanged rather than
-    # being relabeled as the host-deadline ToolError. Guards the `deadline.expired()`
-    # disambiguation.
+async def test_run_maps_non_deadline_timeout_error_to_upstream_unavailable(monkeypatch):
+    # A TimeoutError that is not our own deadline expiring is a downstream timeout: it goes through
+    # the taxonomy rather than being relabeled as the host-deadline ToolError. Guards the
+    # `deadline.expired()` disambiguation.
     monkeypatch.setattr(
         "statgpt.app.mcp.tools.base.dial_app_settings.mcp_tool_timeout_seconds", 5.0
     )
     _fake_langchain_tool(monkeypatch, error=TimeoutError("downstream timed out"))
 
-    with pytest.raises(TimeoutError, match="downstream timed out"):
+    with pytest.raises(ToolError, match="Service temporarily unavailable") as exc_info:
         await _build().run({})
+
+    assert "did not finish within" not in str(exc_info.value)
 
 
 # ~~~~~~~~~~~~~ guardrail ~~~~~~~~~~~~~

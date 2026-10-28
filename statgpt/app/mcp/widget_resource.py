@@ -2,6 +2,7 @@ import logging
 
 import httpx
 from fastmcp.apps import AppConfig, ResourceCSP, app_config_to_meta_dict
+from fastmcp.exceptions import ResourceError
 from fastmcp.resources import Resource
 from pydantic import PrivateAttr
 
@@ -17,8 +18,12 @@ widget_http_client = ManagedHttpClient(_HTTP_TIMEOUT)
 _caches: dict[int, AsyncLoadingCache[str]] = {}
 
 
-class WidgetResourceError(Exception):
-    """Raised when the backend cannot fetch the widget HTML from the frontend endpoint."""
+class WidgetResourceError(ResourceError):
+    """Raised when the backend cannot fetch the widget HTML from the frontend endpoint.
+
+    A FastMCP ``ResourceError``, so its internals-free message reaches the caller even with
+    ``mask_error_details`` on (FastMCP masks any other exception raised while reading).
+    """
 
 
 def _cache_for_ttl(ttl: int) -> AsyncLoadingCache[str]:
@@ -36,7 +41,7 @@ async def _fetch_html(url: str) -> str:
         response = await widget_http_client.client.get(url, follow_redirects=True)
         response.raise_for_status()
     except httpx.TimeoutException as e:
-        raise WidgetResourceError("The widget endpoint did not respond in time (timeout).") from e
+        raise WidgetResourceError("The widget endpoint did not respond in time.") from e
     except httpx.HTTPError as e:
         # Connection errors, DNS failures, non-2xx status, protocol errors, etc. Keep the
         # underlying error (which can name the internal endpoint) in the server log only.

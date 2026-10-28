@@ -24,7 +24,7 @@ from mcp.types import ContentBlock, TextContent, ToolAnnotations
 from pydantic import BaseModel, PrivateAttr, ValidationError
 
 from statgpt.app.chains.tools import StatGptTool, ToolArgs
-from statgpt.app.mcp.errors import to_tool_error
+from statgpt.app.mcp.errors import McpErrorClass, to_tool_error
 from statgpt.app.mcp.guardrails import enforce_input_guardrail
 from statgpt.app.mcp.output_schema import model_to_output_schema
 from statgpt.app.settings.dial_app import dial_app_settings
@@ -144,7 +144,11 @@ class StatGptMcpTool(Tool, ABC, Generic[ToolConfigType, ArgsType]):
             # real string, and a malformed request never costs a guardrail LLM call.
             args = self._args_schema.model_validate({**arguments, "inputs": self._inputs})
         except ValidationError as e:
-            raise to_tool_error(e, tool_name=self.name) from e
+            # Only here does a ValidationError mean the caller's arguments were rejected; one raised
+            # during execution is an internal fault and is classified as such below.
+            raise to_tool_error(
+                e, tool_name=self.name, error_class=McpErrorClass.INVALID_INPUT
+            ) from e
 
         # Bound the guardrail and execution by a deadline kept under the 300s host tool-call
         # timeout. On expiry asyncio.timeout cancels the current downstream await, which cascades
@@ -168,8 +172,9 @@ class StatGptMcpTool(Tool, ABC, Generic[ToolConfigType, ArgsType]):
                 result = await self._execute(args)
         except TimeoutError as e:
             if not deadline.expired():
-                # A plain TimeoutError bubbled up from downstream, not our deadline.
-                raise
+                # A plain TimeoutError bubbled up from downstream, not our deadline. Translate it
+                # here: a bare `raise` would skip the sibling `except Exception` below.
+                raise to_tool_error(e, tool_name=self.name) from e
             _log.warning(
                 "MCP tool %s exceeded its %.0fs deadline; downstream work cancelled",
                 self.name,
