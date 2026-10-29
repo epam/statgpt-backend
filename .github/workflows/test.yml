@@ -34,15 +34,15 @@ on:
       ort-version:
         type: string
         description: ORT version to use
-        default: "latest"
+        default: "92.5.0"
       ort-config-repository:
         type: string
         description: ORT config repository to use
-        default: ${{ vars.ORT_CONFIG_VCS_URL || 'https://github.com/oss-review-toolkit/ort-config.git' }}
+        default: ${{ vars.ORT_CONFIG_VCS_URL || 'https://github.com/epam/ai-dial-ort-config.git' }}
       ort-config-revision:
         type: string
         description: ORT config revision to use
-        default: ${{ vars.ORT_CONFIG_VCS_REVISION || 'main' }}
+        default: ${{ vars.ORT_CONFIG_VCS_REVISION || '92.5.0' }}
       python-version:
         type: string
         description: Python version to use
@@ -51,6 +51,14 @@ on:
         type: string
         description: Poetry version to use
         default: "2.1.1"
+      python-package-manager:
+        type: string
+        description: Python package manager to use
+        default: "poetry"
+      uv-version:
+        type: string
+        description: UV version to use
+        default: "0.11.30"
       runs-on:
         type: string
         description: Overrides jobs runs-on settings (json-encoded list)
@@ -112,14 +120,17 @@ jobs:
           docker-cleanup: "true"
           set-tmpdir: "true"
 
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           lfs: true
 
-      - uses: epam/ai-dial-ci/actions/python_prepare@4.5.0
+      - uses: epam/ai-dial-ci/actions/python_prepare@4.13.2
         with:
           python-version: ${{ inputs.python-version }}
+          poetry-install: ${{ inputs.python-package-manager == 'poetry' }}
           poetry-version: ${{ inputs.poetry-version }}
+          uv-install: ${{ inputs.python-package-manager == 'uv' }}
+          uv-version: ${{ inputs.uv-version }}
 
       - name: Create reports directory
         run: mkdir -p reports
@@ -198,14 +209,17 @@ jobs:
           docker-cleanup: "true"
           set-tmpdir: "true"
 
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           lfs: true
 
-      - uses: epam/ai-dial-ci/actions/python_prepare@4.5.0
+      - uses: epam/ai-dial-ci/actions/python_prepare@4.13.2
         with:
           python-version: ${{ inputs.python-version }}
+          poetry-install: ${{ inputs.python-package-manager == 'poetry' }}
           poetry-version: ${{ inputs.poetry-version }}
+          uv-install: ${{ inputs.python-package-manager == 'uv' }}
+          uv-version: ${{ inputs.uv-version }}
 
       - name: Create reports directory
         run: mkdir -p reports
@@ -240,7 +254,7 @@ jobs:
           make test
 
       - name: Upload test results
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:
           name: test-results
@@ -253,19 +267,62 @@ jobs:
     permissions:
       contents: read
       security-events: write
+    continue-on-error: ${{ inputs.bypass-checks || inputs.ort-bypassed }}
     steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+      - name: Use HTTPS instead of SSH for Git cloning # recommended by ort-ci-github-action doc but not *actually* required until we'll run downloader/scanner tools
+        run: git config --global url.https://github.com/.insteadOf ssh://git@github.com/
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           lfs: true
 
-      - uses: oss-review-toolkit/ort-ci-github-action@086d928d24ef1653dc0777296b312fda5faaaf52 # v1.2.0
-        env:
-          CONTINUE_ON_ERROR: ${{ inputs.bypass-checks || inputs.ort-bypassed }} # Hack to use the input below as a boolean
+      # ORT analyzer doesn't support UV directly, so for UV projects export uv.lock to a
+      # requirements.txt and let ORT analyze it as a PIP project instead.
+      - name: Set up Python
+        if: ${{ inputs.python-package-manager == 'uv' }}
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
-          image: "ghcr.io/oss-review-toolkit/ort:${{ inputs.ort-version }}"
+          python-version: ${{ inputs.python-version }}
+      - name: Set up UV
+        if: ${{ inputs.python-package-manager == 'uv' }}
+        uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          version: ${{ inputs.uv-version }}
+          python-version: ${{ inputs.python-version }}
+      - name: Export UV dependencies to requirements.txt
+        if: ${{ inputs.python-package-manager == 'uv' }}
+        run: uv export --frozen --all-extras --format requirements.txt --output-file requirements.txt
+        shell: bash
+
+      - uses: oss-review-toolkit/ort-ci-github-action@086d928d24ef1653dc0777296b312fda5faaaf52 # v1.2.0
+        with:
+          image: "ghcr.io/oss-review-toolkit/ort-minimal:${{ inputs.ort-version }}"
           allow-dynamic-versions: "true"
           fail-on: "violations"
-          ort-cli-args: "-P ort.forceOverwrite=true --stacktrace -P ort.analyzer.enabledPackageManagers=Poetry -P ort.enableRepositoryPackageCurations=true"
+          run: "cache-dependencies, labels, analyzer, evaluator, reporter, upload-results"
+          # Provide more RAM; Only applies to GitHub hosted runners for public repositories
+          # https://docs.github.com/en/actions/reference/runners/github-hosted-runners
+          ort-jdk-java-options: "-Xmx${{ github.event.repository.private && '5' || '12' }}g"
+          ort-cli-args: >-
+            -P ort.forceOverwrite=true
+            --stacktrace
+            -P ort.analyzer.enabledPackageManagers=${{ inputs.python-package-manager == 'uv' && 'PIP' || 'Poetry' }}
+            -P ort.analyzer.packageManagers.${{ inputs.python-package-manager == 'uv' && 'PIP' || 'Poetry' }}.options.pythonVersion=${{ inputs.python-version }}
           ort-config-repository: ${{ inputs.ort-config-repository }}
           ort-config-revision: ${{ inputs.ort-config-revision }}
-        continue-on-error: ${{ fromJSON(env.CONTINUE_ON_ERROR) }}
+
+      - name: Fail on ORT Analyzer errors
+        run: |
+          result="$HOME/.ort/ort-results/analyzer-result.json"
+          [ -f "$result" ] || { echo "::error::Analyzer result not found: $result"; exit 1; }
+          # Recursively collect every object with a severity+message under `analyzer`,
+          # so this works regardless of layout (top-level issues map, dependency nodes, etc.)
+          # and across all package managers (NPM, Gradle, ...).
+          filter='[.analyzer | .. | objects | select(has("severity") and has("message")) | select(.severity == "ERROR")]'
+          count=$(jq "$filter | length" "$result")
+          echo "Analyzer ERROR issues: $count"
+          if [ "$count" -gt 0 ]; then
+            jq -r "$filter[] | \"[\(.severity)] \(.source // \"unknown\"): \(.message)\"" "$result"
+            echo "::error::ORT Analyzer reported $count error(s). Check the report to address them."
+            exit 1
+          fi
