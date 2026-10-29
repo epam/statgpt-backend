@@ -47,6 +47,7 @@ from .discovery_dataset import (
     DiscoveryPayloadErrorDetail,
     DiscoveryPayloadErrorResponse,
     DiscoveryPayloadProblem,
+    DiscoverySummaryCall,
     DiscoveryUploadSummary,
     DiscoveryValidationIssue,
 )
@@ -80,6 +81,7 @@ from .enums import (
     DiscoveryGrade,
     DiscoveryIndexingStage,
     DiscoveryIndexingStatus,
+    DiscoverySummaryStep,
     DiscoveryValidationStatus,
     ExplorerLinkPolicy,
     ExportScope,

@@ -74,7 +74,7 @@ class DiscoverySummarizeSettings(BaseSettings):
         default=2,
         ge=0,
         description=(
-            "How many times a summarization call is repeated after an answer that does not"
-            " fit the output limits, before the record is marked FAILED."
+            "How many times a summarization call is continued with what is wrong with an"
+            " invalid answer, before the record is marked FAILED."
         ),
     )

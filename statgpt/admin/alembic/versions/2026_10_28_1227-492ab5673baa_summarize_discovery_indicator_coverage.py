@@ -10,6 +10,7 @@ from collections.abc import Sequence
 
 import sqlalchemy as sa
 from alembic import op
+from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
 revision: str = '492ab5673baa'
@@ -30,6 +31,20 @@ def upgrade() -> None:
         sa.Column('indicators_summarized_at', sa.DateTime(timezone=True), nullable=True),
     )
     op.add_column(
+        'discovery_datasets',
+        sa.Column(
+            'indicators_summary_calls', postgresql.JSONB(astext_type=sa.Text()), nullable=True
+        ),
+    )
+    op.add_column(
+        'discovery_datasets',
+        sa.Column(
+            'indicators_summary_failed_calls',
+            postgresql.JSONB(astext_type=sa.Text()),
+            nullable=True,
+        ),
+    )
+    op.add_column(
         'discovery_indexing_jobs', sa.Column('records_summarized', sa.Integer(), nullable=True)
     )
     op.add_column(
@@ -40,5 +55,7 @@ def upgrade() -> None:
 def downgrade() -> None:
     op.drop_column('discovery_indexing_jobs', 'records_failed')
     op.drop_column('discovery_indexing_jobs', 'records_summarized')
+    op.drop_column('discovery_datasets', 'indicators_summary_failed_calls')
+    op.drop_column('discovery_datasets', 'indicators_summary_calls')
     op.drop_column('discovery_datasets', 'indicators_summarized_at')
     op.drop_column('discovery_datasets', 'indicators_summary_source_hash')

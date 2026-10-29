@@ -1,12 +1,12 @@
 import datetime
 from typing import Annotated
 
-from pydantic import AfterValidator, ConfigDict, Field
+from pydantic import AfterValidator, ConfigDict, Field, JsonValue
 
 from statgpt.common.utils.misc import normalize_whitespace
 
 from .base import BaseYamlModel, DbDefaultBase
-from .enums import DiscoveryIndexingStatus, DiscoveryValidationStatus
+from .enums import DiscoveryIndexingStatus, DiscoverySummaryStep, DiscoveryValidationStatus
 
 NormalizedStr = Annotated[str, AfterValidator(normalize_whitespace)]
 """A free-text field whose whitespace is normalized on every write path.
@@ -97,6 +97,26 @@ class DiscoveryValidationIssue(BaseYamlModel):
     """What a submitter needs to fix, in plain English."""
 
 
+class DiscoverySummaryCall(BaseYamlModel):
+    """One LLM answer of an indicator summarization, rejected or accepted."""
+
+    model_config = ConfigDict(use_attribute_docstrings=True)
+
+    step: DiscoverySummaryStep
+
+    part: int | None = None
+    """1-based number of the summarized part of the list; `None` for the merge."""
+
+    answer: dict[str, JsonValue] | None = None
+    """The answer as the model returned it: reasoning, units and groups.
+
+    `None` when it was not a JSON object - cut short, refused or filtered; its text is not kept.
+    """
+
+    error: str | None = None
+    """What was wrong with the answer, as sent back to the model; `None` for the accepted one."""
+
+
 class DiscoveryDatasetBase(BaseYamlModel):
     """One dataset described for discovery, as a submitter fills it in.
 
@@ -183,6 +203,25 @@ class DiscoveryDataset(DiscoveryDatasetBase, DbDefaultBase):
     `None` when the summary is a copy of the parsed list, or has not been derived yet.
     """
 
+    indicators_summary_calls: list[DiscoverySummaryCall] | None = Field(
+        default=None, exclude_if=lambda calls: calls is None
+    )
+    """Every LLM answer that went into `indicators_summary`, in order. Read-only.
+
+    Rejected answers are included, so the retries are the entries with an `error`. `None`
+    when the summary is a copy of the parsed list, has not been derived yet, or the calls
+    were not asked for; omitted from the response then.
+    """
+
+    indicators_summary_failed_calls: list[DiscoverySummaryCall] | None = Field(
+        default=None, exclude_if=lambda calls: calls is None
+    )
+    """The answers of the last summarization that failed, in order. Read-only.
+
+    Empty when it failed before any answer, on a request error say. Cleared by the next
+    summarization that succeeds. Omitted from the response unless asked for.
+    """
+
     missing_indicators: str = ""
     """Indicators a user could expect but the dataset does not contain. Read-only.
 
@@ -219,9 +258,9 @@ class DiscoveryDatasetUpdate(BaseYamlModel):
     The two halves of the natural key are the exception: they can be corrected but not
     cleared, since a record with no key cannot be matched against a channel's contents.
 
-    `indicators_summary`, `indicators_summarized_at` and `missing_indicators` are absent because
-    the indexing run owns them; an edit that could set them would be overwritten by the next
-    run.
+    `indicators_summary`, its `indicators_summarized_at` and summary calls, and
+    `missing_indicators` are absent because the indexing run owns them; an edit that could set
+    them would be overwritten by the next run.
     """
 
     reference_area: NormalizedStr | None = None

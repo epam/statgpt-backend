@@ -100,6 +100,8 @@ def _record(**overrides: Any) -> models.DiscoveryDataset:
         "missing_indicators": "",
         "indicators_summary_source_hash": None,
         "indicators_summarized_at": None,
+        "indicators_summary_calls": None,
+        "indicators_summary_failed_calls": None,
         "validation_status": schemas.DiscoveryValidationStatus.NOT_VALIDATED,
         "validation_issues": None,
         "validated_at": None,

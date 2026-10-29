@@ -379,8 +379,12 @@ class AdminPortalDiscoveryDatasetService(DiscoveryDatasetService):
 
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~ single record ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-    async def get_record_schema_by_id(self, item_id: int) -> schemas.DiscoveryDataset:
-        return self._serialize(await self._get_item_or_raise(item_id))
+    async def get_record_schema_by_id(
+        self, item_id: int, *, include_summary_calls: bool = False
+    ) -> schemas.DiscoveryDataset:
+        return self._serialize(
+            await self._get_item_or_raise(item_id), include_summary_calls=include_summary_calls
+        )
 
     async def add_record(
         self, channel_id: int, data: schemas.DiscoveryDatasetBase

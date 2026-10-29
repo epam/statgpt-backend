@@ -9,10 +9,15 @@ description a question is meant to match, so a run derives `indicators_summary` 
 - a list that is still longer than the channel's threshold is collapsed by an LLM into
   indicator groups. A list too long for one call is split between indicators, each part is
   summarized on its own, and the parts' groups are merged by one more call. Units the indicators
-  do not share are summarized by the model along with the groups.
+  do not share are summarized by the model: as one value for the whole list when they can be,
+  published as the same prefix, or along with each group otherwise.
 
-The prefix is added here, never by the model, so the shared unit a document states is the one
-the submitter wrote.
+The prefix for a shared unit is added here, never by the model, so the shared unit a document
+states is the one the submitter wrote.
+
+An answer that does not fit the output limit is not simply asked for again: the conversation
+goes on with the answer and what is wrong with it, so the model corrects it rather than
+repeating it.
 """
 
 import asyncio
@@ -21,12 +26,25 @@ import logging
 from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass, field
 from enum import StrEnum
-from typing import Annotated, cast
+from typing import Annotated, Any, Self, TypedDict, cast
 
 import httpx
-from langchain_core.exceptions import OutputParserException
-from langchain_core.runnables import Runnable
-from pydantic import BaseModel, Field, StringConstraints, ValidationError, create_model
+from langchain_core.language_models import BaseChatModel
+from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    JsonValue,
+    StringConstraints,
+    TypeAdapter,
+    ValidationError,
+    ValidationInfo,
+    create_model,
+    field_validator,
+    model_validator,
+)
+from pydantic.json_schema import SkipJsonSchema
 
 from statgpt.admin.settings.discovery import DiscoverySummarizeSettings
 from statgpt.common import models, schemas
@@ -49,7 +67,7 @@ _SETTINGS = DiscoverySummarizeSettings()
 _SEPARATOR = "; "
 _UNIT_PREFIX = "Unit: "
 
-_DERIVATION_VERSION = 1
+_DERIVATION_VERSION = 2
 """Part of the source hash. Bump it when what this module makes of a list changes - the unit
 parsing, the published form, the output model - so existing summaries are derived again."""
 
@@ -59,41 +77,139 @@ _HTTP_RETRIES = 3
 _CONNECT_TIMEOUT_SECONDS = 4
 
 
-class _IndicatorGroups(BaseModel):
-    """What one summarization call answers with. Narrowed per run by `_output_model`."""
-
-    groups: list[str]
-
-
-def _output_model(config: schemas.DiscoveryIndexingConfig) -> type[_IndicatorGroups]:
-    """The answer's model, bounded by the channel's output limits.
-
-    Built per run because the limits are configuration. They are part of the JSON schema the
-    model is held to, and enforced again on the answer, so an answer past them is retried.
-    """
-    group = Annotated[
-        str,
-        StringConstraints(strip_whitespace=True, min_length=1, max_length=config.max_group_chars),
-    ]
-    return create_model(
-        "IndicatorGroups",
-        __base__=_IndicatorGroups,
-        __doc__="Indicator groups that together cover every indicator of the dataset.",
-        groups=(
-            list[group],  # type: ignore[valid-type]
-            Field(
-                min_length=1,
-                max_length=config.max_groups,
-                description="The indicator groups, each naming its subject and breakdowns.",
-            ),
-        ),
-    )
-
-
 def _render_indicators(unit: str | None, items: Sequence[str]) -> str:
     """Join indicators or groups into the published form, the shared unit leading."""
     joined = _SEPARATOR.join(items)
     return f"{_UNIT_PREFIX}{unit}{_SEPARATOR}{joined}" if unit else joined
+
+
+def _clean(text: str) -> str:
+    # ';' separates the items of the published list, so an item must not contain one.
+    return normalize_whitespace(text.replace(";", ","))
+
+
+class _AnswerContext(TypedDict):
+    unit: str | None
+    """The unit every indicator shares, published as the prefix, or `None`."""
+    max_chars: int
+
+
+class _IndicatorGroups(BaseModel):
+    """What one summarization call answers with. Narrowed per run by `_output_model`.
+
+    The fields are generated in their order, so the model reasons before it commits to units
+    and groups. Validated with an `_AnswerContext`: the limit holds for the published form.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    reasoning: str = Field(
+        description="Plan the groups here before writing them: subjects, breakdowns, units."
+    )
+    units: str | None = Field(
+        description=(
+            "The units of measure of every group as one value, or null when the groups keep"
+            " their own units."
+        )
+    )
+    groups: list[str]
+
+    @field_validator("units", mode="after")
+    @classmethod
+    def _clean_units(cls, units: str | None) -> str | None:
+        return (_clean(units) or None) if units is not None else None
+
+    @field_validator("groups", mode="after")
+    @classmethod
+    def _clean_groups(cls, groups: list[str]) -> list[str]:
+        return [_clean(group) for group in groups]
+
+    @model_validator(mode="after")
+    def _fits_the_limit(self, info: ValidationInfo) -> Self:
+        context = cast(_AnswerContext, info.context)
+        limit = context["max_chars"]
+        length = len(_render_indicators(self.units or context["unit"], self.groups))
+        if length > limit:
+            raise ValueError(
+                f"Published, the summary is {length} characters long, {length - limit} over"
+                f" the limit of {limit}. Merge or shorten groups, naming breakdowns instead of"
+                " listing their members."
+            )
+        return self
+
+
+def _output_model(
+    config: schemas.DiscoveryIndexingConfig, *, with_units: bool
+) -> type[_IndicatorGroups]:
+    """The answer's model, bounded by the channel's output limit.
+
+    Built per run because the limit is configuration. `with_units` keeps the `units` field,
+    for indicators that share no unit; otherwise it is left out of the schema.
+
+    A group may take the whole limit, which providers do not enforce today; the published
+    form is checked against it by the model's validator.
+    """
+    group = Annotated[
+        str,
+        StringConstraints(strip_whitespace=True, min_length=1, max_length=config.max_summary_chars),
+    ]
+    fields: dict[str, Any] = {
+        "groups": (
+            list[group],  # type: ignore[valid-type]
+            Field(
+                min_length=1,
+                description="The indicator groups, each naming its subject and breakdowns.",
+            ),
+        )
+    }
+    if not with_units:
+        fields["units"] = (SkipJsonSchema[None], None)  # type: ignore[misc]
+    return create_model(
+        "IndicatorGroups",
+        __base__=_IndicatorGroups,
+        __doc__="Indicator groups that together cover every indicator of the dataset.",
+        **fields,
+    )
+
+
+def _response_format(output_model: type[BaseModel]) -> dict[str, Any]:
+    """The strict structured-output format of an answer's model.
+
+    A plain schema rather than the model, so the answer comes back raw and is validated here:
+    given the model, the SDK would raise on an invalid answer and lose the text the model is
+    then asked to correct.
+    """
+    return {
+        "type": "json_schema",
+        "json_schema": {
+            "name": output_model.__name__,
+            "schema": output_model.model_json_schema(),
+            "strict": True,
+        },
+    }
+
+
+_ANSWER_JSON: TypeAdapter[dict[str, JsonValue]] = TypeAdapter(dict[str, JsonValue])
+
+
+def _stored_answer(text: str) -> dict[str, JsonValue] | None:
+    """An answer as it is stored on its record: parsed, or `None` when it is not JSON."""
+    try:
+        return _ANSWER_JSON.validate_json(text)
+    except ValidationError:
+        return None
+
+
+def _dump_calls(calls: Sequence[schemas.DiscoverySummaryCall]) -> list[dict[str, Any]]:
+    return [call.model_dump(mode="json") for call in calls]
+
+
+def _describe(error: ValidationError) -> str:
+    """What is wrong with an answer, one line per error, for the model to correct."""
+    return "\n".join(
+        f"- {'.'.join(map(str, e['loc'])) or 'answer'}: {e['msg']}"
+        for e in error.errors(include_url=False)
+    )
 
 
 def _units_instruction(unit: str | None) -> str:
@@ -116,6 +232,22 @@ class _Summary:
 
     text: str
     by_llm: bool
+
+
+@dataclass(frozen=True)
+class _CallLog:
+    """Where one summarization call records its answers, in a record's list of calls."""
+
+    calls: list[schemas.DiscoverySummaryCall]
+    step: schemas.DiscoverySummaryStep
+    part: int | None
+
+    def add(self, text: str, error: str | None) -> None:
+        self.calls.append(
+            schemas.DiscoverySummaryCall(
+                step=self.step, part=self.part, answer=_stored_answer(text), error=error
+            )
+        )
 
 
 @dataclass
@@ -183,8 +315,10 @@ class DiscoveryIndicatorSummarizer:
             f"{_DERIVATION_VERSION}\0{self._config.model_dump_json()}"
             f"\0{discovery_indexing_default_prompts.shared_unit_instruction}"
             f"\0{discovery_indexing_default_prompts.per_indicator_units_instruction}"
+            f"\0{discovery_indexing_default_prompts.invalid_answer_feedback}"
         )
-        self._output_model = _output_model(self._config)
+        self._shared_unit_model = _output_model(self._config, with_units=False)
+        self._own_units_model = _output_model(self._config, with_units=True)
         self._auth_context = auth_context
         self._persist = persist
         # Every write to a record happens under it, with the commit: a commit flushes every
@@ -199,7 +333,7 @@ class DiscoveryIndicatorSummarizer:
             validation_retries if validation_retries is not None else _SETTINGS.validation_retries
         )
         # Built on first use, so a run with nothing to summarize creates no client.
-        self._llm: Runnable | None = None
+        self._llm: BaseChatModel | None = None
 
     async def summarize(self, records: Sequence[models.DiscoveryDataset]) -> SummarizeOutcome:
         """Derive the summary of every valid record. Invalid records are not touched.
@@ -235,15 +369,17 @@ class DiscoveryIndicatorSummarizer:
         The turns share a task group, so a summarization failure escaping here would cancel
         every other record's turn.
 
-        A failure leaves the summary and its hash as they were, so the next run tries again,
-        and marks the record FAILED, which keeps its live document from being touched.
+        A failure leaves the summary, its hash and its calls as they were, so the next run
+        tries again, and marks the record FAILED, which keeps its live document from being
+        touched. The answers it collected are kept apart, as the failed calls.
         """
         source_hash = self._source_hash(record.indicators_coverage)
         if not self._force and record.indicators_summary_source_hash == source_hash:
             return _Result.UNCHANGED
 
+        calls: list[schemas.DiscoverySummaryCall] = []
         try:
-            summary = await self._derive(record.indicators_coverage)
+            summary = await self._derive(record.indicators_coverage, calls)
         except Exception as e:
             _log.exception(
                 f"Failed to summarize the indicators of discovery record {record.id}"
@@ -254,16 +390,22 @@ class DiscoveryIndicatorSummarizer:
                 record.index_error = (
                     f"Summarizing the indicator list failed: {format_exception_reason(e)}"
                 )
+                record.indicators_summary_failed_calls = _dump_calls(calls)
                 await self._persist()
             return _Result.FAILED
 
         async with self._write_lock:
-            self._apply(record, summary, source_hash)
+            self._apply(record, summary, calls, source_hash)
             await self._persist()
         return _Result.SUMMARIZED if summary.by_llm else _Result.COPIED
 
     @staticmethod
-    def _apply(record: models.DiscoveryDataset, summary: _Summary, source_hash: str) -> None:
+    def _apply(
+        record: models.DiscoveryDataset,
+        summary: _Summary,
+        calls: Sequence[schemas.DiscoverySummaryCall],
+        source_hash: str,
+    ) -> None:
         """Write a derived summary to its record, outdating an indexed record it changes.
 
         `missing_indicators` is cleared on the way: it is no longer derived, and what the old
@@ -273,17 +415,22 @@ class DiscoveryIndicatorSummarizer:
         record.indicators_summary = summary.text
         record.missing_indicators = ""
         record.indicators_summarized_at = get_ts_utcnow() if summary.by_llm else None
+        record.indicators_summary_calls = _dump_calls(calls) if summary.by_llm else None
+        record.indicators_summary_failed_calls = None
         record.indicators_summary_source_hash = source_hash
         if changed and record.indexing_status is schemas.DiscoveryIndexingStatus.INDEXED:
             record.indexing_status = schemas.DiscoveryIndexingStatus.OUTDATED
 
-    async def _derive(self, indicators_coverage: str) -> _Summary:
+    async def _derive(
+        self, indicators_coverage: str, calls: list[schemas.DiscoverySummaryCall]
+    ) -> _Summary:
+        """Derive a list's summary, appending every LLM answer to `calls` as it arrives."""
         unit, names = compact_units(split_cell(indicators_coverage))
         compacted = _render_indicators(unit, names)
         if len(compacted) <= self._config.summary_threshold_chars:
             return _Summary(text=compacted, by_llm=False)
-        groups = await self._summarize_names(unit, names)
-        return _Summary(text=_render_indicators(unit, groups), by_llm=True)
+        answer = await self._summarize_names(unit, names, calls)
+        return _Summary(text=_render_indicators(unit or answer.units, answer.groups), by_llm=True)
 
     def _source_hash(self, indicators_coverage: str) -> str:
         """What the summary was derived from: the submitted list and the effective config."""
@@ -291,15 +438,39 @@ class DiscoveryIndicatorSummarizer:
             f"{self._fingerprint}\0{indicators_coverage}".encode("utf-8")
         ).hexdigest()
 
-    async def _summarize_names(self, unit: str | None, names: list[str]) -> list[str]:
+    async def _summarize_names(
+        self, unit: str | None, names: list[str], calls: list[schemas.DiscoverySummaryCall]
+    ) -> _IndicatorGroups:
         """Collapse the names into groups: one call per chunk, then one merging them."""
-        chunks = self._chunk(unit, names)
-        groups: list[str] = []
-        for chunk in chunks:
-            groups.extend(await self._ask(self._chunk_prompt, unit, indicators="\n".join(chunk)))
-        if len(chunks) > 1:
-            groups = await self._ask(self._merge_prompt, unit, groups="\n".join(groups))
-        return groups
+        parts = [
+            await self._ask(
+                self._chunk_prompt,
+                unit,
+                _CallLog(calls, schemas.DiscoverySummaryStep.CHUNK, part=number),
+                indicators="\n".join(chunk),
+            )
+            for number, chunk in enumerate(self._chunk(unit, names), start=1)
+        ]
+        if len(parts) == 1:
+            return parts[0]
+        return await self._ask(
+            self._merge_prompt,
+            unit,
+            _CallLog(calls, schemas.DiscoverySummaryStep.MERGE, part=None),
+            groups=self._render_parts(parts),
+        )
+
+    @staticmethod
+    def _render_parts(parts: Sequence[_IndicatorGroups]) -> str:
+        """The merge call's input: each part's groups under its heading, with its units."""
+        blocks = []
+        for number, part in enumerate(parts, start=1):
+            lines = [f"## Part {number}"]
+            if part.units:
+                lines.append(f"Units of every group: {part.units}")
+            lines.extend(part.groups)
+            blocks.append("\n".join(lines))
+        return "\n\n".join(blocks)
 
     def _chunk(self, unit: str | None, names: list[str]) -> list[list[str]]:
         """Split the names into chunks of at most `chunk_size_chars`, the unit line included.
@@ -319,39 +490,51 @@ class DiscoveryIndicatorSummarizer:
         return chunks
 
     async def _ask(
-        self, prompt: schemas.SystemUserPrompt, unit: str | None, **inputs: str
-    ) -> list[str]:
-        chain = prompt.get_template() | self._structured_llm()
-        response = cast(
-            _IndicatorGroups,
-            await chain.ainvoke(
-                {
-                    "unit": unit or "",
-                    "units_instruction": _units_instruction(unit),
-                    "max_groups": self._config.max_groups,
-                    "max_group_chars": self._config.max_group_chars,
-                    **inputs,
-                }
-            ),
-        )
-        # ';' separates the groups of the published list, so a group must not contain one.
-        return [normalize_whitespace(group.replace(";", ",")) for group in response.groups]
+        self,
+        prompt: schemas.SystemUserPrompt,
+        unit: str | None,
+        log: _CallLog,
+        **inputs: str,
+    ) -> _IndicatorGroups:
+        """One summarization call, continued with feedback until its answer is valid.
 
-    def _structured_llm(self) -> Runnable:
+        An invalid answer - unparseable, empty, past the limit - is appended to the
+        conversation with what is wrong with it, up to `validation_retries` times; the last
+        error then propagates. Every answer, valid or not, goes to `log`.
+        """
+        output_model = self._own_units_model if unit is None else self._shared_unit_model
+        llm = self._chat_model().bind(response_format=_response_format(output_model))
+        messages: list[BaseMessage] = prompt.get_template().format_messages(
+            unit=unit or "",
+            units_instruction=_units_instruction(unit),
+            max_summary_chars=self._config.max_summary_chars,
+            **inputs,
+        )
+        context = _AnswerContext(unit=unit, max_chars=self._config.max_summary_chars)
+        corrections = 0
+        while True:
+            answer = cast(AIMessage, await llm.ainvoke(messages))
+            try:
+                parsed = output_model.model_validate_json(answer.text, context=context)
+            except ValidationError as e:
+                error = _describe(e)
+                log.add(answer.text, error)
+                if corrections == self._validation_retries:
+                    raise
+                corrections += 1
+                _log.warning(f"Invalid summarization answer, asking for a correction: {e}")
+                feedback = discovery_indexing_default_prompts.invalid_answer_feedback
+                messages.extend([answer, HumanMessage(feedback.format(error=error))])
+                continue
+            log.add(answer.text, None)
+            return parsed
+
+    def _chat_model(self) -> BaseChatModel:
         if self._llm is None:
-            self._llm = (
-                get_chat_model(
-                    api_key=self._auth_context.api_key,
-                    model_config=self._config.llm_model_config,
-                    timeout=httpx.Timeout(self._timeout_seconds, connect=_CONNECT_TIMEOUT_SECONDS),
-                    max_retries=_HTTP_RETRIES,
-                )
-                .with_structured_output(self._output_model, method="json_schema", strict=True)
-                .with_retry(
-                    retry_if_exception_type=(OutputParserException, ValidationError),
-                    # An answer past the limits is not a rate limit: there is nothing to wait out.
-                    wait_exponential_jitter=False,
-                    stop_after_attempt=self._validation_retries + 1,
-                )
+            self._llm = get_chat_model(
+                api_key=self._auth_context.api_key,
+                model_config=self._config.llm_model_config,
+                timeout=httpx.Timeout(self._timeout_seconds, connect=_CONNECT_TIMEOUT_SECONDS),
+                max_retries=_HTTP_RETRIES,
             )
         return self._llm

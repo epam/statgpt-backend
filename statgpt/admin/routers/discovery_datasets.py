@@ -44,6 +44,17 @@ The point of refusing a write with one entry per offending record is that a call
 on it; a generated client cannot unless the shape is advertised.
 """
 
+_IncludeSummaryCalls = Annotated[
+    bool,
+    Query(
+        description=(
+            "Include `indicatorsSummaryCalls` and `indicatorsSummaryFailedCalls`: every LLM"
+            " answer of the record's indicator summarization. Left out by default, for their"
+            " size."
+        )
+    ),
+]
+
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~ channel-scoped ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -56,6 +67,7 @@ async def get_channel_discovery_datasets(
     agency: str | None = None,
     limit: int = 100,
     offset: int = 0,
+    include_summary_calls: _IncludeSummaryCalls = False,
     session: AsyncSession = Depends(models.get_session),
     _=Depends(cancel_on_disconnect),
 ) -> schemas.ListResponse[schemas.DiscoveryDataset]:
@@ -66,7 +78,13 @@ async def get_channel_discovery_datasets(
     service = DiscoveryDatasetService(session)
 
     records = await service.get_record_schemas_by_channel(
-        channel_id, limit, offset, validation_status, indexing_status, agency
+        channel_id,
+        limit,
+        offset,
+        validation_status,
+        indexing_status,
+        agency,
+        include_summary_calls=include_summary_calls,
     )
     total = await service.get_records_count(channel_id, validation_status, indexing_status, agency)
 
@@ -298,11 +316,14 @@ async def get_discovery_indexing_job_by_id(
 @discovery_datasets_router.get("/{item_id}")
 async def get_discovery_dataset_by_id(
     item_id: int,
+    include_summary_calls: _IncludeSummaryCalls = False,
     session: AsyncSession = Depends(models.get_session),
     _=Depends(cancel_on_disconnect),
 ) -> schemas.DiscoveryDataset:
     """Returns a discovery dataset by id."""
-    return await DiscoveryDatasetService(session).get_record_schema_by_id(item_id)
+    return await DiscoveryDatasetService(session).get_record_schema_by_id(
+        item_id, include_summary_calls=include_summary_calls
+    )
 
 
 @discovery_datasets_router.post("/{item_id}")

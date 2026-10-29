@@ -1,17 +1,17 @@
 """Tests for deriving the indicator list a discovery document is published with.
 
-The LLM is replaced at `get_chat_model`, below the structured-output and retry layers, so what
-is tested includes how an answer past the output limits is retried and then failed.
+The LLM is replaced at `get_chat_model`, below the structured-output format and the answer's
+validation, so what is tested includes how an invalid answer is corrected and then failed.
 """
 
-from collections.abc import Awaitable, Callable
+import json
+from collections.abc import Awaitable, Callable, Iterator
 from types import SimpleNamespace
 from typing import Any, cast
 
 import pytest
-from langchain_core.prompt_values import ChatPromptValue
+from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
 from langchain_core.runnables import RunnableLambda
-from pydantic import BaseModel
 
 from statgpt.admin.services import discovery_summarization as summarization_module
 from statgpt.admin.services.discovery_summarization import DiscoveryIndicatorSummarizer
@@ -21,9 +21,24 @@ from statgpt.common.default_prompts import discovery_indexing_default_prompts
 
 _UNIT = "Rp billions"
 _MERGE_HEADING = "# Groups of every part"
+_LIMIT = schemas.DiscoveryIndexingConfig().max_summary_chars
+_TOO_LONG = "x" * _LIMIT
+"""One group as long as the limit: past it once published, with the unit prefix."""
 
-Responder = Callable[[str, str], list[str]]
-"""Answers one call, given its system and user message, with the groups the model returns."""
+Answer = list[str] | dict[str, Any] | str
+Responder = Callable[[str, str], Answer]
+"""Answers one call, given its system and first user message: with the groups the model
+returns, with its whole answer, or with the raw text of one."""
+
+
+def _answer_text(answer: Answer, schema: dict[str, Any]) -> str:
+    if isinstance(answer, str):
+        return answer
+    if isinstance(answer, list):
+        answer = {"reasoning": "Grouped by subject.", "groups": answer}
+        if "units" in schema["properties"]:
+            answer["units"] = None
+    return json.dumps(answer)
 
 
 class _FakeLlm:
@@ -32,13 +47,18 @@ class _FakeLlm:
     def __init__(self, responder: Responder) -> None:
         self._responder = responder
         self.calls: list[tuple[str, str]] = []
+        self.conversations: list[list[BaseMessage]] = []
+        self.schemas: list[dict[str, Any]] = []
 
-    def with_structured_output(self, schema: type[BaseModel], **_: Any) -> RunnableLambda:
-        def answer(prompt: ChatPromptValue) -> BaseModel:
-            system, user = (str(message.content) for message in prompt.to_messages())
+    def bind(self, *, response_format: dict[str, Any]) -> RunnableLambda:
+        schema = response_format["json_schema"]["schema"]
+
+        def answer(messages: list[BaseMessage]) -> AIMessage:
+            system, user = (str(message.content) for message in messages[:2])
             self.calls.append((system, user))
-            # Validated as the SDK validates a parsed answer, so a breach raises the same way.
-            return schema.model_validate({"groups": self._responder(system, user)})
+            self.conversations.append(list(messages))
+            self.schemas.append(schema)
+            return AIMessage(content=_answer_text(self._responder(system, user), schema))
 
         return RunnableLambda(answer)
 
@@ -63,6 +83,8 @@ def _record(**overrides: Any) -> models.DiscoveryDataset:
         "missing_indicators": "",
         "indicators_summary_source_hash": None,
         "indicators_summarized_at": None,
+        "indicators_summary_calls": None,
+        "indicators_summary_failed_calls": None,
         "validation_status": schemas.DiscoveryValidationStatus.VALID,
         "indexing_status": schemas.DiscoveryIndexingStatus.NEW,
         "index_error": None,
@@ -74,6 +96,13 @@ def _record(**overrides: Any) -> models.DiscoveryDataset:
 def _long_coverage(count: int = 60, unit: str = _UNIT) -> str:
     """A uniform-unit list longer than a threshold of 100 once compacted."""
     return "; ".join(f"Indicator number {i} ({unit})" for i in range(count))
+
+
+def _mixed_coverage(count: int = 60) -> str:
+    """A list longer than a threshold of 100 whose indicators share no unit."""
+    return "; ".join(
+        f"Indicator number {i} ({'Rp billions' if i % 2 else 'USD millions'})" for i in range(count)
+    )
 
 
 def _config(**overrides: Any) -> schemas.DiscoveryIndexingConfig:
@@ -169,10 +198,7 @@ async def test_units_that_differ_are_left_in_the_list_for_the_model_to_summarize
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     llm = _install(monkeypatch, _groups("Money supply (Rp billions, USD millions)"))
-    coverage = "; ".join(
-        f"Indicator number {i} ({'Rp billions' if i % 2 else 'USD millions'})" for i in range(60)
-    )
-    record = _record(indicators_coverage=coverage)
+    record = _record(indicators_coverage=_mixed_coverage())
 
     await _summarizer().summarize([record])
 
@@ -180,13 +206,46 @@ async def test_units_that_differ_are_left_in_the_list_for_the_model_to_summarize
     assert "Summarize them as well" in system
     assert "Every indicator is measured in" not in system
     assert "Indicator number 0 (USD millions)\n" in user
+    # A null `units` leaves the units in the groups, and adds no prefix.
     assert record.indicators_summary == "Money supply (Rp billions, USD millions)"
+
+
+async def test_units_the_model_summarized_as_one_value_are_published_as_the_prefix(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    answer = {"reasoning": "...", "units": "Rp billions; USD millions", "groups": ["Money supply"]}
+    _install(monkeypatch, lambda _system, _user: answer)
+    record = _record(indicators_coverage=_mixed_coverage())
+
+    await _summarizer().summarize([record])
+
+    assert record.indicators_summary == "Unit: Rp billions, USD millions; Money supply"
+
+
+async def test_the_units_field_is_offered_only_when_the_indicators_share_no_unit(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    llm = _install(monkeypatch, _groups("Group"))
+
+    await _summarizer(concurrency=1).summarize(
+        [
+            _record(id=1, indicators_coverage=_long_coverage()),
+            _record(id=2, indicators_coverage=_mixed_coverage()),
+        ]
+    )
+
+    shared, own = llm.schemas
+    # In this order, so the model reasons before it commits to units and groups.
+    assert list(shared["properties"]) == ["reasoning", "groups"]
+    assert list(own["properties"]) == ["reasoning", "units", "groups"]
+    assert own["required"] == ["reasoning", "units", "groups"]
+    assert own["additionalProperties"] is False
 
 
 async def test_a_list_longer_than_a_chunk_is_summarized_in_parts_and_merged(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    def responder(_system: str, user: str) -> list[str]:
+    def responder(_system: str, user: str) -> Answer:
         if _MERGE_HEADING in user:
             return ["Merged indicators"]
         first = next(line for line in user.splitlines() if line.startswith("Indicator number"))
@@ -205,6 +264,29 @@ async def test_a_list_longer_than_a_chunk_is_summarized_in_parts_and_merged(
     assert merge_call[1].count("Group from Indicator number") == len(chunk_calls)
     assert all(_UNIT in system for system, _ in llm.calls)
     assert record.indicators_summary == f"Unit: {_UNIT}; Merged indicators"
+
+
+async def test_the_merge_is_given_the_units_each_part_summarized(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def responder(_system: str, user: str) -> Answer:
+        if _MERGE_HEADING in user:
+            return {"reasoning": "...", "units": None, "groups": ["Merged (Rp billions, USD)"]}
+        if "Indicator number 0 " in user:
+            return {"reasoning": "...", "units": "USD millions", "groups": ["First"]}
+        return {"reasoning": "...", "units": None, "groups": ["Later (Rp billions)"]}
+
+    llm = _install(monkeypatch, responder)
+    record = _record(indicators_coverage=_mixed_coverage())
+
+    await _summarizer(_config(chunk_size_chars=400)).summarize([record])
+
+    merge_input = llm.calls[-1][1]
+    assert merge_input.startswith(
+        f"{_MERGE_HEADING}\n## Part 1\nUnits of every group: USD millions\nFirst\n\n## Part 2\n"
+    )
+    assert "Later (Rp billions)" in merge_input
+    assert record.indicators_summary == "Merged (Rp billions, USD)"
 
 
 async def test_chunking_never_splits_an_indicator(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -239,7 +321,8 @@ async def test_a_configured_prompt_replaces_the_default(monkeypatch: pytest.Monk
     llm = _install(monkeypatch, _groups("Group"))
     prompts = schemas.DiscoveryIndexingPrompts(
         chunk_summary_prompt=schemas.SystemUserPrompt(
-            system_message="Custom, at most {max_groups} groups.", user_message="{indicators}"
+            system_message="Custom, at most {max_summary_chars} chars.",
+            user_message="{indicators}",
         )
     )
 
@@ -248,25 +331,46 @@ async def test_a_configured_prompt_replaces_the_default(monkeypatch: pytest.Monk
     )
 
     system, user = llm.calls[0]
-    assert system == "Custom, at most 30 groups."
+    assert system == f"Custom, at most {_LIMIT} chars."
     assert user.startswith("Indicator number 0\n")
 
 
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~ output limits ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~ output limit ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 
-async def test_an_answer_past_the_limits_is_asked_for_again(
+async def test_an_invalid_answer_is_corrected_until_it_is_valid(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    answers = iter([["x" * 121], [], ["Fits"]])
+    answers: Iterator[Answer] = iter([[_TOO_LONG], [], ["Fits"]])
     llm = _install(monkeypatch, lambda _system, _user: next(answers))
     record = _record(indicators_coverage=_long_coverage())
 
     outcome = await _summarizer().summarize([record])
 
-    assert len(llm.calls) == 3
+    # Every correction continues the conversation rather than starting it over.
+    assert [len(conversation) for conversation in llm.conversations] == [2, 4, 6]
     assert record.indicators_summary == f"Unit: {_UNIT}; Fits"
     assert outcome.summarized == 1
+
+
+async def test_the_limit_holds_for_the_published_form_and_its_breach_is_explained(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fits = f"Unit: {_UNIT}; Fits"
+    answers: Iterator[Answer] = iter([["Fits", "more"], ["Fits"]])
+    llm = _install(monkeypatch, lambda _system, _user: next(answers))
+    record = _record(indicators_coverage=_long_coverage())
+
+    await _summarizer(_config(max_summary_chars=len(fits))).summarize([record])
+
+    assert record.indicators_summary == fits
+    *_, rejected, feedback = llm.conversations[1]
+    assert isinstance(rejected, AIMessage)
+    assert json.loads(str(rejected.content))["groups"] == ["Fits", "more"]
+    assert isinstance(feedback, HumanMessage)
+    # The prefix and the separators count: "Unit: Rp billions; Fits; more".
+    published = len(f"{fits}; more")
+    assert f"{published} characters long, 6 over the limit of {len(fits)}" in str(feedback.content)
 
 
 @pytest.mark.parametrize(
@@ -274,12 +378,12 @@ async def test_an_answer_past_the_limits_is_asked_for_again(
     [
         pytest.param([], id="no groups"),
         pytest.param(["   "], id="blank group"),
-        pytest.param(["x" * 121], id="group too long"),
-        pytest.param([f"g{i}" for i in range(31)], id="too many groups"),
+        pytest.param([_TOO_LONG], id="past the limit"),
+        pytest.param("not json", id="unparseable"),
     ],
 )
-async def test_an_answer_past_the_limits_after_every_retry_fails_the_record(
-    monkeypatch: pytest.MonkeyPatch, answer: list[str]
+async def test_an_invalid_answer_after_every_correction_fails_the_record(
+    monkeypatch: pytest.MonkeyPatch, answer: Answer
 ) -> None:
     llm = _install(monkeypatch, lambda _system, _user: answer)
     record = _record(
@@ -302,7 +406,7 @@ async def test_an_answer_past_the_limits_after_every_retry_fails_the_record(
 
 
 async def test_one_failing_record_does_not_stop_the_others(monkeypatch: pytest.MonkeyPatch) -> None:
-    def responder(system: str, _user: str) -> list[str]:
+    def responder(system: str, _user: str) -> Answer:
         if "broken" in system:
             raise RuntimeError("model unavailable")
         return ["Group"]
@@ -318,6 +422,97 @@ async def test_one_failing_record_does_not_stop_the_others(monkeypatch: pytest.M
     assert "model unavailable" in (broken.index_error or "")
     assert healthy.indicators_summary == f"Unit: {_UNIT}; Group"
     assert healthy.indexing_status is schemas.DiscoveryIndexingStatus.NEW
+
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~ stored calls ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
+def _calls(stored: list[dict[str, Any]] | None) -> list[schemas.DiscoverySummaryCall]:
+    assert stored is not None
+    return [schemas.DiscoverySummaryCall.model_validate(call) for call in stored]
+
+
+async def test_every_answer_of_a_summary_is_stored_with_it(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    answers: Iterator[Answer] = iter([[_TOO_LONG], "not json", ["Fits"]])
+    _install(monkeypatch, lambda _system, _user: next(answers))
+    record = _record(indicators_coverage=_long_coverage(), indicators_summary_failed_calls=[])
+
+    await _summarizer().summarize([record])
+
+    rejected, unparseable, accepted = _calls(record.indicators_summary_calls)
+    assert rejected.answer == {"reasoning": "Grouped by subject.", "groups": [_TOO_LONG]}
+    assert rejected.error is not None and "over the limit" in rejected.error
+    # Its text is not kept, but the entry is: the retries are the entries with an error.
+    assert unparseable.answer is None
+    assert unparseable.error is not None
+    assert accepted.answer == {"reasoning": "Grouped by subject.", "groups": ["Fits"]}
+    assert accepted.error is None
+    assert {(call.step, call.part) for call in (rejected, unparseable, accepted)} == {
+        (schemas.DiscoverySummaryStep.CHUNK, 1)
+    }
+    assert record.indicators_summary_failed_calls is None
+
+
+async def test_the_stored_calls_name_the_part_or_the_merge_they_answered(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    llm = _install(monkeypatch, _groups("Group"))
+    record = _record(indicators_coverage=_long_coverage())
+
+    await _summarizer(_config(chunk_size_chars=400)).summarize([record])
+
+    steps = [(call.step, call.part) for call in _calls(record.indicators_summary_calls)]
+    chunk_count = len(llm.calls) - 1
+    assert steps == [
+        *((schemas.DiscoverySummaryStep.CHUNK, number) for number in range(1, chunk_count + 1)),
+        (schemas.DiscoverySummaryStep.MERGE, None),
+    ]
+
+
+async def test_a_copied_list_stores_no_calls(monkeypatch: pytest.MonkeyPatch) -> None:
+    _install(monkeypatch, _groups("Group"))
+    record = _record(indicators_coverage=_long_coverage())
+    await _summarizer().summarize([record])
+    record.indicators_summary_failed_calls = []
+
+    await _summarizer(_config(summary_threshold_chars=10_000)).summarize([record])
+
+    assert record.indicators_summary_calls is None
+    assert record.indicators_summary_failed_calls is None
+
+
+async def test_a_failed_summary_stores_its_answers_apart(monkeypatch: pytest.MonkeyPatch) -> None:
+    _install(monkeypatch, _groups("Group"))
+    record = _record(indicators_coverage=_long_coverage())
+    await _summarizer().summarize([record])
+    published_calls = record.indicators_summary_calls
+    _install(monkeypatch, _groups())
+    record.indicators_coverage = _long_coverage(count=61)
+
+    await _summarizer(validation_retries=1).summarize([record])
+
+    # The published summary's calls stay with it; the failure's sit beside them.
+    assert record.indicators_summary_calls == published_calls
+    failed = _calls(record.indicators_summary_failed_calls)
+    assert len(failed) == 2
+    assert all(call.error is not None for call in failed)
+
+
+async def test_a_summary_that_fails_before_any_answer_stores_no_failed_calls(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def responder(_system: str, _user: str) -> Answer:
+        raise RuntimeError("model unavailable")
+
+    _install(monkeypatch, responder)
+    record = _record(indicators_coverage=_long_coverage())
+
+    await _summarizer().summarize([record])
+
+    assert record.indicators_summary_failed_calls == []
+    assert record.indicators_summary_calls is None
 
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~ persisting ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -348,7 +543,7 @@ async def test_every_derived_record_is_persisted_as_soon_as_it_is_done(
 async def test_a_failed_record_is_persisted_with_its_failure(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    def responder(_system: str, _user: str) -> list[str]:
+    def responder(_system: str, _user: str) -> Answer:
         raise RuntimeError("model unavailable")
 
     _install(monkeypatch, responder)
@@ -382,7 +577,7 @@ async def test_an_unchanged_record_is_not_summarized_again(monkeypatch: pytest.M
 @pytest.mark.parametrize(
     "changed",
     [
-        pytest.param({"max_groups": 10}, id="output limit"),
+        pytest.param({"max_summary_chars": 1000}, id="output limit"),
         pytest.param({"summary_threshold_chars": 101}, id="threshold"),
         pytest.param(
             {

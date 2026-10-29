@@ -10,6 +10,8 @@ class DiscoveryIndexingDefaultPrompts(DefaltPromptsBase):
     """Given as `{units_instruction}` when every indicator shares a unit, formatted with `{unit}`."""
     per_indicator_units_instruction: str
     """Given as `{units_instruction}` when the indicators keep their own units."""
+    invalid_answer_feedback: str
+    """Sent after an invalid answer, formatted with `{error}`."""
 
 
 yaml_fp = os.path.join(

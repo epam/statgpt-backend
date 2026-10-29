@@ -248,8 +248,7 @@ tools:
       indexing:
         summaryThresholdChars: 4000
         chunkSizeChars: 50000
-        maxGroups: 30
-        maxGroupChars: 120
+        maxSummaryChars: 4000
         llmModelConfig:
           apiVersion: 2025-03-01-preview
           deployment: gpt-5.6-terra-2026-07-09

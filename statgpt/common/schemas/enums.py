@@ -298,6 +298,16 @@ class DiscoveryIndexingStage(StrEnum):
     """Republish every valid record, including those already indexed and unchanged."""
 
 
+class DiscoverySummaryStep(StrEnum):
+    """Which call of an indicator summarization an answer belongs to."""
+
+    CHUNK = "chunk"
+    """Summarizing one part of the indicator list - the whole of it when it fits one call."""
+
+    MERGE = "merge"
+    """Merging the groups of every part into one set."""
+
+
 class RecordUploadMode(StrEnum):
     """How a loaded file is reconciled with the records a channel already holds.
 

@@ -38,7 +38,7 @@ the [common README file](../common/README.md).
 | DISCOVERY_PUBLISH_SETTLE_TIMEOUT_SECONDS    | No                                                                      | How long an indexing run waits for the documents it published to finish indexing before leaving the rest to the next run; 0 disables the wait                                                                                          |                  | `300` (5 minutes)       |
 | DISCOVERY_SUMMARIZE_CONCURRENCY             | No                                                                      | How many discovery records an indexing run summarizes at once                                                                                                                                                                          |                  | `4`                     |
 | DISCOVERY_SUMMARIZE_TIMEOUT_SECONDS         | No                                                                      | Timeout of one indicator-summarization LLM call                                                                                                                                                                                        |                  | `180`                   |
-| DISCOVERY_SUMMARIZE_VALIDATION_RETRIES      | No                                                                      | How many times a summarization call is repeated after an answer that does not fit the output limits, before the record is marked FAILED                                                                                                |                  | `2`                     |
+| DISCOVERY_SUMMARIZE_VALIDATION_RETRIES      | No                                                                      | How many times a summarization call is continued with what is wrong with an invalid answer, before the record is marked FAILED                                                                                                         |                  | `2`                     |
 | OTEL_APP_SERVICE_NAME                       | No                                                                      | OpenTelemetry service name for the admin application                                                                                                                                                                                   |                  | `statgpt-admin-backend` |
 | BETA_MCP_ENABLED                            | No                                                                      | Enables MCP support for StatGPT(dataset config generation/test creation). Requires `mcp` dependencies to be installed.                                                                                                                 | `true`, `false`  | `false`                 |
 
@@ -135,18 +135,22 @@ Configured under `details.indexing` of the `discoveryDatasets` block; every sett
   "indexing": {
     "summaryThresholdChars": 4000,
     "chunkSizeChars": 50000,
-    "maxGroups": 30,
-    "maxGroupChars": 120,
+    "maxSummaryChars": 4000,
     "llmModelConfig": { "deployment": "gpt-4.1-2025-04-14" },
     "prompts": { "chunkSummaryPrompt": null, "mergeSummaryPrompt": null }
   }
 }
 ```
 
-An answer is held to `maxGroups` and `maxGroupChars` by its JSON schema and checked again on
-arrival; one that does not fit is asked for again, up to `DISCOVERY_SUMMARIZE_VALIDATION_RETRIES`
-times. A record whose summarization still fails is marked `FAILED` with the reason, and its live
-document is left as it is.
+An answer is a `reasoning` field the model plans in, which is not published, then the groups.
+When the indicators share no unit, it also has a `units` field: units the model could summarize
+as one value are published as the `Unit: ...` prefix, and otherwise each group states its own.
+
+The published form of an answer - the units prefix and the separators included - must fit in
+`maxSummaryChars`. An answer that does not, or that is not valid, is sent back to the model with
+what is wrong with it, up to `DISCOVERY_SUMMARIZE_VALIDATION_RETRIES` times. A record whose
+summarization still fails is marked `FAILED` with the reason, and its live document is left as
+it is.
 
 A summary is re-derived only when the submitted list or the effective configuration - prompts
 after falling back to the defaults included - has changed since it was made, or when the run

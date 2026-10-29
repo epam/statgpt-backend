@@ -9,7 +9,9 @@ chunkSummaryPrompt:
     groups that tell a reader which indicators the dataset holds, without listing every one.
 
     # Instructions
-    - Return at most {max_groups} groups, each at most {max_group_chars} characters long.
+    - Plan the groups in `reasoning` before writing them: the subjects the indicators fall
+      into, their breakdowns and their units of measure.
+    - Joined with '; ', the groups must fit in {max_summary_chars} characters.
     - Group indicators by subject. Name a group's breakdowns ("by sector", "by currency",
       "by maturity") instead of listing every member of them.
     - Keep the terms a user would search for: named aggregates, instruments, sectors and
@@ -35,17 +37,20 @@ mergeSummaryPrompt:
     them into one set of groups describing the whole dataset.
 
     # Instructions
-    - Return at most {max_groups} groups, each at most {max_group_chars} characters long.
+    - Plan the merged groups in `reasoning` before writing them: which groups cover the same
+      subject, their breakdowns and their units of measure.
+    - Joined with '; ', the groups must fit in {max_summary_chars} characters.
     - Combine groups that cover the same subject, and name their breakdowns instead of
       repeating them.
     - Keep the terms a user would search for: named aggregates, instruments, sectors and
       acronyms as they appear in the groups.
     - Cover every group you are given. Never add an indicator the groups do not mention.
+    - Units of measure given under a part's heading apply to every group of that part.
     {units_instruction}
     - Never use ';' inside a group.
     - Write the groups in the same language as the groups you are given. Do not translate them.
   userMessage: |-
-    # Groups of every part, one per line
+    # Groups of every part
     {groups}
 
 sharedUnitInstruction: |-
@@ -54,5 +59,13 @@ sharedUnitInstruction: |-
 
 perIndicatorUnitsInstruction: |-
   - Units of measure differ between indicators and are given in the parentheses closing an
-    indicator. Summarize them as well: end each group with the units of measure of the
-    indicators it covers, in parentheses.
+    indicator. Summarize them as well. If the units of every group can be summarized as one
+    value, put it in `units` and do not state units in the groups. Otherwise end each group
+    with the units of measure of the indicators it covers, in parentheses, and set `units` to
+    null.
+
+invalidAnswerFeedback: |-
+  Your answer is invalid:
+  {error}
+
+  Answer again with the whole corrected answer.

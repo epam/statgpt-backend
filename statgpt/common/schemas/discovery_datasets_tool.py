@@ -86,11 +86,12 @@ class DiscoveryPreFilterConfig(BaseYamlModel):
 class DiscoveryIndexingPrompts(BaseYamlModel):
     """The indicator-summarization prompts. Each falls back to the built-in default when unset.
 
-    Both are given `{unit}` (empty when the indicators share none), `{units_instruction}`,
-    `{max_groups}` and `{max_group_chars}`. `{units_instruction}` is an instruction line: not to
-    state the shared unit, or, when the indicators keep their own units, to summarize them with
-    the groups. The chunk prompt is given `{indicators}`, one per line; the merge prompt is given
-    `{groups}`, the groups of every chunk, one per line.
+    Both are given `{unit}` (empty when the indicators share none), `{units_instruction}` and
+    `{max_summary_chars}`. `{units_instruction}` is an instruction line: not to state the shared
+    unit, or, when the indicators keep their own units, to summarize them in the `units` field
+    when they can be one value and with each group otherwise. The chunk prompt is given
+    `{indicators}`, one per line; the merge prompt is given `{groups}`, the groups of every
+    chunk under a `## Part N` heading, followed by the part's units when it summarized them.
     """
 
     chunk_summary_prompt: SystemUserPrompt | None = None
@@ -115,11 +116,12 @@ class DiscoveryIndexingConfig(BaseYamlModel):
             " call."
         ),
     )
-    max_groups: PositiveInt = Field(
-        default=30, description="Most indicator groups one summarization call may return."
-    )
-    max_group_chars: PositiveInt = Field(
-        default=120, description="Longest indicator group one summarization call may return."
+    max_summary_chars: PositiveInt = Field(
+        default=4000,
+        description=(
+            "Longest summary one summarization call may return, measured on its published form:"
+            " the units prefix and the separators included."
+        ),
     )
     llm_model_config: LLMModelConfig = Field(default_factory=LLMModelConfig)
     prompts: DiscoveryIndexingPrompts = Field(default_factory=DiscoveryIndexingPrompts)  # type: ignore[assignment]
