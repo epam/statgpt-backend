@@ -3,19 +3,23 @@ updates:
   - package-ecosystem: "pip"
     directory: "/"
     schedule:
-      interval: "weekly"
-      day: "wednesday"
+      interval: "daily"
       time: "09:00"
     # Disable version updates, keep security updates only
     open-pull-requests-limit: 0
     commit-message:
       # Prefix all commit messages with "chore: "
       prefix: "chore"
+    groups:
+      # Group all security updates into a single pull request
+      security-updates:
+        applies-to: security-updates
+        patterns:
+          - "*"
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
-      interval: "weekly"
-      day: "wednesday"
+      interval: "daily"
       time: "09:00"
     commit-message:
       prefix: "ci"
@@ -31,4 +35,9 @@ updates:
           - "*"
         exclude-patterns:
           - "epam/ai-dial-ci/*"
+      # Group all security updates into a single pull request
+      github-actions-security:
+        applies-to: security-updates
+        patterns:
+          - "*"
     open-pull-requests-limit: 10
