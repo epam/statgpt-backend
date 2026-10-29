@@ -4,7 +4,7 @@ updates:
     directory: "/"
     schedule:
       interval: "daily"
-      time: "09:00"
+      time: "06:30" # UTC; winter/summer: 07:30/08:30 CET, 08:30/09:30 Kyiv
     # Disable version updates, keep security updates only
     open-pull-requests-limit: 0
     commit-message:
@@ -20,7 +20,7 @@ updates:
     directory: "/"
     schedule:
       interval: "daily"
-      time: "09:00"
+      time: "06:30" # UTC; winter/summer: 07:30/08:30 CET, 08:30/09:30 Kyiv
     commit-message:
       prefix: "ci"
       include: scope
