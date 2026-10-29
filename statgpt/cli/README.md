@@ -72,21 +72,22 @@ This is useful for troubleshooting and reporting bugs.
 
 ## Commands
 
-| Command               | Description                            |
-|-----------------------|----------------------------------------|
-| `auth login`          | Authenticate with admin API            |
-| `auth logout`         | Clear cached authentication token      |
-| `auth status`         | Show current authentication status     |
-| `channel list`        | List all available channels            |
-| `channel import`      | Import channel from zip archive        |
-| `channel status`      | Show dataset preprocessing status      |
-| `channel reindex`     | Reindex dataset embeddings             |
-| `channel deduplicate` | Deduplicate embeddings for a channel   |
-| `discovery upload`    | Upload discovery datasets to a channel |
-| `discovery reindex`   | Reindex a channel's discovery datasets |
-| `discovery clear`     | Delete a channel's discovery datasets  |
-| `content init`        | Initialize content from config files   |
-| `settings`            | Show current CLI settings and sources  |
+| Command                    | Description                                     |
+|----------------------------|-------------------------------------------------|
+| `auth login`               | Authenticate with admin API                     |
+| `auth logout`              | Clear cached authentication token               |
+| `auth status`              | Show current authentication status              |
+| `channel list`             | List all available channels                     |
+| `channel import`           | Import channel from zip archive                 |
+| `channel status`           | Show dataset preprocessing status               |
+| `channel reindex`          | Reindex dataset embeddings                      |
+| `channel deduplicate`      | Deduplicate embeddings for a channel            |
+| `discovery upload`         | Upload discovery datasets to a channel          |
+| `discovery reindex`        | Reindex a channel's discovery datasets          |
+| `discovery clear`          | Delete a channel's discovery datasets           |
+| `discovery summary-report` | Excel report of a channel's indicator summaries |
+| `content init`             | Initialize content from config files            |
+| `settings`                 | Show current CLI settings and sources           |
 
 ### auth login
 
@@ -232,6 +233,29 @@ No reindex is needed afterwards: the documents are withdrawn as part of the dele
 application cannot be reached the command fails and nothing is deleted, so a record never
 outlives its document. A channel with no `discoveryDatasets` block simply has its records deleted -
 it never published anything.
+
+### discovery summary-report
+
+Writes an Excel workbook of a channel's indicator summaries, to review what the LLM made of each
+indicator list. The `Summaries` sheet has one row per record: its statuses, the indicator count,
+the coverage and summary lengths, how many answers the summarization took and how many were
+rejected, and both lists in full. The dataset ID links to a sheet of the record's own holding every
+LLM answer - reasoning, units, groups, and why a rejected answer was rejected - with the calls
+of a failed last run after those of the summary.
+
+```
+statgpt> discovery summary-report -c my-channel
+statgpt> discovery summary-report -c my-channel -o summaries.xlsx --all
+```
+
+| Option          | Description                                                              |
+|-----------------|--------------------------------------------------------------------------|
+| `-c, --channel` | Channel deployment ID (interactive if omitted)                           |
+| `-o, --output`  | Workbook path (default: `discovery-summaries-<channel>-<timestamp>.xlsx`) |
+| `--all`         | Also report records whose indicator list was not summarized by an LLM    |
+
+Without `--all`, only records summarized by an LLM, or whose last summarization failed, are
+reported. Text longer than an Excel cell holds is cut with a `… [truncated]` marker.
 
 ### content init
 
