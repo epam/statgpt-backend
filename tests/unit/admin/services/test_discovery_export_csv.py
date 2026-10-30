@@ -4,6 +4,8 @@ The CSV an admin downloads has to be the one the channel export writes, because 
 straight back into the upload endpoint of another channel.
 """
 
+import csv
+import io
 from types import SimpleNamespace
 from typing import cast
 from unittest.mock import AsyncMock, MagicMock
@@ -17,6 +19,7 @@ from statgpt.common.schemas import (
     DiscoveryDatasetBase,
     DiscoveryIndexingStatus,
     DiscoveryValidationStatus,
+    read_indicators,
 )
 
 
@@ -26,6 +29,7 @@ def _stored(agency: str = "IMF", dataset_id: str = "TABEL1_1", **overrides: obje
     The point of several of these tests is that the state does not reach the file.
     """
     values: dict[str, object] = {name: "" for name in RECORD_FIELDS}
+    values["indicators_coverage"] = []
     values.update(agency=agency, dataset_id=dataset_id)
     values.update(overrides)
     values.setdefault("id", 1)
@@ -103,13 +107,29 @@ async def test_the_download_matches_what_the_channel_export_writes(tmp_path) -> 
 async def test_an_export_longer_than_pythons_field_limit_uploads_unchanged(
     default_csv_field_limit: int,
 ) -> None:
-    coverage = "; ".join(f"indicator {i} (units)" for i in range(10_000))
-    assert len(coverage) > default_csv_field_limit
-    service = _service([_stored(indicators_coverage=coverage)])
+    indicators = [{"name": f"indicator {i}", "units": "units"} for i in range(10_000)]
+    service = _service([_stored(indicators_coverage=indicators)])
 
     content = await service.export_discovery_datasets_to_csv(channel_id=1)
     parsed = parse_discovery_file(
         content.encode("utf-8"), "export.csv", max_rows=10, max_indicators_per_dataset=50_000
     )
 
-    assert parsed.rows[0].values["indicators_coverage"] == coverage
+    assert parsed.rows[0].indicators == read_indicators(indicators)
+    assert len(content) > default_csv_field_limit
+
+
+@pytest.mark.asyncio
+async def test_indicators_are_exported_in_the_flat_form() -> None:
+    indicators = [
+        {"name": "broad money (M2)", "units": "billions of Rp"},
+        {"name": "exports; goods", "units": ""},
+    ]
+    service = _service([_stored(indicators_coverage=indicators)])
+
+    [row] = csv.DictReader(
+        io.StringIO(await service.export_discovery_datasets_to_csv(channel_id=1))
+    )
+
+    # A ';' would split the indicator in two on the way back in, so it is written as ','.
+    assert row["indicators_coverage"] == "broad money (M2) (billions of Rp); exports, goods"

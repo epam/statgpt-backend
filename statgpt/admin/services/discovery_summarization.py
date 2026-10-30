@@ -4,7 +4,7 @@ A record's `indicators_coverage` is what its submitter authored: every indicator
 units of measure. Indexed as it is, a list of a few hundred indicators would drown the
 description a question is meant to match, so a run derives `indicators_summary` from it:
 
-- the list is parsed, and a units of measure every indicator shares is stated once, as a
+- a units of measure every indicator shares is stated once, as a
   `Unit: ...` prefix, instead of after every name;
 - a list that is still longer than the channel's threshold is collapsed by an LLM into
   indicator groups. A list too long for one call is split between indicators, each part is
@@ -57,12 +57,10 @@ from statgpt.common.settings.dial import dial_settings
 from statgpt.common.utils import (
     AsyncLoadingCache,
     async_utils,
-    compact_units,
     dial_client_factory,
     format_exception_reason,
     get_ts_utcnow,
     normalize_whitespace,
-    split_cell,
 )
 from statgpt.common.utils.dial.model_pricing import ModelPricingGetter
 from statgpt.common.utils.models import get_chat_model
@@ -94,6 +92,25 @@ def _render_indicators(unit: str | None, items: Sequence[str]) -> str:
 def _clean(text: str) -> str:
     # ';' separates the items of the published list, so an item must not contain one.
     return normalize_whitespace(text.replace(";", ","))
+
+
+def _compact_units(
+    indicators: Sequence[schemas.DiscoveryIndicator],
+) -> tuple[str | None, list[str]]:
+    """Factor a units of measure shared by every indicator out of the list.
+
+    Returns `(unit, names)` when every indicator has units and they are all equal -
+    case-sensitive, as submitted. Otherwise `(None, entries)`, each entry with its own units in
+    parentheses, the way the flat form writes them. An indicator the list repeats, ignoring
+    case, is listed once.
+    """
+    distinct: dict[str, schemas.DiscoveryIndicator] = {}
+    for indicator in indicators:
+        distinct.setdefault(indicator.flat.casefold(), indicator)
+    units = {indicator.units for indicator in distinct.values()}
+    if len(units) == 1 and (unit := units.pop()):
+        return unit, [_clean(indicator.name) for indicator in distinct.values()]
+    return None, [indicator.flat for indicator in distinct.values()]
 
 
 class _AnswerContext(TypedDict):
@@ -387,13 +404,14 @@ class DiscoveryIndicatorSummarizer:
         tries again, and marks the record FAILED, which keeps its live document from being
         touched. The answers it collected are kept apart, as the failed calls.
         """
-        source_hash = self._source_hash(record.indicators_coverage)
+        indicators = schemas.read_indicators(record.indicators_coverage)
+        source_hash = self._source_hash(indicators)
         if not self._force and record.indicators_summary_source_hash == source_hash:
             return _Result.UNCHANGED
 
         calls: list[schemas.DiscoverySummaryCall] = []
         try:
-            summary = await self._derive(record.indicators_coverage, calls)
+            summary = await self._derive(indicators, calls)
         except Exception as e:
             _log.exception(
                 f"Failed to summarize the indicators of discovery record {record.id}"
@@ -436,21 +454,26 @@ class DiscoveryIndicatorSummarizer:
             record.indexing_status = schemas.DiscoveryIndexingStatus.OUTDATED
 
     async def _derive(
-        self, indicators_coverage: str, calls: list[schemas.DiscoverySummaryCall]
+        self,
+        indicators: Sequence[schemas.DiscoveryIndicator],
+        calls: list[schemas.DiscoverySummaryCall],
     ) -> _Summary:
         """Derive a list's summary, appending every LLM answer to `calls` as it arrives."""
-        unit, names = compact_units(split_cell(indicators_coverage))
+        unit, names = _compact_units(indicators)
         compacted = _render_indicators(unit, names)
         if len(compacted) <= self._config.summary_threshold_chars:
             return _Summary(text=compacted, by_llm=False)
         answer = await self._summarize_names(unit, names, calls)
         return _Summary(text=_render_indicators(unit or answer.units, answer.groups), by_llm=True)
 
-    def _source_hash(self, indicators_coverage: str) -> str:
-        """What the summary was derived from: the submitted list and the effective config."""
-        return hashlib.sha256(
-            f"{self._fingerprint}\0{indicators_coverage}".encode("utf-8")
-        ).hexdigest()
+    def _source_hash(self, indicators: Sequence[schemas.DiscoveryIndicator]) -> str:
+        """What the summary was derived from: the submitted list and the effective config.
+
+        The list is hashed in its flat form, the text it was stored as before it was stored as
+        JSON, so a summary derived then is not derived - and paid for - again.
+        """
+        flat = schemas.render_flat_indicators(indicators)
+        return hashlib.sha256(f"{self._fingerprint}\0{flat}".encode("utf-8")).hexdigest()
 
     async def _summarize_names(
         self, unit: str | None, names: list[str], calls: list[schemas.DiscoverySummaryCall]

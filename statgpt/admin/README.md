@@ -122,8 +122,8 @@ A record's indicator list is what its submitter authored: every indicator, each 
 of measure. A run derives the form a document is published with, and keeps the submitted list
 untouched:
 
-- The list is parsed. When every indicator carries the same units of measure, it is stated once,
-  as a `Unit: ...` prefix, instead of after every name.
+- When every indicator carries the same units of measure, they are stated once, as a
+  `Unit: ...` prefix, instead of after every name.
 - A list still longer than `summaryThresholdChars` is collapsed by an LLM into indicator groups.
   A list longer than `chunkSizeChars` is split between indicators, each part is summarized on
   its own, and the parts' groups are merged by one more call.
@@ -175,6 +175,8 @@ model. The cost is priced with the deployment's DIAL pricing when the call is ma
 Records are validated at the start of every run, and an invalid record is withdrawn from the
 index rather than published. Besides a description and a well-formed URL, a record must name at
 least one reference area and at least one frequency: the chat-time pre-filter narrows by both,
-so a record naming neither would be indexed and then never surfaced. Group labels such as
+so a record naming neither would be indexed and then never surfaced. It must also list at least
+one indicator, and every indicator must give its units of measure; the issue names the
+indicators that do not. Group labels such as
 `Euro area` or `World` count as reference areas in their own right, and are never expanded into
 the countries inside them.

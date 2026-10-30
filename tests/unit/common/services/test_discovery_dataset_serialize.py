@@ -48,7 +48,7 @@ def _item() -> models.DiscoveryDataset:
         "url": "",
         "time_coverage": "",
         "frequency_coverage": "Monthly",
-        "indicators_coverage": "M2 (Rp billions)",
+        "indicators_coverage": [{"name": "M2", "units": "Rp billions"}],
         "indicators_summary": "Unit: Rp billions; M2",
         "indicators_summarized_at": now,
         "indicators_summary_calls": _CALLS,

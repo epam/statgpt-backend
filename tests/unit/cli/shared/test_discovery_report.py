@@ -69,7 +69,7 @@ def _record(agency: str = "IMF", dataset_id: str = "WEO", **kwargs: Any) -> Disc
         "channel_id": 7,
         "agency": agency,
         "dataset_id": dataset_id,
-        "indicators_coverage": "GDP (USD); CPI (Index)",
+        "indicators_coverage": [{"name": "GDP", "units": "USD"}, {"name": "CPI", "units": "Index"}],
         "indicators_summary": "GDP, by sector; CPI",
         "indicators_summarized_at": _NOW,
         "indicators_summary_calls": _run(_accepted()),
@@ -184,7 +184,7 @@ def test_a_record_without_calls_gets_no_sheet() -> None:
 
 
 def test_text_past_the_cell_limit_is_cut_with_a_marker() -> None:
-    record = _record(indicators_coverage="x" * (MAX_CELL_CHARS + 10))
+    record = _record(indicators_coverage=[{"name": "x" * (MAX_CELL_CHARS + 10)}])
 
     workbook = _round_trip(build_summary_report([record]))
 

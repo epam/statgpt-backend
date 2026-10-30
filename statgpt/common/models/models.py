@@ -290,15 +290,16 @@ class DiscoveryDataset(DefaultBase):
     url: Mapped[str]
     time_coverage: Mapped[str]
     frequency_coverage: Mapped[str]
-    indicators_coverage: Mapped[str]
+    # A list of `DiscoveryIndicator`.
+    indicators_coverage: Mapped[list[dict[str, Any]]] = mapped_column(type_=postgresql.JSONB)
 
     # ~~~ Derived from `indicators_coverage` by an indexing job, never written by a submitter ~~~
     # `indicators_summary` is what the published document carries; `missing_indicators` is no
     # longer derived, and a run clears what the old template left in it.
     indicators_summary: Mapped[str] = mapped_column(default="")
     missing_indicators: Mapped[str] = mapped_column(default="")
-    # sha256 of `indicators_coverage` plus the summarization config that produced the summary;
-    # `None` until a run derives one.
+    # sha256 of `indicators_coverage`, in its flat form, plus the summarization config that
+    # produced the summary; `None` until a run derives one.
     indicators_summary_source_hash: Mapped[str | None] = mapped_column(default=None)
     # When an LLM produced the summary; `None` when it is a copy of the list or not derived yet.
     indicators_summarized_at: Mapped[datetime.datetime | None] = mapped_column(

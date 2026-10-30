@@ -4,6 +4,7 @@ The LLM is replaced at `get_chat_model`, below the structured-output format and 
 validation, so what is tested includes how an invalid answer is corrected and then failed.
 """
 
+import hashlib
 import json
 from collections.abc import Awaitable, Callable, Iterator
 from types import SimpleNamespace
@@ -113,12 +114,19 @@ def _groups(*groups: str) -> Responder:
     return lambda _system, _user: list(groups)
 
 
+def _stored_indicators(flat: str) -> list[dict[str, Any]]:
+    """A flat list as a stored row's JSON column holds it, so the fixtures stay readable."""
+    return [item.model_dump() for item in schemas.parse_flat_indicators(flat)]
+
+
 def _record(**overrides: Any) -> models.DiscoveryDataset:
+    if isinstance(coverage := overrides.get("indicators_coverage"), str):
+        overrides["indicators_coverage"] = _stored_indicators(coverage)
     values: dict[str, Any] = {
         "id": 1,
         "agency": "Bank Indonesia (BI)",
         "dataset_id": "TABEL1_1",
-        "indicators_coverage": f"M1 ({_UNIT}); M2 ({_UNIT})",
+        "indicators_coverage": _stored_indicators(f"M1 ({_UNIT}); M2 ({_UNIT})"),
         "indicators_summary": "",
         "missing_indicators": "",
         "indicators_summary_source_hash": None,
@@ -194,6 +202,59 @@ async def test_a_short_list_with_mixed_units_is_copied_as_parsed(
     await _summarizer().summarize([record])
 
     assert record.indicators_summary == "M1 (Rp billions); M2 (USD millions)"
+
+
+async def test_an_indicator_without_units_keeps_the_others_units_where_they_are(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _install(monkeypatch, _groups("unused"))
+    record = _record(
+        indicators_coverage=[
+            {"name": "M1", "units": _UNIT},
+            {"name": "Broad money (M2)", "units": ""},
+        ]
+    )
+
+    await _summarizer().summarize([record])
+
+    assert record.indicators_summary == f"M1 ({_UNIT}); Broad money (M2)"
+
+
+async def test_a_semicolon_in_a_name_does_not_split_the_published_list(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _install(monkeypatch, _groups("unused"))
+    record = _record(
+        indicators_coverage=[
+            {"name": "Exports; goods", "units": _UNIT},
+            {"name": "Imports", "units": _UNIT},
+        ]
+    )
+
+    await _summarizer().summarize([record])
+
+    assert record.indicators_summary == f"Unit: {_UNIT}; Exports, goods; Imports"
+
+
+async def test_a_summary_derived_from_the_flat_text_is_not_derived_again(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Records summarized while the list was stored as text keep their summaries."""
+    llm = _install(monkeypatch, _groups("Group"))
+    flat = _long_coverage()
+    summarizer = _summarizer()
+    record = _record(
+        indicators_coverage=flat,
+        indicators_summary="Unit: Rp billions; Group",
+        indicators_summary_source_hash=hashlib.sha256(
+            f"{summarizer._fingerprint}\0{flat}".encode("utf-8")
+        ).hexdigest(),
+    )
+
+    outcome = await summarizer.summarize([record])
+
+    assert outcome.unchanged == 1
+    assert llm.calls == []
 
 
 async def test_the_threshold_is_measured_on_the_compacted_list(
@@ -534,7 +595,7 @@ async def test_a_failed_summary_stores_its_answers_apart(monkeypatch: pytest.Mon
     await _summarizer().summarize([record])
     published_calls = record.indicators_summary_calls
     _install(monkeypatch, _groups())
-    record.indicators_coverage = _long_coverage(count=61)
+    record.indicators_coverage = _stored_indicators(_long_coverage(count=61))
 
     await _summarizer(validation_retries=1).summarize([record])
 
@@ -757,7 +818,7 @@ async def test_a_changed_list_derives_the_summary_again(monkeypatch: pytest.Monk
     record = _record()
     await _summarizer().summarize([record])
 
-    record.indicators_coverage = f"M3 ({_UNIT})"
+    record.indicators_coverage = _stored_indicators(f"M3 ({_UNIT})")
     await _summarizer().summarize([record])
 
     assert record.indicators_summary == f"Unit: {_UNIT}; M3"

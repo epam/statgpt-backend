@@ -8,11 +8,12 @@ import pytest
 
 from statgpt.common.utils import (
     FREQUENCY_VOCABULARY,
-    compact_units,
     is_known_frequency,
     parse_frequencies,
     parse_reference_areas,
+    render_indicator,
     split_cell,
+    split_indicator,
 )
 
 
@@ -91,37 +92,35 @@ def test_every_vocabulary_frequency_is_recognized_whatever_its_casing(frequency:
 
 
 @pytest.mark.parametrize(
-    ("entries", "expected"),
+    ("entry", "expected"),
     [
-        (["M1 (Rp billions)", "M2 (Rp billions)"], ("Rp billions", ["M1", "M2"])),
+        ("M1 (Rp billions)", ("M1", "Rp billions")),
         # Parentheses inside a name stay with the name.
-        (
-            ["Broad money (M2) (Rp billions)", "M1 (Rp billions)"],
-            ("Rp billions", ["Broad money (M2)", "M1"]),
-        ),
-        # Units that differ only in whitespace are one unit.
-        (["M1 ( Rp  billions )", "M2 (Rp billions)"], ("Rp billions", ["M1", "M2"])),
+        ("Broad money (M2) (Rp billions)", ("Broad money (M2)", "Rp billions")),
+        # Units are whitespace-normalized like every other value.
+        ("M1 ( Rp  billions )", ("M1", "Rp billions")),
+        ("M2", ("M2", "")),
+        ("M2 (Rp billions", ("M2 (Rp billions", "")),
+        ("(Rp billions)", ("(Rp billions)", "")),
+        ("M1 ()", ("M1 ()", "")),
+        # Only the last parentheses are units, and they must not nest.
+        ("Rate (% (p.a.))", ("Rate (% (p.a.))", "")),
     ],
 )
-def test_a_unit_every_entry_shares_is_factored_out(
-    entries: list[str], expected: tuple[str, list[str]]
+def test_an_entry_of_the_flat_form_is_split_into_name_and_units(
+    entry: str, expected: tuple[str, str]
 ) -> None:
-    assert compact_units(entries) == expected
+    assert split_indicator(entry) == expected
 
 
 @pytest.mark.parametrize(
-    "entries",
+    ("name", "units", "expected"),
     [
-        ["M1 (Rp billions)", "M2 (USD millions)"],
-        # Case-sensitive: `USD` and `usd` are kept apart, as submitted.
-        ["M1 (USD)", "M2 (usd)"],
-        ["M1 (Rp billions)", "M2"],
-        ["M1 (Rp billions)", "M2 (Rp billions"],
-        ["(Rp billions)", "M2 (Rp billions)"],
-        ["M1 ()", "M2 ()"],
-        # Only the last parentheses are a unit, and they must not nest.
-        ["Rate (% (p.a.))", "Yield (% (p.a.))"],
+        ("M1", "Rp billions", "M1 (Rp billions)"),
+        ("M1", "", "M1"),
+        # ';' separates the entries of the flat form, so it cannot survive inside one.
+        ("Exports; goods", "USD; current", "Exports, goods (USD, current)"),
     ],
 )
-def test_a_list_without_one_shared_unit_is_left_as_it_is(entries: list[str]) -> None:
-    assert compact_units(entries) == (None, entries)
+def test_an_indicator_is_rendered_in_the_flat_form(name: str, units: str, expected: str) -> None:
+    assert render_indicator(name, units) == expected

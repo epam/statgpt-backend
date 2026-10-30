@@ -1,8 +1,10 @@
 import datetime
-from typing import Annotated
+from collections.abc import Iterable, Mapping, Sequence
+from typing import Annotated, Any, Self
 
-from pydantic import AfterValidator, ConfigDict, Field, JsonValue, computed_field
+from pydantic import AfterValidator, ConfigDict, Field, JsonValue, TypeAdapter, computed_field
 
+from statgpt.common.utils.discovery_cells import render_indicator, split_indicator
 from statgpt.common.utils.misc import normalize_whitespace
 
 from .base import BaseYamlModel, DbDefaultBase
@@ -83,6 +85,61 @@ DatasetIdKey = Annotated[NormalizedKey, AfterValidator(_require_sheet_name_safe)
 Order is load-bearing here too: the length is counted after normalization, so padding does
 not spend the 31 characters Excel allows.
 """
+
+
+class DiscoveryIndicator(BaseYamlModel):
+    """One indicator of a dataset, as a row of its indicators sheet supplies it."""
+
+    model_config = ConfigDict(use_attribute_docstrings=True)
+
+    name: NormalizedKey
+    """Never empty: a row with units but no name says nothing a search could match."""
+
+    units: NormalizedStr = ""
+    """The indicator's units of measure.
+
+    Required, but by validation rather than here: a record missing one is stored and then
+    reported INVALID by the indexing run, rather than refusing the whole upload.
+    """
+
+    @classmethod
+    def from_flat(cls, entry: str) -> Self:
+        """Read one entry of the flat form, `name (units)`."""
+        name, units = split_indicator(entry)
+        return cls(name=name, units=units)
+
+    @property
+    def flat(self) -> str:
+        """The indicator in the flat form a CSV carries: `name (units)`."""
+        return render_indicator(self.name, self.units)
+
+
+INDICATOR_SEPARATOR = "; "
+"""What joins the indicators of the flat form, matching every other list-bearing cell."""
+
+
+_INDICATORS_ADAPTER = TypeAdapter(list[DiscoveryIndicator])
+
+
+def read_indicators(
+    indicators: Sequence[DiscoveryIndicator | Mapping[str, Any]],
+) -> list[DiscoveryIndicator]:
+    """An indicator list as a schema holds it, or as a stored row's JSON column does."""
+    return _INDICATORS_ADAPTER.validate_python(indicators)
+
+
+def parse_flat_indicators(cell: str) -> list[DiscoveryIndicator]:
+    """The indicators of a flat, ';'-separated list, in order, empty entries dropped.
+
+    Duplicates are kept: the list says what was submitted, and a consumer that needs distinct
+    indicators folds them itself.
+    """
+    return [DiscoveryIndicator.from_flat(entry) for entry in cell.split(";") if entry.strip()]
+
+
+def render_flat_indicators(indicators: Iterable[DiscoveryIndicator]) -> str:
+    """The indicators as the flat, ';'-separated list a CSV carries."""
+    return INDICATOR_SEPARATOR.join(indicator.flat for indicator in indicators)
 
 
 class DiscoveryValidationIssue(BaseYamlModel):
@@ -208,8 +265,8 @@ class DiscoveryDatasetBase(BaseYamlModel):
 
     Makes a dataset discoverable without onboarding it (Grade C): the agent can
     recognize the dataset exists and refer the user to its official source. Every
-    field is free text and is stored as submitted apart from whitespace
-    normalization; the semicolon-separated lists inside cells are not parsed.
+    field but the indicator list is free text and is stored as submitted apart from
+    whitespace normalization; the semicolon-separated lists inside cells are not parsed.
 
     ``agency`` and ``dataset_id`` form the natural key together with the channel,
     compared ignoring case and surrounding or repeated whitespace.
@@ -248,13 +305,13 @@ class DiscoveryDatasetBase(BaseYamlModel):
     frequency_coverage: NormalizedStr = ""
     """Column I. ';'-separated frequencies from the template's vocabulary."""
 
-    indicators_coverage: NormalizedStr = ""
-    """The dataset's complete indicator list, each entry with its units of measure in
-    parentheses, ';'-separated.
+    indicators_coverage: list[DiscoveryIndicator] = Field(default_factory=list)
+    """The dataset's complete indicator list, each with its units of measure.
 
     No column of the `Datasets` sheet: a workbook assembles it from the dataset's own
-    indicators sheet, one row per indicator. A CSV carries it as this one flat column, which
-    is also how the export writes it.
+    indicators sheet, one row per indicator. A CSV carries it as one flat column, each
+    indicator with its units in parentheses, ';'-separated, which is also how the export
+    writes it.
     """
 
 
@@ -356,7 +413,7 @@ class DiscoveryDatasetUpdate(BaseYamlModel):
     url: NormalizedStr | None = None
     time_coverage: NormalizedStr | None = None
     frequency_coverage: NormalizedStr | None = None
-    indicators_coverage: NormalizedStr | None = None
+    indicators_coverage: list[DiscoveryIndicator] | None = None
 
 
 class DiscoveryDatasetUpdateBulk(DiscoveryDatasetUpdate):

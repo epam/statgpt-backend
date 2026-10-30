@@ -10,11 +10,12 @@ from .dial import (
 )
 from .discovery_cells import (
     FREQUENCY_VOCABULARY,
-    compact_units,
     is_known_frequency,
     parse_frequencies,
     parse_reference_areas,
+    render_indicator,
     split_cell,
+    split_indicator,
 )
 from .exceptions import InvalidLLMStreamResponse, format_exception_reason
 from .files import (

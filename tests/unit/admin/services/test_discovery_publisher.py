@@ -54,6 +54,7 @@ _FULL_RECORD = {
 def _record(**overrides: object) -> models.DiscoveryDataset:
     """A stand-in for a stored row, carrying only the columns the publisher touches."""
     values: dict[str, object] = {name: "" for name in RECORD_FIELDS}
+    values["indicators_coverage"] = []
     values.update(_FULL_RECORD)
     values.update(
         id=1,

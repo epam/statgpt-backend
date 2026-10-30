@@ -7,6 +7,7 @@ import zipfile
 from collections import defaultdict
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, field
+from typing import Any
 
 from fastapi import UploadFile
 from pydantic import ValidationError
@@ -34,6 +35,7 @@ from .discovery_upload import (
     REQUIRED_FIELDS,
     allow_csv_fields_up_to,
     parse_discovery_file,
+    split_flat_indicators,
 )
 from .exceptions import (
     DiscoveryDatasetConflictError,
@@ -139,6 +141,9 @@ class _RawRecord:
 
     values: dict[str, str]
 
+    indicators: list[schemas.DiscoveryIndicator] | None = None
+    """The record's indicators, `None` when the file has no column for them."""
+
     index: int | None = None
     """0-based position in the file's records."""
 
@@ -168,8 +173,11 @@ def _build_candidates_from_rows(
     problems: list[schemas.DiscoveryPayloadProblem] = []
 
     for item in raw:
+        values: dict[str, Any] = dict(item.values)
+        if item.indicators is not None:
+            values["indicators_coverage"] = item.indicators
         try:
-            record = schemas.DiscoveryDatasetBase.model_validate(item.values)
+            record = schemas.DiscoveryDatasetBase.model_validate(values)
         except ValidationError as e:
             problems.extend(
                 _problems_from_validation_error(e, index=item.index, row=item.row, cells=item.cells)
@@ -674,6 +682,7 @@ class AdminPortalDiscoveryDatasetService(DiscoveryDatasetService):
         raw = [
             _RawRecord(
                 values=row.values,
+                indicators=row.indicators,
                 row=row.row_number,
                 cells={
                     name: reference
@@ -711,8 +720,17 @@ class AdminPortalDiscoveryDatasetService(DiscoveryDatasetService):
         Read straight off the row rather than through the write schema, so a record stored
         before the current rules - a dataset id no sheet could be named after - is still
         exportable. The export says what is stored; refusing a write is the write's business.
+        The indicators are the exception, rendered in the flat form a CSV carries them in.
         """
-        return [{name: getattr(item, name) for name in RECORD_FIELDS} for item in records]
+        return [
+            {
+                **{name: getattr(item, name) for name in RECORD_FIELDS},
+                "indicators_coverage": schemas.render_flat_indicators(
+                    schemas.read_indicators(item.indicators_coverage)
+                ),
+            }
+            for item in records
+        ]
 
     async def export_discovery_datasets_to_folder(
         self, channel: models.Channel, folder_path: str
@@ -783,7 +801,10 @@ class AdminPortalDiscoveryDatasetService(DiscoveryDatasetService):
         with zip_file.open(JobsConfig.DISCOVERY_DATASETS_FILE) as file:
             reader = csv.DictReader(io.TextIOWrapper(file, encoding="utf-8", newline=""))
             try:
-                raw = [_RawRecord(values=row, index=index) for index, row in enumerate(reader)]
+                raw = [
+                    _RawRecord(*split_flat_indicators(row), index=index)
+                    for index, row in enumerate(reader)
+                ]
             except csv.Error as e:
                 raise DiscoveryUploadFormatError(
                     f"The archive's {JobsConfig.DISCOVERY_DATASETS_FILE!r} could not be read: {e}."

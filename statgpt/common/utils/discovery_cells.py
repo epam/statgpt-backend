@@ -68,30 +68,26 @@ def split_cell(cell: str) -> list[str]:
     return values
 
 
-def compact_units(entries: list[str]) -> tuple[str | None, list[str]]:
-    """Factor a units of measure shared by every entry out of an indicator list.
+def split_indicator(entry: str) -> tuple[str, str]:
+    """`(name, units)` of one entry of a flat indicator list.
 
-    Returns `(unit, names)`: an entry's unit is its last `(...)`, closing the entry and holding
-    no parentheses of its own, and when every entry has one and they are all equal - after
-    whitespace normalization, case-sensitive - the names come back without it. Otherwise
-    `(None, entries)`, the entries untouched: a list whose units differ, or where one entry has
-    none, keeps every unit where it was written.
-
-    Whatever sits in those parentheses is taken as the unit - the template's convention for
-    the column. A list whose entries all end in some other shared qualifier, `(SA)` say, has
-    it stated once as its unit.
+    The units are the entry's last `(...)`, closing the entry and holding no parentheses of
+    their own - the template's convention for the flat form. An entry without them has no
+    units, `''`. Whatever sits in those parentheses is taken as the units, so a name that ends
+    in parentheses of its own cannot be told from one with units: only a two-column source,
+    an indicators sheet, keeps them apart.
     """
-    names: list[str] = []
-    units: set[str] = set()
-    for entry in entries:
-        split = _split_trailing_unit(entry)
-        if split is None:
-            return None, entries
-        names.append(split[0])
-        units.add(split[1])
-    if len(units) != 1:
-        return None, entries
-    return units.pop(), names
+    entry = normalize_whitespace(entry)
+    return _split_trailing_unit(entry) or (entry, "")
+
+
+def render_indicator(name: str, units: str) -> str:
+    """One indicator in the flat form: `name (units)`, or the name alone without units.
+
+    A ';' separates the entries of the flat form, so one inside a value becomes ','.
+    """
+    name = name.replace(";", ",")
+    return f"{name} ({units.replace(';', ',')})" if units else name
 
 
 def _split_trailing_unit(entry: str) -> tuple[str, str] | None:
