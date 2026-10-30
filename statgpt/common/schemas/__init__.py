@@ -39,11 +39,13 @@ from .data_query_tool import (
 from .data_source import DataSource, DataSourceBase, DataSourceType, DataSourceUpdate, Provider
 from .dataset import DataSet, DataSetBase, DataSetDescriptor, DataSetUpdateRequest, DeletedDataSet
 from .discovery_dataset import (
+    INDICATOR_SEPARATOR,
     DiscoveryDataset,
     DiscoveryDatasetBase,
     DiscoveryDatasetStats,
     DiscoveryDatasetUpdate,
     DiscoveryDatasetUpdateBulk,
+    DiscoveryIndicator,
     DiscoveryLLMCallUsage,
     DiscoveryLLMUsage,
     DiscoveryPayloadErrorDetail,
@@ -53,6 +55,9 @@ from .discovery_dataset import (
     DiscoverySummaryRun,
     DiscoveryUploadSummary,
     DiscoveryValidationIssue,
+    parse_flat_indicators,
+    read_indicators,
+    render_flat_indicators,
 )
 from .discovery_datasets_tool import (
     DiscoveryDatasetsDetails,

@@ -1,3 +1,6 @@
+from types import SimpleNamespace
+from typing import Any, cast
+
 import pytest
 
 from statgpt.admin.services.discovery_validation import (
@@ -10,14 +13,14 @@ from statgpt.common.schemas import DiscoveryDatasetBase, DiscoveryValidationIssu
 from statgpt.common.utils import FREQUENCY_VOCABULARY
 
 
-def _record(**overrides: str) -> DiscoveryDatasetBase:
-    values: dict[str, str] = {
+def _record(**overrides: Any) -> DiscoveryDatasetBase:
+    values: dict[str, Any] = {
         "agency": "Bank Indonesia (BI)",
         "dataset_id": "TABEL1_1",
         "description": "Money and Banking table.",
         "reference_area": "Indonesia",
         "frequency_coverage": "Monthly",
-        "indicators_coverage": "broad money (M2) (billions of Rp)",
+        "indicators_coverage": [{"name": "broad money (M2)", "units": "billions of Rp"}],
         "url": "https://www.bi.go.id/SEKI/tabel/TABEL1_1.xls",
     }
     values.update(overrides)
@@ -109,21 +112,50 @@ def test_group_and_partner_reference_areas_are_not_flagged(reference_area: str) 
     assert DiscoveryValidator().validate(_record(reference_area=reference_area)) == []
 
 
-@pytest.mark.parametrize("indicators", ["", "   ", ";", " ; ;"])
-def test_a_record_listing_no_indicators_is_reported(indicators: str) -> None:
+def test_a_record_listing_no_indicators_is_reported() -> None:
     """A record naming no indicator cannot be reached by a question about one.
 
     The only place emptiness is caught: an absent indicators sheet, a CSV without the
     column, and a row stored empty under the old template all arrive here.
     """
-    issues = DiscoveryValidator().validate(_record(indicators_coverage=indicators))
+    issues = DiscoveryValidator().validate(_record(indicators_coverage=[]))
 
     assert [issue.field for issue in issues] == ["indicators_coverage"]
     assert "at least one indicator is required" in issues[0].message.casefold()
 
 
-def test_a_record_listing_one_indicator_is_not_reported() -> None:
-    assert DiscoveryValidator().validate(_record(indicators_coverage="broad money (M2)")) == []
+def test_an_indicator_without_units_is_reported_by_name() -> None:
+    indicators = [
+        {"name": "broad money (M2)", "units": "billions of Rp"},
+        {"name": "policy rate", "units": ""},
+    ]
+
+    issues = DiscoveryValidator().validate(_record(indicators_coverage=indicators))
+
+    assert [issue.field for issue in issues] == ["indicators_coverage"]
+    assert issues[0].message == (
+        "Units of measure are required for every indicator. Missing for: 'policy rate'."
+    )
+
+
+def test_the_indicators_without_units_are_named_up_to_five() -> None:
+    indicators = [{"name": f"indicator {index}"} for index in range(7)]
+
+    [issue] = DiscoveryValidator().validate(_record(indicators_coverage=indicators))
+
+    assert issue.message.endswith("'indicator 3', 'indicator 4' and 2 more.")
+    assert "'indicator 5'" not in issue.message
+
+
+def test_a_stored_row_is_checked_from_its_json() -> None:
+    """A stored row hands its indicators over as the JSON column holds them."""
+    values = {**_record().model_dump(), "indicators_coverage": [{"name": "policy rate"}]}
+    record = cast(DiscoveryRecord, SimpleNamespace(**values))
+
+    issues = DiscoveryValidator().validate(record)
+
+    assert [issue.field for issue in issues] == ["indicators_coverage"]
+    assert "'policy rate'" in issues[0].message
 
 
 def test_all_issues_are_collected_not_just_the_first() -> None:

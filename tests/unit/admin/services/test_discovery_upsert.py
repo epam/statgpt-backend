@@ -49,6 +49,7 @@ def _stored(
     sites below; constructing a real mapped instance would need a session.
     """
     values: dict[str, object] = {name: "" for name in RECORD_FIELDS}
+    values["indicators_coverage"] = []
     values.update(agency=agency, dataset_id=dataset_id)
     values.update(overrides)
     values.setdefault("id", 1)

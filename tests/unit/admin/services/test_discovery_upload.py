@@ -1,19 +1,24 @@
 import csv
 import datetime
 import io
+from types import SimpleNamespace
 from typing import Any
+from unittest.mock import AsyncMock, MagicMock
 
 import openpyxl
 import pytest
 
-from statgpt.admin.services import discovery_upload
+from statgpt.admin.services import discovery_dataset, discovery_upload
+from statgpt.admin.services.discovery_dataset import AdminPortalDiscoveryDatasetService
 from statgpt.admin.services.discovery_upload import (
     DATASETS_SHEET_FIELDS,
     RECORD_FIELDS,
     ParsedFile,
+    ParsedRow,
     parse_discovery_file,
 )
-from statgpt.admin.services.exceptions import DiscoveryUploadFormatError
+from statgpt.admin.services.exceptions import DiscoveryPayloadError, DiscoveryUploadFormatError
+from statgpt.common.schemas import DiscoveryIndicator, RecordUploadMode, render_flat_indicators
 
 _DATASETS_HEADERS = [
     "Reference area / country",
@@ -100,6 +105,11 @@ def _csv_bytes(rows: list[dict[str, Any]], fieldnames: list[str], delimiter: str
     writer.writeheader()
     writer.writerows(rows)
     return buffer.getvalue().encode("utf-8")
+
+
+def _flat(row: ParsedRow) -> str:
+    assert row.indicators is not None
+    return render_flat_indicators(row.indicators)
 
 
 def _parse(
@@ -275,6 +285,7 @@ def test_a_dataset_id_used_twice_is_reported_even_across_agencies() -> None:
 
 def test_a_dataset_id_repeated_in_another_casing_is_reported() -> None:
     second = list(_ROW)
+    second[2] = "Statistics Indonesia (BPS)"
     second[3] = "tabel1_1 "
     sheets = {"TABEL1_1": list(_INDICATORS)}
 
@@ -283,26 +294,67 @@ def test_a_dataset_id_repeated_in_another_casing_is_reported() -> None:
     assert [problem.row for problem in parsed.problems] == [3]
 
 
+def test_a_row_repeating_the_agency_too_is_left_to_the_natural_key_check() -> None:
+    """A duplicate of the whole key: reporting it here too would put two problems on D3."""
+    second = list(_ROW)
+    second[2] = " bank indonesia (BI)"
+
+    parsed = _parse(_workbook([_ROW, second]))
+
+    assert not parsed.problems
+
+
+def test_each_repeated_row_is_reported_once_by_one_check() -> None:
+    other_agency = list(_ROW)
+    other_agency[2] = "Statistics Indonesia (BPS)"
+
+    parsed = _parse(_workbook([_ROW, other_agency, list(_ROW)]))
+
+    assert [problem.row for problem in parsed.problems] == [3]
+
+
+@pytest.mark.asyncio
+async def test_an_upload_repeating_a_whole_row_reports_one_problem_for_it(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        discovery_dataset.ChannelService,
+        "get_model_by_id",
+        AsyncMock(return_value=SimpleNamespace(id=1)),
+    )
+    service = AdminPortalDiscoveryDatasetService(session=MagicMock())
+
+    with pytest.raises(DiscoveryPayloadError) as exc_info:
+        await service.upload(1, _workbook([_ROW, list(_ROW)]), "book.xlsx", RecordUploadMode.UPSERT)
+
+    [problem] = exc_info.value.problems
+    assert (problem.row, problem.cell) == (3, "D3")
+    assert "Duplicate of row 2" in problem.message
+
+
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~ indicator sheets ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 
 def test_indicator_rows_are_joined_with_their_units() -> None:
     parsed = _parse(_workbook([_ROW]))
 
-    assert parsed.rows[0].values["indicators_coverage"] == (
+    assert _flat(parsed.rows[0]) == (
         "broad money (M2) (billions of Rp); narrow money (M1) (billions of Rp)"
     )
     assert not parsed.problems
 
 
-def test_an_indicator_without_units_is_carried_as_its_name_alone() -> None:
+def test_an_indicator_without_units_is_carried_with_none() -> None:
+    """Even when its name ends in parentheses, which the flat form would read as units."""
     sheets = {"TABEL1_1": [["broad money (M2)", None], ["policy rate", "percent per annum"]]}
 
     parsed = _parse(_workbook([_ROW], indicator_sheets=sheets))
 
-    assert parsed.rows[0].values["indicators_coverage"] == (
-        "broad money (M2); policy rate (percent per annum)"
-    )
+    assert parsed.rows[0].indicators == [
+        DiscoveryIndicator(name="broad money (M2)", units=""),
+        DiscoveryIndicator(name="policy rate", units="percent per annum"),
+    ]
+    assert not parsed.problems
 
 
 def test_the_sheet_is_matched_to_its_dataset_ignoring_case_and_spacing() -> None:
@@ -310,7 +362,7 @@ def test_the_sheet_is_matched_to_its_dataset_ignoring_case_and_spacing() -> None
 
     parsed = _parse(_workbook([_ROW], indicator_sheets=sheets))
 
-    assert parsed.rows[0].values["indicators_coverage"].startswith("broad money (M2)")
+    assert _flat(parsed.rows[0]).startswith("broad money (M2)")
     assert not parsed.problems
 
 
@@ -318,14 +370,14 @@ def test_a_dataset_with_no_indicator_sheet_gets_an_empty_list() -> None:
     """Not a problem here: whether a record may list no indicators is validation's call."""
     parsed = _parse(_workbook([_ROW], indicator_sheets={}))
 
-    assert parsed.rows[0].values["indicators_coverage"] == ""
+    assert _flat(parsed.rows[0]) == ""
     assert not parsed.problems
 
 
 def test_a_sheet_holding_only_its_header_row_reads_the_same_as_no_sheet() -> None:
     parsed = _parse(_workbook([_ROW], indicator_sheets={"TABEL1_1": []}))
 
-    assert parsed.rows[0].values["indicators_coverage"] == ""
+    assert _flat(parsed.rows[0]) == ""
     assert not parsed.problems
 
 
@@ -334,7 +386,7 @@ def test_blank_indicator_rows_are_dropped() -> None:
 
     parsed = _parse(_workbook([_ROW], indicator_sheets=sheets))
 
-    assert parsed.rows[0].values["indicators_coverage"] == "broad money (M2) (billions of Rp)"
+    assert _flat(parsed.rows[0]) == "broad money (M2) (billions of Rp)"
     assert not parsed.problems
 
 
@@ -350,7 +402,7 @@ def test_units_without_an_indicator_name_are_reported_at_their_cell() -> None:
     assert problem.row == 2
     assert problem.cell == "'TABEL1_1'!B3"
     # The indicators that could be read are still carried.
-    assert parsed.rows[0].values["indicators_coverage"] == "broad money (M2) (billions of Rp)"
+    assert _flat(parsed.rows[0]) == "broad money (M2) (billions of Rp)"
 
 
 def test_a_sheet_no_dataset_row_names_is_ignored_unread() -> None:
@@ -363,7 +415,7 @@ def test_a_sheet_no_dataset_row_names_is_ignored_unread() -> None:
     parsed = _parse(_workbook([_ROW], indicator_sheets=sheets), max_indicators=3)
 
     assert not parsed.problems
-    assert parsed.rows[0].values["indicators_coverage"].startswith("broad money (M2)")
+    assert _flat(parsed.rows[0]).startswith("broad money (M2)")
 
 
 def test_two_sheets_folding_onto_one_dataset_id_are_reported_on_its_row() -> None:
@@ -377,7 +429,7 @@ def test_two_sheets_folding_onto_one_dataset_id_are_reported_on_its_row() -> Non
     assert problem.field == "dataset_id"
     assert problem.cell == "D2"
     assert "'TABEL1_1', 'tabel1_1 '" in problem.message
-    assert parsed.rows[0].values["indicators_coverage"] == ""
+    assert _flat(parsed.rows[0]) == ""
 
 
 @pytest.mark.parametrize("dataset_id", ["Instructions", "datasets "])
@@ -389,7 +441,7 @@ def test_a_dataset_id_naming_a_template_sheet_is_reported(dataset_id: str) -> No
 
     assert [(problem.field, problem.cell) for problem in parsed.problems] == [("dataset_id", "D2")]
     assert "workbook's own sheets" in parsed.problems[0].message
-    assert parsed.rows[0].values["indicators_coverage"] == ""
+    assert _flat(parsed.rows[0]) == ""
 
 
 def test_an_indicator_sheet_without_an_indicator_column_is_reported() -> None:
@@ -399,7 +451,7 @@ def test_an_indicator_sheet_without_an_indicator_column_is_reported() -> None:
 
     assert len(parsed.problems) == 1
     assert "no 'Indicator' column" in parsed.problems[0].message
-    assert parsed.rows[0].values["indicators_coverage"] == ""
+    assert _flat(parsed.rows[0]) == ""
 
 
 def test_a_two_column_indicator_sheet_falls_back_to_column_order() -> None:
@@ -411,7 +463,7 @@ def test_a_two_column_indicator_sheet_falls_back_to_column_order() -> None:
         )
     )
 
-    assert parsed.rows[0].values["indicators_coverage"].startswith("broad money (M2)")
+    assert _flat(parsed.rows[0]).startswith("broad money (M2)")
     assert not parsed.problems
 
 
@@ -425,7 +477,7 @@ def test_the_column_order_fallback_ignores_trailing_blank_header_cells() -> None
         )
     )
 
-    assert parsed.rows[0].values["indicators_coverage"] == "broad money (M2) (billions of Rp)"
+    assert _flat(parsed.rows[0]) == "broad money (M2) (billions of Rp)"
     assert not parsed.problems
 
 
@@ -467,8 +519,10 @@ def test_csv_with_field_names_round_trips_an_export() -> None:
 
     parsed = _parse(_csv_bytes([row], fieldnames), "discovery_datasets.csv")
 
-    assert parsed.rows[0].values == row
-    assert parsed.rows[0].values["indicators_coverage"] == "broad money (M2) (billions of Rp)"
+    assert parsed.rows[0].values == {name: row[name] for name in DATASETS_SHEET_FIELDS}
+    assert parsed.rows[0].indicators == [
+        DiscoveryIndicator(name="broad money (M2)", units="billions of Rp")
+    ]
     # A CSV has no spreadsheet coordinates, so problems are reported by row only.
     assert parsed.cell("agency", 2) is None
 
@@ -479,7 +533,7 @@ def test_csv_accepts_the_workbook_spelling_of_the_indicators_column() -> None:
 
     parsed = _parse(_csv_bytes([row], headers), "book.csv")
 
-    assert parsed.rows[0].values["indicators_coverage"] == "broad money (M2)"
+    assert _flat(parsed.rows[0]) == "broad money (M2)"
 
 
 @pytest.mark.parametrize("retired_header", ["Excluded regional values", "missing_indicators"])
@@ -506,7 +560,7 @@ def test_csv_without_the_indicators_column_is_accepted() -> None:
 
     parsed = _parse(_csv_bytes([row], _DATASETS_HEADERS), "book.csv")
 
-    assert "indicators_coverage" not in parsed.rows[0].values
+    assert parsed.rows[0].indicators is None
 
 
 def test_csv_with_bom_and_cp1252_fallback() -> None:
@@ -536,7 +590,7 @@ def test_csv_reads_an_indicators_column_longer_than_pythons_field_limit(
 
     parsed = _parse(_csv_bytes([row], list(RECORD_FIELDS)), "x.csv", max_indicators=10_000)
 
-    assert parsed.rows[0].values["indicators_coverage"] == coverage
+    assert _flat(parsed.rows[0]) == coverage
     assert not parsed.problems
 
 

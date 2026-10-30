@@ -12,7 +12,7 @@ from statgpt.admin.services.discovery_upload import RECORD_FIELDS
 from statgpt.admin.services.exceptions import DiscoveryUploadFormatError
 from statgpt.admin.settings.discovery import DiscoveryUploadSettings
 from statgpt.admin.settings.exim import JobsConfig
-from statgpt.common.schemas import DiscoveryUploadSummary
+from statgpt.common.schemas import DiscoveryUploadSummary, parse_flat_indicators
 
 
 def _make_zip(rows: list[dict[str, str]] | None) -> zipfile.ZipFile:
@@ -99,7 +99,8 @@ async def test_imports_an_indicators_column_longer_than_pythons_field_limit(
     )
 
     [candidate] = service._upsert.await_args.args[1]  # type: ignore[attr-defined]
-    assert candidate.record.indicators_coverage == coverage
+    assert candidate.record.indicators_coverage == parse_flat_indicators(coverage)
+    assert candidate.record.indicators_coverage[-1].units == "units"
 
 
 @pytest.mark.asyncio

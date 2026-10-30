@@ -14,17 +14,20 @@ developed, so the check set is a registry rather than a hardcoded sequence.
 """
 
 import logging
-from collections.abc import Callable, Iterable, Sequence
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass
-from typing import Protocol
+from typing import Any, Protocol
 from urllib.parse import urlsplit
 
-from statgpt.common.schemas import DiscoveryValidationIssue
+from statgpt.common.schemas import DiscoveryIndicator, DiscoveryValidationIssue, read_indicators
 from statgpt.common.utils import FREQUENCY_VOCABULARY, is_known_frequency, split_cell
 
 _log = logging.getLogger(__name__)
 
 _ALLOWED_URL_SCHEMES = ("http", "https")
+
+_MAX_NAMED_INDICATORS = 5
+"""How many indicators an issue names before it only counts the rest."""
 
 
 class DiscoveryRecord(Protocol):
@@ -67,7 +70,9 @@ class DiscoveryRecord(Protocol):
     def frequency_coverage(self) -> str: ...
 
     @property
-    def indicators_coverage(self) -> str: ...
+    def indicators_coverage(self) -> Sequence[DiscoveryIndicator | Mapping[str, Any]]:
+        """Models on a schema, the JSON they were stored as on a stored row."""
+        ...
 
 
 _CheckFn = Callable[[DiscoveryRecord], Iterable[DiscoveryValidationIssue]]
@@ -156,7 +161,7 @@ def _check_indicators_coverage(record: DiscoveryRecord) -> Iterable[DiscoveryVal
     dataset whose indicators sheet is missing or holds only its header, a CSV without the
     column, a JSON write that omits it, and a row stored empty under the old template.
     """
-    if not split_cell(record.indicators_coverage):
+    if not record.indicators_coverage:
         yield DiscoveryValidationIssue(
             field="indicators_coverage",
             message=(
@@ -164,6 +169,29 @@ def _check_indicators_coverage(record: DiscoveryRecord) -> Iterable[DiscoveryVal
                 " dataset's indicators on its own sheet, named with the dataset's ID."
             ),
         )
+
+
+def _check_indicator_units(record: DiscoveryRecord) -> Iterable[DiscoveryValidationIssue]:
+    """Every indicator must give its units of measure.
+
+    The units are part of what a dataset is matched on - the same indicator in percent and in
+    currency are different series - and the published list states them, so an indicator
+    without them is one a referral cannot describe. Caught here rather than on upload, like
+    every other gap in a record, so the rest of the file is still stored.
+    """
+    missing = [item.name for item in read_indicators(record.indicators_coverage) if not item.units]
+    if not missing:
+        return
+
+    named = ", ".join(repr(name) for name in missing[:_MAX_NAMED_INDICATORS])
+    rest = len(missing) - _MAX_NAMED_INDICATORS
+    yield DiscoveryValidationIssue(
+        field="indicators_coverage",
+        message=(
+            f"Units of measure are required for every indicator. Missing for: {named}"
+            f"{f' and {rest} more' if rest > 0 else ''}."
+        ),
+    )
 
 
 def _check_description(record: DiscoveryRecord) -> Iterable[DiscoveryValidationIssue]:
@@ -185,6 +213,7 @@ DEFAULT_CHECKS: tuple[DiscoveryCheck, ...] = (
     DiscoveryCheck(name="reference_area", run=_check_reference_area),
     DiscoveryCheck(name="frequency_coverage", run=_check_frequency_coverage),
     DiscoveryCheck(name="indicators_coverage", run=_check_indicators_coverage),
+    DiscoveryCheck(name="indicator_units", run=_check_indicator_units),
     DiscoveryCheck(name="url", run=_check_url),
 )
 """The check set as it stands.
@@ -195,10 +224,11 @@ would silently make records unindexable. `reference_area` is therefore checked f
 present, never against ISO codes: the template explicitly allows group labels such as
 'Euro area' or 'World'.
 
-Four things clear that bar rather than being nitpicks. An absent description leaves the
+Five things clear that bar rather than being nitpicks. An absent description leaves the
 published document with nothing in it. An absent reference area, frequency or indicator list
 leaves the record outside every pre-filtered search, so it would be indexed and never
-surfaced - a worse outcome than telling the submitter which cell to fill in.
+surfaced - a worse outcome than telling the submitter which cell to fill in. An indicator
+without its units of measure is one a referral cannot describe.
 """
 
 
