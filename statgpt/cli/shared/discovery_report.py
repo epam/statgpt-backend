@@ -1,7 +1,7 @@
 """The Excel report of a channel's discovery indicator summaries, for `discovery summary-report`.
 
-One `Summaries` sheet lists every record, and each record with summarization calls gets a sheet
-of its own holding them, linked both ways.
+One `Summaries` sheet lists every record, with a totals row, and each record with summarization
+calls gets a sheet of its own holding them, linked both ways.
 """
 
 import datetime
@@ -16,7 +16,12 @@ from openpyxl.worksheet.hyperlink import Hyperlink
 from openpyxl.worksheet.worksheet import Worksheet
 from pydantic import BaseModel, ConfigDict, ValidationError
 
-from statgpt.common.schemas import DiscoveryDataset, DiscoverySummaryCall
+from statgpt.common.schemas import (
+    DiscoveryDataset,
+    DiscoveryLLMCallUsage,
+    DiscoveryLLMUsage,
+    DiscoverySummaryCall,
+)
 from statgpt.common.schemas.discovery_dataset import (
     FORBIDDEN_DATASET_ID_CHARS,
     MAX_DATASET_ID_LENGTH,
@@ -57,6 +62,9 @@ _SUMMARY_COLUMNS = [
     ("Parts", 7, False),
     ("Answers", 9, False),
     ("Rejected", 9, False),
+    ("Model", 24, True),
+    ("Usage", 30, True),
+    ("LLM seconds", 12, False),
     ("Last run failed", 15, False),
     ("Indicators coverage", 60, False),
     ("Indicators summary", 80, True),
@@ -64,6 +72,7 @@ _SUMMARY_COLUMNS = [
 """Header, width and whether the text wraps. The raw coverage does not: it can run for pages."""
 
 _RATIO_COLUMN = 10
+_SECONDS_FORMAT = "0.0"
 
 _CALL_COLUMNS = [
     ("Run", 10, False),
@@ -71,6 +80,9 @@ _CALL_COLUMNS = [
     ("Step", 8, False),
     ("Part", 6, False),
     ("Accepted", 10, False),
+    ("Model", 24, True),
+    ("Usage", 30, True),
+    ("Seconds", 9, False),
     ("Error", 50, True),
     ("Reasoning", 60, True),
     ("Units", 30, True),
@@ -168,8 +180,50 @@ def _count_indicators(coverage: str) -> int:
     return sum(1 for item in coverage.split(_INDICATOR_SEPARATOR) if item.strip())
 
 
+def _calls(record: DiscoveryDataset) -> list[DiscoverySummaryCall]:
+    run = record.indicators_summary_calls
+    return run.calls if run else []
+
+
+def _failed_calls(record: DiscoveryDataset) -> list[DiscoverySummaryCall]:
+    run = record.indicators_summary_failed_calls
+    return run.calls if run else []
+
+
+def _usage(record: DiscoveryDataset) -> list[DiscoveryLLMUsage]:
+    """The usage of both of the record's runs."""
+    runs = (record.indicators_summary_calls, record.indicators_summary_failed_calls)
+    return [item for run in runs if run for item in run.usage]
+
+
+def _format_usage(prompt_tokens: int, completion_tokens: int, cost: float | None) -> str:
+    cost_text = f"${cost:,.4f}" if cost is not None else "cost n/a"
+    return f"{prompt_tokens:,} in + {completion_tokens:,} out tokens, {cost_text}"
+
+
+def _sum_cost(costs: Iterable[float | None]) -> float | None:
+    """The total of the costs; `None` when any of them is unknown."""
+    total = 0.0
+    for cost in costs:
+        if cost is None:
+            return None
+        total += cost
+    return total
+
+
+def _summed_usage(usage: Sequence[DiscoveryLLMUsage | DiscoveryLLMCallUsage]) -> str | None:
+    if not usage:
+        return None
+    return _format_usage(
+        sum(item.prompt_tokens for item in usage),
+        sum(item.completion_tokens for item in usage),
+        _sum_cost(item.cost for item in usage),
+    )
+
+
 def _summary_values(record: DiscoveryDataset) -> list[Any]:
-    calls = record.indicators_summary_calls or []
+    calls = _calls(record)
+    usage = _usage(record)
     coverage_chars = len(record.indicators_coverage)
     summary_chars = len(record.indicators_summary)
     return [
@@ -186,7 +240,10 @@ def _summary_values(record: DiscoveryDataset) -> list[Any]:
         len({call.part for call in calls if call.part is not None}),
         len(calls),
         sum(1 for call in calls if call.error),
-        bool(record.indicators_summary_failed_calls),
+        "\n".join(dict.fromkeys(item.model for item in usage)) or None,
+        _summed_usage(usage),
+        sum(item.duration_seconds for item in usage) if usage else None,
+        bool(_failed_calls(record)),
         record.indicators_coverage,
         record.indicators_summary,
     ]
@@ -194,8 +251,8 @@ def _summary_values(record: DiscoveryDataset) -> list[Any]:
 
 def _call_rows(record: DiscoveryDataset) -> Iterable[list[Any]]:
     runs = [
-        ("succeeded", record.indicators_summary_calls or []),
-        ("failed", record.indicators_summary_failed_calls or []),
+        ("succeeded", _calls(record)),
+        ("failed", _failed_calls(record)),
     ]
     for run, calls in runs:
         for number, call in enumerate(calls, start=1):
@@ -206,6 +263,9 @@ def _call_rows(record: DiscoveryDataset) -> Iterable[list[Any]]:
                 call.step.value,
                 call.part,
                 call.error is None,
+                call.usage.model,
+                _summed_usage([call.usage]),
+                call.usage.duration_seconds,
                 call.error,
                 answer.reasoning,
                 answer.units,
@@ -222,13 +282,40 @@ def _write_calls_sheet(
 
     wrapped = [wrap for _, _, wrap in _CALL_COLUMNS]
     row = _CALLS_HEADER_ROW
+    seconds_column = _column(_CALL_COLUMNS, "Seconds")
     for row, values in enumerate(_call_rows(record), start=_CALLS_HEADER_ROW + 1):
         _write_row(sheet, row, values, wrapped)
+        sheet.cell(row=row, column=seconds_column).number_format = _SECONDS_FORMAT
     _write_header(sheet, _CALLS_HEADER_ROW, _CALL_COLUMNS, row)
 
 
 def _has_calls(record: DiscoveryDataset) -> bool:
-    return bool(record.indicators_summary_calls or record.indicators_summary_failed_calls)
+    return bool(_calls(record) or _failed_calls(record))
+
+
+def _column(columns: Sequence[tuple[str, int, bool]], title: str) -> int:
+    return next(number for number, (name, _, _) in enumerate(columns, start=1) if name == title)
+
+
+def _write_totals(sheet: Worksheet, row: int, records: Sequence[DiscoveryDataset]) -> None:
+    """The channel's totals, below the records and outside their autofilter."""
+    calls = [call for record in records for call in _calls(record)]
+    usage = [item for record in records for item in _usage(record)]
+    totals: dict[str, str | int | float | None] = {
+        "Agency": "TOTAL",
+        "Answers": len(calls),
+        "Rejected": sum(1 for call in calls if call.error),
+        "Usage": _summed_usage(usage),
+        "LLM seconds": sum(item.duration_seconds for item in usage),
+    }
+    for title, value in totals.items():
+        column = _column(_SUMMARY_COLUMNS, title)
+        cell = sheet.cell(row=row, column=column, value=value)
+        cell.font = _BOLD
+        cell.alignment = _WRAPPED if _SUMMARY_COLUMNS[column - 1][2] else _TOP
+    sheet.cell(row=row, column=_column(_SUMMARY_COLUMNS, "LLM seconds")).number_format = (
+        _SECONDS_FORMAT
+    )
 
 
 def build_summary_report(records: Sequence[DiscoveryDataset]) -> Workbook:
@@ -241,10 +328,12 @@ def build_summary_report(records: Sequence[DiscoveryDataset]) -> Workbook:
     wrapped = [wrap for _, _, wrap in _SUMMARY_COLUMNS]
     ordered = sorted(records, key=lambda r: (r.agency.casefold(), r.dataset_id.casefold()))
 
+    seconds_column = _column(_SUMMARY_COLUMNS, "LLM seconds")
     row = 1
     for row, record in enumerate(ordered, start=2):
         _write_row(summaries, row, _summary_values(record), wrapped)
         summaries.cell(row=row, column=_RATIO_COLUMN).number_format = "0%"
+        summaries.cell(row=row, column=seconds_column).number_format = _SECONDS_FORMAT
         if _has_calls(record):
             name = _sheet_name(record.dataset_id, taken)
             _write_calls_sheet(
@@ -252,5 +341,6 @@ def build_summary_report(records: Sequence[DiscoveryDataset]) -> Workbook:
             )
             _link(summaries.cell(row=row, column=2), name, "A1")
     _write_header(summaries, 1, _SUMMARY_COLUMNS, row)
+    _write_totals(summaries, row + 1, ordered)
 
     return workbook

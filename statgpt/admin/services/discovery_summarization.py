@@ -23,12 +23,14 @@ repeating it.
 import asyncio
 import hashlib
 import logging
+import time
 from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import Annotated, Any, Self, TypedDict, cast
 
 import httpx
+from aidial_client.types.model import ModelPricing
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
 from pydantic import (
@@ -50,15 +52,21 @@ from statgpt.admin.settings.discovery import DiscoverySummarizeSettings
 from statgpt.common import models, schemas
 from statgpt.common.auth.auth_context import AuthContext
 from statgpt.common.default_prompts import discovery_indexing_default_prompts
+from statgpt.common.schemas.token_usage import TokenUsageItem
+from statgpt.common.settings.dial import dial_settings
 from statgpt.common.utils import (
+    AsyncLoadingCache,
     async_utils,
     compact_units,
+    dial_client_factory,
     format_exception_reason,
     get_ts_utcnow,
     normalize_whitespace,
     split_cell,
 )
+from statgpt.common.utils.dial.model_pricing import ModelPricingGetter
 from statgpt.common.utils.models import get_chat_model
+from statgpt.common.utils.token_usage_utils import TokenUsageCostCalculator
 
 _log = logging.getLogger(__name__)
 
@@ -200,8 +208,8 @@ def _stored_answer(text: str) -> dict[str, JsonValue] | None:
         return None
 
 
-def _dump_calls(calls: Sequence[schemas.DiscoverySummaryCall]) -> list[dict[str, Any]]:
-    return [call.model_dump(mode="json") for call in calls]
+def _dump_run(calls: Sequence[schemas.DiscoverySummaryCall]) -> dict[str, Any]:
+    return schemas.DiscoverySummaryRun(calls=list(calls)).model_dump(mode="json")
 
 
 def _describe(error: ValidationError) -> str:
@@ -242,10 +250,14 @@ class _CallLog:
     step: schemas.DiscoverySummaryStep
     part: int | None
 
-    def add(self, text: str, error: str | None) -> None:
+    def add(self, text: str, error: str | None, usage: schemas.DiscoveryLLMCallUsage) -> None:
         self.calls.append(
             schemas.DiscoverySummaryCall(
-                step=self.step, part=self.part, answer=_stored_answer(text), error=error
+                step=self.step,
+                part=self.part,
+                answer=_stored_answer(text),
+                error=error,
+                usage=usage,
             )
         )
 
@@ -334,6 +346,8 @@ class DiscoveryIndicatorSummarizer:
         )
         # Built on first use, so a run with nothing to summarize creates no client.
         self._llm: BaseChatModel | None = None
+        # Loaded on first use too, once per run however many records call at once.
+        self._pricing: AsyncLoadingCache[ModelPricing | None] = AsyncLoadingCache()
 
     async def summarize(self, records: Sequence[models.DiscoveryDataset]) -> SummarizeOutcome:
         """Derive the summary of every valid record. Invalid records are not touched.
@@ -390,7 +404,7 @@ class DiscoveryIndicatorSummarizer:
                 record.index_error = (
                     f"Summarizing the indicator list failed: {format_exception_reason(e)}"
                 )
-                record.indicators_summary_failed_calls = _dump_calls(calls)
+                record.indicators_summary_failed_calls = _dump_run(calls)
                 await self._persist()
             return _Result.FAILED
 
@@ -415,7 +429,7 @@ class DiscoveryIndicatorSummarizer:
         record.indicators_summary = summary.text
         record.missing_indicators = ""
         record.indicators_summarized_at = get_ts_utcnow() if summary.by_llm else None
-        record.indicators_summary_calls = _dump_calls(calls) if summary.by_llm else None
+        record.indicators_summary_calls = _dump_run(calls) if summary.by_llm else None
         record.indicators_summary_failed_calls = None
         record.indicators_summary_source_hash = source_hash
         if changed and record.indexing_status is schemas.DiscoveryIndexingStatus.INDEXED:
@@ -500,7 +514,7 @@ class DiscoveryIndicatorSummarizer:
 
         An invalid answer - unparseable, empty, past the limit - is appended to the
         conversation with what is wrong with it, up to `validation_retries` times; the last
-        error then propagates. Every answer, valid or not, goes to `log`.
+        error then propagates. Every answer, valid or not, goes to `log` with its usage.
         """
         output_model = self._own_units_model if unit is None else self._shared_unit_model
         llm = self._chat_model().bind(response_format=_response_format(output_model))
@@ -513,12 +527,14 @@ class DiscoveryIndicatorSummarizer:
         context = _AnswerContext(unit=unit, max_chars=self._config.max_summary_chars)
         corrections = 0
         while True:
+            started = time.monotonic()
             answer = cast(AIMessage, await llm.ainvoke(messages))
+            usage = await self._usage(answer, time.monotonic() - started)
             try:
                 parsed = output_model.model_validate_json(answer.text, context=context)
             except ValidationError as e:
                 error = _describe(e)
-                log.add(answer.text, error)
+                log.add(answer.text, error, usage)
                 if corrections == self._validation_retries:
                     raise
                 corrections += 1
@@ -526,8 +542,48 @@ class DiscoveryIndicatorSummarizer:
                 feedback = discovery_indexing_default_prompts.invalid_answer_feedback
                 messages.extend([answer, HumanMessage(feedback.format(error=error))])
                 continue
-            log.add(answer.text, None)
+            log.add(answer.text, None, usage)
             return parsed
+
+    async def _usage(
+        self, answer: AIMessage, duration_seconds: float
+    ) -> schemas.DiscoveryLLMCallUsage:
+        """What a call used, priced with the deployment's DIAL pricing."""
+        deployment = self._config.llm_model_config.deployment.deployment_id
+        if (usage := answer.usage_metadata) is None:
+            _log.warning(f"The answer of {deployment!r} reports no token usage")
+            prompt_tokens = completion_tokens = 0
+        else:
+            prompt_tokens, completion_tokens = usage["input_tokens"], usage["output_tokens"]
+
+        pricing = await self._pricing.get(deployment, lambda: self._load_pricing(deployment))
+        [priced] = TokenUsageCostCalculator(
+            {deployment: pricing} if pricing is not None else {}
+        ).get_token_usage_with_costs(
+            [
+                TokenUsageItem(
+                    deployment=deployment,
+                    model=deployment,
+                    prompt_tokens=prompt_tokens,
+                    completion_tokens=completion_tokens,
+                )
+            ]
+        )
+        return schemas.DiscoveryLLMCallUsage(
+            deployment=deployment,
+            model=answer.response_metadata.get("model_name") or deployment,
+            prompt_tokens=prompt_tokens,
+            completion_tokens=completion_tokens,
+            cost=priced.costs,
+            duration_seconds=duration_seconds,
+        )
+
+    async def _load_pricing(self, deployment: str) -> ModelPricing | None:
+        """The deployment's pricing, or `None` when DIAL has none or cannot be asked."""
+        async with dial_client_factory(
+            dial_settings.url, api_key=self._auth_context.api_key
+        ) as dial:
+            return await ModelPricingGetter(dial).get_model_pricing(deployment)
 
     def _chat_model(self) -> BaseChatModel:
         if self._llm is None:

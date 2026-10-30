@@ -163,6 +163,13 @@ next run picks up where it stopped. The reference-area vocabulary covers only re
 live document, so a record whose summarization failed before it was ever published adds none
 of its areas.
 
+A record keeps the LLM answers of its summary in `indicatorsSummaryCalls`, and those of its last
+failed run in `indicatorsSummaryFailedCalls`; ask for them with `include_summary_calls=true`.
+Each is a run: its `calls`, every one with its `usage` - deployment, model, prompt and
+completion tokens, cost in USD and duration - and the run's `usage` summed per deployment and
+model. The cost is priced with the deployment's DIAL pricing when the call is made, and is
+`null` when DIAL has none.
+
 ### Validation
 
 Records are validated at the start of every run, and an invalid record is withdrawn from the

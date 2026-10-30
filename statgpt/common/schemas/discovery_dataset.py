@@ -1,7 +1,7 @@
 import datetime
 from typing import Annotated
 
-from pydantic import AfterValidator, ConfigDict, Field, JsonValue
+from pydantic import AfterValidator, ConfigDict, Field, JsonValue, computed_field
 
 from statgpt.common.utils.misc import normalize_whitespace
 
@@ -97,6 +97,48 @@ class DiscoveryValidationIssue(BaseYamlModel):
     """What a submitter needs to fix, in plain English."""
 
 
+class DiscoveryLLMCallUsage(BaseYamlModel):
+    """What one LLM call of an indicator summarization used."""
+
+    model_config = ConfigDict(use_attribute_docstrings=True)
+
+    deployment: str
+
+    model: str
+    """As the response names it; the deployment when it does not."""
+
+    prompt_tokens: int
+
+    completion_tokens: int
+
+    cost: float | None
+    """In USD; `None` when DIAL has no pricing for the deployment."""
+
+    duration_seconds: float
+    """Wall clock of the request, its HTTP retries included."""
+
+
+class DiscoveryLLMUsage(BaseYamlModel):
+    """LLM calls of one deployment and model, summed."""
+
+    model_config = ConfigDict(use_attribute_docstrings=True)
+
+    deployment: str
+
+    model: str
+
+    calls: int
+
+    prompt_tokens: int
+
+    completion_tokens: int
+
+    cost: float | None
+    """In USD; `None` when any of the calls has no cost."""
+
+    duration_seconds: float
+
+
 class DiscoverySummaryCall(BaseYamlModel):
     """One LLM answer of an indicator summarization, rejected or accepted."""
 
@@ -115,6 +157,47 @@ class DiscoverySummaryCall(BaseYamlModel):
 
     error: str | None = None
     """What was wrong with the answer, as sent back to the model; `None` for the accepted one."""
+
+    usage: DiscoveryLLMCallUsage
+
+
+class DiscoverySummaryRun(BaseYamlModel):
+    """The LLM answers of one indicator summarization, in order, with what they used."""
+
+    model_config = ConfigDict(use_attribute_docstrings=True)
+
+    calls: list[DiscoverySummaryCall]
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def usage(self) -> list[DiscoveryLLMUsage]:
+        """The calls summed per deployment and model, in order of first use.
+
+        Derived from `calls` on every dump, so it is stored and returned but never read back.
+        """
+        usage: dict[tuple[str, str], DiscoveryLLMUsage] = {}
+        for call in self.calls:
+            item = call.usage
+            key = (item.deployment, item.model)
+            if (total := usage.get(key)) is None:
+                usage[key] = DiscoveryLLMUsage(
+                    deployment=item.deployment,
+                    model=item.model,
+                    calls=1,
+                    prompt_tokens=item.prompt_tokens,
+                    completion_tokens=item.completion_tokens,
+                    cost=item.cost,
+                    duration_seconds=item.duration_seconds,
+                )
+                continue
+            total.calls += 1
+            total.prompt_tokens += item.prompt_tokens
+            total.completion_tokens += item.completion_tokens
+            total.cost = (
+                total.cost + item.cost if total.cost is not None and item.cost is not None else None
+            )
+            total.duration_seconds += item.duration_seconds
+        return list(usage.values())
 
 
 class DiscoveryDatasetBase(BaseYamlModel):
@@ -203,22 +286,23 @@ class DiscoveryDataset(DiscoveryDatasetBase, DbDefaultBase):
     `None` when the summary is a copy of the parsed list, or has not been derived yet.
     """
 
-    indicators_summary_calls: list[DiscoverySummaryCall] | None = Field(
-        default=None, exclude_if=lambda calls: calls is None
+    indicators_summary_calls: DiscoverySummaryRun | None = Field(
+        default=None, exclude_if=lambda run: run is None
     )
-    """Every LLM answer that went into `indicators_summary`, in order. Read-only.
+    """Every LLM answer that went into `indicators_summary`, in order, and their usage.
+    Read-only.
 
-    Rejected answers are included, so the retries are the entries with an `error`. `None`
+    Rejected answers are included, so the retries are the calls with an `error`. `None`
     when the summary is a copy of the parsed list, has not been derived yet, or the calls
     were not asked for; omitted from the response then.
     """
 
-    indicators_summary_failed_calls: list[DiscoverySummaryCall] | None = Field(
-        default=None, exclude_if=lambda calls: calls is None
+    indicators_summary_failed_calls: DiscoverySummaryRun | None = Field(
+        default=None, exclude_if=lambda run: run is None
     )
-    """The answers of the last summarization that failed, in order. Read-only.
+    """The answers of the last summarization that failed, in order, and their usage. Read-only.
 
-    Empty when it failed before any answer, on a request error say. Cleared by the next
+    Holds no calls when it failed before any answer, on a request error say. Cleared by the next
     summarization that succeeds. Omitted from the response unless asked for.
     """
 

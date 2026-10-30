@@ -9,7 +9,26 @@ import pytest
 from statgpt.common import models, schemas
 from statgpt.common.services.discovery_dataset import DiscoveryDatasetService
 
-_CALLS = [{"step": "chunk", "part": 1, "answer": {"groups": ["Money"]}, "error": None}]
+_USAGE = schemas.DiscoveryLLMCallUsage(
+    deployment="gpt-4o",
+    model="gpt-4o",
+    prompt_tokens=100,
+    completion_tokens=20,
+    cost=0.001,
+    duration_seconds=1.5,
+)
+_RUN = schemas.DiscoverySummaryRun(
+    calls=[
+        schemas.DiscoverySummaryCall(
+            step=schemas.DiscoverySummaryStep.CHUNK,
+            part=1,
+            answer={"groups": ["Money"]},
+            usage=_USAGE,
+        )
+    ]
+)
+_CALLS = _RUN.model_dump(mode="json")
+_NO_CALLS = schemas.DiscoverySummaryRun(calls=[]).model_dump(mode="json")
 _CALL_FIELDS = {"indicatorsSummaryCalls", "indicatorsSummaryFailedCalls"}
 
 
@@ -33,7 +52,7 @@ def _item() -> models.DiscoveryDataset:
         "indicators_summary": "Unit: Rp billions; M2",
         "indicators_summarized_at": now,
         "indicators_summary_calls": _CALLS,
-        "indicators_summary_failed_calls": [],
+        "indicators_summary_failed_calls": _NO_CALLS,
         "missing_indicators": "",
         "validation_status": schemas.DiscoveryValidationStatus.VALID,
         "validation_issues": None,
@@ -51,9 +70,9 @@ def test_the_summary_calls_are_left_out_of_a_record_unless_asked_for() -> None:
     assert _CALL_FIELDS.isdisjoint(dumped)
 
 
-@pytest.mark.parametrize("failed_calls", [[], None], ids=["empty", "none"])
+@pytest.mark.parametrize("failed_calls", [_NO_CALLS, None], ids=["empty", "none"])
 def test_the_summary_calls_asked_for_are_serialized_as_stored(
-    failed_calls: list[dict[str, Any]] | None,
+    failed_calls: dict[str, Any] | None,
 ) -> None:
     item = _item()
     item.indicators_summary_failed_calls = failed_calls
@@ -61,6 +80,17 @@ def test_the_summary_calls_asked_for_are_serialized_as_stored(
     record = DiscoveryDatasetService._serialize(item, include_summary_calls=True)
     dumped = record.model_dump(mode="json", by_alias=True)
 
-    assert dumped["indicatorsSummaryCalls"] == _CALLS
-    # An empty list is a failure with no answers; only `None` is left out.
+    assert record.indicators_summary_calls == _RUN
+    assert dumped["indicatorsSummaryCalls"]["usage"] == [
+        {
+            "deployment": "gpt-4o",
+            "model": "gpt-4o",
+            "calls": 1,
+            "promptTokens": 100,
+            "completionTokens": 20,
+            "cost": 0.001,
+            "durationSeconds": 1.5,
+        }
+    ]
+    # A run with no calls is a failure with no answers; only `None` is left out.
     assert ("indicatorsSummaryFailedCalls" in dumped) is (failed_calls is not None)

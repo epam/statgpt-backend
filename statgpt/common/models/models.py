@@ -304,13 +304,14 @@ class DiscoveryDataset(DefaultBase):
     indicators_summarized_at: Mapped[datetime.datetime | None] = mapped_column(
         DateTime(timezone=True), default=None
     )
-    # `DiscoverySummaryCall`s: every LLM answer that went into the summary, rejected ones
-    # included; `None` when it is a copy of the list or not derived yet.
-    indicators_summary_calls: Mapped[list[dict[str, Any]] | None] = mapped_column(
+    # A `DiscoverySummaryRun`: every LLM answer that went into the summary, rejected ones
+    # included, with their usage; `None` when it is a copy of the list or not derived yet.
+    indicators_summary_calls: Mapped[dict[str, Any] | None] = mapped_column(
         type_=postgresql.JSONB, default=None
     )
-    # The answers of the last summarization that failed; cleared by the next that succeeds.
-    indicators_summary_failed_calls: Mapped[list[dict[str, Any]] | None] = mapped_column(
+    # The `DiscoverySummaryRun` of the last summarization that failed; cleared by the next
+    # that succeeds.
+    indicators_summary_failed_calls: Mapped[dict[str, Any] | None] = mapped_column(
         type_=postgresql.JSONB, default=None
     )
 

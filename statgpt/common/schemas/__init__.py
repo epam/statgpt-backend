@@ -44,10 +44,13 @@ from .discovery_dataset import (
     DiscoveryDatasetStats,
     DiscoveryDatasetUpdate,
     DiscoveryDatasetUpdateBulk,
+    DiscoveryLLMCallUsage,
+    DiscoveryLLMUsage,
     DiscoveryPayloadErrorDetail,
     DiscoveryPayloadErrorResponse,
     DiscoveryPayloadProblem,
     DiscoverySummaryCall,
+    DiscoverySummaryRun,
     DiscoveryUploadSummary,
     DiscoveryValidationIssue,
 )

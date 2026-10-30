@@ -10,6 +10,7 @@ from types import SimpleNamespace
 from typing import Any, cast
 
 import pytest
+from aidial_client.types.model import ModelPricing
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
 from langchain_core.runnables import RunnableLambda
 
@@ -24,6 +25,10 @@ _MERGE_HEADING = "# Groups of every part"
 _LIMIT = schemas.DiscoveryIndexingConfig().max_summary_chars
 _TOO_LONG = "x" * _LIMIT
 """One group as long as the limit: past it once published, with the unit prefix."""
+_DEPLOYMENT = schemas.DiscoveryIndexingConfig().llm_model_config.deployment.deployment_id
+_MODEL_NAME = "gpt-test-2026"
+_PROMPT_TOKENS = 1_000
+_COMPLETION_TOKENS = 200
 
 Answer = list[str] | dict[str, Any] | str
 Responder = Callable[[str, str], Answer]
@@ -44,8 +49,15 @@ def _answer_text(answer: Answer, schema: dict[str, Any]) -> str:
 class _FakeLlm:
     """Stands in for the chat model, recording every call that reaches it."""
 
-    def __init__(self, responder: Responder) -> None:
+    def __init__(
+        self,
+        responder: Responder,
+        usage_metadata: dict[str, int] | None,
+        response_metadata: dict[str, Any],
+    ) -> None:
         self._responder = responder
+        self._usage_metadata = usage_metadata
+        self._response_metadata = response_metadata
         self.calls: list[tuple[str, str]] = []
         self.conversations: list[list[BaseMessage]] = []
         self.schemas: list[dict[str, Any]] = []
@@ -58,14 +70,42 @@ class _FakeLlm:
             self.calls.append((system, user))
             self.conversations.append(list(messages))
             self.schemas.append(schema)
-            return AIMessage(content=_answer_text(self._responder(system, user), schema))
+            return AIMessage(
+                content=_answer_text(self._responder(system, user), schema),
+                usage_metadata=self._usage_metadata,
+                response_metadata=self._response_metadata,
+            )
 
         return RunnableLambda(answer)
 
 
-def _install(monkeypatch: pytest.MonkeyPatch, responder: Responder) -> _FakeLlm:
-    llm = _FakeLlm(responder)
+_USAGE_METADATA = {
+    "input_tokens": _PROMPT_TOKENS,
+    "output_tokens": _COMPLETION_TOKENS,
+    "total_tokens": _PROMPT_TOKENS + _COMPLETION_TOKENS,
+}
+
+
+def _install(
+    monkeypatch: pytest.MonkeyPatch,
+    responder: Responder,
+    *,
+    pricing: ModelPricing | None = None,
+    usage_metadata: dict[str, int] | None = _USAGE_METADATA,
+    response_metadata: dict[str, Any] | None = None,
+) -> _FakeLlm:
+    """Replace the chat model, and DIAL's pricing of its deployment: none by default."""
+    llm = _FakeLlm(
+        responder,
+        usage_metadata,
+        {"model_name": _MODEL_NAME} if response_metadata is None else response_metadata,
+    )
     monkeypatch.setattr(summarization_module, "get_chat_model", lambda **_: llm)
+
+    async def load_pricing(_self: Any, _deployment: str) -> ModelPricing | None:
+        return pricing
+
+    monkeypatch.setattr(DiscoveryIndicatorSummarizer, "_load_pricing", load_pricing)
     return llm
 
 
@@ -427,9 +467,12 @@ async def test_one_failing_record_does_not_stop_the_others(monkeypatch: pytest.M
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~ stored calls ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 
-def _calls(stored: list[dict[str, Any]] | None) -> list[schemas.DiscoverySummaryCall]:
+def _calls(stored: dict[str, Any] | None) -> list[schemas.DiscoverySummaryCall]:
     assert stored is not None
-    return [schemas.DiscoverySummaryCall.model_validate(call) for call in stored]
+    return schemas.DiscoverySummaryRun.model_validate(stored).calls
+
+
+_NO_CALLS = {"calls": [], "usage": []}
 
 
 async def test_every_answer_of_a_summary_is_stored_with_it(
@@ -437,7 +480,9 @@ async def test_every_answer_of_a_summary_is_stored_with_it(
 ) -> None:
     answers: Iterator[Answer] = iter([[_TOO_LONG], "not json", ["Fits"]])
     _install(monkeypatch, lambda _system, _user: next(answers))
-    record = _record(indicators_coverage=_long_coverage(), indicators_summary_failed_calls=[])
+    record = _record(
+        indicators_coverage=_long_coverage(), indicators_summary_failed_calls=_NO_CALLS
+    )
 
     await _summarizer().summarize([record])
 
@@ -475,7 +520,7 @@ async def test_a_copied_list_stores_no_calls(monkeypatch: pytest.MonkeyPatch) ->
     _install(monkeypatch, _groups("Group"))
     record = _record(indicators_coverage=_long_coverage())
     await _summarizer().summarize([record])
-    record.indicators_summary_failed_calls = []
+    record.indicators_summary_failed_calls = _NO_CALLS
 
     await _summarizer(_config(summary_threshold_chars=10_000)).summarize([record])
 
@@ -511,8 +556,95 @@ async def test_a_summary_that_fails_before_any_answer_stores_no_failed_calls(
 
     await _summarizer().summarize([record])
 
-    assert record.indicators_summary_failed_calls == []
+    assert record.indicators_summary_failed_calls == _NO_CALLS
     assert record.indicators_summary_calls is None
+
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~ usage ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
+async def test_every_stored_call_carries_its_priced_usage(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    answers: Iterator[Answer] = iter([[_TOO_LONG], ["Fits"]])
+    pricing = ModelPricing(unit="token", prompt="0.00001", completion="0.00003")
+    _install(monkeypatch, lambda _system, _user: next(answers), pricing=pricing)
+    record = _record(indicators_coverage=_long_coverage())
+
+    await _summarizer().summarize([record])
+
+    cost = _PROMPT_TOKENS * 0.00001 + _COMPLETION_TOKENS * 0.00003
+    for call in _calls(record.indicators_summary_calls):
+        assert call.usage.deployment == _DEPLOYMENT
+        assert call.usage.model == _MODEL_NAME
+        assert call.usage.prompt_tokens == _PROMPT_TOKENS
+        assert call.usage.completion_tokens == _COMPLETION_TOKENS
+        assert call.usage.cost == pytest.approx(cost)
+        assert call.usage.duration_seconds >= 0
+    assert record.indicators_summary_calls is not None
+    [usage] = record.indicators_summary_calls["usage"]
+    assert usage["calls"] == 2
+    assert usage["prompt_tokens"] == 2 * _PROMPT_TOKENS
+    assert usage["cost"] == pytest.approx(2 * cost)
+
+
+async def test_a_failed_summary_stores_the_usage_of_its_answers(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _install(monkeypatch, _groups())
+    record = _record(indicators_coverage=_long_coverage())
+
+    await _summarizer(validation_retries=1).summarize([record])
+
+    assert record.indicators_summary_failed_calls is not None
+    [usage] = record.indicators_summary_failed_calls["usage"]
+    assert usage["calls"] == 2
+    assert usage["completion_tokens"] == 2 * _COMPLETION_TOKENS
+
+
+async def test_a_deployment_without_pricing_leaves_the_cost_unknown(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _install(monkeypatch, _groups("Group"))
+    record = _record(indicators_coverage=_long_coverage())
+
+    await _summarizer().summarize([record])
+
+    [call] = _calls(record.indicators_summary_calls)
+    assert call.usage.cost is None
+    assert call.usage.prompt_tokens == _PROMPT_TOKENS
+
+
+async def test_an_answer_without_usage_or_model_name_still_records_its_call(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _install(monkeypatch, _groups("Group"), usage_metadata=None, response_metadata={})
+    record = _record(indicators_coverage=_long_coverage())
+
+    await _summarizer().summarize([record])
+
+    [call] = _calls(record.indicators_summary_calls)
+    assert call.usage.model == _DEPLOYMENT
+    assert (call.usage.prompt_tokens, call.usage.completion_tokens) == (0, 0)
+
+
+async def test_the_pricing_is_loaded_once_per_run(monkeypatch: pytest.MonkeyPatch) -> None:
+    _install(monkeypatch, _groups("Group"))
+    loads: list[str] = []
+
+    async def load_pricing(_self: Any, deployment: str) -> ModelPricing | None:
+        loads.append(deployment)
+        return None
+
+    monkeypatch.setattr(DiscoveryIndicatorSummarizer, "_load_pricing", load_pricing)
+    records = [
+        _record(id=number, indicators_coverage=_long_coverage(count=60 + number))
+        for number in range(4)
+    ]
+
+    await _summarizer().summarize(records)
+
+    assert loads == [_DEPLOYMENT]
 
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~ persisting ~~~~~~~~~~~~~~~~~~~~~~~~~~~~

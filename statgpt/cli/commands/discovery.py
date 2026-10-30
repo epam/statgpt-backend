@@ -209,9 +209,8 @@ async def clear_handler(channel: str | None = None, yes: bool = False) -> None:
 
 def _is_summarized(record: DiscoveryDataset) -> bool:
     """Whether an LLM produced the record's summary, or failed to on its last run."""
-    return record.indicators_summarized_at is not None or bool(
-        record.indicators_summary_failed_calls
-    )
+    failed = record.indicators_summary_failed_calls
+    return record.indicators_summarized_at is not None or bool(failed and failed.calls)
 
 
 def _default_report_path(deployment_id: str) -> str:

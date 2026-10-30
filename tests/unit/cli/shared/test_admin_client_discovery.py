@@ -209,7 +209,24 @@ def _record_payload(dataset_id: str) -> dict:
         "dataset_id": dataset_id,
         "validation_status": "VALID",
         "indexing_status": "INDEXED",
-        "indicators_summary_calls": [{"step": "chunk", "part": 1, "answer": {"groups": ["a"]}}],
+        "indicators_summary_calls": {
+            "calls": [
+                {
+                    "step": "chunk",
+                    "part": 1,
+                    "answer": {"groups": ["a"]},
+                    "usage": {
+                        "deployment": "gpt-4o",
+                        "model": "gpt-4o",
+                        "promptTokens": 10,
+                        "completionTokens": 2,
+                        "cost": None,
+                        "durationSeconds": 0.5,
+                    },
+                }
+            ],
+            "usage": [],
+        },
     }
 
 

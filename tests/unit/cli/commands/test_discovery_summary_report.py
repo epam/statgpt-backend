@@ -19,7 +19,9 @@ from statgpt.common.schemas import (
     Channel,
     DiscoveryDataset,
     DiscoveryIndexingStatus,
+    DiscoveryLLMCallUsage,
     DiscoverySummaryCall,
+    DiscoverySummaryRun,
     DiscoverySummaryStep,
     DiscoveryValidationStatus,
 )
@@ -58,11 +60,26 @@ def _record(dataset_id: str, **kwargs: Any) -> DiscoveryDataset:
     return DiscoveryDataset(**(fields | kwargs))
 
 
-_FAILED_CALL = DiscoverySummaryCall(step=DiscoverySummaryStep.CHUNK, part=1, error="cut short")
+_FAILED_CALL = DiscoverySummaryCall(
+    step=DiscoverySummaryStep.CHUNK,
+    part=1,
+    error="cut short",
+    usage=DiscoveryLLMCallUsage(
+        deployment="gpt-4o",
+        model="gpt-4o",
+        prompt_tokens=10,
+        completion_tokens=2,
+        cost=None,
+        duration_seconds=0.5,
+    ),
+)
 
 _RECORDS = [
     _record("SUMMARIZED", indicators_summarized_at=_NOW),
-    _record("FAILED", indicators_summary_failed_calls=[_FAILED_CALL]),
+    _record("FAILED", indicators_summary_failed_calls=DiscoverySummaryRun(calls=[_FAILED_CALL])),
+    _record(
+        "FAILED_BEFORE_ANY_ANSWER", indicators_summary_failed_calls=DiscoverySummaryRun(calls=[])
+    ),
     _record("COPIED"),
 ]
 
@@ -99,7 +116,8 @@ def client(monkeypatch: pytest.MonkeyPatch) -> _StubAdminClient:
 
 def _reported_ids(path: Path) -> set[str]:
     sheet = load_workbook(path)[SUMMARIES_SHEET]
-    return {str(sheet.cell(row=row, column=2).value) for row in range(2, sheet.max_row + 1)}
+    # The last row holds the totals.
+    return {str(sheet.cell(row=row, column=2).value) for row in range(2, sheet.max_row)}
 
 
 async def test_the_report_holds_summarized_and_failed_records(
@@ -120,7 +138,7 @@ async def test_all_includes_records_no_llm_summarized(
 
     await summary_report_handler(channel=_DEPLOYMENT_ID, output=str(output), all=True)
 
-    assert _reported_ids(output) == {"SUMMARIZED", "FAILED", "COPIED"}
+    assert _reported_ids(output) == {"SUMMARIZED", "FAILED", "FAILED_BEFORE_ANY_ANSWER", "COPIED"}
 
 
 async def test_nothing_summarized_writes_no_file(

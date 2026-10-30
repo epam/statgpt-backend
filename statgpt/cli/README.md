@@ -239,20 +239,23 @@ it never published anything.
 Writes an Excel workbook of a channel's indicator summaries, to review what the LLM made of each
 indicator list. The `Summaries` sheet has one row per record: its statuses, the indicator count,
 the coverage and summary lengths, how many answers the summarization took and how many were
-rejected, and both lists in full. The dataset ID links to a sheet of the record's own holding every
-LLM answer - reasoning, units, groups, and why a rejected answer was rejected - with the calls
-of a failed last run after those of the summary.
+rejected, the models, tokens, cost and LLM time they took, and both lists in full. A last row
+totals the answers, tokens, cost and time of the channel. The dataset ID links to a sheet of the
+record's own holding every LLM answer - its model, tokens, cost and time, reasoning, units,
+groups, and why a rejected answer was rejected - with the calls of a failed last run after those
+of the summary. A cost DIAL has no pricing for is shown as `cost n/a`, and so is any total it
+is part of.
 
 ```
 statgpt> discovery summary-report -c my-channel
 statgpt> discovery summary-report -c my-channel -o summaries.xlsx --all
 ```
 
-| Option          | Description                                                              |
-|-----------------|--------------------------------------------------------------------------|
-| `-c, --channel` | Channel deployment ID (interactive if omitted)                           |
+| Option          | Description                                                               |
+|-----------------|---------------------------------------------------------------------------|
+| `-c, --channel` | Channel deployment ID (interactive if omitted)                            |
 | `-o, --output`  | Workbook path (default: `discovery-summaries-<channel>-<timestamp>.xlsx`) |
-| `--all`         | Also report records whose indicator list was not summarized by an LLM    |
+| `--all`         | Also report records whose indicator list was not summarized by an LLM     |
 
 Without `--all`, only records summarized by an LLM, or whose last summarization failed, are
 reported. Text longer than an Excel cell holds is cut with a `… [truncated]` marker.
