@@ -1,6 +1,7 @@
 """Discovery dataset (Grade C) commands for StatGPT CLI."""
 
 import asyncio
+import datetime
 import os
 
 import questionary
@@ -12,6 +13,7 @@ from statgpt.cli.shared import (
     BatchPartialFailureError,
     DiscoveryPayloadError,
     NonInteractiveError,
+    build_summary_report,
     confirm_interactive,
     console,
     get_admin_client,
@@ -24,7 +26,13 @@ from statgpt.cli.shared import (
     select_channel,
     spinner_status,
 )
-from statgpt.common.schemas import DiscoveryIndexingJob, PreprocessingStatusEnum, RecordUploadMode
+from statgpt.common.schemas import (
+    DiscoveryDataset,
+    DiscoveryIndexingJob,
+    DiscoveryIndexingStage,
+    PreprocessingStatusEnum,
+    RecordUploadMode,
+)
 
 POLL_INTERVAL = 1  # seconds
 
@@ -108,6 +116,8 @@ def _render_job_results(job: DiscoveryIndexingJob) -> None:
         ("Records evaluated", job.records_total),
         ("Records valid", job.records_valid),
         ("Records invalid", job.records_invalid),
+        ("Records summarized", job.records_summarized),
+        ("Records failed", job.records_failed),
         ("Documents published", job.documents_upserted),
         ("Documents removed", job.documents_deleted),
     ]
@@ -119,8 +129,24 @@ def _render_job_results(job: DiscoveryIndexingJob) -> None:
         console.print(f"[dim]{job.details}[/dim]")
 
 
-async def reindex_handler(channel: str | None = None, force: bool = False) -> None:
-    """Re-validate and re-publish a channel's discovery datasets."""
+def _parse_force(force: str | None) -> frozenset[DiscoveryIndexingStage]:
+    """Parse and validate the stage list of the --force option."""
+    if not force:
+        return frozenset()
+
+    values = {value.strip().lower() for value in force.split(",") if value.strip()}
+    valid = {stage.value for stage in DiscoveryIndexingStage}
+    invalid = values - valid
+    if invalid:
+        raise ValueError(
+            f"Invalid stages: {', '.join(sorted(invalid))}. Valid: {', '.join(sorted(valid))}"
+        )
+    return frozenset(DiscoveryIndexingStage(value) for value in values)
+
+
+async def reindex_handler(channel: str | None = None, force: str | None = None) -> None:
+    """Re-validate, summarize and re-publish a channel's discovery datasets."""
+    stages = _parse_force(force)
     async with get_admin_client() as client:
         selected_channel = await select_channel(client, channel)
         if not selected_channel:
@@ -129,7 +155,7 @@ async def reindex_handler(channel: str | None = None, force: bool = False) -> No
         print_info(f"Reindexing discovery datasets of: {selected_channel.title}")
 
         with spinner_status("Starting discovery indexing...") as status:
-            job = await client.trigger_discovery_indexing(selected_channel.id, force=force)
+            job = await client.trigger_discovery_indexing(selected_channel.id, force=stages)
             print_info(f"Discovery indexing job started: {job.id}")
 
             while True:
@@ -181,6 +207,48 @@ async def clear_handler(channel: str | None = None, yes: bool = False) -> None:
         print_success(f"Deleted {len(deleted)} record(s) and their published documents")
 
 
+def _is_summarized(record: DiscoveryDataset) -> bool:
+    """Whether an LLM produced the record's summary, or failed to on its last run."""
+    failed = record.indicators_summary_failed_calls
+    return record.indicators_summarized_at is not None or bool(failed and failed.calls)
+
+
+def _default_report_path(deployment_id: str) -> str:
+    timestamp = datetime.datetime.now().strftime("%Y%m%d-%H%M")
+    return f"discovery-summaries-{deployment_id}-{timestamp}.xlsx"
+
+
+async def summary_report_handler(
+    channel: str | None = None, output: str | None = None, all: bool = False
+) -> None:
+    """Write an Excel report of a channel's indicator summaries and their LLM calls."""
+    async with get_admin_client() as client:
+        selected_channel = await select_channel(client, channel)
+        if not selected_channel:
+            return
+
+        with spinner_status(f"Fetching discovery datasets of {selected_channel.title}..."):
+            records = await client.get_discovery_datasets(
+                selected_channel.id, include_summary_calls=True
+            )
+
+    if not all:
+        records = [record for record in records if _is_summarized(record)]
+    if not records:
+        what = "discovery datasets" if all else "summarized discovery datasets"
+        print_info(f"{selected_channel.deployment_id} holds no {what}.")
+        return
+
+    path = output or _default_report_path(selected_channel.deployment_id)
+    try:
+        build_summary_report(records).save(path)
+    except OSError as e:
+        print_error(f"Could not write {path}: {e}")
+        return
+
+    print_success(f"Wrote {len(records)} dataset(s) to {path}")
+
+
 upload_command = Command(
     name="upload",
     description="Upload a discovery datasets workbook (.xlsx) or CSV to a channel",
@@ -210,7 +278,7 @@ upload_command = Command(
 
 reindex_command = Command(
     name="reindex",
-    description="Re-validate and re-publish the discovery datasets of a channel",
+    description="Re-validate, summarize and re-publish the discovery datasets of a channel",
     handler=reindex_handler,
     args=[
         CommandArg(
@@ -221,10 +289,10 @@ reindex_command = Command(
         CommandArg(
             name="force",
             description=(
-                "Rebuild every document even if nothing changed;"
-                " each rebuilt record is briefly absent from the index"
+                "Comma-separated stages to redo even if nothing changed:"
+                " summarization re-summarizes every indicator list, publishing rebuilds every"
+                " document (each rebuilt record is briefly absent from the index)"
             ),
-            is_flag=True,
         ),
     ],
 )
@@ -250,6 +318,33 @@ clear_command = Command(
 )
 
 
+summary_report_command = Command(
+    name="summary-report",
+    description="Write an Excel report of a channel's indicator summaries and their LLM calls",
+    handler=summary_report_handler,
+    args=[
+        CommandArg(
+            name="channel",
+            short_name="c",
+            description="Channel deployment ID",
+        ),
+        CommandArg(
+            name="output",
+            short_name="o",
+            description=(
+                "Path of the workbook to write"
+                " (default: discovery-summaries-<channel>-<timestamp>.xlsx)"
+            ),
+        ),
+        CommandArg(
+            name="all",
+            description="Include records whose indicator list was not summarized by an LLM",
+            is_flag=True,
+        ),
+    ],
+)
+
+
 # Command group
 discovery_group = CommandGroup(
     name="discovery",
@@ -258,3 +353,4 @@ discovery_group = CommandGroup(
 discovery_group.add_command(upload_command)
 discovery_group.add_command(reindex_command)
 discovery_group.add_command(clear_command)
+discovery_group.add_command(summary_report_command)

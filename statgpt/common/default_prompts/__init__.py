@@ -1,1 +1,2 @@
+from .discovery_indexing import discovery_indexing_default_prompts
 from .hybrid_indexer import HybridIndexerDefaultPrompts

@@ -2,6 +2,7 @@
 
 import logging
 import os
+from collections.abc import Collection
 from contextlib import asynccontextmanager
 from typing import Any, AsyncGenerator
 
@@ -24,12 +25,14 @@ from statgpt.common.schemas import (
     DiscoveryDataset,
     DiscoveryDatasetStats,
     DiscoveryIndexingJob,
+    DiscoveryIndexingStage,
     DiscoveryPayloadErrorDetail,
     DiscoveryUploadSummary,
     GlossaryTerm,
     GlossaryTermBase,
     GlossaryTermUpdateBulk,
     Job,
+    ListResponse,
     RecordUploadMode,
 )
 
@@ -38,6 +41,7 @@ _log = logging.getLogger(__name__)
 URL_PREFIX = "/admin/api/v1"
 DEFAULT_TIMEOUT = 600  # 10 minutes
 DEFAULT_LIMIT = 5000
+DISCOVERY_PAGE_SIZE = 100
 
 # Type adapters for parsing lists
 _channels_adapter = TypeAdapter(list[Channel])
@@ -364,6 +368,30 @@ class AdminClient:
         self._raise_for_status(resp)
         return DiscoveryDatasetStats.model_validate(resp.json())
 
+    async def get_discovery_datasets(
+        self, channel_id: int, *, include_summary_calls: bool = False
+    ) -> list[DiscoveryDataset]:
+        """Fetch every discovery dataset of a channel, page by page.
+
+        Pages are kept small: with `include_summary_calls` a record carries every LLM answer
+        of its summarization, several KB each.
+        """
+        records: list[DiscoveryDataset] = []
+        while True:
+            resp = await self._client.get(
+                self._url(f"/channels/{channel_id}/discovery-datasets"),
+                params={
+                    "limit": DISCOVERY_PAGE_SIZE,
+                    "offset": len(records),
+                    "include_summary_calls": include_summary_calls,
+                },
+            )
+            self._raise_for_status(resp)
+            page = ListResponse[DiscoveryDataset].model_validate(resp.json())
+            records.extend(page.data)
+            if not page.data or len(records) >= page.total:
+                return records
+
     async def upload_discovery_datasets(
         self,
         channel_id: int,
@@ -404,16 +432,18 @@ class AdminClient:
         return _discovery_datasets_adapter.validate_python(resp.json())
 
     async def trigger_discovery_indexing(
-        self, channel_id: int, force: bool = False
+        self, channel_id: int, force: Collection[DiscoveryIndexingStage] = ()
     ) -> DiscoveryIndexingJob:
         """Trigger a discovery indexing job; returns the created job for polling.
+
+        `force` names the stages to redo on every record, sent as one `force` parameter each.
 
         A 409 - a job is already running, or the channel has no discovery RAG application -
         is answered with the API's own one-line reason rather than a dump of the response.
         """
         resp = await self._client.post(
             self._url(f"/channels/{channel_id}/discovery-datasets/indexing-jobs"),
-            params={"force": str(force).lower()},
+            params=[("force", stage.value) for stage in DiscoveryIndexingStage if stage in force],
         )
         if resp.status_code == 409:
             raise AdminAPIError(_describe_error(resp), status_code=resp.status_code)

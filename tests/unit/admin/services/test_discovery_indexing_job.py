@@ -2,11 +2,13 @@
 
 What a record becomes, and what happens to its document, belongs to `DiscoveryPublisher` and
 is tested in `test_discovery_publisher.py`. What is tested here is the sequencing the job
-service owns: refusing a channel with nowhere to publish to, committing the validation
-verdicts before the network stage, carrying `force` through to the publisher, and reporting
-the run on the job row.
+service owns: refusing a channel with nowhere to publish to, committing each stage before the
+next network stage, holding back the records summarization failed on, routing each forced
+stage to the stage it names, and reporting the run on the job row.
 """
 
+import asyncio
+from collections.abc import Awaitable, Callable, Collection
 from types import SimpleNamespace
 from typing import Any, cast
 from unittest.mock import AsyncMock, MagicMock
@@ -19,6 +21,7 @@ from statgpt.admin.services.discovery_indexing_job import (
     run_discovery_indexing_in_background_task,
 )
 from statgpt.admin.services.discovery_publisher import PublishCounts
+from statgpt.admin.services.discovery_summarization import SummarizeOutcome
 from statgpt.admin.services.exceptions import (
     DiscoveryRagNotConfiguredError,
     IndexingJobInProgressError,
@@ -29,6 +32,8 @@ from statgpt.common.utils import get_ts_utcnow
 _APPLICATION = "statgpt-generic-rag-grade-b-and-c"
 _AREA_APPLICATION = "statgpt-generic-rag-reference-areas"
 
+_ALL_STAGES = frozenset(schemas.DiscoveryIndexingStage)
+
 _BASE_DETAILS = schemas.ChannelConfig(
     supreme_agent=schemas.SupremeAgentConfig(
         name="T", domain="D", terminology_domain="T", language_instructions=["i"]
@@ -36,7 +41,12 @@ _BASE_DETAILS = schemas.ChannelConfig(
 ).model_dump(mode="json", by_alias=True, exclude_none=True)
 
 
-def _channel(*, discovery_datasets: bool = True, reference_areas: bool = False) -> models.Channel:
+def _channel(
+    *,
+    discovery_datasets: bool = True,
+    reference_areas: bool = False,
+    indexing: dict[str, Any] | None = None,
+) -> models.Channel:
     details = dict(_BASE_DETAILS)
     if discovery_datasets:
         tool_details: dict[str, Any] = {
@@ -45,6 +55,8 @@ def _channel(*, discovery_datasets: bool = True, reference_areas: bool = False) 
         }
         if reference_areas:
             tool_details["referenceAreaApplicationId"] = _AREA_APPLICATION
+        if indexing is not None:
+            tool_details["indexing"] = indexing
         details["discoveryDatasets"] = {
             "type": "DISCOVERY_DATASETS",
             "name": "discovery_datasets",
@@ -86,6 +98,10 @@ def _record(**overrides: Any) -> models.DiscoveryDataset:
         "indicators_coverage": "broad money (M2)",
         "indicators_summary": "",
         "missing_indicators": "",
+        "indicators_summary_source_hash": None,
+        "indicators_summarized_at": None,
+        "indicators_summary_calls": None,
+        "indicators_summary_failed_calls": None,
         "validation_status": schemas.DiscoveryValidationStatus.NOT_VALIDATED,
         "validation_issues": None,
         "validated_at": None,
@@ -115,13 +131,17 @@ class _Spy:
         area_error: Exception | None = None,
         verify_errors: dict[str, Exception] | None = None,
         channel: models.Channel | None = None,
+        outcome: SummarizeOutcome | None = None,
+        summarize_error: Exception | None = None,
     ) -> None:
         self.job = _job()
         self.records = records if records is not None else [_record()]
+        self.outcome = outcome or SummarizeOutcome(copied=len(self.records))
         self.counts = counts or PublishCounts(upserted=1)
         self.area_counts = area_counts or PublishCounts(upserted=2, deleted=1, skipped=3)
         self.commits: list[dict[str, Any]] = []
         self.published: list[dict[str, Any]] = []
+        self.area_records: list[models.DiscoveryDataset] = []
         self.stages: list[str] = []
         self.applications: list[str] = []
         self.closed = False
@@ -136,12 +156,14 @@ class _Spy:
             "DiscoveryDatasetService",
             lambda _: SimpleNamespace(get_record_models_by_channel=self._get_records),
         )
+        monkeypatch.setattr(job_module, "DiscoveryIndicatorSummarizer", self._summarizer)
         monkeypatch.setattr(job_module, "DiscoveryPublisher", self._publisher)
         monkeypatch.setattr(job_module, "ReferenceAreaPublisher", self._area_publisher)
         monkeypatch.setattr(
             job_module.GenericRagIngestionClient, "for_application", self._for_application
         )
         self._publish_error = publish_error
+        self._summarize_error = summarize_error
         self._area_error = area_error
         self._verify_errors = verify_errors or {}
 
@@ -172,6 +194,29 @@ class _Spy:
 
         return _Client()
 
+    def _summarizer(
+        self,
+        config: schemas.DiscoveryIndexingConfig,
+        auth_context: Any,
+        persist: Callable[[], Awaitable[None]],
+        *,
+        force: bool,
+    ) -> Any:
+        self.summarizer_config = config
+        self.summarizer_force = force
+        self._persist = persist
+        return SimpleNamespace(summarize=self._summarize)
+
+    async def _summarize(self, records: list[models.DiscoveryDataset]) -> SummarizeOutcome:
+        if self._summarize_error is not None:
+            raise self._summarize_error
+        self.stages.append("summarize")
+        for record in records:
+            if record.validation_status is schemas.DiscoveryValidationStatus.VALID:
+                record.indicators_summary = f"summary of {record.indicators_coverage}"
+                await self._persist()
+        return self.outcome
+
     def _publisher(self, client: Any, *, channel: str, force: bool) -> Any:
         self.publisher_channel = channel
         self.publisher_force = force
@@ -187,13 +232,16 @@ class _Spy:
 
         return verify
 
-    async def _publish(self, records: list[models.DiscoveryDataset]) -> PublishCounts:
+    async def _publish(
+        self, records: list[models.DiscoveryDataset], held: Collection[int] = ()
+    ) -> PublishCounts:
         if self._publish_error is not None:
             raise self._publish_error
-        self.published.append({"count": len(records)})
+        self.published.append({"count": len(records), "held": set(held)})
         self.stages.append("documents")
         for record in records:
-            record.indexing_status = schemas.DiscoveryIndexingStatus.INDEXED
+            if record.id not in held:
+                record.indexing_status = schemas.DiscoveryIndexingStatus.INDEXED
         return self.counts
 
     def _area_publisher(self, client: Any, *, channel: str, force: bool) -> Any:
@@ -207,6 +255,7 @@ class _Spy:
         if self._area_error is not None:
             raise self._area_error
         self.stages.append("reference-areas")
+        self.area_records = list(records)
         return self.area_counts
 
     async def _on_commit(self) -> None:
@@ -218,6 +267,7 @@ class _Spy:
                 "validation": [record.validation_status for record in self.records],
                 "indexing": [record.indexing_status for record in self.records],
                 "summaries": [record.indicators_summary for record in self.records],
+                "stages": list(self.stages),
             }
         )
 
@@ -287,9 +337,11 @@ async def test_an_already_running_job_is_refused(monkeypatch: pytest.MonkeyPatch
     session.add.assert_not_called()
 
 
-@pytest.mark.parametrize("force", [False, True])
+@pytest.mark.parametrize(
+    "force", [frozenset(), frozenset({schemas.DiscoveryIndexingStage.SUMMARIZATION}), _ALL_STAGES]
+)
 async def test_force_is_scheduled_with_the_background_task(
-    monkeypatch: pytest.MonkeyPatch, force: bool
+    monkeypatch: pytest.MonkeyPatch, force: frozenset[schemas.DiscoveryIndexingStage]
 ) -> None:
     """`force` rides on the task, since nothing re-reads a job row to resume it."""
     service, _ = _trigger_service(monkeypatch, _channel())
@@ -320,7 +372,7 @@ async def test_a_run_validates_then_publishes_and_reports_both(
     assert "Published 3, removed 2 document(s), skipped 1 already indexed, failed 1" in (
         spy.job.details
     )
-    assert not spy.job.details.startswith("Forced rebuild.")
+    assert not spy.job.details.startswith("Forced")
 
 
 async def test_the_verdicts_are_committed_before_the_network_stage(
@@ -331,9 +383,9 @@ async def test_the_verdicts_are_committed_before_the_network_stage(
 
     await spy.service.process_job(job_id=42)
 
-    # First commit: IN_PROGRESS. Second: the verdicts, with nothing published yet.
+    # First commit: IN_PROGRESS. Second: the verdicts, with nothing summarized or published.
     verdicts = spy.commits[1]
-    assert verdicts["published_calls"] == 0
+    assert verdicts["stages"] == []
     assert verdicts["validation"] == [schemas.DiscoveryValidationStatus.VALID]
     assert spy.commits[-1]["published_calls"] == 1
 
@@ -364,33 +416,88 @@ async def test_an_invalid_record_is_reported_as_invalid(monkeypatch: pytest.Monk
     assert spy.records[0].validation_issues
 
 
-async def test_a_valid_record_gets_the_indicator_list_it_publishes(
+async def test_the_summaries_are_committed_before_the_publish_stage(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A copy today; #664 replaces it with the calls that collapse a long list into groups."""
-    spy = _Spy(monkeypatch, records=[_record(indicators_coverage="broad money (M2)")])
+    """LLM work is the costliest in the run, and a publish stage that dies must not lose it."""
+    records = [
+        _record(id=1, indicators_coverage="broad money (M2)"),
+        _record(id=2, dataset_id="TABEL1_2", indicators_coverage="narrow money (M1)"),
+    ]
+    spy = _Spy(monkeypatch, records=records)
 
     await spy.service.process_job(job_id=42)
 
-    assert spy.records[0].indicators_summary == "broad money (M2)"
-    # Derived with the verdicts, so the publish stage reads a committed value.
-    assert spy.commits[1]["summaries"] == ["broad money (M2)"]
-    assert spy.commits[1]["published_calls"] == 0
+    # The summarizer persists after every record, each commit carrying the ones done so far.
+    first, second = spy.commits[2], spy.commits[3]
+    assert first["summaries"] == ["summary of broad money (M2)", ""]
+    assert second["summaries"] == ["summary of broad money (M2)", "summary of narrow money (M1)"]
+    assert second["published_calls"] == 0
+    assert spy.stages == ["summarize", "verify:documents", "documents"]
 
 
-async def test_an_invalid_record_keeps_the_summary_it_had(
+async def test_the_records_summarization_failed_on_are_held_back_from_publishing(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Nothing is published for it, so there is nothing to derive."""
-    record = _record(
-        url="not-a-url", indicators_coverage="broad money (M2)", indicators_summary="stale"
+    records = [_record(id=1), _record(id=2, dataset_id="TABEL1_2")]
+    spy = _Spy(
+        monkeypatch,
+        records=records,
+        outcome=SummarizeOutcome(summarized=1, failed_ids={2}),
+        counts=PublishCounts(upserted=1, failed=1),
     )
-    spy = _Spy(monkeypatch, records=[record])
 
     await spy.service.process_job(job_id=42)
 
-    assert spy.records[0].validation_status is schemas.DiscoveryValidationStatus.INVALID
-    assert spy.records[0].indicators_summary == "stale"
+    assert spy.published == [{"count": 2, "held": {2}}]
+    assert spy.job.records_summarized == 1
+    # One failed in summarization, one in publishing.
+    assert spy.job.records_failed == 2
+    assert spy.job.details is not None
+    assert "Indicator summaries: summarized 1, copied 0, unchanged 0, failed 1." in (
+        spy.job.details
+    )
+
+
+async def test_a_cancelled_run_fails_the_job_and_keeps_what_was_summarized(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A timed-out run left IN_PROGRESS would refuse every new run of the channel."""
+    spy = _Spy(monkeypatch, summarize_error=asyncio.CancelledError())
+
+    with pytest.raises(asyncio.CancelledError):
+        await spy.service.process_job(job_id=42)
+
+    assert spy.job.status is schemas.PreprocessingStatusEnum.FAILED
+    assert spy.job.reason_for_failure is not None
+    assert "Cancelled" in spy.job.reason_for_failure
+    assert spy.commits[-1]["job_status"] is schemas.PreprocessingStatusEnum.FAILED
+    assert spy.published == []
+
+
+async def test_the_summarizer_is_given_the_channels_indexing_config(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    spy = _Spy(monkeypatch, channel=_channel(indexing={"summaryThresholdChars": 123}))
+
+    await spy.service.process_job(job_id=42)
+
+    assert spy.summarizer_config.summary_threshold_chars == 123
+
+
+async def test_a_failing_summarization_stage_fails_the_job_before_publishing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Per-record failures are the summarizer's to record; one escaping it fails the run."""
+    spy = _Spy(monkeypatch, summarize_error=RuntimeError("summarizer broke"))
+
+    await spy.service.process_job(job_id=42)
+
+    assert spy.job.status is schemas.PreprocessingStatusEnum.FAILED
+    assert spy.job.reason_for_failure is not None
+    assert "summarizer broke" in spy.job.reason_for_failure
+    assert spy.published == []
+    assert spy.commits[1]["validation"] == [schemas.DiscoveryValidationStatus.VALID]
 
 
 async def test_a_run_publishes_into_the_configured_application(
@@ -406,15 +513,43 @@ async def test_a_run_publishes_into_the_configured_application(
     assert spy.closed, "the client's connection pool must not outlive the run"
 
 
-@pytest.mark.parametrize("force", [False, True])
-async def test_force_reaches_the_publisher(monkeypatch: pytest.MonkeyPatch, force: bool) -> None:
+@pytest.mark.parametrize(
+    ("force", "summarization", "publishing", "details"),
+    [
+        (frozenset(), False, False, None),
+        (
+            frozenset({schemas.DiscoveryIndexingStage.SUMMARIZATION}),
+            True,
+            False,
+            "Forced: summarization. ",
+        ),
+        (
+            frozenset({schemas.DiscoveryIndexingStage.PUBLISHING}),
+            False,
+            True,
+            "Forced: publishing. ",
+        ),
+        (_ALL_STAGES, True, True, "Forced: summarization, publishing. "),
+    ],
+)
+async def test_each_forced_stage_reaches_its_stage(
+    monkeypatch: pytest.MonkeyPatch,
+    force: frozenset[schemas.DiscoveryIndexingStage],
+    summarization: bool,
+    publishing: bool,
+    details: str | None,
+) -> None:
     spy = _Spy(monkeypatch)
 
     await spy.service.process_job(job_id=42, force=force)
 
-    assert spy.publisher_force is force
+    assert spy.summarizer_force is summarization
+    assert spy.publisher_force is publishing
     assert spy.job.details is not None
-    assert spy.job.details.startswith("Forced rebuild.") is force
+    if details is None:
+        assert not spy.job.details.startswith("Forced")
+    else:
+        assert spy.job.details.startswith(details)
 
 
 async def test_a_run_on_a_channel_that_lost_its_target_fails_the_job(
@@ -439,9 +574,10 @@ async def test_the_vocabulary_is_published_after_the_documents(
     """It describes what the channel holds, so publishing it first would describe nothing."""
     spy = _Spy(monkeypatch, channel=_channel(reference_areas=True))
 
-    await spy.service.process_job(job_id=42, force=True)
+    await spy.service.process_job(job_id=42, force=_ALL_STAGES)
 
     assert spy.stages == [
+        "summarize",
         "verify:documents",
         "verify:reference-areas",
         "documents",
@@ -463,7 +599,7 @@ async def test_a_channel_without_a_vocabulary_skips_the_stage(
 
     await spy.service.process_job(job_id=42)
 
-    assert spy.stages == ["verify:documents", "documents"]
+    assert spy.stages == ["summarize", "verify:documents", "documents"]
     assert spy.applications == [_APPLICATION]
     assert spy.job.status is schemas.PreprocessingStatusEnum.COMPLETED
     assert spy.job.details is not None
@@ -484,8 +620,27 @@ async def test_a_failed_vocabulary_fails_the_job(monkeypatch: pytest.MonkeyPatch
     assert spy.job.reason_for_failure is not None
     assert "vocabulary channel unreachable" in spy.job.reason_for_failure
     # The records were published all the same, and their statuses were committed.
-    assert spy.stages == ["verify:documents", "verify:reference-areas", "documents"]
+    assert spy.stages == ["summarize", "verify:documents", "verify:reference-areas", "documents"]
     assert spy.records[0].indexing_status is schemas.DiscoveryIndexingStatus.INDEXED
+
+
+async def test_the_vocabulary_covers_only_records_with_a_live_document(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A held record keeps its areas only if an earlier run published it."""
+    published = _record(id=1)
+    held_live = _record(id=2, dataset_id="TABEL1_2", indexed_at=get_ts_utcnow())
+    held_never_published = _record(id=3, dataset_id="TABEL1_3")
+    spy = _Spy(
+        monkeypatch,
+        channel=_channel(reference_areas=True),
+        records=[published, held_live, held_never_published],
+        outcome=SummarizeOutcome(copied=1, failed_ids={2, 3}),
+    )
+
+    await spy.service.process_job(job_id=42)
+
+    assert [record.id for record in spy.area_records] == [1, 2]
 
 
 async def test_a_misconfigured_vocabulary_channel_stops_the_run_before_it_publishes(
@@ -505,5 +660,5 @@ async def test_a_misconfigured_vocabulary_channel_stops_the_run_before_it_publis
     await spy.service.process_job(job_id=42)
 
     assert spy.job.status is schemas.PreprocessingStatusEnum.FAILED
-    assert spy.stages == ["verify:documents", "verify:reference-areas"]
+    assert spy.stages == ["summarize", "verify:documents", "verify:reference-areas"]
     assert spy.published == []

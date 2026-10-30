@@ -11,6 +11,7 @@ import pytest
 from statgpt.admin.services import discovery_publisher as publisher_module
 from statgpt.admin.services.discovery_publisher import (
     DiscoveryPublisher,
+    PublishCounts,
     build_metadata,
     document_filename,
     document_key,
@@ -598,6 +599,36 @@ async def test_a_forced_run_still_withdraws_an_invalid_record() -> None:
     assert _deleted_ids(client) == [10]
     assert (counts.upserted, counts.deleted) == (0, 1)
     assert record.indexing_status is DiscoveryIndexingStatus.NEW
+
+
+async def test_a_held_record_keeps_its_document_and_its_status() -> None:
+    """Summarization failed on it, so the live document is still the best the channel has."""
+    client = _client([_document(document_id=10)])
+    record = _record(
+        indexing_status=DiscoveryIndexingStatus.FAILED, index_error="Summarizing failed: boom"
+    )
+
+    counts = await _publisher(client, force=True).publish([record], held={record.id})
+
+    assert client.delete_document.await_count == 0
+    assert client.upload_document.await_count == 0
+    assert client.update_document.await_count == 0
+    assert counts == PublishCounts()
+    assert record.indexing_status is DiscoveryIndexingStatus.FAILED
+    assert record.index_error == "Summarizing failed: boom"
+
+
+async def test_holding_one_record_does_not_hold_the_others() -> None:
+    client = _client([_document(document_id=10), _document(document_id=11, dataset_id="TABEL1_2")])
+    held = _record(id=1, indexing_status=DiscoveryIndexingStatus.FAILED)
+    other = _record(id=2, dataset_id="TABEL1_2", indexing_status=DiscoveryIndexingStatus.OUTDATED)
+
+    counts = await _publisher(client).publish([held, other], held={1})
+
+    assert _updated_ids(client) == [11]
+    assert client.delete_document.await_count == 0
+    assert counts.upserted == 1
+    assert other.indexing_status is DiscoveryIndexingStatus.INDEXED
 
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~ settling ~~~~~~~~~~~~~~~~~~~~~~~~~~~~

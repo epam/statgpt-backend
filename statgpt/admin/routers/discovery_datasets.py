@@ -9,9 +9,9 @@ Records are shaped like glossary terms: the channel-scoped routes below cover a 
 collection, while a single record is addressed globally under `/discovery-datasets`.
 """
 
-from typing import Any
+from typing import Annotated, Any
 
-from fastapi import APIRouter, BackgroundTasks, Depends, Response, UploadFile, status
+from fastapi import APIRouter, BackgroundTasks, Depends, Query, Response, UploadFile, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 import statgpt.common.models as models
@@ -44,6 +44,17 @@ The point of refusing a write with one entry per offending record is that a call
 on it; a generated client cannot unless the shape is advertised.
 """
 
+_IncludeSummaryCalls = Annotated[
+    bool,
+    Query(
+        description=(
+            "Include `indicatorsSummaryCalls` and `indicatorsSummaryFailedCalls`: every LLM"
+            " answer of the record's indicator summarization. Left out by default, for their"
+            " size."
+        )
+    ),
+]
+
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~ channel-scoped ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -56,6 +67,7 @@ async def get_channel_discovery_datasets(
     agency: str | None = None,
     limit: int = 100,
     offset: int = 0,
+    include_summary_calls: _IncludeSummaryCalls = False,
     session: AsyncSession = Depends(models.get_session),
     _=Depends(cancel_on_disconnect),
 ) -> schemas.ListResponse[schemas.DiscoveryDataset]:
@@ -66,7 +78,13 @@ async def get_channel_discovery_datasets(
     service = DiscoveryDatasetService(session)
 
     records = await service.get_record_schemas_by_channel(
-        channel_id, limit, offset, validation_status, indexing_status, agency
+        channel_id,
+        limit,
+        offset,
+        validation_status,
+        indexing_status,
+        agency,
+        include_summary_calls=include_summary_calls,
     )
     total = await service.get_records_count(channel_id, validation_status, indexing_status, agency)
 
@@ -197,29 +215,47 @@ async def upload_discovery_datasets(
 async def trigger_discovery_indexing(
     background_tasks: BackgroundTasks,
     channel_id: int,
-    force: bool = False,
+    force: Annotated[
+        list[schemas.DiscoveryIndexingStage] | None,
+        Query(
+            description=(
+                "Stages to redo on every valid record, even if nothing they depend on changed."
+                " Repeat the parameter to force several."
+            )
+        ),
+    ] = None,
 ) -> schemas.DiscoveryIndexingJob:
-    """Re-validate and re-publish every discovery dataset of the channel.
+    """Re-validate, summarize and re-publish every discovery dataset of the channel.
 
     Creates a job, schedules the work in the background, and returns the job immediately
     with 202 Accepted. Poll it via `GET /discovery-datasets/indexing-jobs/{job_id}`.
     Returns 409 while a job for the channel is already queued or running, and 409 when the
     channel has no discovery RAG application configured.
 
-    A run evaluates the check set over every record, then reconciles the channel's Generic
-    RAG documents with the verdicts: a valid record is published (or republished, if it was
-    edited since), an invalid one has its document withdrawn, and a document no record
-    claims any more is removed. A record already indexed and unchanged is left alone.
+    A run evaluates the check set over every record, derives the indicator list each valid
+    record is published with - summarized by an LLM when it is long - then reconciles the
+    channel's Generic RAG documents with the verdicts: a valid record is published (or
+    republished, if it was edited since), an invalid one has its document withdrawn, and a
+    document no record claims any more is removed. A record already indexed and unchanged is
+    left alone, and so is the document of a record whose summarization failed.
 
-    `force` republishes every valid record even if nothing about it has changed, rebuilding
-    each document from scratch. Use it when the documents are stale for a reason no record
-    records - the document format changed, or the RAG channel was reconfigured. It is not a
-    fix for a broken index: it rebuilds documents from records, and every rebuilt record is
-    briefly absent from the channel while its document is replaced.
+    `force` names the stages to redo even where nothing has changed:
+
+    - `summarization` re-summarizes every valid record's indicator list, even one already
+      derived from the same list and configuration. Use it when the model or the prompts
+      changed in a way the configuration does not show. A record whose summary comes out
+      different is then republished.
+    - `publishing` republishes every valid record, rebuilding each document from scratch. Use
+      it when the documents are stale for a reason no record records - the document format
+      changed, or the RAG channel was reconfigured. It is not a fix for a broken index: it
+      rebuilds documents from records, and every rebuilt record is briefly absent from the
+      channel while its document is replaced.
     """
     async with get_session_context_manager() as session:
         return await IndexingJobService(session).trigger(
-            background_tasks=background_tasks, channel_id=channel_id, force=force
+            background_tasks=background_tasks,
+            channel_id=channel_id,
+            force=frozenset(force or ()),
         )
 
 
@@ -280,11 +316,14 @@ async def get_discovery_indexing_job_by_id(
 @discovery_datasets_router.get("/{item_id}")
 async def get_discovery_dataset_by_id(
     item_id: int,
+    include_summary_calls: _IncludeSummaryCalls = False,
     session: AsyncSession = Depends(models.get_session),
     _=Depends(cancel_on_disconnect),
 ) -> schemas.DiscoveryDataset:
     """Returns a discovery dataset by id."""
-    return await DiscoveryDatasetService(session).get_record_schema_by_id(item_id)
+    return await DiscoveryDatasetService(session).get_record_schema_by_id(
+        item_id, include_summary_calls=include_summary_calls
+    )
 
 
 @discovery_datasets_router.post("/{item_id}")

@@ -43,3 +43,9 @@ class DiscoveryIndexingJob(BaseYamlModel, DbDefaultBase):
     Counts every removal: an invalid record's document being withdrawn, the old document of
     a record that was republished, and one no record claims any more.
     """
+
+    records_summarized: int | None = None
+    """Records whose indicator summary an LLM produced in this run."""
+
+    records_failed: int | None = None
+    """Records that ended the run FAILED, in summarization or in publishing."""

@@ -8,7 +8,7 @@ import httpx
 import pytest
 
 from statgpt.cli.shared.admin_client import AdminAPIError, AdminClient, DiscoveryPayloadError
-from statgpt.common.schemas import DiscoveryIndexingStatus, RecordUploadMode
+from statgpt.common.schemas import DiscoveryIndexingStage, DiscoveryIndexingStatus, RecordUploadMode
 
 _CHANNEL_ID = 7
 
@@ -126,11 +126,18 @@ async def test_indexing_is_triggered_with_force_and_polled_by_job_id() -> None:
     }
     client, requests = _client(lambda request: httpx.Response(202, json=job))
 
-    triggered = await client.trigger_discovery_indexing(_CHANNEL_ID, force=True)
+    triggered = await client.trigger_discovery_indexing(
+        _CHANNEL_ID, force=frozenset(DiscoveryIndexingStage)
+    )
 
     assert requests[0].url.path == "/admin/api/v1/channels/7/discovery-datasets/indexing-jobs"
-    assert requests[0].url.params["force"] == "true"
+    # One parameter per stage, never the deprecated boolean.
+    assert requests[0].url.params.get_list("force") == ["summarization", "publishing"]
     assert triggered.id == 17
+
+    client, requests = _client(lambda request: httpx.Response(202, json=job))
+    await client.trigger_discovery_indexing(_CHANNEL_ID)
+    assert "force" not in requests[0].url.params
 
     client, requests = _client(lambda request: httpx.Response(200, json=job))
     await client.get_discovery_indexing_job(17)
@@ -186,3 +193,59 @@ async def test_clear_reports_a_rag_channel_that_would_not_serve_the_withdrawal()
         await client.clear_discovery_datasets(_CHANNEL_ID)
 
     assert exc_info.value.status_code == 502
+
+
+def _page(records: list[dict], offset: int, total: int) -> dict:
+    return {"data": records, "limit": 100, "offset": offset, "count": len(records), "total": total}
+
+
+def _record_payload(dataset_id: str) -> dict:
+    return {
+        "id": 1,
+        "created_at": "2026-01-01T00:00:00Z",
+        "updated_at": "2026-01-01T00:00:00Z",
+        "channel_id": _CHANNEL_ID,
+        "agency": "IMF",
+        "dataset_id": dataset_id,
+        "validation_status": "VALID",
+        "indexing_status": "INDEXED",
+        "indicators_summary_calls": {
+            "calls": [
+                {
+                    "step": "chunk",
+                    "part": 1,
+                    "answer": {"groups": ["a"]},
+                    "usage": {
+                        "deployment": "gpt-4o",
+                        "model": "gpt-4o",
+                        "promptTokens": 10,
+                        "completionTokens": 2,
+                        "cost": None,
+                        "durationSeconds": 0.5,
+                    },
+                }
+            ],
+            "usage": [],
+        },
+    }
+
+
+@pytest.mark.asyncio
+async def test_records_are_fetched_page_by_page_with_their_calls(monkeypatch) -> None:
+    monkeypatch.setattr("statgpt.cli.shared.admin_client.DISCOVERY_PAGE_SIZE", 2)
+    pages = {
+        0: _page([_record_payload("A"), _record_payload("B")], 0, 3),
+        2: _page([_record_payload("C")], 2, 3),
+    }
+    client, requests = _client(
+        lambda request: httpx.Response(200, json=pages[int(request.url.params["offset"])])
+    )
+
+    records = await client.get_discovery_datasets(_CHANNEL_ID, include_summary_calls=True)
+
+    assert [record.dataset_id for record in records] == ["A", "B", "C"]
+    assert records[0].indicators_summary_calls is not None
+    assert requests[0].url.path == "/admin/api/v1/channels/7/discovery-datasets"
+    assert [request.url.params["offset"] for request in requests] == ["0", "2"]
+    assert all(request.url.params["limit"] == "2" for request in requests)
+    assert all(request.url.params["include_summary_calls"] == "true" for request in requests)

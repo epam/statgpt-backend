@@ -170,11 +170,15 @@ class DiscoveryDatasetService(DbServiceBase):
         validation_status: schemas.DiscoveryValidationStatus | None = None,
         indexing_status: schemas.DiscoveryIndexingStatus | None = None,
         agency: str | None = None,
+        *,
+        include_summary_calls: bool = False,
     ) -> list[schemas.DiscoveryDataset]:
         records = await self.get_record_models_by_channel(
             channel_id, limit, offset, validation_status, indexing_status, agency
         )
-        return [self._serialize(item) for item in records]
+        return [
+            self._serialize(item, include_summary_calls=include_summary_calls) for item in records
+        ]
 
     async def get_record_models_by_ids(self, item_ids: list[int]) -> list[models.DiscoveryDataset]:
         query = select(models.DiscoveryDataset).where(models.DiscoveryDataset.id.in_(item_ids))
@@ -187,5 +191,14 @@ class DiscoveryDatasetService(DbServiceBase):
             return await session.get(models.DiscoveryDataset, item_id)
 
     @staticmethod
-    def _serialize(item: models.DiscoveryDataset) -> schemas.DiscoveryDataset:
-        return schemas.DiscoveryDataset.model_validate(item, from_attributes=True)
+    def _serialize(
+        item: models.DiscoveryDataset, *, include_summary_calls: bool = False
+    ) -> schemas.DiscoveryDataset:
+        """`include_summary_calls` keeps the summarization's LLM answers, left out by default:
+        they can outweigh the rest of the record many times over."""
+        record = schemas.DiscoveryDataset.model_validate(item, from_attributes=True)
+        if include_summary_calls:
+            return record
+        return record.model_copy(
+            update={"indicators_summary_calls": None, "indicators_summary_failed_calls": None}
+        )

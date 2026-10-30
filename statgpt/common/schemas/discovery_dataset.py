@@ -1,12 +1,12 @@
 import datetime
 from typing import Annotated
 
-from pydantic import AfterValidator, ConfigDict, Field
+from pydantic import AfterValidator, ConfigDict, Field, JsonValue, computed_field
 
 from statgpt.common.utils.misc import normalize_whitespace
 
 from .base import BaseYamlModel, DbDefaultBase
-from .enums import DiscoveryIndexingStatus, DiscoveryValidationStatus
+from .enums import DiscoveryIndexingStatus, DiscoverySummaryStep, DiscoveryValidationStatus
 
 NormalizedStr = Annotated[str, AfterValidator(normalize_whitespace)]
 """A free-text field whose whitespace is normalized on every write path.
@@ -97,6 +97,109 @@ class DiscoveryValidationIssue(BaseYamlModel):
     """What a submitter needs to fix, in plain English."""
 
 
+class DiscoveryLLMCallUsage(BaseYamlModel):
+    """What one LLM call of an indicator summarization used."""
+
+    model_config = ConfigDict(use_attribute_docstrings=True)
+
+    deployment: str
+
+    model: str
+    """As the response names it; the deployment when it does not."""
+
+    prompt_tokens: int
+
+    completion_tokens: int
+
+    cost: float | None
+    """In USD; `None` when DIAL has no pricing for the deployment."""
+
+    duration_seconds: float
+    """Wall clock of the request, its HTTP retries included."""
+
+
+class DiscoveryLLMUsage(BaseYamlModel):
+    """LLM calls of one deployment and model, summed."""
+
+    model_config = ConfigDict(use_attribute_docstrings=True)
+
+    deployment: str
+
+    model: str
+
+    calls: int
+
+    prompt_tokens: int
+
+    completion_tokens: int
+
+    cost: float | None
+    """In USD; `None` when any of the calls has no cost."""
+
+    duration_seconds: float
+
+
+class DiscoverySummaryCall(BaseYamlModel):
+    """One LLM answer of an indicator summarization, rejected or accepted."""
+
+    model_config = ConfigDict(use_attribute_docstrings=True)
+
+    step: DiscoverySummaryStep
+
+    part: int | None = None
+    """1-based number of the summarized part of the list; `None` for the merge."""
+
+    answer: dict[str, JsonValue] | None = None
+    """The answer as the model returned it: reasoning, units and groups.
+
+    `None` when it was not a JSON object - cut short, refused or filtered; its text is not kept.
+    """
+
+    error: str | None = None
+    """What was wrong with the answer, as sent back to the model; `None` for the accepted one."""
+
+    usage: DiscoveryLLMCallUsage
+
+
+class DiscoverySummaryRun(BaseYamlModel):
+    """The LLM answers of one indicator summarization, in order, with what they used."""
+
+    model_config = ConfigDict(use_attribute_docstrings=True)
+
+    calls: list[DiscoverySummaryCall]
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def usage(self) -> list[DiscoveryLLMUsage]:
+        """The calls summed per deployment and model, in order of first use.
+
+        Derived from `calls` on every dump, so it is stored and returned but never read back.
+        """
+        usage: dict[tuple[str, str], DiscoveryLLMUsage] = {}
+        for call in self.calls:
+            item = call.usage
+            key = (item.deployment, item.model)
+            if (total := usage.get(key)) is None:
+                usage[key] = DiscoveryLLMUsage(
+                    deployment=item.deployment,
+                    model=item.model,
+                    calls=1,
+                    prompt_tokens=item.prompt_tokens,
+                    completion_tokens=item.completion_tokens,
+                    cost=item.cost,
+                    duration_seconds=item.duration_seconds,
+                )
+                continue
+            total.calls += 1
+            total.prompt_tokens += item.prompt_tokens
+            total.completion_tokens += item.completion_tokens
+            total.cost = (
+                total.cost + item.cost if total.cost is not None and item.cost is not None else None
+            )
+            total.duration_seconds += item.duration_seconds
+        return list(usage.values())
+
+
 class DiscoveryDatasetBase(BaseYamlModel):
     """One dataset described for discovery, as a submitter fills it in.
 
@@ -171,15 +274,43 @@ class DiscoveryDataset(DiscoveryDatasetBase, DbDefaultBase):
     indicators_summary: str = ""
     """What of `indicators_coverage` is published, derived by the indexing run. Read-only.
 
-    Today a verbatim copy of the raw list, made before the run publishes. It is a column of
-    its own because the raw list is what a submitter authored and must not be overwritten.
+    The parsed list, with a units of measure shared by every indicator stated once as a
+    `Unit: ...` prefix. A list longer than the channel's threshold is summarized by an LLM into
+    indicator groups instead. It is a column of its own because the raw list is what a
+    submitter authored and must not be overwritten.
+    """
+
+    indicators_summarized_at: datetime.datetime | None = None
+    """When an LLM last produced `indicators_summary`. Read-only.
+
+    `None` when the summary is a copy of the parsed list, or has not been derived yet.
+    """
+
+    indicators_summary_calls: DiscoverySummaryRun | None = Field(
+        default=None, exclude_if=lambda run: run is None
+    )
+    """Every LLM answer that went into `indicators_summary`, in order, and their usage.
+    Read-only.
+
+    Rejected answers are included, so the retries are the calls with an `error`. `None`
+    when the summary is a copy of the parsed list, has not been derived yet, or the calls
+    were not asked for; omitted from the response then.
+    """
+
+    indicators_summary_failed_calls: DiscoverySummaryRun | None = Field(
+        default=None, exclude_if=lambda run: run is None
+    )
+    """The answers of the last summarization that failed, in order, and their usage. Read-only.
+
+    Holds no calls when it failed before any answer, on a request error say. Cleared by the next
+    summarization that succeeds. Omitted from the response unless asked for.
     """
 
     missing_indicators: str = ""
     """Indicators a user could expect but the dataset does not contain. Read-only.
 
-    Derived by the indexing run, no longer submitted. Values authored under the old template
-    are kept until a run overwrites them.
+    No longer submitted nor derived: the indexing run leaves it empty, clearing values
+    authored under the old template.
     """
 
     validation_status: DiscoveryValidationStatus
@@ -211,8 +342,9 @@ class DiscoveryDatasetUpdate(BaseYamlModel):
     The two halves of the natural key are the exception: they can be corrected but not
     cleared, since a record with no key cannot be matched against a channel's contents.
 
-    `indicators_summary` and `missing_indicators` are absent because the indexing run derives
-    them; an edit that could set them would be overwritten by the next run.
+    `indicators_summary`, its `indicators_summarized_at` and summary calls, and
+    `missing_indicators` are absent because the indexing run owns them; an edit that could set
+    them would be overwritten by the next run.
     """
 
     reference_area: NormalizedStr | None = None
