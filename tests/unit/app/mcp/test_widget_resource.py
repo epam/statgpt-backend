@@ -3,9 +3,11 @@ from unittest.mock import AsyncMock
 
 import httpx
 import pytest
+from fastmcp.exceptions import ResourceError
 
 from statgpt.app.mcp import widget_resource as wr
-from statgpt.app.mcp.provider import ChannelToolProvider
+from statgpt.app.mcp.app import mcp
+from statgpt.app.mcp.provider import ChannelToolProvider, channel_tool_provider
 from statgpt.app.mcp.widget_resource import WidgetResource, WidgetResourceError
 from statgpt.common.schemas import ProxiedResourceConfig
 from statgpt.common.utils.media_types import MediaTypes
@@ -86,13 +88,36 @@ class TestRead:
 
     async def test_raises_on_upstream_error(self, monkeypatch):
         async def fake_get(url: str, **kwargs):
-            raise httpx.ConnectError("down")
+            raise httpx.ConnectError(f"failed to connect to {url}")
 
         _patch_client(monkeypatch, fake_get)
         resource = WidgetResource.from_config(_config())
 
-        with pytest.raises(WidgetResourceError):
+        with pytest.raises(WidgetResourceError) as exc_info:
             await resource.read()
+
+        # The internal endpoint named by the underlying error must not leak to the caller.
+        message = str(exc_info.value)
+        assert message == "The widget HTML could not be fetched at this time."
+        assert "widget-internal.svc" not in message
+
+    async def test_upstream_error_reaches_the_caller_despite_error_masking(self, monkeypatch):
+        # The app masks error details; a WidgetResourceError is a ResourceError, so its
+        # internals-free message is still what the caller sees rather than a generic one.
+        async def fake_get(url: str, **kwargs):
+            raise httpx.ConnectError(f"failed to connect to {url}")
+
+        _patch_client(monkeypatch, fake_get)
+        monkeypatch.setattr(
+            channel_tool_provider,
+            "_get_resource",
+            AsyncMock(return_value=WidgetResource.from_config(_config())),
+        )
+
+        with pytest.raises(ResourceError) as exc_info:
+            await mcp.read_resource(_URI)
+
+        assert str(exc_info.value) == "The widget HTML could not be fetched at this time."
 
     async def test_failure_is_not_cached(self, monkeypatch):
         outcomes: list = [httpx.ConnectError("down"), _FakeResponse("<html>ok</html>")]
