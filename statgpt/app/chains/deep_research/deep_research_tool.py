@@ -239,6 +239,7 @@ class DeepResearchRunner:
                     show_debug_stages=show_debug_stages,
                     stages_config=details.stages_config,
                     annotation_index_space=ChainParameters.get_annotation_index_space(inputs),
+                    citation_id_space=ChainParameters.get_citation_id_space(inputs),
                     rewriter=CustomContentRewriter(details.rewrite_rules),
                 )
                 with dial_streamer:
@@ -265,16 +266,20 @@ class DeepResearchRunner:
                 # with the report message, so it is persisted with the tool response (a title and a
                 # quote per tag), and a report delivered before the note was introduced has none.
                 return DeepResearchTurnResult(
-                    content=content + dial_streamer.citations_note,
+                    content=content + dial_streamer.citations_note(quotes=True),
                     report_delivered=True,
                     report=content,
                 )
 
             # Clarification / plan-for-approval: show it in the tool-result stage (like other tools)
             # and hand the content back to the Supreme Agent, keeping the session so the next call can
-            # resume from Deep Research's own state.
+            # resume from Deep Research's own state. The session replays the clarification as Deep
+            # Research wrote it, so its citation tags keep the ids it gave them, which its state may
+            # refer to; the stage and the agent get the ids of the response, like the annotations.
             target.append_content(content)
-            self._append_turn(session, user_message, content, deep_research_state or {})
+            self._append_turn(
+                session, user_message, dial_streamer.raw_content, deep_research_state or {}
+            )
             self._save_session(state, session)
             return DeepResearchTurnResult(content=content, report_delivered=False)
         except APIError as e:
