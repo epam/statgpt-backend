@@ -6,7 +6,8 @@ the records say it should hold. Run by an indexing job, after validation.
 Nothing here derives, paraphrases or summarizes: the document carries what the record holds,
 so how discoverable a dataset is stays a property of the source's own metadata rather than of
 an algorithm here. The one field the record itself derives - the published form of the
-indicator list - is derived by the run before this stage and read from its own column.
+indicator list - is derived by the run before this stage (see `discovery_summarization`) and
+read from its own column.
 
 The split between the document's body and its metadata is decided by how the application
 indexes them: its indexes are document-level and span the metadata fields alongside the
@@ -355,21 +356,29 @@ class DiscoveryPublisher:
         if missing:
             raise DiscoveryMetadataSchemaError(missing)
 
-    async def publish(self, records: Sequence[models.DiscoveryDataset]) -> PublishCounts:
+    async def publish(
+        self, records: Sequence[models.DiscoveryDataset], held: Collection[int] = ()
+    ) -> PublishCounts:
         """Bring the RAG channel in line with `records`.
 
         A failure on one record is recorded on that record and the run continues: one
         unpublishable dataset must not keep a channel's other datasets out of the index.
+
+        `held` names records whose document is left exactly as it is - neither republished
+        nor deleted - and whose status is not touched or counted: an earlier stage of the run
+        failed on them, so what is live is still the best the channel has.
         """
         counts = PublishCounts()
         by_key, unclaimed = await self._load_documents()
 
         # Pair every record with its document before any of them is published: the turns run
-        # concurrently, and none of them may find this map being mutated underneath it.
-        pairs = [
-            (record, by_key.pop(record_key(record.agency, record.dataset_id), None))
-            for record in records
-        ]
+        # concurrently, and none of them may find this map being mutated underneath it. A held
+        # record's document is claimed too, so it is not deleted as an orphan.
+        pairs = []
+        for record in records:
+            document = by_key.pop(record_key(record.agency, record.dataset_id), None)
+            if record.id not in held:
+                pairs.append((record, document))
         outcomes: list[_RecordOutcome] = await async_utils.gather_with_concurrency(
             self._concurrency,
             *(self._apply_safely(record, document) for record, document in pairs),

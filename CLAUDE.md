@@ -81,6 +81,7 @@ See `statgpt/cli/README.md` for full documentation.
 | `discovery upload` | Upload discovery datasets (Grade C) to a channel |
 | `discovery reindex` | Reindex a channel's discovery datasets |
 | `discovery clear` | Delete a channel's discovery datasets and their published documents |
+| `discovery summary-report` | Write an Excel report of a channel's indicator summaries and their LLM calls |
 | `content init` | Initialize channels, data sources, datasets, glossaries, discovery datasets |
 | `settings` | Show current CLI settings |
 

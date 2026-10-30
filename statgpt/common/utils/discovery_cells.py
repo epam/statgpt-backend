@@ -14,7 +14,11 @@ already enforces: a token is folded onto its vocabulary spelling so `annual` and
 one filter value rather than two.
 """
 
+import re
+
 from statgpt.common.utils.misc import normalize_whitespace
+
+_TRAILING_UNIT = re.compile(r"(?P<name>.*)\((?P<unit>[^()]*)\)")
 
 FREQUENCY_VOCABULARY: tuple[str, ...] = (
     "Daily",
@@ -62,6 +66,47 @@ def split_cell(cell: str) -> list[str]:
         seen.add(folded)
         values.append(value)
     return values
+
+
+def compact_units(entries: list[str]) -> tuple[str | None, list[str]]:
+    """Factor a units of measure shared by every entry out of an indicator list.
+
+    Returns `(unit, names)`: an entry's unit is its last `(...)`, closing the entry and holding
+    no parentheses of its own, and when every entry has one and they are all equal - after
+    whitespace normalization, case-sensitive - the names come back without it. Otherwise
+    `(None, entries)`, the entries untouched: a list whose units differ, or where one entry has
+    none, keeps every unit where it was written.
+
+    Whatever sits in those parentheses is taken as the unit - the template's convention for
+    the column. A list whose entries all end in some other shared qualifier, `(SA)` say, has
+    it stated once as its unit.
+    """
+    names: list[str] = []
+    units: set[str] = set()
+    for entry in entries:
+        split = _split_trailing_unit(entry)
+        if split is None:
+            return None, entries
+        names.append(split[0])
+        units.add(split[1])
+    if len(units) != 1:
+        return None, entries
+    return units.pop(), names
+
+
+def _split_trailing_unit(entry: str) -> tuple[str, str] | None:
+    """`(name, unit)` of an entry ending in a `(...)`, or `None` if it does not.
+
+    Only the last parentheses count, so `Debt (% of GDP) (USD)` has the unit `USD`, and an
+    entry whose last parentheses nest, `Rate (% (p.a.))`, has none. An entry that is nothing
+    but the parentheses has no name to keep and is not split either.
+    """
+    match = _TRAILING_UNIT.fullmatch(entry)
+    if match is None:
+        return None
+    name = match["name"].strip()
+    unit = normalize_whitespace(match["unit"])
+    return (name, unit) if name and unit else None
 
 
 def parse_reference_areas(cell: str) -> tuple[list[str], list[str]]:

@@ -164,7 +164,11 @@ class DiscoveryDocumentMetadata(ChannelDocumentMetadata):
     """
 
     missing_indicators: str = ""
-    """Indicators a user could expect but the dataset does not contain."""
+    """Indicators a user could expect but the dataset does not contain.
+
+    No longer populated: the record no longer derives it, so the published value is empty. Kept
+    so the metadata schema of an existing channel stays valid.
+    """
 
 
 class ReferenceAreaDocumentMetadata(ChannelDocumentMetadata):

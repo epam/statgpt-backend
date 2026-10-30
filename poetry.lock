@@ -479,20 +479,20 @@ files = [
 
 [[package]]
 name = "authlib"
-version = "1.7.2"
+version = "1.9.1"
 description = "The ultimate Python library in building OAuth and OpenID Connect servers and clients."
 optional = true
 python-versions = ">=3.10"
 groups = ["main"]
 markers = "extra == \"mcp\""
 files = [
-    {file = "authlib-1.7.2-py2.py3-none-any.whl", hash = "sha256:3e1faedc9d87e7d56a164eca3ccb6ace0d61b94abe83e92242f8dc8bba9b4a9f"},
-    {file = "authlib-1.7.2.tar.gz", hash = "sha256:2cea25fefcd4e7173bdf1372c0afc265c8034b23a8cd5dcb6a9164b826c64231"},
+    {file = "authlib-1.9.1-py2.py3-none-any.whl", hash = "sha256:8b9be8b1e5174dcbf5520e984f1a22dc2edae5b6e40a61d4cedbf86b97e9e69b"},
+    {file = "authlib-1.9.1.tar.gz", hash = "sha256:5c7d9848f47cac340f060f76ae0bc09b59f5c8e89cc1bb032d4370a0c55b5974"},
 ]
 
 [package.dependencies]
-cryptography = "*"
-joserfc = ">=1.6.0"
+cryptography = ">=45.0.1"
+joserfc = ">=1.6.8"
 
 [[package]]
 name = "autoflake"
@@ -1211,25 +1211,25 @@ files = [
 
 [[package]]
 name = "dnspython"
-version = "2.8.0"
+version = "2.9.0"
 description = "DNS toolkit"
 optional = true
-python-versions = ">=3.10"
+python-versions = ">=3.11"
 groups = ["main"]
 markers = "extra == \"mcp\""
 files = [
-    {file = "dnspython-2.8.0-py3-none-any.whl", hash = "sha256:01d9bbc4a2d76bf0db7c1f729812ded6d912bd318d3b1cf81d30c0f845dbf3af"},
-    {file = "dnspython-2.8.0.tar.gz", hash = "sha256:181d3c6996452cb1189c4046c61599b84a5a86e099562ffde77d26984ff26d0f"},
+    {file = "dnspython-2.9.0-py3-none-any.whl", hash = "sha256:9a4aedb833c3c1b49214d04d44d3032ab7a9135f7c1d29a549b4ff78fd82fda9"},
+    {file = "dnspython-2.9.0.tar.gz", hash = "sha256:b44dc6b18f07a8b1c56676a19fbfdb5209415b046a9cece286baafa87ff3f7f1"},
 ]
 
 [package.extras]
-dev = ["black (>=25.1.0)", "coverage (>=7.0)", "flake8 (>=7)", "hypercorn (>=0.17.0)", "mypy (>=1.17)", "pylint (>=3)", "pytest (>=8.4)", "pytest-cov (>=6.2.0)", "quart-trio (>=0.12.0)", "sphinx (>=8.2.0)", "sphinx-rtd-theme (>=3.0.0)", "twine (>=6.1.0)", "wheel (>=0.45.0)"]
-dnssec = ["cryptography (>=45)"]
-doh = ["h2 (>=4.2.0)", "httpcore (>=1.0.0)", "httpx (>=0.28.0)"]
-doq = ["aioquic (>=1.2.0)"]
-idna = ["idna (>=3.10)"]
-trio = ["trio (>=0.30)"]
-wmi = ["wmi (>=1.5.1) ; platform_system == \"Windows\""]
+dev = ["black (>=26.5)", "coverage (>=7.15)", "hypercorn (>=0.18.0)", "pyright (>=1.1.411)", "pytest (>=9.1)", "pytest-cov (>=7.1)", "quart-trio (>=0.12.0)", "ruff (>=0.16.0)", "sphinx (>=9.1.0) ; python_full_version >= \"3.12.0\"", "sphinx-rtd-theme (>=3.1.0) ; python_full_version >= \"3.12.0\"", "trustme (>=1.2.1)", "ty (>=0.0.85)"]
+dnssec = ["cryptography (>=50)"]
+doh = ["h2 (>=4.4)", "httpcore2 (>=2.13)", "httpx2 (>=2.13)"]
+doq = ["aioquic (>=1.3.0)"]
+idna = ["idna (>=3.20)"]
+trio = ["trio (>=0.34)"]
+wmi = ["wmi (>=1.5.1) ; sys_platform == \"win32\""]
 
 [[package]]
 name = "docstring-parser"
@@ -2441,34 +2441,34 @@ typing-extensions = ">=4.7.0,<5.0.0"
 
 [[package]]
 name = "langgraph"
-version = "1.2.8"
+version = "1.2.18"
 description = "Building stateful, multi-actor applications with LLMs"
 optional = false
 python-versions = ">=3.10"
 groups = ["main"]
 files = [
-    {file = "langgraph-1.2.8-py3-none-any.whl", hash = "sha256:aa8de1d4df44162353d117589ae0bf6930ca009b62d2d6e26cc32580794c5be6"},
-    {file = "langgraph-1.2.8.tar.gz", hash = "sha256:f79d3575f45b404899358976e4fac0294eb75f8df1bfe8cd11286be7539c4548"},
+    {file = "langgraph-1.2.18-py3-none-any.whl", hash = "sha256:f430f28ea7fbc129c3cf7dc31c19c33dc27d93aeebd25c6d64fd5c1bad93d27d"},
+    {file = "langgraph-1.2.18.tar.gz", hash = "sha256:4c3e4289043ed0f99625a09990a012d7b16bb576301d8616810de7db01725f9e"},
 ]
 
 [package.dependencies]
 langchain-core = ">=1.4.7,<2"
-langgraph-checkpoint = ">=4.1.0,<5.0.0"
+langgraph-checkpoint = ">=4.3.0,<5.0.0"
 langgraph-prebuilt = ">=1.1.0,<1.2.0"
-langgraph-sdk = ">=0.4.2,<0.5.0"
+langgraph-sdk = ">=0.4.6,<0.5.0"
 pydantic = ">=2.7.4"
 xxhash = ">=3.5.0"
 
 [[package]]
 name = "langgraph-checkpoint"
-version = "4.1.1"
+version = "4.3.1"
 description = "Library with base interfaces for LangGraph checkpoint savers."
 optional = false
 python-versions = ">=3.10"
 groups = ["main"]
 files = [
-    {file = "langgraph_checkpoint-4.1.1-py3-none-any.whl", hash = "sha256:25d29144b082827218e7bc3f1e9b0566a4bb007895cd6cc26f66a8428739f56e"},
-    {file = "langgraph_checkpoint-4.1.1.tar.gz", hash = "sha256:6c2bdb530c91f91d7d9c1bd100925d0fc4f498d418c17f3587d1526279482a25"},
+    {file = "langgraph_checkpoint-4.3.1-py3-none-any.whl", hash = "sha256:215a826935c8db4d9676e79fd95943e5b3847d78604390898e1d98581cc594e5"},
+    {file = "langgraph_checkpoint-4.3.1.tar.gz", hash = "sha256:625e7c78a72b33e7c47f7e87ca051060fb90aa66f5fd551c472c08376fb669cb"},
 ]
 
 [package.dependencies]
@@ -2493,14 +2493,14 @@ langgraph-checkpoint = ">=2.1.0,<5.0.0"
 
 [[package]]
 name = "langgraph-sdk"
-version = "0.4.5"
+version = "0.4.10"
 description = "SDK for interacting with LangGraph API"
 optional = false
 python-versions = ">=3.10"
 groups = ["main"]
 files = [
-    {file = "langgraph_sdk-0.4.5-py3-none-any.whl", hash = "sha256:e03ef033a20d21288af496e9b6c08ae3afcc1b58dc5abcd37575bfd1a93045de"},
-    {file = "langgraph_sdk-0.4.5.tar.gz", hash = "sha256:d49a98a2ee8e0c494b101a7caf8061c8b4b94d3ee5ada0ea2dbe50903a5487b1"},
+    {file = "langgraph_sdk-0.4.10-py3-none-any.whl", hash = "sha256:306ede340814e79332812e3b5a8bda2587a09657c95e14e5c7af3370e06c22fe"},
+    {file = "langgraph_sdk-0.4.10.tar.gz", hash = "sha256:d8d7afd326b4df42ddc0878b7fbf53f03c3237c664c236bf5bac4ab16fc38ed9"},
 ]
 
 [package.dependencies]
@@ -2508,7 +2508,7 @@ httpx = ">=0.25.2"
 langchain-core = ">=1.4.0,<2"
 langchain-protocol = ">=0.0.15"
 orjson = ">=3.11.5"
-websockets = ">=14,<17"
+websockets = ">=14"
 
 [[package]]
 name = "langsmith"

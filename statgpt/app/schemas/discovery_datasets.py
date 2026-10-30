@@ -36,7 +36,6 @@ class DiscoveryCandidateForLlm(BaseModel):
     time_coverage: str
     frequency_coverage: str
     indicators_coverage: str
-    missing_indicators: str
     description: str
 
 
@@ -70,7 +69,6 @@ class DiscoveryCandidate(BaseModel):
             time_coverage=self.metadata.time_coverage,
             frequency_coverage=self.metadata.frequency_coverage,
             indicators_coverage=self.metadata.indicators_coverage,
-            missing_indicators=self.metadata.missing_indicators,
             description=self.description,
         )
 

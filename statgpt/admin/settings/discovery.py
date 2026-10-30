@@ -53,3 +53,28 @@ class DiscoveryPublishSettings(BaseSettings):
             " leaving the rest for the next run. 0 disables the wait."
         ),
     )
+
+
+class DiscoverySummarizeSettings(BaseSettings):
+    """How a discovery indexing run's summarization stage behaves."""
+
+    model_config = SettingsConfigDict(env_prefix="discovery_summarize_")
+
+    concurrency: int = Field(
+        default=4,
+        ge=1,
+        description="How many records a run summarizes at once.",
+    )
+    timeout_seconds: float = Field(
+        default=180,
+        gt=0,
+        description="Timeout of one summarization LLM call.",
+    )
+    validation_retries: int = Field(
+        default=2,
+        ge=0,
+        description=(
+            "How many times a summarization call is continued with what is wrong with an"
+            " invalid answer, before the record is marked FAILED."
+        ),
+    )

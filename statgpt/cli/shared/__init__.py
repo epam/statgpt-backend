@@ -44,6 +44,7 @@ from statgpt.cli.shared.discovery import (
     render_upload_summary,
     summary_line,
 )
+from statgpt.cli.shared.discovery_report import build_summary_report
 from statgpt.cli.shared.logging import get_logger, setup_logging
 from statgpt.cli.shared.prompts import (
     NonInteractiveError,
@@ -92,6 +93,7 @@ __all__ = [
     "render_payload_problems",
     "render_upload_summary",
     "summary_line",
+    "build_summary_report",
     # Batch reporting
     "BatchItemResult",
     "BatchItemStatus",
