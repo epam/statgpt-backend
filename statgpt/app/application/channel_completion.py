@@ -1,11 +1,12 @@
 import itertools
+import json
 import logging
 from collections.abc import Iterable
 from datetime import datetime
 
 import openai
 from aidial_client.types.model import ModelPricing
-from aidial_sdk.chat_completion import ChatCompletion, Choice, Request, Response
+from aidial_sdk.chat_completion import ChatCompletion, Choice, Message, Request, Response, Role
 from aidial_sdk.deployment.configuration import ConfigurationRequest, ConfigurationResponse
 from aidial_sdk.exceptions import HTTPException as DIALException
 from aidial_sdk.exceptions import InternalServerError
@@ -193,6 +194,8 @@ class ChannelCompletion(ChatCompletion):
                     raise
                 except DeepResearchFailedError as e:
                     _log.warning("Deep Research failed", exc_info=e)
+                    # keep the failed Deep Research call in the history for later turns
+                    ChainParameters.get_history(inputs).dump_state(state)
                     state[StateVarsConfig.ERROR] = str(e)
                     dial_exception = DIALException(
                         message=e.display_message,
@@ -290,7 +293,17 @@ class ChannelCompletion(ChatCompletion):
         return configuration.deep_research
 
     @staticmethod
-    def init_state(request: Request) -> dict:
+    def _latest_response_state(messages: list[Message]) -> dict | None:
+        """State of the latest assistant message that has one. A stopped response has no state."""
+        for message in reversed(messages[:-1]):
+            if message.role != Role.ASSISTANT:
+                continue
+            if message.custom_content and message.custom_content.state:
+                return message.custom_content.state
+        return None
+
+    @classmethod
+    def init_state(cls, request: Request) -> dict:
         defaults = {
             # set default commands values from env vars
             StateVarsConfig.SHOW_DEBUG_STAGES: dial_app_settings.dial_show_debug_stages,
@@ -300,20 +313,15 @@ class ChannelCompletion(ChatCompletion):
             StateVarsConfig.CMD_SKIP_TOOLS_EXECUTION: dial_app_settings.cmd_skip_tools_execution,
         }
 
-        if len(request.messages) < 2:
-            return defaults
-
-        # for some commands, we set their values
-        # to be the same as in previous assistant response (if available)
-        last_response = request.messages[-2]
-        if custom_content := last_response.custom_content:
-            if state := custom_content.state:
-                if (show_debug_stages := state.get(StateVarsConfig.SHOW_DEBUG_STAGES)) is not None:
-                    defaults[StateVarsConfig.SHOW_DEBUG_STAGES] = show_debug_stages
-                # Carry the Deep Research clarification session across turns so the Supreme
-                # Agent can resume the in-progress Deep Research run.
-                if (dr_session := state.get(StateVarsConfig.DEEP_RESEARCH_SESSION)) is not None:
-                    defaults[StateVarsConfig.DEEP_RESEARCH_SESSION] = dr_session
+        # for some commands, we set their values to be the same as
+        # in the latest assistant response that has a state (if available)
+        if state := cls._latest_response_state(request.messages):
+            if (show_debug_stages := state.get(StateVarsConfig.SHOW_DEBUG_STAGES)) is not None:
+                defaults[StateVarsConfig.SHOW_DEBUG_STAGES] = show_debug_stages
+            # Carry the Deep Research clarification session across turns so the Supreme
+            # Agent can resume the in-progress Deep Research run.
+            if (dr_session := state.get(StateVarsConfig.DEEP_RESEARCH_SESSION)) is not None:
+                defaults[StateVarsConfig.DEEP_RESEARCH_SESSION] = dr_session
 
         return defaults
 
@@ -344,5 +352,7 @@ class ChannelCompletion(ChatCompletion):
 
     @staticmethod
     def set_dial_state(state: dict, choice: Choice) -> None:
-        _log.info(f"setting following DIAL state: {state}")
+        # the state may carry Deep Research progress (up to ~1 MB), so log only its shape
+        size = len(json.dumps(state, default=str))
+        _log.info(f"setting DIAL state: keys={sorted(state)}, size={size} chars")
         choice.set_state(state)
