@@ -11,6 +11,9 @@ concurrency:
 permissions:
   contents: read
 
+env:
+  DOCKER_DEVELOPMENT_TAG: development
+
 jobs:
   test:
     uses: ./.github/workflows/test.yml
@@ -28,11 +31,13 @@ jobs:
       code-checks-bypassed: false
       ort-enabled: true
       ort-bypassed: false
-      ort-version: "97.0.0"
-      ort-config-repository: "https://github.com/oss-review-toolkit/ort-config.git"
-      ort-config-revision: "5075f4308109384c98a6a2fab53246f7b60d59f4"
+      ort-version: "92.5.0"
+      ort-config-repository: ${{ vars.ORT_CONFIG_VCS_URL || 'https://github.com/epam/ai-dial-ort-config.git' }}
+      ort-config-revision: ${{ vars.ORT_CONFIG_VCS_REVISION || '92.5.0' }}
       python-version: "3.11"
       poetry-version: "2.1.1"
+      python-package-manager: "poetry"
+      uv-version: "0.11.30"
       runs-on: '["ubuntu-24.04"]'
       maximize-build-space: false
 
@@ -47,10 +52,13 @@ jobs:
       latest-stable-tag: ${{ steps.semantic_versioning.outputs.latest-stable-tag }}
       changelog-mode: ${{ steps.semantic_versioning.outputs.changelog-mode }}
     steps:
-      - uses: epam/ai-dial-ci/actions/semantic_versioning@4.5.0
+      - uses: epam/ai-dial-ci/actions/semantic_versioning@4.13.2
         id: semantic_versioning
         with:
           promote: true
+          filter-version: '[0-9]+\.[0-9]+'
+          primary-branch-pattern: '^development$'
+          release-branch-pattern: '^release-[0-9]+\.[0-9]+$'
 
   release:
     runs-on: ubuntu-24.04
@@ -95,7 +103,7 @@ jobs:
           docker-cleanup: "true"
           set-tmpdir: "true"
 
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           lfs: true
           token: ${{ secrets.ACTIONS_BOT_TOKEN }}
@@ -105,7 +113,7 @@ jobs:
         run: |
           sed -i "s/^version = .*/version = \"${{ needs.calculate_version.outputs.next-version-without-hyphens }}\"/g" pyproject.toml
 
-      - uses: epam/ai-dial-ci/actions/build_docker@4.5.0
+      - uses: epam/ai-dial-ci/actions/build_docker@4.13.2
         with:
           ghcr-username: ${{ github.actor }}
           ghcr-password: ${{ secrets.ACTIONS_BOT_TOKEN }}
@@ -115,7 +123,7 @@ jobs:
             ${{ matrix.image-name }}
             ghcr.io/${{ matrix.image-name }}
           image-tags: |
-            type=raw,value=${{ startsWith(github.ref, 'refs/heads/release-') && needs.calculate_version.outputs.next-version || 'development' }}
+            type=raw,value=${{ startsWith(github.ref, 'refs/heads/release-') && needs.calculate_version.outputs.next-version || env.DOCKER_DEVELOPMENT_TAG }}
             type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/heads/release-') && needs.calculate_version.outputs.is-latest == 'true' }}
           dockerfile-path: ${{ matrix.dockerfile }}
           push-enabled: true
@@ -125,6 +133,7 @@ jobs:
           trivy-severity-for-sarif: "CRITICAL,HIGH,MEDIUM,LOW"
           trivy-limit-severities-for-sarif: true
           platforms: "linux/amd64"
+          build-args: ""
 
   create_release:
     runs-on: ubuntu-24.04
@@ -132,7 +141,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           token: ${{ secrets.ACTIONS_BOT_TOKEN }}
 
@@ -141,12 +150,12 @@ jobs:
         run: |
           sed -i "s/^version = .*/version = \"${{ needs.calculate_version.outputs.next-version-without-hyphens }}\"/g" pyproject.toml
 
-      - uses: epam/ai-dial-ci/actions/generate_release_notes@4.5.0
+      - uses: epam/ai-dial-ci/actions/generate_release_notes@4.13.2
         with:
           latest-tag: ${{ needs.calculate_version.outputs.latest-stable-tag }}
           use-merge-base: ${{ needs.calculate_version.outputs.changelog-mode == 'merge-base' }}
 
-      - uses: epam/ai-dial-ci/actions/publish_tag_release@4.5.0
+      - uses: epam/ai-dial-ci/actions/publish_tag_release@4.13.2
         if: ${{ startsWith(github.ref, 'refs/heads/release-') }}
         with:
           git-user-name: ${{ vars.ACTIONS_BOT_NAME || 'statgpt-actions' }}
@@ -154,6 +163,7 @@ jobs:
           tag-version: ${{ needs.calculate_version.outputs.next-version }}
           changelog-file: "/tmp/my_changelog" # Comes from generate_release_notes step
           draft-stable-releases: true
+          make-latest: ${{ needs.calculate_version.outputs.is-latest == 'true' }}
           extra-commit-command: |
             git add pyproject.toml
             git commit -m '[skip ci] Update version' || true # Upstream branch may already be updated
