@@ -138,6 +138,7 @@ class IndicatorsSelectionHybrid(IndicatorSelectionBase):
         search_result: HybridSearchResult = inputs['search_result']
 
         return RetrievalStagesResults(
+            hybrid_raw_candidates=search_result.subquery_candidates,
             indicators=dict(
                 lexical=format_hybrid_scored_dicts(
                     dicts=search_result.lexical,
