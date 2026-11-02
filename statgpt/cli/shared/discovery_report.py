@@ -21,6 +21,7 @@ from statgpt.common.schemas import (
     DiscoveryLLMCallUsage,
     DiscoveryLLMUsage,
     DiscoverySummaryCall,
+    render_flat_indicators,
 )
 from statgpt.common.schemas.discovery_dataset import (
     FORBIDDEN_DATASET_ID_CHARS,
@@ -38,8 +39,6 @@ _RESERVED_SHEET_NAMES = (SUMMARIES_SHEET, "History")
 """Taken before any dataset sheet is named: the report's own sheet, and the one Excel keeps."""
 
 _FALLBACK_SHEET_NAME = "dataset"
-
-_INDICATOR_SEPARATOR = ";"
 
 _CALLS_HEADER_ROW = 3
 
@@ -176,10 +175,6 @@ def _excel_datetime(value: datetime.datetime | None) -> datetime.datetime | None
     return value.astimezone(datetime.timezone.utc).replace(tzinfo=None)
 
 
-def _count_indicators(coverage: str) -> int:
-    return sum(1 for item in coverage.split(_INDICATOR_SEPARATOR) if item.strip())
-
-
 def _calls(record: DiscoveryDataset) -> list[DiscoverySummaryCall]:
     run = record.indicators_summary_calls
     return run.calls if run else []
@@ -224,7 +219,8 @@ def _summed_usage(usage: Sequence[DiscoveryLLMUsage | DiscoveryLLMCallUsage]) ->
 def _summary_values(record: DiscoveryDataset) -> list[Any]:
     calls = _calls(record)
     usage = _usage(record)
-    coverage_chars = len(record.indicators_coverage)
+    coverage = render_flat_indicators(record.indicators_coverage)
+    coverage_chars = len(coverage)
     summary_chars = len(record.indicators_summary)
     return [
         record.agency,
@@ -233,7 +229,7 @@ def _summary_values(record: DiscoveryDataset) -> list[Any]:
         record.validation_status.value,
         record.indexing_status.value,
         _excel_datetime(record.indicators_summarized_at),
-        _count_indicators(record.indicators_coverage),
+        len(record.indicators_coverage),
         coverage_chars,
         summary_chars,
         summary_chars / coverage_chars if coverage_chars else None,
@@ -244,7 +240,7 @@ def _summary_values(record: DiscoveryDataset) -> list[Any]:
         _summed_usage(usage),
         sum(item.duration_seconds for item in usage) if usage else None,
         bool(_failed_calls(record)),
-        record.indicators_coverage,
+        coverage,
         record.indicators_summary,
     ]
 

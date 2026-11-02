@@ -1,4 +1,4 @@
-"""Tests for the upsert/replace mode of a channel import's discovery datasets."""
+"""Tests for importing a channel archive's discovery datasets."""
 
 import csv
 import io
@@ -9,10 +9,11 @@ import pytest
 
 from statgpt.admin.services.discovery_dataset import AdminPortalDiscoveryDatasetService
 from statgpt.admin.services.discovery_upload import RECORD_FIELDS
-from statgpt.admin.services.exceptions import DiscoveryUploadFormatError
+from statgpt.admin.services.exceptions import DiscoveryPayloadError, DiscoveryUploadFormatError
+from statgpt.admin.services.import_export_jobs import ExportMetadata, JobsService
 from statgpt.admin.settings.discovery import DiscoveryUploadSettings
 from statgpt.admin.settings.exim import JobsConfig
-from statgpt.common.schemas import DiscoveryUploadSummary
+from statgpt.common.schemas import DiscoveryIndicator, DiscoveryUploadSummary, dump_indicators_json
 
 
 def _make_zip(rows: list[dict[str, str]] | None) -> zipfile.ZipFile:
@@ -91,7 +92,8 @@ async def test_imports_an_indicators_column_longer_than_pythons_field_limit(
     default_csv_field_limit: int,
 ) -> None:
     service = _service()
-    coverage = "; ".join(f"indicator {i} (units)" for i in range(10_000))
+    indicators = [DiscoveryIndicator(name=f"indicator {i}", units="units") for i in range(10_000)]
+    coverage = dump_indicators_json(indicators)
     assert len(coverage) > default_csv_field_limit
 
     await service.import_discovery_datasets_from_zip(
@@ -99,7 +101,20 @@ async def test_imports_an_indicators_column_longer_than_pythons_field_limit(
     )
 
     [candidate] = service._upsert.await_args.args[1]  # type: ignore[attr-defined]
-    assert candidate.record.indicators_coverage == coverage
+    assert candidate.record.indicators_coverage == indicators
+
+
+@pytest.mark.asyncio
+async def test_indicators_in_the_flat_text_of_older_archives_are_refused() -> None:
+    service = _service()
+    row = {**_row(), "indicators_coverage": "broad money (M2) (billions of Rp)"}
+
+    with pytest.raises(DiscoveryPayloadError) as exc_info:
+        await service.import_discovery_datasets_from_zip(_make_zip([row]), channel_id=1)
+
+    [problem] = exc_info.value.problems
+    assert (problem.field, problem.index) == ("indicators_coverage", 0)
+    service._upsert.assert_not_awaited()  # type: ignore[attr-defined]
 
 
 @pytest.mark.asyncio
@@ -117,3 +132,31 @@ async def test_an_unreadable_records_file_is_a_format_error(
         await service.import_discovery_datasets_from_zip(_make_zip([row]), channel_id=1)
 
     service._upsert.assert_not_awaited()  # type: ignore[attr-defined]
+
+
+def _metadata(version: int) -> ExportMetadata:
+    return ExportMetadata(
+        export_version=version,
+        export_start_datetime="2026-11-02T10:00:00",
+        export_finish_datetime="2026-11-02T10:01:00",
+        deployment_id="channel",
+    )
+
+
+def test_an_older_archive_with_discovery_datasets_is_refused() -> None:
+    """Its indicators are flat text, which no longer reads back into names and units."""
+    with pytest.raises(ValueError, match="re-export the channel"):
+        JobsService._validate_discovery_datasets_format(_metadata(1), _make_zip([_row()]))
+
+
+@pytest.mark.parametrize(
+    ("version", "rows"),
+    [
+        pytest.param(1, None, id="older-archive-without-discovery-datasets"),
+        pytest.param(JobsConfig.CURRENT_EXPORT_VERSION, [_row()], id="current-archive"),
+    ],
+)
+def test_an_archive_whose_discovery_datasets_can_be_read_is_accepted(
+    version: int, rows: list[dict[str, str]] | None
+) -> None:
+    JobsService._validate_discovery_datasets_format(_metadata(version), _make_zip(rows))

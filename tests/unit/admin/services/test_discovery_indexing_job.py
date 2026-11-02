@@ -95,7 +95,7 @@ def _record(**overrides: Any) -> models.DiscoveryDataset:
         "url": "https://www.bi.go.id/TABEL1_1.xls",
         "time_coverage": "From 1989-01 to 2026-06",
         "frequency_coverage": "Monthly",
-        "indicators_coverage": "broad money (M2)",
+        "indicators_coverage": [{"name": "broad money (M2)", "units": "billions of Rp"}],
         "indicators_summary": "",
         "missing_indicators": "",
         "indicators_summary_source_hash": None,
@@ -213,7 +213,7 @@ class _Spy:
         self.stages.append("summarize")
         for record in records:
             if record.validation_status is schemas.DiscoveryValidationStatus.VALID:
-                record.indicators_summary = f"summary of {record.indicators_coverage}"
+                record.indicators_summary = f"summary of {record.indicators_coverage[0]['name']}"
                 await self._persist()
         return self.outcome
 
@@ -421,8 +421,12 @@ async def test_the_summaries_are_committed_before_the_publish_stage(
 ) -> None:
     """LLM work is the costliest in the run, and a publish stage that dies must not lose it."""
     records = [
-        _record(id=1, indicators_coverage="broad money (M2)"),
-        _record(id=2, dataset_id="TABEL1_2", indicators_coverage="narrow money (M1)"),
+        _record(id=1),
+        _record(
+            id=2,
+            dataset_id="TABEL1_2",
+            indicators_coverage=[{"name": "narrow money (M1)", "units": "billions of Rp"}],
+        ),
     ]
     spy = _Spy(monkeypatch, records=records)
 

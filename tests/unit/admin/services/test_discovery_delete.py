@@ -33,6 +33,7 @@ def _stored(
 ) -> models.DiscoveryDataset:
     """A stand-in for a stored row, carrying the columns the service reads."""
     values: dict[str, object] = {name: "" for name in RECORD_FIELDS}
+    values["indicators_coverage"] = []
     values.update(
         id=item_id,
         channel_id=channel_id,

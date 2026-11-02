@@ -159,11 +159,14 @@ statgpt> discovery upload -c my-channel --file records.xlsx
 A workbook holds one row per dataset on its `Datasets` sheet, columns A-I: reference area,
 regional coverage, agency, dataset ID, name, description, URL, time coverage and frequency
 coverage. Each dataset's indicators live on a sheet of their own, named with that dataset's
-ID, with an `Indicator` column and a `Units of measure` column. A sheet no dataset ID names is
-ignored. A dataset ID is therefore also a sheet name: at most 31 characters, none of
+ID, with an `Indicator` column and a `Units of measure` column. A sheet no dataset ID names
+is ignored. A dataset ID is therefore also a sheet name: at most 31 characters, none of
 `: \ / ? * [ ]`, not starting or ending with `'`, not `History`, `Datasets` or `Instructions`,
 and unique across the workbook - across agencies too, so two agencies using the same ID have
 to be uploaded as separate files.
+
+Every indicator needs its units: a record with an indicator missing them is stored, then
+reported invalid by the next indexing run.
 
 A file still carrying a column the current template dropped - `Excluded regional values`,
 `Indicators coverage` on the `Datasets` sheet, or `Relevant indicators not present` - is
@@ -171,8 +174,10 @@ refused in full, naming the column: those values were authored, and accepting th
 dropping them would be indistinguishable from data loss.
 
 A CSV stays flat. It carries the nine sheet columns plus one `indicators_coverage` column
-holding the `;`-separated list, which is the shape the channel export writes, so an export can
-be uploaded to another channel unchanged.
+holding the indicators as a JSON list, `[{"name": "Broad money (M2)", "units": "billions of
+Rp"}]`. That is the shape the channel export writes, so an export can be uploaded to another
+channel unchanged. The flat `name (units); ...` text that earlier versions wrote is refused:
+export the records again, or upload them as a workbook.
 
 | Option          | Description                                                                   |
 |-----------------|-------------------------------------------------------------------------------|

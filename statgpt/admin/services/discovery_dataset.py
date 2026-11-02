@@ -7,6 +7,7 @@ import zipfile
 from collections import defaultdict
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, field
+from typing import Any
 
 from fastapi import UploadFile
 from pydantic import ValidationError
@@ -30,10 +31,13 @@ from .discovery_area_publisher import ReferenceAreaPublisher
 from .discovery_publisher import withdraw_documents
 from .discovery_upload import (
     FIELD_LABELS,
+    INDICATORS_FIELD,
+    PYDANTIC_VALUE_ERROR_PREFIX,
     RECORD_FIELDS,
     REQUIRED_FIELDS,
     allow_csv_fields_up_to,
     parse_discovery_file,
+    split_indicators_column,
 )
 from .exceptions import (
     DiscoveryDatasetConflictError,
@@ -47,9 +51,6 @@ from .exceptions import (
 _log = logging.getLogger(__name__)
 
 _UPLOAD_CHUNK_SIZE = 1 << 20
-
-_PYDANTIC_VALUE_ERROR_PREFIX = "Value error, "
-"""Pydantic's prefix on a message raised by a validator, stripped for readability."""
 
 _FIELD_BY_ALIAS: dict[str, str] = {
     (info.alias or name): name for name, info in schemas.DiscoveryDatasetBase.model_fields.items()
@@ -109,25 +110,6 @@ class _DiscoveryCandidate:
     def key(self) -> RecordKey:
         return record_key(self.record.agency, self.record.dataset_id)
 
-    @property
-    def location(self) -> str:
-        if self.row is not None:
-            return f"row {self.row}"
-        if self.index is not None:
-            return f"item {self.index}"
-        return "this record"
-
-    def problem(
-        self, message: str, field_name: str | None = None
-    ) -> schemas.DiscoveryPayloadProblem:
-        return schemas.DiscoveryPayloadProblem(
-            message=message,
-            field=field_name,
-            index=self.index,
-            row=self.row,
-            cell=self.cells.get(field_name) if field_name else None,
-        )
-
 
 @dataclass(frozen=True)
 class _RawRecord:
@@ -138,6 +120,9 @@ class _RawRecord:
     """
 
     values: dict[str, str]
+
+    indicators: list[schemas.DiscoveryIndicator] | None = None
+    """The record's indicators, `None` when the file has no column for them."""
 
     index: int | None = None
     """0-based position in the file's records."""
@@ -168,8 +153,11 @@ def _build_candidates_from_rows(
     problems: list[schemas.DiscoveryPayloadProblem] = []
 
     for item in raw:
+        values: dict[str, Any] = dict(item.values)
+        if item.indicators is not None:
+            values[INDICATORS_FIELD] = item.indicators
         try:
-            record = schemas.DiscoveryDatasetBase.model_validate(item.values)
+            record = schemas.DiscoveryDatasetBase.model_validate(values)
         except ValidationError as e:
             problems.extend(
                 _problems_from_validation_error(e, index=item.index, row=item.row, cells=item.cells)
@@ -185,10 +173,11 @@ def _build_candidates_from_rows(
 def _duplicate_problems(
     candidates: Sequence[_DiscoveryCandidate],
 ) -> list[schemas.DiscoveryPayloadProblem]:
-    """Report each candidate that lands on a key an earlier candidate already claimed.
+    """Report each key more than one candidate lands on, once, naming all of them.
 
     Two records that normalize onto one key cannot both be stored, and the payload cannot be
-    repaired in the UI, so it is refused rather than half-applied.
+    repaired in the UI, so it is refused rather than half-applied. The problem is located at
+    the first of them, and its cell names every cell involved.
 
     Keys are compared folded, exactly like the unique constraint; comparing raw strings
     would let ``'BI'`` and ``'bi '`` through, only to die on an IntegrityError at flush - a
@@ -198,23 +187,40 @@ def _duplicate_problems(
     payload spanning channels would report records that do not in fact collide - which is why
     the bulk update endpoint, whose ids are global, leaves duplicates to the database.
     """
-    problems: list[schemas.DiscoveryPayloadProblem] = []
-    seen: dict[RecordKey, _DiscoveryCandidate] = {}
-
+    groups: dict[RecordKey, list[_DiscoveryCandidate]] = defaultdict(list)
     for candidate in candidates:
-        first = seen.get(candidate.key)
-        if first is None:
-            seen[candidate.key] = candidate
+        groups[candidate.key].append(candidate)
+
+    problems: list[schemas.DiscoveryPayloadProblem] = []
+    for key, group in groups.items():
+        if len(group) < 2:
             continue
+        first = group[0]
+        cells = [cell for item in group if (cell := item.cells.get("dataset_id"))]
         problems.append(
-            candidate.problem(
-                f"Duplicate of {first.location}: {_quote_key(candidate.key)}."
-                f" Ignoring case and spacing, the two describe the same dataset.",
-                "dataset_id",
+            schemas.DiscoveryPayloadProblem(
+                message=(
+                    f"{_locations(group)} have the same agency and dataset ID:"
+                    f" {_quote_key(key)}. Ignoring case and spacing, they describe the same"
+                    f" dataset, so keep one of them."
+                ),
+                field="dataset_id",
+                index=first.index,
+                row=first.row,
+                cell=", ".join(cells) or None,
             )
         )
 
     return problems
+
+
+def _locations(group: Sequence[_DiscoveryCandidate]) -> str:
+    """`Rows 2, 3, 4` for a file's records, `Items 0, 2` for a JSON payload's."""
+    if all(item.row is not None for item in group):
+        return "Rows " + ", ".join(str(item.row) for item in group)
+    if all(item.index is not None for item in group):
+        return "Items " + ", ".join(str(item.index) for item in group)
+    return "Several records"
 
 
 def _raise_for_problems(
@@ -249,7 +255,7 @@ def _problems_from_validation_error(
         if detail["type"] == "missing":
             message = "is missing"
         else:
-            message = str(detail["msg"]).removeprefix(_PYDANTIC_VALUE_ERROR_PREFIX)
+            message = str(detail["msg"]).removeprefix(PYDANTIC_VALUE_ERROR_PREFIX)
         problems.append(
             schemas.DiscoveryPayloadProblem(
                 message=f"{label} {message}." if label else f"{message}.",
@@ -333,7 +339,9 @@ class AdminPortalDiscoveryDatasetService(DiscoveryDatasetService):
         A deliberate single-record edit is a correction, so it does rewrite the casing.
         """
         changed = False
-        for name, new_value in data.model_dump(exclude_unset=True).items():
+        # Not `exclude_unset`: it applies to nested models too, and an indicator submitted
+        # without `units` would be stored without the key.
+        for name, new_value in data.model_dump(include=data.model_fields_set).items():
             if name not in _DESCRIPTIVE_FIELDS or new_value is None:
                 continue
             current = getattr(item, name)
@@ -674,6 +682,7 @@ class AdminPortalDiscoveryDatasetService(DiscoveryDatasetService):
         raw = [
             _RawRecord(
                 values=row.values,
+                indicators=row.indicators,
                 row=row.row_number,
                 cells={
                     name: reference
@@ -711,8 +720,17 @@ class AdminPortalDiscoveryDatasetService(DiscoveryDatasetService):
         Read straight off the row rather than through the write schema, so a record stored
         before the current rules - a dataset id no sheet could be named after - is still
         exportable. The export says what is stored; refusing a write is the write's business.
+        The indicators are the exception, written as the JSON list a CSV carries them in.
         """
-        return [{name: getattr(item, name) for name in RECORD_FIELDS} for item in records]
+        return [
+            {
+                **{name: getattr(item, name) for name in RECORD_FIELDS},
+                INDICATORS_FIELD: schemas.dump_indicators_json(
+                    schemas.read_indicators(item.indicators_coverage)
+                ),
+            }
+            for item in records
+        ]
 
     async def export_discovery_datasets_to_folder(
         self, channel: models.Channel, folder_path: str
@@ -780,10 +798,20 @@ class AdminPortalDiscoveryDatasetService(DiscoveryDatasetService):
         # An export can be uploaded to another channel unchanged, so the upload's byte cap
         # bounds a field of one too.
         allow_csv_fields_up_to(self._UPLOAD_SETTINGS.max_file_size_bytes)
+        raw: list[_RawRecord] = []
+        indicator_problems: list[schemas.DiscoveryPayloadProblem] = []
         with zip_file.open(JobsConfig.DISCOVERY_DATASETS_FILE) as file:
             reader = csv.DictReader(io.TextIOWrapper(file, encoding="utf-8", newline=""))
             try:
-                raw = [_RawRecord(values=row, index=index) for index, row in enumerate(reader)]
+                for index, row in enumerate(reader):
+                    values, indicators, error = split_indicators_column(row)
+                    raw.append(_RawRecord(values=values, indicators=indicators, index=index))
+                    if error:
+                        indicator_problems.append(
+                            schemas.DiscoveryPayloadProblem(
+                                message=error, field=INDICATORS_FIELD, index=index
+                            )
+                        )
             except csv.Error as e:
                 raise DiscoveryUploadFormatError(
                     f"The archive's {JobsConfig.DISCOVERY_DATASETS_FILE!r} could not be read: {e}."
@@ -793,6 +821,7 @@ class AdminPortalDiscoveryDatasetService(DiscoveryDatasetService):
         # by hand still has to say which row is at fault, in the failure reason of the import
         # job. A raw pydantic dump there is not something an operator can act on.
         candidates, problems = _build_candidates_from_rows(raw)
+        problems.extend(indicator_problems)
         problems.extend(_duplicate_problems(candidates))
         _raise_for_problems(problems, self._UPLOAD_SETTINGS.max_reported_problems)
 

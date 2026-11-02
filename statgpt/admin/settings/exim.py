@@ -21,11 +21,21 @@ class ExImSettings(BaseSettings):
 class JobsConfig:
     """Import/Export jobs configuration."""
 
-    CURRENT_EXPORT_VERSION: int = 1
-    """Increment when making breaking changes to the export archive format."""
+    CURRENT_EXPORT_VERSION: int = 2
+    """Increment when making breaking changes to the export archive format.
 
-    SUPPORTED_EXPORT_VERSIONS: set[int] = {1}
-    """Set of archive versions that this application can import."""
+    2: the discovery datasets' `indicators_coverage` column holds a JSON list of
+    `{name, units}` instead of the flat `name (units); ...` text.
+    """
+
+    SUPPORTED_EXPORT_VERSIONS: set[int] = {1, 2}
+    """Set of archive versions that this application can import.
+
+    A version 1 archive is imported only when it carries no discovery datasets.
+    """
+
+    DISCOVERY_INDICATORS_JSON_VERSION: int = 2
+    """The first archive version whose discovery datasets carry their indicators as JSON."""
 
     JOBS_RETENTION_HOURS = 24
     """The default hours after which jobs are cleared when `clear_jobs` is called."""
