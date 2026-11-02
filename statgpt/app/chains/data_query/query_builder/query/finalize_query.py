@@ -63,6 +63,7 @@ class FinalizeQueryChainFactory:
             messages=messages,
             explorer_link=self._config.explorer_link,
             mcp_explorer_link=self._config.mcp_structured_content.data_explorer_url,
+            value_rounding=self._config.value_rounding,
             summarize_queries_chain=self._summarize_queries_chain,
         )
         self._no_data_chain = NoDataChain(messages=messages)

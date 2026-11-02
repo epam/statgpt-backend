@@ -154,6 +154,11 @@ tools:
           enabledStr: "False"
         markdownTable:
           enabledStr: "True"
+      # Decimal places of the values the model reads (the tool response and the MCP resources)
+      # and the UI grid shows. A value too small for them keeps its first significant digit.
+      # Downloadable files keep full precision. `null` turns the rounding off.
+      valueRounding:
+        decimalPlaces: 3
       # Audience-specific payloads carried in the MCP result's `_meta`, under
       # `{namespace}/mcp-app` and `{namespace}/client`. The MCP-App payload is carried whenever
       # the tool binds a widget via `mcp_app_resource_uri`; the client payload is opt-in.

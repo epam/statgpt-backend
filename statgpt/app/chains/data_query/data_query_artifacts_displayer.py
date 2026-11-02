@@ -90,7 +90,7 @@ class DataQueryArtifactDisplayer:
         if response.status.parsing_status == DataParsingStatus.FAILED:
             return None
 
-        df = response.visual_dataframe.copy()
+        df = response.rounded_visual_dataframe.copy()
         cells_number = df.shape[0] * df.shape[1]
 
         if cells_number == 0:
@@ -125,7 +125,7 @@ class DataQueryArtifactDisplayer:
         df.rename(columns=to_rename, inplace=True)
         # prefix dimension / attribute columns so the agent can tell them apart
         df.rename(columns=cls._build_kind_prefix_renames(df.columns, response), inplace=True)
-        # convert df to tsv with full precision
+        # convert df to tsv; the values are already rounded to the configured precision
         tsv = df.to_csv(
             sep="\t",
             index=False,
@@ -138,7 +138,7 @@ class DataQueryArtifactDisplayer:
             f"Data from dataset {response.dataset_name}: \n\n<DATA>\n"
             + tsv
             + "\n</DATA>\n\n The data itself is shown to user in the table view in the UI. If citing the data, "
-            + "make sure to use full precision values from the table."
+            + "make sure to use the exact values from the table."
         )
 
         if response.status.parsing_status == DataParsingStatus.PARTIALLY_FAILED:

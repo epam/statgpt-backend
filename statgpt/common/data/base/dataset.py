@@ -6,6 +6,7 @@ from collections.abc import Sequence
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Generic, TypeVar
 
+import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 from pydantic import BaseModel, Field
@@ -69,16 +70,84 @@ class DataResponseStatus(BaseModel):
         )
 
 
+def _round_to_decimal_places(values: pd.Series, decimal_places: int) -> pd.Series:
+    """Round `values` to `decimal_places`, keeping the first significant digit of the small ones.
+
+    A non-zero value too small for `decimal_places` would round to zero and read as a genuine `0`,
+    so it is rounded to its first significant digit instead: with 3 decimal places `0.0004` stays
+    `0.0004` and `0.00049` becomes `0.0005`. Missing values stay missing.
+    """
+    rounded = values.round(decimal_places)
+    vanished = (rounded == 0) & (values != 0)
+    if vanished.any():
+        small = values[vanished]
+        # The first significant digit of `v` sits `-floor(log10(|v|))` places after the point.
+        places = -np.floor(np.log10(small.abs())).astype(int)
+        rounded[vanished] = [round(value, place) for value, place in zip(small, places)]
+    # `-0.0 + 0.0` is `0.0`, so a value rounded to zero is never written as `-0.0`.
+    return rounded + 0.0
+
+
 class DataResponse(ABC):
     """Base class for data responses from datasets."""
 
     def __init__(self) -> None:
         self._created_at = datetime.now(timezone.utc)
+        self._value_decimal_places: int | None = None
 
     @property
     def created_at(self) -> datetime:
         """UTC timestamp of when the response object was created (data received)."""
         return self._created_at
+
+    @property
+    def value_decimal_places(self) -> int | None:
+        """Decimal places of the values in the `rounded_*` dataframes, `None` for full precision.
+
+        Set by the data query pipeline right after the response is received. Only the `rounded_*`
+        dataframes are affected: the others keep full precision, since the downloadable files are
+        built from them.
+        """
+        return self._value_decimal_places
+
+    @value_decimal_places.setter
+    def value_decimal_places(self, value: int | None) -> None:
+        self._value_decimal_places = value
+
+    @property
+    def rounded_visual_dataframe(self) -> pd.DataFrame:
+        """`visual_dataframe` with its values rounded to `value_decimal_places`, for the model and
+        the UI grid."""
+        return self._round_values(self.visual_dataframe)
+
+    @property
+    def rounded_csv_dataframe(self) -> pd.DataFrame:
+        """`csv_dataframe` with its values rounded to `value_decimal_places`, for the model."""
+        return self._round_values(self.csv_dataframe)
+
+    def _round_values(self, df: pd.DataFrame) -> pd.DataFrame:
+        """Round the value columns of `df`, leaving the dimension and attribute columns as they are.
+
+        A value column is a float column that is not a dimension or an attribute: the `value`
+        column of an observation-level frame, or the time-period columns of a pivoted one.
+        Attributes can be numeric (e.g. a unit multiplier), but they qualify the values rather
+        than measure anything, so they are kept as they are.
+        """
+        decimal_places = self._value_decimal_places
+        if decimal_places is None:
+            return df
+        components = self.dimension_ids | self.attribute_ids
+        columns = [
+            column
+            for column in df.columns
+            if column not in components and pd.api.types.is_float_dtype(df[column])
+        ]
+        if not columns:
+            return df
+        df = df.copy()
+        for column in columns:
+            df[column] = _round_to_decimal_places(df[column], decimal_places)
+        return df
 
     @property
     @abstractmethod

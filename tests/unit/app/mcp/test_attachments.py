@@ -118,12 +118,16 @@ def _response(
     request_status: DataRequestStatus = DataRequestStatus.SUCCESS,
     parsing_status: DataParsingStatus = DataParsingStatus.SUCCESS,
     reason: str | None = None,
+    rounded_df: pd.DataFrame | None = None,
 ) -> SimpleNamespace:
+    rounded_df = df if rounded_df is None else rounded_df
     return SimpleNamespace(
         resource_path=resource_path,
         dataset_name=f"CPI [{resource_path}]",
         visual_dataframe=df,
         csv_dataframe=df,
+        rounded_visual_dataframe=rounded_df,
+        rounded_csv_dataframe=rounded_df,
         component_names=component_names or {},
         is_empty=df.empty,
         created_at=created_at,
@@ -366,11 +370,24 @@ def test_markdown_table_keeps_textual_values_verbatim():
     assert _markdown_text(outcome).splitlines()[4] == "| 1.0 | 7.0 |"
 
 
-def test_markdown_table_preserves_full_float_precision():
+def test_markdown_table_adds_no_rounding_of_its_own():
+    # The values are rounded by the response; the table writes them as the frame holds them.
     df = pd.DataFrame({"REF_AREA": ["FR"], "2024": [112.345678901234]})
     outcome = _make_outcome({"ds1": _response("IMF:CPI(1.0.0)", df)})
 
     assert "112.345678901234" in _markdown_text(outcome)
+
+
+def test_resources_carry_the_rounded_values():
+    full = pd.DataFrame({"REF_AREA": ["FR"], "2020": [0.9431918]})
+    rounded = pd.DataFrame({"REF_AREA": ["FR"], "2020": [0.943]})
+    outcome = _make_outcome({"ds1": _response("IMF:CPI(1.0.0)", full, rounded_df=rounded)})
+
+    csv_resource, markdown_resource = _resources(outcome, csv=True, markdown=True)
+
+    for text in (csv_resource.resource.text, markdown_resource.resource.text):
+        assert "0.943" in text
+        assert "0.9431918" not in text
 
 
 def test_markdown_table_renders_missing_values_as_na():
