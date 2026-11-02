@@ -153,13 +153,13 @@ def test_duplicate_keys_within_one_payload_are_rejected_naming_both_rows() -> No
     with pytest.raises(DiscoveryPayloadError) as exc_info:
         _raise_for_problems(_duplicate_problems(_build_candidates(payload)), _MAX_PROBLEMS)
 
-    problem = exc_info.value.problems[0]
-    assert problem.index == 1
-    assert "Duplicate of item 0" in problem.message
+    [problem] = exc_info.value.problems
+    assert problem.index == 0
+    assert problem.message.startswith("Items 0, 1 have the same agency and dataset ID")
 
 
 def test_problem_list_is_capped_and_marked_truncated() -> None:
-    payload = [_record() for _ in range(6)]  # five duplicates of item 0
+    payload = [_record(dataset_id=f"TABEL1_{i}") for i in range(3) for _ in range(2)]
 
     with pytest.raises(DiscoveryPayloadError) as exc_info:
         _raise_for_problems(_duplicate_problems(_build_candidates(payload)), max_problems=2)
@@ -169,13 +169,20 @@ def test_problem_list_is_capped_and_marked_truncated() -> None:
     assert exc_info.value.detail.truncated is True
 
 
-def test_file_problems_carry_row_and_cell_references() -> None:
-    candidate = _DiscoveryCandidate(record=_record(), row=14, cells={"dataset_id": "E14"})
-    duplicate = _DiscoveryCandidate(record=_record(), row=15, cells={"dataset_id": "E15"})
+def test_all_rows_sharing_a_key_are_reported_as_one_problem() -> None:
+    """Located at the first of them, naming every cell, rather than one problem per repeat."""
+    candidates = [
+        _DiscoveryCandidate(record=_record(), row=row, cells={"dataset_id": f"E{row}"})
+        for row in (14, 15, 17)
+    ]
+    other = _DiscoveryCandidate(
+        record=_record(dataset_id="TABEL1_2"), row=16, cells={"dataset_id": "E16"}
+    )
 
-    problems = _duplicate_problems([candidate, duplicate])
+    problems = _duplicate_problems([*candidates[:2], other, candidates[2]])
 
-    assert [(p.row, p.cell, p.index) for p in problems] == [(15, "E15", None)]
+    assert [(p.row, p.cell, p.index) for p in problems] == [(14, "E14, E15, E17", None)]
+    assert problems[0].message.startswith("Rows 14, 15, 17 have the same agency and dataset ID")
 
 
 @pytest.mark.parametrize(
@@ -417,6 +424,19 @@ def test_a_bulk_edit_does_not_write_the_id_it_addresses() -> None:
     )
 
     assert (stored.id, stored.description) == (1, "new")
+
+
+def test_an_edit_stores_indicators_with_the_units_it_left_out() -> None:
+    """`units` defaults to empty, and the stored JSON says so rather than omitting the key."""
+    stored = _stored(indicators_coverage=[{"name": "GDP", "units": "USD"}])
+
+    AdminPortalDiscoveryDatasetService._apply_values(
+        stored,
+        DiscoveryDatasetUpdate.model_validate({"indicators_coverage": [{"name": "GDP"}]}),
+        ignore_key_case=False,
+    )
+
+    assert stored.indicators_coverage == [{"name": "GDP", "units": ""}]
 
 
 def test_an_edit_rewrites_the_key_casing() -> None:

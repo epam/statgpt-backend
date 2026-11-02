@@ -177,6 +177,5 @@ index rather than published. Besides a description and a well-formed URL, a reco
 least one reference area and at least one frequency: the chat-time pre-filter narrows by both,
 so a record naming neither would be indexed and then never surfaced. It must also list at least
 one indicator, and every indicator must give its units of measure; the issue names the
-indicators that do not. Group labels such as
-`Euro area` or `World` count as reference areas in their own right, and are never expanded into
-the countries inside them.
+indicators that do not. Group labels such as `Euro area` or `World` count as reference areas in
+their own right, and are never expanded into the countries inside them.

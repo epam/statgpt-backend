@@ -29,6 +29,9 @@ _ALLOWED_URL_SCHEMES = ("http", "https")
 _MAX_NAMED_INDICATORS = 5
 """How many indicators an issue names before it only counts the rest."""
 
+_MAX_INDICATOR_NAME_CHARS = 60
+"""How much of an indicator's name an issue quotes, so a long one does not swamp the message."""
+
 
 class DiscoveryRecord(Protocol):
     """The submitted half of a discovery dataset record.
@@ -171,6 +174,12 @@ def _check_indicators_coverage(record: DiscoveryRecord) -> Iterable[DiscoveryVal
         )
 
 
+def _shorten(name: str) -> str:
+    if len(name) <= _MAX_INDICATOR_NAME_CHARS:
+        return name
+    return name[: _MAX_INDICATOR_NAME_CHARS - 1].rstrip() + "…"
+
+
 def _check_indicator_units(record: DiscoveryRecord) -> Iterable[DiscoveryValidationIssue]:
     """Every indicator must give its units of measure.
 
@@ -183,7 +192,7 @@ def _check_indicator_units(record: DiscoveryRecord) -> Iterable[DiscoveryValidat
     if not missing:
         return
 
-    named = ", ".join(repr(name) for name in missing[:_MAX_NAMED_INDICATORS])
+    named = ", ".join(repr(_shorten(name)) for name in missing[:_MAX_NAMED_INDICATORS])
     rest = len(missing) - _MAX_NAMED_INDICATORS
     yield DiscoveryValidationIssue(
         field="indicators_coverage",

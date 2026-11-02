@@ -366,6 +366,27 @@ class JobsService:
                 f"Please re-export the channel with a compatible version of the application."
             )
 
+    @staticmethod
+    def _validate_discovery_datasets_format(
+        metadata: ExportMetadata, zip_file: zipfile.ZipFile
+    ) -> None:
+        """Refuse an archive whose discovery datasets carry their indicators as flat text.
+
+        Checked before anything is imported, so such an archive changes nothing. One without
+        discovery datasets is unaffected by the format change and is imported as before.
+        """
+        version = metadata.export_version
+        if (
+            version is not None
+            and version < JobsConfig.DISCOVERY_INDICATORS_JSON_VERSION
+            and JobsConfig.DISCOVERY_DATASETS_FILE in zip_file.namelist()
+        ):
+            raise ValueError(
+                f"The archive (version {version}) carries discovery datasets whose indicators"
+                f" are stored in a format this application no longer reads. Please re-export"
+                f" the channel with the current version of the application."
+            )
+
     async def _import_data_from_zip(
         self,
         job: models.Job,
@@ -389,6 +410,7 @@ class JobsService:
                 with zip_file.open("metadata.json") as meta_file:
                     metadata = ExportMetadata.model_validate_json(meta_file.read())
                     self._validate_export_version(metadata)
+                    self._validate_discovery_datasets_format(metadata, zip_file)
                     deployment_id = metadata.deployment_id
                     scope = metadata.scope
             except KeyError:

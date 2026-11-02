@@ -6,6 +6,7 @@ straight back into the upload endpoint of another channel.
 
 import csv
 import io
+import json
 from types import SimpleNamespace
 from typing import cast
 from unittest.mock import AsyncMock, MagicMock
@@ -120,16 +121,21 @@ async def test_an_export_longer_than_pythons_field_limit_uploads_unchanged(
 
 
 @pytest.mark.asyncio
-async def test_indicators_are_exported_in_the_flat_form() -> None:
+async def test_indicators_round_trip_through_the_export_unchanged() -> None:
+    """Names ending in parentheses, units holding them, and ';' inside a value all survive."""
     indicators = [
-        {"name": "broad money (M2)", "units": "billions of Rp"},
-        {"name": "exports; goods", "units": ""},
+        {"name": "broad money (M2)", "units": ""},
+        {"name": "CPI", "units": "Index (2015=100)"},
+        {"name": "exports; goods", "units": "USD"},
     ]
     service = _service([_stored(indicators_coverage=indicators)])
 
-    [row] = csv.DictReader(
-        io.StringIO(await service.export_discovery_datasets_to_csv(channel_id=1))
+    content = await service.export_discovery_datasets_to_csv(channel_id=1)
+    [row] = csv.DictReader(io.StringIO(content))
+    parsed = parse_discovery_file(
+        content.encode("utf-8"), "export.csv", max_rows=10, max_indicators_per_dataset=10
     )
 
-    # A ';' would split the indicator in two on the way back in, so it is written as ','.
-    assert row["indicators_coverage"] == "broad money (M2) (billions of Rp); exports, goods"
+    assert json.loads(row["indicators_coverage"]) == indicators
+    assert parsed.rows[0].indicators == read_indicators(indicators)
+    assert not parsed.problems

@@ -39,7 +39,6 @@ from .data_query_tool import (
 from .data_source import DataSource, DataSourceBase, DataSourceType, DataSourceUpdate, Provider
 from .dataset import DataSet, DataSetBase, DataSetDescriptor, DataSetUpdateRequest, DeletedDataSet
 from .discovery_dataset import (
-    INDICATOR_SEPARATOR,
     DiscoveryDataset,
     DiscoveryDatasetBase,
     DiscoveryDatasetStats,
@@ -55,7 +54,8 @@ from .discovery_dataset import (
     DiscoverySummaryRun,
     DiscoveryUploadSummary,
     DiscoveryValidationIssue,
-    parse_flat_indicators,
+    dump_indicators_json,
+    parse_indicators_json,
     read_indicators,
     render_flat_indicators,
 )

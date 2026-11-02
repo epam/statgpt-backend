@@ -147,6 +147,12 @@ def test_the_indicators_without_units_are_named_up_to_five() -> None:
     assert "'indicator 5'" not in issue.message
 
 
+def test_a_long_indicator_name_is_shortened_in_the_issue() -> None:
+    [issue] = DiscoveryValidator().validate(_record(indicators_coverage=[{"name": "x" * 100}]))
+
+    assert issue.message.endswith(f"Missing for: '{'x' * 59}…'.")
+
+
 def test_a_stored_row_is_checked_from_its_json() -> None:
     """A stored row hands its indicators over as the JSON column holds them."""
     values = {**_record().model_dump(), "indicators_coverage": [{"name": "policy rate"}]}

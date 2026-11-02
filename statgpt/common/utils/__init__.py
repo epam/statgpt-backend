@@ -15,7 +15,6 @@ from .discovery_cells import (
     parse_reference_areas,
     render_indicator,
     split_cell,
-    split_indicator,
 )
 from .exceptions import InvalidLLMStreamResponse, format_exception_reason
 from .files import (

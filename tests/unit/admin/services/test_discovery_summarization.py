@@ -6,6 +6,7 @@ validation, so what is tested includes how an invalid answer is corrected and th
 
 import hashlib
 import json
+import re
 from collections.abc import Awaitable, Callable, Iterator
 from types import SimpleNamespace
 from typing import Any, cast
@@ -114,9 +115,19 @@ def _groups(*groups: str) -> Responder:
     return lambda _system, _user: list(groups)
 
 
+_TRAILING_UNITS = re.compile(r"(?P<name>.*\S)\s*\((?P<units>[^()]+)\)")
+
+
 def _stored_indicators(flat: str) -> list[dict[str, Any]]:
-    """A flat list as a stored row's JSON column holds it, so the fixtures stay readable."""
-    return [item.model_dump() for item in schemas.parse_flat_indicators(flat)]
+    """A `name (units); ...` fixture as a stored row's JSON column holds it, for readability."""
+    indicators = []
+    for entry in flat.split(";"):
+        if not (entry := " ".join(entry.split())):
+            continue
+        match = _TRAILING_UNITS.fullmatch(entry)
+        name, units = (match["name"], match["units"].strip()) if match else (entry, "")
+        indicators.append({"name": name, "units": units})
+    return indicators
 
 
 def _record(**overrides: Any) -> models.DiscoveryDataset:

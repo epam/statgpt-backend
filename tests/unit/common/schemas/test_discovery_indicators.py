@@ -3,34 +3,39 @@ from pydantic import ValidationError
 
 from statgpt.common.schemas import (
     DiscoveryIndicator,
-    parse_flat_indicators,
+    dump_indicators_json,
+    parse_indicators_json,
     read_indicators,
     render_flat_indicators,
 )
 
 
-def test_the_flat_form_round_trips() -> None:
-    flat = "broad money (M2) (billions of Rp); policy rate (percent per annum); headcount"
-
-    assert render_flat_indicators(parse_flat_indicators(flat)) == flat
-
-
-def test_parsing_drops_empty_entries_and_keeps_repeated_ones() -> None:
-    """The list says what was submitted; folding repeats is a consumer's business."""
-    assert parse_flat_indicators(" M1 (USD);; ; M1 (USD) ") == [
-        DiscoveryIndicator(name="M1", units="USD"),
-        DiscoveryIndicator(name="M1", units="USD"),
+def test_the_json_form_round_trips() -> None:
+    """What the flat text could not keep apart: a name in parentheses, units holding them."""
+    indicators = [
+        DiscoveryIndicator(name="broad money (M2)", units=""),
+        DiscoveryIndicator(name="CPI", units="Index (2015=100)"),
+        DiscoveryIndicator(name="Exports; goods", units="USD"),
     ]
+
+    assert parse_indicators_json(dump_indicators_json(indicators)) == indicators
+
+
+@pytest.mark.parametrize("cell", ["", "   "])
+def test_a_blank_cell_is_an_empty_list(cell: str) -> None:
+    assert parse_indicators_json(cell) == []
+
+
+def test_the_flat_text_of_older_exports_is_refused() -> None:
+    with pytest.raises(ValidationError):
+        parse_indicators_json("broad money (M2) (billions of Rp); policy rate (percent)")
 
 
 def test_a_semicolon_inside_a_value_is_rendered_as_a_comma() -> None:
-    """Otherwise the indicator would come back as two once the flat form is re-imported."""
+    """The flat text joins indicators with ';', so one inside a value would read as two."""
     indicators = [DiscoveryIndicator(name="Exports; goods", units="USD; current")]
 
-    flat = render_flat_indicators(indicators)
-
-    assert flat == "Exports, goods (USD, current)"
-    assert len(parse_flat_indicators(flat)) == 1
+    assert render_flat_indicators(indicators) == "Exports, goods (USD, current)"
 
 
 def test_a_stored_rows_json_is_read_into_indicators() -> None:

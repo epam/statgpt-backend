@@ -13,7 +13,6 @@ from statgpt.common.utils import (
     parse_reference_areas,
     render_indicator,
     split_cell,
-    split_indicator,
 )
 
 
@@ -89,28 +88,6 @@ def test_every_vocabulary_frequency_is_recognized_whatever_its_casing(frequency:
     assert is_known_frequency(frequency)
     assert is_known_frequency(frequency.upper())
     assert not is_known_frequency(f"{frequency} ish")
-
-
-@pytest.mark.parametrize(
-    ("entry", "expected"),
-    [
-        ("M1 (Rp billions)", ("M1", "Rp billions")),
-        # Parentheses inside a name stay with the name.
-        ("Broad money (M2) (Rp billions)", ("Broad money (M2)", "Rp billions")),
-        # Units are whitespace-normalized like every other value.
-        ("M1 ( Rp  billions )", ("M1", "Rp billions")),
-        ("M2", ("M2", "")),
-        ("M2 (Rp billions", ("M2 (Rp billions", "")),
-        ("(Rp billions)", ("(Rp billions)", "")),
-        ("M1 ()", ("M1 ()", "")),
-        # Only the last parentheses are units, and they must not nest.
-        ("Rate (% (p.a.))", ("Rate (% (p.a.))", "")),
-    ],
-)
-def test_an_entry_of_the_flat_form_is_split_into_name_and_units(
-    entry: str, expected: tuple[str, str]
-) -> None:
-    assert split_indicator(entry) == expected
 
 
 @pytest.mark.parametrize(

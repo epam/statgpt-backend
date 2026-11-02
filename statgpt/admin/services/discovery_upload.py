@@ -10,9 +10,9 @@ discards the cell coordinates the error report needs.
 
 A workbook is two shapes at once. The `Datasets` sheet holds one row per dataset, and each
 dataset's indicators live on a sheet of their own, named with the dataset's ID; a sheet no
-dataset names is ignored, and never read. A CSV stays
-flat: the indicators arrive as one already-joined column, `name (units); ...`, which is also
-how the export writes them.
+dataset names is ignored, and never read. A CSV stays flat: the indicators arrive as one
+column holding them as a JSON list of `{name, units}`, which is also how the export writes
+them.
 """
 
 import csv
@@ -30,9 +30,10 @@ from openpyxl import Workbook
 from openpyxl.utils import get_column_letter
 from openpyxl.utils.exceptions import InvalidFileException
 from openpyxl.worksheet._read_only import ReadOnlyWorksheet
+from pydantic import ValidationError
 
 from statgpt.common import schemas
-from statgpt.common.services import normalize_key_part
+from statgpt.common.services import RecordKey, normalize_key_part, record_key
 from statgpt.common.utils import normalize_whitespace
 
 from .exceptions import DiscoveryUploadFormatError
@@ -153,7 +154,10 @@ _INDICATOR_HEADERS: dict[str, str] = {
 _INDICATOR_SHEET_WIDTH = 2
 """Columns of an indicator sheet, and the only width the positional fallback accepts."""
 
-_INDICATORS_FIELD = "indicators_coverage"
+INDICATORS_FIELD = "indicators_coverage"
+
+PYDANTIC_VALUE_ERROR_PREFIX = "Value error, "
+"""Pydantic's prefix on a message raised by a validator, stripped for readability."""
 
 
 class _DiscoveryFileFormat(StrEnum):
@@ -419,12 +423,6 @@ def _get_worksheet(workbook: Workbook) -> ReadOnlyWorksheet:
     return worksheet
 
 
-def _same_agency(first: ParsedRow, row: ParsedRow) -> bool:
-    return normalize_key_part(first.values.get("agency", "")) == normalize_key_part(
-        row.values.get("agency", "")
-    )
-
-
 def _check_dataset_ids(
     rows: Sequence[ParsedRow], column_letters: dict[str, str], reserved: Set[str]
 ) -> list[schemas.DiscoveryPayloadProblem]:
@@ -432,14 +430,15 @@ def _check_dataset_ids(
 
     Workbook-wide, across agencies, unlike the natural key: the ID names a sheet, so two
     records whose IDs agree cannot both carry indicators in one workbook however different
-    the datasets are. A row repeating the agency too is left alone - it is a duplicate of the
-    natural key, which `_duplicate_problems` reports on every format, and reporting it here
-    as well would put two problems on one cell. Length and forbidden characters are not
-    checked here - the schema's key type does that on every write path, and its violations
-    already reach the per-cell report.
+    the datasets are. A row repeating an earlier row's agency too is left alone - it is a
+    duplicate of the natural key, which `_duplicate_problems` reports on every format, and
+    reporting it here as well would put two problems on one cell. Length and forbidden
+    characters are not checked here - the schema's key type does that on every write path,
+    and its violations already reach the per-cell report.
     """
     problems: list[schemas.DiscoveryPayloadProblem] = []
     first_seen: dict[str, ParsedRow] = {}
+    seen_keys: set[RecordKey] = set()
 
     for row in rows:
         value = row.values.get("dataset_id", "")
@@ -460,8 +459,12 @@ def _check_dataset_ids(
                 )
             )
             continue
+        record = record_key(row.values.get("agency", ""), value)
+        if record in seen_keys:
+            continue
+        seen_keys.add(record)
         first = first_seen.setdefault(key, row)
-        if first is row or _same_agency(first, row):
+        if first is row:
             continue
         problems.append(
             schemas.DiscoveryPayloadProblem(
@@ -634,7 +637,7 @@ def _apply_indicator_sheets(
             problems.extend(
                 schemas.DiscoveryPayloadProblem(
                     message=problem.message,
-                    field=_INDICATORS_FIELD,
+                    field=INDICATORS_FIELD,
                     row=row.row_number,
                     cell=problem.cell,
                 )
@@ -739,30 +742,65 @@ def _check_indicator_counts(
                         f"Indicators coverage lists {count} indicators, more than"
                         f" {max_indicators_per_dataset}. Shorten the list, or split the dataset."
                     ),
-                    field=_INDICATORS_FIELD,
+                    field=INDICATORS_FIELD,
                     row=row.row_number,
                 )
             )
     return problems
 
 
-def split_flat_indicators(
+_INDICATORS_FORMAT_MESSAGE = (
+    'Indicators coverage must be a JSON list of indicators, such as [{"name": "Broad money'
+    ' (M2)", "units": "billions of Rp"}]. The "name (units); ..." text of older exports is no'
+    " longer read: export the records again, or upload them as a workbook."
+)
+
+
+def _describe_indicators_error(error: ValidationError) -> str:
+    """The first thing wrong with an indicators cell, in the per-cell report's words."""
+    detail = error.errors()[0]
+    position, *path = detail["loc"] or ("",)
+    if not path:
+        # Not JSON, not a list, or a list of something other than objects.
+        return _INDICATORS_FORMAT_MESSAGE
+    if detail["type"] == "missing":
+        reason = "is missing"
+    else:
+        reason = str(detail["msg"]).removeprefix(PYDANTIC_VALUE_ERROR_PREFIX)
+    what = ".".join(str(part) for part in path)
+    return f"Indicators coverage, indicator {int(position) + 1}: {what} {reason}."
+
+
+def split_indicators_column(
     values: dict[str, str],
-) -> tuple[dict[str, str], list[schemas.DiscoveryIndicator] | None]:
-    """Take a CSV row's flat indicators column out of its values, parsed.
+) -> tuple[dict[str, str], list[schemas.DiscoveryIndicator] | None, str | None]:
+    """Take a CSV row's indicators column out of its values, parsed from its JSON.
 
-    The list is `None` when the row has no such column, so a file holding a subset of the
-    columns leaves a stored record's indicators as they are.
+    Returns the other values, the indicators, and why the cell could not be read. The list is
+    `None` when the row has no such column, so a file holding a subset of the columns leaves
+    a stored record's indicators as they are - and when the cell is unreadable, which the
+    third item then says. The other values come back either way, so their own problems are
+    still reported alongside.
     """
-    if _INDICATORS_FIELD not in values:
-        return values, None
-    rest = {name: value for name, value in values.items() if name != _INDICATORS_FIELD}
-    # `csv.DictReader` fills the cells a short row lacks with `None`.
-    return rest, schemas.parse_flat_indicators(values[_INDICATORS_FIELD] or "")
+    if INDICATORS_FIELD not in values:
+        return values, None, None
+    rest = {name: value for name, value in values.items() if name != INDICATORS_FIELD}
+    try:
+        # `csv.DictReader` fills the cells a short row lacks with `None`.
+        indicators = schemas.parse_indicators_json(values[INDICATORS_FIELD] or "")
+    except ValidationError as e:
+        return rest, None, _describe_indicators_error(e)
+    return rest, indicators, None
 
 
-def _with_flat_indicators(row: ParsedRow) -> ParsedRow:
-    values, indicators = split_flat_indicators(row.values)
+def _with_indicators(row: ParsedRow, problems: list[schemas.DiscoveryPayloadProblem]) -> ParsedRow:
+    values, indicators, error = split_indicators_column(row.values)
+    if error:
+        problems.append(
+            schemas.DiscoveryPayloadProblem(
+                message=error, field=INDICATORS_FIELD, row=row.row_number
+            )
+        )
     return replace(row, values=values, indicators=indicators)
 
 
@@ -772,20 +810,22 @@ def _parse_csv(data: bytes, max_rows: int, max_indicators_per_dataset: int) -> P
     # on the upload does not already.
     allow_csv_fields_up_to(len(text))
     reader = csv.reader(io.StringIO(text, newline=""), dialect=_csv_dialect(text))
+    # A CSV has no spreadsheet coordinates, so problems are reported by row only.
+    problems: list[schemas.DiscoveryPayloadProblem] = []
 
     try:
         header_cells = next(reader)
         headers = _resolve_headers_or_positional(header_cells, _DiscoveryFileFormat.CSV)
         rows = [
-            _with_flat_indicators(row)
+            _with_indicators(row, problems)
             for row in _build_rows(enumerate(reader, start=2), headers, max_rows)
         ]
     except StopIteration as e:
         raise DiscoveryUploadFormatError("The CSV file is empty.") from e
     except csv.Error as e:
         raise DiscoveryUploadFormatError(f"The CSV file could not be read: {e}.") from e
-    # A CSV has no spreadsheet coordinates, so problems are reported by row only.
-    return ParsedFile(rows=rows, problems=_check_indicator_counts(rows, max_indicators_per_dataset))
+    problems.extend(_check_indicator_counts(rows, max_indicators_per_dataset))
+    return ParsedFile(rows=rows, problems=problems)
 
 
 def parse_discovery_file(

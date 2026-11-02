@@ -1,10 +1,10 @@
 import datetime
 from collections.abc import Iterable, Mapping, Sequence
-from typing import Annotated, Any, Self
+from typing import Annotated, Any
 
 from pydantic import AfterValidator, ConfigDict, Field, JsonValue, TypeAdapter, computed_field
 
-from statgpt.common.utils.discovery_cells import render_indicator, split_indicator
+from statgpt.common.utils.discovery_cells import render_indicator
 from statgpt.common.utils.misc import normalize_whitespace
 
 from .base import BaseYamlModel, DbDefaultBase
@@ -102,19 +102,13 @@ class DiscoveryIndicator(BaseYamlModel):
     reported INVALID by the indexing run, rather than refusing the whole upload.
     """
 
-    @classmethod
-    def from_flat(cls, entry: str) -> Self:
-        """Read one entry of the flat form, `name (units)`."""
-        name, units = split_indicator(entry)
-        return cls(name=name, units=units)
-
     @property
     def flat(self) -> str:
-        """The indicator in the flat form a CSV carries: `name (units)`."""
+        """The indicator as text: `name (units)`, or the name alone without units."""
         return render_indicator(self.name, self.units)
 
 
-INDICATOR_SEPARATOR = "; "
+_INDICATOR_SEPARATOR = "; "
 """What joins the indicators of the flat form, matching every other list-bearing cell."""
 
 
@@ -128,18 +122,29 @@ def read_indicators(
     return _INDICATORS_ADAPTER.validate_python(indicators)
 
 
-def parse_flat_indicators(cell: str) -> list[DiscoveryIndicator]:
-    """The indicators of a flat, ';'-separated list, in order, empty entries dropped.
+def parse_indicators_json(cell: str) -> list[DiscoveryIndicator]:
+    """The indicators of a CSV's `indicators_coverage` cell, a JSON list of `{name, units}`.
 
-    Duplicates are kept: the list says what was submitted, and a consumer that needs distinct
-    indicators folds them itself.
+    A blank cell is an empty list. Anything else that is not such a list - the flat
+    `name (units); ...` text older exports wrote included - raises `ValidationError`.
     """
-    return [DiscoveryIndicator.from_flat(entry) for entry in cell.split(";") if entry.strip()]
+    if not cell.strip():
+        return []
+    return _INDICATORS_ADAPTER.validate_json(cell)
+
+
+def dump_indicators_json(indicators: list[DiscoveryIndicator]) -> str:
+    """The indicators as a CSV's `indicators_coverage` cell carries them."""
+    return _INDICATORS_ADAPTER.dump_json(indicators).decode("utf-8")
 
 
 def render_flat_indicators(indicators: Iterable[DiscoveryIndicator]) -> str:
-    """The indicators as the flat, ';'-separated list a CSV carries."""
-    return INDICATOR_SEPARATOR.join(indicator.flat for indicator in indicators)
+    """The indicators as one line of text, `name (units); ...`.
+
+    What a summary is fingerprinted on, and how a report shows the list. Not read back: a
+    name ending in parentheses could not be told from one followed by its units.
+    """
+    return _INDICATOR_SEPARATOR.join(indicator.flat for indicator in indicators)
 
 
 class DiscoveryValidationIssue(BaseYamlModel):
@@ -261,7 +266,7 @@ class DiscoveryDatasetBase(BaseYamlModel):
     """One dataset described for discovery, as a submitter fills it in.
 
     Columns A-I come from the workbook's `Datasets` sheet; `indicators_coverage` is assembled
-    from the dataset's own indicators sheet, or supplied as a flat column by a CSV.
+    from the dataset's own indicators sheet, or supplied as a JSON column by a CSV.
 
     Makes a dataset discoverable without onboarding it (Grade C): the agent can
     recognize the dataset exists and refer the user to its official source. Every
@@ -309,9 +314,8 @@ class DiscoveryDatasetBase(BaseYamlModel):
     """The dataset's complete indicator list, each with its units of measure.
 
     No column of the `Datasets` sheet: a workbook assembles it from the dataset's own
-    indicators sheet, one row per indicator. A CSV carries it as one flat column, each
-    indicator with its units in parentheses, ';'-separated, which is also how the export
-    writes it.
+    indicators sheet, one row per indicator. A CSV carries it as one column holding the list
+    as JSON, which is also how the export writes it.
     """
 
 

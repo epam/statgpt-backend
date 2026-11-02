@@ -1,15 +1,13 @@
 import csv
 import datetime
 import io
-from types import SimpleNamespace
+import json
 from typing import Any
-from unittest.mock import AsyncMock, MagicMock
 
 import openpyxl
 import pytest
 
-from statgpt.admin.services import discovery_dataset, discovery_upload
-from statgpt.admin.services.discovery_dataset import AdminPortalDiscoveryDatasetService
+from statgpt.admin.services import discovery_upload
 from statgpt.admin.services.discovery_upload import (
     DATASETS_SHEET_FIELDS,
     RECORD_FIELDS,
@@ -17,8 +15,8 @@ from statgpt.admin.services.discovery_upload import (
     ParsedRow,
     parse_discovery_file,
 )
-from statgpt.admin.services.exceptions import DiscoveryPayloadError, DiscoveryUploadFormatError
-from statgpt.common.schemas import DiscoveryIndicator, RecordUploadMode, render_flat_indicators
+from statgpt.admin.services.exceptions import DiscoveryUploadFormatError
+from statgpt.common.schemas import DiscoveryIndicator, render_flat_indicators
 
 _DATASETS_HEADERS = [
     "Reference area / country",
@@ -110,6 +108,11 @@ def _csv_bytes(rows: list[dict[str, Any]], fieldnames: list[str], delimiter: str
 def _flat(row: ParsedRow) -> str:
     assert row.indicators is not None
     return render_flat_indicators(row.indicators)
+
+
+def _indicators_json(*indicators: tuple[str, str]) -> str:
+    """A CSV's indicators cell, as the export writes it."""
+    return json.dumps([{"name": name, "units": units} for name, units in indicators])
 
 
 def _parse(
@@ -304,32 +307,22 @@ def test_a_row_repeating_the_agency_too_is_left_to_the_natural_key_check() -> No
     assert not parsed.problems
 
 
-def test_each_repeated_row_is_reported_once_by_one_check() -> None:
+@pytest.mark.parametrize(
+    "repeated",
+    [
+        pytest.param(False, id="repeating-the-first-agency"),
+        pytest.param(True, id="repeating-another-agency"),
+    ],
+)
+def test_each_repeated_row_is_reported_once_by_one_check(repeated: bool) -> None:
+    """Only the row claiming the ID for a second agency; the repeat is a natural-key duplicate."""
     other_agency = list(_ROW)
     other_agency[2] = "Statistics Indonesia (BPS)"
+    third = list(other_agency) if repeated else list(_ROW)
 
-    parsed = _parse(_workbook([_ROW, other_agency, list(_ROW)]))
+    parsed = _parse(_workbook([_ROW, other_agency, third]))
 
     assert [problem.row for problem in parsed.problems] == [3]
-
-
-@pytest.mark.asyncio
-async def test_an_upload_repeating_a_whole_row_reports_one_problem_for_it(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setattr(
-        discovery_dataset.ChannelService,
-        "get_model_by_id",
-        AsyncMock(return_value=SimpleNamespace(id=1)),
-    )
-    service = AdminPortalDiscoveryDatasetService(session=MagicMock())
-
-    with pytest.raises(DiscoveryPayloadError) as exc_info:
-        await service.upload(1, _workbook([_ROW, list(_ROW)]), "book.xlsx", RecordUploadMode.UPSERT)
-
-    [problem] = exc_info.value.problems
-    assert (problem.row, problem.cell) == (3, "D3")
-    assert "Duplicate of row 2" in problem.message
 
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~ indicator sheets ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -344,7 +337,7 @@ def test_indicator_rows_are_joined_with_their_units() -> None:
     assert not parsed.problems
 
 
-def test_an_indicator_without_units_is_carried_with_none() -> None:
+def test_an_indicator_without_units_is_carried_with_empty_units() -> None:
     """Even when its name ends in parentheses, which the flat form would read as units."""
     sheets = {"TABEL1_1": [["broad money (M2)", None], ["policy rate", "percent per annum"]]}
 
@@ -515,7 +508,7 @@ def test_unknown_file_type_is_rejected() -> None:
 def test_csv_with_field_names_round_trips_an_export() -> None:
     """A CSV exported by this application (snake_case headers) re-imports unchanged."""
     fieldnames = list(RECORD_FIELDS)
-    row = dict(zip(fieldnames, [*_ROW, "broad money (M2) (billions of Rp)"]))
+    row = dict(zip(fieldnames, [*_ROW, _indicators_json(("broad money (M2)", "billions of Rp"))]))
 
     parsed = _parse(_csv_bytes([row], fieldnames), "discovery_datasets.csv")
 
@@ -529,11 +522,52 @@ def test_csv_with_field_names_round_trips_an_export() -> None:
 
 def test_csv_accepts_the_workbook_spelling_of_the_indicators_column() -> None:
     headers = [*_DATASETS_HEADERS, "Indicators coverage"]
-    row = dict(zip(headers, [*_ROW, "broad money (M2)"]))
+    row = dict(zip(headers, [*_ROW, _indicators_json(("broad money (M2)", "billions of Rp"))]))
 
     parsed = _parse(_csv_bytes([row], headers), "book.csv")
 
-    assert _flat(parsed.rows[0]) == "broad money (M2)"
+    assert _flat(parsed.rows[0]) == "broad money (M2) (billions of Rp)"
+
+
+@pytest.mark.parametrize(
+    "cell",
+    [
+        pytest.param("broad money (M2) (billions of Rp)", id="flat-text"),
+        pytest.param('{"name": "broad money (M2)", "units": "billions of Rp"}', id="object"),
+        pytest.param('["broad money (M2)"]', id="list-of-strings"),
+    ],
+)
+def test_csv_indicators_that_are_not_a_json_list_are_reported_against_the_row(cell: str) -> None:
+    """The flat text earlier exports wrote included: its units could not be told apart."""
+    row = dict(zip(DATASETS_SHEET_FIELDS, _ROW), indicators_coverage=cell)
+
+    parsed = _parse(_csv_bytes([row], list(RECORD_FIELDS)), "x.csv")
+
+    [problem] = parsed.problems
+    assert (problem.field, problem.row) == ("indicators_coverage", 2)
+    assert problem.message.startswith("Indicators coverage must be a JSON list of indicators")
+    # Dropped from the values too, so the schema does not report the same cell again.
+    assert parsed.rows[0].indicators is None
+    assert "indicators_coverage" not in parsed.rows[0].values
+
+
+def test_csv_indicator_errors_name_the_indicator() -> None:
+    cell = json.dumps([{"name": "M1", "units": "USD"}, {"name": " ", "units": "USD"}])
+    row = dict(zip(DATASETS_SHEET_FIELDS, _ROW), indicators_coverage=cell)
+
+    parsed = _parse(_csv_bytes([row], list(RECORD_FIELDS)), "x.csv")
+
+    [problem] = parsed.problems
+    assert problem.message == "Indicators coverage, indicator 2: name must not be empty."
+
+
+def test_a_blank_csv_indicators_cell_is_an_empty_list() -> None:
+    row = dict(zip(DATASETS_SHEET_FIELDS, _ROW), indicators_coverage="")
+
+    parsed = _parse(_csv_bytes([row], list(RECORD_FIELDS)), "x.csv")
+
+    assert parsed.rows[0].indicators == []
+    assert not parsed.problems
 
 
 @pytest.mark.parametrize("retired_header", ["Excluded regional values", "missing_indicators"])
@@ -565,7 +599,7 @@ def test_csv_without_the_indicators_column_is_accepted() -> None:
 
 def test_csv_with_bom_and_cp1252_fallback() -> None:
     fieldnames = list(RECORD_FIELDS)
-    row = dict(zip(fieldnames, [*_ROW, "broad money (M2)"]))
+    row = dict(zip(fieldnames, [*_ROW, _indicators_json(("broad money (M2)", "billions of Rp"))]))
     row["agency"] = "Banco de España (BdE)"
 
     with_bom = "﻿".encode() + _csv_bytes([row], fieldnames)
@@ -584,20 +618,28 @@ def test_csv_reads_an_indicators_column_longer_than_pythons_field_limit(
     default_csv_field_limit: int,
 ) -> None:
     """A workbook's indicators sheet has no cell limit, so its export can exceed this."""
-    coverage = "; ".join(f"indicator {i} (units)" for i in range(10_000))
+    coverage = _indicators_json(*((f"indicator {i}", "units") for i in range(10_000)))
     assert len(coverage) > default_csv_field_limit
     row = dict(zip(DATASETS_SHEET_FIELDS, _ROW), indicators_coverage=coverage)
 
     parsed = _parse(_csv_bytes([row], list(RECORD_FIELDS)), "x.csv", max_indicators=10_000)
 
-    assert _flat(parsed.rows[0]) == coverage
+    assert parsed.rows[0].indicators is not None
+    assert len(parsed.rows[0].indicators) == 10_000
     assert not parsed.problems
 
 
 def test_csv_indicator_cap_is_reported_against_the_row() -> None:
     """The cap a workbook's indicators sheet is held to, so the two formats agree."""
-    within = dict(zip(DATASETS_SHEET_FIELDS, _ROW), indicators_coverage="a (x); b (x); c (x)")
-    over = {**within, "dataset_id": "TABEL1_2", "indicators_coverage": "a; b;; c; d;"}
+    within = dict(
+        zip(DATASETS_SHEET_FIELDS, _ROW),
+        indicators_coverage=_indicators_json(("a", "x"), ("b", "x"), ("c", "x")),
+    )
+    over = {
+        **within,
+        "dataset_id": "TABEL1_2",
+        "indicators_coverage": _indicators_json(("a", "x"), ("b", "x"), ("c", "x"), ("d", "x")),
+    }
 
     parsed = _parse(_csv_bytes([within, over], list(RECORD_FIELDS)), "x.csv", max_indicators=3)
 

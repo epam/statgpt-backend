@@ -4,8 +4,8 @@ A record's `indicators_coverage` is what its submitter authored: every indicator
 units of measure. Indexed as it is, a list of a few hundred indicators would drown the
 description a question is meant to match, so a run derives `indicators_summary` from it:
 
-- a units of measure every indicator shares is stated once, as a
-  `Unit: ...` prefix, instead of after every name;
+- a units of measure every indicator shares is stated once, as a `Unit: ...` prefix, instead
+  of after every name;
 - a list that is still longer than the channel's threshold is collapsed by an LLM into
   indicator groups. A list too long for one call is split between indicators, each part is
   summarized on its own, and the parts' groups are merged by one more call. Units the indicators
