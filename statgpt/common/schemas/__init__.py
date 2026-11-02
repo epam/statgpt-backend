@@ -44,6 +44,7 @@ from .discovery_dataset import (
     DiscoveryDatasetStats,
     DiscoveryDatasetUpdate,
     DiscoveryDatasetUpdateBulk,
+    DiscoveryIndicator,
     DiscoveryLLMCallUsage,
     DiscoveryLLMUsage,
     DiscoveryPayloadErrorDetail,
@@ -53,6 +54,10 @@ from .discovery_dataset import (
     DiscoverySummaryRun,
     DiscoveryUploadSummary,
     DiscoveryValidationIssue,
+    dump_indicators_json,
+    parse_indicators_json,
+    read_indicators,
+    render_flat_indicators,
 )
 from .discovery_datasets_tool import (
     DiscoveryDatasetsDetails,

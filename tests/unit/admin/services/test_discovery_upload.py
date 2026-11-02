@@ -1,6 +1,7 @@
 import csv
 import datetime
 import io
+import json
 from typing import Any
 
 import openpyxl
@@ -11,9 +12,11 @@ from statgpt.admin.services.discovery_upload import (
     DATASETS_SHEET_FIELDS,
     RECORD_FIELDS,
     ParsedFile,
+    ParsedRow,
     parse_discovery_file,
 )
 from statgpt.admin.services.exceptions import DiscoveryUploadFormatError
+from statgpt.common.schemas import DiscoveryIndicator, render_flat_indicators
 
 _DATASETS_HEADERS = [
     "Reference area / country",
@@ -100,6 +103,16 @@ def _csv_bytes(rows: list[dict[str, Any]], fieldnames: list[str], delimiter: str
     writer.writeheader()
     writer.writerows(rows)
     return buffer.getvalue().encode("utf-8")
+
+
+def _flat(row: ParsedRow) -> str:
+    assert row.indicators is not None
+    return render_flat_indicators(row.indicators)
+
+
+def _indicators_json(*indicators: tuple[str, str]) -> str:
+    """A CSV's indicators cell, as the export writes it."""
+    return json.dumps([{"name": name, "units": units} for name, units in indicators])
 
 
 def _parse(
@@ -275,10 +288,39 @@ def test_a_dataset_id_used_twice_is_reported_even_across_agencies() -> None:
 
 def test_a_dataset_id_repeated_in_another_casing_is_reported() -> None:
     second = list(_ROW)
+    second[2] = "Statistics Indonesia (BPS)"
     second[3] = "tabel1_1 "
     sheets = {"TABEL1_1": list(_INDICATORS)}
 
     parsed = _parse(_workbook([_ROW, second], indicator_sheets=sheets))
+
+    assert [problem.row for problem in parsed.problems] == [3]
+
+
+def test_a_row_repeating_the_agency_too_is_left_to_the_natural_key_check() -> None:
+    """A duplicate of the whole key: reporting it here too would put two problems on D3."""
+    second = list(_ROW)
+    second[2] = " bank indonesia (BI)"
+
+    parsed = _parse(_workbook([_ROW, second]))
+
+    assert not parsed.problems
+
+
+@pytest.mark.parametrize(
+    "repeated",
+    [
+        pytest.param(False, id="repeating-the-first-agency"),
+        pytest.param(True, id="repeating-another-agency"),
+    ],
+)
+def test_each_repeated_row_is_reported_once_by_one_check(repeated: bool) -> None:
+    """Only the row claiming the ID for a second agency; the repeat is a natural-key duplicate."""
+    other_agency = list(_ROW)
+    other_agency[2] = "Statistics Indonesia (BPS)"
+    third = list(other_agency) if repeated else list(_ROW)
+
+    parsed = _parse(_workbook([_ROW, other_agency, third]))
 
     assert [problem.row for problem in parsed.problems] == [3]
 
@@ -289,20 +331,23 @@ def test_a_dataset_id_repeated_in_another_casing_is_reported() -> None:
 def test_indicator_rows_are_joined_with_their_units() -> None:
     parsed = _parse(_workbook([_ROW]))
 
-    assert parsed.rows[0].values["indicators_coverage"] == (
+    assert _flat(parsed.rows[0]) == (
         "broad money (M2) (billions of Rp); narrow money (M1) (billions of Rp)"
     )
     assert not parsed.problems
 
 
-def test_an_indicator_without_units_is_carried_as_its_name_alone() -> None:
+def test_an_indicator_without_units_is_carried_with_empty_units() -> None:
+    """Even when its name ends in parentheses, which the flat form would read as units."""
     sheets = {"TABEL1_1": [["broad money (M2)", None], ["policy rate", "percent per annum"]]}
 
     parsed = _parse(_workbook([_ROW], indicator_sheets=sheets))
 
-    assert parsed.rows[0].values["indicators_coverage"] == (
-        "broad money (M2); policy rate (percent per annum)"
-    )
+    assert parsed.rows[0].indicators == [
+        DiscoveryIndicator(name="broad money (M2)", units=""),
+        DiscoveryIndicator(name="policy rate", units="percent per annum"),
+    ]
+    assert not parsed.problems
 
 
 def test_the_sheet_is_matched_to_its_dataset_ignoring_case_and_spacing() -> None:
@@ -310,7 +355,7 @@ def test_the_sheet_is_matched_to_its_dataset_ignoring_case_and_spacing() -> None
 
     parsed = _parse(_workbook([_ROW], indicator_sheets=sheets))
 
-    assert parsed.rows[0].values["indicators_coverage"].startswith("broad money (M2)")
+    assert _flat(parsed.rows[0]).startswith("broad money (M2)")
     assert not parsed.problems
 
 
@@ -318,14 +363,14 @@ def test_a_dataset_with_no_indicator_sheet_gets_an_empty_list() -> None:
     """Not a problem here: whether a record may list no indicators is validation's call."""
     parsed = _parse(_workbook([_ROW], indicator_sheets={}))
 
-    assert parsed.rows[0].values["indicators_coverage"] == ""
+    assert _flat(parsed.rows[0]) == ""
     assert not parsed.problems
 
 
 def test_a_sheet_holding_only_its_header_row_reads_the_same_as_no_sheet() -> None:
     parsed = _parse(_workbook([_ROW], indicator_sheets={"TABEL1_1": []}))
 
-    assert parsed.rows[0].values["indicators_coverage"] == ""
+    assert _flat(parsed.rows[0]) == ""
     assert not parsed.problems
 
 
@@ -334,7 +379,7 @@ def test_blank_indicator_rows_are_dropped() -> None:
 
     parsed = _parse(_workbook([_ROW], indicator_sheets=sheets))
 
-    assert parsed.rows[0].values["indicators_coverage"] == "broad money (M2) (billions of Rp)"
+    assert _flat(parsed.rows[0]) == "broad money (M2) (billions of Rp)"
     assert not parsed.problems
 
 
@@ -350,7 +395,7 @@ def test_units_without_an_indicator_name_are_reported_at_their_cell() -> None:
     assert problem.row == 2
     assert problem.cell == "'TABEL1_1'!B3"
     # The indicators that could be read are still carried.
-    assert parsed.rows[0].values["indicators_coverage"] == "broad money (M2) (billions of Rp)"
+    assert _flat(parsed.rows[0]) == "broad money (M2) (billions of Rp)"
 
 
 def test_a_sheet_no_dataset_row_names_is_ignored_unread() -> None:
@@ -363,7 +408,7 @@ def test_a_sheet_no_dataset_row_names_is_ignored_unread() -> None:
     parsed = _parse(_workbook([_ROW], indicator_sheets=sheets), max_indicators=3)
 
     assert not parsed.problems
-    assert parsed.rows[0].values["indicators_coverage"].startswith("broad money (M2)")
+    assert _flat(parsed.rows[0]).startswith("broad money (M2)")
 
 
 def test_two_sheets_folding_onto_one_dataset_id_are_reported_on_its_row() -> None:
@@ -377,7 +422,7 @@ def test_two_sheets_folding_onto_one_dataset_id_are_reported_on_its_row() -> Non
     assert problem.field == "dataset_id"
     assert problem.cell == "D2"
     assert "'TABEL1_1', 'tabel1_1 '" in problem.message
-    assert parsed.rows[0].values["indicators_coverage"] == ""
+    assert _flat(parsed.rows[0]) == ""
 
 
 @pytest.mark.parametrize("dataset_id", ["Instructions", "datasets "])
@@ -389,7 +434,7 @@ def test_a_dataset_id_naming_a_template_sheet_is_reported(dataset_id: str) -> No
 
     assert [(problem.field, problem.cell) for problem in parsed.problems] == [("dataset_id", "D2")]
     assert "workbook's own sheets" in parsed.problems[0].message
-    assert parsed.rows[0].values["indicators_coverage"] == ""
+    assert _flat(parsed.rows[0]) == ""
 
 
 def test_an_indicator_sheet_without_an_indicator_column_is_reported() -> None:
@@ -399,7 +444,7 @@ def test_an_indicator_sheet_without_an_indicator_column_is_reported() -> None:
 
     assert len(parsed.problems) == 1
     assert "no 'Indicator' column" in parsed.problems[0].message
-    assert parsed.rows[0].values["indicators_coverage"] == ""
+    assert _flat(parsed.rows[0]) == ""
 
 
 def test_a_two_column_indicator_sheet_falls_back_to_column_order() -> None:
@@ -411,7 +456,7 @@ def test_a_two_column_indicator_sheet_falls_back_to_column_order() -> None:
         )
     )
 
-    assert parsed.rows[0].values["indicators_coverage"].startswith("broad money (M2)")
+    assert _flat(parsed.rows[0]).startswith("broad money (M2)")
     assert not parsed.problems
 
 
@@ -425,7 +470,7 @@ def test_the_column_order_fallback_ignores_trailing_blank_header_cells() -> None
         )
     )
 
-    assert parsed.rows[0].values["indicators_coverage"] == "broad money (M2) (billions of Rp)"
+    assert _flat(parsed.rows[0]) == "broad money (M2) (billions of Rp)"
     assert not parsed.problems
 
 
@@ -463,23 +508,66 @@ def test_unknown_file_type_is_rejected() -> None:
 def test_csv_with_field_names_round_trips_an_export() -> None:
     """A CSV exported by this application (snake_case headers) re-imports unchanged."""
     fieldnames = list(RECORD_FIELDS)
-    row = dict(zip(fieldnames, [*_ROW, "broad money (M2) (billions of Rp)"]))
+    row = dict(zip(fieldnames, [*_ROW, _indicators_json(("broad money (M2)", "billions of Rp"))]))
 
     parsed = _parse(_csv_bytes([row], fieldnames), "discovery_datasets.csv")
 
-    assert parsed.rows[0].values == row
-    assert parsed.rows[0].values["indicators_coverage"] == "broad money (M2) (billions of Rp)"
+    assert parsed.rows[0].values == {name: row[name] for name in DATASETS_SHEET_FIELDS}
+    assert parsed.rows[0].indicators == [
+        DiscoveryIndicator(name="broad money (M2)", units="billions of Rp")
+    ]
     # A CSV has no spreadsheet coordinates, so problems are reported by row only.
     assert parsed.cell("agency", 2) is None
 
 
 def test_csv_accepts_the_workbook_spelling_of_the_indicators_column() -> None:
     headers = [*_DATASETS_HEADERS, "Indicators coverage"]
-    row = dict(zip(headers, [*_ROW, "broad money (M2)"]))
+    row = dict(zip(headers, [*_ROW, _indicators_json(("broad money (M2)", "billions of Rp"))]))
 
     parsed = _parse(_csv_bytes([row], headers), "book.csv")
 
-    assert parsed.rows[0].values["indicators_coverage"] == "broad money (M2)"
+    assert _flat(parsed.rows[0]) == "broad money (M2) (billions of Rp)"
+
+
+@pytest.mark.parametrize(
+    "cell",
+    [
+        pytest.param("broad money (M2) (billions of Rp)", id="flat-text"),
+        pytest.param('{"name": "broad money (M2)", "units": "billions of Rp"}', id="object"),
+        pytest.param('["broad money (M2)"]', id="list-of-strings"),
+    ],
+)
+def test_csv_indicators_that_are_not_a_json_list_are_reported_against_the_row(cell: str) -> None:
+    """The flat text earlier exports wrote included: its units could not be told apart."""
+    row = dict(zip(DATASETS_SHEET_FIELDS, _ROW), indicators_coverage=cell)
+
+    parsed = _parse(_csv_bytes([row], list(RECORD_FIELDS)), "x.csv")
+
+    [problem] = parsed.problems
+    assert (problem.field, problem.row) == ("indicators_coverage", 2)
+    assert problem.message.startswith("Indicators coverage must be a JSON list of indicators")
+    # Dropped from the values too, so the schema does not report the same cell again.
+    assert parsed.rows[0].indicators is None
+    assert "indicators_coverage" not in parsed.rows[0].values
+
+
+def test_csv_indicator_errors_name_the_indicator() -> None:
+    cell = json.dumps([{"name": "M1", "units": "USD"}, {"name": " ", "units": "USD"}])
+    row = dict(zip(DATASETS_SHEET_FIELDS, _ROW), indicators_coverage=cell)
+
+    parsed = _parse(_csv_bytes([row], list(RECORD_FIELDS)), "x.csv")
+
+    [problem] = parsed.problems
+    assert problem.message == "Indicators coverage, indicator 2: name must not be empty."
+
+
+def test_a_blank_csv_indicators_cell_is_an_empty_list() -> None:
+    row = dict(zip(DATASETS_SHEET_FIELDS, _ROW), indicators_coverage="")
+
+    parsed = _parse(_csv_bytes([row], list(RECORD_FIELDS)), "x.csv")
+
+    assert parsed.rows[0].indicators == []
+    assert not parsed.problems
 
 
 @pytest.mark.parametrize("retired_header", ["Excluded regional values", "missing_indicators"])
@@ -506,12 +594,12 @@ def test_csv_without_the_indicators_column_is_accepted() -> None:
 
     parsed = _parse(_csv_bytes([row], _DATASETS_HEADERS), "book.csv")
 
-    assert "indicators_coverage" not in parsed.rows[0].values
+    assert parsed.rows[0].indicators is None
 
 
 def test_csv_with_bom_and_cp1252_fallback() -> None:
     fieldnames = list(RECORD_FIELDS)
-    row = dict(zip(fieldnames, [*_ROW, "broad money (M2)"]))
+    row = dict(zip(fieldnames, [*_ROW, _indicators_json(("broad money (M2)", "billions of Rp"))]))
     row["agency"] = "Banco de España (BdE)"
 
     with_bom = "﻿".encode() + _csv_bytes([row], fieldnames)
@@ -530,20 +618,28 @@ def test_csv_reads_an_indicators_column_longer_than_pythons_field_limit(
     default_csv_field_limit: int,
 ) -> None:
     """A workbook's indicators sheet has no cell limit, so its export can exceed this."""
-    coverage = "; ".join(f"indicator {i} (units)" for i in range(10_000))
+    coverage = _indicators_json(*((f"indicator {i}", "units") for i in range(10_000)))
     assert len(coverage) > default_csv_field_limit
     row = dict(zip(DATASETS_SHEET_FIELDS, _ROW), indicators_coverage=coverage)
 
     parsed = _parse(_csv_bytes([row], list(RECORD_FIELDS)), "x.csv", max_indicators=10_000)
 
-    assert parsed.rows[0].values["indicators_coverage"] == coverage
+    assert parsed.rows[0].indicators is not None
+    assert len(parsed.rows[0].indicators) == 10_000
     assert not parsed.problems
 
 
 def test_csv_indicator_cap_is_reported_against_the_row() -> None:
     """The cap a workbook's indicators sheet is held to, so the two formats agree."""
-    within = dict(zip(DATASETS_SHEET_FIELDS, _ROW), indicators_coverage="a (x); b (x); c (x)")
-    over = {**within, "dataset_id": "TABEL1_2", "indicators_coverage": "a; b;; c; d;"}
+    within = dict(
+        zip(DATASETS_SHEET_FIELDS, _ROW),
+        indicators_coverage=_indicators_json(("a", "x"), ("b", "x"), ("c", "x")),
+    )
+    over = {
+        **within,
+        "dataset_id": "TABEL1_2",
+        "indicators_coverage": _indicators_json(("a", "x"), ("b", "x"), ("c", "x"), ("d", "x")),
+    }
 
     parsed = _parse(_csv_bytes([within, over], list(RECORD_FIELDS)), "x.csv", max_indicators=3)
 
