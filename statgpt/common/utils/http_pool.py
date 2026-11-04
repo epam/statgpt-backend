@@ -60,7 +60,7 @@ async def _enforce_rate_limit_policy(response: httpx.Response) -> None:
     if response.status_code != 429:
         return
     retry_after = _get_retry_after_seconds(response.headers)
-    if retry_after is None or retry_after >= _MAX_RATE_LIMIT_WAIT_SECONDS:
+    if retry_after is None or retry_after > _MAX_RATE_LIMIT_WAIT_SECONDS:
         response.headers["x-should-retry"] = "false"
 
 
@@ -73,7 +73,7 @@ def get_shared_llm_http_client() -> httpx.AsyncClient:
     per-request timeout on top of a provided ``http_client``, and the model factories pass
     explicit timeouts.
 
-    A 429 is retried only when its `Retry-After` is shorter than ``_MAX_RATE_LIMIT_WAIT_SECONDS``.
+    A 429 is retried only when its `Retry-After` is at most ``_MAX_RATE_LIMIT_WAIT_SECONDS``.
     """
     global _llm_client
     if _llm_client is None or _llm_client.is_closed:

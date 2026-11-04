@@ -145,8 +145,8 @@ class TestRateLimitPolicy:
 
     @pytest.mark.parametrize(
         "headers",
-        [{"retry-after": "53932"}, {"retry-after": "60"}, {}, {"retry-after": "soon"}],
-        ids=["long", "60s", "missing", "unparseable"],
+        [{"retry-after": "53932"}, {"retry-after": "61"}, {}, {"retry-after": "soon"}],
+        ids=["long", "over-limit", "missing", "unparseable"],
     )
     async def test_fails_fast_without_a_short_retry_after(self, headers, _no_sleep) -> None:
         client, requests = self._client(httpx.Response(429, headers=headers, json=_ERROR))
@@ -173,6 +173,17 @@ class TestRateLimitPolicy:
 
         assert len(requests) == 2
         assert _no_sleep == [expected_sleep]
+
+    async def test_retries_at_the_limit(self, _no_sleep) -> None:
+        client, requests = self._client(
+            httpx.Response(429, headers={"retry-after": "60"}, json=_ERROR),
+            httpx.Response(200, json=_COMPLETION),
+        )
+
+        await self._create(client)
+
+        assert len(requests) == 2
+        assert _no_sleep == [60.0]
 
     async def test_still_retries_server_errors(self) -> None:
         client, requests = self._client(
