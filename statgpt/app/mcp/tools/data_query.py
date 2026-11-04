@@ -1,9 +1,9 @@
 import asyncio
-from typing import Annotated, Any, Self
+from typing import Any
 
 from fastmcp.tools import ToolResult
 from mcp.types import TextContent
-from pydantic import Field, PrivateAttr, model_validator
+from pydantic import PrivateAttr
 
 from statgpt.app.chains.data_query.data_query_tool import DataQueryArgs
 from statgpt.app.chains.data_query.runner import DataQueryRunner
@@ -16,67 +16,13 @@ from statgpt.app.schemas.mcp import DataQueryStructuredContent
 from statgpt.common.auth.auth_context import AuthContext
 from statgpt.common.schemas import ChannelConfig
 from statgpt.common.schemas import DataQueryTool as DataQueryToolConfig
-from statgpt.common.schemas import DataQueryValueRounding, ToolTypes
+from statgpt.common.schemas import ToolTypes
 
 from .base import StatGptMcpTool
 
-# A float carries about 15 significant digits, so rounding to more decimal places changes nothing.
-_MAX_DECIMAL_PLACES = 15
-_DecimalPlaces = Annotated[int | None, Field(ge=0, le=_MAX_DECIMAL_PLACES)]
-_DECIMAL_PLACES_DESCRIPTION = (
-    f"Number of decimal places, from 0 to {_MAX_DECIMAL_PLACES}, to round the returned values to."
-    " A value too small for that precision keeps its first significant digit instead of reading"
-    " as 0. Set it only when the user asks for a specific precision."
-)
-_FULL_PRECISION_DESCRIPTION = (
-    "Return the values unrounded, at the full precision of the source."
-    " Set it only when the user asks for exact or unrounded values."
-    " Cannot be combined with `decimal_places`."
-)
-
-
-class DataQueryMcpArgs(DataQueryArgs):
-    """The data query args, plus the rounding an MCP caller can ask for on one call."""
-
-    decimal_places: _DecimalPlaces = Field(default=None, description=_DECIMAL_PLACES_DESCRIPTION)
-    full_precision: bool = Field(default=False, description=_FULL_PRECISION_DESCRIPTION)
-
-    @model_validator(mode="after")
-    def _check_one_precision(self) -> Self:
-        if self.full_precision and self.decimal_places is not None:
-            raise ValueError("Set either `decimal_places` or `full_precision`, not both.")
-        return self
-
-    @property
-    def value_rounding(self) -> DataQueryValueRounding | None:
-        """The rounding this call asks for, or `None` to keep the configured one."""
-        if self.full_precision:
-            return DataQueryValueRounding(decimal_places=None)
-        if self.decimal_places is not None:
-            return DataQueryValueRounding(decimal_places=self.decimal_places)
-        return None
-
-
-def build_data_query_mcp_args(tool_config: DataQueryToolConfig) -> type[DataQueryMcpArgs]:
-    """The MCP args schema, with the configured default precision spelled out in the description."""
-
-    default = tool_config.details.value_rounding.decimal_places
-    default_msg = (
-        f" When omitted, the values are rounded to {default} decimal places."
-        if default is not None
-        else " When omitted, the values keep their full precision."
-    )
-
-    class DataQueryMcpArgsWithDefault(DataQueryMcpArgs):
-        decimal_places: _DecimalPlaces = Field(
-            default=None, description=_DECIMAL_PLACES_DESCRIPTION + default_msg
-        )
-
-    return DataQueryMcpArgsWithDefault
-
 
 class DataQueryMcpTool(
-    StatGptMcpTool[DataQueryToolConfig, DataQueryMcpArgs], tool_type=ToolTypes.DATA_QUERY
+    StatGptMcpTool[DataQueryToolConfig, DataQueryArgs], tool_type=ToolTypes.DATA_QUERY
 ):
     _runner: DataQueryRunner = PrivateAttr()
 
@@ -92,17 +38,15 @@ class DataQueryMcpTool(
         self._runner = DataQueryRunner(tool_config.details, channel_config)
 
     @classmethod
-    def get_args_schema(cls, tool_config: DataQueryToolConfig) -> type[DataQueryMcpArgs]:
-        return build_data_query_mcp_args(tool_config)
+    def get_args_schema(cls, tool_config: DataQueryToolConfig) -> type[DataQueryArgs]:
+        return DataQueryArgs
 
     @classmethod
     def get_output_model(cls) -> type[DataQueryStructuredContent]:
         return DataQueryStructuredContent
 
-    async def _execute(self, args: DataQueryMcpArgs) -> ToolResult:
-        outcome = await self._runner.run(
-            args.inputs, args.query, value_rounding=args.value_rounding
-        )
+    async def _execute(self, args: DataQueryArgs) -> ToolResult:
+        outcome = await self._runner.run(args.inputs, args.query)
 
         # The model reads the structured content, also sent as its JSON text; the clients read
         # `_meta`, one payload per audience.

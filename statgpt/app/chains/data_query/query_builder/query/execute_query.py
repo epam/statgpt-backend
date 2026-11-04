@@ -20,11 +20,7 @@ from statgpt.app.utils.formatters import DatasetQueryFormatter, DatasetQueryForm
 from statgpt.common.auth.auth_context import AuthContext
 from statgpt.common.data.base import DataResponse, DataSetQuery
 from statgpt.common.schemas import StagesConfig
-from statgpt.common.schemas.data_query_tool import (
-    DataQueryExplorerLink,
-    DataQueryMessages,
-    DataQueryValueRounding,
-)
+from statgpt.common.schemas.data_query_tool import DataQueryExplorerLink, DataQueryMessages
 from statgpt.common.schemas.enums import (
     DataParsingStatus,
     DataRequestStatus,
@@ -44,7 +40,6 @@ class ExecuteQueryChain:
         messages: DataQueryMessages,
         explorer_link: DataQueryExplorerLink,
         mcp_explorer_link: ExplorerLinkPolicy,
-        value_rounding: DataQueryValueRounding,
         summarize_queries_chain: SummarizeQueriesChain,
     ):
         self._stages_config = stages_config
@@ -52,7 +47,6 @@ class ExecuteQueryChain:
         self._messages = messages
         self._explorer_link = explorer_link
         self._mcp_explorer_link = mcp_explorer_link
-        self._value_rounding = value_rounding
         self._summarize_queries_chain = summarize_queries_chain
 
     async def summarize_dataset_queries(self, inputs: dict) -> dict:
@@ -144,46 +138,31 @@ class ExecuteQueryChain:
             return DataQueryStatus.FAILED
         return DataQueryStatus.EXECUTED_NO_DATA
 
-    @staticmethod
+    @classmethod
     def _get_data_query_chain(
-        dataset: VersionedDataSet,
-        query: DataSetQuery,
-        auth_context: AuthContext,
-        decimal_places: int | None,
+        cls, dataset: VersionedDataSet, query: DataSetQuery, auth_context: AuthContext
     ) -> Runnable:
-        async def _query(d: dict) -> DataResponse | None:
-            response = await d["dataset"].data.query(d["query"], auth_context)
-            if response is not None:
-                # Every query result passes through here, whichever interface called the tool,
-                # so the model reads values of the same precision everywhere.
-                response.value_decimal_places = decimal_places
-            return response
+        async def _query(d: dict):
+            return await d["dataset"].data.query(d["query"], auth_context)
 
         return RunnablePassthrough.assign(
             dataset=lambda _: dataset, query=lambda _: query
         ) | RunnableLambda(_query)
 
-    def _get_data_query_chains(self, inputs: dict) -> dict[str, Runnable]:
+    @classmethod
+    def _get_data_query_chains(cls, inputs: dict) -> dict[str, Runnable]:
         chain_state = ChainState.model_validate(inputs)
         auth_context = chain_state.auth_context
         datasets_dict = chain_state.datasets_dict
         dataset_queries = chain_state.dataset_queries
-        decimal_places = self._decimal_places(inputs)
         return {
-            dataset_id: self._get_data_query_chain(
-                datasets_dict[dataset_id], query, auth_context, decimal_places
-            )
+            dataset_id: cls._get_data_query_chain(datasets_dict[dataset_id], query, auth_context)
             for dataset_id, query in dataset_queries.items()
         }
 
-    def _decimal_places(self, inputs: dict) -> int | None:
-        """The precision of this call, `None` for full precision: the rounding the caller asked
-        for, or else the configured one."""
-        requested: DataQueryValueRounding | None = inputs.get(DataQueryParameters.VALUE_ROUNDING)
-        return (self._value_rounding if requested is None else requested).decimal_places
-
-    def _get_data_queries_chain(self, inputs: dict) -> RunnableParallel:
-        return RunnableParallel(self._get_data_query_chains(inputs))
+    @classmethod
+    def _get_data_queries_chain(cls, inputs: dict) -> RunnableParallel:
+        return RunnableParallel(cls._get_data_query_chains(inputs))
 
     @staticmethod
     async def append_data_responses_stage(stage: Stage, d: dict):

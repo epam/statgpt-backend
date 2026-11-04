@@ -11,7 +11,7 @@ from statgpt.app.schemas.tool_artifact import DataQueryOutcome
 from statgpt.common.config import multiline_logger as logger
 from statgpt.common.data.base import DataResponse
 from statgpt.common.schemas import ChannelConfig
-from statgpt.common.schemas.data_query_tool import DataQueryDetails, DataQueryValueRounding
+from statgpt.common.schemas.data_query_tool import DataQueryDetails
 
 from .parameters import DataQueryParameters
 from .query_builder.factory import QueryBuilderFactory
@@ -28,19 +28,10 @@ class DataQueryRunner:
         self._details = details
         self._channel_config = channel_config
 
-    async def run(
-        self, inputs: dict, query: str, value_rounding: DataQueryValueRounding | None = None
-    ) -> DataQueryOutcome:
-        """Run the pipeline for `query`.
-
-        `value_rounding`, when given, overrides the configured rounding of the returned values
-        for this run only.
-        """
+    async def run(self, inputs: dict, query: str) -> DataQueryOutcome:
         factory = QueryBuilderFactory(self._details)
 
         inputs[ChainParametersConfig.QUERY] = query
-        # Set on every run, so a rounding asked for on one call never carries over to the next.
-        inputs[DataQueryParameters.VALUE_ROUNDING] = value_rounding
 
         chain: Runnable = await factory.create_chain(inputs)
 

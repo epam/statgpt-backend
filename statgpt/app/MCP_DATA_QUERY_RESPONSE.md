@@ -84,25 +84,12 @@ details:
 
 ## Resource values
 
-The `text/csv` and `text/markdown` resources carry the values rounded to the tool's
-`valueRounding.decimalPlaces` (3 by default), the same precision the Supreme Agent reads. A value
-too small for that precision keeps its first significant digit instead of reading as `0`: with 3
-decimal places `0.0004` stays `0.0004` and `0.00049` becomes `0.0005`. The CSV file the user
-downloads from a chat keeps full precision.
-
-```yaml
-details:
-  valueRounding:
-    decimalPlaces: 3  # `null` keeps full precision
-```
-
-A caller can override the configured rounding on a single call with one of two optional arguments:
-
-- `decimal_places` (0 to 15) rounds the values to that many decimal places;
-- `full_precision: true` returns them unrounded.
-
-Setting both is rejected. The arguments exist on the MCP tool only: the Supreme Agent always reads
-the configured precision.
+The `text/csv` and `text/markdown` resources carry the values at full precision by default. Set the
+`DATA_QUERY_DECIMAL_PLACES` environment variable (0 to 15) to round them to that many decimal
+places. The setting applies to the whole application, so the Supreme Agent reads and the UI grid
+shows the same rounded values. A value too small for that precision keeps its first significant
+digit instead of reading as `0`: with 3 decimal places `0.0004` stays `0.0004` and `0.00049`
+becomes `0.0005`. The CSV file the user downloads from a chat always keeps full precision.
 
 ## Resource URIs
 

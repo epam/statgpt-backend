@@ -214,7 +214,7 @@ class Sdmx21DataResponse(DataResponse):
                 f"Cannot merge different datasets: {self.dataset.entity_id} != {other.dataset.entity_id}"
             )
 
-        merged = Sdmx21DataResponse(
+        return Sdmx21DataResponse(
             dataset=self.dataset,
             df=pd.concat([self.df, other.df]).drop_duplicates(),
             sdmx_query=self.sdmx_query.merge(other.sdmx_query),
@@ -222,8 +222,6 @@ class Sdmx21DataResponse(DataResponse):
             status=self.status.merge(other.status),
             display_series_count=self._display_series_count + other._display_series_count,
         )
-        merged.value_decimal_places = self.value_decimal_places
-        return merged
 
     @property
     def custom_table_dict(self) -> dict | None:
@@ -247,13 +245,13 @@ class Sdmx21DataResponse(DataResponse):
         }
         return result
 
-    @property
-    def plotly_grid(self) -> go.Figure | None:
+    def plotly_grid(self, decimal_places: int | None) -> go.Figure | None:
         if self.visual_dataframe.empty:
             return None
+        if decimal_places is None:
+            return df_2_plotly_grid(self.visual_dataframe, round_digits=2)
         # Rounded like the values the model reads, so the grid and the answer show the same numbers.
-        figure = df_2_plotly_grid(self.rounded_visual_dataframe)
-        return figure
+        return df_2_plotly_grid(self.rounded_visual_dataframe(decimal_places))
 
     def get_plotly_graphs_with_names(self, template: str) -> list[tuple[str, go.Figure]]:
         try:

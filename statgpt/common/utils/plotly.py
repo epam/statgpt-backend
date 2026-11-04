@@ -12,7 +12,10 @@ if t.TYPE_CHECKING:
     from statgpt.common.data.sdmx import Sdmx21DataSet
 
 
-def df_2_plotly_grid(df: pd.DataFrame) -> go.Figure:
+def df_2_plotly_grid(df: pd.DataFrame, round_digits: int | None = None) -> go.Figure:
+    if round_digits is not None:
+        # copy of df with limited number of significant digits
+        df = df.round(round_digits)
     num_rows = min(len(df), 7)  # limit number of rows to 7
     row_height = 28 * 2
     header_height = 28

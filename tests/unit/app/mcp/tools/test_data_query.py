@@ -4,8 +4,6 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
 import pandas as pd
-import pytest
-from fastmcp.exceptions import ToolError
 from mcp.types import EmbeddedResource, TextContent
 
 from statgpt.app.mcp.tools import StatGptMcpTool
@@ -21,7 +19,6 @@ from statgpt.common.schemas.base import ToggleableConfig
 from statgpt.common.schemas.data_query_tool import (
     DataQueryMcpMeta,
     DataQueryMcpResources,
-    DataQueryValueRounding,
     McpResource,
 )
 from statgpt.common.schemas.enums import DataParsingStatus, DataRequestStatus
@@ -90,8 +87,8 @@ def _data_response(df: pd.DataFrame) -> SimpleNamespace:
         dataset_name="CPI [IMF:CPI]",
         visual_dataframe=df,
         csv_dataframe=df,
-        rounded_visual_dataframe=df,
-        rounded_csv_dataframe=df,
+        rounded_visual_dataframe=lambda decimal_places: df,
+        rounded_csv_dataframe=lambda decimal_places: df,
         component_names={},
         is_empty=df.empty,
         created_at=datetime(2026, 4, 20, 15, 30, 0, tzinfo=timezone.utc),
@@ -250,73 +247,3 @@ async def test_the_runner_receives_the_validated_query():
 
     _, query = tool._runner.run.call_args.args  # type: ignore[attr-defined]
     assert query == "cpi in France"
-
-
-async def test_the_runner_receives_the_requested_decimal_places():
-    tool = _build(_outcome())
-
-    await tool.run({"query": "cpi", "decimal_places": 1})
-
-    assert tool._runner.run.call_args.kwargs == {  # type: ignore[attr-defined]
-        "value_rounding": DataQueryValueRounding(decimal_places=1)
-    }
-
-
-async def test_full_precision_asks_the_runner_for_unrounded_values():
-    tool = _build(_outcome())
-
-    await tool.run({"query": "cpi", "full_precision": True})
-
-    assert tool._runner.run.call_args.kwargs == {  # type: ignore[attr-defined]
-        "value_rounding": DataQueryValueRounding(decimal_places=None)
-    }
-
-
-async def test_the_rounding_arguments_are_optional():
-    tool = _build(_outcome())
-
-    await tool.run({"query": "cpi", "full_precision": False})
-
-    # Nothing asked for: the configured rounding applies.
-    assert tool._runner.run.call_args.kwargs == {"value_rounding": None}  # type: ignore[attr-defined]
-    assert tool.parameters["required"] == ["query"]
-    assert {"decimal_places", "full_precision"} <= tool.parameters["properties"].keys()
-    assert "inputs" not in tool.parameters["properties"]
-
-
-async def test_decimal_places_and_full_precision_together_are_rejected():
-    tool = _build(_outcome())
-
-    with pytest.raises(ToolError, match="full_precision"):
-        await tool.run({"query": "cpi", "decimal_places": 2, "full_precision": True})
-
-    tool._runner.run.assert_not_called()  # type: ignore[attr-defined]
-
-
-@pytest.mark.parametrize("decimal_places", [-1, 16, 2.5])
-async def test_decimal_places_out_of_range_is_rejected(decimal_places: float):
-    tool = _build(_outcome())
-
-    with pytest.raises(ToolError, match="decimal_places"):
-        await tool.run({"query": "cpi", "decimal_places": decimal_places})
-
-    tool._runner.run.assert_not_called()  # type: ignore[attr-defined]
-
-
-def test_decimal_places_description_names_the_configured_default():
-    tool = _build(_outcome())
-
-    description = tool.parameters["properties"]["decimal_places"]["description"]
-
-    assert "rounded to 3 decimal places" in description
-
-
-def test_decimal_places_description_says_when_values_are_not_rounded_by_default():
-    config = _tool_config()
-    config.details.value_rounding = DataQueryValueRounding(decimal_places=None)
-
-    description = _build(_outcome(), config).parameters["properties"]["decimal_places"][
-        "description"
-    ]
-
-    assert "keep their full precision" in description

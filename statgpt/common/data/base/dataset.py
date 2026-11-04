@@ -93,39 +93,23 @@ class DataResponse(ABC):
 
     def __init__(self) -> None:
         self._created_at = datetime.now(timezone.utc)
-        self._value_decimal_places: int | None = None
 
     @property
     def created_at(self) -> datetime:
         """UTC timestamp of when the response object was created (data received)."""
         return self._created_at
 
-    @property
-    def value_decimal_places(self) -> int | None:
-        """Decimal places of the values in the `rounded_*` dataframes, `None` for full precision.
+    def rounded_visual_dataframe(self, decimal_places: int | None) -> pd.DataFrame:
+        """`visual_dataframe` with its values rounded to `decimal_places`, `None` for full
+        precision."""
+        return self._round_values(self.visual_dataframe, decimal_places)
 
-        Set by the data query pipeline right after the response is received. Only the `rounded_*`
-        dataframes are affected: the others keep full precision, since the downloadable files are
-        built from them.
-        """
-        return self._value_decimal_places
+    def rounded_csv_dataframe(self, decimal_places: int | None) -> pd.DataFrame:
+        """`csv_dataframe` with its values rounded to `decimal_places`, `None` for full
+        precision."""
+        return self._round_values(self.csv_dataframe, decimal_places)
 
-    @value_decimal_places.setter
-    def value_decimal_places(self, value: int | None) -> None:
-        self._value_decimal_places = value
-
-    @property
-    def rounded_visual_dataframe(self) -> pd.DataFrame:
-        """`visual_dataframe` with its values rounded to `value_decimal_places`, for the model and
-        the UI grid."""
-        return self._round_values(self.visual_dataframe)
-
-    @property
-    def rounded_csv_dataframe(self) -> pd.DataFrame:
-        """`csv_dataframe` with its values rounded to `value_decimal_places`, for the model."""
-        return self._round_values(self.csv_dataframe)
-
-    def _round_values(self, df: pd.DataFrame) -> pd.DataFrame:
+    def _round_values(self, df: pd.DataFrame, decimal_places: int | None) -> pd.DataFrame:
         """Round the value columns of `df`, leaving the dimension and attribute columns as they are.
 
         A value column is a float column that is not a dimension or an attribute: the `value`
@@ -133,7 +117,6 @@ class DataResponse(ABC):
         Attributes can be numeric (e.g. a unit multiplier), but they qualify the values rather
         than measure anything, so they are kept as they are.
         """
-        decimal_places = self._value_decimal_places
         if decimal_places is None:
             return df
         components = self.dimension_ids | self.attribute_ids
@@ -228,10 +211,10 @@ class DataResponse(ABC):
     def custom_table_dict(self) -> dict | None:
         """Return a dictionary in format suitable for displaying custom table attachment (AI DIAL Custom Visualizer)."""
 
-    @property
     @abstractmethod
-    def plotly_grid(self) -> go.Figure | None:
-        """Return a Plotly grid figure"""
+    def plotly_grid(self, decimal_places: int | None) -> go.Figure | None:
+        """Return a Plotly grid figure, its values rounded to `decimal_places`, or to the grid's own
+        precision when `None`."""
 
     @abstractmethod
     def get_plotly_graphs_with_names(self, template: str) -> list[tuple[str, go.Figure]]:

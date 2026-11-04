@@ -5,4 +5,3 @@ class DataQueryParameters:
     MCP_PAYLOAD = "data_query_mcp_payload"
     EVAL_ATTACHMENT = "data_query_eval_attachment"
     DATASET_CHOICES = "dataset_choices"
-    VALUE_ROUNDING = "data_query_value_rounding"

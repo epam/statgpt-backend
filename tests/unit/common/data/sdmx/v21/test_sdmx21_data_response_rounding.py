@@ -52,13 +52,11 @@ def _response(
 
 @pytest.fixture
 def response() -> Sdmx21DataResponse:
-    response = _response([0.9431918, 3.521599, float("nan")], ["2020", "2021", "2022"])
-    response.value_decimal_places = 3
-    return response
+    return _response([0.9431918, 3.521599, float("nan")], ["2020", "2021", "2022"])
 
 
 def test_rounded_csv_dataframe_rounds_the_values(response: Sdmx21DataResponse) -> None:
-    values = response.rounded_csv_dataframe["value"].tolist()
+    values = response.rounded_csv_dataframe(3)["value"].tolist()
 
     assert values[:2] == [0.943, 3.522]
     assert pd.isna(values[2])
@@ -67,7 +65,7 @@ def test_rounded_csv_dataframe_rounds_the_values(response: Sdmx21DataResponse) -
 def test_rounded_visual_dataframe_rounds_the_time_period_columns(
     response: Sdmx21DataResponse,
 ) -> None:
-    row = response.rounded_visual_dataframe.iloc[0]
+    row = response.rounded_visual_dataframe(3).iloc[0]
 
     assert (row["2020"], row["2021"]) == (0.943, 3.522)
     assert pd.isna(row["2022"])
@@ -75,14 +73,14 @@ def test_rounded_visual_dataframe_rounds_the_time_period_columns(
 
 def test_full_precision_dataframes_are_left_untouched(response: Sdmx21DataResponse) -> None:
     # Read after the rounded ones, so a rounding done in place would show here.
-    _ = response.rounded_csv_dataframe, response.rounded_visual_dataframe
+    _ = response.rounded_csv_dataframe(3), response.rounded_visual_dataframe(3)
 
     assert response.csv_dataframe["value"].tolist()[:2] == [0.9431918, 3.521599]
     assert response.visual_dataframe.iloc[0]["2020"] == 0.9431918
 
 
 def test_dimensions_and_attributes_are_not_rounded(response: Sdmx21DataResponse) -> None:
-    for df in (response.rounded_csv_dataframe, response.rounded_visual_dataframe):
+    for df in (response.rounded_csv_dataframe(3), response.rounded_visual_dataframe(3)):
         assert df[_FACTOR].tolist() == [1.23456] * len(df)
         assert set(df["REF_AREA_Name"]) == {"France"}
 
@@ -104,62 +102,45 @@ def test_dimensions_and_attributes_are_not_rounded(response: Sdmx21DataResponse)
 )
 def test_small_values_keep_their_first_significant_digit(value: float, expected: float) -> None:
     response = _response([value], ["2020"])
-    response.value_decimal_places = 3
 
-    assert response.rounded_csv_dataframe["value"].tolist() == [expected]
-    assert response.rounded_visual_dataframe.iloc[0]["2020"] == expected
+    assert response.rounded_csv_dataframe(3)["value"].tolist() == [expected]
+    assert response.rounded_visual_dataframe(3).iloc[0]["2020"] == expected
 
 
 def test_a_negative_zero_is_written_as_zero() -> None:
     response = _response([-0.0], ["2020"])
-    response.value_decimal_places = 3
 
-    csv = response.rounded_csv_dataframe.to_csv(index=False)
+    csv = response.rounded_csv_dataframe(3).to_csv(index=False)
 
     assert "-0.0" not in csv
 
 
 def test_zero_decimal_places_still_keeps_small_values() -> None:
     response = _response([2.6, 0.4], ["2020", "2021"])
-    response.value_decimal_places = 0
 
-    assert response.rounded_csv_dataframe["value"].tolist() == [3.0, 0.4]
+    assert response.rounded_csv_dataframe(0)["value"].tolist() == [3.0, 0.4]
 
 
-def _grid_columns(response: Sdmx21DataResponse) -> dict[str, tuple]:
-    grid = response.plotly_grid
+def test_no_decimal_places_keeps_full_precision(response: Sdmx21DataResponse) -> None:
+    assert response.rounded_csv_dataframe(None)["value"].tolist()[:2] == [0.9431918, 3.521599]
+    assert response.rounded_visual_dataframe(None).iloc[0]["2020"] == 0.9431918
+
+
+def _grid_columns(response: Sdmx21DataResponse, decimal_places: int | None) -> dict[str, tuple]:
+    grid = response.plotly_grid(decimal_places)
     assert grid is not None
     table = grid.data[0]
     return dict(zip(table.header.values, table.cells.values))
 
 
 def test_plotly_grid_shows_the_values_the_model_reads(response: Sdmx21DataResponse) -> None:
-    columns = _grid_columns(response)
+    columns = _grid_columns(response, 3)
 
     assert (columns["2020"][0], columns["2021"][0]) == (0.943, 3.522)
     assert columns[_FACTOR][0] == 1.23456
 
 
-def test_plotly_grid_keeps_full_precision_when_rounding_is_off() -> None:
+def test_plotly_grid_keeps_its_own_two_decimals_when_rounding_is_off() -> None:
     response = _response([0.9431918], ["2020"])
 
-    assert _grid_columns(response)["2020"][0] == 0.9431918
-
-
-def test_rounding_is_off_until_the_pipeline_sets_it() -> None:
-    response = _response([0.9431918], ["2020"])
-
-    assert response.value_decimal_places is None
-    assert response.rounded_csv_dataframe["value"].tolist() == [0.9431918]
-
-
-def test_merge_keeps_the_rounding() -> None:
-    dataset = _dataset()
-    first = _response([0.9431918], ["2020"], dataset)
-    second = _response([3.521599], ["2021"], dataset)
-    first.value_decimal_places = second.value_decimal_places = 3
-
-    merged = first.merge(second)
-
-    assert merged.value_decimal_places == 3
-    assert merged.rounded_csv_dataframe["value"].tolist() == [0.943, 3.522]
+    assert _grid_columns(response, None)["2020"][0] == 0.94

@@ -272,22 +272,6 @@ class DataQueryExplorerLink(BaseYamlModel):
     )
 
 
-class DataQueryValueRounding(BaseYamlModel):
-    """How the values of a data query result are rounded before the model reads them.
-
-    Applies to everything the model is given: the tool response the Supreme Agent reads and the
-    MCP resources, and to the UI grid, so it shows the numbers the model cites. A value too small
-    for the precision keeps its first significant digit instead of reading as `0`. The files the
-    user downloads are built from the full-precision values.
-    """
-
-    decimal_places: NonNegativeInt | None = Field(
-        default=3,
-        description="Number of decimal places the values are rounded to; a value too small for"
-        " them keeps its first significant digit. `null` keeps full precision.",
-    )
-
-
 class DataQueryLLMModels(BaseYamlModel):
     datasets_selection_model_config: LLMModelConfig = Field(default_factory=LLMModelConfig)
     dimensions_selection_model_config: LLMModelConfig = Field(default_factory=LLMModelConfig)
@@ -558,11 +542,6 @@ class DataQueryDetails(BaseToolDetails):
     explorer_link: DataQueryExplorerLink = Field(
         default_factory=DataQueryExplorerLink,
         description="When the data explorer deep link is rendered, per output surface.",
-    )
-    value_rounding: DataQueryValueRounding = Field(
-        default_factory=DataQueryValueRounding,
-        description="How the values the model reads and the UI grid shows are rounded."
-        " Downloadable files keep full precision.",
     )
     pipeline_stage_names: DataQueryStageNames = Field(default_factory=DataQueryStageNames)
     allow_auto_update: bool = Field(
