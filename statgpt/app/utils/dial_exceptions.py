@@ -61,12 +61,18 @@ class RateLimitException(DIALException):
     TYPE = "rate_limit_exceeded"
 
     def __init__(self, message: str, **kwargs) -> None:
-        # NOTE: status_code is set to 500 instead of 429 because the DIAL Core does not forward 429 responses
+        # NOTE: the HTTP status is 500 because DIAL Core replaces an app's 429 with a bare 503 and drops
+        # the body, while a 500 is forwarded intact. `code` keeps the real meaning for the client, and
+        # `x-should-retry: false` stops an openai SDK caller from retrying the 500.
+        headers = {"x-should-retry": "false"}
+        if retry_after := kwargs.get("retry_after"):
+            headers["Retry-After"] = str(retry_after)
         super().__init__(
             status_code=500,
             message=message,
-            code="500",
+            code="429",
             type=self.TYPE,
+            headers=headers,
             **kwargs,
         )
 
