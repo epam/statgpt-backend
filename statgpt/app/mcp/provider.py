@@ -7,18 +7,21 @@ from typing import Any
 from fastmcp.resources import Resource
 from fastmcp.server.dependencies import get_http_request
 from fastmcp.server.providers import Provider
-from fastmcp.tools import Tool
+from fastmcp.tools import Tool, ToolResult
 from fastmcp.utilities.components import FastMCPComponent
 from fastmcp.utilities.versions import VersionSpec
+from pydantic import PrivateAttr
 from starlette.requests import Request
 
 from statgpt.app.config import ChainParametersConfig
 from statgpt.app.mcp.decorators import guard_channel_resolution
+from statgpt.app.mcp.errors import to_tool_error
 from statgpt.app.mcp.exceptions import MissingDeploymentIdError
 from statgpt.app.mcp.tools import StatGptMcpTool
 from statgpt.app.mcp.widget_resource import WidgetResource
 from statgpt.app.schemas.dial_app_configuration import StatGPTConfiguration
 from statgpt.app.security import DialAuthCredentials, create_auth_context
+from statgpt.app.security.exceptions import AuthenticationError, AuthorizationError
 from statgpt.app.services.chat_facade import ChannelServiceFacade
 from statgpt.app.utils.dial_stages import DummyStage, NullChoice
 from statgpt.common.auth.auth_context import AuthContext
@@ -45,6 +48,24 @@ def _build_mcp_inputs(
         # MCP context has no choice to stream them on.
         ChainParametersConfig.ANNOTATION_INDEX_SPACE: itertools.count(),
     }
+
+
+class _AuthFailureTool(Tool):
+    """Stands in for a called tool when the caller's credentials are rejected.
+
+    Returning no tool would make FastMCP report "Unknown tool", and an error raised while looking
+    the tool up is swallowed by its provider aggregation, so the auth failure is raised from
+    `run` instead, where it reaches the caller through the error taxonomy.
+    """
+
+    _error: AuthenticationError | AuthorizationError = PrivateAttr()
+
+    def __init__(self, error: AuthenticationError | AuthorizationError, **kwargs: Any):
+        super().__init__(**kwargs)
+        self._error = error
+
+    async def run(self, arguments: dict[str, Any]) -> ToolResult:
+        raise to_tool_error(self._error, tool_name=self.name)
 
 
 class ChannelToolProvider(Provider):
@@ -83,7 +104,12 @@ class ChannelToolProvider(Provider):
     async def _get_tool(self, name: str, version: VersionSpec | None = None) -> Tool | None:
         _log.info("%s tool is called via MCP", name)
 
-        auth_context, channel_service = await self._resolve_context(get_http_request())
+        try:
+            auth_context, channel_service = await self._resolve_context(get_http_request())
+        except (AuthenticationError, AuthorizationError) as e:
+            # Rejected before the channel's tools are looked at, so the response is the same
+            # whether or not the tool exists.
+            return _AuthFailureTool(e, name=name, parameters={"type": "object"})
 
         channel_config = channel_service.channel_config
         prefix = channel_config.mcp.tool_name_prefix

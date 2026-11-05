@@ -21,6 +21,21 @@ _DURATION_UNITS = [
 ]
 
 
+def format_duration(total_seconds: int) -> str:
+    """Humanise a duration to its two largest units, e.g. ``7500`` -> ``"2 hours 5 minutes"``."""
+    parts: list[str] = []
+    remaining = total_seconds
+    for unit_seconds, unit_name in _DURATION_UNITS:
+        if remaining >= unit_seconds:
+            value = remaining // unit_seconds
+            remaining %= unit_seconds
+            suffix = "s" if value != 1 else ""
+            parts.append(f"{value} {unit_name}{suffix}")
+            if len(parts) == 2:
+                break
+    return " ".join(parts) if parts else f"{total_seconds} seconds"
+
+
 def _get_underlying_deployment(e: openai.APIStatusError) -> str | None:
     try:
         url = str(e.response.request.url)
@@ -100,7 +115,7 @@ class RateLimitException(DIALException):
     @classmethod
     def _get_display_message(cls, exceeded_limits: list[str], retry_after: str | None) -> str:
         try:
-            retry_hint = f"in {cls._format_duration(int(retry_after))}" if retry_after else "later"
+            retry_hint = f"in {format_duration(int(retry_after))}" if retry_after else "later"
         except (ValueError, TypeError):
             retry_hint = "later"
 
@@ -111,17 +126,3 @@ class RateLimitException(DIALException):
                 f" Please try again {retry_hint}"
             )
         return f"You've exceeded your token limit for the underlying deployment. Please try again {retry_hint}"
-
-    @staticmethod
-    def _format_duration(total_seconds: int) -> str:
-        parts: list[str] = []
-        remaining = total_seconds
-        for unit_seconds, unit_name in _DURATION_UNITS:
-            if remaining >= unit_seconds:
-                value = remaining // unit_seconds
-                remaining %= unit_seconds
-                suffix = "s" if value != 1 else ""
-                parts.append(f"{value} {unit_name}{suffix}")
-                if len(parts) == 2:
-                    break
-        return " ".join(parts) if parts else f"{total_seconds} seconds"

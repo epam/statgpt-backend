@@ -1,11 +1,16 @@
 from types import SimpleNamespace
+from typing import Any
 from unittest.mock import AsyncMock
 
 import pytest
 from fastmcp.apps import AppConfig
+from fastmcp.exceptions import ToolError
+from fastmcp.tools import Tool, ToolResult
 
-from statgpt.app.mcp.provider import ChannelToolProvider
+from statgpt.app.mcp.app import mcp
+from statgpt.app.mcp.provider import ChannelToolProvider, channel_tool_provider
 from statgpt.app.mcp.tools import StatGptMcpTool, tool_app_config
+from statgpt.app.security.exceptions import InsufficientRoleError, MissingApiKeyError
 from statgpt.common.schemas.tool_details import SdmxQueryAppDetails
 from statgpt.common.schemas.tools import (
     AvailableDatasetsTool,
@@ -130,6 +135,60 @@ async def test_get_tool_matches_mcp_name_override(monkeypatch):
 
     assert await provider._get_tool("statgpt__data") is not None
     assert await provider._get_tool("statgpt__query_data") is None
+
+
+@pytest.mark.parametrize(
+    ("auth_error", "expected"),
+    [
+        (MissingApiKeyError(), "Authentication required"),
+        (InsufficientRoleError(), "Access denied"),
+    ],
+)
+async def test_get_tool_reports_auth_failure_instead_of_unknown_tool(
+    monkeypatch, auth_error: Exception, expected: str
+):
+    monkeypatch.setattr("statgpt.app.mcp.provider.get_http_request", lambda: None)
+    provider = ChannelToolProvider()
+    monkeypatch.setattr(provider, "_resolve_context", AsyncMock(side_effect=auth_error))
+
+    mcp_tool = await provider._get_tool("statgpt__query_data")
+
+    assert mcp_tool is not None
+    with pytest.raises(ToolError, match=expected):
+        await mcp_tool.run({})
+
+
+async def test_auth_failure_at_lookup_reaches_the_caller(monkeypatch):
+    # End to end through the FastMCP app: FastMCP swallows errors raised while looking a tool up,
+    # so the auth failure must still reach the caller instead of "Unknown tool".
+    monkeypatch.setattr("statgpt.app.mcp.provider.get_http_request", lambda: None)
+    monkeypatch.setattr(
+        channel_tool_provider, "_resolve_context", AsyncMock(side_effect=MissingApiKeyError())
+    )
+
+    with pytest.raises(ToolError) as exc_info:
+        await mcp.call_tool("statgpt__query_data", {})
+
+    assert str(exc_info.value).startswith("Authentication required")
+
+
+class _ExplodingTool(Tool):
+    async def run(self, arguments: dict[str, Any]) -> ToolResult:
+        raise RuntimeError("connection to internal-db.prod.svc:5432 failed")
+
+
+async def test_app_masks_errors_escaping_the_taxonomy(monkeypatch):
+    # Defense-in-depth: an error that is not a ToolError reaches the caller as a generic message.
+    monkeypatch.setattr(
+        channel_tool_provider,
+        "_get_tool",
+        AsyncMock(return_value=_ExplodingTool(name="explode", parameters={"type": "object"})),
+    )
+
+    with pytest.raises(ToolError) as exc_info:
+        await mcp.call_tool("explode", {})
+
+    assert str(exc_info.value) == "Error calling tool 'explode'"
 
 
 async def test_list_tools_serves_every_channel_tool(monkeypatch):
