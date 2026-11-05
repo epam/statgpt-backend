@@ -17,6 +17,22 @@ class AvailableDatasetsOutcome:
     datasets: list[DataSet]
     indicator_counts: dict[str, int] | None
     """Indicator count per dataset entity id, when the tool is configured to compute it."""
+    metadata_only_counts: dict[str, int] | None
+    """The channel's metadata-only (discovery, Grade C) datasets per agency, when
+    `counts_metadata_only_datasets`: they are counted, never listed, as their values cannot be
+    queried."""
+
+
+def counts_metadata_only_datasets(
+    details: AvailableDatasetsDetails, channel_config: ChannelConfig
+) -> bool:
+    """Whether the tool counts the channel's metadata-only datasets.
+
+    Only while the channel's discovery lookup runs as well: only that lookup can refer a user to
+    a metadata-only dataset, so without it counting them would only mislead. The one place this
+    is decided, so what a tool returns and the shape it advertises cannot disagree.
+    """
+    return details.include_metadata_only_datasets and channel_config.is_discovery_lookup_available
 
 
 class AvailableDatasetsRunner:
@@ -25,7 +41,9 @@ class AvailableDatasetsRunner:
     def __init__(self, details: AvailableDatasetsDetails):
         self._details = details
 
-    async def run(self, inputs: dict) -> AvailableDatasetsOutcome:
+    async def run(self, inputs: dict, include_metadata_only: bool) -> AvailableDatasetsOutcome:
+        """List the datasets, also counting the metadata-only ones when `include_metadata_only`,
+        which callers take from `counts_metadata_only_datasets`."""
         data_service = ChainParameters.get_data_service(inputs)
         auth_context = ChainParameters.get_auth_context(inputs)
 
@@ -37,7 +55,14 @@ class AvailableDatasetsRunner:
             indicator_counts = await data_service.get_indicator_counts(
                 auth_context, versioned_datasets
             )
-        return AvailableDatasetsOutcome(datasets=datasets, indicator_counts=indicator_counts)
+        metadata_only_counts: dict[str, int] | None = None
+        if include_metadata_only:
+            metadata_only_counts = await data_service.get_discovery_dataset_counts()
+        return AvailableDatasetsOutcome(
+            datasets=datasets,
+            indicator_counts=indicator_counts,
+            metadata_only_counts=metadata_only_counts,
+        )
 
 
 class AvailableDatasetsTool(
@@ -57,7 +82,9 @@ class AvailableDatasetsTool(
 
     async def _arun(self, inputs: dict) -> tuple[str, ToolArtifact]:
         auth_context = ChainParameters.get_auth_context(inputs)
-        outcome = await self._runner.run(inputs)
+        outcome = await self._runner.run(
+            inputs, counts_metadata_only_datasets(self._tool_config.details, self._channel_config)
+        )
 
         formatter = DatasetsListFormatter(self._dataset_formatter_config, auth_context=auth_context)
         response = await formatter.format(
@@ -66,6 +93,7 @@ class AvailableDatasetsTool(
             add_stats=True,
             group_by_provider=True,
             indicator_counts=outcome.indicator_counts,
+            metadata_only_counts=outcome.metadata_only_counts,
         )
 
         target = ChainParameters.get_target(inputs)

@@ -3,11 +3,13 @@ from datetime import datetime, timezone
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
+import jsonschema
 import pytest
 from fastmcp.exceptions import ToolError
 
 from statgpt.app.config import ChainParametersConfig
 from statgpt.app.mcp.tools import StatGptMcpTool
+from statgpt.app.mcp.tools.datasets_meta import METADATA_ONLY_NOTE
 from statgpt.common.data.base import (
     Attribute,
     CategoricalDimension,
@@ -96,6 +98,7 @@ def _build(
     inputs: dict,
     available_datasets: AvailableDatasetsTool | None = None,
     tool_name_prefix: str = "",
+    discovery_lookup: bool = False,
 ) -> StatGptMcpTool:
     return StatGptMcpTool.from_config(
         tool_config,
@@ -105,6 +108,7 @@ def _build(
             out_of_scope=None,
             locale="en",
             available_datasets=available_datasets,
+            is_discovery_lookup_available=discovery_lookup,
         ),
         inputs=inputs,
         auth_context=_AUTH,  # type: ignore[arg-type]
@@ -114,12 +118,17 @@ def _build(
 # ~~~~~~~~~~~~~ available datasets ~~~~~~~~~~~~~
 
 
-def _datasets_inputs(datasets: list, indicator_counts: dict[str, int] | None = None) -> dict:
+def _datasets_inputs(
+    datasets: list,
+    indicator_counts: dict[str, int] | None = None,
+    discovery_counts: dict[str, int] | None = None,
+) -> dict:
     data_service = SimpleNamespace(
         list_available_datasets=AsyncMock(
             return_value=[SimpleNamespace(data=ds) for ds in datasets]
         ),
         get_indicator_counts=AsyncMock(return_value=indicator_counts),
+        get_discovery_dataset_counts=AsyncMock(return_value=discovery_counts or {}),
     )
     return {
         ChainParametersConfig.DATA_SERVICE: data_service,
@@ -174,6 +183,85 @@ async def test_available_datasets_reports_indicator_counts_when_configured():
     assert structured is not None
     assert structured["datasets"][0]["numberOfIndicators"] == 42
     assert structured["totalIndicators"] == 42
+
+
+async def test_available_datasets_merges_metadata_only_datasets_into_counts():
+    inputs = _datasets_inputs(
+        [_dataset()],
+        indicator_counts={"cpi": 42},
+        discovery_counts={"IMF": 2, "Banco de España (BdE)": 3},
+    )
+    tool_config = AvailableDatasetsTool(
+        name="datasets",
+        description="Datasets.",
+        details=AvailableDatasetsDetails(
+            include_indicator_count=True, include_metadata_only_datasets=True
+        ),
+    )
+
+    tool = _build(tool_config, inputs, discovery_lookup=True)
+    structured = (await tool.run({})).structured_content
+
+    assert structured is not None
+    assert structured["note"] == METADATA_ONLY_NOTE
+    jsonschema.validate(instance=structured, schema=tool.output_schema)
+    assert structured["providers"] == [
+        {"name": "Banco de España (BdE)", "datasetCount": 3},
+        {"name": "IMF", "datasetCount": 3},
+    ]
+    assert [ds["id"] for ds in structured["datasets"]] == ["IMF:CPI(1.0.0)"]
+    assert structured["totalDatasets"] == 6
+    assert structured["totalAgencies"] == 2
+    # Queryable indicators only: metadata-only datasets add none.
+    assert structured["totalIndicators"] == 42
+
+
+def _metadata_only_tool_config(enabled: bool) -> AvailableDatasetsTool:
+    return AvailableDatasetsTool(
+        name="datasets",
+        description="Datasets.",
+        details=AvailableDatasetsDetails(include_metadata_only_datasets=enabled),
+    )
+
+
+async def test_available_datasets_has_no_note_without_metadata_only_datasets():
+    inputs = _datasets_inputs([_dataset()], discovery_counts={})
+    tool_config = _metadata_only_tool_config(enabled=True)
+
+    structured = (
+        await _build(tool_config, inputs, discovery_lookup=True).run({})
+    ).structured_content
+
+    assert structured is not None
+    assert "note" not in structured
+    assert structured["totalDatasets"] == 1
+
+
+@pytest.mark.parametrize(
+    "tool_config, discovery_lookup",
+    [
+        pytest.param(
+            AvailableDatasetsTool(name="datasets", description="Datasets."), True, id="default"
+        ),
+        pytest.param(_metadata_only_tool_config(enabled=False), True, id="disabled"),
+        pytest.param(_metadata_only_tool_config(enabled=True), False, id="lookup-off"),
+    ],
+)
+async def test_available_datasets_skips_metadata_only_datasets(
+    tool_config: AvailableDatasetsTool, discovery_lookup: bool
+):
+    inputs = _datasets_inputs([_dataset()], discovery_counts={"BdE": 3})
+
+    tool = _build(tool_config, inputs, discovery_lookup=discovery_lookup)
+    structured = (await tool.run({})).structured_content
+
+    assert tool.output_schema is not None
+    assert "note" not in tool.output_schema["properties"]
+
+    assert structured is not None
+    assert "note" not in structured
+    assert structured["totalDatasets"] == 1
+    inputs[ChainParametersConfig.DATA_SERVICE].get_discovery_dataset_counts.assert_not_awaited()
 
 
 def _datasets_tool_config(

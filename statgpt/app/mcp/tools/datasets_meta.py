@@ -18,7 +18,10 @@ from statgpt.app.chains.datasets_meta.availability_tool import (
     unknown_values_message,
     valid_dimension_ids,
 )
-from statgpt.app.chains.datasets_meta.available_datasets_tool import AvailableDatasetsRunner
+from statgpt.app.chains.datasets_meta.available_datasets_tool import (
+    AvailableDatasetsRunner,
+    counts_metadata_only_datasets,
+)
 from statgpt.app.chains.datasets_meta.structure_tool import DatasetStructureArgs
 from statgpt.app.chains.tools import ToolArgs
 from statgpt.app.chains.utils import dataset_utils
@@ -28,6 +31,7 @@ from statgpt.app.schemas.mcp import (
     AvailabilityValueRecord,
     AvailableDatasetsClientMeta,
     AvailableDatasetsStructuredContent,
+    AvailableDatasetsWithMetadataOnlyStructuredContent,
     ClientDatasetRecord,
     DatasetComponentRecord,
     DatasetRecord,
@@ -50,15 +54,34 @@ from .base import StatGptMcpTool
 
 # ~~~~~~~~~~~~~ structured content builders ~~~~~~~~~~~~~
 
+METADATA_ONLY_NOTE = (
+    "Some of the counted datasets are not fully onboarded: only their metadata (description,"
+    " coverage, indicator list, official source link) is available, not their values. They are"
+    " included in `providers`, `totalDatasets` and `totalAgencies`, but not listed in `datasets`,"
+    " and cannot be called directly with the dataset-structure, availability or data-query tools."
+    " When a data query matches one, the data-query response mentions it with a link to its"
+    " official source. `totalIndicators` counts the indicators of the queryable datasets only."
+)
+"""Top-level note of the available-datasets result, present when it counts metadata-only
+(discovery, Grade C) datasets."""
+
 
 async def datasets_to_structured_content(
     datasets: list[DataSet],
     auth_context: AuthContext,
     indicator_counts: dict[str, int] | None,
-) -> AvailableDatasetsStructuredContent:
-    """Build the MCP structured content for the available-datasets tool: each dataset as a record
-    keyed by its stable URN (source id), the distinct providers with their dataset counts, and
-    channel-wide totals."""
+    metadata_only_counts: dict[str, int] | None = None,
+) -> AvailableDatasetsStructuredContent | AvailableDatasetsWithMetadataOnlyStructuredContent:
+    """Build the MCP structured content for the available-datasets tool: each queryable dataset as
+    a record keyed by its stable URN (source id), the distinct providers with their dataset counts,
+    and channel-wide totals.
+
+    `metadata_only_counts` - the channel's metadata-only (discovery) datasets per agency, `None`
+    when the tool does not count them - selects the shape the tool advertises for that
+    configuration. They are merged into the providers and the dataset and agency totals without
+    being listed, with a note explaining it when there are any. They leave the indicator total
+    alone: it counts queryable indicators.
+    """
     last_updated = await asyncio.gather(
         *(dataset_utils.dataset_last_updated(ds, auth_context) for ds in datasets)
     )
@@ -90,16 +113,31 @@ async def datasets_to_structured_content(
             )
         )
 
+    metadata_only_total = 0
+    for agency, count in (metadata_only_counts or {}).items():
+        provider_counts[agency] += count
+        agencies.add(agency)
+        metadata_only_total += count
+
     providers = [
         ProviderRecord(name=name, dataset_count=count)
         for name, count in sorted(provider_counts.items())
     ]
     total_indicators = sum(indicator_counts.values()) if indicator_counts else None
 
-    return AvailableDatasetsStructuredContent(
+    if metadata_only_counts is None:
+        return AvailableDatasetsStructuredContent(
+            providers=providers,
+            datasets=records,
+            total_datasets=len(datasets),
+            total_indicators=total_indicators,
+            total_agencies=len(agencies),
+        )
+    return AvailableDatasetsWithMetadataOnlyStructuredContent(
+        note=METADATA_ONLY_NOTE if metadata_only_total else None,
         providers=providers,
         datasets=records,
-        total_datasets=len(datasets),
+        total_datasets=len(datasets) + metadata_only_total,
         total_indicators=total_indicators,
         total_agencies=len(agencies),
     )
@@ -239,13 +277,29 @@ class AvailableDatasetsMcpTool(
     def get_output_model(cls) -> type[AvailableDatasetsStructuredContent]:
         return AvailableDatasetsStructuredContent
 
+    @classmethod
+    def get_output_model_for(
+        cls, tool_config: AvailableDatasetsToolConfig, channel_config: ChannelConfig
+    ) -> type[
+        AvailableDatasetsStructuredContent | AvailableDatasetsWithMetadataOnlyStructuredContent
+    ]:
+        if counts_metadata_only_datasets(tool_config.details, channel_config):
+            return AvailableDatasetsWithMetadataOnlyStructuredContent
+        return AvailableDatasetsStructuredContent
+
     async def _execute(self, args: ToolArgs) -> ToolResult:
-        outcome = await self._runner.run(args.inputs)
+        outcome = await self._runner.run(
+            args.inputs,
+            counts_metadata_only_datasets(self._tool_config.details, self._channel_config),
+        )
         # The model reads the structured content, also sent as its JSON text; the clients read
         # `_meta`.
         result = self._structured_only(
             await datasets_to_structured_content(
-                outcome.datasets, self._auth_context, outcome.indicator_counts
+                outcome.datasets,
+                self._auth_context,
+                outcome.indicator_counts,
+                outcome.metadata_only_counts,
             )
         )
         meta = available_datasets_meta(outcome.datasets, self._tool_config.details.mcp_meta)
