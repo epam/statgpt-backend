@@ -87,6 +87,8 @@ def _data_response(df: pd.DataFrame) -> SimpleNamespace:
         dataset_name="CPI [IMF:CPI]",
         visual_dataframe=df,
         csv_dataframe=df,
+        rounded_visual_dataframe=lambda decimal_places: df,
+        rounded_csv_dataframe=lambda decimal_places: df,
         component_names={},
         is_empty=df.empty,
         created_at=datetime(2026, 4, 20, 15, 30, 0, tzinfo=timezone.utc),

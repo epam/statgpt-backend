@@ -3,6 +3,7 @@ from io import StringIO
 from types import SimpleNamespace
 
 import pandas as pd
+import pytest
 
 from statgpt.app.mcp.attachments import (
     data_query_outcome_to_meta,
@@ -22,6 +23,7 @@ from statgpt.app.schemas.data_query_outcome import (
 from statgpt.app.schemas.mcp import ExecutionResult, InvalidityReason
 from statgpt.app.schemas.query import AppJsonQueryWithMetadata
 from statgpt.app.schemas.tool_artifact import DataQueryOutcome
+from statgpt.app.settings.dial_app import dial_app_settings
 from statgpt.common.data.base import DataResponseStatus
 from statgpt.common.schemas.base import ToggleableConfig
 from statgpt.common.schemas.data_query_tool import (
@@ -118,12 +120,18 @@ def _response(
     request_status: DataRequestStatus = DataRequestStatus.SUCCESS,
     parsing_status: DataParsingStatus = DataParsingStatus.SUCCESS,
     reason: str | None = None,
+    rounded_df: pd.DataFrame | None = None,
 ) -> SimpleNamespace:
+    def _rounded(decimal_places: int | None) -> pd.DataFrame:
+        return df if decimal_places is None or rounded_df is None else rounded_df
+
     return SimpleNamespace(
         resource_path=resource_path,
         dataset_name=f"CPI [{resource_path}]",
         visual_dataframe=df,
         csv_dataframe=df,
+        rounded_visual_dataframe=_rounded,
+        rounded_csv_dataframe=_rounded,
         component_names=component_names or {},
         is_empty=df.empty,
         created_at=created_at,
@@ -366,11 +374,37 @@ def test_markdown_table_keeps_textual_values_verbatim():
     assert _markdown_text(outcome).splitlines()[4] == "| 1.0 | 7.0 |"
 
 
-def test_markdown_table_preserves_full_float_precision():
+def test_markdown_table_adds_no_rounding_of_its_own():
+    # The values are rounded by the response; the table writes them as the frame holds them.
     df = pd.DataFrame({"REF_AREA": ["FR"], "2024": [112.345678901234]})
     outcome = _make_outcome({"ds1": _response("IMF:CPI(1.0.0)", df)})
 
     assert "112.345678901234" in _markdown_text(outcome)
+
+
+_FULL = pd.DataFrame({"REF_AREA": ["FR"], "2020": [0.9431918]})
+_ROUNDED = pd.DataFrame({"REF_AREA": ["FR"], "2020": [0.943]})
+
+
+def test_resources_carry_the_rounded_values(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setattr(dial_app_settings, "data_query_decimal_places", 3)
+    outcome = _make_outcome({"ds1": _response("IMF:CPI(1.0.0)", _FULL, rounded_df=_ROUNDED)})
+
+    csv_resource, markdown_resource = _resources(outcome, csv=True, markdown=True)
+
+    for text in (csv_resource.resource.text, markdown_resource.resource.text):
+        assert "0.943" in text
+        assert "0.9431918" not in text
+
+
+def test_resources_keep_full_precision_when_rounding_is_off(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setattr(dial_app_settings, "data_query_decimal_places", None)
+    outcome = _make_outcome({"ds1": _response("IMF:CPI(1.0.0)", _FULL, rounded_df=_ROUNDED)})
+
+    csv_resource, markdown_resource = _resources(outcome, csv=True, markdown=True)
+
+    for text in (csv_resource.resource.text, markdown_resource.resource.text):
+        assert "0.9431918" in text
 
 
 def test_markdown_table_renders_missing_values_as_na():

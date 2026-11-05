@@ -82,6 +82,15 @@ details:
 
 `_meta` is omitted entirely when neither payload applies.
 
+## Resource values
+
+The `text/csv` and `text/markdown` resources carry the values at full precision by default. Set the
+`DATA_QUERY_DECIMAL_PLACES` environment variable (0 to 15) to round them to that many decimal
+places. The setting applies to the whole application, so the Supreme Agent reads and the UI grid
+shows the same rounded values. A value too small for that precision keeps its first significant
+digit instead of reading as `0`: with 3 decimal places `0.0004` stays `0.0004` and `0.00049`
+becomes `0.0005`. The CSV file the user downloads from a chat always keeps full precision.
+
 ## Resource URIs
 
 A resource URI is `statgpt://data_query/{dataset}/{queryId}.{csv|md}`, so a client can join a table
