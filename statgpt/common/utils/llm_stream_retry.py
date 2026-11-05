@@ -23,13 +23,13 @@ _TRANSIENT_STREAM_ERRORS: tuple[type[Exception], ...] = (
     httpx.RemoteProtocolError,
 )
 
-# Codes of an error event sent inside the stream that are worth retrying.
-_TRANSIENT_STREAM_ERROR_CODES = frozenset({'server_error', 'rate_limit_exceeded'})
+# Codes of an error event sent inside the stream that are worth retrying. A mid-stream rate limit
+# carries no `Retry-After`, so it is not retried: the user gets the limit message right away.
+_TRANSIENT_STREAM_ERROR_CODES = frozenset({'server_error'})
 
 # Exponential backoff (2s, 4s, 8s, ...). No retry starts once its backoff would end past the budget,
 # counted from the first failure, so a call that stalls for a long time before failing still gets
-# retried. A mid-stream 429 carries no `Retry-After`, so the budget alone has to be long enough to
-# outlast a rate-limit episode.
+# retried.
 _RETRY_BUDGET_SECONDS = 120.0
 _INITIAL_DELAY_SECONDS = 2.0
 
