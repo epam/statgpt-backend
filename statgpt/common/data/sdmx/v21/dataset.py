@@ -245,12 +245,13 @@ class Sdmx21DataResponse(DataResponse):
         }
         return result
 
-    @property
-    def plotly_grid(self) -> go.Figure | None:
+    def plotly_grid(self, decimal_places: int | None) -> go.Figure | None:
         if self.visual_dataframe.empty:
             return None
-        figure = df_2_plotly_grid(self.visual_dataframe, round_digits=2)
-        return figure
+        if decimal_places is None:
+            return df_2_plotly_grid(self.visual_dataframe, round_digits=2)
+        # Rounded like the values the model reads, so the grid and the answer show the same numbers.
+        return df_2_plotly_grid(self.rounded_visual_dataframe(decimal_places))
 
     def get_plotly_graphs_with_names(self, template: str) -> list[tuple[str, go.Figure]]:
         try:

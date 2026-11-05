@@ -6,6 +6,7 @@ from collections.abc import Sequence
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Generic, TypeVar
 
+import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 from pydantic import BaseModel, Field
@@ -69,6 +70,24 @@ class DataResponseStatus(BaseModel):
         )
 
 
+def _round_to_decimal_places(values: pd.Series, decimal_places: int) -> pd.Series:
+    """Round `values` to `decimal_places`, keeping the first significant digit of the small ones.
+
+    A non-zero value too small for `decimal_places` would round to zero and read as a genuine `0`,
+    so it is rounded to its first significant digit instead: with 3 decimal places `0.0004` stays
+    `0.0004` and `0.00049` becomes `0.0005`. Missing values stay missing.
+    """
+    rounded = values.round(decimal_places)
+    vanished = (rounded == 0) & (values != 0)
+    if vanished.any():
+        small = values[vanished]
+        # The first significant digit of `v` sits `-floor(log10(|v|))` places after the point.
+        places = -np.floor(np.log10(small.abs())).astype(int)
+        rounded[vanished] = [round(value, place) for value, place in zip(small, places)]
+    # `-0.0 + 0.0` is `0.0`, so a value rounded to zero is never written as `-0.0`.
+    return rounded + 0.0
+
+
 class DataResponse(ABC):
     """Base class for data responses from datasets."""
 
@@ -79,6 +98,39 @@ class DataResponse(ABC):
     def created_at(self) -> datetime:
         """UTC timestamp of when the response object was created (data received)."""
         return self._created_at
+
+    def rounded_visual_dataframe(self, decimal_places: int | None) -> pd.DataFrame:
+        """`visual_dataframe` with its values rounded to `decimal_places`, `None` for full
+        precision."""
+        return self._round_values(self.visual_dataframe, decimal_places)
+
+    def rounded_csv_dataframe(self, decimal_places: int | None) -> pd.DataFrame:
+        """`csv_dataframe` with its values rounded to `decimal_places`, `None` for full
+        precision."""
+        return self._round_values(self.csv_dataframe, decimal_places)
+
+    def _round_values(self, df: pd.DataFrame, decimal_places: int | None) -> pd.DataFrame:
+        """Round the value columns of `df`, leaving the dimension and attribute columns as they are.
+
+        A value column is a float column that is not a dimension or an attribute: the `value`
+        column of an observation-level frame, or the time-period columns of a pivoted one.
+        Attributes can be numeric (e.g. a unit multiplier), but they qualify the values rather
+        than measure anything, so they are kept as they are.
+        """
+        if decimal_places is None:
+            return df
+        components = self.dimension_ids | self.attribute_ids
+        columns = [
+            column
+            for column in df.columns
+            if column not in components and pd.api.types.is_float_dtype(df[column])
+        ]
+        if not columns:
+            return df
+        df = df.copy()
+        for column in columns:
+            df[column] = _round_to_decimal_places(df[column], decimal_places)
+        return df
 
     @property
     @abstractmethod
@@ -159,10 +211,10 @@ class DataResponse(ABC):
     def custom_table_dict(self) -> dict | None:
         """Return a dictionary in format suitable for displaying custom table attachment (AI DIAL Custom Visualizer)."""
 
-    @property
     @abstractmethod
-    def plotly_grid(self) -> go.Figure | None:
-        """Return a Plotly grid figure"""
+    def plotly_grid(self, decimal_places: int | None) -> go.Figure | None:
+        """Return a Plotly grid figure, its values rounded to `decimal_places`, or to the grid's own
+        precision when `None`."""
 
     @abstractmethod
     def get_plotly_graphs_with_names(self, template: str) -> list[tuple[str, go.Figure]]:
