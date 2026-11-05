@@ -42,6 +42,7 @@ from statgpt.app.schemas.mcp import (
 from statgpt.app.schemas.query import AppJsonQueryWithMetadata
 from statgpt.app.schemas.tool_artifact import DataQueryOutcome
 from statgpt.app.services.python_code_generator import generate_merged_python_code
+from statgpt.app.settings.dial_app import dial_app_settings
 from statgpt.common.data.base import DataResponse
 from statgpt.common.schemas import (
     ChannelConfig,
@@ -128,8 +129,10 @@ def data_query_outcome_to_resources(
     """Serialize each DataResponse into the inline resources enabled by `config`.
 
     Per response, in `data_responses` insertion order, emits a `text/csv` resource built from
-    `csv_dataframe` (observation-level, machine-readable) and/or a `text/markdown` table built
-    from `visual_dataframe` (time periods as columns, meant to be shown to the user).
+    `rounded_csv_dataframe` (observation-level, machine-readable) and/or a `text/markdown` table
+    built from `rounded_visual_dataframe` (time periods as columns, meant to be shown to the user).
+    Both reach the user through the model, so both carry the values the model reads: rounded to
+    `DATA_QUERY_DECIMAL_PLACES` when it is set.
 
     Skips empty responses so MCP clients don't receive empty payloads. `is_empty` is checked
     instead of the dataframes: it is cheaper, and `visual_dataframe` returns the raw
@@ -199,7 +202,7 @@ def _response_query_id(response: DataResponse) -> str | None:
 
 
 def _csv_resource(response: DataResponse) -> EmbeddedResource:
-    csv_text = response.csv_dataframe.to_csv(
+    csv_text = response.rounded_csv_dataframe(dial_app_settings.data_query_decimal_places).to_csv(
         index=False,
         date_format=_DATE_FORMAT,
         lineterminator="\n",
@@ -241,7 +244,8 @@ def _markdown_table(response: DataResponse) -> str:
     about how the table renders. Doing it here also lets us escape pipes inside values, which
     tabulate does not, and keep the exact numeric text the CSV payload carries.
     """
-    df = _collapse_coded_columns(response.visual_dataframe.copy())
+    df = response.rounded_visual_dataframe(dial_app_settings.data_query_decimal_places)
+    df = _collapse_coded_columns(df.copy())
     df = _rename_to_display_names(df, response.component_names)
     # Alignment is decided before stringifying, while the numeric columns are still numeric.
     rules = [
@@ -316,7 +320,7 @@ def _format_cell(value: Any) -> str:
     """Render one value as text, fit for a table cell.
 
     `str` on a number is its shortest round-trip representation — the same one `to_csv` writes
-    — so the table keeps full precision. A float that holds a whole number loses its `.0`,
+    — so the table adds no rounding of its own. A float that holds a whole number loses its `.0`,
     which `int` does exactly for any float, so `123.0` reads as `123`. Only actual numbers are
     reworked: a value that arrives as text is left alone, since a `.0` there may well be part
     of a code. Pipes and line breaks are neutralized: either would end the cell early and

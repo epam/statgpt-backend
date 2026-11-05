@@ -13,6 +13,7 @@ from statgpt.app.schemas.dial_app_configuration import StatGPTConfiguration
 from statgpt.app.schemas.query import AppJsonQueryWithMetadata
 from statgpt.app.schemas.tool_artifact import DataQueryArtifact
 from statgpt.app.services.python_code_generator import PYTHON_SDMX1_HEADER
+from statgpt.app.settings.dial_app import dial_app_settings
 from statgpt.app.utils import get_python_code_markdown
 from statgpt.app.utils.dial_stages import ChoiceI
 from statgpt.common.auth.auth_context import AuthContext
@@ -90,7 +91,7 @@ class DataQueryArtifactDisplayer:
         if response.status.parsing_status == DataParsingStatus.FAILED:
             return None
 
-        df = response.visual_dataframe.copy()
+        df = response.rounded_visual_dataframe(dial_app_settings.data_query_decimal_places).copy()
         cells_number = df.shape[0] * df.shape[1]
 
         if cells_number == 0:
@@ -125,7 +126,7 @@ class DataQueryArtifactDisplayer:
         df.rename(columns=to_rename, inplace=True)
         # prefix dimension / attribute columns so the agent can tell them apart
         df.rename(columns=cls._build_kind_prefix_renames(df.columns, response), inplace=True)
-        # convert df to tsv with full precision
+        # convert df to tsv; the values are already rounded to `DATA_QUERY_DECIMAL_PLACES`, if set
         tsv = df.to_csv(
             sep="\t",
             index=False,
@@ -138,7 +139,7 @@ class DataQueryArtifactDisplayer:
             f"Data from dataset {response.dataset_name}: \n\n<DATA>\n"
             + tsv
             + "\n</DATA>\n\n The data itself is shown to user in the table view in the UI. If citing the data, "
-            + "make sure to use full precision values from the table."
+            + "make sure to use the exact values from the table."
         )
 
         if response.status.parsing_status == DataParsingStatus.PARTIALLY_FAILED:
@@ -350,7 +351,7 @@ class DataQueryArtifactDisplayer:
         if not self._config.plotly_grid.enabled:
             return None
 
-        data = data_response.plotly_grid
+        data = data_response.plotly_grid(dial_app_settings.data_query_decimal_places)
         if data is None:
             return None
 
