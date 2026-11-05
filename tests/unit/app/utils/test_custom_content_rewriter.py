@@ -11,6 +11,7 @@ from aidial_sdk.chat_completion.chunks import BaseChunk
 from openai.types.chat import ChatCompletionChunk
 
 from statgpt.app.utils import CustomContentRewriter, OpenAiToDialStreamer
+from statgpt.app.utils.citation_ids import CitationIdSpace
 from statgpt.common.schemas import CustomContentRewriteRule
 
 _DIAL_URL = "files/bucket/appdata/rag/sigma/Report%20E.pdf"
@@ -181,6 +182,7 @@ def test_streamer_rewrites_annotations_report_and_stage_attachments() -> None:
         show_debug_stages=True,
         stages_config=Mock(debug_only=False),
         annotation_index_space=itertools.count(5),
+        citation_id_space=CitationIdSpace(),
         stream_content=False,
         rewriter=rewriter,
     )

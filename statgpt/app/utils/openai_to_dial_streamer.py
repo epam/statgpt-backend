@@ -6,7 +6,16 @@ from typing import Any
 from aidial_sdk.chat_completion import Stage, Status
 from openai.types.chat import ChatCompletionChunk
 
-from statgpt.app.utils.citation_ids import Citation, get_source_quote, get_source_title, get_tag_id
+from statgpt.app.utils.citation_ids import (
+    Citation,
+    CitationIdSpace,
+    find_tag_ids,
+    get_source_quote,
+    get_source_title,
+    get_tag_id,
+    replace_tag_ids,
+    with_tag_id,
+)
 from statgpt.app.utils.custom_content_rewriter import CustomContentRewriter
 from statgpt.app.utils.dial_annotations import send_annotations
 from statgpt.app.utils.dial_stages import ChoiceI
@@ -28,6 +37,15 @@ _log = logging.getLogger(__name__)
 # threads it — see the module docstring of `dial_annotations` for the full list.
 AnnotationIndexSpace = Iterator[int]
 
+# Heads the citations note of a tool response (see `OpenAiToDialStreamer.citations_note`). Says
+# how to use the tags in the note itself, since a channel may replace the part of the system
+# prompt that says it too.
+_CITATIONS_NOTE_HEADER = (
+    '### Sources of the citation tags:\n\n'
+    'When your answer uses a statement cited above, copy its citation tag verbatim right after'
+    ' it: never change, shorten or invent a tag. Do not copy this list into your answer.'
+)
+
 
 class OpenAiToDialStreamer:
     def __init__(
@@ -38,6 +56,7 @@ class OpenAiToDialStreamer:
         show_debug_stages: bool,
         stages_config: StagesConfig,
         annotation_index_space: AnnotationIndexSpace,
+        citation_id_space: CitationIdSpace,
         stream_content: bool = True,
         rewriter: CustomContentRewriter | None = None,
     ) -> None:
@@ -50,7 +69,12 @@ class OpenAiToDialStreamer:
             annotation_index_space: The annotation index counter of the whole response, shared
                 with every other streamer of the same response. Required rather than defaulted,
                 so a new call site fails loudly instead of numbering annotations on its own.
+            citation_id_space: The citation ids of the whole response, shared with every other
+                streamer of the same response. Required for the same reason.
             stream_content: If True, the content will be appended to the `target` as it is received.
+                The streamed content keeps the citation ids of the sub-deployment, which match no
+                relayed annotation, so stream only to a stage: DIAL Chat resolves no citation tag
+                in a stage anyway.
             rewriter: If set, rewrites the annotations and attachments (including stage
                 attachments) before they are relayed.
             stream_stages: If True, the stages will be created with the content and attachments from the chunks.
@@ -62,6 +86,7 @@ class OpenAiToDialStreamer:
         self._show_debug_stages = show_debug_stages
         self._stages_config = stages_config
         self._annotation_index_space = annotation_index_space
+        self._citation_id_space = citation_id_space
         self._stream_content = stream_content
         self._rewriter = rewriter
 
@@ -76,16 +101,28 @@ class OpenAiToDialStreamer:
         # This streamer's own annotations only: the index its sub-deployment gave one, mapped
         # to the index this response gave it. Dies with the streamer.
         self._annotation_indexes: dict[int, int] = {}
+        # Likewise for citations: the tag id its sub-deployment gave one, mapped to the id this
+        # response gave it.
+        self._citation_ids: dict[str, str] = {}
 
     def __enter__(self):
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         self._exit_opened_stages(exc_type, exc_val, exc_tb)
+        if exc_type is None:
+            self._warn_of_unmatched_citations()
         return False
 
     @property
     def content(self) -> str:
+        """The content, its citation tags renumbered like the relayed annotations claiming them."""
+        return replace_tag_ids(self._content, self._citation_ids)
+
+    @property
+    def raw_content(self) -> str:
+        """The content as the deployment sent it, its citation tags not renumbered. Replay this,
+        not `content`, to the deployment: the ids of `content` are not ids it gave its tags."""
         return self._content
 
     @property
@@ -119,21 +156,34 @@ class OpenAiToDialStreamer:
         )
         return [Citation(id=tag_id, title=title, quote=quote) for tag_id, title, quote in keys]
 
-    @property
-    def citations_note(self) -> str:
+    def citations_note(self, *, quotes: bool) -> str:
         """The source of every citation tag of the content, to append to a tool response so the
         agent can tell which source backs a statement. Empty if the content cites nothing.
 
-        A citation that quotes no passage, or names no source, leaves the field out; the rest of
-        the annotation, such as the cited file and page box, is left out to keep the response
-        small. The annotations relayed to the client are not affected.
+        The note starts with how to use the tags, so the agent learns it whatever the system
+        prompt of the channel says. A citation that names no source leaves the title out; the
+        rest of the annotation, such as the cited file and page box, is left out to keep the
+        response small. The annotations relayed to the client are not affected.
+
+        Args:
+            quotes: Whether to give the passage each citation quotes. A quote is often a long page
+                excerpt, and the tool response stays in the agent's history for the rest of the
+                conversation, so give them only where the title alone does not tell the cited
+                passage, such as the dataset query a Deep Research citation quotes.
         """
-        if not (citations := self.citations):
+        citations = self.citations
+        if not quotes:
+            # Without their quotes, two citations of one tag may read the same: list them once.
+            citations = [
+                Citation(id=tag_id, title=title)
+                for tag_id, title in dict.fromkeys((c.id, c.title) for c in citations)
+            ]
+        if not citations:
             return ''
         citations_json = json.dumps(
             [c.model_dump(exclude_none=True) for c in citations], ensure_ascii=False
         )
-        return f'\n\n### Sources of the citation tags:\n\n```json\n{citations_json}\n```'
+        return f'\n\n{_CITATIONS_NOTE_HEADER}\n\n```json\n{citations_json}\n```'
 
     @property
     def state(self) -> dict[str, Any] | None:
@@ -172,10 +222,13 @@ class OpenAiToDialStreamer:
             self._update_token_usage(usages)
 
     def _process_content(self, content: str) -> None:
-        # `_content` is always the deployment's verbatim output (used for state/session replay).
+        # Kept verbatim (see `raw_content`): `content` renumbers its citation tags on every read.
         self._content += content
 
         if self._stream_content:
+            # TODO: renumber the citation tags streamed here once DIAL Chat resolves the tags of a
+            # stage (epam/ai-dial-chat#9257). They keep the ids of the sub-deployment, which match
+            # no relayed annotation, and the annotations claiming them may not have arrived yet.
             self._target.append_content(content)
 
     def _process_custom_content(self, custom_content: dict[str, Any]) -> None:
@@ -214,10 +267,11 @@ class OpenAiToDialStreamer:
 
         They go to `_choice` and never to `_target`, which is a stage on some paths: an
         annotation claims a marker tag in a message, and a stage is not a message. Every field
-        is relayed unchanged except `index` and the fields modified by the `rewriter`.
+        is relayed unchanged except `index`, the id of the claimed tag, and the fields modified
+        by the `rewriter`.
         """
         relayed = [
-            self._renumber_annotation(self._rewrite_annotation(annotation))
+            self._renumber_citation(self._renumber_annotation(self._rewrite_annotation(annotation)))
             for annotation in annotations
         ]
         self._annotations.extend(relayed)
@@ -260,6 +314,41 @@ class OpenAiToDialStreamer:
             self._annotation_indexes[index] = next(self._annotation_index_space)
         return {**annotation, 'index': self._annotation_indexes[index]}
 
+    def _renumber_citation(self, annotation: dict[str, Any]) -> dict[str, Any]:
+        """Move the id of the tag the annotation claims into the id space of the response.
+
+        The agent copies the tags of a tool response into its answer, and the client resolves
+        each tag to the annotations claiming its id. The ids of a sub-deployment are long hashes
+        or counters that start over on every call, so they are swapped for `citation001-k3f9`, ...
+        here and in `content` alike (see `citation_ids`). Every annotation claiming one tag keeps
+        claiming one tag. An annotation that claims no tag is relayed unchanged.
+
+        Like `_renumber_annotation`, this contains no `await` and needs no lock.
+        """
+        tag_id = get_tag_id(annotation)
+        if tag_id is None:
+            return annotation
+
+        if tag_id not in self._citation_ids:
+            self._citation_ids[tag_id] = self._citation_id_space.next_id()
+        return with_tag_id(annotation, self._citation_ids[tag_id])
+
+    def _warn_of_unmatched_citations(self) -> None:
+        """Log the claimed tags that `content` did not renumber.
+
+        Their annotations went out with the new id while the text kept the old one, so the client
+        shows each such tag as literal text instead of a pill. Either the sub-deployment wrote a
+        tag that `replace_tag_ids` does not recognise, or it claimed a tag it never wrote.
+        """
+        if unmatched := self._citation_ids.keys() - find_tag_ids(self._content):
+            _log.warning(
+                "%d citation tag(s) claimed by the annotations of %s are not in its content,"
+                " so their pills cannot be resolved: %s",
+                len(unmatched),
+                self._deployment,
+                sorted(unmatched),
+            )
+
     def _process_stage(self, stage: dict[str, Any]) -> None:
         index = stage['index']
         name = stage.get('name')
@@ -270,6 +359,8 @@ class OpenAiToDialStreamer:
             self._stages[index].append_name(name)
 
         if content := stage.get('content'):
+            # TODO: likewise for the citation tags of the sub-deployment's own stages, relayed
+            # with their ids unchanged (see `_process_content`, epam/ai-dial-chat#9257).
             self._stages[index].append_content(content)
 
         if attachments := stage.get('attachments'):

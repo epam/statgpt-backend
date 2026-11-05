@@ -6,6 +6,7 @@ from statgpt.app.chains.deep_research.deep_research_tool import DeepResearchRunn
 from statgpt.app.config import StateVarsConfig
 from statgpt.app.schemas import DeepResearchSession, DeepResearchTurn
 from statgpt.app.utils import OpenAiToDialStreamer
+from statgpt.app.utils.citation_ids import CitationIdSpace
 
 
 class TestBuildRequestMessages:
@@ -152,6 +153,7 @@ class TestStreamerStateCapture:
             show_debug_stages=False,
             stages_config=Mock(),
             annotation_index_space=itertools.count(),
+            citation_id_space=CitationIdSpace(),
             stream_content=True,
         )
 

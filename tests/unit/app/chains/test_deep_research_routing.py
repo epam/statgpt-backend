@@ -44,6 +44,7 @@ from statgpt.app.config import ChainParametersConfig, StateVarsConfig
 from statgpt.app.default_prompts import supreme_agent_default_prompts
 from statgpt.app.schemas import DeepResearchSession, DeepResearchTurn
 from statgpt.app.schemas.dial_app_configuration import StatGPTConfiguration
+from statgpt.app.utils.citation_ids import CitationIdSpace
 from statgpt.app.utils.dial_stages import DummyStage, NullChoice
 from statgpt.app.utils.message_history import History
 from statgpt.common.schemas.channel import ChannelConfig, SupremeAgentConfig
@@ -316,6 +317,7 @@ def _inputs(
         ),
         ChainParametersConfig.CONFIGURATION: StatGPTConfiguration(deep_research=deep_research),
         ChainParametersConfig.ANNOTATION_INDEX_SPACE: itertools.count(),
+        ChainParametersConfig.CITATION_ID_SPACE: CitationIdSpace(scope="k3f9"),
         # Read when the general agent finishes (a turn where Deep Research was not started).
         ChainParametersConfig.PERFORMANCE_STAGE: None,
     }
@@ -578,6 +580,8 @@ async def test_report_delivered_verbatim_with_attachments(monkeypatch):
 
 
 _CITED = 'GDP rose <cit data-id="3f9a0c1b2d4e"></cit>.'
+# As the agent and the user get it, with the citation id of the response.
+_RENUMBERED = 'GDP rose <cit data-id="citation001-k3f9"></cit>.'
 # A document citation in the shape Deep Research sends it.
 _CITATION = {
     "index": 0,
@@ -600,7 +604,7 @@ _CITATION = {
 async def test_report_tool_response_describes_its_citation_tags_to_the_agent_only(monkeypatch):
     """The report stays in the agent's history as the tool response, which names the source of
     each citation tag; the report shown to the user, and returned as the turn's answer, carries no
-    such note."""
+    such note. Both carry the citation ids of the response."""
     _patch_scripted_agent(
         monkeypatch,
         [_tool_call_chunk("resume_deep_research", {"message": "approved"})],
@@ -621,19 +625,55 @@ async def test_report_tool_response_describes_its_citation_tags_to_the_agent_onl
     inputs[ChainParametersConfig.HISTORY].dump_state(state)
     [tool_response] = [m for m in state[StateVarsConfig.TOOL_MESSAGES] if m.get("type") == "tool"]
     assert tool_response["content"] == (
-        f'{_CITED}\n\n'
+        f'{_RENUMBERED}\n\n'
         '### Sources of the citation tags:\n\n'
-        '```json\n[{"id": "3f9a0c1b2d4e", "title": "Report.pdf, page 3"}]\n```'
+        'When your answer uses a statement cited above, copy its citation tag verbatim right after'
+        ' it: never change, shorten or invent a tag. Do not copy this list into your answer.\n\n'
+        '```json\n[{"id": "citation001-k3f9", "title": "Report.pdf, page 3"}]\n```'
     )
-    assert choice.content == _CITED
-    assert content == _CITED
+    assert choice.content == _RENUMBERED
+    assert content == _RENUMBERED
     # The bare report rides on the artifact only: persisting it would store the report twice.
     assert "report" not in tool_response["custom_content"]["state"]
     # Nor is it logged twice: `ToolCaller.call_tool` logs the tool message's repr.
     [tool_msg] = [
         m for m in inputs[ChainParametersConfig.HISTORY].get_tool_messages() if m.type == "tool"
     ]
-    assert repr(tool_msg).count(_CITED) == 1
+    assert repr(tool_msg).count(_RENUMBERED) == 1
+
+
+async def test_clarification_is_replayed_to_deep_research_with_its_own_citation_ids(monkeypatch):
+    """Deep Research resumes from its own earlier output, so the session replays a clarification
+    with the ids Deep Research gave its citation tags; the agent gets the ids of the response,
+    like the annotations relayed to the user."""
+    _patch_scripted_agent(
+        monkeypatch,
+        [
+            _tool_call_chunk("deep_research", {"query": "US GDP"}),
+            _tool_call_chunk("resume_deep_research", {"message": "approved"}, "c2"),
+        ],
+    )
+    clarification = [
+        _dr_chunk(content=_CITED, annotations=[_CITATION]),
+        _dr_chunk(state={"preparation": {"research_started": False}}),
+    ]
+    captured: dict = {}
+    _patch_dr_deployment(monkeypatch, [clarification, _report("Final report.")], captured)
+
+    state = {StateVarsConfig.SHOW_DEBUG_STAGES: False}
+    inputs = _inputs(state, "research US GDP")
+    await SupremeAgentExecutor(_channel_config()).stream_response(inputs)
+
+    assert captured["messages"][-1][1] == {
+        "role": "assistant",
+        "content": _CITED,
+        "custom_content": {"state": {"preparation": {"research_started": False}}},
+    }
+    inputs[ChainParametersConfig.HISTORY].dump_state(state)
+    [clarification_response, _] = [
+        m for m in state[StateVarsConfig.TOOL_MESSAGES] if m.get("type") == "tool"
+    ]
+    assert clarification_response["content"] == _RENUMBERED
 
 
 async def test_forced_start_error_is_surfaced_once_and_session_untouched(monkeypatch):

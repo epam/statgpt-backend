@@ -1,14 +1,41 @@
-"""The citation tags of a sub-deployment's response and the sources they cite (#747)."""
+"""The citation tags of a sub-deployment's response, the sources they cite, and their ids
+(#730, #747)."""
 
+import re
 from typing import Any
 
 import pytest
 
-from statgpt.app.utils.citation_ids import get_source_quote, get_source_title, get_tag_id
+from statgpt.app.utils.citation_ids import (
+    CitationIdSpace,
+    find_tag_ids,
+    get_source_quote,
+    get_source_title,
+    get_tag_id,
+    replace_tag_ids,
+    to_plain_text_references,
+    with_tag_id,
+)
 
 
 def _annotation(selector: dict[str, Any]) -> dict[str, Any]:
     return {"index": 0, "target": {"selector": selector}, "body": {"title": "Report, page 3"}}
+
+
+class TestCitationIdSpace:
+    def test_hands_out_short_numbered_ids_in_its_scope(self):
+        space = CitationIdSpace(scope="k3f9")
+
+        assert [space.next_id(), space.next_id()] == ["citation001-k3f9", "citation002-k3f9"]
+
+    def test_the_scope_of_a_response_is_short_and_random(self):
+        """It keeps the ids of a response apart from those of the other responses, so a
+        response that was stopped before saving its state cannot make the next one reuse them."""
+        first, second = CitationIdSpace().next_id(), CitationIdSpace().next_id()
+
+        assert re.fullmatch(r"citation001-[a-z0-9]{4}", first)
+        assert re.fullmatch(r"citation001-[a-z0-9]{4}", second)
+        assert first != second
 
 
 class TestTagId:
@@ -29,24 +56,33 @@ class TestTagId:
     def test_an_annotation_claiming_no_tag_has_no_id(self, annotation: dict[str, Any]):
         assert get_tag_id(annotation) is None
 
+    def test_with_tag_id_copies_the_annotation(self):
+        annotation = _annotation({"type": "html_tag", "tag": "cit", "id": "abc"})
+
+        renumbered = with_tag_id(annotation, "citation001")
+
+        assert renumbered == _annotation({"type": "html_tag", "tag": "cit", "id": "citation001"})
+        assert get_tag_id(annotation) == "abc"
+
 
 class TestSourceTitle:
     _ATTACHMENT = {"title": "report.pdf", "url": "https://public/report.pdf"}
 
-    def test_the_title_of_the_citation_card_comes_first(self):
+    def test_reads_the_title_of_the_citation_card(self):
         body = {"title": "Report, page 3", "source": {"attachment": self._ATTACHMENT}}
 
         assert get_source_title({"body": body}) == "Report, page 3"
 
-    def test_falls_back_to_the_title_of_the_cited_file(self):
-        body = {"title": "", "source": {"attachment": self._ATTACHMENT}}
-
-        assert get_source_title({"body": body}) == "report.pdf"
-
-    def test_then_to_the_url_of_the_cited_file(self):
-        body = {"source": {"attachment": {"url": "https://public/report.pdf"}}}
-
-        assert get_source_title({"body": body}) == "https://public/report.pdf"
+    @pytest.mark.parametrize(
+        "body",
+        [
+            {"title": "", "source": {"attachment": _ATTACHMENT}},
+            {"source": {"attachment": _ATTACHMENT}},
+        ],
+    )
+    def test_never_falls_back_to_the_title_or_the_url_of_the_cited_file(self, body: dict[str, Any]):
+        """They name the file, the label of the pill, not the cited passage."""
+        assert get_source_title({"body": body}) is None
 
     @pytest.mark.parametrize(
         "annotation",
@@ -54,6 +90,50 @@ class TestSourceTitle:
     )
     def test_an_annotation_naming_no_source_has_no_title(self, annotation: dict[str, Any]):
         assert get_source_title(annotation) is None
+
+
+class TestReplaceTagIds:
+    def test_replaces_the_mapped_ids_only(self):
+        content = 'A <cit data-id="a"></cit>, B <cit data-id="b"></cit>, A <cit data-id="a"></cit>'
+
+        assert replace_tag_ids(content, {"a": "citation001"}) == (
+            'A <cit data-id="citation001"></cit>, B <cit data-id="b"></cit>,'
+            ' A <cit data-id="citation001"></cit>'
+        )
+
+    def test_keeps_the_other_attributes_of_the_tag(self):
+        content = '<cit class="pill" data-id="a" title="t"></cit>'
+
+        assert replace_tag_ids(content, {"a": "citation001"}) == (
+            '<cit class="pill" data-id="citation001" title="t"></cit>'
+        )
+
+    def test_leaves_text_outside_a_tag(self):
+        content = 'the attribute data-id="a" names the tag'
+
+        assert replace_tag_ids(content, {"a": "citation001"}) == content
+
+    @pytest.mark.parametrize(
+        ("content", "expected"),
+        [
+            ("<cit data-id='a'></cit>", "<cit data-id='citation001'></cit>"),
+            ('<cit data-id = "a"></cit>', '<cit data-id = "citation001"></cit>'),
+            ('<cit\ndata-id="a"></cit>', '<cit\ndata-id="citation001"></cit>'),
+            ("""<cit data-id='a"b'></cit>""", """<cit data-id='a"b'></cit>"""),
+        ],
+    )
+    def test_recognises_either_quote_and_whitespace_around_the_equals_sign(
+        self, content: str, expected: str
+    ):
+        assert replace_tag_ids(content, {"a": "citation001"}) == expected
+
+
+def test_find_tag_ids_reads_the_tags_replace_tag_ids_recognises():
+    content = (
+        '<cit data-id="a"></cit> <cit data-id=\'b\'></cit> <cit data-id = "c"></cit> data-id="d"'
+    )
+
+    assert find_tag_ids(content) == {"a", "b", "c"}
 
 
 class TestSourceQuote:
@@ -74,3 +154,117 @@ class TestSourceQuote:
     )
     def test_an_annotation_quoting_nothing_has_no_quote(self, annotation: dict[str, Any]):
         assert get_source_quote(annotation) is None
+
+    def test_a_long_quote_is_cut_short(self):
+        """A quote is often a long page excerpt; its start tells the agent the passage."""
+        assert get_source_quote({"body": {"quote": "x" * 501}}) == "x" * 500 + "…"
+        assert get_source_quote({"body": {"quote": "x" * 500}}) == "x" * 500
+
+
+def _cited(tag_id: str, **body: Any) -> dict[str, Any]:
+    """An annotation claiming the tag `tag_id`, its body made of `body`."""
+    return {"target": {"selector": {"type": "html_tag", "tag": "cit", "id": tag_id}}, "body": body}
+
+
+class TestPlainTextReferences:
+    _CONTENT = 'GDP rose <cit data-id="c1"></cit>. Inflation fell <cit data-id="c2"/>.'
+
+    def test_numbers_the_tags_and_lists_each_of_their_sources_once(self):
+        annotations = [
+            _cited("c1", title="Report, page 3", quote="GDP rose\nby 2%."),
+            _cited("c1", title="Review, page 17"),
+            _cited("c2", quote="Inflation fell."),
+            _cited("c1", title="Report, page 3", quote="GDP rose\nby 2%."),
+        ]
+
+        assert to_plain_text_references(self._CONTENT, annotations) == (
+            'GDP rose [1]. Inflation fell [2].\n\n'
+            '### References:\n\n'
+            '- [1] Report, page 3: "GDP rose by 2%."\n'
+            '- [1] Review, page 17\n'
+            '- [2] "Inflation fell."'
+        )
+
+    def test_numbers_the_tags_in_the_order_the_text_shows_them(self):
+        """The annotations may claim the tags in another order; the text still reads [1], [2]."""
+        annotations = [_cited("c2", title="Review, page 17"), _cited("c1", title="Report, page 3")]
+
+        assert to_plain_text_references(self._CONTENT, annotations) == (
+            'GDP rose [1]. Inflation fell [2].\n\n'
+            '### References:\n\n'
+            '- [1] Report, page 3\n'
+            '- [2] Review, page 17'
+        )
+
+    def test_lists_the_sources_of_a_tag_together(self):
+        annotations = [
+            _cited("c1", title="Report, page 3"),
+            _cited("c2", title="Review, page 17"),
+            _cited("c1", title="Report, page 5"),
+        ]
+
+        assert to_plain_text_references(self._CONTENT, annotations).endswith(
+            '- [1] Report, page 3\n- [1] Report, page 5\n- [2] Review, page 17'
+        )
+
+    def test_a_claimed_tag_the_text_does_not_show_comes_last(self):
+        annotations = [_cited("c9", title="Annex"), _cited("c1", title="Report, page 3")]
+
+        assert to_plain_text_references('GDP rose <cit data-id="c1"></cit>.', annotations) == (
+            'GDP rose [1].\n\n### References:\n\n- [1] Report, page 3\n- [2] Annex'
+        )
+
+    def test_names_and_links_the_cited_file(self):
+        """No pill names the cited file to the client, so the reference does: by the title of
+        the file if the citation card has none, and by its url."""
+        file = {"title": "report.pdf", "url": "https://public/report.pdf"}
+        annotations = [
+            _cited("c1", title="Report, page 3", source={"attachment": file}),
+            _cited("c2", source={"attachment": file}),
+        ]
+
+        assert to_plain_text_references(self._CONTENT, annotations).endswith(
+            '- [1] Report, page 3 (https://public/report.pdf)\n'
+            '- [2] report.pdf (https://public/report.pdf)'
+        )
+
+    def test_a_url_names_a_source_without_a_title(self):
+        annotations = [_cited("c1", source={"attachment": {"url": "https://public/report.pdf"}})]
+
+        assert to_plain_text_references(self._CONTENT, annotations).endswith(
+            '- [1] https://public/report.pdf'
+        )
+
+    def test_leaves_out_a_url_only_dial_can_open(self):
+        """A DIAL file url is relative to DIAL Core, which the client does not call."""
+        file = {"url": "files/bucket/appdata/rag/report.pdf"}
+        annotations = [_cited("c1", title="Report, page 3", source={"attachment": file})]
+
+        assert to_plain_text_references(self._CONTENT, annotations).endswith('- [1] Report, page 3')
+
+    def test_drops_a_tag_that_cites_nothing(self):
+        assert to_plain_text_references(self._CONTENT, [_cited("c2")]) == (
+            'GDP rose. Inflation fell [1].\n\n'
+            '### References:\n\n'
+            '- [1] (the source is not named)'
+        )
+
+    @pytest.mark.parametrize(
+        ("content", "expected"),
+        [
+            (
+                'X <cit data-id="a">see</cit> Y <cit data-id="c1"></cit> Z',
+                'X <cit data-id="a">see</cit> Y [1] Z',
+            ),
+            ('X <cit data-id="a"> Y <cit data-id="c1"></cit> Z', 'X <cit data-id="a"> Y [1] Z'),
+        ],
+    )
+    def test_keeps_the_text_after_a_tag_that_is_not_empty(self, content: str, expected: str):
+        """Such a tag is left as it is; its id must not grow up to the quote of the next tag and
+        swallow the text between them."""
+        assert to_plain_text_references(content, [_cited("c1", title="Report")]) == (
+            f'{expected}\n\n### References:\n\n- [1] Report'
+        )
+
+    def test_content_citing_nothing_gets_no_references(self):
+        assert to_plain_text_references("GDP rose.", []) == "GDP rose."

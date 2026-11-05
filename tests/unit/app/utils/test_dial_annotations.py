@@ -6,20 +6,26 @@ so the client can turn each claimed tag into a citation pill instead of showing 
 """
 
 import asyncio
+import copy
 import gc
 import itertools
 import weakref
 from typing import Any
 from unittest.mock import Mock
 
+import pytest
 from aidial_sdk.chat_completion import Choice
 from aidial_sdk.chat_completion.chunks import BaseChunk
 from openai.types.chat import ChatCompletionChunk
 
-from statgpt.app.utils.citation_ids import Citation
+from statgpt.app.utils.citation_ids import Citation, CitationIdSpace, with_tag_id
 from statgpt.app.utils.dial_annotations import send_annotations
 from statgpt.app.utils.dial_stages import NullChoice
-from statgpt.app.utils.openai_to_dial_streamer import AnnotationIndexSpace, OpenAiToDialStreamer
+from statgpt.app.utils.openai_to_dial_streamer import (
+    _CITATIONS_NOTE_HEADER,
+    AnnotationIndexSpace,
+    OpenAiToDialStreamer,
+)
 
 
 def _annotation(index: int | None, tag_id: str = "cit-1", page: int = 3) -> dict[str, Any]:
@@ -79,10 +85,10 @@ def _sent_annotations(choice: Choice) -> list[dict[str, Any]]:
 
 
 def _relayed(choice: Choice) -> list[tuple[str, int]]:
-    """The tag id and the relayed index of every annotation on the choice, in the order sent.
+    """The citation id and the relayed index of every annotation on the choice, in the order sent.
 
-    The tag id says which sub-deployment an annotation came from, which is what tells the two
-    relays apart once both have written to the one choice of the response.
+    Both are handed out in the order the annotations of the response first arrive, whichever
+    sub-deployment sent them.
     """
     return [
         (annotation["target"]["selector"]["id"], annotation["index"])
@@ -91,9 +97,13 @@ def _relayed(choice: Choice) -> list[tuple[str, int]]:
 
 
 def _streamer(
-    choice: Choice, index_space: AnnotationIndexSpace | None = None, target: Any = None
+    choice: Choice,
+    index_space: AnnotationIndexSpace | None = None,
+    target: Any = None,
+    citation_id_space: CitationIdSpace | None = None,
 ) -> OpenAiToDialStreamer:
-    """A streamer on `choice`. Pass `index_space` to share one counter between streamers."""
+    """A streamer on `choice`. Pass `index_space` and `citation_id_space` to share them between
+    streamers."""
     return OpenAiToDialStreamer(
         target if target is not None else choice,
         choice,
@@ -101,6 +111,9 @@ def _streamer(
         show_debug_stages=False,
         stages_config=Mock(debug_only=True),
         annotation_index_space=index_space if index_space is not None else itertools.count(),
+        citation_id_space=(
+            citation_id_space if citation_id_space is not None else CitationIdSpace(scope="k3f9")
+        ),
     )
 
 
@@ -147,12 +160,12 @@ class TestSendAnnotations:
 
 
 class TestStreamerRelaysAnnotations:
-    def test_relays_every_field_unchanged(self):
+    def test_relays_every_field_but_the_tag_id_unchanged(self):
         choice = _open_choice()
         annotation = _annotation(0)
         _streamer(choice)._process_custom_content({"annotations": [annotation]})
 
-        assert _sent_annotations(choice) == [annotation]
+        assert _sent_annotations(choice) == [with_tag_id(annotation, "citation001-k3f9")]
 
     def test_relays_to_the_choice_and_not_to_the_target_stage(self):
         choice = _open_choice()
@@ -168,7 +181,7 @@ class TestStreamerRelaysAnnotations:
         choice = _open_choice()
         _streamer(choice).send_chunk(_chunk([_annotation(0)]))
 
-        assert _sent_annotations(choice) == [_annotation(0)]
+        assert _sent_annotations(choice) == [with_tag_id(_annotation(0), "citation001-k3f9")]
 
     def test_custom_content_without_annotations_sends_nothing(self):
         choice = _open_choice()
@@ -183,24 +196,30 @@ class TestAnnotationIndexSpace:
         sub-deployment numbers its own annotations from zero. Sharing one index space keeps the
         pills of one from swallowing the pills of the other."""
         index_space = itertools.count()
+        citation_id_space = CitationIdSpace(scope="k3f9")
         choice = _open_choice()
 
-        _streamer(choice, index_space)._process_custom_content(
+        _streamer(choice, index_space, citation_id_space=citation_id_space)._process_custom_content(
             {"annotations": [_annotation(0, tag_id="dr-1"), _annotation(1, tag_id="dr-2")]}
         )
-        _streamer(choice, index_space)._process_custom_content(
+        _streamer(choice, index_space, citation_id_space=citation_id_space)._process_custom_content(
             {"annotations": [_annotation(0, tag_id="rag-1")]}
         )
 
-        assert _relayed(choice) == [("dr-1", 0), ("dr-2", 1), ("rag-1", 2)]
+        assert _relayed(choice) == [
+            ("citation001-k3f9", 0),
+            ("citation002-k3f9", 1),
+            ("citation003-k3f9", 2),
+        ]
 
     def test_interleaved_streamers_produce_non_overlapping_indexes(self):
         """The two tool calls run concurrently, so their deltas reach the shared choice
         interleaved. Every annotation of the response must still end up with its own index."""
         index_space = itertools.count()
+        citation_id_space = CitationIdSpace(scope="k3f9")
         choice = _open_choice()
-        deep_research = _streamer(choice, index_space)
-        rag = _streamer(choice, index_space)
+        deep_research = _streamer(choice, index_space, citation_id_space=citation_id_space)
+        rag = _streamer(choice, index_space, citation_id_space=citation_id_space)
 
         deep_research._process_custom_content({"annotations": [_annotation(0, tag_id="dr-1")]})
         rag._process_custom_content({"annotations": [_annotation(0, tag_id="rag-1")]})
@@ -208,7 +227,12 @@ class TestAnnotationIndexSpace:
         rag._process_custom_content({"annotations": [_annotation(1, tag_id="rag-2")]})
 
         relayed = _relayed(choice)
-        assert relayed == [("dr-1", 0), ("rag-1", 1), ("dr-2", 2), ("rag-2", 3)]
+        assert relayed == [
+            ("citation001-k3f9", 0),
+            ("citation002-k3f9", 1),
+            ("citation003-k3f9", 2),
+            ("citation004-k3f9", 3),
+        ]
         assert len({index for _, index in relayed}) == len(relayed), "indexes must not repeat"
 
     def test_one_streamer_keeps_an_index_stable_across_deltas(self):
@@ -229,7 +253,7 @@ class TestAnnotationIndexSpace:
         choice = _open_choice()
         _streamer(choice, index_space)._process_custom_content({"annotations": [_annotation(None)]})
 
-        assert _sent_annotations(choice) == [_annotation(None)]
+        assert _sent_annotations(choice) == [with_tag_id(_annotation(None), "citation001-k3f9")]
         assert next(index_space) == 0, "an index-less annotation consumes no index"
 
     def test_the_index_space_does_not_retain_a_streamer(self):
@@ -257,6 +281,107 @@ def _titled(annotation: dict[str, Any], title: str | None) -> dict[str, Any]:
     return {**annotation, "body": body}
 
 
+def _tag_ids(choice: Choice) -> list[str]:
+    return [annotation["target"]["selector"]["id"] for annotation in _sent_annotations(choice)]
+
+
+class TestCitationIds:
+    def test_renumbers_the_tag_in_the_annotation_and_in_the_content_alike(self):
+        """The agent copies the tags of a tool response into its answer, and the client resolves
+        each tag against the relayed annotations by id, so both must carry the same id."""
+        choice = _open_choice()
+        streamer = _streamer(choice)
+        streamer.send_chunk(_chunk([_annotation(0)]))
+
+        assert _tag_ids(choice) == ["citation001-k3f9"]
+        assert streamer.content == 'GDP rose <cit data-id="citation001-k3f9"></cit>.'
+
+    def test_content_streamed_before_its_annotation_is_renumbered_too(self):
+        streamer = _streamer(_open_choice())
+        streamer._process_content('GDP rose <cit data-id="abc"></cit>.')
+        streamer._process_custom_content({"annotations": [_annotation(0, tag_id="abc")]})
+
+        assert streamer.content == 'GDP rose <cit data-id="citation001-k3f9"></cit>.'
+
+    def test_raw_content_keeps_the_ids_of_the_sub_deployment(self):
+        """Replayed to the sub-deployment, which knows only the ids it gave its tags."""
+        streamer = _streamer(_open_choice())
+        streamer.send_chunk(_chunk([_annotation(0)]))
+
+        assert streamer.raw_content == 'GDP rose <cit data-id="cit-1"></cit>.'
+
+    def test_one_tag_keeps_one_id(self):
+        """A re-sent annotation, or another source cited by the same tag, still claims the tag
+        the first annotation claimed."""
+        choice = _open_choice()
+        streamer = _streamer(choice)
+        streamer._process_custom_content({"annotations": [_annotation(0), _annotation(1)]})
+        streamer._process_custom_content({"annotations": [_annotation(0)]})
+
+        assert _tag_ids(choice) == ["citation001-k3f9"] * 3
+
+    def test_two_streamers_reusing_a_tag_id_cite_with_distinct_ids(self):
+        """A tool may start its tag ids over on every call (`cit-1`, `cit-2`, ...); the ids of the
+        response must not, or one id would name the sources of two tool responses."""
+        citation_id_space = CitationIdSpace(scope="k3f9")
+        choice = _open_choice()
+        first = _streamer(choice, citation_id_space=citation_id_space)
+        second = _streamer(choice, citation_id_space=citation_id_space)
+        first.send_chunk(_chunk([_annotation(0)]))
+        second.send_chunk(_chunk([_annotation(0)]))
+
+        assert _tag_ids(choice) == ["citation001-k3f9", "citation002-k3f9"]
+        assert first.content == 'GDP rose <cit data-id="citation001-k3f9"></cit>.'
+        assert second.content == 'GDP rose <cit data-id="citation002-k3f9"></cit>.'
+
+    def test_a_tag_no_annotation_claims_keeps_its_id(self):
+        streamer = _streamer(_open_choice())
+        streamer._process_content(
+            'GDP <cit data-id="cit-1"></cit> rose <cit data-id="cit-9"></cit>'
+        )
+        streamer._process_custom_content({"annotations": [_annotation(0)]})
+
+        assert streamer.content == (
+            'GDP <cit data-id="citation001-k3f9"></cit> rose <cit data-id="cit-9"></cit>'
+        )
+
+    def test_an_annotation_claiming_no_tag_is_relayed_unchanged(self):
+        citation_id_space = CitationIdSpace(scope="k3f9")
+        choice = _open_choice()
+        annotation = {**_annotation(0), "target": {"selector": {"type": "text_quote"}}}
+        _streamer(choice, citation_id_space=citation_id_space)._process_custom_content(
+            {"annotations": [annotation]}
+        )
+
+        assert _sent_annotations(choice) == [annotation]
+        assert citation_id_space.next_id() == "citation001-k3f9", "it consumes no id"
+
+    def test_the_received_annotation_is_not_mutated(self):
+        annotation = _annotation(0)
+        original = copy.deepcopy(annotation)
+        _streamer(_open_choice())._process_custom_content({"annotations": [annotation]})
+
+        assert annotation == original
+
+    def test_warns_of_a_claimed_tag_missing_from_the_content(self, caplog):
+        """Its annotation goes out with the new id while the text keeps the old one, so the
+        client shows the tag as literal text: worth a line in the log."""
+        streamer = _streamer(_open_choice())
+        with streamer:
+            streamer._process_content('GDP rose <cit data-id=cit-1></cit>.')
+            streamer._process_custom_content({"annotations": [_annotation(0)]})
+
+        assert "not in its content" in caplog.text
+        assert "cit-1" in caplog.text
+
+    def test_does_not_warn_when_every_claimed_tag_is_renumbered(self, caplog):
+        streamer = _streamer(_open_choice())
+        with streamer:
+            streamer.send_chunk(_chunk([_annotation(0)]))
+
+        assert "not in its content" not in caplog.text
+
+
 def _quoted(annotation: dict[str, Any], quote: str) -> dict[str, Any]:
     """The annotation quoting `quote`."""
     return {**annotation, "body": {**annotation["body"], "quote": quote}}
@@ -280,15 +405,17 @@ class TestCitations:
         )
 
         assert streamer.citations == [
-            Citation(id="cit-1", title="Report, page 3"),
-            Citation(id="cit-1", title="Review, page 17"),
+            Citation(id="citation001-k3f9", title="Report, page 3"),
+            Citation(id="citation001-k3f9", title="Review, page 17"),
         ]
 
-    def test_an_annotation_without_a_title_is_named_by_the_file_it_cites(self):
+    def test_an_annotation_without_a_card_title_is_not_named_by_the_file_it_cites(self):
+        """The title of the file (the label of the pill) and its url name the file, not the
+        cited passage."""
         streamer = _streamer(_open_choice())
         streamer._process_custom_content({"annotations": [_titled(_annotation(0), None)]})
 
-        assert streamer.citations == [Citation(id="cit-1", title="Report.pdf")]
+        assert streamer.citations == [Citation(id="citation001-k3f9", title=None)]
 
     def test_a_tag_whose_annotations_name_no_source_is_listed_without_a_title(self):
         """The agent still learns the tag cites something, rather than meeting an id it cannot
@@ -296,7 +423,7 @@ class TestCitations:
         streamer = _streamer(_open_choice())
         streamer._process_custom_content({"annotations": [{**_annotation(0), "body": {}}]})
 
-        assert streamer.citations == [Citation(id="cit-1", title=None)]
+        assert streamer.citations == [Citation(id="citation001-k3f9", title=None)]
 
     def test_an_annotation_naming_no_source_is_listed_apart_from_a_titled_one(self):
         """Each annotation is a card of its own in the pill's popup, titled or not."""
@@ -306,8 +433,8 @@ class TestCitations:
         )
 
         assert streamer.citations == [
-            Citation(id="cit-1", title="Report.pdf, page 3"),
-            Citation(id="cit-1", title=None, quote="more"),
+            Citation(id="citation001-k3f9", title="Report.pdf, page 3"),
+            Citation(id="citation001-k3f9", title=None, quote="more"),
         ]
 
     def test_a_citation_gives_the_passage_it_quotes(self):
@@ -315,7 +442,7 @@ class TestCitations:
         streamer._process_custom_content({"annotations": [_quoted(_annotation(0), _QUERY)]})
 
         assert streamer.citations == [
-            Citation(id="cit-1", title="Report.pdf, page 3", quote=_QUERY)
+            Citation(id="citation001-k3f9", title="Report.pdf, page 3", quote=_QUERY)
         ]
 
     def test_a_source_cited_both_with_and_without_its_quote_is_listed_both_ways(self):
@@ -327,8 +454,8 @@ class TestCitations:
         )
 
         assert streamer.citations == [
-            Citation(id="cit-1", title="Report.pdf, page 3"),
-            Citation(id="cit-1", title="Report.pdf, page 3", quote=_QUERY),
+            Citation(id="citation001-k3f9", title="Report.pdf, page 3"),
+            Citation(id="citation001-k3f9", title="Report.pdf, page 3", quote=_QUERY),
         ]
 
     def test_list_each_passage_quoted_from_a_source_once(self):
@@ -344,33 +471,62 @@ class TestCitations:
         )
 
         assert streamer.citations == [
-            Citation(id="cit-1", title="Report.pdf, page 3", quote="GDP rose."),
-            Citation(id="cit-1", title="Report.pdf, page 3", quote="Inflation fell."),
+            Citation(id="citation001-k3f9", title="Report.pdf, page 3", quote="GDP rose."),
+            Citation(id="citation001-k3f9", title="Report.pdf, page 3", quote="Inflation fell."),
         ]
 
     def test_the_note_lists_the_id_and_the_title_of_every_citation(self):
         streamer = _streamer(_open_choice())
         streamer.send_chunk(_chunk([_titled(_annotation(0), "sigma 2/2025 – World insurance")]))
 
-        assert streamer.citations_note == (
-            '\n\n### Sources of the citation tags:\n\n```json\n'
-            '[{"id": "cit-1", "title": "sigma 2/2025 – World insurance"}]\n```'
+        assert streamer.citations_note(quotes=False) == (
+            f'\n\n{_CITATIONS_NOTE_HEADER}\n\n```json\n'
+            '[{"id": "citation001-k3f9", "title": "sigma 2/2025 – World insurance"}]\n```'
         )
 
-    def test_the_note_gives_the_quote_of_a_citation_quoting_a_passage(self):
+    def test_the_note_says_how_to_use_the_tags(self):
+        """A channel may replace the part of the system prompt that says it."""
+        streamer = _streamer(_open_choice())
+        streamer.send_chunk(_chunk([_annotation(0)]))
+
+        note = streamer.citations_note(quotes=False)
+        assert "copy its citation tag verbatim" in note
+        assert "Do not copy this list into your answer." in note
+
+    def test_the_note_gives_the_quote_of_a_citation_quoting_a_passage_if_asked(self):
         dataset = _quoted(_titled(_annotation(0, tag_id="cit-1"), "Economic data"), _QUERY)
         streamer = _streamer(_open_choice())
         streamer.send_chunk(_chunk([dataset, _annotation(1, tag_id="cit-2")]))
 
-        assert streamer.citations_note == (
-            '\n\n### Sources of the citation tags:\n\n```json\n'
-            '[{"id": "cit-1", "title": "Economic data", "quote": "* Country: United States\\n'
+        assert streamer.citations_note(quotes=True) == (
+            f'\n\n{_CITATIONS_NOTE_HEADER}\n\n```json\n'
+            '[{"id": "citation001-k3f9", "title": "Economic data", "quote": "* Country: United States\\n'
             '* Frequency: Annual\\n* Series: Inflation\\n* From 2020-01-01"}, '
-            '{"id": "cit-2", "title": "Report.pdf, page 3"}]\n```'
+            '{"id": "citation002-k3f9", "title": "Report.pdf, page 3"}]\n```'
         )
 
-    def test_the_note_is_empty_without_citations(self):
+    def test_the_note_without_quotes_lists_each_source_of_a_tag_once(self):
+        """Two passages quoted from one page read the same once their quotes are left out."""
+        streamer = _streamer(_open_choice())
+        streamer.send_chunk(
+            _chunk(
+                [
+                    _quoted(_annotation(0), "GDP rose."),
+                    _quoted(_annotation(1), "Inflation fell."),
+                    _titled(_annotation(2), "Review, page 17"),
+                ]
+            )
+        )
+
+        assert streamer.citations_note(quotes=False) == (
+            f'\n\n{_CITATIONS_NOTE_HEADER}\n\n```json\n'
+            '[{"id": "citation001-k3f9", "title": "Report.pdf, page 3"}, '
+            '{"id": "citation001-k3f9", "title": "Review, page 17"}]\n```'
+        )
+
+    @pytest.mark.parametrize("quotes", [True, False])
+    def test_the_note_is_empty_without_citations(self, quotes: bool):
         streamer = _streamer(_open_choice())
         streamer._process_content("GDP rose.")
 
-        assert streamer.citations_note == ""
+        assert streamer.citations_note(quotes=quotes) == ""
