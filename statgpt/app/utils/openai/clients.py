@@ -3,6 +3,7 @@ from pydantic import SecretStr
 
 from statgpt.common.settings.dial import dial_settings
 from statgpt.common.settings.langchain import langchain_settings
+from statgpt.common.utils.http_pool import get_shared_llm_http_client
 
 
 def get_async_client(
@@ -17,6 +18,8 @@ def get_async_client(
     DIAL Core authenticates on the api key and relays the token to the deployment when its config
     sets ``forwardAuthToken``, so a nested deployment can authorize downstream calls as the user
     (e.g. QuantHub token forwarding or the OBO flow).
+
+    The client runs on the process-wide LLM connection pool, so do not close it (no ``async with``).
     """
     if isinstance(api_key, SecretStr):
         api_key = api_key.get_secret_value()
@@ -29,4 +32,5 @@ def get_async_client(
         api_version=api_version,
         api_key=api_key,
         default_headers=default_headers,
+        http_client=get_shared_llm_http_client(),  # shared pool with the 429 retry policy
     )

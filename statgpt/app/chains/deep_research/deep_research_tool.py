@@ -227,29 +227,28 @@ class DeepResearchRunner:
         time_start = time.monotonic()
         dial_streamer: OpenAiToDialStreamer | None = None
         try:
-            async with client:
-                # Buffer content (`stream_content=False`) so it can be routed once the run ends:
-                # a clarification / plan is shown in the tool-result stage (like other tools) and
-                # handed back to the Supreme Agent to mediate, while the final report is delivered to
-                # the user's main answer verbatim. The two are indistinguishable until the deployment
-                # signals `research_started` (only after the report has streamed), so we cannot stream
-                # straight to a single target. Progress stages still stream live throughout.
-                dial_streamer = OpenAiToDialStreamer(
-                    choice,
-                    choice,
-                    deployment=deployment_id,
-                    stream_content=False,
-                    show_debug_stages=show_debug_stages,
-                    stages_config=details.stages_config,
-                    annotation_index_space=ChainParameters.get_annotation_index_space(inputs),
-                    rewriter=CustomContentRewriter(details.rewrite_rules),
-                )
-                with dial_streamer:
-                    stream = await client.chat.completions.create(**create_kwargs)
-                    async for chunk in stream:
-                        dial_streamer.send_chunk(chunk)
-                content = dial_streamer.content
-                deep_research_state = dial_streamer.state
+            # Buffer content (`stream_content=False`) so it can be routed once the run ends:
+            # a clarification / plan is shown in the tool-result stage (like other tools) and
+            # handed back to the Supreme Agent to mediate, while the final report is delivered to
+            # the user's main answer verbatim. The two are indistinguishable until the deployment
+            # signals `research_started` (only after the report has streamed), so we cannot stream
+            # straight to a single target. Progress stages still stream live throughout.
+            dial_streamer = OpenAiToDialStreamer(
+                choice,
+                choice,
+                deployment=deployment_id,
+                stream_content=False,
+                show_debug_stages=show_debug_stages,
+                stages_config=details.stages_config,
+                annotation_index_space=ChainParameters.get_annotation_index_space(inputs),
+                rewriter=CustomContentRewriter(details.rewrite_rules),
+            )
+            with dial_streamer:
+                stream = await client.chat.completions.create(**create_kwargs)
+                async for chunk in stream:
+                    dial_streamer.send_chunk(chunk)
+            content = dial_streamer.content
+            deep_research_state = dial_streamer.state
 
             if self._research_started(deep_research_state):
                 # Final report delivered: deliver it to the user's main answer verbatim, then drop
