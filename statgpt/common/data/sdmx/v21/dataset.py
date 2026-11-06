@@ -9,8 +9,10 @@ import typing as t
 import uuid
 from collections.abc import Iterable, Sequence
 from datetime import datetime
+from decimal import Decimal
 from functools import cached_property, partial
 
+import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 import sdmx.model.common
@@ -111,6 +113,30 @@ class InvalidConfigurationError(Exception):
             "dataset_urn": self.dataset_urn,
             "error": str(self),
         }
+
+
+def _fraction_to_percent(value: float) -> float:
+    """`value` times 100, done as a shift of its decimal point, so `0.028` becomes `2.8` rather than
+    the `2.8000000000000003` a float multiplication gives."""
+    return float(Decimal(str(value)).scaleb(2))
+
+
+def _set_index_level(index: pd.Index, name: str, value: str, where: np.ndarray) -> pd.MultiIndex:
+    """`index` with its `name` level set to `value` at the rows `where` holds.
+
+    A level `index` lacks is appended, empty for the other rows: an empty string rather than a
+    missing value, which groupings such as the charts' would drop with its rows.
+    """
+    names = list(index.names)
+    arrays = [index.get_level_values(position) for position in range(index.nlevels)]
+    if name in names:
+        position = names.index(name)
+    else:
+        position = len(names)
+        names.append(name)
+        arrays.append(pd.Index([""] * len(index), dtype=object))
+    arrays[position] = pd.Index(arrays[position], dtype=object).where(~where, value)
+    return pd.MultiIndex.from_arrays(arrays, names=names)
 
 
 def _series_count_from_data_message(data_msg: DataMessage) -> int:
@@ -1225,9 +1251,6 @@ class Sdmx21DataSet(
 
         return sdmx_pandas
 
-    async def _data_msg_to_dataframe(self, data_msg: DataMessage) -> pd.DataFrame:
-        return await asyncio.to_thread(self._data_msg_to_dataframe_sync, data_msg)
-
     def _include_attributes_sync(self, df: pd.DataFrame) -> pd.DataFrame:
         if df.empty or not self.config.include_attributes:
             return df
@@ -1255,8 +1278,48 @@ class Sdmx21DataSet(
         res_df = res_df.set_index(keys=attributes, append=True)
         return res_df
 
-    async def _include_attributes(self, df: pd.DataFrame) -> pd.DataFrame:
-        return await asyncio.to_thread(self._include_attributes_sync, df)
+    def _convert_fractions_to_percent_sync(self, df: pd.DataFrame) -> pd.DataFrame:
+        """Multiply by 100 the values of the series configured as storing a percentage as a
+        fraction of one, so `0.028` reads as `2.8`, and set their unit, so no reader takes `2.8`
+        for a fraction or converts it again.
+
+        Runs on the frame `_include_attributes_sync` returns, where the attributes are index
+        levels. Converted as the data arrives, every reader gets the percentage, and the rounding
+        to `DATA_QUERY_DECIMAL_PLACES` applies to it rather than to the fraction.
+        """
+        conversion = self.config.fraction_to_percent
+        if conversion is None or df.empty:
+            return df
+        if conversion.attribute not in df.index.names:
+            _log.warning(
+                "The response of dataset %s lacks the %r attribute that tells its fraction series"
+                " apart, so their values are kept as fractions",
+                self.short_urn,
+                conversion.attribute,
+            )
+            return df
+
+        is_fraction = df.index.get_level_values(conversion.attribute).isin(conversion.codes)
+        df = df.copy()
+        if is_fraction.any():
+            df.loc[is_fraction, 'value'] = df.loc[is_fraction, 'value'].map(
+                _fraction_to_percent, na_action='ignore'
+            )
+        # Set without a fraction series too, so every response of the dataset has the unit level.
+        df.index = _set_index_level(
+            df.index, conversion.unit_attribute, conversion.unit, where=is_fraction
+        )
+        return df
+
+    def _parse_data_msg_sync(self, data_msg: DataMessage) -> pd.DataFrame:
+        """The query results table of `data_msg`: its observations with the included attributes,
+        the values of the fraction series converted to percentages."""
+        df = self._data_msg_to_dataframe_sync(data_msg)
+        df = self._include_attributes_sync(df)
+        return self._convert_fractions_to_percent_sync(df)
+
+    async def _parse_data_msg(self, data_msg: DataMessage) -> pd.DataFrame:
+        return await asyncio.to_thread(self._parse_data_msg_sync, data_msg)
 
     def _get_query_params(self, sdmx_query: SdmxDataSetQuery) -> dict:
         return sdmx_query.get_params_v21()
@@ -1345,8 +1408,7 @@ class Sdmx21DataSet(
 
         message_series_count = _series_count_from_data_message(data_msg)
         try:
-            sdmx_pandas = await self._data_msg_to_dataframe(data_msg)
-            sdmx_pandas = await self._include_attributes(sdmx_pandas)
+            sdmx_pandas = await self._parse_data_msg(data_msg)
         except Exception as e:
             _log.exception(e)
             return Sdmx21DataResponse(

@@ -91,6 +91,27 @@ shows the same rounded values. A value too small for that precision keeps its fi
 digit instead of reading as `0`: with 3 decimal places `0.0004` stays `0.0004` and `0.00049`
 becomes `0.0005`. The CSV file the user downloads from a chat always keeps full precision.
 
+A dataset whose series store a percentage as a fraction of one (`0.028` for 2.8%) can have them
+converted to percentages with `fractionToPercent` in its config. `attribute` names the attribute
+that tells the series apart, and `codes` lists its codes for the fraction series. `unitAttribute`
+names the attribute set to `unit` (`%` by default) on the converted series, so no reader takes
+`2.8` for a fraction or converts it again. Both attributes must be listed in `includeAttributes`.
+The unit attribute is added to the table when the source leaves it out, empty for the other series.
+A response that lacks `attribute` keeps its fractions and logs a warning.
+
+The values are converted as the data arrives, before any rounding. The resources, the Supreme
+Agent, the UI grid and the downloaded CSV carry the percentage. The SDMX query, the data explorer
+link and the Python code reproduce the request to the source, so they return the fraction the
+source stores.
+
+```yaml
+includeAttributes: ["TYPE", "UNIT"]
+fractionToPercent:
+  attribute: "TYPE"
+  codes: ["PCT"]
+  unitAttribute: "UNIT"
+```
+
 ## Resource URIs
 
 A resource URI is `statgpt://data_query/{dataset}/{queryId}.{csv|md}`, so a client can join a table

@@ -1,8 +1,8 @@
 import logging
 from enum import StrEnum
-from typing import Any, Literal
+from typing import Any, Literal, Self
 
-from pydantic import Field
+from pydantic import Field, model_validator
 
 from statgpt.common.config import utils as config_utils
 from statgpt.common.data.base import (
@@ -224,6 +224,51 @@ class SdmxDataSourceConfig(DataSourceConfig):
         return self.sdmx_config.name
 
 
+class FractionToPercentConfig(BaseModel):
+    """The series of a dataset that store a percentage as a fraction of one, told apart by the code
+    of one of their attributes."""
+
+    attribute: str = Field(
+        description=(
+            "ID of the attribute whose code tells how a series stores its values, e.g. `TYPE`. It"
+            " must be listed in `include_attributes`, so the table shows what each value is"
+        )
+    )
+    codes: list[str] = Field(
+        min_length=1,
+        description=(
+            "Codes of `attribute` whose series store a percentage as a fraction of one: `0.028` for"
+            " 2.8%, `1.028` for 102.8%. Their values are multiplied by 100, the values of the other"
+            " series are kept"
+        ),
+    )
+    unit_attribute: str = Field(
+        description=(
+            "ID of the attribute that carries the unit, e.g. `UNIT`. It is set to `unit` on the"
+            " converted series, so no reader takes `2.8` for a fraction or converts it again. It"
+            " must be listed in `include_attributes`; when the source leaves it out of the"
+            " response, it is added to the table"
+        )
+    )
+    unit: str = Field(
+        default="%",
+        description=(
+            "The unit of the converted series: a code of `unit_attribute`, shown with its name, or"
+            " a label of its own"
+        ),
+    )
+
+    @model_validator(mode='after')
+    def _check_unit_attribute_is_not_attribute(self) -> Self:
+        # Setting the unit would overwrite the codes that tell the series apart.
+        if self.unit_attribute == self.attribute:
+            raise ValueError(
+                f"unit_attribute={self.unit_attribute!r} must differ from attribute"
+                f"={self.attribute!r}"
+            )
+        return self
+
+
 class SdmxDataSetConfigMixin:
     use_title_from_src: bool = Field(
         default=False, description="Whether to use the title obtained from the source"
@@ -231,6 +276,13 @@ class SdmxDataSetConfigMixin:
     urn: UrnReference = Field(description="The URN of the dataset")
     include_attributes: list[str] | None = Field(
         default=None, description="List of attributes to add to the query results table"
+    )
+    fraction_to_percent: FractionToPercentConfig | None = Field(
+        default=None,
+        description=(
+            "The series whose values are stored as fractions of one and are shown as percentages."
+            " Unset, every value is kept as the source gives it"
+        ),
     )
     default_value_codes: list[str] | None = Field(
         default=None,
@@ -262,4 +314,21 @@ class SdmxDataSetConfigTemplate(SdmxDataSetConfigMixin, DataSetConfigTemplate):
 
 
 class SdmxDataSetConfig(SdmxDataSetConfigMixin, DataSetConfig):
-    pass
+
+    @model_validator(mode='after')
+    def _check_fraction_to_percent_attributes_are_included(self) -> Self:
+        # The conversion reads the attribute from the results table, which only holds the
+        # included attributes, and an excluded unit attribute would lose the source units of the
+        # other series.
+        conversion = self.fraction_to_percent
+        if conversion is None:
+            return self
+        for field, attribute in (
+            ("attribute", conversion.attribute),
+            ("unit_attribute", conversion.unit_attribute),
+        ):
+            if attribute not in (self.include_attributes or []):
+                raise ValueError(
+                    f"fraction_to_percent.{field}={attribute!r} must be listed in include_attributes"
+                )
+        return self
