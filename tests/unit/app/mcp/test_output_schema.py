@@ -12,6 +12,7 @@ sample responses for the marketplace submission package.
 """
 
 import json
+from types import SimpleNamespace
 
 import jsonschema
 import pytest
@@ -24,6 +25,7 @@ from statgpt.app.schemas.mcp import (
     AvailabilityStructuredContent,
     AvailabilityValueRecord,
     AvailableDatasetsStructuredContent,
+    AvailableDatasetsWithMetadataOnlyStructuredContent,
     AvailableTermsStructuredContent,
     CandidateDatasetRecord,
     DataQueryStructuredContent,
@@ -45,8 +47,9 @@ from statgpt.app.schemas.mcp import (
     TermDefinitionsStructuredContent,
     TimeCoverageRecord,
 )
-from statgpt.common.schemas import ToolTypes
+from statgpt.common.schemas import AvailableDatasetsTool, ToolTypes
 from statgpt.common.schemas.query import JsonQueryOperator
+from statgpt.common.schemas.tool_details import AvailableDatasetsDetails
 
 # The only tools in scope for explicit MCP output schemas. Every other tool opts out.
 SCOPED_TOOL_TYPES = {
@@ -260,3 +263,50 @@ def test_structured_only_tool_omits_null_fields():
     assert structured["datasets"] == [{"id": "IMF:CPI(1.0.0)", "name": "CPI"}]
     assert "totalIndicators" not in structured
     jsonschema.validate(instance=structured, schema=_schema(ToolTypes.AVAILABLE_DATASETS))
+
+
+# ~~~~~~~~~~~~~ configuration-dependent schemas ~~~~~~~~~~~~~
+
+
+def _available_datasets_schema(include_metadata_only: bool, discovery_lookup: bool) -> dict:
+    tool_config = AvailableDatasetsTool(
+        name="datasets",
+        description="Datasets.",
+        details=AvailableDatasetsDetails(include_metadata_only_datasets=include_metadata_only),
+    )
+    channel_config = SimpleNamespace(is_discovery_lookup_available=discovery_lookup)
+    schema = mcp_tool_class_for(ToolTypes.AVAILABLE_DATASETS).get_output_schema_for(
+        tool_config, channel_config  # type: ignore[arg-type]
+    )
+    assert schema is not None
+    return schema
+
+
+@pytest.mark.parametrize(
+    "include_metadata_only, discovery_lookup",
+    [(False, False), (False, True), (True, False)],
+)
+def test_available_datasets_advertises_the_plain_schema_unless_counting_metadata_only(
+    include_metadata_only: bool, discovery_lookup: bool
+):
+    # Switched off, the feature leaves no trace in the advertised schema.
+    schema = _available_datasets_schema(include_metadata_only, discovery_lookup)
+    assert schema == _schema(ToolTypes.AVAILABLE_DATASETS)
+    assert "note" not in schema["properties"]
+
+
+def test_available_datasets_with_metadata_only_validates_against_its_schema():
+    schema = _available_datasets_schema(include_metadata_only=True, discovery_lookup=True)
+    assert next(iter(schema["properties"])) == "note"
+    content = AvailableDatasetsWithMetadataOnlyStructuredContent(
+        note="Some datasets are metadata-only.",
+        providers=[ProviderRecord(name="IMF", dataset_count=3)],
+        datasets=[DatasetRecord(id="IMF:CPI(1.0.0)", name="CPI")],
+        total_datasets=3,
+        total_indicators=42,
+        total_agencies=1,
+    )
+    structured = StatGptMcpTool._structured_only(content).structured_content
+    assert structured is not None
+    assert next(iter(structured)) == "note"
+    jsonschema.validate(instance=structured, schema=schema)

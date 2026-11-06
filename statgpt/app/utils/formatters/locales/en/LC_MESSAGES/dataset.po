@@ -307,3 +307,30 @@ msgstr "Missing dimensions"
 #: dataset_query.py:277
 msgid "example values"
 msgstr "example values"
+
+#: datasets_list_formatter.py
+msgid ""
+"Note: some of the counted datasets are not fully onboarded: only their "
+"metadata (description, coverage, indicator list, official source link) is "
+"available, not their values. They are included in the dataset and provider "
+"counts but are not listed here, and cannot be queried directly. When a data "
+"query matches one, its response mentions the dataset with a link to its "
+"official source. The number of indicators covers the listed, queryable "
+"datasets only."
+msgstr ""
+"Note: some of the counted datasets are not fully onboarded: only their "
+"metadata (description, coverage, indicator list, official source link) is "
+"available, not their values. They are included in the dataset and provider "
+"counts but are not listed here, and cannot be queried directly. When a data "
+"query matches one, its response mentions the dataset with a link to its "
+"official source. The number of indicators covers the listed, queryable "
+"datasets only."
+
+#: datasets_list_formatter.py
+msgid "Other providers"
+msgstr "Other providers"
+
+#: datasets_list_formatter.py
+#, python-brace-format
+msgid "{n} datasets"
+msgstr "{n} datasets"

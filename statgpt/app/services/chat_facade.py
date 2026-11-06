@@ -33,6 +33,7 @@ from statgpt.common.services import (
     ChannelService,
     DataSetService,
     DataSourceService,
+    DiscoveryDatasetService,
     GlossaryOfTermsService,
 )
 from statgpt.common.settings.application import application_settings
@@ -557,6 +558,16 @@ class ChannelServiceFacade:
             for vid, count in counts_by_version.items()
             if vid in version_to_entity
         }
+
+    async def get_discovery_dataset_counts(self) -> dict[str, int]:
+        """Count the channel's discovery (Grade C) datasets the discovery index holds, per agency.
+
+        These datasets are known by their metadata only: their values cannot be queried.
+        """
+        async with get_readonly_session_context_manager() as session:
+            return await DiscoveryDatasetService(
+                session, session_lock=None
+            ).get_published_counts_by_agency(self._channel.id)
 
     async def _get_indicators_total(self, auth_context: AuthContext) -> int:
         """Total indicator count across the channel's latest successful dataset versions.

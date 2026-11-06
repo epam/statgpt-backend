@@ -126,9 +126,28 @@ class StatGptMcpTool(Tool, ABC, Generic[ToolConfigType, ArgsType]):
         return None
 
     @classmethod
+    def get_output_model_for(
+        cls, tool_config: ToolConfigType, channel_config: ChannelConfig
+    ) -> type[BaseModel] | None:
+        """The output model this configuration of the tool returns and advertises.
+
+        `get_output_model` unless a tool's result shape depends on its configuration, so a
+        feature switched off does not show up in the advertised schema.
+        """
+        return cls.get_output_model()
+
+    @classmethod
     def get_output_schema(cls) -> dict[str, Any] | None:
         """The advertised MCP output schema, derived from `get_output_model`."""
         model = cls.get_output_model()
+        return model_to_output_schema(model) if model is not None else None
+
+    @classmethod
+    def get_output_schema_for(
+        cls, tool_config: ToolConfigType, channel_config: ChannelConfig
+    ) -> dict[str, Any] | None:
+        """The advertised MCP output schema for this configuration of the tool."""
+        model = cls.get_output_model_for(tool_config, channel_config)
         return model_to_output_schema(model) if model is not None else None
 
     @abstractmethod
@@ -240,7 +259,7 @@ class StatGptMcpTool(Tool, ABC, Generic[ToolConfigType, ArgsType]):
             name=channel_config.mcp.tool_name_prefix + tool_config.effective_mcp_name,
             description=tool_config.effective_mcp_description,
             parameters=cls.get_args_schema(tool_config).get_public_schema(),
-            output_schema=cls.get_output_schema(),
+            output_schema=cls.get_output_schema_for(tool_config, channel_config),
             annotations=cls.get_annotations(tool_config),
             meta={"ui": app_config_to_meta_dict(app_config)} if app_config else None,
         )
