@@ -484,6 +484,47 @@ class AvailableDatasetsStructuredContent(BaseYamlModel):
     )
 
 
+class AvailableDatasetsWithMetadataOnlyStructuredContent(BaseYamlModel):
+    """MCP structured content for the available-datasets tool on a channel that also counts its
+    metadata-only (discovery, Grade C) datasets: every queryable dataset as a record with its
+    stable URN, the distinct providers with their dataset counts, and channel-wide totals.
+    Metadata-only datasets count towards the providers and totals but are not listed.
+
+    A sibling of `AvailableDatasetsStructuredContent` rather than a subclass: almost every field
+    means something else here, and a subclass would put `note` last instead of first.
+    """
+
+    model_config = ConfigDict(serialize_by_alias=True)
+
+    note: str | None = Field(
+        default=None,
+        description="How to read the result when the channel has metadata-only datasets. "
+        "Omitted when it has none.",
+    )
+    providers: list[ProviderRecord] = Field(
+        default_factory=list,
+        description="Distinct providers across all datasets, queryable and metadata-only, each "
+        "with its dataset count.",
+    )
+    datasets: list[DatasetRecord] = Field(
+        default_factory=list,
+        description="The queryable datasets, one record each. Metadata-only datasets are not "
+        "listed.",
+    )
+    total_datasets: int = Field(
+        description="Total number of datasets, queryable and metadata-only."
+    )
+    total_indicators: int | None = Field(
+        default=None,
+        description="Total number of queryable indicators, i.e. across the datasets in "
+        "`datasets` only, if indicator counts were computed.",
+    )
+    total_agencies: int = Field(
+        description="Number of distinct provider agencies across all datasets, queryable and "
+        "metadata-only."
+    )
+
+
 class ClientDatasetRecord(BaseYamlModel):
     """One dataset as a programmatic client sees it: where to look at it."""
 

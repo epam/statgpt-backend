@@ -143,6 +143,30 @@ class DiscoveryDatasetService(DbServiceBase):
             rows = (await session.execute(query)).tuples().all()
         return fold_stats(rows)
 
+    async def get_published_counts_by_agency(self, channel_id: int) -> dict[str, int]:
+        """Count the channel's records the discovery index holds, per agency.
+
+        `OUTDATED` records count too: their indexed document is stale, but still searchable.
+        Agencies are grouped by the generated `agency_key`, with one stored spelling reported
+        per key, as `get_stats` does.
+        """
+        query = (
+            select(func.min(models.DiscoveryDataset.agency), func.count("*"))
+            .where(
+                *self._filters(channel_id),
+                models.DiscoveryDataset.indexing_status.in_(
+                    (
+                        schemas.DiscoveryIndexingStatus.INDEXED,
+                        schemas.DiscoveryIndexingStatus.OUTDATED,
+                    )
+                ),
+            )
+            .group_by(models.DiscoveryDataset.agency_key)
+        )
+        async with self._lock_session() as session:
+            rows = (await session.execute(query)).tuples().all()
+        return dict(rows)
+
     async def get_record_models_by_channel(
         self,
         channel_id: int,

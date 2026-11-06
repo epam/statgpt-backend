@@ -306,3 +306,30 @@ msgstr "Відсутні виміри"
 #: dataset_query.py:277
 msgid "example values"
 msgstr "приклади значень"
+
+#: datasets_list_formatter.py
+msgid ""
+"Note: some of the counted datasets are not fully onboarded: only their "
+"metadata (description, coverage, indicator list, official source link) is "
+"available, not their values. They are included in the dataset and provider "
+"counts but are not listed here, and cannot be queried directly. When a data "
+"query matches one, its response mentions the dataset with a link to its "
+"official source. The number of indicators covers the listed, queryable "
+"datasets only."
+msgstr ""
+"Примітка: частина врахованих наборів даних підключена не повністю: для них "
+"доступні лише метадані (опис, охоплення, перелік індикаторів, посилання на "
+"офіційне джерело), але не значення. Вони враховані в кількості наборів даних "
+"і постачальників, але не наведені тут, і їх не можна запитати напряму. Якщо "
+"запит даних відповідає такому набору, у відповіді буде згадано цей набір із "
+"посиланням на його офіційне джерело. Кількість індикаторів враховує лише "
+"наведені набори даних, які можна запитати."
+
+#: datasets_list_formatter.py
+msgid "Other providers"
+msgstr "Інші постачальники"
+
+#: datasets_list_formatter.py
+#, python-brace-format
+msgid "{n} datasets"
+msgstr "наборів даних: {n}"

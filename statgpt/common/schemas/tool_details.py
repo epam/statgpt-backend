@@ -460,6 +460,15 @@ class AvailableDatasetsDetails(BaseToolDetails):
         default=False,
         description="Whether to include the number of indexed indicators per dataset and total.",
     )
+    include_metadata_only_datasets: bool = Field(
+        default=False,
+        description=(
+            "Whether to count the channel's metadata-only (discovery, Grade C) datasets in the"
+            " dataset and provider totals, with a note that they are not listed and cannot be"
+            " queried directly. Takes effect only while the channel's discovery datasets lookup"
+            " is enabled, since only that lookup refers users to them."
+        ),
+    )
     stats_header_format: AvailableDatasetsHeaderFormat = Field(
         default=AvailableDatasetsHeaderFormat.totals,
         description="The format of the statistics header in the tool output.",

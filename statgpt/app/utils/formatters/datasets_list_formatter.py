@@ -39,7 +39,15 @@ class DatasetsListFormatter:
         add_stats: bool = False,
         group_by_provider: bool = False,
         indicator_counts: dict[str, int] | None = None,
+        metadata_only_counts: dict[str, int] | None = None,
     ) -> str:
+        """Render the datasets, optionally grouped by provider and headed by statistics.
+
+        `metadata_only_counts` - metadata-only (discovery) datasets per agency - are counted in
+        the statistics and the per-provider totals but never listed, since their values cannot
+        be queried; a note says so. They leave the indicator total alone: it counts queryable
+        indicators only.
+        """
         if sort_by_id and sort_by_name:
             raise ValueError(self._("Cannot sort by both id and name."))
 
@@ -60,6 +68,8 @@ class DatasetsListFormatter:
             provider = dataset.config.citation.provider if dataset.config.citation else None
             dataset_entries[provider].append(entry)
 
+        metadata_only_counts = metadata_only_counts or {}
+
         # Group by provider if requested
         if group_by_provider:
             grouped_entries = []
@@ -69,11 +79,18 @@ class DatasetsListFormatter:
                 else:
                     grouped_entries.append(f'### {self._("Provider")}: {self._("Unknown")}\n')
                 if add_stats:
+                    total = len(entries) + (
+                        metadata_only_counts.get(provider, 0) if provider else 0
+                    )
                     grouped_entries.append(
-                        f'{self._("Total datasets from this provider")}: {len(entries)}\n'
+                        f'{self._("Total datasets from this provider")}: {total}\n'
                     )
                 grouped_entries.extend(entries)
                 grouped_entries.append('')  # Add a newline between providers
+            if other_providers := self._format_other_providers(
+                dataset_entries, metadata_only_counts
+            ):
+                grouped_entries.append(other_providers)
             datasets_list = '\n'.join(grouped_entries).strip()
         else:
             all_entries = [entry for entries in dataset_entries.values() for entry in entries]
@@ -86,12 +103,51 @@ class DatasetsListFormatter:
                 dataset_entries=dataset_entries,
                 group_by_provider=group_by_provider,
                 indicator_counts=indicator_counts,
+                metadata_only_counts=metadata_only_counts,
             )
             result = f'{stats_str}\n\n{datasets_list}'
         else:
             result = datasets_list
 
+        if sum(metadata_only_counts.values()):
+            result = f'{self._format_metadata_only_note()}\n\n{result}'
         return result
+
+    def _format_metadata_only_note(self) -> str:
+        return self._(
+            "Note: some of the counted datasets are not fully onboarded: only their metadata"
+            " (description, coverage, indicator list, official source link) is available, not"
+            " their values. They are included in the dataset and provider counts but are not"
+            " listed here, and cannot be queried directly. When a data query matches one, its"
+            " response mentions the dataset with a link to its official source. The number of"
+            " indicators covers the listed, queryable datasets only."
+        )
+
+    def _format_other_providers(
+        self, dataset_entries: dict, metadata_only_counts: dict[str, int]
+    ) -> str | None:
+        """The providers that have only metadata-only datasets, with their dataset counts.
+
+        One compact section rather than a heading each: there can be hundreds of them, and
+        none has a dataset to list under it.
+        """
+        others = sorted(
+            (
+                (provider, count)
+                for provider, count in metadata_only_counts.items()
+                if provider not in dataset_entries
+            ),
+            key=lambda item: (-item[1], item[0].lower()),
+        )
+        if not others:
+            return None
+        heading = self._("Other providers")
+        datasets_template = self._("{n} datasets")
+        lines = [f'### {heading}\n']
+        lines.extend(
+            f'- {provider}: {datasets_template.format(n=count)}' for provider, count in others
+        )
+        return '\n'.join(lines)
 
     def _format_stats_header(
         self,
@@ -99,17 +155,20 @@ class DatasetsListFormatter:
         dataset_entries: dict,
         group_by_provider: bool,
         indicator_counts: dict[str, int] | None,
+        metadata_only_counts: dict[str, int],
     ) -> str:
         if self._config.stats_header_format == AvailableDatasetsHeaderFormat.agencies:
             return self._format_agencies_header(
                 datasets=datasets,
                 indicator_counts=indicator_counts,
+                metadata_only_counts=metadata_only_counts,
             )
         return self._format_totals_header(
             datasets=datasets,
             dataset_entries=dataset_entries,
             group_by_provider=group_by_provider,
             indicator_counts=indicator_counts,
+            metadata_only_counts=metadata_only_counts,
         )
 
     def _format_totals_header(
@@ -118,10 +177,13 @@ class DatasetsListFormatter:
         dataset_entries: dict,
         group_by_provider: bool,
         indicator_counts: dict[str, int] | None,
+        metadata_only_counts: dict[str, int],
     ) -> str:
-        stats_header = f'{self._("Total datasets")}: {len(datasets)}'
+        n_datasets = len(datasets) + sum(metadata_only_counts.values())
+        stats_header = f'{self._("Total datasets")}: {n_datasets}'
         if group_by_provider:
-            providers = [p for p in dataset_entries.keys() if p is not None]
+            providers = {p for p in dataset_entries.keys() if p is not None}
+            providers.update(metadata_only_counts)
             stats_header += f'\n{self._("Total providers")}: {len(providers)}'
         if indicator_counts is not None:
             stats_header += (
@@ -133,6 +195,7 @@ class DatasetsListFormatter:
         self,
         datasets: list[DataSet],
         indicator_counts: dict[str, int] | None,
+        metadata_only_counts: dict[str, int],
     ) -> str:
 
         providers_set: set[str] = set()
@@ -144,6 +207,7 @@ class DatasetsListFormatter:
                 _log.debug(f'Dataset {dataset.entity_id} has no provider information')
                 continue
             providers_set.update(agency_names)
+        providers_set.update(metadata_only_counts)
 
         n_providers = len(providers_set)
         providers_sample = sorted(providers_set)[:3]
@@ -157,7 +221,7 @@ class DatasetsListFormatter:
             and_others=and_others,
         )
 
-        n_datasets = len(datasets)
+        n_datasets = len(datasets) + sum(metadata_only_counts.values())
 
         if indicator_counts is not None:
             n_indicators = sum(indicator_counts.values())
