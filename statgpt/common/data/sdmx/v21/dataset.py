@@ -1283,23 +1283,24 @@ class Sdmx21DataSet(
         fraction of one, so `0.028` reads as `2.8`, and set their unit, so no reader takes `2.8`
         for a fraction or converts it again.
 
-        Runs on the frame `_include_attributes_sync` returns, where the attributes are index
-        levels. Converted as the data arrives, every reader gets the percentage, and the rounding
-        to `DATA_QUERY_DECIMAL_PLACES` applies to it rather than to the fraction.
+        Runs on the frame `_include_attributes_sync` returns, where the dimensions and the
+        attributes are index levels. Converted as the data arrives, every reader gets the
+        percentage, and the rounding to `DATA_QUERY_DECIMAL_PLACES` applies to it rather than to
+        the fraction.
         """
         conversion = self.config.fraction_to_percent
         if conversion is None or df.empty:
             return df
-        if conversion.attribute not in df.index.names:
+        if conversion.component not in df.index.names:
             _log.warning(
-                "The response of dataset %s lacks the %r attribute that tells its fraction series"
+                "The response of dataset %s lacks the %r component that tells its fraction series"
                 " apart, so their values are kept as fractions",
                 self.short_urn,
-                conversion.attribute,
+                conversion.component,
             )
             return df
 
-        is_fraction = df.index.get_level_values(conversion.attribute).isin(conversion.codes)
+        is_fraction = df.index.get_level_values(conversion.component).isin(conversion.codes)
         df = df.copy()
         if is_fraction.any():
             df.loc[is_fraction, 'value'] = df.loc[is_fraction, 'value'].map(

@@ -92,12 +92,14 @@ digit instead of reading as `0`: with 3 decimal places `0.0004` stays `0.0004` a
 becomes `0.0005`. The CSV file the user downloads from a chat always keeps full precision.
 
 A dataset whose series store a percentage as a fraction of one (`0.028` for 2.8%) can have them
-converted to percentages with `fractionToPercent` in its config. `attribute` names the attribute
-that tells the series apart, and `codes` lists its codes for the fraction series. `unitAttribute`
-names the attribute set to `unit` (`%` by default) on the converted series, so no reader takes
-`2.8` for a fraction or converts it again. Both attributes must be listed in `includeAttributes`.
-The unit attribute is added to the table when the source leaves it out, empty for the other series.
-A response that lacks `attribute` keeps its fractions and logs a warning.
+converted to percentages with `fractionToPercent` in its config. `component` names the dimension or
+attribute that tells the series apart, and `codes` lists its codes for the fraction series. A series
+dimension is the safe choice: an attribute such as a type often groups fractions with other values
+(a ratio type can also hold basis points or a leverage ratio). An attribute component must be listed
+in `includeAttributes`. `unitAttribute` names the attribute set to `unit` (`%` by default) on the
+converted series, so no reader takes `2.8` for a fraction or converts it again. It must be listed in
+`includeAttributes`, and is added to the table when the source leaves it out, empty for the other
+series. A response that lacks `component` keeps its fractions and logs a warning.
 
 The values are converted as the data arrives, before any rounding. The resources, the Supreme
 Agent, the UI grid and the downloaded CSV carry the percentage. The SDMX query, the data explorer
@@ -105,10 +107,10 @@ link and the Python code reproduce the request to the source, so they return the
 source stores.
 
 ```yaml
-includeAttributes: ["TYPE", "UNIT"]
+includeAttributes: ["UNIT"]
 fractionToPercent:
-  attribute: "TYPE"
-  codes: ["PCT"]
+  component: "SERIES"
+  codes: ["GDP_GROWTH", "INFLATION"]
   unitAttribute: "UNIT"
 ```
 

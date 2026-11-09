@@ -225,19 +225,20 @@ class SdmxDataSourceConfig(DataSourceConfig):
 
 
 class FractionToPercentConfig(BaseModel):
-    """The series of a dataset that store a percentage as a fraction of one, told apart by the code
-    of one of their attributes."""
+    """The series of a dataset that store a percentage as a fraction of one, told apart by their
+    code of one dimension or attribute."""
 
-    attribute: str = Field(
+    component: str = Field(
         description=(
-            "ID of the attribute whose code tells how a series stores its values, e.g. `TYPE`. It"
-            " must be listed in `include_attributes`, so the table shows what each value is"
+            "ID of the dimension or attribute whose code tells the fraction series apart: a series"
+            " dimension such as `SERIES`, or an attribute such as `TYPE` when its codes match how"
+            " the values are stored. An attribute must be listed in `include_attributes`"
         )
     )
     codes: list[str] = Field(
         min_length=1,
         description=(
-            "Codes of `attribute` whose series store a percentage as a fraction of one: `0.028` for"
+            "Codes of `component` whose series store a percentage as a fraction of one: `0.028` for"
             " 2.8%, `1.028` for 102.8%. Their values are multiplied by 100, the values of the other"
             " series are kept"
         ),
@@ -259,12 +260,12 @@ class FractionToPercentConfig(BaseModel):
     )
 
     @model_validator(mode='after')
-    def _check_unit_attribute_is_not_attribute(self) -> Self:
+    def _check_unit_attribute_is_not_component(self) -> Self:
         # Setting the unit would overwrite the codes that tell the series apart.
-        if self.unit_attribute == self.attribute:
+        if self.unit_attribute == self.component:
             raise ValueError(
-                f"unit_attribute={self.unit_attribute!r} must differ from attribute"
-                f"={self.attribute!r}"
+                f"unit_attribute={self.unit_attribute!r} must differ from component"
+                f"={self.component!r}"
             )
         return self
 
@@ -316,19 +317,22 @@ class SdmxDataSetConfigTemplate(SdmxDataSetConfigMixin, DataSetConfigTemplate):
 class SdmxDataSetConfig(SdmxDataSetConfigMixin, DataSetConfig):
 
     @model_validator(mode='after')
-    def _check_fraction_to_percent_attributes_are_included(self) -> Self:
-        # The conversion reads the attribute from the results table, which only holds the
-        # included attributes, and an excluded unit attribute would lose the source units of the
-        # other series.
+    def _check_fraction_to_percent_components_are_in_the_table(self) -> Self:
+        # The conversion reads the component from the results table, which holds every dimension
+        # but only the included attributes, and an excluded unit attribute would lose the source
+        # units of the other series.
         conversion = self.fraction_to_percent
         if conversion is None:
             return self
-        for field, attribute in (
-            ("attribute", conversion.attribute),
-            ("unit_attribute", conversion.unit_attribute),
-        ):
-            if attribute not in (self.include_attributes or []):
-                raise ValueError(
-                    f"fraction_to_percent.{field}={attribute!r} must be listed in include_attributes"
-                )
+        included = self.include_attributes or []
+        if conversion.component not in self.dimensions and conversion.component not in included:
+            raise ValueError(
+                f"fraction_to_percent.component={conversion.component!r} must be a dimension of"
+                " the dataset or listed in include_attributes"
+            )
+        if conversion.unit_attribute not in included:
+            raise ValueError(
+                f"fraction_to_percent.unit_attribute={conversion.unit_attribute!r} must be listed"
+                " in include_attributes"
+            )
         return self

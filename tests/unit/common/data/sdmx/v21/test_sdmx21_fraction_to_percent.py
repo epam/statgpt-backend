@@ -43,11 +43,20 @@ def _converting_config(**conversion: Any) -> SdmxDataSetConfig:
     return _config(
         includeAttributes=[_FACTOR, _TYPE, _UNIT],
         fractionToPercent={
-            "attribute": _TYPE,
+            "component": _TYPE,
             "codes": [_FRACTION, _SHARE],
             "unitAttribute": _UNIT,
             **conversion,
         },
+    )
+
+
+def _converting_config_with(
+    include_attributes: list[str] | None, component: str
+) -> SdmxDataSetConfig:
+    return _config(
+        includeAttributes=include_attributes,
+        fractionToPercent={"component": component, "codes": ["X"], "unitAttribute": _UNIT},
     )
 
 
@@ -59,7 +68,7 @@ class TestConfig:
         conversion = _converting_config().fraction_to_percent
 
         assert conversion is not None
-        assert (conversion.attribute, conversion.codes) == (_TYPE, [_FRACTION, _SHARE])
+        assert (conversion.component, conversion.codes) == (_TYPE, [_FRACTION, _SHARE])
         assert (conversion.unit_attribute, conversion.unit) == (_UNIT, "%")
 
     def test_the_unit_can_be_set(self) -> None:
@@ -68,17 +77,29 @@ class TestConfig:
         assert conversion is not None
         assert conversion.unit == "PC"
 
-    @pytest.mark.parametrize("include_attributes", [None, [_FACTOR], [_TYPE], [_UNIT]])
-    def test_both_attributes_must_be_included(self, include_attributes: list[str] | None) -> None:
-        with pytest.raises(ValidationError, match="must be listed in include_attributes"):
-            _config(
-                includeAttributes=include_attributes,
-                fractionToPercent={
-                    "attribute": _TYPE,
-                    "codes": [_FRACTION],
-                    "unitAttribute": _UNIT,
-                },
-            )
+    @pytest.mark.parametrize("include_attributes", [None, [_FACTOR, _UNIT]])
+    def test_an_attribute_component_must_be_included(
+        self, include_attributes: list[str] | None
+    ) -> None:
+        with pytest.raises(ValidationError, match="must be a dimension of the dataset or listed"):
+            _converting_config_with(include_attributes, component=_TYPE)
+
+    def test_a_dimension_component_needs_no_including(self) -> None:
+        conversion = _converting_config_with([_UNIT], component="SERIES").fraction_to_percent
+
+        assert conversion is not None
+        assert conversion.component == "SERIES"
+
+    def test_an_unknown_component_is_rejected(self) -> None:
+        with pytest.raises(ValidationError, match="must be a dimension of the dataset or listed"):
+            _converting_config_with([_TYPE, _UNIT], component="REF_AREA")
+
+    @pytest.mark.parametrize("include_attributes", [None, [_TYPE], [_FACTOR, _TYPE]])
+    def test_the_unit_attribute_must_be_included(
+        self, include_attributes: list[str] | None
+    ) -> None:
+        with pytest.raises(ValidationError, match="unit_attribute='UNIT' must be listed"):
+            _converting_config_with(include_attributes, component="SERIES")
 
     def test_at_least_one_code_is_required(self) -> None:
         with pytest.raises(ValidationError, match="codes"):
@@ -88,11 +109,11 @@ class TestConfig:
         with pytest.raises(ValidationError, match="unitAttribute"):
             _config(
                 includeAttributes=[_TYPE],
-                fractionToPercent={"attribute": _TYPE, "codes": [_FRACTION]},
+                fractionToPercent={"component": _TYPE, "codes": [_FRACTION]},
             )
 
-    def test_the_unit_attribute_must_differ_from_the_attribute(self) -> None:
-        with pytest.raises(ValidationError, match="must differ from attribute"):
+    def test_the_unit_attribute_must_differ_from_the_component(self) -> None:
+        with pytest.raises(ValidationError, match="must differ from component"):
             _converting_config(unitAttribute=_TYPE)
 
 
@@ -180,6 +201,22 @@ class TestConversion:
 
         assert pd.isna(df["value"].iloc[0])
 
+    def test_series_are_told_apart_by_a_dimension_too(self) -> None:
+        # The attribute codes need not match how the values are stored: only the listed series
+        # are converted, whatever their type.
+        config = _converting_config(component="SERIES", codes=["GDP_GROWTH"])
+
+        df = _parse(
+            _dataset(config),
+            _source_frame(
+                [("GDP_GROWTH", _LEVEL, 0.028), ("SPREAD_BP", _FRACTION, 100.0)],
+                units=[None, "BP"],
+            ),
+        )
+
+        assert _values(df) == {"GDP_GROWTH": 2.8, "SPREAD_BP": 100.0}
+        assert _units(df) == {"GDP_GROWTH": "%", "SPREAD_BP": "BP"}
+
     def test_the_attribute_is_kept_in_the_table(self) -> None:
         df = _parse_rows(_dataset(_converting_config()), [("S", _FRACTION, 0.028)])
 
@@ -224,7 +261,7 @@ class TestConversion:
         assert df["value"].tolist() == [0.028]
         assert _UNIT not in df.index.names
 
-    def test_nothing_is_converted_when_the_response_lacks_the_attribute(
+    def test_nothing_is_converted_when_the_response_lacks_the_component(
         self, caplog: pytest.LogCaptureFixture
     ) -> None:
         source = _source_frame([("S", _FRACTION, 0.028)]).drop(columns=[_TYPE])
@@ -233,7 +270,7 @@ class TestConversion:
             df = _parse(_dataset(_converting_config()), source)
 
         assert df["value"].tolist() == [0.028]
-        assert "lacks the 'TYPE' attribute" in caplog.text
+        assert "lacks the 'TYPE' component" in caplog.text
 
     def test_the_source_frame_is_left_untouched(self) -> None:
         dataset = _dataset(_converting_config())
