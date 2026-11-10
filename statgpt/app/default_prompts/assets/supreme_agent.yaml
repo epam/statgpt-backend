@@ -240,3 +240,7 @@ deepResearchFailedMessageToAgent: |-
 
 deepResearchReportAnswerPlaceholder: |-
   I delivered the Deep Research report above to the user verbatim.
+
+failedTurnMessageToAgent: |-
+  The response to the user's message above failed before it was completed, and no answer was shown
+  to the user.

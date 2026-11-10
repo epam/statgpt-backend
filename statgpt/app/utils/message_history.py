@@ -294,6 +294,14 @@ class History:
                             content=supreme_agent_default_prompts.deep_research_report_answer_placeholder
                         )
                     )
+                elif include_tool_messages and self._is_failed_turn(msg):
+                    # Not the empty assistant message the client sends back for it: to the agent,
+                    # that reads as an answer of silence, which it then repeats.
+                    chat_history.append(
+                        SystemMessage(
+                            content=supreme_agent_default_prompts.failed_turn_message_to_agent
+                        )
+                    )
                 else:
                     chat_history.append(self.dial_to_langchain_message(msg))
             elif msg.role == Role.TOOL:
@@ -335,6 +343,18 @@ class History:
         return bool(
             message.custom_content.state.get(StateVarsConfig.DEEP_RESEARCH_REPORT_DELIVERED)
         )
+
+    @staticmethod
+    def _is_failed_turn(message: DialMessage) -> bool:
+        """Whether this assistant message is a turn that failed before any answer was shown.
+
+        `ChannelCompletion` sets the error in the state of a failed turn and clears it on success;
+        a turn cut off before its state was sent, e.g. by a dropped connection, has no state."""
+        if message.content or message.tool_calls:
+            return False
+        if message.custom_content is None or not isinstance(message.custom_content.state, dict):
+            return True
+        return bool(message.custom_content.state.get(StateVarsConfig.ERROR))
 
     @staticmethod
     def _extract_tool_messages_from_message(

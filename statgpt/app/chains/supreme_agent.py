@@ -322,6 +322,15 @@ def _content_to_str(content: Any) -> str:
     return content if isinstance(content, str) else str(content)
 
 
+def _is_empty_reply(response: _SupremeAgentResponse) -> bool:
+    """Whether the agent finished without calling a tool or writing anything."""
+    return (
+        response.finished
+        and not response.resp.tool_calls
+        and not _content_to_str(response.resp.content).strip()
+    )
+
+
 class _DeepResearchMode(StrEnum):
     """How a Deep Research turn is handled, once the toggle and session flag have selected one.
 
@@ -616,6 +625,31 @@ class SupremeAgentExecutor:
                 response = await agent.run(history, configuration)
                 logger.info(f"Deep Research mediation response: {response.resp!r}")
 
+            if _is_empty_reply(response) and not start and i == 0:
+                # An empty reply to the user's message: re-run once with the resume tool forced, so
+                # the request is passed on. Only here: after a Deep Research response, a forced call
+                # could approve a plan the user has not seen.
+                logger.warning(
+                    "Deep Research mediation returned an empty reply; re-running with `%s` forced.",
+                    resume_tool.name,
+                )
+                forced_resume_agent = SupremeAgent.create(
+                    choice,
+                    auth_context,
+                    self._channel_config,
+                    [resume_tool],
+                    tool_choice=resume_tool.name,
+                    parallel_tool_calls=False,
+                    deep_research=True,
+                )
+                with optional_timed_stage(
+                    choice=choice,
+                    name=f"[DEBUG] Deep Research mediation run {i + 1}, resume forced",
+                    enabled=debug,
+                ):
+                    response = await forced_resume_agent.run(history, configuration)
+                    logger.info(f"Deep Research mediation response: {response.resp!r}")
+
             if tool_calls := response.resp.tool_calls:
                 # Any user-facing preamble on a tool-call response already streamed to the choice via
                 # `agent.run` (as in the main loop); it is retained by `add_chunk_as_tool_message`.
@@ -643,6 +677,14 @@ class SupremeAgentExecutor:
                         )
                         return report
                 # Clarification recorded: loop so the agent can absorb it / surface the remainder.
+            elif _is_empty_reply(response):
+                # Never a valid step: the agent either calls the resume tool or writes the user's
+                # message. Surface the standard failure instead of ending the turn silently; the
+                # session is left as-is so the user can retry.
+                logger.warning(
+                    "Deep Research mediation returned an empty reply; surfacing the standard error."
+                )
+                return surface_deep_research_error(choice)
             elif response.finished:
                 # The agent answered the user directly, already streamed via `agent.run`: the
                 # questions it could not resolve from context, the plan presented verbatim for
