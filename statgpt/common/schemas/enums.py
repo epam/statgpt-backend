@@ -308,6 +308,16 @@ class DiscoverySummaryStep(StrEnum):
     """Merging the groups of every part into one set."""
 
 
+class DiscoveryExportFormat(StrEnum):
+    """The file a channel's discovery datasets are downloaded as."""
+
+    CSV = "csv"
+    """The flat file the channel export writes, the indicators as a JSON list per row."""
+
+    XLSX = "xlsx"
+    """The upload template's workbook: a `Datasets` sheet and one indicators sheet per dataset."""
+
+
 class RecordUploadMode(StrEnum):
     """How a loaded file is reconciled with the records a channel already holds.
 

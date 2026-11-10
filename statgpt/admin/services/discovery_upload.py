@@ -132,8 +132,11 @@ def _build_header_aliases() -> dict[str, str]:
 
 _HEADER_ALIASES: dict[str, str] = _build_header_aliases()
 
-_DATASETS_SHEET_NAME: str = "datasets"
-_RESERVED_SHEET_KEYS: frozenset[str] = frozenset({_DATASETS_SHEET_NAME, "instructions"})
+DATASETS_SHEET_TITLE = "Datasets"
+"""The template's sheet of dataset rows, as the export names it. Found by name on upload."""
+
+_DATASETS_SHEET_NAME: str = DATASETS_SHEET_TITLE.casefold()
+RESERVED_SHEET_KEYS: frozenset[str] = frozenset({_DATASETS_SHEET_NAME, "instructions"})
 """Sheets of the template itself, as folded keys: never an indicators sheet, never an ID."""
 _XLSX_SIGNATURE = b"PK\x03\x04"
 _XLS_SIGNATURE = b"\xd0\xcf\x11\xe0"
@@ -141,11 +144,14 @@ _XLS_SIGNATURE = b"\xd0\xcf\x11\xe0"
 _INDICATOR_NAME = "name"
 _INDICATOR_UNITS = "units"
 
+INDICATOR_SHEET_HEADERS: tuple[str, str] = ("Indicator", "Units of measure")
+"""The header row of an indicators sheet, as the template and the export spell it."""
+
 _INDICATOR_HEADERS: dict[str, str] = {
-    "indicator": _INDICATOR_NAME,
+    INDICATOR_SHEET_HEADERS[0].casefold(): _INDICATOR_NAME,
     "indicators": _INDICATOR_NAME,
     "indicator name": _INDICATOR_NAME,
-    "units of measure": _INDICATOR_UNITS,
+    INDICATOR_SHEET_HEADERS[1].casefold(): _INDICATOR_UNITS,
     "unit of measure": _INDICATOR_UNITS,
     "units": _INDICATOR_UNITS,
     "unit": _INDICATOR_UNITS,
@@ -678,7 +684,7 @@ def _parse_workbook(data: bytes, max_rows: int, max_indicators_per_dataset: int)
 
         # The fallback may read another sheet as the datasets one, so its own title is
         # reserved alongside the template's.
-        reserved = _RESERVED_SHEET_KEYS | {normalize_key_part(worksheet.title)}
+        reserved = RESERVED_SHEET_KEYS | {normalize_key_part(worksheet.title)}
         problems = _check_dataset_ids(rows, column_letters, reserved)
         rows, sheet_problems = _apply_indicator_sheets(
             workbook,

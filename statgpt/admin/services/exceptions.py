@@ -106,6 +106,18 @@ class DiscoveryDatasetNotFoundError(DiscoveryNotFoundError):
         super().__init__(f"Discovery dataset with id={item_id} not found.")
 
 
+class DiscoveryDatasetsNotInChannelError(DiscoveryNotFoundError):
+    """Records selected by id that the channel does not hold, all of them named at once."""
+
+    def __init__(self, channel_id: int, item_ids: Sequence[int]) -> None:
+        self.item_ids = sorted(item_ids)
+        listed = ", ".join(str(item_id) for item_id in self.item_ids)
+        super().__init__(
+            f"Channel {channel_id} has no discovery dataset with id(s): {listed}. Nothing was"
+            f" exported: a report without them would look complete and not be."
+        )
+
+
 class DiscoveryIndexingJobNotFoundError(DiscoveryNotFoundError):
     def __init__(self, job_id: int) -> None:
         super().__init__(f"Discovery indexing job with id={job_id} not found.")
@@ -162,6 +174,10 @@ class DiscoveryPayloadError(AdminServiceError):
 
 class DiscoveryUploadFormatError(AdminServiceError):
     """An uploaded file could not be read as a discovery workbook or CSV."""
+
+
+class DiscoveryExportError(AdminServiceError):
+    """The selected records cannot be laid out in the requested export format."""
 
 
 class DiscoveryUploadTooLargeError(AdminServiceError):

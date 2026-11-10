@@ -28,6 +28,7 @@ from statgpt.common.services import (
 )
 
 from .discovery_area_publisher import ReferenceAreaPublisher
+from .discovery_export import build_csv, build_workbook, export_rows
 from .discovery_publisher import withdraw_documents
 from .discovery_upload import (
     FIELD_LABELS,
@@ -42,6 +43,7 @@ from .discovery_upload import (
 from .exceptions import (
     DiscoveryDatasetConflictError,
     DiscoveryDatasetNotFoundError,
+    DiscoveryDatasetsNotInChannelError,
     DiscoveryPayloadError,
     DiscoveryUploadFormatError,
     DiscoveryUploadTooLargeError,
@@ -709,29 +711,6 @@ class AdminPortalDiscoveryDatasetService(DiscoveryDatasetService):
 
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~ export / import ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-    @staticmethod
-    def _export_rows(records: Iterable[models.DiscoveryDataset]) -> list[dict[str, str]]:
-        """Shape records for the export CSV.
-
-        Only the submitted fields travel: validation and indexing state describe this
-        deployment's index rather than the dataset, and the derived columns are not something
-        an upload may carry back in.
-
-        Read straight off the row rather than through the write schema, so a record stored
-        before the current rules - a dataset id no sheet could be named after - is still
-        exportable. The export says what is stored; refusing a write is the write's business.
-        The indicators are the exception, written as the JSON list a CSV carries them in.
-        """
-        return [
-            {
-                **{name: getattr(item, name) for name in RECORD_FIELDS},
-                INDICATORS_FIELD: schemas.dump_indicators_json(
-                    schemas.read_indicators(item.indicators_coverage)
-                ),
-            }
-            for item in records
-        ]
-
     async def export_discovery_datasets_to_folder(
         self, channel: models.Channel, folder_path: str
     ) -> None:
@@ -743,36 +722,54 @@ class AdminPortalDiscoveryDatasetService(DiscoveryDatasetService):
 
         _log.info(f"Exporting {len(records)} discovery datasets.")
         file_path = os.path.join(folder_path, JobsConfig.DISCOVERY_DATASETS_FILE)
-        utils.write_csv_from_dict_list(self._export_rows(records), file_path)
+        utils.write_csv_from_dict_list(export_rows(records), file_path)
         _log.info(f"Exported discovery datasets to {file_path!r}.")
 
-    async def export_discovery_datasets_to_csv(
+    async def _export_records(
+        self, channel_id: int, filters: schemas.DiscoveryExportFilters
+    ) -> list[models.DiscoveryDataset]:
+        if filters.ids is None:
+            return await self.get_record_models_by_channel(
+                channel_id,
+                limit=None,
+                offset=0,
+                validation_status=filters.validation_status,
+                indexing_status=filters.indexing_status,
+                agency=filters.agency,
+            )
+
+        requested = set(filters.ids)
+        records = await self.get_record_models_by_channel_and_ids(channel_id, requested)
+        # Refused rather than dropped: a report missing a selected row looks complete.
+        if missing := requested - {item.id for item in records}:
+            raise DiscoveryDatasetsNotInChannelError(channel_id, list(missing))
+        return records
+
+    async def export_discovery_datasets(
         self,
         channel_id: int,
-        validation_status: schemas.DiscoveryValidationStatus | None = None,
-        indexing_status: schemas.DiscoveryIndexingStatus | None = None,
-        agency: str | None = None,
-    ) -> str:
-        """Render the channel's records as the CSV the channel export writes.
+        filters: schemas.DiscoveryExportFilters,
+        export_format: schemas.DiscoveryExportFormat = schemas.DiscoveryExportFormat.CSV,
+        include_validation: bool = False,
+    ) -> bytes:
+        """Render the channel's records as a file the upload endpoint reads back.
 
-        Same rows, same columns, same writer as `export_discovery_datasets_to_folder`, so
-        what this returns can be handed straight to the upload endpoint of another channel.
+        The defaults give the CSV the channel export writes - same rows, same columns, same
+        writer as `export_discovery_datasets_to_folder` - so it can be handed straight to the
+        upload endpoint of another channel. `include_validation` appends the verdict of the
+        last indexing job, which the upload ignores.
 
-        The columns are named explicitly rather than taken from the first row, so a filter
-        that matches nothing returns a header on its own instead of failing.
+        Raises `DiscoveryDatasetsNotInChannelError` for a selected id the channel does not
+        hold, and `DiscoveryExportError` for records a workbook cannot hold.
         """
-        records = await self.get_record_models_by_channel(
-            channel_id,
-            limit=None,
-            offset=0,
-            validation_status=validation_status,
-            indexing_status=indexing_status,
-            agency=agency,
+        records = await self._export_records(channel_id, filters)
+        _log.info(
+            f"Exporting {len(records)} discovery datasets of channel {channel_id} as"
+            f" {export_format}{' with validation' if include_validation else ''}."
         )
-        return utils.csv_from_dict_list(
-            self._export_rows(records),
-            fieldnames=list(RECORD_FIELDS),
-        )
+        if export_format is schemas.DiscoveryExportFormat.XLSX:
+            return await asyncio.to_thread(build_workbook, records, include_validation)
+        return build_csv(records, include_validation).encode("utf-8")
 
     async def import_discovery_datasets_from_zip(
         self, zip_file: zipfile.ZipFile, channel_id: int, delete_absent: bool = False

@@ -452,6 +452,23 @@ class DiscoveryDatasetStats(BaseYamlModel):
     """
 
 
+class DiscoveryExportFilters(BaseYamlModel):
+    """Which of a channel's discovery datasets an export holds.
+
+    Either the list endpoint's filters, or a selection of record ids - not both, which the
+    router enforces. Nothing set exports the whole channel.
+    """
+
+    model_config = ConfigDict(use_attribute_docstrings=True)
+
+    validation_status: DiscoveryValidationStatus | None = None
+    indexing_status: DiscoveryIndexingStatus | None = None
+    agency: str | None = None
+
+    ids: list[int] | None = None
+    """Database record ids, as a row selection in the Admin UI sends them."""
+
+
 class DiscoveryPayloadProblem(BaseYamlModel):
     """One structural problem that kept a payload from being saved."""
 
