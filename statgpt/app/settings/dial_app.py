@@ -8,9 +8,6 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 # The field must also keep the name `deep_research` on both for the round-trip to line up.
 DEEP_RESEARCH_TOGGLE_DEFAULT = False
 
-# A float carries about 15 significant digits, so rounding to more decimal places changes nothing.
-_MAX_DECIMAL_PLACES = 15
-
 
 class DialAppSettings(BaseSettings):
     """
@@ -121,19 +118,6 @@ class DialAppSettings(BaseSettings):
         default=8,
         alias="DISCOVERY_DATASETS_DOWNLOAD_CONCURRENCY",
         description="How many discovery document bodies the discovery datasets lookup fetches at once",
-    )
-
-    data_query_decimal_places: int | None = Field(
-        default=None,
-        ge=0,
-        le=_MAX_DECIMAL_PLACES,
-        alias="DATA_QUERY_DECIMAL_PLACES",
-        description=(
-            "Decimal places of the data query values the model reads (the Supreme Agent tool"
-            " response and the MCP resources) and the UI grid shows. A value too small for them"
-            " keeps its first significant digit. Downloadable files keep full precision. Unset,"
-            " the values are not rounded"
-        ),
     )
 
     mcp_tool_timeout_seconds: float = Field(

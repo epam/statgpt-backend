@@ -1,11 +1,12 @@
 """The opt-in conversion of the values a dataset stores as fractions of one to percentages: its
-config, the conversion `Sdmx21DataSet` runs as the data arrives, and the rounding that follows it.
+config, the conversion of the values the LLM reads, the rounding that follows it, and the user's
+attachments that keep the fractions.
 """
 
 import logging
 from types import SimpleNamespace
 from typing import Any
-from unittest.mock import Mock, patch
+from unittest.mock import Mock
 
 import pandas as pd
 import pytest
@@ -13,7 +14,7 @@ from pydantic import ValidationError
 
 from statgpt.common.data.base import DataResponseStatus
 from statgpt.common.data.sdmx.common import SdmxDataSetConfig
-from statgpt.common.data.sdmx.v21.dataset import Sdmx21DataResponse, Sdmx21DataSet
+from statgpt.common.data.sdmx.v21.dataset import Sdmx21DataResponse
 from statgpt.common.schemas.enums import DataParsingStatus, DataRequestStatus
 
 _TIME = "TIME_PERIOD"
@@ -39,7 +40,7 @@ def _config(**details: Any) -> SdmxDataSetConfig:
     )
 
 
-def _converting_config(**conversion: Any) -> SdmxDataSetConfig:
+def _converting_config(decimal_places: int | None = None, **conversion: Any) -> SdmxDataSetConfig:
     return _config(
         includeAttributes=[_FACTOR, _TYPE, _UNIT],
         fractionToPercent={
@@ -48,6 +49,7 @@ def _converting_config(**conversion: Any) -> SdmxDataSetConfig:
             "unitAttribute": _UNIT,
             **conversion,
         },
+        decimalPlaces=decimal_places,
     )
 
 
@@ -120,60 +122,73 @@ class TestConfig:
 # ~~~ The conversion ~~~
 
 
-def _dataset(config: SdmxDataSetConfig) -> Sdmx21DataSet:
-    """A dataset stub carrying only what the parsing of the data message reads."""
-    dataset = Sdmx21DataSet.__new__(Sdmx21DataSet)
-    dataset._config = config
-    dataset._short_urn = "AGENCY:FLOW(1.0)"
-    return dataset
-
-
-def _source_frame(
+def _frame(
     rows: list[tuple[str, str, float]], units: list[str | None] | None = None
 ) -> pd.DataFrame:
-    """The shape `sdmx.to_pandas` gives with attributes: dimensions in the index, the observation
-    value and one column per attribute, each cell holding an `AttributeValue`-like object or `None`.
-    Without `units`, the source leaves the unit attribute out."""
-    index = pd.MultiIndex.from_tuples(
-        [(series, "2024") for series, _, _ in rows], names=["SERIES", _TIME]
-    )
-    columns: dict[str, list[Any]] = {
-        "value": [value for _, _, value in rows],
-        _FACTOR: [SimpleNamespace(value="0")] * len(rows),
-        _TYPE: [SimpleNamespace(value=type_) for _, type_, _ in rows],
-    }
+    """The shape `Sdmx21DataSet.query` gives with the included attributes: the dimensions and the
+    attributes in the index, the observation values in the single `value` column. Without
+    `units`, the source leaves the unit attribute out."""
+    names = ["SERIES", _TIME, _FACTOR, _TYPE]
+    keys: list[tuple[Any, ...]] = [(series, "2024", "0", type_) for series, type_, _ in rows]
     if units is not None:
-        columns[_UNIT] = [None if unit is None else SimpleNamespace(value=unit) for unit in units]
-    return pd.DataFrame(columns, index=index)
+        names.append(_UNIT)
+        keys = [(*key, unit) for key, unit in zip(keys, units)]
+    return pd.DataFrame(
+        {"value": [value for _, _, value in rows]},
+        index=pd.MultiIndex.from_tuples(keys, names=names),
+    )
 
 
-def _parse(dataset: Sdmx21DataSet, source: pd.DataFrame) -> pd.DataFrame:
-    """Parse a data message as `Sdmx21DataSet.query` does, `sdmx.to_pandas` giving `source`."""
-    with patch.object(dataset, "_data_msg_to_dataframe_sync", return_value=source):
-        return dataset._parse_data_msg_sync(Mock())
+def _response(config: SdmxDataSetConfig, df: pd.DataFrame) -> Sdmx21DataResponse:
+    dataset = Mock()
+    dataset.entity_id = "ds1"
+    dataset.config = config
+    dataset.short_urn = "AGENCY:FLOW(1.0)"
+    dataset.dimensions.return_value = [
+        SimpleNamespace(entity_id="SERIES", name="Series"),
+        SimpleNamespace(entity_id=_TIME, name="Time period"),
+    ]
+    dataset.attributes.return_value = [
+        SimpleNamespace(entity_id=_FACTOR, name="Factor"),
+        SimpleNamespace(entity_id=_TYPE, name="Type"),
+        SimpleNamespace(entity_id=_UNIT, name="Unit"),
+    ]
+    dataset.get_time_dimension.return_value = SimpleNamespace(entity_id=_TIME)
+    dataset.map_component_values_id_2_name.return_value = None
+    return Sdmx21DataResponse(
+        dataset=dataset,
+        sdmx_query=Mock(),
+        df=df,
+        url=None,
+        status=DataResponseStatus(
+            request_status=DataRequestStatus.SUCCESS, parsing_status=DataParsingStatus.SUCCESS
+        ),
+    )
 
 
-def _parse_rows(dataset: Sdmx21DataSet, rows: list[tuple[str, str, float]]) -> pd.DataFrame:
-    return _parse(dataset, _source_frame(rows))
+def _llm_rows(
+    rows: list[tuple[str, str, float]], config: SdmxDataSetConfig | None = None
+) -> pd.DataFrame:
+    """The observations the LLM reads for `rows`."""
+    return _response(config or _converting_config(), _frame(rows)).llm_csv_dataframe
 
 
 def _values(df: pd.DataFrame) -> dict[str, float]:
-    return dict(zip(df.index.get_level_values("SERIES"), df["value"]))
+    return dict(zip(df["SERIES"], df["value"]))
 
 
 def _units(df: pd.DataFrame) -> dict[str, str]:
-    return dict(zip(df.index.get_level_values("SERIES"), df.index.get_level_values(_UNIT)))
+    return dict(zip(df["SERIES"], df[_UNIT]))
 
 
 class TestConversion:
     def test_fraction_series_are_converted_and_the_other_series_kept(self) -> None:
-        df = _parse_rows(
-            _dataset(_converting_config()),
+        df = _llm_rows(
             [
                 ("GDP_GROWTH", _FRACTION, 0.028),
                 ("EXPORTS_SHARE", _SHARE, 0.1188),
                 ("CPI", _LEVEL, 132.3),
-            ],
+            ]
         )
 
         assert _values(df) == {"GDP_GROWTH": 2.8, "EXPORTS_SHARE": 11.88, "CPI": 132.3}
@@ -192,12 +207,12 @@ class TestConversion:
         ],
     )
     def test_the_decimal_point_is_shifted_exactly(self, fraction: float, percent: float) -> None:
-        df = _parse_rows(_dataset(_converting_config()), [("S", _FRACTION, fraction)])
+        df = _llm_rows([("S", _FRACTION, fraction)])
 
         assert df["value"].tolist() == [percent]
 
     def test_a_missing_value_stays_missing(self) -> None:
-        df = _parse_rows(_dataset(_converting_config()), [("S", _FRACTION, float("nan"))])
+        df = _llm_rows([("S", _FRACTION, float("nan"))])
 
         assert pd.isna(df["value"].iloc[0])
 
@@ -205,81 +220,126 @@ class TestConversion:
         # The attribute codes need not match how the values are stored: only the listed series
         # are converted, whatever their type.
         config = _converting_config(component="SERIES", codes=["GDP_GROWTH"])
-
-        df = _parse(
-            _dataset(config),
-            _source_frame(
-                [("GDP_GROWTH", _LEVEL, 0.028), ("SPREAD_BP", _FRACTION, 100.0)],
-                units=[None, "BP"],
-            ),
+        source = _frame(
+            [("GDP_GROWTH", _LEVEL, 0.028), ("SPREAD_BP", _FRACTION, 100.0)], units=[None, "BP"]
         )
+
+        df = _response(config, source).llm_csv_dataframe
 
         assert _values(df) == {"GDP_GROWTH": 2.8, "SPREAD_BP": 100.0}
         assert _units(df) == {"GDP_GROWTH": "%", "SPREAD_BP": "BP"}
 
     def test_the_attribute_is_kept_in_the_table(self) -> None:
-        df = _parse_rows(_dataset(_converting_config()), [("S", _FRACTION, 0.028)])
+        df = _llm_rows([("S", _FRACTION, 0.028)])
 
-        assert df.index.get_level_values(_TYPE).tolist() == [_FRACTION]
+        assert df[_TYPE].tolist() == [_FRACTION]
 
     def test_the_unit_is_set_on_the_converted_series_only(self) -> None:
-        df = _parse(
-            _dataset(_converting_config()),
-            _source_frame(
-                [("GDP_GROWTH", _FRACTION, 0.028), ("EXPORTS", _LEVEL, 5.0)], units=[None, "USD"]
-            ),
+        source = _frame(
+            [("GDP_GROWTH", _FRACTION, 0.028), ("EXPORTS", _LEVEL, 5.0)], units=[None, "USD"]
         )
+
+        df = _response(_converting_config(), source).llm_csv_dataframe
 
         assert _units(df) == {"GDP_GROWTH": "%", "EXPORTS": "USD"}
 
     def test_the_configured_unit_is_set(self) -> None:
-        df = _parse_rows(_dataset(_converting_config(unit="PC")), [("S", _FRACTION, 0.028)])
+        df = _llm_rows([("S", _FRACTION, 0.028)], _converting_config(unit="PC"))
 
         assert _units(df) == {"S": "PC"}
 
     def test_the_unit_is_added_when_the_source_leaves_it_out(self) -> None:
-        # Empty rather than missing for the other series, which the charts would otherwise drop.
-        df = _parse_rows(
-            _dataset(_converting_config()),
-            [("GDP_GROWTH", _FRACTION, 0.028), ("CPI", _LEVEL, 132.3)],
-        )
+        # Empty rather than missing for the other series, which a grouping would drop.
+        df = _llm_rows([("GDP_GROWTH", _FRACTION, 0.028), ("CPI", _LEVEL, 132.3)])
 
         assert _units(df) == {"GDP_GROWTH": "%", "CPI": ""}
 
     def test_the_unit_is_added_without_a_fraction_series(self) -> None:
-        # So every response of the dataset has the same index levels, e.g. to be merged.
-        df = _parse_rows(_dataset(_converting_config()), [("CPI", _LEVEL, 132.3)])
+        # So the LLM reads the same columns in every response of the dataset.
+        df = _llm_rows([("CPI", _LEVEL, 132.3)])
 
         assert _values(df) == {"CPI": 132.3}
         assert _units(df) == {"CPI": ""}
 
-    def test_nothing_is_converted_without_the_config(self) -> None:
-        df = _parse_rows(
-            _dataset(_config(includeAttributes=[_FACTOR, _TYPE])), [("S", _FRACTION, 0.028)]
+    def test_the_time_periods_table_is_converted_too(self) -> None:
+        response = _response(
+            _converting_config(), _frame([("GDP_GROWTH", _FRACTION, 0.028), ("CPI", _LEVEL, 5.0)])
         )
 
+        rows = response.llm_visual_dataframe.set_index("SERIES")
+
+        assert rows.loc["GDP_GROWTH", ["2024", _UNIT]].tolist() == [2.8, "%"]
+        assert rows.loc["CPI", ["2024", _UNIT]].tolist() == [5.0, ""]
+
+    def test_a_merged_response_is_converted(self) -> None:
+        # The responses are merged as the source gives them, and converted once merged.
+        config = _converting_config()
+        first = _response(config, _frame([("GDP_GROWTH", _FRACTION, 0.028)]))
+        second = _response(config, _frame([("CPI", _LEVEL, 132.3)]))
+
+        df = first.merge(second).llm_csv_dataframe
+
+        assert _values(df) == {"GDP_GROWTH": 2.8, "CPI": 132.3}
+        assert _units(df) == {"GDP_GROWTH": "%", "CPI": ""}
+
+    def test_nothing_is_converted_without_the_config(self) -> None:
+        df = _llm_rows([("S", _FRACTION, 0.028)], _config(includeAttributes=[_FACTOR, _TYPE]))
+
         assert df["value"].tolist() == [0.028]
-        assert _UNIT not in df.index.names
+        assert _UNIT not in df.columns
 
     def test_nothing_is_converted_when_the_response_lacks_the_component(
         self, caplog: pytest.LogCaptureFixture
     ) -> None:
-        source = _source_frame([("S", _FRACTION, 0.028)]).drop(columns=[_TYPE])
+        source = _frame([("S", _FRACTION, 0.028)]).droplevel(_TYPE)
 
         with caplog.at_level(logging.WARNING):
-            df = _parse(_dataset(_converting_config()), source)
+            df = _response(_converting_config(), source).llm_csv_dataframe
 
         assert df["value"].tolist() == [0.028]
         assert "lacks the 'TYPE' component" in caplog.text
 
-    def test_the_source_frame_is_left_untouched(self) -> None:
-        dataset = _dataset(_converting_config())
-        parsed = dataset._include_attributes_sync(_source_frame([("S", _FRACTION, 0.028)]))
 
-        dataset._convert_fractions_to_percent_sync(parsed)
+# ~~~ What the user gets ~~~
 
-        assert parsed["value"].tolist() == [0.028]
-        assert _UNIT not in parsed.index.names
+
+class TestUserAttachments:
+    @pytest.fixture
+    def response(self) -> Sdmx21DataResponse:
+        response = _response(
+            _converting_config(decimal_places=1),
+            _frame([("GDP_GROWTH", _FRACTION, 0.04167), ("CPI", _LEVEL, 132.345)]),
+        )
+        # Read first, so a conversion done in place would show in the user's frames.
+        _ = response.llm_csv_dataframe, response.llm_visual_dataframe
+        return response
+
+    def test_the_source_frame_is_left_untouched(self, response: Sdmx21DataResponse) -> None:
+        assert _values(response.df.reset_index()) == {"GDP_GROWTH": 0.04167, "CPI": 132.345}
+        assert _UNIT not in response.df.index.names
+
+    def test_the_csv_download_keeps_the_fractions_at_full_precision(
+        self, response: Sdmx21DataResponse
+    ) -> None:
+        for df in (response.csv_dataframe, response.dataframe):
+            assert _values(df) == {"GDP_GROWTH": 0.04167, "CPI": 132.345}
+            assert _UNIT not in df.columns
+
+    def test_the_grid_keeps_the_fractions_at_full_precision(
+        self, response: Sdmx21DataResponse
+    ) -> None:
+        rows = response.visual_dataframe.set_index("SERIES")
+        assert rows["2024"].to_dict() == {"GDP_GROWTH": 0.04167, "CPI": 132.345}
+        assert _UNIT not in rows.columns
+
+        grid = response.plotly_grid
+        assert grid is not None
+        table = grid.data[0]
+        columns = dict(zip(table.header.values, table.cells.values))
+        assert dict(zip(columns["SERIES"], columns["2024"])) == {
+            "GDP_GROWTH": 0.04167,
+            "CPI": 132.345,
+        }
 
 
 # ~~~ Conversion, then rounding ~~~
@@ -288,29 +348,8 @@ class TestConversion:
 def test_rounding_applies_to_the_percentage() -> None:
     # Rounded first, the fraction `0.04167` would keep only its first significant digit with 1
     # decimal place, `0.04`, and read 4%; converted first, it reads `4.2`, the precision asked for.
-    df = _parse_rows(_dataset(_converting_config()), [("S", _FRACTION, 0.04167)])
-    dataset = Mock()
-    dataset.dimensions.return_value = [
-        SimpleNamespace(entity_id="SERIES", name="Series"),
-        SimpleNamespace(entity_id=_TIME, name="Time period"),
-    ]
-    dataset.attributes.return_value = [
-        SimpleNamespace(entity_id=_FACTOR, name="Factor"),
-        SimpleNamespace(entity_id=_TYPE, name="Type"),
-        SimpleNamespace(entity_id=_UNIT, name="Unit"),
-    ]
-    dataset.get_time_dimension.return_value = SimpleNamespace(entity_id=_TIME)
-    dataset.map_component_values_id_2_name.return_value = None
-    response = Sdmx21DataResponse(
-        dataset=dataset,
-        sdmx_query=Mock(),
-        df=df,
-        url=None,
-        status=DataResponseStatus(
-            request_status=DataRequestStatus.SUCCESS, parsing_status=DataParsingStatus.SUCCESS
-        ),
-    )
+    response = _response(_converting_config(decimal_places=1), _frame([("S", _FRACTION, 0.04167)]))
 
-    assert response.rounded_csv_dataframe(1)["value"].tolist() == [4.2]
-    visual_row = response.rounded_visual_dataframe(1).iloc[0]
+    assert response.llm_csv_dataframe["value"].tolist() == [4.2]
+    visual_row = response.llm_visual_dataframe.iloc[0]
     assert (visual_row["2024"], visual_row[_UNIT]) == (4.2, "%")

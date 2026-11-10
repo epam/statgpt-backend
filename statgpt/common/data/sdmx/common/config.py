@@ -16,6 +16,9 @@ from statgpt.common.data.sdmx.common.data_explorer_url import DataExplorerUrlCon
 
 _log = logging.getLogger(__name__)
 
+# A float carries about 15 significant digits, so rounding to more decimal places changes nothing.
+_MAX_DECIMAL_PLACES = 15
+
 
 class ProviderDiscoveryMode(StrEnum):
     """Strategy for enumerating providers (maintainer agencies) exposed by a data source."""
@@ -281,8 +284,20 @@ class SdmxDataSetConfigMixin:
     fraction_to_percent: FractionToPercentConfig | None = Field(
         default=None,
         description=(
-            "The series whose values are stored as fractions of one and are shown as percentages."
-            " Unset, every value is kept as the source gives it"
+            "The series whose values are stored as fractions of one and are shown to the LLM (the"
+            " Supreme Agent tool response and the MCP resources) as percentages. The user's"
+            " attachments keep the fractions. Unset, every value is kept as the source gives it"
+        ),
+    )
+    decimal_places: int | None = Field(
+        default=None,
+        ge=0,
+        le=_MAX_DECIMAL_PLACES,
+        description=(
+            "Decimal places of the values shown to the LLM (the Supreme Agent tool response and"
+            " the MCP resources), rounded after `fraction_to_percent`. A value too small for them"
+            " keeps its first significant digit. The user's attachments keep full precision."
+            " Unset, the values are not rounded"
         ),
     )
     default_value_codes: list[str] | None = Field(

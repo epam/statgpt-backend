@@ -125,7 +125,7 @@ def _set_index_level(index: pd.Index, name: str, value: str, where: np.ndarray) 
     """`index` with its `name` level set to `value` at the rows `where` holds.
 
     A level `index` lacks is appended, empty for the other rows: an empty string rather than a
-    missing value, which groupings such as the charts' would drop with its rows.
+    missing value, which a grouping by the level would drop with its rows.
     """
     names = list(index.names)
     arrays = [index.get_level_values(position) for position in range(index.nlevels)]
@@ -184,18 +184,75 @@ class Sdmx21DataResponse(DataResponse):
     @cached_property
     def visual_dataframe(self) -> pd.DataFrame:
         """Return a DataFrame suitable for visualization and export (Plotly grid, CSV file)"""
-        if self.df.empty:
-            return self.df
-        time_dimension = self.dataset.get_time_dimension()
-        visual_df: pd.DataFrame = self.df.unstack(time_dimension.entity_id)  # type: ignore[assignment]
-        visual_df.columns = visual_df.columns.droplevel(0)
-        visual_df = self._enrich_df_with_names(visual_df)
-        return visual_df
+        return self._to_visual_dataframe(self.df)
 
     @cached_property
     def csv_dataframe(self) -> pd.DataFrame:
         """Return full SDMX observation-level dataframe for CSV export."""
         return self.dataframe
+
+    @cached_property
+    def llm_visual_dataframe(self) -> pd.DataFrame:
+        # Without a conversion the LLM reads `df` too, so the pivot built for the user is reused.
+        if self._llm_df is self.df:
+            visual_df = self.visual_dataframe
+        else:
+            visual_df = self._to_visual_dataframe(self._llm_df)
+        return self._round_values(visual_df, self.dataset.config.decimal_places)
+
+    @cached_property
+    def llm_csv_dataframe(self) -> pd.DataFrame:
+        if self._llm_df is self.df:
+            csv_df = self.csv_dataframe
+        else:
+            csv_df = self._enrich_df_with_names(self._llm_df)
+        return self._round_values(csv_df, self.dataset.config.decimal_places)
+
+    @cached_property
+    def _llm_df(self) -> pd.DataFrame:
+        """`df` with the values of the series configured as storing a percentage as a fraction of
+        one multiplied by 100, so `0.028` reads as `2.8`, and their unit set, so no reader takes
+        `2.8` for a fraction or converts it again. `df` itself when the dataset converts none.
+
+        Only the LLM reads the converted values: the user's attachments are built from `df`, so
+        they show the values the source stores, as the SDMX query, the data explorer link and the
+        Python code return them. The LLM's values are rounded after the conversion, so the
+        configured precision applies to the percentage rather than to the fraction.
+        """
+        conversion = self.dataset.config.fraction_to_percent
+        df = self.df
+        if conversion is None or df.empty:
+            return df
+        if conversion.component not in df.index.names:
+            _log.warning(
+                "The response of dataset %s lacks the %r component that tells its fraction series"
+                " apart, so their values are kept as fractions",
+                self.dataset.short_urn,
+                conversion.component,
+            )
+            return df
+
+        is_fraction = df.index.get_level_values(conversion.component).isin(conversion.codes)
+        df = df.copy()
+        if is_fraction.any():
+            df.loc[is_fraction, 'value'] = df.loc[is_fraction, 'value'].map(
+                _fraction_to_percent, na_action='ignore'
+            )
+        # Set without a fraction series too, so the LLM reads the same columns in every response
+        # of the dataset.
+        df.index = _set_index_level(
+            df.index, conversion.unit_attribute, conversion.unit, where=is_fraction
+        )
+        return df
+
+    def _to_visual_dataframe(self, df: pd.DataFrame) -> pd.DataFrame:
+        """`df` with the time periods as columns and the coded components named."""
+        if df.empty:
+            return df
+        time_dimension = self.dataset.get_time_dimension()
+        visual_df: pd.DataFrame = df.unstack(time_dimension.entity_id)  # type: ignore[assignment]
+        visual_df.columns = visual_df.columns.droplevel(0)
+        return self._enrich_df_with_names(visual_df)
 
     @property
     def is_empty(self) -> bool:
@@ -271,13 +328,11 @@ class Sdmx21DataResponse(DataResponse):
         }
         return result
 
-    def plotly_grid(self, decimal_places: int | None) -> go.Figure | None:
+    @property
+    def plotly_grid(self) -> go.Figure | None:
         if self.visual_dataframe.empty:
             return None
-        if decimal_places is None:
-            return df_2_plotly_grid(self.visual_dataframe, round_digits=2)
-        # Rounded like the values the model reads, so the grid and the answer show the same numbers.
-        return df_2_plotly_grid(self.rounded_visual_dataframe(decimal_places))
+        return df_2_plotly_grid(self.visual_dataframe)
 
     def get_plotly_graphs_with_names(self, template: str) -> list[tuple[str, go.Figure]]:
         try:
@@ -1251,6 +1306,9 @@ class Sdmx21DataSet(
 
         return sdmx_pandas
 
+    async def _data_msg_to_dataframe(self, data_msg: DataMessage) -> pd.DataFrame:
+        return await asyncio.to_thread(self._data_msg_to_dataframe_sync, data_msg)
+
     def _include_attributes_sync(self, df: pd.DataFrame) -> pd.DataFrame:
         if df.empty or not self.config.include_attributes:
             return df
@@ -1278,49 +1336,8 @@ class Sdmx21DataSet(
         res_df = res_df.set_index(keys=attributes, append=True)
         return res_df
 
-    def _convert_fractions_to_percent_sync(self, df: pd.DataFrame) -> pd.DataFrame:
-        """Multiply by 100 the values of the series configured as storing a percentage as a
-        fraction of one, so `0.028` reads as `2.8`, and set their unit, so no reader takes `2.8`
-        for a fraction or converts it again.
-
-        Runs on the frame `_include_attributes_sync` returns, where the dimensions and the
-        attributes are index levels. Converted as the data arrives, every reader gets the
-        percentage, and the rounding to `DATA_QUERY_DECIMAL_PLACES` applies to it rather than to
-        the fraction.
-        """
-        conversion = self.config.fraction_to_percent
-        if conversion is None or df.empty:
-            return df
-        if conversion.component not in df.index.names:
-            _log.warning(
-                "The response of dataset %s lacks the %r component that tells its fraction series"
-                " apart, so their values are kept as fractions",
-                self.short_urn,
-                conversion.component,
-            )
-            return df
-
-        is_fraction = df.index.get_level_values(conversion.component).isin(conversion.codes)
-        df = df.copy()
-        if is_fraction.any():
-            df.loc[is_fraction, 'value'] = df.loc[is_fraction, 'value'].map(
-                _fraction_to_percent, na_action='ignore'
-            )
-        # Set without a fraction series too, so every response of the dataset has the unit level.
-        df.index = _set_index_level(
-            df.index, conversion.unit_attribute, conversion.unit, where=is_fraction
-        )
-        return df
-
-    def _parse_data_msg_sync(self, data_msg: DataMessage) -> pd.DataFrame:
-        """The query results table of `data_msg`: its observations with the included attributes,
-        the values of the fraction series converted to percentages."""
-        df = self._data_msg_to_dataframe_sync(data_msg)
-        df = self._include_attributes_sync(df)
-        return self._convert_fractions_to_percent_sync(df)
-
-    async def _parse_data_msg(self, data_msg: DataMessage) -> pd.DataFrame:
-        return await asyncio.to_thread(self._parse_data_msg_sync, data_msg)
+    async def _include_attributes(self, df: pd.DataFrame) -> pd.DataFrame:
+        return await asyncio.to_thread(self._include_attributes_sync, df)
 
     def _get_query_params(self, sdmx_query: SdmxDataSetQuery) -> dict:
         return sdmx_query.get_params_v21()
@@ -1409,7 +1426,8 @@ class Sdmx21DataSet(
 
         message_series_count = _series_count_from_data_message(data_msg)
         try:
-            sdmx_pandas = await self._parse_data_msg(data_msg)
+            sdmx_pandas = await self._data_msg_to_dataframe(data_msg)
+            sdmx_pandas = await self._include_attributes(sdmx_pandas)
         except Exception as e:
             _log.exception(e)
             return Sdmx21DataResponse(

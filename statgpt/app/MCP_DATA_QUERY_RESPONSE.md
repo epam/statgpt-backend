@@ -84,12 +84,11 @@ details:
 
 ## Resource values
 
-The `text/csv` and `text/markdown` resources carry the values at full precision by default. Set the
-`DATA_QUERY_DECIMAL_PLACES` environment variable (0 to 15) to round them to that many decimal
-places. The setting applies to the whole application, so the Supreme Agent reads and the UI grid
-shows the same rounded values. A value too small for that precision keeps its first significant
-digit instead of reading as `0`: with 3 decimal places `0.0004` stays `0.0004` and `0.00049`
-becomes `0.0005`. The CSV file the user downloads from a chat always keeps full precision.
+The `text/csv` and `text/markdown` resources carry the values the LLM reads, transformed as the
+dataset config sets. The Supreme Agent reads the same values. The attachments the user gets in a
+chat (the UI grid, the charts, the table and the downloaded CSV) keep the values the source stores,
+at full precision, as do the SDMX query, the data explorer link and the Python code, which reproduce
+the request to the source.
 
 A dataset whose series store a percentage as a fraction of one (`0.028` for 2.8%) can have them
 converted to percentages with `fractionToPercent` in its config. `component` names the dimension or
@@ -101,10 +100,10 @@ converted series, so no reader takes `2.8` for a fraction or converts it again. 
 `includeAttributes`, and is added to the table when the source leaves it out, empty for the other
 series. A response that lacks `component` keeps its fractions and logs a warning.
 
-The values are converted as the data arrives, before any rounding. The resources, the Supreme
-Agent, the UI grid and the downloaded CSV carry the percentage. The SDMX query, the data explorer
-link and the Python code reproduce the request to the source, so they return the fraction the
-source stores.
+`decimalPlaces` (0 to 15) rounds the values to that many decimal places, after the conversion, so
+the precision applies to the percentage. A value too small for that precision keeps its first
+significant digit instead of reading as `0`: with 3 decimal places `0.0004` stays `0.0004` and
+`0.00049` becomes `0.0005`. Unset, the values are not rounded.
 
 ```yaml
 includeAttributes: ["UNIT"]
@@ -112,6 +111,7 @@ fractionToPercent:
   component: "SERIES"
   codes: ["GDP_GROWTH", "INFLATION"]
   unitAttribute: "UNIT"
+decimalPlaces: 3
 ```
 
 ## Resource URIs
