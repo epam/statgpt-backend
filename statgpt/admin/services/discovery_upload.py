@@ -132,7 +132,13 @@ def _build_header_aliases() -> dict[str, str]:
 
 _HEADER_ALIASES: dict[str, str] = _build_header_aliases()
 
-DATASETS_SHEET_TITLE = "Datasets"
+
+def field_for_header(text: str) -> str | None:
+    """The record field a normalized header names, retired fields included; None if none."""
+    return _HEADER_ALIASES.get(text.casefold())
+
+
+DATASETS_SHEET_TITLE: str = "Datasets"
 """The template's sheet of dataset rows, as the export names it. Found by name on upload."""
 
 _DATASETS_SHEET_NAME: str = DATASETS_SHEET_TITLE.casefold()
@@ -320,7 +326,7 @@ def _resolve_headers(
         text = normalize_whitespace(_coerce_cell(cell))
         if not text:
             continue
-        field_name = _HEADER_ALIASES.get(text.casefold())
+        field_name = field_for_header(text)
         if field_name is None:
             continue
         if field_name not in accepted:

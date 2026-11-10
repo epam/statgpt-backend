@@ -10,16 +10,18 @@ import datetime
 import io
 import json
 from types import SimpleNamespace
-from typing import cast
+from typing import Any, cast
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+from pydantic import ValidationError
 
 from statgpt.admin.services.discovery_dataset import AdminPortalDiscoveryDatasetService
 from statgpt.admin.services.discovery_export import VALIDATION_HEADERS, export_rows
 from statgpt.admin.services.discovery_upload import (
-    _HEADER_ALIASES,
     RECORD_FIELDS,
+    ParsedFile,
+    field_for_header,
     parse_discovery_file,
 )
 from statgpt.admin.services.exceptions import DiscoveryDatasetsNotInChannelError
@@ -32,10 +34,10 @@ from statgpt.common.schemas import (
     read_indicators,
 )
 
-_NO_FILTERS = DiscoveryExportFilters()
 
-
-def _stored(agency: str = "IMF", dataset_id: str = "TABEL1_1", **overrides: object):
+def _stored(
+    agency: str = "IMF", dataset_id: str = "TABEL1_1", **overrides: object
+) -> models.DiscoveryDataset:
     """A stand-in for a stored row, carrying the deployment-local state too.
 
     The point of several of these tests is that the state does not reach the file.
@@ -52,7 +54,7 @@ def _stored(agency: str = "IMF", dataset_id: str = "TABEL1_1", **overrides: obje
     return cast(models.DiscoveryDataset, SimpleNamespace(**values))
 
 
-def _invalid(**overrides: object):
+def _invalid(**overrides: Any) -> models.DiscoveryDataset:
     return _stored(
         validation_status=DiscoveryValidationStatus.INVALID,
         validated_at=datetime.datetime(
@@ -75,11 +77,13 @@ def _service(records: list[models.DiscoveryDataset]) -> AdminPortalDiscoveryData
 
 async def _export(
     service: AdminPortalDiscoveryDatasetService,
-    filters: DiscoveryExportFilters = _NO_FILTERS,
+    filters: DiscoveryExportFilters | None = None,
     include_validation: bool = False,
 ) -> str:
     content = await service.export_discovery_datasets(
-        channel_id=1, filters=filters, include_validation=include_validation
+        channel_id=1,
+        filters=filters or DiscoveryExportFilters(),
+        include_validation=include_validation,
     )
     return content.decode("utf-8")
 
@@ -139,7 +143,9 @@ async def test_the_download_matches_what_the_channel_export_writes(tmp_path) -> 
     records = [_stored(dataset_id="TABEL1_1"), _stored(agency="OECD", dataset_id="TABEL2_2")]
     service = _service(records)
 
-    downloaded = await service.export_discovery_datasets(channel_id=1, filters=_NO_FILTERS)
+    downloaded = await service.export_discovery_datasets(
+        channel_id=1, filters=DiscoveryExportFilters()
+    )
 
     written = tmp_path / "discovery_datasets.csv"
     utils.write_csv_from_dict_list(export_rows(records), str(written))
@@ -211,7 +217,7 @@ async def test_the_validation_columns_carry_the_stored_verdict() -> None:
 
 @pytest.mark.asyncio
 async def test_a_record_not_yet_validated_says_so() -> None:
-    """An empty issues cell alone would read as clean, so the status travels alongside."""
+    """An empty issues cell would read as clean, so the issues column says so too."""
     record = _stored(validation_status=DiscoveryValidationStatus.NOT_VALIDATED)
 
     content = await _export(_service([record]), include_validation=True)
@@ -219,7 +225,7 @@ async def test_a_record_not_yet_validated_says_so() -> None:
     [row] = csv.DictReader(io.StringIO(content))
     assert row["validation_status"] == "NOT_VALIDATED"
     assert row["validated_at"] == ""
-    assert row["validation_issues"] == ""
+    assert row["validation_issues"].startswith("Not validated yet")
 
 
 @pytest.mark.asyncio
@@ -231,7 +237,7 @@ async def test_a_report_uploads_back_as_the_same_records() -> None:
     plain = await _export(_service([record]))
     report = await _export(_service([record]), include_validation=True)
 
-    def parse(content: str):
+    def parse(content: str) -> ParsedFile:
         return parse_discovery_file(
             content.encode("utf-8"), "export.csv", max_rows=10, max_indicators_per_dataset=10
         )
@@ -246,8 +252,8 @@ async def test_a_report_uploads_back_as_the_same_records() -> None:
 def test_no_validation_header_is_read_as_a_record_field() -> None:
     """Otherwise re-uploading a report would read a verdict back in as data."""
     for name, title in VALIDATION_HEADERS.items():
-        assert name.casefold() not in _HEADER_ALIASES
-        assert title.casefold() not in _HEADER_ALIASES
+        assert field_for_header(name) is None
+        assert field_for_header(title) is None
 
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~ selection by id ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -276,3 +282,17 @@ async def test_an_id_the_channel_does_not_hold_is_refused_by_name() -> None:
 
     assert error.value.item_ids == [4, 9]
     assert "4, 9" in str(error.value)
+
+
+@pytest.mark.parametrize(
+    "other",
+    [
+        {"agency": "IMF"},
+        {"validation_status": DiscoveryValidationStatus.INVALID},
+        {"indexing_status": DiscoveryIndexingStatus.FAILED},
+    ],
+)
+def test_ids_cannot_be_combined_with_the_filters(other: dict[str, object]) -> None:
+    """The ids would win, so every caller - not only the router - has to be refused."""
+    with pytest.raises(ValidationError, match="cannot be combined"):
+        DiscoveryExportFilters(ids=[3], **other)  # type: ignore[arg-type]

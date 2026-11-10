@@ -20,10 +20,13 @@ from openpyxl.cell import WriteOnlyCell
 from openpyxl.cell.cell import ILLEGAL_CHARACTERS_RE, Cell
 from openpyxl.styles import Alignment, Font, PatternFill
 from openpyxl.utils import get_column_letter
+
+# openpyxl exposes the write-only sheet class under no public path.
 from openpyxl.worksheet._write_only import WriteOnlyWorksheet
 from pydantic import TypeAdapter, ValidationError
 
 from statgpt.common import models, schemas, utils
+from statgpt.common.schemas import DiscoveryValidationStatus
 from statgpt.common.schemas.discovery_dataset import DatasetIdKey
 from statgpt.common.services import normalize_key_part
 
@@ -39,14 +42,14 @@ from .discovery_upload import (
 )
 from .exceptions import DiscoveryExportError
 
-VALIDATION_STATUS_FIELD = "validation_status"
-VALIDATED_AT_FIELD = "validated_at"
-VALIDATION_ISSUES_FIELD = "validation_issues"
+_VALIDATION_STATUS_FIELD = "validation_status"
+_VALIDATED_AT_FIELD = "validated_at"
+_VALIDATION_ISSUES_FIELD = "validation_issues"
 
 VALIDATION_HEADERS: dict[str, str] = {
-    VALIDATION_STATUS_FIELD: "Validation status",
-    VALIDATED_AT_FIELD: "Validated at (UTC)",
-    VALIDATION_ISSUES_FIELD: "Validation issues",
+    _VALIDATION_STATUS_FIELD: "Validation status",
+    _VALIDATED_AT_FIELD: "Validated at (UTC)",
+    _VALIDATION_ISSUES_FIELD: "Validation issues",
 }
 """Validation column -> its workbook header. A CSV names the columns by field name.
 
@@ -56,6 +59,15 @@ a verdict back in as data.
 
 _ISSUE_SEPARATOR = "\n"
 
+_NOT_VALIDATED_NOTE = (
+    "Not validated yet: no indexing job has checked this record since it was last written,"
+    " so it may still have issues."
+)
+"""Said in the issues column instead of nothing, which would read as a clean record."""
+
+_MAX_CELL_CHARS = 32_767
+"""The most characters an Excel cell holds; a longer value makes Excel repair the file."""
+
 _NAMED_RECORDS = 10
 """How many offending records a refusal names before falling back to a count."""
 
@@ -64,6 +76,8 @@ _TOP = Alignment(vertical="top")
 _WRAPPED = Alignment(vertical="top", wrap_text=True)
 _FLAGGED = PatternFill(fill_type="solid", start_color="FFC7CE", end_color="FFC7CE")
 """Excel's own 'Bad' fill, on the cell an issue points at."""
+_UNCHECKED = PatternFill(fill_type="solid", start_color="FFEB9C", end_color="FFEB9C")
+"""Excel's own 'Neutral' fill, on the verdict of a record no indexing job has checked."""
 
 _DATETIME_FORMAT = "yyyy-mm-dd hh:mm:ss"
 
@@ -77,9 +91,9 @@ _COLUMN_WIDTHS: dict[str, int] = {
     "url": 40,
     "time_coverage": 16,
     "frequency_coverage": 20,
-    VALIDATION_STATUS_FIELD: 18,
-    VALIDATED_AT_FIELD: 20,
-    VALIDATION_ISSUES_FIELD: 80,
+    _VALIDATION_STATUS_FIELD: 18,
+    _VALIDATED_AT_FIELD: 20,
+    _VALIDATION_ISSUES_FIELD: 80,
 }
 _INDICATOR_COLUMN_WIDTHS = (60, 30)
 
@@ -96,7 +110,7 @@ def _issues(item: models.DiscoveryDataset) -> list[schemas.DiscoveryValidationIs
     ]
 
 
-def format_issues(issues: Iterable[schemas.DiscoveryValidationIssue]) -> str:
+def _format_issues(issues: Iterable[schemas.DiscoveryValidationIssue]) -> str:
     """One issue per line, `<column label>: <message>`.
 
     An issue whose field is no column - a check that crashed reports its own name - keeps
@@ -105,6 +119,13 @@ def format_issues(issues: Iterable[schemas.DiscoveryValidationIssue]) -> str:
     return _ISSUE_SEPARATOR.join(
         f"{FIELD_LABELS.get(issue.field, issue.field)}: {issue.message}" for issue in issues
     )
+
+
+def _describe_issues(item: models.DiscoveryDataset) -> str:
+    """The issues column: the issues, or a note that nothing has checked the record yet."""
+    if item.validation_status is DiscoveryValidationStatus.NOT_VALIDATED:
+        return _NOT_VALIDATED_NOTE
+    return _format_issues(_issues(item))
 
 
 def _utc(value: datetime.datetime | None) -> datetime.datetime | None:
@@ -116,7 +137,7 @@ def _utc(value: datetime.datetime | None) -> datetime.datetime | None:
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~ CSV ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 
-def csv_fieldnames(include_validation: bool) -> list[str]:
+def _csv_fieldnames(include_validation: bool) -> list[str]:
     return [*RECORD_FIELDS, *(VALIDATION_HEADERS if include_validation else ())]
 
 
@@ -144,9 +165,9 @@ def export_rows(
         }
         if include_validation:
             validated_at = _utc(item.validated_at)
-            row[VALIDATION_STATUS_FIELD] = item.validation_status.value
-            row[VALIDATED_AT_FIELD] = validated_at.isoformat() if validated_at else ""
-            row[VALIDATION_ISSUES_FIELD] = format_issues(_issues(item))
+            row[_VALIDATION_STATUS_FIELD] = item.validation_status.value
+            row[_VALIDATED_AT_FIELD] = validated_at.isoformat() if validated_at else ""
+            row[_VALIDATION_ISSUES_FIELD] = _describe_issues(item)
         rows.append(row)
     return rows
 
@@ -158,7 +179,7 @@ def build_csv(records: Sequence[models.DiscoveryDataset], include_validation: bo
     matches nothing returns a header on its own instead of failing.
     """
     return utils.csv_from_dict_list(
-        export_rows(records, include_validation), fieldnames=csv_fieldnames(include_validation)
+        export_rows(records, include_validation), fieldnames=_csv_fieldnames(include_validation)
     )
 
 
@@ -167,6 +188,34 @@ def build_csv(records: Sequence[models.DiscoveryDataset], include_validation: bo
 
 def _describe(item: models.DiscoveryDataset) -> str:
     return f"agency={item.agency!r}, dataset id={item.dataset_id!r}"
+
+
+def _sheet_title(item: models.DiscoveryDataset) -> str:
+    """The indicators sheet's name: the dataset id as the write path normalizes it.
+
+    The id is checked in this form, so the sheet has to be named in it too: a legacy id
+    padded past Excel's 31 characters would otherwise pass the check and break the file.
+    The upload pairs sheets with rows through the same normalization.
+    """
+    return utils.normalize_whitespace(item.dataset_id)
+
+
+def _too_long_cells(item: models.DiscoveryDataset) -> list[str]:
+    """The cells of the record that hold more than an Excel cell can, by label."""
+    too_long = [
+        FIELD_LABELS[name]
+        for name in DATASETS_SHEET_FIELDS
+        if len(getattr(item, name)) > _MAX_CELL_CHARS
+    ]
+    for indicator in schemas.read_indicators(item.indicators_coverage):
+        for title, value in zip(INDICATOR_SHEET_HEADERS, (indicator.name, indicator.units)):
+            if len(value) > _MAX_CELL_CHARS:
+                too_long.append(f"{title} {_shorten(indicator.name)!r}")
+    return too_long
+
+
+def _shorten(text: str, limit: int = 40) -> str:
+    return text if len(text) <= limit else text[: limit - 1].rstrip() + "…"
 
 
 def _sheet_name_problem(dataset_id: str) -> str | None:
@@ -185,12 +234,17 @@ def _workbook_problems(records: Sequence[models.DiscoveryDataset]) -> list[str]:
 
     The dataset id names the dataset's indicators sheet, so it has to be a valid sheet name,
     not one of the template's own, and unique across agencies - the upload refuses a
-    workbook naming one sheet twice.
+    workbook naming one sheet twice. And no value may exceed what an Excel cell holds.
     """
     problems: list[str] = []
     first_seen: dict[str, models.DiscoveryDataset] = {}
     for item in records:
-        if reason := _sheet_name_problem(item.dataset_id):
+        if too_long := _too_long_cells(item):
+            problems.append(
+                f"{_describe(item)}: longer than the {_MAX_CELL_CHARS:,} characters a workbook"
+                f" cell holds: {', '.join(too_long)}"
+            )
+        if reason := _sheet_name_problem(_sheet_title(item)):
             problems.append(f"{_describe(item)}: the dataset id {reason}")
             continue
         first = first_seen.setdefault(normalize_key_part(item.dataset_id), item)
@@ -201,11 +255,12 @@ def _workbook_problems(records: Sequence[models.DiscoveryDataset]) -> list[str]:
     return problems
 
 
-def check_workbook_exportable(records: Sequence[models.DiscoveryDataset]) -> None:
+def _check_workbook_exportable(records: Sequence[models.DiscoveryDataset]) -> None:
     """Refuse records a workbook cannot hold, rather than rename sheets.
 
-    A workbook whose sheets were renamed to fit would download fine and then fail to upload
-    back, which defeats the point of the file. A CSV has none of these limits.
+    A workbook whose sheets were renamed or cells cut to fit would download fine and then
+    upload back as something else, which defeats the point of the file. A CSV has none of
+    these limits.
     """
     problems = _workbook_problems(records)
     if not problems:
@@ -214,26 +269,25 @@ def check_workbook_exportable(records: Sequence[models.DiscoveryDataset]) -> Non
     remaining = len(problems) - _NAMED_RECORDS
     more = f"; and {remaining} more" if remaining > 0 else ""
     raise DiscoveryExportError(
-        f"{len(problems)} selected record(s) cannot be exported as a workbook, since a"
-        f" dataset id names its indicators sheet: {shown}{more}. Export them as CSV, or"
-        f" narrow the selection, for example to one agency."
+        f"{len(problems)} problem(s) keep the selected records from a workbook: {shown}{more}."
+        f" Export them as CSV, or narrow the selection, for example to one agency."
     )
 
 
-def _text_cell(sheet: WriteOnlyWorksheet, value: str, flagged: bool = False) -> Cell:
+def _text_cell(sheet: WriteOnlyWorksheet, value: str, fill: PatternFill | None = None) -> Cell:
     """A text cell, never a formula: the text was submitted, so it is not trusted."""
     cell = WriteOnlyCell(sheet, value=ILLEGAL_CHARACTERS_RE.sub("", value) or None)
     if cell.value is not None:
         # openpyxl takes text starting with '=' for a formula.
         cell.data_type = "s"
     cell.alignment = _TOP
-    if flagged:
-        cell.fill = _FLAGGED
+    if fill is not None:
+        cell.fill = fill
     return cell
 
 
 def _header_row(sheet: WriteOnlyWorksheet, titles: Iterable[str]) -> list[Cell]:
-    cells = []
+    cells: list[Cell] = []
     for title in titles:
         cell = WriteOnlyCell(sheet, value=title)
         cell.font = _BOLD
@@ -251,9 +305,10 @@ def _set_widths(sheet: WriteOnlyWorksheet, widths: Iterable[int]) -> None:
 def _validation_cells(
     sheet: WriteOnlyWorksheet,
     item: models.DiscoveryDataset,
-    issues: Sequence[schemas.DiscoveryValidationIssue],
 ) -> list[Cell]:
-    status = _text_cell(sheet, item.validation_status.value)
+    unchecked = item.validation_status is DiscoveryValidationStatus.NOT_VALIDATED
+    fill = _UNCHECKED if unchecked else None
+    status = _text_cell(sheet, item.validation_status.value, fill)
 
     validated_at = _utc(item.validated_at)
     # Excel has no time zones, so the value is written naive, in UTC, as the header says.
@@ -261,7 +316,7 @@ def _validation_cells(
     when.number_format = _DATETIME_FORMAT
     when.alignment = _TOP
 
-    described = _text_cell(sheet, format_issues(issues))
+    described = _text_cell(sheet, _describe_issues(item), fill)
     described.alignment = _WRAPPED
     return [status, when, described]
 
@@ -283,11 +338,11 @@ def _write_datasets_sheet(
         issues = _issues(item) if include_validation else []
         flagged = {issue.field for issue in issues}
         row: list[Any] = [
-            _text_cell(sheet, getattr(item, name), flagged=name in flagged)
+            _text_cell(sheet, getattr(item, name), _FLAGGED if name in flagged else None)
             for name in DATASETS_SHEET_FIELDS
         ]
         if include_validation:
-            row.extend(_validation_cells(sheet, item, issues))
+            row.extend(_validation_cells(sheet, item))
         sheet.append(row)
 
 
@@ -297,22 +352,21 @@ def _write_indicators_sheet(
     """The dataset's indicators, on a sheet named with its id - even when it lists none,
     so the submitter has the sheet to fill in.
 
-    A record whose indicators are at fault has each blank units cell flagged. An issue about
-    a missing list flags nothing here, there being no row to flag; the issues column says it.
+    In a report, every blank units cell is flagged: units are always required, whether or
+    not an indexing job has said so yet. A missing list flags nothing here, there being no
+    row to flag; the issues column says it.
     """
-    sheet = workbook.create_sheet(item.dataset_id)
+    sheet = workbook.create_sheet(_sheet_title(item))
     _set_widths(sheet, _INDICATOR_COLUMN_WIDTHS)
     sheet.freeze_panes = "A2"
     sheet.append(_header_row(sheet, INDICATOR_SHEET_HEADERS))
 
-    flag_units = include_validation and any(
-        issue.field == INDICATORS_FIELD for issue in _issues(item)
-    )
     for indicator in schemas.read_indicators(item.indicators_coverage):
+        flag_units = include_validation and not indicator.units
         sheet.append(
             [
                 _text_cell(sheet, indicator.name),
-                _text_cell(sheet, indicator.units, flagged=flag_units and not indicator.units),
+                _text_cell(sheet, indicator.units, _FLAGGED if flag_units else None),
             ]
         )
 
@@ -323,10 +377,10 @@ def build_workbook(
     """The records as the upload template's workbook, plus the validation columns on request.
 
     Raises `DiscoveryExportError` for records no workbook can hold - see
-    `check_workbook_exportable`. Write-only, so rows are streamed out as they are appended
+    `_check_workbook_exportable`. Write-only, so rows are streamed out as they are appended
     instead of held as cell objects until the save.
     """
-    check_workbook_exportable(records)
+    _check_workbook_exportable(records)
 
     workbook = Workbook(write_only=True)
     _write_datasets_sheet(workbook, records, include_validation)

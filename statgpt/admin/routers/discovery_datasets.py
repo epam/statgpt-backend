@@ -22,6 +22,7 @@ from fastapi import (
     UploadFile,
     status,
 )
+from pydantic import ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 import statgpt.common.models as models
@@ -29,6 +30,7 @@ import statgpt.common.schemas as schemas
 from statgpt.admin.auth.user import require_jwt_auth
 from statgpt.admin.services import AdminPortalDiscoveryDatasetService as DiscoveryDatasetService
 from statgpt.admin.services import AdminPortalDiscoveryIndexingJobService as IndexingJobService
+from statgpt.admin.services.discovery_upload import PYDANTIC_VALUE_ERROR_PREFIX
 from statgpt.admin.settings.exim import JobsConfig
 from statgpt.common.models import get_session_context_manager
 from statgpt.common.utils import MediaTypes
@@ -202,23 +204,19 @@ async def export_channel_discovery_datasets(
     Synchronous, unlike the channel export: one channel's records are small enough to
     return in the response, so there is no job to poll.
     """
-    if ids is not None and (
-        validation_status is not None or indexing_status is not None or agency is not None
-    ):
+    try:
+        filters = schemas.DiscoveryExportFilters(
+            validation_status=validation_status,
+            indexing_status=indexing_status,
+            agency=agency,
+            ids=ids,
+        )
+    except ValidationError as e:
+        # Built from validated query parameters, so only the model's own rules can fail.
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail=(
-                "`id` selects records on its own and cannot be combined with `agency`,"
-                " `validation_status` or `indexing_status`."
-            ),
-        )
-
-    filters = schemas.DiscoveryExportFilters(
-        validation_status=validation_status,
-        indexing_status=indexing_status,
-        agency=agency,
-        ids=ids,
-    )
+            detail=str(e.errors()[0]["msg"]).removeprefix(PYDANTIC_VALUE_ERROR_PREFIX),
+        ) from e
     content = await DiscoveryDatasetService(session).export_discovery_datasets(
         channel_id, filters, export_format, include_validation
     )

@@ -8,7 +8,7 @@ import datetime
 import io
 import re
 from types import SimpleNamespace
-from typing import cast
+from typing import Any, cast
 from unittest.mock import AsyncMock, MagicMock
 
 import openpyxl
@@ -22,6 +22,7 @@ from statgpt.admin.services.discovery_upload import (
     FIELD_LABELS,
     INDICATOR_SHEET_HEADERS,
     RECORD_FIELDS,
+    ParsedFile,
     parse_discovery_file,
 )
 from statgpt.admin.services.exceptions import DiscoveryExportError
@@ -35,9 +36,12 @@ from statgpt.common.schemas import (
 )
 
 _FLAGGED = "00FFC7CE"
+_UNCHECKED = "00FFEB9C"
 
 
-def _stored(agency: str = "IMF", dataset_id: str = "TABEL1_1", **overrides: object):
+def _stored(
+    agency: str = "IMF", dataset_id: str = "TABEL1_1", **overrides: object
+) -> models.DiscoveryDataset:
     values: dict[str, object] = {name: "" for name in RECORD_FIELDS}
     values.update(
         reference_area="Indonesia",
@@ -50,7 +54,9 @@ def _stored(agency: str = "IMF", dataset_id: str = "TABEL1_1", **overrides: obje
     values.setdefault("id", 1)
     values.setdefault("validation_status", DiscoveryValidationStatus.VALID)
     values.setdefault("validation_issues", [])
-    values.setdefault("validated_at", datetime.datetime(2026, 3, 4, 10, 30, tzinfo=datetime.UTC))
+    values.setdefault(
+        "validated_at", datetime.datetime(2026, 3, 4, 10, 30, tzinfo=datetime.timezone.utc)
+    )
     values.setdefault("indexing_status", DiscoveryIndexingStatus.INDEXED)
     return cast(models.DiscoveryDataset, SimpleNamespace(**values))
 
@@ -63,7 +69,7 @@ def _values(sheet: Worksheet) -> list[list[object]]:
     return [list(row) for row in sheet.iter_rows(values_only=True)]
 
 
-def _parse(data: bytes):
+def _parse(data: bytes) -> ParsedFile:
     return parse_discovery_file(data, "report.xlsx", max_rows=100, max_indicators_per_dataset=100)
 
 
@@ -148,12 +154,12 @@ def test_a_value_starting_with_equals_stays_text() -> None:
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~ highlighting ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 
-def _fills(sheet: Worksheet) -> set[str]:
+def _fills(sheet: Worksheet, color: str = _FLAGGED) -> set[str]:
     return {
         cell.coordinate
         for row in sheet.iter_rows()
         for cell in row
-        if cell.fill.fgColor.rgb == _FLAGGED
+        if cell.fill.fgColor.rgb == color
     }
 
 
@@ -190,6 +196,38 @@ def test_blank_units_are_highlighted_on_the_indicators_sheet() -> None:
     assert _fills(workbook["TABEL1_1"]) == {"B2", "B4"}
     # The indicators have no column on the `Datasets` sheet, so nothing is flagged there.
     assert _fills(workbook["Datasets"]) == set()
+
+
+def test_blank_units_are_highlighted_without_an_issue_naming_them() -> None:
+    """Units are always required, whether or not an indexing job has said so yet."""
+    record = _stored(
+        indicators_coverage=[{"name": "CPI", "units": ""}],
+        validation_status=DiscoveryValidationStatus.NOT_VALIDATED,
+        validated_at=None,
+    )
+
+    workbook = _load(build_workbook([record], include_validation=True))
+
+    assert _fills(workbook["TABEL1_1"]) == {"B2"}
+
+
+def test_a_record_not_yet_validated_is_marked_as_unchecked() -> None:
+    """An empty issues cell would read as clean, so the verdict says it is not one yet."""
+    record = _stored(validation_status=DiscoveryValidationStatus.NOT_VALIDATED, validated_at=None)
+
+    sheet = _load(build_workbook([record], include_validation=True))["Datasets"]
+
+    assert sheet["J2"].value == "NOT_VALIDATED"
+    assert str(sheet["L2"].value).startswith("Not validated yet")
+    assert _fills(sheet, _UNCHECKED) == {"J2", "L2"}
+    assert _fills(sheet) == set()
+
+
+def test_a_checked_record_is_not_marked_as_unchecked() -> None:
+    sheet = _load(build_workbook([_stored()], include_validation=True))["Datasets"]
+
+    assert sheet["L2"].value is None
+    assert _fills(sheet, _UNCHECKED) == set()
 
 
 def test_nothing_is_highlighted_without_validation() -> None:
@@ -268,10 +306,45 @@ def test_a_dataset_id_no_sheet_can_be_named_after_is_refused(dataset_id: str) ->
         build_workbook([_stored(dataset_id=dataset_id)])
 
 
+def test_the_sheet_is_named_with_the_normalized_dataset_id() -> None:
+    """A legacy id stored with padding is checked normalized, so it is written so too."""
+    record = _stored(dataset_id="  TABEL1_1   ")
+
+    workbook = _load(build_workbook([record]))
+
+    assert workbook.sheetnames == ["Datasets", "TABEL1_1"]
+    assert not _parse(build_workbook([record])).problems
+
+
+def test_a_padded_dataset_id_too_long_once_written_raw_is_still_valid() -> None:
+    record = _stored(dataset_id="  " + "A" * 31 + "  ")
+
+    assert _load(build_workbook([record])).sheetnames == ["Datasets", "A" * 31]
+
+
+@pytest.mark.parametrize(
+    "overrides",
+    [
+        {"description": "x" * 32_768},
+        {"indicators_coverage": [{"name": "CPI", "units": "u" * 32_768}]},
+    ],
+)
+def test_a_value_longer_than_a_cell_holds_is_refused(overrides: dict[str, Any]) -> None:
+    """Excel would cut it when repairing the file, so the upload would read something else."""
+    with pytest.raises(DiscoveryExportError, match="32,767 characters"):
+        build_workbook([_stored(**overrides)])
+
+
+def test_a_value_exactly_as_long_as_a_cell_holds_is_kept() -> None:
+    sheet = _load(build_workbook([_stored(description="x" * 32_767)]))["Datasets"]
+
+    assert sheet["F2"].value == "x" * 32_767
+
+
 def test_a_refusal_names_every_offending_record() -> None:
     records = [_stored(dataset_id="Datasets"), _stored(dataset_id="A" * 40)]
 
-    with pytest.raises(DiscoveryExportError, match="^2 selected record"):
+    with pytest.raises(DiscoveryExportError, match="^2 problem"):
         build_workbook(records)
 
 

@@ -1,8 +1,16 @@
 import datetime
 from collections.abc import Iterable, Mapping, Sequence
-from typing import Annotated, Any
+from typing import Annotated, Any, Self
 
-from pydantic import AfterValidator, ConfigDict, Field, JsonValue, TypeAdapter, computed_field
+from pydantic import (
+    AfterValidator,
+    ConfigDict,
+    Field,
+    JsonValue,
+    TypeAdapter,
+    computed_field,
+    model_validator,
+)
 
 from statgpt.common.utils.discovery_cells import render_indicator
 from statgpt.common.utils.misc import normalize_whitespace
@@ -455,8 +463,9 @@ class DiscoveryDatasetStats(BaseYamlModel):
 class DiscoveryExportFilters(BaseYamlModel):
     """Which of a channel's discovery datasets an export holds.
 
-    Either the list endpoint's filters, or a selection of record ids - not both, which the
-    router enforces. Nothing set exports the whole channel.
+    Either the list endpoint's filters, or a selection of record ids - not both: the ids
+    would win, and an export broader than asked for would look complete. Nothing set exports
+    the whole channel.
     """
 
     model_config = ConfigDict(use_attribute_docstrings=True)
@@ -467,6 +476,16 @@ class DiscoveryExportFilters(BaseYamlModel):
 
     ids: list[int] | None = None
     """Database record ids, as a row selection in the Admin UI sends them."""
+
+    @model_validator(mode="after")
+    def _ids_stand_alone(self) -> Self:
+        filtered = (self.validation_status, self.indexing_status, self.agency)
+        if self.ids is not None and any(value is not None for value in filtered):
+            raise ValueError(
+                "`id` selects records on its own and cannot be combined with `agency`,"
+                " `validation_status` or `indexing_status`."
+            )
+        return self
 
 
 class DiscoveryPayloadProblem(BaseYamlModel):

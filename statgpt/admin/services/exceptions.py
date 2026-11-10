@@ -114,7 +114,7 @@ class DiscoveryDatasetsNotInChannelError(DiscoveryNotFoundError):
         listed = ", ".join(str(item_id) for item_id in self.item_ids)
         super().__init__(
             f"Channel {channel_id} has no discovery dataset with id(s): {listed}. Nothing was"
-            f" exported: a report without them would look complete and not be."
+            f" exported: a report without them would look complete when it is not."
         )
 
 

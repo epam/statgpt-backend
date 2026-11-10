@@ -4,6 +4,7 @@ The service is replaced: these tests are about what the route accepts and how it
 file, not about its contents.
 """
 
+from typing import Any
 from unittest.mock import AsyncMock
 
 import pytest
@@ -16,6 +17,8 @@ from statgpt.admin.services import AdminPortalDiscoveryDatasetService
 from statgpt.common import models, schemas
 from statgpt.common.utils import MediaTypes
 from statgpt.common.utils.cancel_dependency import cancel_on_disconnect
+
+_URL = "/channels/7/discovery-datasets/export"
 
 
 @pytest.fixture
@@ -37,10 +40,7 @@ def client(export: AsyncMock) -> TestClient:
     return TestClient(app)
 
 
-_URL = "/channels/7/discovery-datasets/export"
-
-
-def _call_args(export: AsyncMock) -> tuple:
+def _call_args(export: AsyncMock) -> tuple[Any, ...]:
     return export.await_args.args  # type: ignore[union-attr]
 
 
@@ -85,6 +85,7 @@ def test_ids_cannot_be_combined_with_the_filters(
     response = client.get(_URL, params=[("id", "3"), other])
 
     assert response.status_code == 422
+    assert "cannot be combined" in response.json()["detail"]
     export.assert_not_awaited()
 
 
