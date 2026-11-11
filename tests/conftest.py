@@ -1,19 +1,9 @@
 import os
-import sys
-from pathlib import Path
 
-import dotenv
 import pytest_asyncio
 
-src_path = Path(__file__).parent.parent.absolute() / 'src'
-sys.path.append(str(src_path))
-dotenv_path = os.path.join(os.getcwd(), ".env")
-
-# noinspection PyBroadException
-try:
-    dotenv.load_dotenv(dotenv_path)
-except Exception:
-    pass
+# AI DIAL SDK must run in pydantic v2 mode; set before `statgpt` imports it.
+os.environ.setdefault("PYDANTIC_V2", "True")
 
 from statgpt.common.models.database import SessionMaker
 

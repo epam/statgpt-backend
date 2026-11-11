@@ -210,6 +210,23 @@ class DiscoveryDatasetService(DbServiceBase):
             q_result = await session.execute(query)
         return list(q_result.scalars().all())
 
+    async def get_record_models_by_channel_and_ids(
+        self, channel_id: int, item_ids: Iterable[int]
+    ) -> list[models.DiscoveryDataset]:
+        """The channel's records among `item_ids`, ordered by id.
+
+        An id that is not a record of this channel is left out, not reported: the caller
+        decides what a missing id means.
+        """
+        query = (
+            self._select_by_channel(channel_id)
+            .where(models.DiscoveryDataset.id.in_(list(item_ids)))
+            .order_by(models.DiscoveryDataset.id)
+        )
+        async with self._lock_session() as session:
+            q_result = await session.execute(query)
+        return list(q_result.scalars().all())
+
     async def get_record_model_by_id(self, item_id: int) -> models.DiscoveryDataset | None:
         async with self._lock_session() as session:
             return await session.get(models.DiscoveryDataset, item_id)
