@@ -1,8 +1,8 @@
 import logging
 from enum import StrEnum
-from typing import Any, Literal
+from typing import Any, Literal, Self
 
-from pydantic import Field
+from pydantic import Field, model_validator
 
 from statgpt.common.config import utils as config_utils
 from statgpt.common.data.base import (
@@ -15,6 +15,9 @@ from statgpt.common.data.base import (
 from statgpt.common.data.sdmx.common.data_explorer_url import DataExplorerUrlConfig
 
 _log = logging.getLogger(__name__)
+
+# A float carries about 15 significant digits, so rounding to more decimal places changes nothing.
+_MAX_DECIMAL_PLACES = 15
 
 
 class ProviderDiscoveryMode(StrEnum):
@@ -224,6 +227,52 @@ class SdmxDataSourceConfig(DataSourceConfig):
         return self.sdmx_config.name
 
 
+class FractionToPercentConfig(BaseModel):
+    """The series of a dataset that store a percentage as a fraction of one, told apart by their
+    code of one dimension or attribute."""
+
+    component: str = Field(
+        description=(
+            "ID of the dimension or attribute whose code tells the fraction series apart: a series"
+            " dimension such as `SERIES`, or an attribute such as `TYPE` when its codes match how"
+            " the values are stored. An attribute must be listed in `include_attributes`"
+        )
+    )
+    codes: list[str] = Field(
+        min_length=1,
+        description=(
+            "Codes of `component` whose series store a percentage as a fraction of one: `0.028` for"
+            " 2.8%, `1.028` for 102.8%. Their values are multiplied by 100, the values of the other"
+            " series are kept"
+        ),
+    )
+    unit_attribute: str = Field(
+        description=(
+            "ID of the attribute that carries the unit, e.g. `UNIT`. It is set to `unit` on the"
+            " converted series, so no reader takes `2.8` for a fraction or converts it again. It"
+            " must be listed in `include_attributes`; when the source leaves it out of the"
+            " response, it is added to the table"
+        )
+    )
+    unit: str = Field(
+        default="%",
+        description=(
+            "The unit of the converted series: a code of `unit_attribute`, shown with its name, or"
+            " a label of its own"
+        ),
+    )
+
+    @model_validator(mode='after')
+    def _check_unit_attribute_is_not_component(self) -> Self:
+        # Setting the unit would overwrite the codes that tell the series apart.
+        if self.unit_attribute == self.component:
+            raise ValueError(
+                f"unit_attribute={self.unit_attribute!r} must differ from component"
+                f"={self.component!r}"
+            )
+        return self
+
+
 class SdmxDataSetConfigMixin:
     use_title_from_src: bool = Field(
         default=False, description="Whether to use the title obtained from the source"
@@ -231,6 +280,25 @@ class SdmxDataSetConfigMixin:
     urn: UrnReference = Field(description="The URN of the dataset")
     include_attributes: list[str] | None = Field(
         default=None, description="List of attributes to add to the query results table"
+    )
+    fraction_to_percent: FractionToPercentConfig | None = Field(
+        default=None,
+        description=(
+            "The series whose values are stored as fractions of one and are shown to the LLM (the"
+            " Supreme Agent tool response and the MCP resources) as percentages. The user's"
+            " attachments keep the fractions. Unset, every value is kept as the source gives it"
+        ),
+    )
+    decimal_places: int | None = Field(
+        default=None,
+        ge=0,
+        le=_MAX_DECIMAL_PLACES,
+        description=(
+            "Decimal places of the values shown to the LLM (the Supreme Agent tool response and"
+            " the MCP resources), rounded after `fraction_to_percent`. A value too small for them"
+            " keeps its first significant digit. The user's attachments keep full precision."
+            " Unset, the values are not rounded"
+        ),
     )
     default_value_codes: list[str] | None = Field(
         default=None,
@@ -262,4 +330,24 @@ class SdmxDataSetConfigTemplate(SdmxDataSetConfigMixin, DataSetConfigTemplate):
 
 
 class SdmxDataSetConfig(SdmxDataSetConfigMixin, DataSetConfig):
-    pass
+
+    @model_validator(mode='after')
+    def _check_fraction_to_percent_components_are_in_the_table(self) -> Self:
+        # The conversion reads the component from the results table, which holds every dimension
+        # but only the included attributes, and an excluded unit attribute would lose the source
+        # units of the other series.
+        conversion = self.fraction_to_percent
+        if conversion is None:
+            return self
+        included = self.include_attributes or []
+        if conversion.component not in self.dimensions and conversion.component not in included:
+            raise ValueError(
+                f"fraction_to_percent.component={conversion.component!r} must be a dimension of"
+                " the dataset or listed in include_attributes"
+            )
+        if conversion.unit_attribute not in included:
+            raise ValueError(
+                f"fraction_to_percent.unit_attribute={conversion.unit_attribute!r} must be listed"
+                " in include_attributes"
+            )
+        return self
