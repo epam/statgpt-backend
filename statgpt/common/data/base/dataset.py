@@ -99,16 +99,6 @@ class DataResponse(ABC):
         """UTC timestamp of when the response object was created (data received)."""
         return self._created_at
 
-    def rounded_visual_dataframe(self, decimal_places: int | None) -> pd.DataFrame:
-        """`visual_dataframe` with its values rounded to `decimal_places`, `None` for full
-        precision."""
-        return self._round_values(self.visual_dataframe, decimal_places)
-
-    def rounded_csv_dataframe(self, decimal_places: int | None) -> pd.DataFrame:
-        """`csv_dataframe` with its values rounded to `decimal_places`, `None` for full
-        precision."""
-        return self._round_values(self.csv_dataframe, decimal_places)
-
     def _round_values(self, df: pd.DataFrame, decimal_places: int | None) -> pd.DataFrame:
         """Round the value columns of `df`, leaving the dimension and attribute columns as they are.
 
@@ -164,6 +154,18 @@ class DataResponse(ABC):
 
     @property
     @abstractmethod
+    def llm_visual_dataframe(self) -> pd.DataFrame:
+        """`visual_dataframe` as the LLM reads it (the Supreme Agent tool response, the MCP
+        Markdown resource): its values transformed as the dataset config sets."""
+
+    @property
+    @abstractmethod
+    def llm_csv_dataframe(self) -> pd.DataFrame:
+        """`csv_dataframe` as the LLM reads it (the MCP CSV resource): its values transformed as
+        the dataset config sets."""
+
+    @property
+    @abstractmethod
     def is_empty(self) -> bool:
         """Whether the response carries no observations.
 
@@ -211,10 +213,10 @@ class DataResponse(ABC):
     def custom_table_dict(self) -> dict | None:
         """Return a dictionary in format suitable for displaying custom table attachment (AI DIAL Custom Visualizer)."""
 
+    @property
     @abstractmethod
-    def plotly_grid(self, decimal_places: int | None) -> go.Figure | None:
-        """Return a Plotly grid figure, its values rounded to `decimal_places`, or to the grid's own
-        precision when `None`."""
+    def plotly_grid(self) -> go.Figure | None:
+        """Return a Plotly grid figure"""
 
     @abstractmethod
     def get_plotly_graphs_with_names(self, template: str) -> list[tuple[str, go.Figure]]:

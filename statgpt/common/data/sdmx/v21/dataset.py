@@ -9,8 +9,10 @@ import typing as t
 import uuid
 from collections.abc import Iterable, Sequence
 from datetime import datetime
+from decimal import Decimal
 from functools import cached_property, partial
 
+import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 import sdmx.model.common
@@ -113,6 +115,30 @@ class InvalidConfigurationError(Exception):
         }
 
 
+def _fraction_to_percent(value: float) -> float:
+    """`value` times 100, done as a shift of its decimal point, so `0.028` becomes `2.8` rather than
+    the `2.8000000000000003` a float multiplication gives."""
+    return float(Decimal(str(value)).scaleb(2))
+
+
+def _set_index_level(index: pd.Index, name: str, value: str, where: np.ndarray) -> pd.MultiIndex:
+    """`index` with its `name` level set to `value` at the rows `where` holds.
+
+    A level `index` lacks is appended, empty for the other rows: an empty string rather than a
+    missing value, which a grouping by the level would drop with its rows.
+    """
+    names = list(index.names)
+    arrays = [index.get_level_values(position) for position in range(index.nlevels)]
+    if name in names:
+        position = names.index(name)
+    else:
+        position = len(names)
+        names.append(name)
+        arrays.append(pd.Index([""] * len(index), dtype=object))
+    arrays[position] = pd.Index(arrays[position], dtype=object).where(~where, value)
+    return pd.MultiIndex.from_arrays(arrays, names=names)
+
+
 def _series_count_from_data_message(data_msg: DataMessage) -> int:
     """Number of series in the SDMX data message (per dataset, ``DataSet.series``)."""
     if not data_msg.data:
@@ -158,18 +184,75 @@ class Sdmx21DataResponse(DataResponse):
     @cached_property
     def visual_dataframe(self) -> pd.DataFrame:
         """Return a DataFrame suitable for visualization and export (Plotly grid, CSV file)"""
-        if self.df.empty:
-            return self.df
-        time_dimension = self.dataset.get_time_dimension()
-        visual_df: pd.DataFrame = self.df.unstack(time_dimension.entity_id)  # type: ignore[assignment]
-        visual_df.columns = visual_df.columns.droplevel(0)
-        visual_df = self._enrich_df_with_names(visual_df)
-        return visual_df
+        return self._to_visual_dataframe(self.df)
 
     @cached_property
     def csv_dataframe(self) -> pd.DataFrame:
         """Return full SDMX observation-level dataframe for CSV export."""
         return self.dataframe
+
+    @cached_property
+    def llm_visual_dataframe(self) -> pd.DataFrame:
+        # Without a conversion the LLM reads `df` too, so the pivot built for the user is reused.
+        if self._llm_df is self.df:
+            visual_df = self.visual_dataframe
+        else:
+            visual_df = self._to_visual_dataframe(self._llm_df)
+        return self._round_values(visual_df, self.dataset.config.decimal_places)
+
+    @cached_property
+    def llm_csv_dataframe(self) -> pd.DataFrame:
+        if self._llm_df is self.df:
+            csv_df = self.csv_dataframe
+        else:
+            csv_df = self._enrich_df_with_names(self._llm_df)
+        return self._round_values(csv_df, self.dataset.config.decimal_places)
+
+    @cached_property
+    def _llm_df(self) -> pd.DataFrame:
+        """`df` with the values of the series configured as storing a percentage as a fraction of
+        one multiplied by 100, so `0.028` reads as `2.8`, and their unit set, so no reader takes
+        `2.8` for a fraction or converts it again. `df` itself when the dataset converts none.
+
+        Only the LLM reads the converted values: the user's attachments are built from `df`, so
+        they show the values the source stores, as the SDMX query, the data explorer link and the
+        Python code return them. The LLM's values are rounded after the conversion, so the
+        configured precision applies to the percentage rather than to the fraction.
+        """
+        conversion = self.dataset.config.fraction_to_percent
+        df = self.df
+        if conversion is None or df.empty:
+            return df
+        if conversion.component not in df.index.names:
+            _log.warning(
+                "The response of dataset %s lacks the %r component that tells its fraction series"
+                " apart, so their values are kept as fractions",
+                self.dataset.short_urn,
+                conversion.component,
+            )
+            return df
+
+        is_fraction = df.index.get_level_values(conversion.component).isin(conversion.codes)
+        df = df.copy()
+        if is_fraction.any():
+            df.loc[is_fraction, 'value'] = df.loc[is_fraction, 'value'].map(
+                _fraction_to_percent, na_action='ignore'
+            )
+        # Set without a fraction series too, so the LLM reads the same columns in every response
+        # of the dataset.
+        df.index = _set_index_level(
+            df.index, conversion.unit_attribute, conversion.unit, where=is_fraction
+        )
+        return df
+
+    def _to_visual_dataframe(self, df: pd.DataFrame) -> pd.DataFrame:
+        """`df` with the time periods as columns and the coded components named."""
+        if df.empty:
+            return df
+        time_dimension = self.dataset.get_time_dimension()
+        visual_df: pd.DataFrame = df.unstack(time_dimension.entity_id)  # type: ignore[assignment]
+        visual_df.columns = visual_df.columns.droplevel(0)
+        return self._enrich_df_with_names(visual_df)
 
     @property
     def is_empty(self) -> bool:
@@ -245,13 +328,11 @@ class Sdmx21DataResponse(DataResponse):
         }
         return result
 
-    def plotly_grid(self, decimal_places: int | None) -> go.Figure | None:
+    @property
+    def plotly_grid(self) -> go.Figure | None:
         if self.visual_dataframe.empty:
             return None
-        if decimal_places is None:
-            return df_2_plotly_grid(self.visual_dataframe, round_digits=2)
-        # Rounded like the values the model reads, so the grid and the answer show the same numbers.
-        return df_2_plotly_grid(self.rounded_visual_dataframe(decimal_places))
+        return df_2_plotly_grid(self.visual_dataframe)
 
     def get_plotly_graphs_with_names(self, template: str) -> list[tuple[str, go.Figure]]:
         try:

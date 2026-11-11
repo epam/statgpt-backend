@@ -39,9 +39,10 @@ FROM python:3.11-alpine AS server
 # CVE-2023-52425 (libexpat), CVE-2025-6965 (sqlite-libs), libcrypto3/libssl3
 # CVE-2026-40200 (musl)
 # CVE-2026-53612/53613/53614/76642/78408/78409/78410 (libuuid/util-linux)
+# CVE-2026-40355/40356/71199/71200/107364/107708/107778/107884/111423/112314-112323/118380/119079 (krb5-libs)
 RUN apk update && apk upgrade --no-cache \
     libcrypto3 libssl3 libexpat sqlite-libs zlib musl musl-utils \
-  && apk add --no-cache --upgrade "libuuid>=2.42.3-r1" \
+  && apk add --no-cache --upgrade "libuuid>=2.42.3-r1" "krb5-libs>=1.22.3-r0" \
   && apk add --no-cache ca-certificates \
   && update-ca-certificates \
   && rm -rf /var/cache/apk/*

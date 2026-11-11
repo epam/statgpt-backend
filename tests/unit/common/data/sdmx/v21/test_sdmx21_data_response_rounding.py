@@ -1,13 +1,16 @@
-"""The rounded dataframes of `Sdmx21DataResponse`: what the model reads and the UI grid shows, next
-to the full-precision frames the downloadable files are built from."""
+"""The rounding of the values the LLM reads, set by `decimalPlaces` in the dataset config, next to
+the full-precision frames the user's attachments are built from."""
 
 from types import SimpleNamespace
+from typing import Any
 from unittest.mock import Mock
 
 import pandas as pd
 import pytest
+from pydantic import ValidationError
 
 from statgpt.common.data.base import DataResponseStatus
+from statgpt.common.data.sdmx.common import SdmxDataSetConfig
 from statgpt.common.data.sdmx.v21.dataset import Sdmx21DataResponse
 from statgpt.common.schemas.enums import DataParsingStatus, DataRequestStatus
 
@@ -16,9 +19,37 @@ _TIME = "TIME_PERIOD"
 _FACTOR = "ADJUSTMENT_FACTOR"
 
 
-def _dataset() -> Mock:
+def _config(**details: Any) -> SdmxDataSetConfig:
+    return SdmxDataSetConfig.model_validate(
+        {
+            "urn": {"agencyId": "AGENCY", "resourceId": "FLOW"},
+            "dimensions": {
+                "INDICATOR": {"dimensionType": "INDICATOR"},
+                "FREQ": {"dimensionType": "NON_INDICATOR", "subtype": "FREQUENCY"},
+                _TIME: {"dimensionType": "TIME_PERIOD"},
+            },
+            **details,
+        }
+    )
+
+
+class TestConfig:
+    def test_rounding_is_off_by_default(self) -> None:
+        assert _config().decimal_places is None
+
+    def test_rounding_is_read_from_the_dataset_details(self) -> None:
+        assert _config(decimalPlaces=3).decimal_places == 3
+
+    @pytest.mark.parametrize("value", [-1, 16, 2.5])
+    def test_decimal_places_out_of_range_are_rejected(self, value: float) -> None:
+        with pytest.raises(ValidationError, match="decimalPlaces"):
+            _config(decimalPlaces=value)
+
+
+def _dataset(decimal_places: int | None) -> Mock:
     dataset = Mock()
     dataset.entity_id = "ds1"
+    dataset.config = SimpleNamespace(decimal_places=decimal_places, fraction_to_percent=None)
     dataset.dimensions.return_value = [
         SimpleNamespace(entity_id="REF_AREA", name="Reference area"),
         SimpleNamespace(entity_id=_TIME, name="Time period"),
@@ -32,7 +63,7 @@ def _dataset() -> Mock:
 
 
 def _response(
-    values: list[float], periods: list[str], dataset: Mock | None = None
+    values: list[float], periods: list[str], decimal_places: int | None = 3
 ) -> Sdmx21DataResponse:
     # The shape `Sdmx21DataSet.query` produces: dimensions and attributes in the index, the
     # observation values in the single `value` column.
@@ -40,7 +71,7 @@ def _response(
         [("FR", period, 1.23456) for period in periods], names=["REF_AREA", _TIME, _FACTOR]
     )
     return Sdmx21DataResponse(
-        dataset=dataset or _dataset(),
+        dataset=_dataset(decimal_places),
         sdmx_query=Mock(),
         df=pd.DataFrame({"value": values}, index=index),
         url=None,
@@ -55,32 +86,33 @@ def response() -> Sdmx21DataResponse:
     return _response([0.9431918, 3.521599, float("nan")], ["2020", "2021", "2022"])
 
 
-def test_rounded_csv_dataframe_rounds_the_values(response: Sdmx21DataResponse) -> None:
-    values = response.rounded_csv_dataframe(3)["value"].tolist()
+def test_llm_csv_dataframe_rounds_the_values(response: Sdmx21DataResponse) -> None:
+    values = response.llm_csv_dataframe["value"].tolist()
 
     assert values[:2] == [0.943, 3.522]
     assert pd.isna(values[2])
 
 
-def test_rounded_visual_dataframe_rounds_the_time_period_columns(
+def test_llm_visual_dataframe_rounds_the_time_period_columns(
     response: Sdmx21DataResponse,
 ) -> None:
-    row = response.rounded_visual_dataframe(3).iloc[0]
+    row = response.llm_visual_dataframe.iloc[0]
 
     assert (row["2020"], row["2021"]) == (0.943, 3.522)
     assert pd.isna(row["2022"])
 
 
-def test_full_precision_dataframes_are_left_untouched(response: Sdmx21DataResponse) -> None:
-    # Read after the rounded ones, so a rounding done in place would show here.
-    _ = response.rounded_csv_dataframe(3), response.rounded_visual_dataframe(3)
+def test_the_user_frames_keep_full_precision(response: Sdmx21DataResponse) -> None:
+    # Read after the LLM's ones, so a rounding done in place would show here.
+    _ = response.llm_csv_dataframe, response.llm_visual_dataframe
 
     assert response.csv_dataframe["value"].tolist()[:2] == [0.9431918, 3.521599]
+    assert response.dataframe["value"].tolist()[:2] == [0.9431918, 3.521599]
     assert response.visual_dataframe.iloc[0]["2020"] == 0.9431918
 
 
 def test_dimensions_and_attributes_are_not_rounded(response: Sdmx21DataResponse) -> None:
-    for df in (response.rounded_csv_dataframe(3), response.rounded_visual_dataframe(3)):
+    for df in (response.llm_csv_dataframe, response.llm_visual_dataframe):
         assert df[_FACTOR].tolist() == [1.23456] * len(df)
         assert set(df["REF_AREA_Name"]) == {"France"}
 
@@ -103,44 +135,36 @@ def test_dimensions_and_attributes_are_not_rounded(response: Sdmx21DataResponse)
 def test_small_values_keep_their_first_significant_digit(value: float, expected: float) -> None:
     response = _response([value], ["2020"])
 
-    assert response.rounded_csv_dataframe(3)["value"].tolist() == [expected]
-    assert response.rounded_visual_dataframe(3).iloc[0]["2020"] == expected
+    assert response.llm_csv_dataframe["value"].tolist() == [expected]
+    assert response.llm_visual_dataframe.iloc[0]["2020"] == expected
 
 
 def test_a_negative_zero_is_written_as_zero() -> None:
     response = _response([-0.0], ["2020"])
 
-    csv = response.rounded_csv_dataframe(3).to_csv(index=False)
+    csv = response.llm_csv_dataframe.to_csv(index=False)
 
     assert "-0.0" not in csv
 
 
 def test_zero_decimal_places_still_keeps_small_values() -> None:
-    response = _response([2.6, 0.4], ["2020", "2021"])
+    response = _response([2.6, 0.4], ["2020", "2021"], decimal_places=0)
 
-    assert response.rounded_csv_dataframe(0)["value"].tolist() == [3.0, 0.4]
-
-
-def test_no_decimal_places_keeps_full_precision(response: Sdmx21DataResponse) -> None:
-    assert response.rounded_csv_dataframe(None)["value"].tolist()[:2] == [0.9431918, 3.521599]
-    assert response.rounded_visual_dataframe(None).iloc[0]["2020"] == 0.9431918
+    assert response.llm_csv_dataframe["value"].tolist() == [3.0, 0.4]
 
 
-def _grid_columns(response: Sdmx21DataResponse, decimal_places: int | None) -> dict[str, tuple]:
-    grid = response.plotly_grid(decimal_places)
+def test_no_decimal_places_keeps_full_precision() -> None:
+    response = _response([0.9431918, 3.521599], ["2020", "2021"], decimal_places=None)
+
+    assert response.llm_csv_dataframe["value"].tolist() == [0.9431918, 3.521599]
+    assert response.llm_visual_dataframe.iloc[0]["2020"] == 0.9431918
+
+
+def test_plotly_grid_shows_full_precision(response: Sdmx21DataResponse) -> None:
+    grid = response.plotly_grid
     assert grid is not None
     table = grid.data[0]
-    return dict(zip(table.header.values, table.cells.values))
+    columns = dict(zip(table.header.values, table.cells.values))
 
-
-def test_plotly_grid_shows_the_values_the_model_reads(response: Sdmx21DataResponse) -> None:
-    columns = _grid_columns(response, 3)
-
-    assert (columns["2020"][0], columns["2021"][0]) == (0.943, 3.522)
+    assert (columns["2020"][0], columns["2021"][0]) == (0.9431918, 3.521599)
     assert columns[_FACTOR][0] == 1.23456
-
-
-def test_plotly_grid_keeps_its_own_two_decimals_when_rounding_is_off() -> None:
-    response = _response([0.9431918], ["2020"])
-
-    assert _grid_columns(response, None)["2020"][0] == 0.94

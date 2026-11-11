@@ -3,7 +3,6 @@ from io import StringIO
 from types import SimpleNamespace
 
 import pandas as pd
-import pytest
 
 from statgpt.app.mcp.attachments import (
     data_query_outcome_to_meta,
@@ -23,7 +22,6 @@ from statgpt.app.schemas.data_query_outcome import (
 from statgpt.app.schemas.mcp import ExecutionResult, InvalidityReason
 from statgpt.app.schemas.query import AppJsonQueryWithMetadata
 from statgpt.app.schemas.tool_artifact import DataQueryOutcome
-from statgpt.app.settings.dial_app import dial_app_settings
 from statgpt.common.data.base import DataResponseStatus
 from statgpt.common.schemas.base import ToggleableConfig
 from statgpt.common.schemas.data_query_tool import (
@@ -120,18 +118,17 @@ def _response(
     request_status: DataRequestStatus = DataRequestStatus.SUCCESS,
     parsing_status: DataParsingStatus = DataParsingStatus.SUCCESS,
     reason: str | None = None,
-    rounded_df: pd.DataFrame | None = None,
+    llm_df: pd.DataFrame | None = None,
 ) -> SimpleNamespace:
-    def _rounded(decimal_places: int | None) -> pd.DataFrame:
-        return df if decimal_places is None or rounded_df is None else rounded_df
-
+    # Without `llm_df`, the dataset transforms nothing: the LLM reads the source values.
+    llm_df = df if llm_df is None else llm_df
     return SimpleNamespace(
         resource_path=resource_path,
         dataset_name=f"CPI [{resource_path}]",
         visual_dataframe=df,
         csv_dataframe=df,
-        rounded_visual_dataframe=_rounded,
-        rounded_csv_dataframe=_rounded,
+        llm_visual_dataframe=llm_df,
+        llm_csv_dataframe=llm_df,
         component_names=component_names or {},
         is_empty=df.empty,
         created_at=created_at,
@@ -382,29 +379,19 @@ def test_markdown_table_adds_no_rounding_of_its_own():
     assert "112.345678901234" in _markdown_text(outcome)
 
 
-_FULL = pd.DataFrame({"REF_AREA": ["FR"], "2020": [0.9431918]})
-_ROUNDED = pd.DataFrame({"REF_AREA": ["FR"], "2020": [0.943]})
-
-
-def test_resources_carry_the_rounded_values(monkeypatch: pytest.MonkeyPatch):
-    monkeypatch.setattr(dial_app_settings, "data_query_decimal_places", 3)
-    outcome = _make_outcome({"ds1": _response("IMF:CPI(1.0.0)", _FULL, rounded_df=_ROUNDED)})
+def test_resources_carry_the_values_transformed_for_the_llm():
+    # A fraction of one at full precision, as the source stores it, and the rounded percentage
+    # the dataset config turns it into.
+    source = pd.DataFrame({"REF_AREA": ["FR"], "2020": [0.009431918]})
+    transformed = pd.DataFrame({"REF_AREA": ["FR"], "UNIT": ["%"], "2020": [0.943]})
+    outcome = _make_outcome({"ds1": _response("IMF:CPI(1.0.0)", source, llm_df=transformed)})
 
     csv_resource, markdown_resource = _resources(outcome, csv=True, markdown=True)
 
     for text in (csv_resource.resource.text, markdown_resource.resource.text):
         assert "0.943" in text
-        assert "0.9431918" not in text
-
-
-def test_resources_keep_full_precision_when_rounding_is_off(monkeypatch: pytest.MonkeyPatch):
-    monkeypatch.setattr(dial_app_settings, "data_query_decimal_places", None)
-    outcome = _make_outcome({"ds1": _response("IMF:CPI(1.0.0)", _FULL, rounded_df=_ROUNDED)})
-
-    csv_resource, markdown_resource = _resources(outcome, csv=True, markdown=True)
-
-    for text in (csv_resource.resource.text, markdown_resource.resource.text):
-        assert "0.9431918" in text
+        assert "%" in text
+        assert "0.009431918" not in text
 
 
 def test_markdown_table_renders_missing_values_as_na():
