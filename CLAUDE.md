@@ -212,6 +212,16 @@ The data query tool (`statgpt/app/chains/data_query/`) implements:
 5. Follow existing patterns in neighboring files
 6. See `CODE_STYLE.md` for detailed style guidelines
 
+## Spec-Driven Development (OpenSpec)
+
+The project uses [OpenSpec](https://github.com/Fission-AI/OpenSpec) for spec-driven changes:
+- `openspec/specs/` - current specifications of system behavior (source of truth)
+- `openspec/changes/` - proposed changes (proposal, design, delta specs, tasks); completed ones go to `changes/archive/`
+- `openspec/config.yaml` - project-level OpenSpec configuration
+- Workflow commands: `/opsx:explore`, `/opsx:propose`, `/opsx:update`, `/opsx:apply`, `/opsx:sync`, `/opsx:archive`
+
+Check the relevant specs before changing existing behavior, and keep them in sync with the implementation.
+
 ## Related Repositories
 
 - [StatGPT Admin Frontend](https://github.com/epam/statgpt-admin-frontend) - Admin UI (React/Next.js)

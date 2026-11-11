@@ -157,3 +157,7 @@ locales: compile_messages
 # Utility to generate UUIDs
 generate_uuid:
 	python -c "from uuid import uuid4; print(uuid4())"
+
+# Disable OpenSpec anonymous usage stats globally (for the current user)
+openspec_disable_telemetry:
+	openspec config set telemetry.enabled false
