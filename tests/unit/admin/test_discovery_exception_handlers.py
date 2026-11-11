@@ -14,6 +14,8 @@ from statgpt.admin.services.exceptions import (
     AdminServiceError,
     DiscoveryDatasetConflictError,
     DiscoveryDatasetNotFoundError,
+    DiscoveryDatasetsNotInChannelError,
+    DiscoveryExportError,
     DiscoveryIndexingJobNotFoundError,
     DiscoveryPayloadError,
     DiscoveryRagNotConfiguredError,
@@ -44,6 +46,8 @@ def _problem(**kwargs: object) -> schemas.DiscoveryPayloadProblem:
     [
         (DiscoveryDatasetNotFoundError(7), 404),
         (DiscoveryIndexingJobNotFoundError(7), 404),
+        (DiscoveryDatasetsNotInChannelError(channel_id=1, item_ids=[7, 8]), 404),
+        (DiscoveryExportError("no workbook"), 400),
         (DiscoveryDatasetConflictError("already exists"), 409),
         (IndexingJobInProgressError(channel_id=1, job_id=2), 409),
         (IndexingJobInProgressError(channel_id=1), 409),
