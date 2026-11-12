@@ -116,6 +116,15 @@ Verify installation: `which xgettext msgmerge msgfmt`
 
 #### 1. Clone the repository
 
+On native Windows, enable symlinks for this clone. The Claude Code skills in `.claude/skills` are symlinks to
+`.agents/skills`, and without this git checks them out as plain text files. Turn on
+[Developer Mode](https://learn.microsoft.com/en-us/windows/apps/get-started/enable-your-device-for-development)
+(or use an admin shell), then run:
+
+```bash
+make enable_symlinks
+```
+
 #### 2. Create venv (python virtual environment)
 
 Create python virtual environment, using poetry:

@@ -218,7 +218,7 @@ The project uses [OpenSpec](https://github.com/Fission-AI/OpenSpec) for spec-dri
 - `openspec/specs/` - current specifications of system behavior (source of truth)
 - `openspec/changes/` - proposed changes (proposal, design, delta specs, tasks); completed ones go to `changes/archive/`
 - `openspec/config.yaml` - project-level OpenSpec configuration
-- Workflow commands: `/opsx:explore`, `/opsx:propose`, `/opsx:update`, `/opsx:apply`, `/opsx:sync`, `/opsx:archive`
+- Workflow skills: `/openspec-explore`, `/openspec-propose`, `/openspec-update-change`, `/openspec-apply-change`, `/openspec-sync-specs`, `/openspec-archive-change`
 
 Check the relevant specs before changing existing behavior, and keep them in sync with the implementation.
 
