@@ -2,8 +2,8 @@
 
 import logging
 import os
-from collections.abc import Collection
-from contextlib import asynccontextmanager
+from collections.abc import Collection, Sequence
+from contextlib import ExitStack, asynccontextmanager
 from typing import Any, AsyncGenerator
 
 import httpx
@@ -395,19 +395,32 @@ class AdminClient:
     async def upload_discovery_datasets(
         self,
         channel_id: int,
-        file_path: str,
+        file_paths: Sequence[str],
         mode: RecordUploadMode = RecordUploadMode.UPSERT,
     ) -> DiscoveryUploadSummary:
-        """Load a discovery workbook (.xlsx) or CSV into a channel.
+        """Load discovery workbooks (.xlsx) or CSVs into a channel, in one request.
 
-        The API classifies the file by its signature bytes and, failing that, its name, so the
+        Every file is sent as its own `file` part, and the API reconciles them with the
+        channel as one payload: all of them are saved, or none.
+
+        The API classifies a file by its signature bytes and, failing that, its name, so the
         real basename travels with the upload and no format detection happens here.
 
         A refused write comes back as `DiscoveryPayloadError` carrying one entry per offending
         record; every other failure keeps the generic error.
         """
-        with open(file_path, "rb") as f:
-            files = {"file": (os.path.basename(file_path), f, "application/octet-stream")}
+        with ExitStack() as stack:
+            files = [
+                (
+                    "file",
+                    (
+                        os.path.basename(path),
+                        stack.enter_context(open(path, "rb")),
+                        "application/octet-stream",
+                    ),
+                )
+                for path in file_paths
+            ]
             resp = await self._client.post(
                 self._url(f"/channels/{channel_id}/discovery-datasets/upload"),
                 params={"mode": mode.value},

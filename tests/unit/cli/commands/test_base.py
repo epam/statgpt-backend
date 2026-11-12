@@ -190,6 +190,59 @@ class TestCommandArgParsing:
         assert result == {"mode": "a"}
 
 
+class TestMultipleValueArgs:
+    """Tests for CommandArg(multiple=True): greedy, repeatable values collected in a list."""
+
+    @pytest.fixture
+    def cmd(self, simple_command):
+        return Command(
+            name="upload",
+            description="Upload",
+            handler=simple_command.handler,
+            args=[
+                CommandArg(name="channel", description="Channel", short_name="c"),
+                CommandArg(name="file", description="Files", short_name="f", multiple=True),
+                CommandArg(name="mode", description="Mode", default="upsert"),
+            ],
+        )
+
+    def test_takes_every_value_up_to_the_next_option(self, cmd):
+        assert cmd.parse_args("--file a b")["file"] == ["a", "b"]
+
+    def test_repeated_option_appends(self, cmd):
+        assert cmd.parse_args("--file a --file b -f c")["file"] == ["a", "b", "c"]
+
+    def test_values_stop_at_an_option(self, cmd):
+        result = cmd.parse_args("--file a -c ch")
+        assert result == {"channel": "ch", "file": ["a"], "mode": "upsert"}
+
+    def test_requires_at_least_one_value(self, cmd):
+        with pytest.raises(ValueError, match="--file requires at least one value"):
+            cmd.parse_args("--file -c ch")
+        with pytest.raises(ValueError, match="--file requires at least one value"):
+            cmd.parse_args("--file")
+
+    def test_defaults_to_an_empty_list(self, cmd):
+        assert cmd.parse_args("-c ch")["file"] == []
+
+    def test_quoted_value_with_space_is_one_value(self, cmd):
+        assert cmd.parse_args("--file 'my file.xlsx' b.csv")["file"] == ["my file.xlsx", "b.csv"]
+
+    def test_single_value_args_are_unchanged(self, cmd):
+        with pytest.raises(ValueError, match="Unexpected token: extra"):
+            cmd.parse_args("-c ch extra")
+
+    def test_required_multiple_arg_needs_a_value(self, simple_command):
+        cmd = Command(
+            name="t",
+            description="T",
+            handler=simple_command.handler,
+            args=[CommandArg(name="file", description="F", multiple=True, required=True)],
+        )
+        with pytest.raises(ValueError, match="Missing required argument: --file"):
+            cmd.parse_args("")
+
+
 class TestCommandGetHelp:
     """Tests for Command.get_help() method."""
 

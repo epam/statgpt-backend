@@ -20,7 +20,6 @@ from statgpt.admin.services.exceptions import (
     DiscoveryPayloadError,
     DiscoveryRagNotConfiguredError,
     DiscoveryUploadFormatError,
-    DiscoveryUploadTooLargeError,
     IndexingJobInProgressError,
 )
 from statgpt.common import schemas
@@ -52,7 +51,6 @@ def _problem(**kwargs: object) -> schemas.DiscoveryPayloadProblem:
         (IndexingJobInProgressError(channel_id=1, job_id=2), 409),
         (IndexingJobInProgressError(channel_id=1), 409),
         (DiscoveryRagNotConfiguredError(channel_id=1), 409),
-        (DiscoveryUploadTooLargeError("too big"), 413),
         (DiscoveryUploadFormatError("unreadable"), 400),
         (DiscoveryPayloadError(problems=[]), 400),
     ],

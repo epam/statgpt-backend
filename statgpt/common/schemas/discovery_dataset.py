@@ -496,6 +496,9 @@ class DiscoveryPayloadProblem(BaseYamlModel):
     message: str
     """What is wrong, naming the offending value."""
 
+    file: str | None = None
+    """Name of the uploaded file the problem was found in. None for a JSON payload."""
+
     field: str | None = None
     """The record field the problem concerns, when it concerns one."""
 
@@ -536,6 +539,18 @@ class DiscoveryPayloadErrorResponse(BaseYamlModel):
     detail: DiscoveryPayloadErrorDetail
 
 
+class DiscoveryUploadFileSummary(BaseYamlModel):
+    """What an upload read from one of its files."""
+
+    model_config = ConfigDict(use_attribute_docstrings=True)
+
+    file: str
+    """The uploaded file's name."""
+
+    rows_read: int = 0
+    """Data rows found in the file, excluding the header and blank rows."""
+
+
 class DiscoveryUploadSummary(BaseYamlModel):
     """What an upload did to the records a channel holds."""
 
@@ -551,7 +566,10 @@ class DiscoveryUploadSummary(BaseYamlModel):
     """Records that already existed with identical fields. Not rewritten, so statuses are kept."""
 
     deleted: int = 0
-    """Records absent from the file and removed. Always 0 in upsert mode."""
+    """Records absent from every uploaded file and removed. Always 0 in upsert mode."""
 
     rows_read: int = 0
-    """Data rows found in the file, excluding the header and blank rows."""
+    """Data rows found in all uploaded files, excluding headers and blank rows."""
+
+    files: list[DiscoveryUploadFileSummary] = Field(default_factory=list)
+    """One entry per uploaded file, in request order."""

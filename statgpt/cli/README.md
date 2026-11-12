@@ -149,12 +149,30 @@ Codes](#batch-summaries-and-exit-codes).
 
 ### discovery upload
 
-Loads a filled discovery workbook (`.xlsx`) or its CSV equivalent into a channel's Grade C
+Loads filled discovery workbooks (`.xlsx`) or their CSV equivalents into a channel's Grade C
 records. Records are matched on agency and dataset ID, ignoring case and spacing.
 
 ```
 statgpt> discovery upload -c my-channel --file records.xlsx
+statgpt> discovery upload -c my-channel --file agencies.xlsx energy.csv
+statgpt> discovery upload -c my-channel --file data/ --file extra.csv --mode replace
+statgpt> discovery upload -c my-channel --file "data/*.xlsx"
 ```
+
+`--file` takes every value that follows it up to the next option, and can be repeated, so a
+glob the shell expands (`--file data/*`) arrives whole. A directory stands for the `.xlsx` and
+`.csv` files directly inside it, leaving out Excel lock files (`~$...`) and hidden files; a
+quoted glob is expanded by the CLI the same way. The paths are de-duplicated, sorted, and sent
+in one request. A path that does not exist, or a directory or pattern that holds no upload
+file, is reported before anything is sent. With no `--file`, the CLI asks for one file or
+directory.
+
+All the files are reconciled with the channel as one payload, all or nothing: `--mode` applies
+to their union, so `replace` deletes only the records no file mentions. A problem in any file -
+including one that cannot be read or is over the size or row limit - refuses the whole batch,
+and the problem table names the file of each problem. The same dataset described in two files
+is refused too, naming both files and rows, and so are two files with the same name. After a
+successful upload of several files, the results list the rows read from each.
 
 A workbook holds one row per dataset on its `Datasets` sheet, columns A-I: reference area,
 regional coverage, agency, dataset ID, name, description, URL, time coverage and frequency
@@ -182,14 +200,14 @@ export the records again, or upload them as a workbook.
 | Option          | Description                                                                   |
 |-----------------|-------------------------------------------------------------------------------|
 | `-c, --channel` | Channel deployment ID (interactive if omitted)                                |
-| `-f, --file`    | Path to the `.xlsx` or `.csv` file (prompts if omitted)                       |
-| `--mode`        | `upsert` (default) keeps records absent from the file; `replace` deletes them |
+| `-f, --file`    | `.xlsx` / `.csv` files, directories or globs; repeatable (prompts if omitted) |
+| `--mode`        | `upsert` (default) keeps records no file mentions; `replace` deletes them     |
 
 Uploading does not publish anything: run `discovery reindex` afterwards. That goes for what
 `--mode replace` deletes too - its documents are withdrawn by the next indexing run, not by
-the upload. Only an explicit `discovery clear` withdraws documents itself. A file whose cells
+the upload. Only an explicit `discovery clear` withdraws documents itself. A batch whose cells
 cannot be read is refused in full - nothing is saved - and every offending row is listed with
-its cell reference, with a non-zero exit code. See [Batch Summaries and Exit
+its file and cell reference, with a non-zero exit code. See [Batch Summaries and Exit
 Codes](#batch-summaries-and-exit-codes).
 
 ### discovery reindex
@@ -288,7 +306,8 @@ statgpt> content init --datasets urn1,urn2        # specific datasets only
 - Without `--only` or `-y`, the run starts by asking which components to process. Nothing is
   pre-selected: check `All components` for a full run, and selecting nothing cancels
 - `discovery` uploads every `.xlsx` and `.csv` file in the client's `discovery_datasets/`
-  folder to every channel that client's `channels.yaml` declares, in `upsert` mode. It does
+  folder to every channel that client's `channels.yaml` declares, in `upsert` mode, as one
+  request per channel: a problem in any file loads none of them into that channel. It does
   not publish them - run `discovery reindex` for that
 - Specifying `datasets` automatically includes `datasources` (dependency)
 - Interactive selectors: arrow keys to navigate, space to toggle, enter to confirm

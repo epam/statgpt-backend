@@ -53,6 +53,7 @@ from .discovery_dataset import (
     DiscoveryPayloadProblem,
     DiscoverySummaryCall,
     DiscoverySummaryRun,
+    DiscoveryUploadFileSummary,
     DiscoveryUploadSummary,
     DiscoveryValidationIssue,
     dump_indicators_json,
