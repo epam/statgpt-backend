@@ -678,7 +678,7 @@ class AdminPortalDiscoveryDatasetService(DiscoveryDatasetService):
 
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~ file upload ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-    async def read_upload(self, file: UploadFile) -> bytes:
+    async def _read_upload(self, file: UploadFile) -> bytes:
         """Read an upload into memory, refusing anything over the configured cap.
 
         Read in chunks so an oversized file is refused without a second full copy of it in
@@ -730,7 +730,7 @@ class AdminPortalDiscoveryDatasetService(DiscoveryDatasetService):
         are still checked and the response lists everything wrong with it at once.
         """
         try:
-            data = await self.read_upload(file)
+            data = await self._read_upload(file)
             parsed = await asyncio.to_thread(
                 parse_discovery_file,
                 data,

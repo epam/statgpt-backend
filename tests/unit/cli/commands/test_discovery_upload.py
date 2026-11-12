@@ -103,6 +103,17 @@ async def test_a_quoted_glob_is_expanded_by_the_cli(
     assert client.uploads == [[str(data_dir / "a.xlsx"), str(data_dir / "b.csv")]]
 
 
+async def test_an_existing_file_with_glob_characters_is_taken_literally(
+    client: _StubAdminClient, tmp_path: Path
+) -> None:
+    path = tmp_path / "report [2024].xlsx"
+    path.write_bytes(b"x")
+
+    await upload_handler(channel=_DEPLOYMENT_ID, file=[str(path)])
+
+    assert client.uploads == [[str(path)]]
+
+
 async def test_a_repeated_flag_is_one_deduplicated_request(
     client: _StubAdminClient, data_dir: Path
 ) -> None:

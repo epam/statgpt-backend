@@ -29,7 +29,13 @@ _GLOB_CHARS = frozenset("*?[")
 
 
 def _expand_upload_path(value: str) -> list[str]:
-    """The files one `--file` value names: a directory's upload files, a glob's, or itself."""
+    """The files one `--file` value names: a directory's upload files, a glob's, or itself.
+
+    An existing path is taken literally even when it holds glob characters, so a file named
+    `report [2024].xlsx` is not read as a pattern that fails to match itself.
+    """
+    if os.path.isfile(value):
+        return [value]
     if os.path.isdir(value):
         return [
             entry.path

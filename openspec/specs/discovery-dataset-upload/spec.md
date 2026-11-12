@@ -86,7 +86,7 @@ A successful upload SHALL return the channel-level counters `created`, `updated`
 - **THEN** `rows_read` is 8 and `files` is `[{file: a.xlsx, rows_read: 3}, {file: b.csv, rows_read: 5}]`
 
 ### Requirement: CLI uploads several paths in one request
-`statgpt discovery upload` SHALL accept `--file` (`-f`) more than once and SHALL take every value following it up to the next option. A directory SHALL expand to the `.xlsx` and `.csv` files directly inside it, excluding lock and hidden files; a value containing glob characters SHALL be expanded by the CLI. The resulting paths SHALL be de-duplicated, sorted, and sent in one request.
+`statgpt discovery upload` SHALL accept `--file` (`-f`) more than once and SHALL take every value following it up to the next option. A directory SHALL expand to the `.xlsx` and `.csv` files directly inside it, excluding lock and hidden files; a value containing glob characters SHALL be expanded by the CLI, unless it names an existing file, which SHALL be taken literally. The resulting paths SHALL be de-duplicated, sorted, and sent in one request.
 
 #### Scenario: Shell-expanded glob
 - **WHEN** an admin runs `statgpt discovery upload -c ch --file data/a.xlsx data/b.csv` (as a shell expands `data/*`)
