@@ -76,6 +76,15 @@ class DialAppSettings(BaseSettings):
         default=False, alias="CMD_RAG_PREFILTER_ONLY", description="Only apply RAG prefilter"
     )
 
+    cmd_discovery_prefilter_only: bool = Field(
+        default=False,
+        alias="CMD_DISCOVERY_PREFILTER_ONLY",
+        description=(
+            "Only build the Grade C discovery pre-filter: the discovery lookup stops before"
+            " retrieval and the data query pipeline is not run at all"
+        ),
+    )
+
     cmd_skip_data_query_summarization: bool = Field(
         default=False,
         alias="CMD_SKIP_DATA_QUERY_SUMMARIZATION",

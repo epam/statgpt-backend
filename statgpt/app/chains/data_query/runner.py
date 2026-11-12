@@ -3,7 +3,7 @@ import asyncio
 from langchain_core.runnables import Runnable
 
 from statgpt.app.chains.discovery_datasets import DiscoveryDatasetsRunner
-from statgpt.app.config import ChainParametersConfig
+from statgpt.app.config import ChainParametersConfig, StateVarsConfig
 from statgpt.app.schemas.data_query_outcome import DataQueryMcpPayload
 from statgpt.app.schemas.discovery_datasets import DiscoveryDatasetsOutcome
 from statgpt.app.schemas.query_builder import DataQueryEvalAttachment, QueryBuilderAgentState
@@ -15,6 +15,9 @@ from statgpt.common.schemas.data_query_tool import DataQueryDetails
 
 from .parameters import DataQueryParameters
 from .query_builder.factory import QueryBuilderFactory
+
+_PRE_FILTER_ONLY_RESPONSE = "<data query was skipped for debug purposes>"
+"""What the tool answers under `!discovery_prefilter_only`, mirroring `!rag_prefilter_only`."""
 
 
 class DataQueryRunner:
@@ -61,6 +64,15 @@ class DataQueryRunner:
         never raises, so a failure there cannot cost the user their data.
         """
         runner = DiscoveryDatasetsRunner.from_channel_config(self._channel_config)
+
+        state = inputs.get(ChainParametersConfig.STATE) or {}
+        if state.get(StateVarsConfig.CMD_DISCOVERY_PREFILTER_ONLY, False):
+            # Dev command: run only the discovery pre-filter, skipping the query pipeline.
+            # The pipeline is skipped even when the lookup is not configured, so the caller
+            # sees the missing lookup instead of a regular data query response.
+            skipped = {DataQueryParameters.RESPONSE_FIELD: _PRE_FILTER_ONLY_RESPONSE}
+            return skipped, (await runner.run(query, inputs) if runner is not None else None)
+
         if runner is None:
             return await chain.ainvoke(inputs), None
 
