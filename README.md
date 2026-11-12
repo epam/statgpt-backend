@@ -92,11 +92,38 @@ Required for localization commands (`make extract_messages`, `make update_messag
 
 Verify installation: `which xgettext msgmerge msgfmt`
 
+#### 6. Install [OpenSpec](https://github.com/Fission-AI/OpenSpec) (optional, for spec-driven development)
+
+1. **Install OpenSpec** by following the [installation guide](https://github.com/Fission-AI/OpenSpec#quick-start).
+
+2. ⚠️ **Disable telemetry.** OpenSpec collects anonymous usage stats, and this can't be disabled in the project config.
+   Opt out right after installation, following the
+   [official documentation](https://openspec.dev/docs/configuration/config-json#telemetry)
+   (the `OPENSPEC_TELEMETRY=0` or `DO_NOT_TRACK=1` environment variable, or `telemetry.enabled: false` in the global
+   config).
+
+   Alternatively, disable it globally for your user:
+
+   ```bash
+   make openspec_disable_telemetry
+   ```
+
+3. **Verify installation:** `openspec --version`
+
 ---
 
 ### Setup
 
 #### 1. Clone the repository
+
+On native Windows, enable symlinks for this clone. The Claude Code skills in `.claude/skills` are symlinks to
+`.agents/skills`, and without this git checks them out as plain text files. Turn on
+[Developer Mode](https://learn.microsoft.com/en-us/windows/apps/get-started/enable-your-device-for-development)
+(or use an admin shell), then run:
+
+```bash
+make enable_symlinks
+```
 
 #### 2. Create venv (python virtual environment)
 
