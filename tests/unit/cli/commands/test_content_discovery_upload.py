@@ -1,10 +1,13 @@
 """Tests for the discovery datasets step of `content init`.
 
-Every file in a client's folder belongs to every channel that client declares, and a file the
-API refuses must not stop the ones after it.
+Every file in a client's folder belongs to every channel that client declares. The folder is
+sent as one all-or-nothing request per channel, and a channel that refuses it must not stop
+the channels after it.
 """
 
 import datetime
+import os
+from collections.abc import Sequence
 from typing import Any
 
 import pytest
@@ -43,10 +46,10 @@ def _channel_cfg(*deployment_ids: str) -> dict[str, Any]:
 
 
 class _StubAdminClient:
-    """Records every upload, and refuses the files named in `refuse`."""
+    """Records every upload, and refuses a batch holding a file named in `refuse`."""
 
     def __init__(self, refuse: set[str] | None = None, channels: list[Channel] | None = None):
-        self.uploads: list[tuple[int, str, RecordUploadMode]] = []
+        self.uploads: list[tuple[int, list[str], RecordUploadMode]] = []
         self._refuse = refuse or set()
         self._channels = channels or []
 
@@ -54,22 +57,22 @@ class _StubAdminClient:
         return self._channels
 
     async def upload_discovery_datasets(
-        self, channel_id: int, file_path: str, mode: RecordUploadMode
+        self, channel_id: int, file_paths: Sequence[str], mode: RecordUploadMode
     ) -> DiscoveryUploadSummary:
-        import os
-
-        name = os.path.basename(file_path)
-        self.uploads.append((channel_id, name, mode))
-        if name in self._refuse:
+        names = [os.path.basename(path) for path in file_paths]
+        self.uploads.append((channel_id, names, mode))
+        if self._refuse & set(names):
             raise DiscoveryPayloadError(
                 DiscoveryPayloadErrorDetail(
                     message="1 problem(s) found",
                     problems=[
-                        DiscoveryPayloadProblem(message="must not be empty", field="agency", row=2)
+                        DiscoveryPayloadProblem(
+                            message="must not be empty", file="b.csv", field="agency", row=2
+                        )
                     ],
                 )
             )
-        return DiscoveryUploadSummary(created=1, rows_read=1)
+        return DiscoveryUploadSummary(created=len(names), rows_read=len(names))
 
 
 def _write(tmp_path, *names: str):
@@ -95,33 +98,35 @@ async def test_every_file_is_uploaded_to_every_channel_of_the_client(tmp_path) -
     )
 
     assert client.uploads == [
-        (1, "a.xlsx", RecordUploadMode.UPSERT),
-        (1, "b.csv", RecordUploadMode.UPSERT),
-        (2, "a.xlsx", RecordUploadMode.UPSERT),
-        (2, "b.csv", RecordUploadMode.UPSERT),
-    ], "files are uploaded in name order, and only the supported ones"
+        (1, ["a.xlsx", "b.csv"], RecordUploadMode.UPSERT),
+        (2, ["a.xlsx", "b.csv"], RecordUploadMode.UPSERT),
+    ], "one request per channel, files in name order, and only the supported ones"
+    assert [item.item_id for item in report.items] == [
+        "channel-a: 2 discovery file(s)",
+        "channel-b: 2 discovery file(s)",
+    ]
     assert not report.has_failures
 
 
 @pytest.mark.asyncio
-async def test_a_refused_file_does_not_stop_the_rest(tmp_path) -> None:
-    directory = _write(tmp_path, "a.csv", "b.csv")
-    client = _StubAdminClient(refuse={"a.csv"})
+async def test_one_bad_file_fails_the_whole_batch_and_the_run_goes_on(tmp_path) -> None:
+    directory = _write(tmp_path, "a.xlsx", "b.csv")
+    client = _StubAdminClient(refuse={"b.csv"})
     report = BatchReport(title="t")
 
     await _upload_discovery_datasets(
         client,
         report,
-        _channel_cfg("channel-a"),
-        {"channel-a": _channel("channel-a", 1)},
+        _channel_cfg("channel-a", "channel-b"),
+        {"channel-a": _channel("channel-a", 1), "channel-b": _channel("channel-b", 2)},
         str(directory),
     )
 
-    assert [name for _, name, _ in client.uploads] == ["a.csv", "b.csv"]
+    assert [channel_id for channel_id, _, _ in client.uploads] == [1, 2]
     by_status = {item.item_id: item.status for item in report.items}
     assert by_status == {
-        "channel-a: a.csv": BatchItemStatus.FAILED,
-        "channel-a: b.csv": BatchItemStatus.OK,
+        "channel-a: 2 discovery file(s)": BatchItemStatus.FAILED,
+        "channel-b: 2 discovery file(s)": BatchItemStatus.FAILED,
     }
 
 
@@ -134,7 +139,7 @@ async def test_channels_not_processed_in_this_run_are_looked_up(tmp_path) -> Non
 
     await _upload_discovery_datasets(client, report, _channel_cfg("channel-a"), {}, str(directory))
 
-    assert client.uploads == [(42, "a.csv", RecordUploadMode.UPSERT)]
+    assert client.uploads == [(42, ["a.csv"], RecordUploadMode.UPSERT)]
 
 
 @pytest.mark.asyncio

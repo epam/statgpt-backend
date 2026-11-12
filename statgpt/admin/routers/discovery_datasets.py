@@ -270,23 +270,26 @@ async def clear_channel_discovery_datasets(
 @channel_discovery_datasets_router.post("/upload", responses=_PAYLOAD_ERROR_RESPONSE)
 async def upload_discovery_datasets(
     channel_id: int,
-    file: UploadFile,
+    file: list[UploadFile],
     mode: schemas.RecordUploadMode = schemas.RecordUploadMode.UPSERT,
     session: AsyncSession = Depends(models.get_session),
 ) -> schemas.DiscoveryUploadSummary:
-    """Load a filled discovery workbook (.xlsx) or CSV into the channel.
+    """Load one or more filled discovery workbooks (.xlsx) or CSVs into the channel.
 
-    Records are matched on (agency, dataset id), ignoring case and spacing. `upsert` keeps
-    records that the file does not mention; `replace` deletes them. A record whose fields
-    are unchanged is not rewritten, so its validation and indexing state is preserved.
+    Repeat the `file` part once per file; `.xlsx` and `.csv` files can be mixed. The rows of
+    every file are merged into one payload and reconciled with the channel in one
+    transaction. Records are matched on (agency, dataset id), ignoring case and spacing.
+    `upsert` keeps records that no file mentions; `replace` deletes them. A record whose
+    fields are unchanged is not rewritten, so its validation and indexing state is preserved.
 
     Synchronous, because the value of this endpoint is the per-cell error report: a
-    structural problem returns 400 naming every offending cell and saves nothing. Uploading
-    does not validate content - that happens on the next indexing job.
+    structural problem in any file returns 400 naming every offending cell of every file,
+    each with the `file` it was found in, and saves nothing. A file that cannot be read, or
+    exceeds the per-file byte or row cap, is one such problem. The same dataset in two files,
+    two files with the same name, or more files than the configured limit refuse the upload
+    too. Uploading does not validate content - that happens on the next indexing job.
     """
-    service = DiscoveryDatasetService(session)
-    data = await service.read_upload(file)
-    return await service.upload(channel_id, data, file.filename, mode)
+    return await DiscoveryDatasetService(session).upload(channel_id, file, mode)
 
 
 @channel_discovery_datasets_router.post("/indexing-jobs", status_code=status.HTTP_202_ACCEPTED)

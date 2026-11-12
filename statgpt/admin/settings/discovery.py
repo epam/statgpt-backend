@@ -7,15 +7,23 @@ class DiscoveryUploadSettings(BaseSettings):
 
     model_config = SettingsConfigDict(env_prefix="discovery_upload_")
 
+    max_files: int = Field(
+        default=20,
+        ge=1,
+        description=(
+            "Reject an upload carrying more files than this. A request can then be up to"
+            " `max_files x max_file_size_bytes`, which the ingress body limit has to allow."
+        ),
+    )
     max_file_size_bytes: int = Field(
         default=10 * 1024 * 1024,
         ge=1,
-        description="Reject an upload larger than this, before parsing it.",
+        description="Reject an uploaded file larger than this, before parsing it.",
     )
     max_rows: int = Field(
         default=10_000,
         ge=1,
-        description="Reject a file with more data rows than this.",
+        description="Reject an uploaded file with more data rows than this.",
     )
     max_indicators_per_dataset: int = Field(
         default=50_000,

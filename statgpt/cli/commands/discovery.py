@@ -16,6 +16,7 @@ from statgpt.cli.shared import (
     build_summary_report,
     confirm_interactive,
     console,
+    expand_upload_paths,
     get_admin_client,
     is_upload_file,
     print_error,
@@ -42,7 +43,7 @@ async def _select_file_interactive() -> str | None:
     if cli_runtime.non_interactive:
         raise NonInteractiveError(
             "Missing required parameter: --file\n"
-            "  Usage: statgpt discovery upload -c <channel> --file <path.xlsx|path.csv>"
+            "  Usage: statgpt discovery upload -c <channel> --file <path.xlsx|path.csv|dir>..."
         )
     return await asyncio.get_event_loop().run_in_executor(
         None,
@@ -56,50 +57,61 @@ async def _select_file_interactive() -> str | None:
 
 async def upload_handler(
     channel: str | None = None,
-    file: str | None = None,
+    file: list[str] | None = None,
     mode: str = RecordUploadMode.UPSERT.value,
 ) -> None:
-    """Upload a discovery datasets workbook or CSV to a channel."""
+    """Upload discovery datasets workbooks or CSVs to a channel, as one all-or-nothing batch."""
     upload_mode = RecordUploadMode(mode)
+
+    # Expanded before anything is requested, so a mistyped path costs no round trip.
+    try:
+        paths = expand_upload_paths(file) if file else []
+    except ValueError as e:
+        print_error(str(e))
+        return
 
     async with get_admin_client() as client:
         selected_channel = await select_channel(client, channel)
         if not selected_channel:
             return
 
-        if not file:
-            file = await _select_file_interactive()
-            if not file:
+        if not paths:
+            selected = await _select_file_interactive()
+            if not selected:
                 print_error("No file selected")
                 return
-
-        if not os.path.exists(file):
-            print_error(f"File not found: {file}")
-            return
+            try:
+                paths = expand_upload_paths([selected])
+            except ValueError as e:
+                print_error(str(e))
+                return
 
         if upload_mode is RecordUploadMode.REPLACE and not confirm_interactive(
-            f"Replace mode deletes records absent from the file. Continue with"
+            f"Replace mode deletes records absent from the files. Continue with"
             f" {selected_channel.deployment_id}?",
             default=False,
             error_message=(
                 "Replace mode requires confirmation.\n"
-                "  Use --mode upsert to keep records the file does not mention."
+                "  Use --mode upsert to keep records the files do not mention."
             ),
         ):
             print_info("Aborted.")
             return
 
-        print_info(f"Uploading {os.path.basename(file)} to {selected_channel.deployment_id}...")
+        what = os.path.basename(paths[0]) if len(paths) == 1 else f"{len(paths)} files"
+        print_info(f"Uploading {what} to {selected_channel.deployment_id}...")
 
         try:
-            summary = await client.upload_discovery_datasets(selected_channel.id, file, upload_mode)
+            summary = await client.upload_discovery_datasets(
+                selected_channel.id, paths, upload_mode
+            )
         except DiscoveryPayloadError as e:
             render_payload_problems(e.detail)
             print_error("Nothing was saved.")
             raise BatchPartialFailureError("Discovery upload was refused") from e
 
         render_upload_summary(summary)
-        print_success(f"Uploaded {summary.rows_read} record(s)")
+        print_success(f"Uploaded {summary.rows_read} record(s) from {len(paths)} file(s)")
         print_info(
             f"Run: [cyan]discovery reindex -c {selected_channel.deployment_id}[/cyan]"
             f" to publish the records"
@@ -251,7 +263,7 @@ async def summary_report_handler(
 
 upload_command = Command(
     name="upload",
-    description="Upload a discovery datasets workbook (.xlsx) or CSV to a channel",
+    description="Upload discovery datasets workbooks (.xlsx) or CSVs to a channel",
     handler=upload_handler,
     args=[
         CommandArg(
@@ -262,13 +274,18 @@ upload_command = Command(
         CommandArg(
             name="file",
             short_name="f",
-            description="Path to the discovery datasets file (.xlsx or .csv)",
+            description=(
+                "Discovery datasets files (.xlsx or .csv), directories of them, or glob"
+                " patterns. Takes every value up to the next option and can be repeated;"
+                " all files are uploaded as one all-or-nothing batch"
+            ),
+            multiple=True,
         ),
         CommandArg(
             name="mode",
             description=(
-                "How the file is reconciled with the channel's records:"
-                " upsert keeps records the file does not mention, replace deletes them"
+                "How the files are reconciled with the channel's records:"
+                " upsert keeps records no file mentions, replace deletes them"
             ),
             choices=[mode.value for mode in RecordUploadMode],
             default=RecordUploadMode.UPSERT.value,

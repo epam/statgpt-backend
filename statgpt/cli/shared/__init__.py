@@ -39,6 +39,7 @@ from statgpt.cli.shared.console import (
     spinner_status,
 )
 from statgpt.cli.shared.discovery import (
+    expand_upload_paths,
     is_upload_file,
     render_payload_problems,
     render_upload_summary,
@@ -90,6 +91,7 @@ __all__ = [
     "select_channel_interactive",
     # Discovery
     "is_upload_file",
+    "expand_upload_paths",
     "render_payload_problems",
     "render_upload_summary",
     "summary_line",

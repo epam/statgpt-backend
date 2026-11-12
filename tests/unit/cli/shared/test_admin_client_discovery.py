@@ -64,7 +64,7 @@ async def test_upload_posts_the_file_with_its_name_and_mode(tmp_path) -> None:
     client, requests = _client(lambda request: httpx.Response(200, json=summary))
 
     result = await client.upload_discovery_datasets(
-        _CHANNEL_ID, str(file), RecordUploadMode.REPLACE
+        _CHANNEL_ID, [str(file)], RecordUploadMode.REPLACE
     )
 
     request = requests[0]
@@ -72,6 +72,29 @@ async def test_upload_posts_the_file_with_its_name_and_mode(tmp_path) -> None:
     assert request.url.params["mode"] == "replace"
     assert b'filename="records.csv"' in request.content
     assert result.created == 1
+
+
+@pytest.mark.asyncio
+async def test_upload_sends_every_file_under_the_file_key(tmp_path) -> None:
+    """One request for the whole batch, so the API can reconcile the files as one payload."""
+    first = tmp_path / "a.xlsx"
+    first.write_bytes(b"workbook bytes")
+    second = tmp_path / "b.csv"
+    second.write_text("agency,dataset_id\nBPS,TABEL1_1\n", encoding="utf-8")
+
+    summary = {"created": 2, "rows_read": 2, "files": [{"file": "a.xlsx", "rows_read": 1}]}
+    client, requests = _client(lambda request: httpx.Response(200, json=summary))
+
+    result = await client.upload_discovery_datasets(_CHANNEL_ID, [str(first), str(second)])
+
+    [request] = requests
+    content = request.content
+    assert content.count(b'name="file"') == 2
+    assert b'name="file"; filename="a.xlsx"' in content
+    assert b'name="file"; filename="b.csv"' in content
+    assert content.index(b"a.xlsx") < content.index(b"b.csv")
+    assert b"workbook bytes" in content
+    assert [entry.file for entry in result.files] == ["a.xlsx"]
 
 
 @pytest.mark.asyncio
@@ -92,7 +115,7 @@ async def test_a_refused_upload_carries_the_per_cell_report(tmp_path) -> None:
     client, _ = _client(lambda request: httpx.Response(400, json=body))
 
     with pytest.raises(DiscoveryPayloadError) as excinfo:
-        await client.upload_discovery_datasets(_CHANNEL_ID, str(file))
+        await client.upload_discovery_datasets(_CHANNEL_ID, [str(file)])
 
     detail = excinfo.value.detail
     assert detail.message == "2 problem(s) found"
@@ -109,7 +132,7 @@ async def test_a_400_without_the_report_shape_stays_a_generic_error(tmp_path) ->
     client, _ = _client(lambda request: httpx.Response(400, json={"detail": "bad request"}))
 
     with pytest.raises(AdminAPIError) as excinfo:
-        await client.upload_discovery_datasets(_CHANNEL_ID, str(file))
+        await client.upload_discovery_datasets(_CHANNEL_ID, [str(file)])
 
     assert not isinstance(excinfo.value, DiscoveryPayloadError)
     assert "bad request" in str(excinfo.value)

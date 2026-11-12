@@ -1,6 +1,8 @@
 """Discovery dataset helpers shared by the `discovery` commands and `content init`."""
 
+import glob
 import os
+from collections.abc import Iterable
 
 from rich.table import Table
 
@@ -21,6 +23,41 @@ def is_upload_file(filename: str) -> bool:
     if name.startswith("~$") or name.startswith("."):
         return False
     return name.casefold().endswith(UPLOAD_SUFFIXES)
+
+
+_GLOB_CHARS = frozenset("*?[")
+
+
+def _expand_upload_path(value: str) -> list[str]:
+    """The files one `--file` value names: a directory's upload files, a glob's, or itself."""
+    if os.path.isdir(value):
+        return [
+            entry.path
+            for entry in os.scandir(value)
+            if entry.is_file() and is_upload_file(entry.name)
+        ]
+    if _GLOB_CHARS & set(value):
+        return [path for path in glob.glob(value) if os.path.isfile(path) and is_upload_file(path)]
+    if not os.path.exists(value):
+        raise ValueError(f"File not found: {value}")
+    return [value]
+
+
+def expand_upload_paths(values: Iterable[str]) -> list[str]:
+    """Turn `--file` values into the files of one upload: absolute, de-duplicated, sorted.
+
+    A directory stands for the `.xlsx` and `.csv` files directly inside it, excluding lock
+    and hidden files. A value with glob characters is expanded here, for a pattern the shell
+    left quoted. Raises `ValueError` naming the first value that is missing or yields no
+    file, so nothing is sent for a batch that is not what the admin meant.
+    """
+    paths: set[str] = set()
+    for value in values:
+        expanded = _expand_upload_path(value)
+        if not expanded:
+            raise ValueError(f"No .xlsx or .csv file matches: {value}")
+        paths.update(os.path.abspath(path) for path in expanded)
+    return sorted(paths)
 
 
 _SUMMARY_FIELDS = [
@@ -49,6 +86,14 @@ def render_upload_summary(summary: DiscoveryUploadSummary, title: str = "Upload 
         table.add_row(label, str(getattr(summary, field)))
     console.print(table)
 
+    if len(summary.files) > 1:
+        files = Table(show_header=True, header_style="bold")
+        files.add_column("File", overflow="fold")
+        files.add_column("Rows read", justify="right")
+        for entry in summary.files:
+            files.add_row(entry.file, str(entry.rows_read))
+        console.print(files)
+
 
 def render_payload_problems(detail: DiscoveryPayloadErrorDetail) -> None:
     """Print the per-record report a refused write comes back with.
@@ -60,17 +105,25 @@ def render_payload_problems(detail: DiscoveryPayloadErrorDetail) -> None:
     if not detail.problems:
         return
 
+    # Only a file upload names files, so a JSON payload's report keeps its old columns.
+    with_file = any(problem.file for problem in detail.problems)
+
     table = Table(show_header=True, header_style="bold")
+    if with_file:
+        table.add_column("File", ratio=1, overflow="fold")
     table.add_column("Row", width=6, justify="right")
     table.add_column("Cell", width=6)
     table.add_column("Field", ratio=1)
-    table.add_column("Problem", ratio=3)
+    table.add_column("Problem", ratio=3, overflow="fold")
 
     for problem in detail.problems:
         row = str(problem.row) if problem.row is not None else ""
         if not row and problem.index is not None:
             row = f"#{problem.index}"
-        table.add_row(row, problem.cell or "", problem.field or "", problem.message)
+        cells = [row, problem.cell or "", problem.field or "", problem.message]
+        if with_file:
+            cells.insert(0, problem.file or "")
+        table.add_row(*cells)
 
     console.print(table)
 

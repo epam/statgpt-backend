@@ -20,7 +20,11 @@ _PROBLEMS_IN_MESSAGE = 5
 
 
 def _render_problem(problem: schemas.DiscoveryPayloadProblem) -> str:
-    """Render a problem as `<where>: <what>`, using the most precise location it carries."""
+    """Render a problem as `<where>: <what>`, using the most precise location it carries.
+
+    The file comes first when the problem has one, so a batch upload's log line says which
+    of its files to open: `a.xlsx D14: ...`.
+    """
     if problem.cell:
         where = problem.cell
     elif problem.row is not None:
@@ -28,6 +32,10 @@ def _render_problem(problem: schemas.DiscoveryPayloadProblem) -> str:
     elif problem.index is not None:
         where = f"item {problem.index}"
     else:
+        where = ""
+    if problem.file:
+        where = f"{problem.file} {where}".rstrip()
+    if not where:
         return problem.message
     return f"{where}: {problem.message}"
 
