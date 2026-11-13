@@ -116,6 +116,13 @@ The out-of-scope check and the tool run of one call SHALL together be bounded by
 - **WHEN** a Data Query call is still running after 240 seconds with the default setting
 - **THEN** its downstream work is cancelled and the client receives a tool error stating the 240-second limit and suggesting fewer indicators, a shorter time range, or a single dataset
 
+### Requirement: Deadline scope
+The deadline SHALL NOT cover the channel and auth resolution that precedes the call. The margin between the default and the 300-second host timeout SHALL absorb that resolution time.
+
+#### Scenario: Slow channel resolution
+- **WHEN** resolving the channel and the caller's auth context takes 5 seconds
+- **THEN** the tool still gets the full 240 seconds, and the call ends within the host's 300 seconds
+
 ### Requirement: Free-text input is screened for scope
 Before a tool runs, a non-empty free-text `query` argument of the LLM-backed tools (Data Query, Datasets Metadata, File RAG, Web Search, Web Search Agent) SHALL be screened by the channel's out-of-scope checker, the check the chat endpoint runs before the Supreme Agent, applied to that argument alone without chat history. Tools without such an argument SHALL NOT be screened. Screening SHALL run only when the channel has an `out_of_scope` config and `SKIP_OUT_OF_SCOPE_CHECK` is false.
 

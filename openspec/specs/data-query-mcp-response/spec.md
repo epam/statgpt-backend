@@ -87,11 +87,18 @@ The `message` SHALL use the tool's `*McpOnly` message, falling back to its non-M
 - **THEN** every query record has `executed` = false and no `execution`
 
 ### Requirement: Invalid time period reports the constructed queries
-`invalid_time_period` occurs only when the time period is applied after the availability check (`timePeriodStrategy: AFTER`; the default `BEFORE` never reports it). Each constructed query SHALL then carry an `invalidity` with an `explanation`, reason `invalid_time_period` and the `rejectedPeriod` (rejected bound, requested value, available period). A rejected period SHALL NOT be applied, so `requestedPeriod` SHALL NOT carry it.
+`invalid_time_period` occurs only with `timePeriodStrategy: AFTER` (the default `BEFORE` never reports it), when no query is valid and at least one was rejected for its period. Every constructed query SHALL then carry an `invalidity` with an `explanation` and a `reason`; a rejected one SHALL have reason `invalid_time_period` and the `rejectedPeriod` (rejected bound, requested value, available period). A rejected period SHALL NOT be applied, so `requestedPeriod` SHALL NOT carry it.
 
 #### Scenario: Rejected start period
 - **WHEN** a query asks for data from 2030 and the dataset ends in 2025
 - **THEN** the query's `invalidity` has reason `invalid_time_period`, `rejectedPeriod.rejectedBound` = `startPeriod`, `requestedValue` = 2030 and `availablePeriod.endPeriod` = 2025, and `requestedPeriod` does not contain 2030
+
+### Requirement: Invalid time period with a query missing dimensions
+With status `invalid_time_period`, a constructed query that is invalid because it does not specify every required dimension SHALL have `invalidity.reason` = `missing_dimensions` and `invalidity.missingDimensions`: the dimensions in the bounded shape of the top-level `missingDimensions` (see "Codelist-derived values are bounded").
+
+#### Scenario: Another dataset misses a dimension
+- **WHEN** `timePeriodStrategy` is `AFTER`, the query on `ECB:EXR` is rejected for its period and the query on `IMF:ER` does not specify its required `CURRENCY` dimension
+- **THEN** status is `invalid_time_period`, the `ECB:EXR` record has `invalidity.reason` = `invalid_time_period`, and the `IMF:ER` record has `invalidity.reason` = `missing_dimensions` with `CURRENCY` in `invalidity.missingDimensions`
 
 ### Requirement: Dataset selection and missing dimensions
 For `dataset_selection_required`, each entry of `candidateDatasets` SHALL carry the dataset URN as `id`, its name, and the constructed `query` that would run against it. For `missing_dimensions`, `missingDimensions` SHALL carry the dataset URN and the dimensions a follow-up query must specify.
@@ -115,7 +122,7 @@ The time period SHALL NOT be a filter in `structuredContent`. It SHALL be report
 - **THEN** `requestedPeriod.isDefault` is true and no filter has the time period dimension id
 
 ### Requirement: Codelist-derived values are bounded
-Values taken from a codelist rather than from the query, which can hold thousands of entries, SHALL be reported in `structuredContent` as `totalValues` plus at most 10 `sampleValues` (all of them when there are at most 10, otherwise the first 10). This applies to `missingDimensions`. The full lists SHALL stay in the MCP-App payload.
+Values taken from a codelist rather than from the query, which can hold thousands of entries, SHALL be reported in `structuredContent` as `totalValues` plus at most 10 `sampleValues` (all of them when there are at most 10, otherwise the first 10). This applies to `missingDimensions` and to `invalidity.missingDimensions`. The full lists SHALL stay in the MCP-App payload.
 
 #### Scenario: Missing reference area
 - **WHEN** a query misses the reference area dimension with 196 available values
@@ -152,6 +159,13 @@ The tool's `details.mcpStructuredContent` block SHALL toggle optional `structure
 #### Scenario: Legacy key
 - **WHEN** a tool config sets `explorerLink.mcp: never` and no `mcpStructuredContent`
 - **THEN** executed query records still carry `dataExplorerUrl`
+
+### Requirement: Client payload ignores the link policy
+The client payload SHALL carry the data explorer deep link of every executed query whatever `dataExplorerUrl` is. The policy exists because the model copies links into its answer, and a programmatic client is not that model.
+
+#### Scenario: Policy `never`
+- **WHEN** `dataExplorerUrl` is `never`, the client payload is enabled and a query returns data
+- **THEN** the `structuredContent` record has no `dataExplorerUrl` and the client payload's query record carries it
 
 ### Requirement: `_meta` namespace
 Each `_meta` payload SHALL be keyed `{namespace}/mcp-app` or `{namespace}/client`, where the namespace is `details.mcpMeta.namespace` (default `statgpt.dialx.ai`, `$env:{VAR}` supported). The namespace SHALL be resolved and validated at config load as a reverse-DNS name not reserved by the MCP specification (`mcp`, `mcp.*`, `modelcontextprotocol.io`).
@@ -206,6 +220,13 @@ A resource URI SHALL be `statgpt://data_query/{dataset}/{queryId}.csv` or `.md`,
 #### Scenario: Default CSV resource
 - **WHEN** `mcpResources` is not configured and a query on `IMF.RES:WEO(9.0.0)` returns data
 - **THEN** `content` carries one resource, `statgpt://data_query/IMF.RES%3AWEO%289.0.0%29/dq_333e6e65fc.csv`, with MIME type `text/csv`
+
+### Requirement: CSV for machine reading
+The CSV resource SHALL be observation-level, one row per observation, for the model and programmatic readers. Showing the data to the user is the Markdown table's job (see "Markdown table for the user").
+
+#### Scenario: Two periods
+- **WHEN** a query returns one series with values for 2023 and 2024
+- **THEN** the CSV resource has two data rows, one per observation
 
 ### Requirement: Markdown table for the user
 The Markdown resource SHALL be one table per dataset headed by the dataset name, with time periods as columns, component display names as headers (the coded id kept when the name is blank or would collide), code columns collapsed into their names, no row cap, no rounding of its own, pipes and line breaks in values neutralized, and `NA` for missing values. It SHALL be annotated `audience: ["user"]`.

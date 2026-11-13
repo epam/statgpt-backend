@@ -31,7 +31,7 @@ Null fields are omitted.
 | `queries[].filters[].isDefault` | Whether the filter is the dimension's default, applied because the user did not specify it. |
 | `queries[].filters[].valueCount` | How many values the filter applies. |
 | `queries[].requestedPeriod` | `startPeriod` / `endPeriod`, named after the SDMX REST query parameters, and `isDefault` when the dataset's default period was applied. |
-| `queries[].invalidity` | Why a constructed query cannot run: `reason` (`invalid_time_period`), an `explanation` in words, and the `rejectedPeriod` (`rejectedBound`, its `requestedValue`, the `availablePeriod`). |
+| `queries[].invalidity` | Why a constructed query cannot run: `reason` (`invalid_time_period` or `missing_dimensions`), an `explanation` in words, and the `rejectedPeriod` (`rejectedBound`, its `requestedValue`, the `availablePeriod`) or the `missingDimensions` (as in the top-level `missingDimensions`). |
 | `queries[].factualPeriod` | The period the returned data actually covers. |
 | `queries[].seriesCount` | Number of series returned. |
 | `queries[].execution` | How the execution went: `result` (`data_received`, `partially_parsed`, `parsing_failed`, `request_failed`, `no_data`), with a `reason` and an `advice` unless the data was received. |
@@ -927,7 +927,7 @@ The query is incomplete. The model gets a bounded sample of each dimension's val
 
 ### `invalid_time_period`
 
-The requested period is outside the dataset's range. The model gets the constructed queries, each with the `invalidity` that keeps it from running: a rejected period was never applied, so `requestedPeriod` is absent and `invalidity.rejectedPeriod` carries it instead. The widget gets no queries.
+The requested period is outside the dataset's range. The model gets the constructed queries, each with the `invalidity` that keeps it from running: a rejected period was never applied, so `requestedPeriod` is absent and `invalidity.rejectedPeriod` carries it instead. A query that misses a required dimension reports `missing_dimensions` there instead. The widget gets no queries.
 
 ```json
 {
