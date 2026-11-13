@@ -55,6 +55,9 @@ _REPORT_DELIVERED_MESSAGE_TO_AGENT = (
     supreme_agent_default_prompts.deep_research_report_delivered_message_to_agent
 )
 _REPORT_ANSWER_PLACEHOLDER = supreme_agent_default_prompts.deep_research_report_answer_placeholder
+_FAILED_TURN_WITH_ERROR_MESSAGE_TO_AGENT = (
+    supreme_agent_default_prompts.failed_turn_with_error_message_to_agent
+)
 
 
 @pytest.fixture(autouse=True)
@@ -835,7 +838,10 @@ async def test_next_turn_sees_the_failure_and_replays_the_failed_turn(monkeypatc
     replays the failed turn with Deep Research's state."""
     state = {StateVarsConfig.SHOW_DEBUG_STAGES: False}
     inputs = await _run_failed_start_turn(monkeypatch, state)
-    inputs[ChainParametersConfig.HISTORY].dump_state(state)  # as `ChannelCompletion` does
+    # as `ChannelCompletion` does
+    inputs[ChainParametersConfig.HISTORY].dump_state(state)
+    state[StateVarsConfig.ERROR] = _QUOTA_MESSAGE
+    state[StateVarsConfig.ERROR_DISPLAY_MESSAGE] = _QUOTA_MESSAGE
 
     prompts: list = []
     _patch_scripted_agent(
@@ -865,7 +871,8 @@ async def test_next_turn_sees_the_failure_and_replays_the_failed_turn(monkeypatc
     content = await SupremeAgentExecutor(_channel_config()).stream_response(next_inputs)
 
     assert content == "Final report."
-    # system prompt, then: the request, the failed turn's tool messages, its empty answer, "continue"
+    # system prompt, then: the request, the failed turn's tool messages, the note that it failed
+    # (not its empty answer), "continue"
     assert [m.type for m in prompts[0]] == [
         "system",
         "human",
@@ -873,9 +880,12 @@ async def test_next_turn_sees_the_failure_and_replays_the_failed_turn(monkeypatc
         "ai",
         "tool",
         "system",
-        "ai",
+        "system",
         "human",
     ]
+    assert prompts[0][-2].content == _FAILED_TURN_WITH_ERROR_MESSAGE_TO_AGENT.format(
+        error=_QUOTA_MESSAGE
+    )
     assert captured["messages"][-1] == [
         {"role": "user", "content": "US GDP"},
         {"role": "assistant", "content": "", "custom_content": {"state": _SAVED_PROGRESS}},

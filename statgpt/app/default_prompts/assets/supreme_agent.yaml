@@ -240,3 +240,16 @@ deepResearchFailedMessageToAgent: |-
 
 deepResearchReportAnswerPlaceholder: |-
   I delivered the Deep Research report above to the user verbatim.
+
+failedTurnMessageToAgent: |-
+  An error occurred while generating the response to the user's message above, so no answer was
+  given.
+
+failedTurnWithErrorMessageToAgent: |-
+  An error occurred while generating the response to the user's message above, so no answer was
+  given. The error shown to the user: {error}
+
+interruptedTurnMessageToAgent: |-
+  An error occurred while generating the response above and stopped it, so it was not fully shown
+  to the user: the user saw only the part above, followed by the error. The error shown to the
+  user: {error}
