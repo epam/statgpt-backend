@@ -7,7 +7,7 @@ Shows a channel's discovery (Grade C, metadata-only) datasets that are relevant 
 ## Requirements
 
 ### Requirement: Lookup runs beside every Data Query call
-When the lookup is available for a channel, every Data Query call SHALL run it, for the agent and for MCP clients alike, searching with the tool's `query` argument and starting together with the query pipeline without waiting for any pipeline step such as named entity recognition. The lookup SHALL NOT be a tool the agent or an MCP client can call: `discoveryDatasets` is a channel config block outside the channel's tool list, so it can later become a callable tool.
+When the lookup is available for a channel, every Data Query call SHALL run it, for the agent and for MCP clients alike, searching with the tool's `query` argument and starting once the pipeline's chain is built, without waiting for any step such as named entity recognition. The lookup SHALL NOT be a tool the agent or an MCP client can call: `discoveryDatasets` is a channel config block outside the channel's tool list, because the Data Query tool runs the lookup, not the agent.
 
 #### Scenario: Agent call runs the lookup
 - **WHEN** the agent calls Data Query with `query` = `GDP of France since 2020` on a channel whose `discoveryDatasets.enabled` is true

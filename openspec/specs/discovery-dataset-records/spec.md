@@ -10,23 +10,23 @@ Lets an administrator store, inspect, edit, export and delete a channel's discov
 Every discovery dataset record SHALL belong to exactly one channel, and a channel SHALL hold at most one record per (agency, dataset id), compared ignoring case and leading, trailing and repeated whitespace. Every write SHALL normalize whitespace in each text field before storing it. Deleting a channel SHALL delete its records.
 
 #### Scenario: Keys differing only in case and spacing collide
-- **WHEN** a channel holds agency `BI`, dataset `GDP` and an admin adds agency ` bi `, dataset `gdp`
-- **THEN** the response is 409 naming the colliding agency and dataset id, and nothing is saved
+- **WHEN** a channel holds agency `NSO`, dataset `GDP` and an admin adds agency ` nso `, dataset `gdp`
+- **THEN** the response is 409 naming the colliding key in its compared form, `agency='nso', dataset id='gdp'`, and nothing is saved
 
 #### Scenario: Same key in another channel
-- **WHEN** channel 1 holds agency `BI`, dataset `GDP` and an admin adds the same record to channel 2
+- **WHEN** channel 1 holds agency `NSO`, dataset `GDP` and an admin adds the same record to channel 2
 - **THEN** the record is created in channel 2
 
 ### Requirement: Stored spelling is kept
-A record's agency and dataset id SHALL keep the casing they were stored with, and that spelling is what the API, exports and published documents show. A file or archive resubmission differing from the stored key only in case SHALL leave the record and its statuses untouched, because rewriting it would mark an unchanged record outdated and republish it. A single-record or bulk edit SHALL rewrite the casing, since it is a deliberate correction.
+A record's agency and dataset id SHALL keep the casing they were stored with, and that spelling is what the API, exports and published documents show. Conflict messages name the key in its compared form. A file or archive resubmission differing from the stored key only in case SHALL leave the record and its statuses untouched, because rewriting it would mark an unchanged record outdated and republish it. A single-record or bulk edit SHALL rewrite the casing, since it is a deliberate correction.
 
 #### Scenario: Case-only resubmission
-- **WHEN** a channel holds agency `BI` with indexing status INDEXED and an upload carries the same record with agency `bi` and otherwise identical fields
-- **THEN** the record is counted as unchanged, keeps agency `BI`, and stays INDEXED
+- **WHEN** a channel holds agency `NSO` with indexing status INDEXED and an upload carries the same record with agency `nso` and otherwise identical fields
+- **THEN** the record is counted as unchanged, keeps agency `NSO`, and stays INDEXED
 
 #### Scenario: Edit corrects the casing
-- **WHEN** an admin sends `POST /discovery-datasets/{id}` with `agency` = `BI` for a record stored as `bi`
-- **THEN** the record is returned with agency `BI` and its verdicts are reset
+- **WHEN** an admin sends `POST /discovery-datasets/{id}` with `agency` = `NSO` for a record stored as `nso`
+- **THEN** the record is returned with agency `NSO` and its verdicts are reset
 
 ### Requirement: Writes refuse structural problems only
 Every write SHALL refuse a record whose agency or dataset id is empty after normalization, or whose dataset id cannot name a workbook sheet: over 31 characters, containing any of `: \ / ? * [ ]`, starting or ending with an apostrophe, or equal to `history` in any case; a JSON write answers 422. Content checks SHALL run only in the indexing job, never on a write, because a write cannot absorb LLM-based checks and a stored verdict would go stale whenever the check set changes.
@@ -88,7 +88,7 @@ The admin API SHALL expose `POST /channels/{channel_id}/discovery-datasets` to a
 `POST /channels/{channel_id}/discovery-datasets/bulk` SHALL add a list of records and save nothing unless all can be saved: items sharing a key answer 400 with the per-record problem report naming their positions, and items colliding with stored records answer 409 naming every colliding key. `POST /discovery-datasets/bulk` SHALL edit records by `id`, answer 404 and save nothing when any id is unknown, and return the records in request order.
 
 #### Scenario: Duplicate items in one payload
-- **WHEN** a bulk create carries items 0 and 2 both with agency `BI`, dataset `GDP`
+- **WHEN** a bulk create carries items 0 and 2 both with agency `NSO`, dataset `GDP`
 - **THEN** the response is 400 with a problem naming items 0 and 2, and nothing is saved
 
 #### Scenario: Unknown id in a bulk edit
@@ -99,22 +99,22 @@ The admin API SHALL expose `POST /channels/{channel_id}/discovery-datasets` to a
 `GET /channels/{channel_id}/discovery-datasets` SHALL return a page of the channel's records ordered by id, with `limit` (default 100), `offset` (default 0), `count` and the filtered `total`. It SHALL accept `validation_status`, `indexing_status` and `agency`, combined with AND, where `agency` matches ignoring case and whitespace, and `include_summary_calls` as the single-record read does.
 
 #### Scenario: Agency filter folds case
-- **WHEN** a channel holds 3 records of agency `BI` and an admin lists with `agency=bi&validation_status=INVALID`
+- **WHEN** a channel holds 3 records of agency `NSO` and an admin lists with `agency=nso&validation_status=INVALID`
 - **THEN** the response holds the invalid records among those 3, and `total` counts only them
 
 ### Requirement: Stats summarize a channel's records
 `GET /channels/{channel_id}/discovery-datasets/stats` SHALL return `total`, `by_validation_status` and `by_indexing_status`, each carrying every status including zeros, and `by_agency`. `by_agency` SHALL hold one entry per agency as the `agency` filter folds it, keyed by one of its stored spellings and ordered by count descending, then by name, so every key works as an `agency` filter value.
 
 #### Scenario: Spellings folded into one entry
-- **WHEN** a channel holds 2 records of agency `BI`, 1 of `bi` and 1 of `ECB`
-- **THEN** `by_agency` has two entries: a stored spelling of `BI` with count 3, then `ECB` with count 1
+- **WHEN** a channel holds 2 records of agency `NSO`, 1 of `nso` and 1 of `ECB`
+- **THEN** `by_agency` has two entries: a stored spelling of `NSO` with count 3, then `ECB` with count 1
 
 #### Scenario: Empty channel
 - **WHEN** a channel holds no records
 - **THEN** `total` is 0 and every status in both status maps is 0
 
 ### Requirement: Deleting records withdraws their published documents
-Every explicit delete, of one record, of records by id (`DELETE /discovery-datasets/bulk`, possibly spanning channels) or of a whole channel (`DELETE /channels/{channel_id}/discovery-datasets/bulk`), SHALL first remove the records' documents from each owning channel's discovery RAG application and only then delete the rows. If that removal fails the request SHALL answer 502 and leave every row in place. The bulk deletes SHALL return the deleted records.
+Every explicit delete, of one record, of records by id (`DELETE /discovery-datasets/bulk`, possibly spanning channels) or of a whole channel (`DELETE /channels/{channel_id}/discovery-datasets/bulk`), SHALL first remove the records' documents from each owning channel's discovery RAG application and only then delete the rows. If that removal fails the request SHALL answer 502 and leave every row in place. The bulk deletes SHALL return the deleted records and ignore ids that match no record.
 
 #### Scenario: RAG application unreachable
 - **WHEN** an admin deletes record 5, which is INDEXED, and the channel's discovery RAG application cannot be reached
@@ -147,7 +147,7 @@ Deleting all of a channel's records SHALL also clear the channel's whole referen
 - **THEN** the response is 404 naming id 77
 
 #### Scenario: Id combined with a filter
-- **WHEN** an admin exports with `id=5&agency=BI`
+- **WHEN** an admin exports with `id=5&agency=NSO`
 - **THEN** the response is 422
 
 ### Requirement: Records export produces an uploadable file
@@ -173,10 +173,10 @@ With `include_validation=true` the export SHALL append to each row the stored va
 - **THEN** its issues cell says no indexing job has checked it since it was last written
 
 ### Requirement: Workbook export refuses records a workbook cannot hold
-A `format=xlsx` export SHALL answer 400, naming up to 10 offending records and counting the rest, when a dataset id is shared by two agencies ignoring case and whitespace, names a template sheet (`Datasets`, `Instructions`) or cannot name a sheet, or when a value exceeds 32,767 characters. It SHALL NOT rename sheets or truncate values, because the file would upload back as different records. Every text cell SHALL be written as a string, so a value starting with `=` never becomes a formula.
+A `format=xlsx` export SHALL answer 400, naming up to 10 problems and counting the rest, when a dataset id is shared by two agencies ignoring case and whitespace, names a template sheet (`Datasets`, `Instructions`) or cannot name a sheet, or when a value exceeds 32,767 characters. It SHALL NOT rename sheets or truncate values, because the file would upload back as different records. Every text cell SHALL be written as a string, so a value starting with `=` never becomes a formula.
 
 #### Scenario: Dataset id shared by two agencies
-- **WHEN** the selection holds agency `BI` dataset `GDP` and agency `ECB` dataset `gdp`
+- **WHEN** the selection holds agency `NSO` dataset `GDP` and agency `ECB` dataset `gdp`
 - **THEN** the response is 400 saying the dataset id is also used by another agency, and the same selection exports as CSV
 
 #### Scenario: Formula-like value

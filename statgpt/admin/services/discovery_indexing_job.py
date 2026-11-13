@@ -185,9 +185,9 @@ class AdminPortalDiscoveryIndexingJobService(DbServiceBase):
         Reuses the recovery helper the other background-job types use, so discovery runs
         follow identical fix_statuses semantics (including the 12-hour staleness guard).
 
-        This is the only thing that clears a job abandoned mid-run - a cancelled task never
-        reaches the failure handler in `process_job` - and until it does, `trigger` keeps
-        answering 409 for the channel.
+        This is what clears a job abandoned mid-run without `process_job` recording the
+        failure - the process died, or the failure could not be written - and until it does,
+        `trigger` keeps answering 409 for the channel.
         """
         await set_failed_status(
             self._session,

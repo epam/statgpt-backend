@@ -37,7 +37,7 @@ Records SHALL be published to the Generic RAG application named by `applicationI
 
 #### Scenario: Unknown job
 - **WHEN** job 999 does not exist and it is polled
-- **THEN** the response is 404 saying discovery indexing job with id=999 was not found
+- **THEN** the response is 404 saying `Discovery indexing job with id=999 not found.`
 
 #### Scenario: Listing a channel's jobs
 - **WHEN** channel 7 has jobs 3, 5 and 9 and is listed with `limit=2`
@@ -88,7 +88,7 @@ The trigger's `force` query parameter SHALL take stage names, repeated once per 
 - **THEN** the response is 422 and no job is created
 
 ### Requirement: Every record is re-validated in isolation
-Each run SHALL evaluate the checks over every record, whatever its stored verdict. A record with any issue SHALL become `INVALID` with its issues (`field`, `message`) stored, otherwise `VALID` with issues cleared; both get `validated_at`. There SHALL be no severity: any issue makes a record unpublishable, so a check must only emit one when the record should not be indexed. A check that raises SHALL become an issue on its own field, and other checks and records SHALL still run.
+Each run SHALL evaluate the checks over every record, whatever its stored verdict. A record with any issue SHALL become `INVALID` with its issues (`field`, `message`) stored, otherwise `VALID` with issues cleared; both get `validated_at`. There SHALL be no severity: any issue makes a record unpublishable, so a check must only emit one when the record should not be indexed. A check that raises SHALL become an issue whose `field` is the check's name, and other checks and records SHALL still run.
 
 #### Scenario: Previously valid record fails a new check
 - **WHEN** a record stored as `VALID` now lacks a field the current checks require
@@ -118,11 +118,11 @@ A record SHALL be `INVALID` when its `description` is empty; when `reference_are
 - **THEN** neither gets a `url` issue, while `ftp://stats.example.org` would
 
 ### Requirement: One document per record, body is the description
-Each published record SHALL be one plain-text document whose content is its `description` alone; every other field SHALL travel verbatim as metadata, with `grade` `C` and `statgpt_channel` set to the channel's deployment id. Only `indicators_coverage` SHALL be paraphrased: it carries the record's indicator summary, not the submitted list. `missing_indicators` SHALL be sent empty. No field is repeated between body and metadata, because the application indexes both and would index it twice.
+Each published record SHALL be one plain-text document whose content is its `description` alone; every other field SHALL travel verbatim as metadata, with `grade` `C` and `statgpt_channel` set to the channel's deployment id. Only `indicators_coverage` SHALL be paraphrased: it carries the record's indicator summary, not the submitted list. No field is repeated between body and metadata, because the application indexes both and would index it twice.
 
 #### Scenario: Document of a record
-- **WHEN** a valid record of channel `ch-1` with description "Monthly money supply", agency `BI` and dataset `M2` is published
-- **THEN** its content is "Monthly money supply" and its metadata holds `grade` `C`, `statgpt_channel` `ch-1`, `agency` `BI`, `dataset_id` `M2`, `name`, `url`, `reference_area`, `regional_coverage`, `time_coverage`, `frequency_coverage`, `indicators_coverage` and the `parsed_*` arrays, none of them holding the description
+- **WHEN** a valid record of channel `ch-1` with description "Monthly money supply", agency `NSO` and dataset `M2` is published
+- **THEN** its content is "Monthly money supply" and its metadata holds `grade` `C`, `statgpt_channel` `ch-1`, `agency` `NSO`, `dataset_id` `M2`, `name`, `url`, `reference_area`, `regional_coverage`, `time_coverage`, `frequency_coverage`, `indicators_coverage` and the `parsed_*` arrays, none of them holding the description
 
 ### Requirement: List cells are split into parsed arrays
 At publish time `reference_area` SHALL be split into `parsed_reference_areas` and `parsed_partner_reference_areas`, and `frequency_coverage` into `parsed_frequencies`, beside the verbatim cells. Splitting SHALL use no LLM: split on `;`, normalize whitespace, drop empties and case-insensitive duplicates. A token starting with `partner countries:` SHALL mark itself and every later token as partners. Areas SHALL be kept as written; frequencies SHALL take the vocabulary's spelling.
@@ -146,11 +146,11 @@ Every array metadata field of a discovery or vocabulary document SHALL be a non-
 A record's document SHALL be named `{agency} - {dataset_id} [{digest}].txt`, with invalid file-name characters escaped, the readable part capped at 100 characters, and a 12-hex-character SHA-256 digest of the grade, the channel's deployment id and the record's key folded for case and whitespace. Uploads SHALL overwrite a file stored under that name. The digest exists because the RAG service derives storage paths from names alone, so equal names would collapse into one document.
 
 #### Scenario: Same record in two channels
-- **WHEN** record `BI` / `GDP` exists in channels `ch-1` and `ch-2`, both publishing to one application
+- **WHEN** record `NSO` / `GDP` exists in channels `ch-1` and `ch-2`, both publishing to one application
 - **THEN** the two documents have different digests and both stay in the index
 
 #### Scenario: Re-spelled key
-- **WHEN** a record's agency is re-spelled from `bi` to `BI`
+- **WHEN** a record's agency is re-spelled from `nso` to `NSO`
 - **THEN** the digest is unchanged and only the readable part of the name changes
 
 ### Requirement: Documents are scoped and the metadata schema is verified
@@ -191,7 +191,7 @@ For an `INVALID` record, a run SHALL delete its document, then set the record `N
 - **THEN** the run deletes it
 
 ### Requirement: Publish failures are recorded per record after settling
-Records SHALL be published `DISCOVERY_PUBLISH_CONCURRENCY` at a time (default 8); an error marks that record `FAILED` with `index_error` and the run continues. The run SHALL then wait for uploads not yet `ready` or `error`, re-listing at 1 s doubling to 5 s, for up to `DISCOVERY_PUBLISH_SETTLE_TIMEOUT_SECONDS` (default 300, 0 disables). A document in `error` SHALL mark its record `FAILED` with `index_error`; one still processing at the deadline leaves its record `INDEXED`.
+Records SHALL be published `DISCOVERY_PUBLISH_CONCURRENCY` at a time (default 8); an error marks that record `FAILED` with `index_error` and the run continues. The run SHALL then wait for uploads not yet `ready` or `error`, checking at once, then after 1 s waits doubling to 5 s, for up to `DISCOVERY_PUBLISH_SETTLE_TIMEOUT_SECONDS` (default 300, 0 disables). A document in `error` SHALL mark its record `FAILED` with `index_error`; one still processing at the deadline leaves its record `INDEXED`.
 
 #### Scenario: Document fails to index in the background
 - **WHEN** a record's upload is accepted with status `processing` and the document later lists as `error`

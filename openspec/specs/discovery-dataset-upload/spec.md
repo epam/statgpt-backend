@@ -57,11 +57,11 @@ A file that cannot be read as a discovery workbook or CSV, exceeds the per-file 
 Two or more records in a request that land on the same (agency, dataset id), ignoring case and spacing, SHALL refuse the upload with one problem per key, located at the first of them and naming every file and row involved, whether the records are in one file or in different files. When they are all in one file, the problem's `cell` SHALL list every dataset id cell involved.
 
 #### Scenario: Same dataset in two files
-- **WHEN** `a.xlsx` row 2 and `b.csv` row 7 both describe agency `BI`, dataset `GDP`
+- **WHEN** `a.xlsx` row 2 and `b.csv` row 7 both describe agency `NSO`, dataset `GDP`
 - **THEN** the response is 400 with a problem naming `a.xlsx` row 2 and `b.csv` row 7, and nothing is saved
 
 #### Scenario: Same dataset three times in one workbook
-- **WHEN** rows 2, 3 and 4 of `a.xlsx` all describe agency `BI`, dataset `GDP`
+- **WHEN** rows 2, 3 and 4 of `a.xlsx` all describe agency `NSO`, dataset `GDP`
 - **THEN** the response carries a single problem at row 2 naming rows 2, 3 and 4, with cell `D2, D3, D4`
 
 ### Requirement: Duplicate file names are refused
@@ -134,7 +134,7 @@ With the `discovery` component selected, `statgpt content init` SHALL upload eve
 - **THEN** the new records stay NEW and the output suggests `discovery reindex -c macro`
 
 ### Requirement: Workbook rows come from the Datasets sheet
-A workbook SHALL be read from its `Datasets` sheet, found by name ignoring case and surrounding spaces, or else from its second sheet; a one-sheet workbook without it SHALL be refused. The template columns A-I are reference area, regional coverage, agency, dataset id, name, description, URL, time coverage and frequency coverage. Headers SHALL be matched by text ignoring case and order; columns with unknown headers SHALL be ignored, as are an export's validation columns.
+A workbook SHALL be read from its `Datasets` sheet, found by name ignoring case and surrounding spaces, or else from its second sheet; a one-sheet workbook without it SHALL be refused. The template columns A-I are reference area, regional coverage, agency, dataset id, name, description, URL, time coverage and frequency coverage. Headers SHALL be matched ignoring case and order, by template text or field name; columns with unknown headers SHALL be ignored, as are an export's validation columns.
 
 #### Scenario: Columns reordered
 - **WHEN** the `datasets` sheet has `Dataset ID` in column A and `Agency / organization` in column C
@@ -149,21 +149,25 @@ A workbook SHALL be read from its `Datasets` sheet, found by name ignoring case 
 - **THEN** the file is refused naming the missing `Dataset ID` column
 
 ### Requirement: Indicators live on one sheet per dataset
-A workbook SHALL take each dataset's indicators from the sheet named after its dataset id, matched ignoring case and spacing, with `Indicator` and `Units of measure` columns (or exactly two columns in that order). A dataset with no such sheet, or a sheet holding only its header, SHALL get an empty indicator list. Sheets no dataset id names, and the `Instructions` sheet, SHALL be ignored unread. Two sheets matching one dataset id SHALL be a problem on its row.
+A workbook SHALL take each dataset's indicators from the sheet named after its dataset id, matched ignoring case and spacing, with `Indicator` and `Units of measure` columns or variants such as `Unit` (or exactly two columns in that order); a sheet with neither SHALL be a problem at its `A1`. A dataset with no such sheet, or only a header on it, SHALL get no indicators. Sheets no dataset id names SHALL be ignored unread. Two sheets matching one dataset id SHALL be a problem on its row.
 
 #### Scenario: Dataset without a sheet
 - **WHEN** row 2 describes dataset `GDP` and the workbook has no `GDP` sheet
 - **THEN** the record is stored with no indicators, and the indexing run reports it invalid
+
+#### Scenario: Unreadable indicators sheet
+- **WHEN** sheet `GDP` has three columns and none is headed `Indicator`
+- **THEN** the upload is refused with a problem at `'GDP'!A1`
 
 #### Scenario: Stray sheet
 - **WHEN** the workbook also holds a sheet `Notes` that no dataset id names
 - **THEN** the sheet is ignored and the upload succeeds
 
 ### Requirement: Dataset ids are unique within a workbook
-Within one workbook a dataset id SHALL be unique across agencies, ignoring case and spacing, and SHALL NOT name a template sheet (`Datasets`, `Instructions`), because it names the dataset's indicators sheet. These checks apply to workbooks only; such datasets can be uploaded as separate files or as CSV. The generic dataset id rules are in `discovery-dataset-records`.
+Within one workbook a dataset id SHALL be unique across agencies, ignoring case and spacing, and SHALL NOT name a template sheet (`Datasets`, `Instructions`, or the sheet read as `Datasets` when the workbook falls back to its second sheet), because it names the dataset's indicators sheet. These checks apply to workbooks only; such datasets can be uploaded as separate files or as CSV. The generic dataset id rules are in `discovery-dataset-records`.
 
 #### Scenario: Same id under two agencies
-- **WHEN** row 2 has agency `BI`, dataset `GDP` and row 5 has agency `ECB`, dataset `gdp`
+- **WHEN** row 2 has agency `NSO`, dataset `GDP` and row 5 has agency `ECB`, dataset `gdp`
 - **THEN** the upload is refused with a problem at row 5 saying the id is already used on row 2
 
 #### Scenario: Id naming a template sheet
@@ -178,7 +182,11 @@ A row whose every read cell is blank after whitespace normalization SHALL be ski
 - **THEN** both datasets are loaded and `rows_read` is 2
 
 ### Requirement: Files following the retired template are refused
-A workbook or CSV carrying a column the current template dropped, `Excluded regional values` or `Relevant indicators not present` (in either spelling), or a workbook whose `Datasets` sheet carries `Indicators coverage`, SHALL be refused in full with a message naming the column and listing the expected columns. The values were authored, so dropping the column silently would be data loss.
+A workbook or CSV carrying a column the current template dropped, `Excluded regional values` or `Relevant indicators not present` (in either spelling, or under the field names `excluded_regional_values` and `missing_indicators` in any of their header forms), or a workbook whose `Datasets` sheet carries `Indicators coverage`, SHALL be refused in full with a message naming the column and listing the expected columns. The values were authored, so dropping the column silently would be data loss.
+
+#### Scenario: Retired field name in a CSV
+- **WHEN** a CSV has a `missing_indicators` column
+- **THEN** the file is refused naming that column, and nothing is saved
 
 #### Scenario: Old workbook
 - **WHEN** the `Datasets` sheet has `Excluded regional values` in column J
@@ -189,7 +197,7 @@ A workbook or CSV carrying a column the current template dropped, `Excluded regi
 - **THEN** the file is refused, pointing to one indicators sheet per dataset
 
 ### Requirement: A CSV carries indicators as a JSON list
-A CSV SHALL be flat: the nine template columns plus `indicators_coverage`, holding a JSON list of `{name, units}`; a blank cell is an empty list. Headers SHALL match the template text or the field name (snake_case, spaced or camelCase), ignoring case. The flat `name (units); ...` text SHALL be refused as a problem on its row. A CSV without the column SHALL leave stored indicators as they are.
+A CSV SHALL be flat: the nine template columns plus `indicators_coverage`, holding a JSON list of `{name, units}`; a blank cell is an empty list. Headers SHALL match the template text or the field name (snake_case, spaced or camelCase), ignoring case. With no header recognized, a CSV exactly ten columns wide SHALL be read in that order. The flat `name (units); ...` text SHALL be refused as a problem on its row. A CSV without the column SHALL leave stored indicators as they are.
 
 #### Scenario: Older flat text
 - **WHEN** row 3's `indicators_coverage` is `GDP (USD); CPI (index)`

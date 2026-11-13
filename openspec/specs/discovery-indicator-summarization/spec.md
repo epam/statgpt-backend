@@ -202,7 +202,7 @@ The workbook SHALL have a `Summaries` sheet with one row per record, sorted by a
 A record's sheet SHALL be named after its dataset id with characters Excel forbids replaced by `_`, cut to 31 characters, and unique ignoring case, numbered ` (2)`, ` (3)` on collision. It SHALL never take `Summaries` or `History`.
 
 #### Scenario: Same dataset id under two agencies
-- **WHEN** agencies `BI` and `ECB` both have a summarized record with dataset id `gdp`
+- **WHEN** agencies `NSO` and `ECB` both have a summarized record with dataset id `gdp`
 - **THEN** their call sheets are named `gdp` and `gdp (2)`
 
 #### Scenario: Forbidden characters
