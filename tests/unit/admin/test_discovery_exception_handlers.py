@@ -14,11 +14,12 @@ from statgpt.admin.services.exceptions import (
     AdminServiceError,
     DiscoveryDatasetConflictError,
     DiscoveryDatasetNotFoundError,
+    DiscoveryDatasetsNotInChannelError,
+    DiscoveryExportError,
     DiscoveryIndexingJobNotFoundError,
     DiscoveryPayloadError,
     DiscoveryRagNotConfiguredError,
     DiscoveryUploadFormatError,
-    DiscoveryUploadTooLargeError,
     IndexingJobInProgressError,
 )
 from statgpt.common import schemas
@@ -44,11 +45,12 @@ def _problem(**kwargs: object) -> schemas.DiscoveryPayloadProblem:
     [
         (DiscoveryDatasetNotFoundError(7), 404),
         (DiscoveryIndexingJobNotFoundError(7), 404),
+        (DiscoveryDatasetsNotInChannelError(channel_id=1, item_ids=[7, 8]), 404),
+        (DiscoveryExportError("no workbook"), 400),
         (DiscoveryDatasetConflictError("already exists"), 409),
         (IndexingJobInProgressError(channel_id=1, job_id=2), 409),
         (IndexingJobInProgressError(channel_id=1), 409),
         (DiscoveryRagNotConfiguredError(channel_id=1), 409),
-        (DiscoveryUploadTooLargeError("too big"), 413),
         (DiscoveryUploadFormatError("unreadable"), 400),
         (DiscoveryPayloadError(problems=[]), 400),
     ],

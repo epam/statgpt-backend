@@ -13,11 +13,11 @@ from fastapi.responses import JSONResponse, PlainTextResponse
 
 from statgpt.admin.services.exceptions import (
     DiscoveryDatasetConflictError,
+    DiscoveryExportError,
     DiscoveryNotFoundError,
     DiscoveryPayloadError,
     DiscoveryRagNotConfiguredError,
     DiscoveryUploadFormatError,
-    DiscoveryUploadTooLargeError,
     IndexingJobInProgressError,
 )
 from statgpt.common import schemas
@@ -56,11 +56,11 @@ def register_exception_handlers(app: FastAPI) -> None:
             schemas.DiscoveryPayloadErrorDetail(message=str(exc), problems=[])
         )
 
-    @app.exception_handler(DiscoveryUploadTooLargeError)
-    async def _too_large(_: Request, exc: DiscoveryUploadTooLargeError) -> JSONResponse:
-        return JSONResponse(
-            status_code=status.HTTP_413_CONTENT_TOO_LARGE, content={"detail": str(exc)}
-        )
+    @app.exception_handler(DiscoveryExportError)
+    async def _export_error(_: Request, exc: DiscoveryExportError) -> JSONResponse:
+        """Records the requested format cannot hold: 400, naming them."""
+        _log.info(f"Refused a discovery export: {exc}")
+        return JSONResponse(status_code=status.HTTP_400_BAD_REQUEST, content={"detail": str(exc)})
 
     @app.exception_handler(DiscoveryNotFoundError)
     async def _not_found(_: Request, exc: DiscoveryNotFoundError) -> JSONResponse:

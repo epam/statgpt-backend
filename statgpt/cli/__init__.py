@@ -1,6 +1,7 @@
 """StatGPT CLI - Interactive command-line interface for StatGPT administration."""
 
 import asyncio
+import shlex
 import sys
 
 from statgpt.cli.commands import create_registry
@@ -36,7 +37,9 @@ async def _execute_direct(registry: CommandRegistry, args: list[str]) -> int:
 
     Returns 0 for success, 1 for error.
     """
-    command_str = " ".join(args)
+    # Quoted, so an argument the system shell kept whole (a path with a space) stays whole
+    # when the registry splits the string again.
+    command_str = shlex.join(args)
 
     if args[0] == "help":
         if len(args) == 1:

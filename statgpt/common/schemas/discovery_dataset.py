@@ -1,8 +1,16 @@
 import datetime
 from collections.abc import Iterable, Mapping, Sequence
-from typing import Annotated, Any
+from typing import Annotated, Any, Self
 
-from pydantic import AfterValidator, ConfigDict, Field, JsonValue, TypeAdapter, computed_field
+from pydantic import (
+    AfterValidator,
+    ConfigDict,
+    Field,
+    JsonValue,
+    TypeAdapter,
+    computed_field,
+    model_validator,
+)
 
 from statgpt.common.utils.discovery_cells import render_indicator
 from statgpt.common.utils.misc import normalize_whitespace
@@ -452,6 +460,34 @@ class DiscoveryDatasetStats(BaseYamlModel):
     """
 
 
+class DiscoveryExportFilters(BaseYamlModel):
+    """Which of a channel's discovery datasets an export holds.
+
+    Either the list endpoint's filters, or a selection of record ids - not both: the ids
+    would win, and an export broader than asked for would look complete. Nothing set exports
+    the whole channel.
+    """
+
+    model_config = ConfigDict(use_attribute_docstrings=True)
+
+    validation_status: DiscoveryValidationStatus | None = None
+    indexing_status: DiscoveryIndexingStatus | None = None
+    agency: str | None = None
+
+    ids: list[int] | None = None
+    """Database record ids, as a row selection in the Admin UI sends them."""
+
+    @model_validator(mode="after")
+    def _ids_stand_alone(self) -> Self:
+        filtered = (self.validation_status, self.indexing_status, self.agency)
+        if self.ids is not None and any(value is not None for value in filtered):
+            raise ValueError(
+                "`id` selects records on its own and cannot be combined with `agency`,"
+                " `validation_status` or `indexing_status`."
+            )
+        return self
+
+
 class DiscoveryPayloadProblem(BaseYamlModel):
     """One structural problem that kept a payload from being saved."""
 
@@ -459,6 +495,9 @@ class DiscoveryPayloadProblem(BaseYamlModel):
 
     message: str
     """What is wrong, naming the offending value."""
+
+    file: str | None = None
+    """Name of the uploaded file the problem was found in. None for a JSON payload."""
 
     field: str | None = None
     """The record field the problem concerns, when it concerns one."""
@@ -500,6 +539,18 @@ class DiscoveryPayloadErrorResponse(BaseYamlModel):
     detail: DiscoveryPayloadErrorDetail
 
 
+class DiscoveryUploadFileSummary(BaseYamlModel):
+    """What an upload read from one of its files."""
+
+    model_config = ConfigDict(use_attribute_docstrings=True)
+
+    file: str
+    """The uploaded file's name."""
+
+    rows_read: int = 0
+    """Data rows found in the file, excluding the header and blank rows."""
+
+
 class DiscoveryUploadSummary(BaseYamlModel):
     """What an upload did to the records a channel holds."""
 
@@ -515,7 +566,10 @@ class DiscoveryUploadSummary(BaseYamlModel):
     """Records that already existed with identical fields. Not rewritten, so statuses are kept."""
 
     deleted: int = 0
-    """Records absent from the file and removed. Always 0 in upsert mode."""
+    """Records absent from every uploaded file and removed. Always 0 in upsert mode."""
 
     rows_read: int = 0
-    """Data rows found in the file, excluding the header and blank rows."""
+    """Data rows found in all uploaded files, excluding headers and blank rows."""
+
+    files: list[DiscoveryUploadFileSummary] = Field(default_factory=list)
+    """One entry per uploaded file, in request order."""

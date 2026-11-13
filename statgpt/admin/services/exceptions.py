@@ -20,7 +20,11 @@ _PROBLEMS_IN_MESSAGE = 5
 
 
 def _render_problem(problem: schemas.DiscoveryPayloadProblem) -> str:
-    """Render a problem as `<where>: <what>`, using the most precise location it carries."""
+    """Render a problem as `<where>: <what>`, using the most precise location it carries.
+
+    The file comes first when the problem has one, so a batch upload's log line says which
+    of its files to open: `a.xlsx D14: ...`.
+    """
     if problem.cell:
         where = problem.cell
     elif problem.row is not None:
@@ -28,6 +32,10 @@ def _render_problem(problem: schemas.DiscoveryPayloadProblem) -> str:
     elif problem.index is not None:
         where = f"item {problem.index}"
     else:
+        where = ""
+    if problem.file:
+        where = f"{problem.file} {where}".rstrip()
+    if not where:
         return problem.message
     return f"{where}: {problem.message}"
 
@@ -106,6 +114,18 @@ class DiscoveryDatasetNotFoundError(DiscoveryNotFoundError):
         super().__init__(f"Discovery dataset with id={item_id} not found.")
 
 
+class DiscoveryDatasetsNotInChannelError(DiscoveryNotFoundError):
+    """Records selected by id that the channel does not hold, all of them named at once."""
+
+    def __init__(self, channel_id: int, item_ids: Sequence[int]) -> None:
+        self.item_ids = sorted(item_ids)
+        listed = ", ".join(str(item_id) for item_id in self.item_ids)
+        super().__init__(
+            f"Channel {channel_id} has no discovery dataset with id(s): {listed}. Nothing was"
+            f" exported: a report without them would look complete when it is not."
+        )
+
+
 class DiscoveryIndexingJobNotFoundError(DiscoveryNotFoundError):
     def __init__(self, job_id: int) -> None:
         super().__init__(f"Discovery indexing job with id={job_id} not found.")
@@ -162,6 +182,10 @@ class DiscoveryPayloadError(AdminServiceError):
 
 class DiscoveryUploadFormatError(AdminServiceError):
     """An uploaded file could not be read as a discovery workbook or CSV."""
+
+
+class DiscoveryExportError(AdminServiceError):
+    """The selected records cannot be laid out in the requested export format."""
 
 
 class DiscoveryUploadTooLargeError(AdminServiceError):

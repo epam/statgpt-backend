@@ -4,7 +4,7 @@ import io
 import logging
 import os
 import zipfile
-from collections import defaultdict
+from collections import Counter, defaultdict
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, field
 from typing import Any
@@ -28,6 +28,7 @@ from statgpt.common.services import (
 )
 
 from .discovery_area_publisher import ReferenceAreaPublisher
+from .discovery_export import build_csv, build_workbook, export_rows
 from .discovery_publisher import withdraw_documents
 from .discovery_upload import (
     FIELD_LABELS,
@@ -42,6 +43,7 @@ from .discovery_upload import (
 from .exceptions import (
     DiscoveryDatasetConflictError,
     DiscoveryDatasetNotFoundError,
+    DiscoveryDatasetsNotInChannelError,
     DiscoveryPayloadError,
     DiscoveryUploadFormatError,
     DiscoveryUploadTooLargeError,
@@ -67,6 +69,12 @@ _DESCRIPTIVE_FIELDS = frozenset(RECORD_FIELDS)
 
 _DiscoveryFields = schemas.DiscoveryDatasetBase | schemas.DiscoveryDatasetUpdate
 """Either shape a write arrives in: a whole record, or the subset of an edit."""
+
+
+def _format_size(size: int) -> str:
+    """`10 MB` for a whole number of megabytes, the exact byte count otherwise."""
+    megabytes, remainder = divmod(size, 1024 * 1024)
+    return f"{megabytes} MB" if megabytes and not remainder else f"{size} bytes"
 
 
 def _quote_key(key: RecordKey) -> str:
@@ -97,6 +105,9 @@ class _DiscoveryCandidate:
 
     record: schemas.DiscoveryDatasetBase
 
+    file: str | None = None
+    """Name of the uploaded file the record came from. None for a JSON payload."""
+
     index: int | None = None
     """0-based position in a JSON payload."""
 
@@ -123,6 +134,9 @@ class _RawRecord:
 
     indicators: list[schemas.DiscoveryIndicator] | None = None
     """The record's indicators, `None` when the file has no column for them."""
+
+    file: str | None = None
+    """Name of the uploaded file. None for a file that is not an upload, like an archive's."""
 
     index: int | None = None
     """0-based position in the file's records."""
@@ -160,11 +174,15 @@ def _build_candidates_from_rows(
             record = schemas.DiscoveryDatasetBase.model_validate(values)
         except ValidationError as e:
             problems.extend(
-                _problems_from_validation_error(e, index=item.index, row=item.row, cells=item.cells)
+                _problems_from_validation_error(
+                    e, file=item.file, index=item.index, row=item.row, cells=item.cells
+                )
             )
             continue
         candidates.append(
-            _DiscoveryCandidate(record=record, index=item.index, row=item.row, cells=item.cells)
+            _DiscoveryCandidate(
+                record=record, file=item.file, index=item.index, row=item.row, cells=item.cells
+            )
         )
 
     return candidates, problems
@@ -177,7 +195,8 @@ def _duplicate_problems(
 
     Two records that normalize onto one key cannot both be stored, and the payload cannot be
     repaired in the UI, so it is refused rather than half-applied. The problem is located at
-    the first of them, and its cell names every cell involved.
+    the first of them, and its cell names every cell involved - when they are all in one file,
+    since cell references from different files mean nothing side by side.
 
     Keys are compared folded, exactly like the unique constraint; comparing raw strings
     would let ``'BI'`` and ``'bi '`` through, only to die on an IntegrityError at flush - a
@@ -196,7 +215,9 @@ def _duplicate_problems(
         if len(group) < 2:
             continue
         first = group[0]
-        cells = [cell for item in group if (cell := item.cells.get("dataset_id"))]
+        cells: list[str] = []
+        if _in_one_file(group):
+            cells = [cell for item in group if (cell := item.cells.get("dataset_id"))]
         problems.append(
             schemas.DiscoveryPayloadProblem(
                 message=(
@@ -204,6 +225,7 @@ def _duplicate_problems(
                     f" {_quote_key(key)}. Ignoring case and spacing, they describe the same"
                     f" dataset, so keep one of them."
                 ),
+                file=first.file,
                 field="dataset_id",
                 index=first.index,
                 row=first.row,
@@ -214,9 +236,19 @@ def _duplicate_problems(
     return problems
 
 
+def _in_one_file(group: Sequence[_DiscoveryCandidate]) -> bool:
+    return len({item.file for item in group}) == 1
+
+
 def _locations(group: Sequence[_DiscoveryCandidate]) -> str:
-    """`Rows 2, 3, 4` for a file's records, `Items 0, 2` for a JSON payload's."""
+    """Where a group of records sits, for a message naming all of them.
+
+    `Rows 2, 3, 4` within one file, `a.xlsx row 2, b.csv row 7` across files, and
+    `Items 0, 2` in a JSON payload.
+    """
     if all(item.row is not None for item in group):
+        if not _in_one_file(group):
+            return ", ".join(f"{item.file} row {item.row}" for item in group)
         return "Rows " + ", ".join(str(item.row) for item in group)
     if all(item.index is not None for item in group):
         return "Items " + ", ".join(str(item.index) for item in group)
@@ -235,6 +267,7 @@ def _raise_for_problems(
 
 def _problems_from_validation_error(
     error: ValidationError,
+    file: str | None = None,
     index: int | None = None,
     row: int | None = None,
     cells: dict[str, str] | None = None,
@@ -259,6 +292,7 @@ def _problems_from_validation_error(
         problems.append(
             schemas.DiscoveryPayloadProblem(
                 message=f"{label} {message}." if label else f"{message}.",
+                file=file,
                 field=field_name,
                 index=index,
                 row=row,
@@ -644,7 +678,7 @@ class AdminPortalDiscoveryDatasetService(DiscoveryDatasetService):
 
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~ file upload ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-    async def read_upload(self, file: UploadFile) -> bytes:
+    async def _read_upload(self, file: UploadFile) -> bytes:
         """Read an upload into memory, refusing anything over the configured cap.
 
         Read in chunks so an oversized file is refused without a second full copy of it in
@@ -658,31 +692,62 @@ class AdminPortalDiscoveryDatasetService(DiscoveryDatasetService):
             buffer.extend(chunk)
             if len(buffer) > limit:
                 raise DiscoveryUploadTooLargeError(
-                    f"The file is larger than the {limit // (1024 * 1024)} MB limit."
+                    f"The file is larger than the {_format_size(limit)} limit."
                 )
         return bytes(buffer)
 
-    async def upload(
-        self,
-        channel_id: int,
-        data: bytes,
-        filename: str | None,
-        mode: schemas.RecordUploadMode,
-    ) -> schemas.DiscoveryUploadSummary:
-        """Load a filled discovery workbook or CSV into a channel."""
-        channel = await ChannelService(self._session).get_model_by_id(channel_id)
+    def _request_problems(self, filenames: Sequence[str]) -> list[schemas.DiscoveryPayloadProblem]:
+        """Problems of the request as a whole, found before any file is read."""
+        limit = self._UPLOAD_SETTINGS.max_files
+        if len(filenames) > limit:
+            return [
+                schemas.DiscoveryPayloadProblem(
+                    message=(
+                        f"The upload carries {len(filenames)} files, more than the limit of"
+                        f" {limit}. Upload them in several batches."
+                    )
+                )
+            ]
+        counts = Counter(filenames)
+        return [
+            schemas.DiscoveryPayloadProblem(
+                message=(
+                    f"{count} uploaded files are named {name!r}. Rename them so every file"
+                    f" of an upload has a distinct name."
+                ),
+                file=name,
+            )
+            for name, count in counts.items()
+            if count > 1
+        ]
 
-        parsed = await asyncio.to_thread(
-            parse_discovery_file,
-            data,
-            filename,
-            self._UPLOAD_SETTINGS.max_rows,
-            self._UPLOAD_SETTINGS.max_indicators_per_dataset,
-        )
+    async def _parse_upload(
+        self, file: UploadFile, filename: str
+    ) -> tuple[list[_RawRecord], list[schemas.DiscoveryPayloadProblem]]:
+        """Read and parse one file of an upload, reporting a file it cannot read as a problem.
+
+        A file-level failure is collected rather than raised, so the other files of the batch
+        are still checked and the response lists everything wrong with it at once.
+        """
+        try:
+            data = await self._read_upload(file)
+            parsed = await asyncio.to_thread(
+                parse_discovery_file,
+                data,
+                filename,
+                self._UPLOAD_SETTINGS.max_rows,
+                self._UPLOAD_SETTINGS.max_indicators_per_dataset,
+            )
+        except (DiscoveryUploadTooLargeError, DiscoveryUploadFormatError) as e:
+            return [], [schemas.DiscoveryPayloadProblem(message=str(e), file=filename)]
+        # The bytes are not needed past parsing, so a batch holds one file's bytes at a time.
+        del data
+
         raw = [
             _RawRecord(
                 values=row.values,
                 indicators=row.indicators,
+                file=filename,
                 row=row.row_number,
                 cells={
                     name: reference
@@ -692,45 +757,55 @@ class AdminPortalDiscoveryDatasetService(DiscoveryDatasetService):
             )
             for row in parsed.rows
         ]
-        candidates, problems = _build_candidates_from_rows(raw)
+        problems = [problem.model_copy(update={"file": filename}) for problem in parsed.problems]
+        return raw, problems
+
+    async def upload(
+        self,
+        channel_id: int,
+        files: Sequence[UploadFile],
+        mode: schemas.RecordUploadMode,
+    ) -> schemas.DiscoveryUploadSummary:
+        """Load one or more filled discovery workbooks or CSVs into a channel, as one payload.
+
+        Files are read one at a time, in request order, and their rows merged before they are
+        reconciled with the channel in one transaction. All or nothing: a problem in any file
+        refuses the whole batch, listing the problems of every file.
+        """
+        channel = await ChannelService(self._session).get_model_by_id(channel_id)
+        max_problems = self._UPLOAD_SETTINGS.max_reported_problems
+
+        filenames = [file.filename or f"file {position}" for position, file in enumerate(files, 1)]
+        _raise_for_problems(self._request_problems(filenames), max_problems)
+
+        candidates: list[_DiscoveryCandidate] = []
+        problems: list[schemas.DiscoveryPayloadProblem] = []
+        file_summaries: list[schemas.DiscoveryUploadFileSummary] = []
+        for file, filename in zip(files, filenames):
+            raw, file_problems = await self._parse_upload(file, filename)
+            file_candidates, schema_problems = _build_candidates_from_rows(raw)
+            # The file's own problems travel with the schema violations, so an upload that got
+            # several different things wrong is reported once rather than one class at a time.
+            file_problems.extend(schema_problems)
+            file_problems.sort(key=lambda problem: problem.row or 0)
+            problems.extend(file_problems)
+            candidates.extend(file_candidates)
+            file_summaries.append(
+                schemas.DiscoveryUploadFileSummary(file=filename, rows_read=len(raw))
+            )
         problems.extend(_duplicate_problems(candidates))
-        # The file's own problems travel with the schema violations, so an upload that got
-        # several different things wrong is reported once rather than one class at a time.
-        problems.extend(parsed.problems)
-        _raise_for_problems(problems, self._UPLOAD_SETTINGS.max_reported_problems)
+        _raise_for_problems(problems, max_problems)
 
         summary = await self._upsert(
             channel.id,
             candidates,
             delete_absent=mode is schemas.RecordUploadMode.REPLACE,
         )
-        summary.rows_read = len(parsed.rows)
+        summary.files = file_summaries
+        summary.rows_read = sum(item.rows_read for item in file_summaries)
         return summary
 
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~ export / import ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-    @staticmethod
-    def _export_rows(records: Iterable[models.DiscoveryDataset]) -> list[dict[str, str]]:
-        """Shape records for the export CSV.
-
-        Only the submitted fields travel: validation and indexing state describe this
-        deployment's index rather than the dataset, and the derived columns are not something
-        an upload may carry back in.
-
-        Read straight off the row rather than through the write schema, so a record stored
-        before the current rules - a dataset id no sheet could be named after - is still
-        exportable. The export says what is stored; refusing a write is the write's business.
-        The indicators are the exception, written as the JSON list a CSV carries them in.
-        """
-        return [
-            {
-                **{name: getattr(item, name) for name in RECORD_FIELDS},
-                INDICATORS_FIELD: schemas.dump_indicators_json(
-                    schemas.read_indicators(item.indicators_coverage)
-                ),
-            }
-            for item in records
-        ]
 
     async def export_discovery_datasets_to_folder(
         self, channel: models.Channel, folder_path: str
@@ -743,36 +818,54 @@ class AdminPortalDiscoveryDatasetService(DiscoveryDatasetService):
 
         _log.info(f"Exporting {len(records)} discovery datasets.")
         file_path = os.path.join(folder_path, JobsConfig.DISCOVERY_DATASETS_FILE)
-        utils.write_csv_from_dict_list(self._export_rows(records), file_path)
+        utils.write_csv_from_dict_list(export_rows(records), file_path)
         _log.info(f"Exported discovery datasets to {file_path!r}.")
 
-    async def export_discovery_datasets_to_csv(
+    async def _export_records(
+        self, channel_id: int, filters: schemas.DiscoveryExportFilters
+    ) -> list[models.DiscoveryDataset]:
+        if filters.ids is None:
+            return await self.get_record_models_by_channel(
+                channel_id,
+                limit=None,
+                offset=0,
+                validation_status=filters.validation_status,
+                indexing_status=filters.indexing_status,
+                agency=filters.agency,
+            )
+
+        requested = set(filters.ids)
+        records = await self.get_record_models_by_channel_and_ids(channel_id, requested)
+        # Refused rather than dropped: a report missing a selected row looks complete.
+        if missing := requested - {item.id for item in records}:
+            raise DiscoveryDatasetsNotInChannelError(channel_id, list(missing))
+        return records
+
+    async def export_discovery_datasets(
         self,
         channel_id: int,
-        validation_status: schemas.DiscoveryValidationStatus | None = None,
-        indexing_status: schemas.DiscoveryIndexingStatus | None = None,
-        agency: str | None = None,
-    ) -> str:
-        """Render the channel's records as the CSV the channel export writes.
+        filters: schemas.DiscoveryExportFilters,
+        export_format: schemas.DiscoveryExportFormat = schemas.DiscoveryExportFormat.CSV,
+        include_validation: bool = False,
+    ) -> bytes:
+        """Render the channel's records as a file the upload endpoint reads back.
 
-        Same rows, same columns, same writer as `export_discovery_datasets_to_folder`, so
-        what this returns can be handed straight to the upload endpoint of another channel.
+        The defaults give the CSV the channel export writes - same rows, same columns, same
+        writer as `export_discovery_datasets_to_folder` - so it can be handed straight to the
+        upload endpoint of another channel. `include_validation` appends the verdict of the
+        last indexing job, which the upload ignores.
 
-        The columns are named explicitly rather than taken from the first row, so a filter
-        that matches nothing returns a header on its own instead of failing.
+        Raises `DiscoveryDatasetsNotInChannelError` for a selected id the channel does not
+        hold, and `DiscoveryExportError` for records a workbook cannot hold.
         """
-        records = await self.get_record_models_by_channel(
-            channel_id,
-            limit=None,
-            offset=0,
-            validation_status=validation_status,
-            indexing_status=indexing_status,
-            agency=agency,
+        records = await self._export_records(channel_id, filters)
+        _log.info(
+            f"Exporting {len(records)} discovery datasets of channel {channel_id} as"
+            f" {export_format}{' with validation' if include_validation else ''}."
         )
-        return utils.csv_from_dict_list(
-            self._export_rows(records),
-            fieldnames=list(RECORD_FIELDS),
-        )
+        if export_format is schemas.DiscoveryExportFormat.XLSX:
+            return await asyncio.to_thread(build_workbook, records, include_validation)
+        return build_csv(records, include_validation).encode("utf-8")
 
     async def import_discovery_datasets_from_zip(
         self, zip_file: zipfile.ZipFile, channel_id: int, delete_absent: bool = False

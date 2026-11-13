@@ -2,12 +2,21 @@ import csv
 import datetime
 import io
 import json
-from typing import Any
+from types import SimpleNamespace
+from typing import Any, cast
+from unittest.mock import AsyncMock, MagicMock
 
 import openpyxl
 import pytest
+from fastapi import UploadFile
 
-from statgpt.admin.services import discovery_upload
+from statgpt.admin.services import AdminPortalDiscoveryDatasetService, discovery_upload
+from statgpt.admin.services.discovery_dataset import (
+    _build_candidates_from_rows,
+    _DiscoveryCandidate,
+    _duplicate_problems,
+    _RawRecord,
+)
 from statgpt.admin.services.discovery_upload import (
     DATASETS_SHEET_FIELDS,
     RECORD_FIELDS,
@@ -15,8 +24,17 @@ from statgpt.admin.services.discovery_upload import (
     ParsedRow,
     parse_discovery_file,
 )
-from statgpt.admin.services.exceptions import DiscoveryUploadFormatError
-from statgpt.common.schemas import DiscoveryIndicator, render_flat_indicators
+from statgpt.admin.services.exceptions import DiscoveryPayloadError, DiscoveryUploadFormatError
+from statgpt.admin.settings.discovery import DiscoveryUploadSettings
+from statgpt.common import models, schemas
+from statgpt.common.schemas import (
+    DiscoveryIndexingStatus,
+    DiscoveryIndicator,
+    DiscoveryPayloadProblem,
+    RecordUploadMode,
+    render_flat_indicators,
+)
+from statgpt.common.services import ChannelService
 
 _DATASETS_HEADERS = [
     "Reference area / country",
@@ -658,3 +676,257 @@ def test_unreadable_csv_is_a_format_error(
 
     with pytest.raises(DiscoveryUploadFormatError, match="could not be read"):
         _parse(_csv_bytes([row], list(DATASETS_SHEET_FIELDS)), "x.csv")
+
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~ batch upload ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
+def _row(dataset_id: str, agency: str = "Bank Indonesia (BI)") -> list[Any]:
+    row = list(_ROW)
+    row[_DATASETS_HEADERS.index("Agency / organization")] = agency
+    row[_DATASETS_HEADERS.index("Dataset ID")] = dataset_id
+    return row
+
+
+def _csv_upload(*rows: list[Any]) -> bytes:
+    return _csv_bytes([dict(zip(_DATASETS_HEADERS, row)) for row in rows], _DATASETS_HEADERS)
+
+
+def _upload_file(filename: str, data: bytes) -> UploadFile:
+    return UploadFile(file=io.BytesIO(data), filename=filename)
+
+
+def _stored(dataset_id: str, item_id: int) -> models.DiscoveryDataset:
+    values: dict[str, object] = {name: "" for name in RECORD_FIELDS}
+    values.update(
+        id=item_id,
+        agency="Bank Indonesia (BI)",
+        dataset_id=dataset_id,
+        indicators_coverage=[],
+        indexing_status=DiscoveryIndexingStatus.NEW,
+    )
+    return cast(models.DiscoveryDataset, SimpleNamespace(**values))
+
+
+@pytest.fixture
+def upload_settings(monkeypatch: pytest.MonkeyPatch) -> DiscoveryUploadSettings:
+    settings = DiscoveryUploadSettings(max_files=3, max_rows=2, max_file_size_bytes=1 << 20)
+    monkeypatch.setattr(AdminPortalDiscoveryDatasetService, "_UPLOAD_SETTINGS", settings)
+    return settings
+
+
+def _service(
+    monkeypatch: pytest.MonkeyPatch, existing: list[models.DiscoveryDataset] | None = None
+) -> AdminPortalDiscoveryDatasetService:
+    monkeypatch.setattr(
+        ChannelService, "get_model_by_id", AsyncMock(return_value=SimpleNamespace(id=1))
+    )
+    service = AdminPortalDiscoveryDatasetService(session=MagicMock())
+    service._session.commit = AsyncMock()  # type: ignore[method-assign]
+    service._session.execute = AsyncMock()  # type: ignore[method-assign]
+    service.get_record_models_by_channel = AsyncMock(  # type: ignore[method-assign]
+        return_value=existing or []
+    )
+    return service
+
+
+async def _refused(
+    service: AdminPortalDiscoveryDatasetService, *files: UploadFile
+) -> list[DiscoveryPayloadProblem]:
+    with pytest.raises(DiscoveryPayloadError) as exc_info:
+        await service.upload(1, list(files), RecordUploadMode.UPSERT)
+    return exc_info.value.problems
+
+
+def test_a_default_summary_lists_no_files() -> None:
+    assert schemas.DiscoveryUploadSummary().files == []
+    assert schemas.DiscoveryUploadFileSummary(file="a.xlsx").rows_read == 0
+
+
+def test_the_file_limit_is_read_from_the_environment(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("DISCOVERY_UPLOAD_MAX_FILES", "5")
+
+    assert DiscoveryUploadSettings().max_files == 5
+    monkeypatch.delenv("DISCOVERY_UPLOAD_MAX_FILES")
+    assert DiscoveryUploadSettings().max_files == 20
+
+
+def test_a_problem_renders_its_file_before_its_location() -> None:
+    error = DiscoveryPayloadError(
+        [
+            DiscoveryPayloadProblem(message="Agency is empty.", file="a.xlsx", cell="D14"),
+            DiscoveryPayloadProblem(message="Bad value.", file="b.csv", row=9),
+            DiscoveryPayloadProblem(message="Cannot be read.", file="c.xlsx"),
+            DiscoveryPayloadProblem(message="Old style.", cell="E3"),
+        ]
+    )
+
+    assert str(error) == (
+        "4 structural problem(s) in the payload: a.xlsx D14: Agency is empty.;"
+        " b.csv row 9: Bad value.; c.xlsx: Cannot be read.; E3: Old style.."
+    )
+
+
+def test_schema_problems_carry_the_file_name() -> None:
+    raw = [_RawRecord(values={"agency": "", "dataset_id": "X"}, file="a.xlsx", row=4)]
+
+    _, problems = _build_candidates_from_rows(raw)
+
+    assert [(p.file, p.row, p.field) for p in problems] == [("a.xlsx", 4, "agency")]
+
+
+def _candidate(dataset_id: str, file: str, row: int) -> _DiscoveryCandidate:
+    record = schemas.DiscoveryDatasetBase.model_validate({"agency": "BI", "dataset_id": dataset_id})
+    return _DiscoveryCandidate(record=record, file=file, row=row, cells={"dataset_id": f"D{row}"})
+
+
+def test_a_duplicate_within_one_file_names_rows_and_cells() -> None:
+    [problem] = _duplicate_problems(
+        [_candidate("GDP", "a.xlsx", 2), _candidate("GDP", "a.xlsx", 3)]
+    )
+
+    assert problem.message.startswith("Rows 2, 3 have the same agency and dataset ID")
+    assert (problem.file, problem.row, problem.cell) == ("a.xlsx", 2, "D2, D3")
+
+
+def test_a_duplicate_across_files_names_both_files() -> None:
+    [problem] = _duplicate_problems([_candidate("GDP", "a.xlsx", 2), _candidate("gdp", "b.csv", 7)])
+
+    assert problem.message.startswith("a.xlsx row 2, b.csv row 7 have the same agency")
+    assert (problem.file, problem.row, problem.cell) == ("a.xlsx", 2, None)
+
+
+@pytest.mark.asyncio
+async def test_two_files_are_loaded_as_one_payload(
+    monkeypatch: pytest.MonkeyPatch, upload_settings: DiscoveryUploadSettings
+) -> None:
+    service = _service(monkeypatch)
+
+    summary = await service.upload(
+        1,
+        [
+            _upload_file("a.xlsx", _workbook([_row("A1"), _row("A2")])),
+            _upload_file("b.csv", _csv_upload(_row("B1"))),
+        ],
+        RecordUploadMode.UPSERT,
+    )
+
+    assert (summary.created, summary.deleted, summary.rows_read) == (3, 0, 3)
+    assert [(f.file, f.rows_read) for f in summary.files] == [("a.xlsx", 2), ("b.csv", 1)]
+    service._session.commit.assert_awaited_once()  # type: ignore[attr-defined]
+
+
+@pytest.mark.asyncio
+async def test_replace_deletes_only_what_no_file_mentions(
+    monkeypatch: pytest.MonkeyPatch, upload_settings: DiscoveryUploadSettings
+) -> None:
+    existing = [_stored("A1", 1), _stored("B1", 2), _stored("C1", 3)]
+    service = _service(monkeypatch, existing)
+
+    summary = await service.upload(
+        1,
+        [
+            _upload_file("a.xlsx", _workbook([_row("A1")])),
+            _upload_file("b.csv", _csv_upload(_row("B1"))),
+        ],
+        RecordUploadMode.REPLACE,
+    )
+
+    assert summary.deleted == 1
+
+
+@pytest.mark.asyncio
+async def test_an_unreadable_file_does_not_hide_the_problems_of_another(
+    monkeypatch: pytest.MonkeyPatch, upload_settings: DiscoveryUploadSettings
+) -> None:
+    service = _service(monkeypatch)
+
+    problems = await _refused(
+        service,
+        _upload_file("report.xlsx", b"%PDF-1.4 not a workbook"),
+        _upload_file("b.csv", _csv_upload(_row("B1", agency=""))),
+    )
+
+    assert [(p.file, p.row) for p in problems] == [("report.xlsx", None), ("b.csv", 2)]
+    service._session.commit.assert_not_awaited()  # type: ignore[attr-defined]
+
+
+@pytest.mark.asyncio
+async def test_an_oversized_file_is_a_problem_of_that_file(
+    monkeypatch: pytest.MonkeyPatch, upload_settings: DiscoveryUploadSettings
+) -> None:
+    upload_settings.max_file_size_bytes = 10
+    service = _service(monkeypatch)
+
+    problems = await _refused(service, _upload_file("big.csv", b"x" * 11))
+
+    assert [(p.file, p.message) for p in problems] == [
+        ("big.csv", "The file is larger than the 10 bytes limit.")
+    ]
+
+
+@pytest.mark.asyncio
+async def test_more_files_than_the_limit_are_refused_before_reading(
+    monkeypatch: pytest.MonkeyPatch, upload_settings: DiscoveryUploadSettings
+) -> None:
+    service = _service(monkeypatch)
+    files = [_upload_file(f"{n}.csv", b"") for n in range(4)]
+
+    [problem] = await _refused(service, *files)
+
+    assert "more than the limit of 3" in problem.message
+    assert all(file.file.tell() == 0 for file in files)
+
+
+@pytest.mark.asyncio
+async def test_two_files_with_one_name_are_refused(
+    monkeypatch: pytest.MonkeyPatch, upload_settings: DiscoveryUploadSettings
+) -> None:
+    service = _service(monkeypatch)
+
+    [problem] = await _refused(
+        service,
+        _upload_file("energy.xlsx", _workbook([_row("A1")])),
+        _upload_file("energy.xlsx", _workbook([_row("A2")])),
+    )
+
+    assert problem.file == "energy.xlsx"
+    assert "'energy.xlsx'" in problem.message
+
+
+@pytest.mark.asyncio
+async def test_the_row_cap_applies_to_each_file(
+    monkeypatch: pytest.MonkeyPatch, upload_settings: DiscoveryUploadSettings
+) -> None:
+    service = _service(monkeypatch)
+
+    summary = await service.upload(
+        1,
+        [
+            _upload_file("a.csv", _csv_upload(_row("A1"), _row("A2"))),
+            _upload_file("b.csv", _csv_upload(_row("B1"), _row("B2"))),
+        ],
+        RecordUploadMode.UPSERT,
+    )
+    assert summary.rows_read == 4
+
+    [problem] = await _refused(
+        service, _upload_file("c.csv", _csv_upload(_row("C1"), _row("C2"), _row("C3")))
+    )
+    assert (problem.file, problem.row) == ("c.csv", None)
+    assert "more than 2 data rows" in problem.message
+
+
+@pytest.mark.asyncio
+async def test_a_dataset_in_two_files_refuses_the_batch(
+    monkeypatch: pytest.MonkeyPatch, upload_settings: DiscoveryUploadSettings
+) -> None:
+    service = _service(monkeypatch)
+
+    [problem] = await _refused(
+        service,
+        _upload_file("a.xlsx", _workbook([_row("GDP")])),
+        _upload_file("b.csv", _csv_upload(_row("B1"), _row("gdp"))),
+    )
+
+    assert problem.message.startswith("a.xlsx row 2, b.csv row 3 have the same agency")

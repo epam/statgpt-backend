@@ -8,6 +8,11 @@ from statgpt.cli.shared.batch_report import BatchPartialFailureError
 from statgpt.cli.shared.console import console, print_error
 
 
+def _is_option_like(token: str) -> bool:
+    """Whether a token ends a multi-value argument's run of values."""
+    return token.startswith("-")
+
+
 @dataclass
 class CommandArg:
     """Definition of a command argument."""
@@ -19,6 +24,9 @@ class CommandArg:
     default: Any = None
     choices: list[str] | None = None
     is_flag: bool = False
+    multiple: bool = False
+    """Collect values into a list: the option takes every value up to the next option, and
+    can be repeated. For a list of paths, so a shell-expanded glob arrives whole."""
 
 
 @dataclass
@@ -51,6 +59,8 @@ class Command:
                     arg_str = f"  --{arg.name}"
                 if arg.choices:
                     arg_str += f" [{'/'.join(arg.choices)}]"
+                if arg.multiple:
+                    arg_str += " <value>..."
                 if arg.required:
                     arg_str += " [red](required)[/red]"
                 elif arg.default is not None:
@@ -78,6 +88,8 @@ class Command:
         for arg in self.args:
             if arg.is_flag:
                 result[arg.name.replace("-", "_")] = False
+            elif arg.multiple:
+                result[arg.name.replace("-", "_")] = list(arg.default or [])
             elif arg.default is not None:
                 result[arg.name.replace("-", "_")] = arg.default
 
@@ -92,66 +104,56 @@ class Command:
         except ValueError as e:
             raise ValueError(f"Invalid argument syntax: {e}")
 
+        seen_multiple: set[str] = set()
         i = 0
         while i < len(tokens):
             token = tokens[i]
 
             if token.startswith("--"):
-                arg_name = token[2:]
-                arg_def = self._find_arg(arg_name)
-
-                if arg_def is None:
-                    raise ValueError(f"Unknown argument: --{arg_name}")
-
-                key = arg_def.name.replace("-", "_")
-
-                if arg_def.is_flag:
-                    result[key] = True
-                    i += 1
-                else:
-                    if i + 1 >= len(tokens):
-                        raise ValueError(f"Argument --{arg_name} requires a value")
-                    value = tokens[i + 1]
-
-                    if arg_def.choices and value not in arg_def.choices:
-                        raise ValueError(
-                            f"Invalid value for --{arg_name}: {value}. "
-                            f"Must be one of: {', '.join(arg_def.choices)}"
-                        )
-
-                    result[key] = value
-                    i += 2
+                arg_def = self._find_arg(token[2:])
             elif token.startswith("-") and len(token) == 2:
                 # Short argument (e.g., -c)
-                short_name = token[1:]
-                arg_def = self._find_arg_by_short(short_name)
-
-                if arg_def is None:
-                    raise ValueError(f"Unknown argument: -{short_name}")
-
-                key = arg_def.name.replace("-", "_")
-
-                if arg_def.is_flag:
-                    result[key] = True
-                    i += 1
-                else:
-                    if i + 1 >= len(tokens):
-                        raise ValueError(f"Argument -{short_name} requires a value")
-                    value = tokens[i + 1]
-
-                    if arg_def.choices and value not in arg_def.choices:
-                        raise ValueError(
-                            f"Invalid value for -{short_name}: {value}. "
-                            f"Must be one of: {', '.join(arg_def.choices)}"
-                        )
-
-                    result[key] = value
-                    i += 2
+                arg_def = self._find_arg_by_short(token[1:])
             else:
                 raise ValueError(f"Unexpected token: {token}")
 
+            if arg_def is None:
+                raise ValueError(f"Unknown argument: {token}")
+
+            key = arg_def.name.replace("-", "_")
+            i += 1
+
+            if arg_def.is_flag:
+                result[key] = True
+            elif arg_def.multiple:
+                values: list[str] = []
+                while i < len(tokens) and not _is_option_like(tokens[i]):
+                    values.append(self._checked_value(arg_def, token, tokens[i]))
+                    i += 1
+                if not values:
+                    raise ValueError(f"Argument {token} requires at least one value")
+                # A default is replaced by what the command line gives, not added to.
+                if key not in seen_multiple:
+                    result[key] = []
+                    seen_multiple.add(key)
+                result[key].extend(values)
+            else:
+                if i >= len(tokens):
+                    raise ValueError(f"Argument {token} requires a value")
+                result[key] = self._checked_value(arg_def, token, tokens[i])
+                i += 1
+
         self._validate_required(result)
         return result
+
+    @staticmethod
+    def _checked_value(arg_def: CommandArg, option: str, value: str) -> str:
+        if arg_def.choices and value not in arg_def.choices:
+            raise ValueError(
+                f"Invalid value for {option}: {value}. "
+                f"Must be one of: {', '.join(arg_def.choices)}"
+            )
+        return value
 
     def _find_arg(self, name: str) -> CommandArg | None:
         """Find argument definition by name."""
@@ -171,7 +173,7 @@ class Command:
         """Validate that all required arguments are present."""
         for arg in self.args:
             key = arg.name.replace("-", "_")
-            if arg.required and key not in parsed:
+            if arg.required and (key not in parsed or parsed[key] == []):
                 raise ValueError(f"Missing required argument: --{arg.name}")
 
     async def execute(self, args_str: str = "") -> None:

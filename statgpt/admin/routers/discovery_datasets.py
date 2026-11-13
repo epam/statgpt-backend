@@ -9,9 +9,20 @@ Records are shaped like glossary terms: the channel-scoped routes below cover a 
 collection, while a single record is addressed globally under `/discovery-datasets`.
 """
 
+from pathlib import PurePath
 from typing import Annotated, Any
 
-from fastapi import APIRouter, BackgroundTasks, Depends, Query, Response, UploadFile, status
+from fastapi import (
+    APIRouter,
+    BackgroundTasks,
+    Depends,
+    HTTPException,
+    Query,
+    Response,
+    UploadFile,
+    status,
+)
+from pydantic import ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 import statgpt.common.models as models
@@ -19,6 +30,7 @@ import statgpt.common.schemas as schemas
 from statgpt.admin.auth.user import require_jwt_auth
 from statgpt.admin.services import AdminPortalDiscoveryDatasetService as DiscoveryDatasetService
 from statgpt.admin.services import AdminPortalDiscoveryIndexingJobService as IndexingJobService
+from statgpt.admin.services.discovery_upload import PYDANTIC_VALUE_ERROR_PREFIX
 from statgpt.admin.settings.exim import JobsConfig
 from statgpt.common.models import get_session_context_manager
 from statgpt.common.utils import MediaTypes
@@ -111,42 +123,108 @@ async def get_channel_discovery_dataset_stats(
     return await DiscoveryDatasetService(session).get_stats(channel_id)
 
 
+_MAX_EXPORT_IDS = 500
+
+_EXPORT_MEDIA_TYPES: dict[schemas.DiscoveryExportFormat, str] = {
+    schemas.DiscoveryExportFormat.CSV: MediaTypes.CSV,
+    schemas.DiscoveryExportFormat.XLSX: MediaTypes.XLSX,
+}
+
+_EXPORT_FILE_STEM = PurePath(JobsConfig.DISCOVERY_DATASETS_FILE).stem
+
+
 @channel_discovery_datasets_router.get(
     "/export",
     response_class=Response,
-    responses={status.HTTP_200_OK: {"content": {MediaTypes.CSV: {}}}},
+    responses={
+        status.HTTP_200_OK: {
+            "content": {media_type: {} for media_type in _EXPORT_MEDIA_TYPES.values()}
+        },
+        status.HTTP_400_BAD_REQUEST: {
+            "description": "The selected records cannot be laid out as a workbook."
+        },
+        status.HTTP_404_NOT_FOUND: {"description": "A selected id is not a record of the channel."},
+    },
 )
 async def export_channel_discovery_datasets(
     channel_id: int,
+    export_format: Annotated[
+        schemas.DiscoveryExportFormat,
+        Query(alias="format", description="The file to download: `csv` or `xlsx`."),
+    ] = schemas.DiscoveryExportFormat.CSV,
+    include_validation: Annotated[
+        bool,
+        Query(
+            description=(
+                "Append the verdict of the last indexing job: validation status, when it was"
+                " evaluated, and its issues, one per line."
+            )
+        ),
+    ] = False,
     validation_status: schemas.DiscoveryValidationStatus | None = None,
     indexing_status: schemas.DiscoveryIndexingStatus | None = None,
     agency: str | None = None,
+    ids: Annotated[
+        list[int] | None,
+        Query(
+            alias="id",
+            max_length=_MAX_EXPORT_IDS,
+            description=(
+                "Export exactly these records, by database id. Repeat the parameter for"
+                f" several, up to {_MAX_EXPORT_IDS}. Cannot be combined with the other filters."
+            ),
+        ),
+    ] = None,
     session: AsyncSession = Depends(models.get_session),
     _=Depends(cancel_on_disconnect),
 ) -> Response:
-    """Download the channel's discovery datasets as the CSV the channel export writes.
+    """Download the channel's discovery datasets as a file the upload endpoint reads back.
 
-    Byte-for-byte the archive's `discovery_datasets.csv`, so the download goes straight
-    into `POST /{channel_id}/discovery-datasets/upload` on another channel. Only the
-    descriptive fields are exported: validation and indexing state belong to the channel
-    that holds the record, and are re-derived by the next indexing job.
+    With the defaults, byte-for-byte the archive's `discovery_datasets.csv`, so the download
+    goes straight into `POST /{channel_id}/discovery-datasets/upload` on another channel.
+    `format=xlsx` returns the upload template's workbook instead: a `Datasets` sheet, and one
+    sheet per dataset listing its indicators, named with the dataset's ID.
+
+    `include_validation=true` turns the file into a validation report for whoever supplied
+    the data: the stored verdict of the last indexing job is appended to each row, and in a
+    workbook the cells the issues point at are highlighted. Nothing is validated by the
+    request. The file stays uploadable - the upload ignores the validation columns, and the
+    channel's next indexing job derives the verdicts again. `validation_status=INVALID`
+    narrows it to the records with problems.
 
     The filters are the list endpoint's, with the same semantics, so an admin can export
     exactly the slice they are looking at; with none supplied the whole channel is
-    exported. A slice that matches nothing is a CSV with only its header.
+    exported. A slice that matches nothing is a file holding only its header. `id` selects
+    records instead, and returns 404 naming any id that is not a record of this channel.
+
+    A workbook cannot hold every set of records, since a dataset ID names a sheet: one shared
+    by two agencies, one naming a sheet of the template, or one no sheet can be named after
+    is refused with 400, naming the records. Export those as CSV, or narrow the selection.
 
     Synchronous, unlike the channel export: one channel's records are small enough to
     return in the response, so there is no job to poll.
     """
-    csv_content = await DiscoveryDatasetService(session).export_discovery_datasets_to_csv(
-        channel_id, validation_status, indexing_status, agency
+    try:
+        filters = schemas.DiscoveryExportFilters(
+            validation_status=validation_status,
+            indexing_status=indexing_status,
+            agency=agency,
+            ids=ids,
+        )
+    except ValidationError as e:
+        # Built from validated query parameters, so only the model's own rules can fail.
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=str(e.errors()[0]["msg"]).removeprefix(PYDANTIC_VALUE_ERROR_PREFIX),
+        ) from e
+    content = await DiscoveryDatasetService(session).export_discovery_datasets(
+        channel_id, filters, export_format, include_validation
     )
+    filename = f"{_EXPORT_FILE_STEM}.{export_format}"
     return Response(
-        content=csv_content,
-        media_type=MediaTypes.CSV,
-        headers={
-            "Content-Disposition": (f'attachment; filename="{JobsConfig.DISCOVERY_DATASETS_FILE}"')
-        },
+        content=content,
+        media_type=_EXPORT_MEDIA_TYPES[export_format],
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
 
 
@@ -192,23 +270,26 @@ async def clear_channel_discovery_datasets(
 @channel_discovery_datasets_router.post("/upload", responses=_PAYLOAD_ERROR_RESPONSE)
 async def upload_discovery_datasets(
     channel_id: int,
-    file: UploadFile,
+    file: list[UploadFile],
     mode: schemas.RecordUploadMode = schemas.RecordUploadMode.UPSERT,
     session: AsyncSession = Depends(models.get_session),
 ) -> schemas.DiscoveryUploadSummary:
-    """Load a filled discovery workbook (.xlsx) or CSV into the channel.
+    """Load one or more filled discovery workbooks (.xlsx) or CSVs into the channel.
 
-    Records are matched on (agency, dataset id), ignoring case and spacing. `upsert` keeps
-    records that the file does not mention; `replace` deletes them. A record whose fields
-    are unchanged is not rewritten, so its validation and indexing state is preserved.
+    Repeat the `file` part once per file; `.xlsx` and `.csv` files can be mixed. The rows of
+    every file are merged into one payload and reconciled with the channel in one
+    transaction. Records are matched on (agency, dataset id), ignoring case and spacing.
+    `upsert` keeps records that no file mentions; `replace` deletes them. A record whose
+    fields are unchanged is not rewritten, so its validation and indexing state is preserved.
 
     Synchronous, because the value of this endpoint is the per-cell error report: a
-    structural problem returns 400 naming every offending cell and saves nothing. Uploading
-    does not validate content - that happens on the next indexing job.
+    structural problem in any file returns 400 naming every offending cell of every file,
+    each with the `file` it was found in, and saves nothing. A file that cannot be read, or
+    exceeds the per-file byte or row cap, is one such problem. The same dataset in two files,
+    two files with the same name, or more files than the configured limit refuse the upload
+    too. Uploading does not validate content - that happens on the next indexing job.
     """
-    service = DiscoveryDatasetService(session)
-    data = await service.read_upload(file)
-    return await service.upload(channel_id, data, file.filename, mode)
+    return await DiscoveryDatasetService(session).upload(channel_id, file, mode)
 
 
 @channel_discovery_datasets_router.post("/indexing-jobs", status_code=status.HTTP_202_ACCEPTED)

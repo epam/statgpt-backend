@@ -7,7 +7,7 @@ onboarded" would keep mistaking a truncated run for a complete one.
 import pytest
 
 from statgpt.cli import _execute_direct
-from statgpt.cli.commands.base import Command, CommandRegistry
+from statgpt.cli.commands.base import Command, CommandArg, CommandGroup, CommandRegistry
 from statgpt.cli.shared.batch_report import BatchPartialFailureError
 
 
@@ -49,3 +49,34 @@ async def test_an_unexpected_error_still_reports_itself(capsys) -> None:
 
     assert exit_code == 1
     assert "something unrelated broke" in capsys.readouterr().out
+
+
+@pytest.mark.asyncio
+async def test_a_path_with_a_space_reaches_the_handler_whole() -> None:
+    """The system shell already split the arguments; re-joining must keep its quoting."""
+    received: dict[str, object] = {}
+
+    async def handler(file: list[str], channel: str | None = None) -> None:
+        received.update(file=file, channel=channel)
+
+    registry = CommandRegistry(version="test")
+    group = CommandGroup(name="discovery", description="test group")
+    group.add_command(
+        Command(
+            name="upload",
+            description="test command",
+            handler=handler,
+            args=[
+                CommandArg(name="channel", description="c", short_name="c"),
+                CommandArg(name="file", description="f", multiple=True),
+            ],
+        )
+    )
+    registry.register_group(group)
+
+    exit_code = await _execute_direct(
+        registry, ["discovery", "upload", "-c", "ch", "--file", "my data/a b.xlsx", "c.csv"]
+    )
+
+    assert exit_code == 0
+    assert received == {"file": ["my data/a b.xlsx", "c.csv"], "channel": "ch"}

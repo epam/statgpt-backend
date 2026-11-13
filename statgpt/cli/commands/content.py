@@ -424,9 +424,11 @@ async def _upload_discovery_datasets(
 ) -> None:
     """Upload every discovery file of a client to every channel the client declares.
 
-    Upserted, so a folder holding one file per agency accumulates into one collection per
-    channel and a file that is unchanged leaves its records' statuses alone. Each file is
-    isolated and recorded: one that is refused does not stop the rest.
+    The folder is the channel's collection, so its files go in one upsert request per
+    channel: all of them are loaded or none are, and a dataset described in two files is
+    refused instead of one silently overwriting the other. Upserted, so a file that is
+    unchanged leaves its records' statuses alone. Each channel is isolated and recorded: one
+    that refuses the batch does not stop the rest.
     """
     files = sorted(f for f in os.listdir(discovery_dir) if is_upload_file(f))
     if not files:
@@ -438,35 +440,32 @@ async def _upload_discovery_datasets(
         return
 
     print_info("Uploading discovery datasets...")
+    paths = [os.path.join(discovery_dir, filename) for filename in files]
 
     for channel in target_channels:
-        uploaded = 0
-        for filename in files:
-            path = os.path.join(discovery_dir, filename)
-            label = f"{channel.deployment_id}: {filename}"
-            try:
-                summary = await admin_client.upload_discovery_datasets(
-                    channel.id, path, RecordUploadMode.UPSERT
-                )
-            except DiscoveryPayloadError as e:
-                print_error(f"  Failed discovery file {filename}: {e}")
-                render_payload_problems(e.detail)
-                report.record_failed("discovery", label, str(e))
-                continue
-            except Exception as e:
-                print_error(f"  Failed discovery file {filename}: {e}")
-                report.record_failed("discovery", label, str(e))
-                continue
-
-            uploaded += 1
-            print_info(f"  Uploaded {filename}: {summary_line(summary)}")
-            report.record_ok("discovery", label)
-
-        if uploaded:
-            print_info(
-                f"  Run: [cyan]discovery reindex -c {channel.deployment_id}[/cyan]"
-                f" to publish the records"
+        label = f"{channel.deployment_id}: {len(files)} discovery file(s)"
+        try:
+            summary = await admin_client.upload_discovery_datasets(
+                channel.id, paths, RecordUploadMode.UPSERT
             )
+        except DiscoveryPayloadError as e:
+            print_error(f"  Failed discovery files for {channel.deployment_id}: {e}")
+            render_payload_problems(e.detail)
+            report.record_failed("discovery", label, str(e))
+            continue
+        except Exception as e:
+            print_error(f"  Failed discovery files for {channel.deployment_id}: {e}")
+            report.record_failed("discovery", label, str(e))
+            continue
+
+        print_info(f"  Uploaded to {channel.deployment_id}: {summary_line(summary)}")
+        for entry in summary.files:
+            print_info(f"    {entry.file}: {entry.rows_read} row(s)")
+        report.record_ok("discovery", label)
+        print_info(
+            f"  Run: [cyan]discovery reindex -c {channel.deployment_id}[/cyan]"
+            f" to publish the records"
+        )
 
 
 async def _upload_dial_files(report: BatchReport, client_id: str, dial_files_dir: str) -> None:
