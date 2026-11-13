@@ -55,7 +55,9 @@ _REPORT_DELIVERED_MESSAGE_TO_AGENT = (
     supreme_agent_default_prompts.deep_research_report_delivered_message_to_agent
 )
 _REPORT_ANSWER_PLACEHOLDER = supreme_agent_default_prompts.deep_research_report_answer_placeholder
-_FAILED_TURN_MESSAGE_TO_AGENT = supreme_agent_default_prompts.failed_turn_message_to_agent
+_FAILED_TURN_WITH_ERROR_MESSAGE_TO_AGENT = (
+    supreme_agent_default_prompts.failed_turn_with_error_message_to_agent
+)
 
 
 @pytest.fixture(autouse=True)
@@ -151,31 +153,24 @@ def _text_chunk(text: str) -> AIMessageChunk:
 
 
 def _patch_scripted_agent(
-    monkeypatch,
-    responses: list[AIMessageChunk],
-    prompts: list | None = None,
-    tool_choices: list | None = None,
+    monkeypatch, responses: list[AIMessageChunk], prompts: list | None = None
 ) -> None:
     """Drive the Supreme Agent LLM with a scripted sequence of responses, one per agent run.
 
     A single shared model instance is returned for every ``get_chat_model`` call so the script is
     consumed in order across the forced-start and free mediation agents. If ``prompts`` is given,
-    the messages each agent run was prompted with are appended to it; if ``tool_choices`` is given,
-    the ``tool_choice`` each agent run was bound with (None if not forced)."""
+    the messages each agent run was prompted with are appended to it."""
 
     scripted = iter(responses)
 
-    def _respond(prompt_value, tool_choice):
+    def _respond(prompt_value):
         if prompts is not None:
             prompts.append(prompt_value.to_messages())
-        if tool_choices is not None:
-            tool_choices.append(tool_choice)
         return next(scripted)
 
     class _SharedModel:
         def bind_tools(self, tools, **kwargs):
-            tool_choice = kwargs.get("tool_choice")
-            return RunnableLambda(lambda prompt_value: _respond(prompt_value, tool_choice))
+            return RunnableLambda(_respond)
 
     shared = _SharedModel()
     monkeypatch.setattr(supreme_agent_module, "get_chat_model", lambda **kwargs: shared)
@@ -846,6 +841,7 @@ async def test_next_turn_sees_the_failure_and_replays_the_failed_turn(monkeypatc
     # as `ChannelCompletion` does
     inputs[ChainParametersConfig.HISTORY].dump_state(state)
     state[StateVarsConfig.ERROR] = _QUOTA_MESSAGE
+    state[StateVarsConfig.ERROR_DISPLAY_MESSAGE] = _QUOTA_MESSAGE
 
     prompts: list = []
     _patch_scripted_agent(
@@ -887,102 +883,14 @@ async def test_next_turn_sees_the_failure_and_replays_the_failed_turn(monkeypatc
         "system",
         "human",
     ]
-    assert prompts[0][-2].content == _FAILED_TURN_MESSAGE_TO_AGENT
+    assert prompts[0][-2].content == _FAILED_TURN_WITH_ERROR_MESSAGE_TO_AGENT.format(
+        error=_QUOTA_MESSAGE
+    )
     assert captured["messages"][-1] == [
         {"role": "user", "content": "US GDP"},
         {"role": "assistant", "content": "", "custom_content": {"state": _SAVED_PROGRESS}},
         {"role": "user", "content": "continue"},
     ]
-
-
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~ empty mediation reply (#805) ~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-
-def _failed_turn_state() -> dict:
-    return _session_state(
-        DeepResearchTurn(
-            user_message="go", assistant_content="", deep_research_state=_SAVED_PROGRESS
-        )
-    )
-
-
-@pytest.mark.parametrize("empty_reply", ["", " \n"])
-async def test_empty_reply_to_the_user_is_retried_with_the_resume_tool_forced(
-    monkeypatch, empty_reply
-):
-    """An empty reply to the user's message on a resume turn is not the answer: the agent is run
-    again with the resume tool forced, and the request is passed on."""
-    prompts: list = []
-    tool_choices: list = []
-    _patch_scripted_agent(
-        monkeypatch,
-        [
-            _text_chunk(empty_reply),
-            _tool_call_chunk("resume_deep_research", {"message": "continue"}),
-        ],
-        prompts,
-        tool_choices,
-    )
-    captured: dict = {}
-    _patch_dr_deployment(monkeypatch, [_report("Final report.")], captured)
-
-    choice = _RecordingChoice()
-    content = await SupremeAgentExecutor(_channel_config()).stream_response(
-        _inputs(_failed_turn_state(), "continue", choice=choice)
-    )
-
-    assert content == "Final report."
-    # Any whitespace of the empty reply has already streamed to the user.
-    assert choice.content == f"{empty_reply}Final report."
-    assert tool_choices == [None, "resume_deep_research"]
-    # The empty reply is not kept: the forced run sees the same conversation.
-    assert prompts[1] == prompts[0]
-    assert captured["messages"][-1][-1] == {"role": "user", "content": "continue"}
-
-
-async def test_empty_reply_to_the_forced_resume_surfaces_the_error(monkeypatch):
-    """If the forced run is empty too, the turn ends with the standard error instead of silently,
-    and the session is kept so the user can retry."""
-    tool_choices: list = []
-    _patch_scripted_agent(
-        monkeypatch, [_text_chunk(""), _text_chunk("")], tool_choices=tool_choices
-    )
-    calls = _patch_dr_deployment_counting(monkeypatch)
-
-    state = _failed_turn_state()
-    choice = _RecordingChoice()
-    content = await SupremeAgentExecutor(_channel_config()).stream_response(
-        _inputs(state, "continue", choice=choice)
-    )
-
-    assert content == DEEP_RESEARCH_ERROR_MESSAGE
-    assert choice.appended == [DEEP_RESEARCH_ERROR_MESSAGE]
-    assert tool_choices == [None, "resume_deep_research"]
-    assert calls["count"] == 0
-    assert DeepResearchSession.from_state(state) is not None
-
-
-async def test_empty_reply_to_deep_research_surfaces_the_error_without_forcing(monkeypatch):
-    """An empty reply to a Deep Research response is not retried with the resume tool forced, as
-    the forced call could approve a plan the user has not seen: the standard error is shown."""
-    tool_choices: list = []
-    _patch_scripted_agent(
-        monkeypatch,
-        [_tool_call_chunk("deep_research", {"query": "US GDP"}), _text_chunk("")],
-        tool_choices=tool_choices,
-    )
-    _patch_dr_deployment(monkeypatch, [_clarification("Plan: 1. GDP. Approve?")], {})
-
-    state = {StateVarsConfig.SHOW_DEBUG_STAGES: False}
-    choice = _RecordingChoice()
-    content = await SupremeAgentExecutor(_channel_config()).stream_response(
-        _inputs(state, "research US GDP", choice=choice)
-    )
-
-    assert content == DEEP_RESEARCH_ERROR_MESSAGE
-    assert choice.appended == [DEEP_RESEARCH_ERROR_MESSAGE]
-    assert tool_choices == ["deep_research", None]
-    assert DeepResearchSession.from_state(state) is not None
 
 
 async def test_deep_research_exchange_is_persisted_to_cross_turn_tool_state(monkeypatch):

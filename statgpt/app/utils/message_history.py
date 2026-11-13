@@ -294,14 +294,10 @@ class History:
                             content=supreme_agent_default_prompts.deep_research_report_answer_placeholder
                         )
                     )
-                elif include_tool_messages and self._is_failed_turn(msg):
+                elif include_tool_messages and (note := self._failed_turn_note(msg)) is not None:
                     # Not the empty assistant message the client sends back for it: to the agent,
                     # that reads as an answer of silence, which it then repeats.
-                    chat_history.append(
-                        SystemMessage(
-                            content=supreme_agent_default_prompts.failed_turn_message_to_agent
-                        )
-                    )
+                    chat_history.append(SystemMessage(content=note))
                 else:
                     chat_history.append(self.dial_to_langchain_message(msg))
             elif msg.role == Role.TOOL:
@@ -345,16 +341,25 @@ class History:
         )
 
     @staticmethod
-    def _is_failed_turn(message: DialMessage) -> bool:
-        """Whether this assistant message is a turn that failed before any answer was shown.
+    def _failed_turn_note(message: DialMessage) -> str | None:
+        """The note to show the agent in place of this assistant message, if it is a turn that
+        failed before any answer was shown: with the error the user was shown, if known.
 
         `ChannelCompletion` sets the error in the state of a failed turn and clears it on success;
-        a turn cut off before its state was sent, e.g. by a dropped connection, has no state."""
+        a turn cut off before its state was sent, e.g. by a dropped connection or a rejected
+        request, has no state."""
         if message.content or message.tool_calls:
-            return False
-        if message.custom_content is None or not isinstance(message.custom_content.state, dict):
-            return True
-        return bool(message.custom_content.state.get(StateVarsConfig.ERROR))
+            return None
+        state = message.custom_content.state if message.custom_content is not None else None
+        if not isinstance(state, dict):
+            return supreme_agent_default_prompts.failed_turn_message_to_agent
+        if not state.get(StateVarsConfig.ERROR):
+            return None
+        if error := state.get(StateVarsConfig.ERROR_DISPLAY_MESSAGE):
+            return supreme_agent_default_prompts.failed_turn_with_error_message_to_agent.format(
+                error=error
+            )
+        return supreme_agent_default_prompts.failed_turn_message_to_agent
 
     @staticmethod
     def _extract_tool_messages_from_message(

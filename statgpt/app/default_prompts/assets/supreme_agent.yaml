@@ -242,5 +242,9 @@ deepResearchReportAnswerPlaceholder: |-
   I delivered the Deep Research report above to the user verbatim.
 
 failedTurnMessageToAgent: |-
-  The response to the user's message above failed before it was completed, and no answer was shown
-  to the user.
+  An error occurred while generating the response to the user's message above, so no answer was
+  given.
+
+failedTurnWithErrorMessageToAgent: |-
+  An error occurred while generating the response to the user's message above, so no answer was
+  given. The error shown to the user: {error}
