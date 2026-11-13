@@ -50,12 +50,11 @@ _MCP_TOOL_IMPLEMENTATIONS: dict[ToolTypes, type["StatGptMcpTool"]] = {}
 
 
 def tool_app_config(tool_config: BaseToolConfig) -> AppConfig | None:
-    """Build the MCP Apps config (``_meta.ui``) from the config's MCP-App fields.
+    """Build the MCP Apps config (``_meta.ui``) from the config's MCP-App fields, or ``None``
+    when neither is set.
 
     Uses fastmcp's typed ``AppConfig`` so the wire format (camelCase aliases per the
-    MCP Apps extension) stays in sync with the library. Returns ``None`` when neither
-    field is set so ``_meta`` is omitted and the host applies the spec default
-    visibility (``["model", "app"]``).
+    MCP Apps extension) stays in sync with the library.
     """
     if tool_config.mcp_visibility is None and tool_config.mcp_app_resource_uri is None:
         return None
@@ -165,19 +164,13 @@ class StatGptMcpTool(Tool, ABC, Generic[ToolConfigType, ArgsType]):
             _log.debug("Invalid arguments for MCP tool %s: %s", self.name, e)
             raise ToolError(f"Invalid arguments for {self.name}: {e}") from e
 
-        # Bound the guardrail and execution by a deadline kept under the 300s host tool-call
-        # timeout. On expiry asyncio.timeout cancels the current downstream await, which cascades
-        # cancellation through the chain, and we surface a readable ToolError so the model can
-        # recover in-conversation instead of seeing an unexplained host cancellation. The deadline
-        # bounds tool work only, not the preceding channel/auth resolution; the margin under 300s
-        # absorbs that.
+        # Bound the guardrail and execution by a deadline. On expiry asyncio.timeout cancels the
+        # current downstream await, which cascades cancellation through the chain.
         timeout_seconds = dial_app_settings.mcp_tool_timeout_seconds
         try:
             async with asyncio.timeout(timeout_seconds) as deadline:
-                # Screen arbitrary free-text input with the out-of-scope guardrail before
-                # executing. The validated arguments are screened (not the raw request), so the
-                # guardrail sees exactly what the tool will run with. Raised ToolError propagates
-                # to the MCP client unchanged.
+                # The validated arguments are screened (not the raw request), so the guardrail
+                # sees exactly what the tool will run with.
                 await enforce_input_guardrail(
                     self.name,
                     self._args_schema.get_guardrail_input(args.model_dump(exclude={"inputs"})),
@@ -225,14 +218,9 @@ class StatGptMcpTool(Tool, ABC, Generic[ToolConfigType, ArgsType]):
 
     @staticmethod
     def _structured_only(model: BaseModel) -> ToolResult:
-        """A result whose complete payload is the structured content, with null optional fields
-        omitted for compactness.
+        """A result whose complete payload is the structured content, also sent as JSON text.
 
-        The payload goes out twice: as `structuredContent`, and as its serialized JSON in a text
-        block. The text block is what a client reading only `content` receives; the MCP
-        specification asks for it, and LangChain-based clients need it, because they treat
-        `structuredContent` as program data and never show it to the model. One serialization
-        feeds both copies so they cannot drift.
+        One serialization feeds both copies so they cannot drift.
         """
         payload = model.model_dump(mode="json", by_alias=True, exclude_none=True)
         return ToolResult(

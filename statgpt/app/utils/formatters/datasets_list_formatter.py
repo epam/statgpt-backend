@@ -43,10 +43,8 @@ class DatasetsListFormatter:
     ) -> str:
         """Render the datasets, optionally grouped by provider and headed by statistics.
 
-        `metadata_only_counts` - metadata-only (discovery) datasets per agency - are counted in
-        the statistics and the per-provider totals but never listed, since their values cannot
-        be queried; a note says so. They leave the indicator total alone: it counts queryable
-        indicators only.
+        `metadata_only_counts` - metadata-only (discovery) datasets per agency - are merged into
+        the statistics and per-provider totals, with a note, but not listed.
         """
         if sort_by_id and sort_by_name:
             raise ValueError(self._("Cannot sort by both id and name."))
@@ -126,11 +124,7 @@ class DatasetsListFormatter:
     def _format_other_providers(
         self, dataset_entries: dict, metadata_only_counts: dict[str, int]
     ) -> str | None:
-        """The providers that have only metadata-only datasets, with their dataset counts.
-
-        One compact section rather than a heading each: there can be hundreds of them, and
-        none has a dataset to list under it.
-        """
+        """The providers that have only metadata-only datasets, with their dataset counts."""
         others = sorted(
             (
                 (provider, count)

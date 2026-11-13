@@ -167,12 +167,7 @@ class TimePeriodStrategy(StrEnum):
 
 
 class ExplorerLinkPolicy(StrEnum):
-    """When a data query response should carry the data explorer deep link.
-
-    The link points the user back to the source registry. That is worth offering when
-    StatGPT could not deliver the data itself, and noise when it just did - hence the
-    middle option rather than a plain on/off.
-    """
+    """When a data query response should carry the data explorer deep link."""
 
     always = "always"
     """Render the link whenever the response carries one."""

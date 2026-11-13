@@ -66,15 +66,13 @@ _MISSING = "NA"
 # as `DataFrame.to_markdown` does, inflates the payload without changing how it renders.
 _LEFT_RULE = ":---"
 _RIGHT_RULE = "---:"
-# Statuses whose queries reached the data source. Their outcome differs, but all three know what
-# was asked, so a caller can show the query and re-run it.
+# Statuses whose queries reached the data source.
 _EXECUTED_STATUSES = frozenset(
     {DataQueryStatus.DATA_AVAILABLE, DataQueryStatus.EXECUTED_NO_DATA, DataQueryStatus.FAILED}
 )
 _QUERY_ID_PREFIX = "dq_"
 _QUERY_ID_DIGEST_SIZE = 5
-# How many of a dimension's available values are sampled when reporting a missing dimension. The
-# source there is the codelist, which can hold thousands of values.
+# How many of a dimension's available values are sampled when reporting a missing dimension.
 _MAX_SAMPLE_VALUES = 10
 _PARTIALLY_PARSED_WIDGET_ADVICE = (
     "The missing data is still visible to the user in the widget. Tell the user that you could"
@@ -128,14 +126,10 @@ def data_query_outcome_to_resources(
     """Serialize each DataResponse into the inline resources enabled by `config`.
 
     Per response, in `data_responses` insertion order, emits a `text/csv` resource built from
-    `llm_csv_dataframe` (observation-level, machine-readable) and/or a `text/markdown` table
-    built from `llm_visual_dataframe` (time periods as columns, meant to be shown to the user).
-    Both reach the user through the model, so both carry the values the model reads: transformed
-    as the dataset config sets (fractions converted to percentages, then rounded).
+    `llm_csv_dataframe` and/or a `text/markdown` table built from `llm_visual_dataframe`.
 
-    Skips empty responses so MCP clients don't receive empty payloads. `is_empty` is checked
-    instead of the dataframes: it is cheaper, and `visual_dataframe` returns the raw
-    MultiIndexed frame when there are no observations.
+    Skips empty responses. `is_empty` is checked instead of the dataframes: it is cheaper, and
+    `visual_dataframe` returns the raw MultiIndexed frame when there are no observations.
     """
     builders = {"csv": _csv_resource, "md": _markdown_resource}
     extensions = _enabled_extensions(config)
@@ -165,20 +159,14 @@ def _resource_uris(response: DataResponse, config: DataQueryMcpResources) -> lis
 
 
 def _resource_uri(response: DataResponse, extension: str) -> AnyUrl:
-    # The query id is the file stem, so a client can join a resource to the query that produced
-    # it. A response without a query keeps the timestamp.
+    # The query id is the file stem; a response without a query keeps the timestamp.
     stem = _response_query_id(response) or response.created_at.strftime("%Y%m%dT%H%M%SZ")
     path = quote(response.resource_path, safe="")
     return AnyUrl(f"statgpt://data_query/{path}/{stem}.{extension}")
 
 
 def _query_id(query: JsonQuery, execution_date: date | None) -> str:
-    """A short id for one query, derived from the query itself and the date it ran.
-
-    Deterministic: the same query executed again on the same date gets the same id, while the same
-    query a month later - which may well return different data - gets a new one. A query that was
-    never executed has no date, so its id depends on the query alone.
-    """
+    """A short id for one query, hashed from the query and, if it ran, the date it ran."""
     canonical = json.dumps(
         {
             "urn": query.urn,
@@ -225,9 +213,7 @@ def _markdown_resource(response: DataResponse) -> EmbeddedResource:
             mimeType="text/markdown",
             text=text,
         ),
-        # The table is written for the person, not the model. Clients are free to ignore the
-        # annotation (rendering of embedded resources is up to the client), which is why the
-        # `data_query_executed_mcp_only` message also asks the model to reproduce it verbatim.
+        # The table is written for the person, not the model.
         annotations=Annotations(audience=["user"]),
     )
 
@@ -339,17 +325,7 @@ def data_query_outcome_to_structured_content(
     outcome: DataQueryOutcome,
     tool_config: DataQueryToolConfig,
 ) -> DataQueryStructuredContent:
-    """Build the data query tool's MCP structured content from the pipeline outcome.
-
-    Written for the calling model: the outcome, with the queries the pipeline produced, or what a
-    follow-up query would need when it produced none. Per outcome:
-    - ``data_available`` / ``executed_no_data`` / ``failed``: the executed queries.
-    - ``not_executed``: the constructed queries, flagged as unexecuted.
-    - ``invalid_time_period``: the constructed queries, each with why it cannot run.
-    - ``dataset_selection_required``: the datasets to narrow the query to, with their queries.
-    - ``missing_dimensions``: the dimensions the query must still specify.
-    - ``no_data``: the message alone.
-    """
+    """Build the data query tool's MCP structured content from the pipeline outcome."""
     reporting = _Reporting.from_tool_config(tool_config)
     status = outcome.state.status
     mcp_payload = outcome.mcp_payload
@@ -407,12 +383,7 @@ def data_query_outcome_to_meta(
     tool_config: DataQueryToolConfig,
     message: str | None = None,
 ) -> dict[str, Any] | None:
-    """Build the result's ``_meta``: one namespaced payload per audience that has a reader.
-
-    The MCP-App payload is carried when the tool binds a widget resource - without one there is
-    nothing to render it - and the client payload when the config enables it. Returns ``None``
-    when neither applies, so the result carries no ``_meta`` at all.
-    """
+    """Build the result's ``_meta``, one namespaced payload per enabled audience, or ``None``."""
     config = tool_config.details
     meta_config = config.mcp_meta
     meta: dict[str, Any] = {}
@@ -630,11 +601,7 @@ def _split_filters(
     value_names: dict[str, dict[str, str]],
     details: QueryDetails | None,
 ) -> tuple[list[QueryFilter], RequestedPeriod | None]:
-    """Split the query's components into the dimension filters and the time period.
-
-    The time period is reported once, as `requestedPeriod`, instead of as another filter: it is
-    the one component whose values are dates rather than codes.
-    """
+    """Split the query's components into the dimension filters and the time period."""
     metadata = json_query.metadata
     indicator_ids = set(metadata.indicator_dimensions or [])
     default_ids = set(details.default_dimension_ids) if details is not None else set()
@@ -663,11 +630,7 @@ def _split_filters(
 
 
 def _filter_values(component: JsonComponentQuery, names: dict[str, str]) -> list[FilterValue]:
-    """Every value the component filters on, as records.
-
-    The list is not truncated: it is what the query asked for, and the model cannot report on a
-    query whose filter it only sees part of.
-    """
+    """Every value the component filters on, as records."""
     return [FilterValue(id=value, name=names.get(value)) for value in component.values]
 
 
@@ -734,10 +697,7 @@ def _invalid_period_explanation(invalid_period: InvalidPeriodInfo) -> str:
 
 
 def _execution(response: DataResponse, widget_bound: bool) -> QueryExecution:
-    """How the execution of the response's query went, with what the model should do about it.
-
-    The widget fetches the data itself, so the user may see data the model could not read.
-    """
+    """How the execution of the response's query went, with what the model should do about it."""
     status = response.status
 
     if not response.is_empty:
