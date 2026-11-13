@@ -1,27 +1,57 @@
+# IDEs and editors
 .idea
 *.iml
-*.bkp
-*.po~
-*.dtmp
-.DS_Store
 .vscode
-venv
-.venv
-.poetry
-out
+
+# OS files
+.DS_Store
+
+# AI assistants
+CLAUDE.local.md
+.claude/settings.local.json
+
+# Python
 __pycache__/
 *.py[cod]
 *$py.class
-output
-resources/**
 **.egg-info/
-dist
-**/secrets.env
-build
-.env
-dial_conf/core/*.json
-reports
 .mypy_cache
-.dial
 .python-version
+.ipynb_checkpoints
+
+# Testing and coverage
+.pytest_cache
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+
+# Virtual environments
+venv
+.venv
+.poetry
+
+# Build artifacts
+build
+dist
+out
+
+# Backups and temporary files
+*.bkp
+*.po~
+*.dtmp
+*.log
+
+# Secrets and environment
+.env
+**/secrets.env
+
+# Generated outputs
+output
+reports
+
+# Local data and resources
+resources/**
+dial_conf/core/*.json
+.dial
 .statgpt
