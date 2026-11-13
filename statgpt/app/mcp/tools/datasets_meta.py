@@ -72,15 +72,10 @@ async def datasets_to_structured_content(
     indicator_counts: dict[str, int] | None,
     metadata_only_counts: dict[str, int] | None = None,
 ) -> AvailableDatasetsStructuredContent | AvailableDatasetsWithMetadataOnlyStructuredContent:
-    """Build the MCP structured content for the available-datasets tool: each queryable dataset as
-    a record keyed by its stable URN (source id), the distinct providers with their dataset counts,
-    and channel-wide totals.
+    """Build the MCP structured content for the available-datasets tool.
 
-    `metadata_only_counts` - the channel's metadata-only (discovery) datasets per agency, `None`
-    when the tool does not count them - selects the shape the tool advertises for that
-    configuration. They are merged into the providers and the dataset and agency totals without
-    being listed, with a note explaining it when there are any. They leave the indicator total
-    alone: it counts queryable indicators.
+    `metadata_only_counts` - per agency, `None` when the tool does not count them - selects the
+    result shape and is merged into the providers and totals.
     """
     last_updated = await asyncio.gather(
         *(dataset_utils.dataset_last_updated(ds, auth_context) for ds in datasets)
@@ -169,8 +164,7 @@ async def dataset_structure_to_structured_content(
     dataset: DataSet, auth_context: AuthContext
 ) -> DatasetStructureStructuredContent:
     """Build the MCP structured content for the dataset-structure tool: the dataset's identity and
-    its components. The provenance the text rendering carries (description, provider, link) is left
-    out - a caller that needs it has it from the available-datasets tool."""
+    its components."""
     return DatasetStructureStructuredContent(
         dataset_id=dataset.source_id,
         name=dataset.name,
@@ -356,14 +350,10 @@ class AvailabilityQueryMcpTool(
         valid_ids = valid_dimension_ids(dataset)
         unknown = unknown_dimension_ids(valid_ids, codes_by_dimension, args.include_dimensions)
         if unknown:
-            # A caller error the model can fix: surface the helpful message as a ToolError rather
-            # than a found result, so the invalid ids are not silently ignored.
             raise ToolError(unknown_dimensions_message(unknown, sorted(valid_ids)))
 
         unknown_values = unknown_dimension_values(dataset, codes_by_dimension)
         if unknown_values:
-            # Same rationale: an invalid code for a valid dimension is a fixable caller error, not a
-            # result that found nothing.
             raise ToolError(unknown_values_message(unknown_values))
 
         query = build_availability_query(codes_by_dimension)

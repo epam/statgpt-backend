@@ -166,11 +166,7 @@ class McpResourceConfig(BaseYamlModel):
 
 
 class ProxiedResourceConfig(McpResourceConfig):
-    """An MCP resource whose HTML is proxied verbatim from an external HTTP endpoint.
-
-    The backend stores no HTML: on `resources/read` it does a server-to-server GET against
-    `html_url`, returns the body verbatim, and caches it for `cache_ttl_seconds`.
-    """
+    """An MCP resource whose HTML is proxied verbatim from an external HTTP endpoint."""
 
     type: Literal[McpResourceTypes.PROXIED] = McpResourceTypes.PROXIED
     origin_raw: str = Field(

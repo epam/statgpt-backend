@@ -10,8 +10,9 @@ serialized as JSON, which is everything the model needs. The `text/csv` / `text/
 are unchanged except for their URIs (see below), and the discovery datasets block, when there is
 one, is still a text block of its own after them.
 
-See [the response reference](MCP_DATA_QUERY_RESPONSE.md) for the full contract and an example of
-every pipeline status.
+See [the response reference](MCP_DATA_QUERY_RESPONSE.md) for the fields and an example of every
+pipeline status, and [`data-query-mcp-response`](../../openspec/specs/data-query-mcp-response/spec.md)
+for the rules.
 
 ## Where each version 2 field went
 
@@ -57,7 +58,8 @@ Version 2 carried everything in `structuredContent`:
   when `dataExplorerUrl` is reported (`always`, `only_when_no_data` or `never`), and turns
   `isOfficial` on (it is off by default, since not every channel marks official datasets).
 - **`details.explorerLink.mcp` moved** to `details.mcpStructuredContent.dataExplorerUrl`, which
-  governs the link across the whole MCP response.
+  governs the link in `structuredContent` and in the MCP-App `message`. The `client` payload
+  always carries it.
 
 ## Resource URIs
 

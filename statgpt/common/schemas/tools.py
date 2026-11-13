@@ -167,10 +167,7 @@ def _app_only_visibility() -> list[Literal["model", "app"]]:
 
 class SdmxQueryAppTool(BaseToolConfig):
     type: ToolTypes = ToolTypes.SDMX_QUERY_APP
-    # MCP-only by design: the request is built and invoked by the MCP-App component,
-    # never by the Supreme Agent. Pinned to True so a YAML config cannot opt out.
     mcp_only: Literal[True] = True
-    # App-only by default so the model never sees this passthrough tool; still overridable.
     mcp_visibility: list[Literal["model", "app"]] | None = Field(
         default_factory=_app_only_visibility
     )
@@ -179,10 +176,7 @@ class SdmxQueryAppTool(BaseToolConfig):
 
 class DatasetsMetadataAppTool(BaseToolConfig):
     type: ToolTypes = ToolTypes.DATASETS_METADATA_APP
-    # MCP-only by design: consumed by the MCP-App (UI widget), never by the Supreme Agent.
-    # Pinned to True so a YAML config cannot opt out.
     mcp_only: Literal[True] = True
-    # App-only by default so the model never sees this metadata tool; still overridable.
     mcp_visibility: list[Literal["model", "app"]] | None = Field(
         default_factory=_app_only_visibility
     )

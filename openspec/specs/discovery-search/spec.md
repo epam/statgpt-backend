@@ -158,7 +158,7 @@ Relevant datasets SHALL be rendered with `details.templates.item` once per datas
 - **THEN** `{publisher}` renders as empty and the block is still shown
 
 ### Requirement: How the block reaches the agent and MCP clients
-For the agent, a non-empty block SHALL be appended to the Data Query response string after a blank line, whatever the status of the data query. For an MCP client, it SHALL be added as a separate text content item, and the `message` in the tool result metadata and the structured content SHALL stay the pipeline's own response without the block.
+For the agent, a non-empty block SHALL be appended to the Data Query response string after a blank line, whatever the status of the data query. For an MCP client, it SHALL be added as a separate text content item, and the block SHALL NOT be added to the `message` of the tool result metadata or the structured content.
 
 #### Scenario: Agent response
 - **WHEN** the pipeline responds `Here is your data.` and the block is `Related datasets: ...`

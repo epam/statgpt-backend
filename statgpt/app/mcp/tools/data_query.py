@@ -48,8 +48,6 @@ class DataQueryMcpTool(
     async def _execute(self, args: DataQueryArgs) -> ToolResult:
         outcome = await self._runner.run(args.inputs, args.query)
 
-        # The model reads the structured content, also sent as its JSON text; the clients read
-        # `_meta`, one payload per audience.
         result = self._structured_only(
             data_query_outcome_to_structured_content(outcome, self._tool_config)
         )

@@ -79,8 +79,6 @@ class DataQueryArtifactDisplayer:
 
         content = "\n\n".join(msg.text for msg in datasets_messages)
 
-        # The disclaimer describes the shared table format, so it is emitted once per message
-        # instead of being repeated for every dataset block.
         if any(msg.contains_data for msg in datasets_messages):
             content = _DATA_DISCLAIMER + "\n\n" + content
 

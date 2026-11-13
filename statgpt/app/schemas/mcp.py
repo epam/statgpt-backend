@@ -12,8 +12,7 @@ from statgpt.app.schemas.query import AppJsonQueryWithMetadata
 from statgpt.common.schemas.base import BaseYamlModel
 from statgpt.common.schemas.query import JsonQueryOperator
 
-# One version number for the whole data query response: every `_meta` audience payload carries it
-# and they are bumped together. `structuredContent` does not: the calling model cannot act on it.
+# Version carried by every `_meta` payload of the data query response.
 DATA_QUERY_RESPONSE_VERSION = 3
 
 
