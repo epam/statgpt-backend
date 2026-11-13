@@ -70,28 +70,9 @@ channel, so the channel configuration has to say which one:
 Triggering a job on a channel without this block returns 409. Requests are authenticated with
 `DIAL_API_KEY`, since a background job has no user token.
 
-`referenceAreaApplicationId` is a second RAG channel, holding one document per distinct
-reference-area label the channel's records use. Each document names the roles its records use
-the label in - `subject`, `partner`, or both - so the two chat-time area axes can search the one
-channel separately, each offered only the labels its own field holds. The same job publishes it,
-right after the records, and the chat-time pre-filter searches it to resolve the areas a query
-names onto the values the discovery channel actually holds. Leave it unset and no vocabulary is
-published: the pre-filter then narrows on the remaining axes. A failure to publish it fails the
-job, because a vocabulary that does not match the records narrows queries away from datasets
-that do answer them.
-
-The same block also configures the chat-time lookup over what was published. `enabled: false`
-switches that lookup off while leaving indexing available, so discovery data can be indexed
-before it is surfaced to users.
-
-Note that `details.templates` is required even for a channel that only wants indexing: one block
-owns both halves of the feature, so a channel with `enabled: false` still has to carry templates
-nothing will render.
-
-One RAG channel can serve several StatGPT channels and both discovery grades. Documents are
-tagged with the publishing channel's deployment id, and both the indexing job and the chat-time
-lookup filter on it, so a channel never publishes over, withdraws, or surfaces another
-channel's records.
+`referenceAreaApplicationId` is optional: a second RAG channel that the same job fills with the
+reference-area labels the channel's records use, for the chat-time pre-filter. Leave it unset and
+no vocabulary is published.
 
 Each application's own configuration owns its document metadata schema. Both are generated
 from the models that publish them, so neither has to be written by hand:
@@ -101,35 +82,12 @@ python scripts/print_discovery_metadata_schema.py [--patch dial/core/config/conf
 python scripts/print_discovery_metadata_schema.py --schema reference-areas [--patch ...]
 ```
 
-A run reads the application's schema back and refuses to publish if any field the model
-declares filterable is missing. Discovery search pre-filters by `agency` and by the
-`parsed_reference_areas`, `parsed_partner_reference_areas` and `parsed_frequencies` arrays -
-derived from the ';'-separated cells, because a filter matches a whole value - while `grade` /
-`statgpt_channel` are what let several channels and both discovery grades share one application
-without overwriting each other's documents.
+Changing these fields means republishing every document (`discovery reindex --force
+publishing`): a document holding a string where an array is declared breaks the channel's search
+and its metadata endpoint alike.
 
-The vocabulary channel's `roles` is an array on the same terms, and it is what the two area
-axes filter on.
-
-The arrays have to be declared as plain, non-nullable string arrays. The RAG service turns the
-schema into its own request model, and an optional or enum-typed array makes that derivation
-fail on *every* search against the channel, not only one carrying the field. For the same
-reason, changing these fields means republishing every document: a document holding a string
-where an array is declared breaks the channel's search and its metadata endpoint alike.
-
-### Indicator summarization
-
-A record's indicator list is what its submitter authored: every indicator, each with its units
-of measure. A run derives the form a document is published with, and keeps the submitted list
-untouched:
-
-- When every indicator carries the same units of measure, they are stated once, as a
-  `Unit: ...` prefix, instead of after every name.
-- A list still longer than `summaryThresholdChars` is collapsed by an LLM into indicator groups.
-  A list longer than `chunkSizeChars` is split between indicators, each part is summarized on
-  its own, and the parts' groups are merged by one more call.
-
-Configured under `details.indexing` of the `discoveryDatasets` block; every setting is optional:
+Indicator summarization is configured under `details.indexing` of the same block; every setting
+is optional:
 
 ```jsonc
 {
@@ -143,40 +101,6 @@ Configured under `details.indexing` of the `discoveryDatasets` block; every sett
 }
 ```
 
-An answer is a `reasoning` field the model plans in, which is not published, then the groups.
-When the indicators share no unit, it also has a `units` field: units the model could summarize
-as one value are published as the `Unit: ...` prefix, and otherwise each group states its own.
-
-The published form of an answer - the units prefix and the separators included - must fit in
-`maxSummaryChars`. An answer that does not, or that is not valid, is sent back to the model with
-what is wrong with it, up to `DISCOVERY_SUMMARIZE_VALIDATION_RETRIES` times. A record whose
-summarization still fails is marked `FAILED` with the reason, and its live document is left as
-it is.
-
-A summary is re-derived only when the submitted list or the effective configuration - prompts
-after falling back to the defaults included - has changed since it was made, or when the run
-forces the `summarization` stage. A summary that changes marks an indexed record `OUTDATED`, so
-the same run republishes it.
-
-Each record is saved as soon as its summary is derived. A run cut short - by
-`BACKGROUND_TASKS_TASK_TIMEOUT` on a channel of long lists, say - is marked `FAILED`, and the
-next run picks up where it stopped. The reference-area vocabulary covers only records with a
-live document, so a record whose summarization failed before it was ever published adds none
-of its areas.
-
-A record keeps the LLM answers of its summary in `indicatorsSummaryCalls`, and those of its last
-failed run in `indicatorsSummaryFailedCalls`; ask for them with `include_summary_calls=true`.
-Each is a run: its `calls`, every one with its `usage` - deployment, model, prompt and
-completion tokens, cost in USD and duration - and the run's `usage` summed per deployment and
-model. The cost is priced with the deployment's DIAL pricing when the call is made, and is
-`null` when DIAL has none.
-
-### Validation
-
-Records are validated at the start of every run, and an invalid record is withdrawn from the
-index rather than published. Besides a description and a well-formed URL, a record must name at
-least one reference area and at least one frequency: the chat-time pre-filter narrows by both,
-so a record naming neither would be indexed and then never surfaced. It must also list at least
-one indicator, and every indicator must give its units of measure; the issue names the
-indicators that do not. Group labels such as `Euro area` or `World` count as reference areas in
-their own right, and are never expanded into the countries inside them.
+How records are validated, summarized, published and searched is specified in
+[`openspec/specs`](../../openspec/specs): `discovery-dataset-records`, `discovery-indexing`,
+`discovery-indicator-summarization` and `discovery-search`.

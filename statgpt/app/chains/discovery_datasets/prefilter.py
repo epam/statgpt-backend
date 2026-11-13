@@ -9,22 +9,6 @@ Everything here can only remove candidates, and every step can fail on its own, 
 module is written to degrade instead of raising: an axis that produces nothing drops out, and a
 lookup where nothing survives searches the channel exactly as it did before pre-filtering
 existed. The caller gets a matcher or `None`, never an exception.
-
-Two properties of the RAG channel's filter language shape the result:
-
-A field of a filter entry takes a list of values and matches any of them, the fields of an entry
-are AND-ed and entries are OR-ed - so each axis is one field carrying everything selected on it,
-and one entry holding every axis is "in one of these countries, at one of these frequencies".
-
-The values a request may carry are exactly the ones the channel currently holds - the service
-types each filterable field as a `Literal` over its own dimensions. A value outside them fails
-the whole search request, not just its own clause, which is why every selection is intersected
-with `dimensions` before it is allowed into a matcher.
-
-The two area axes are the one place where axes are not independent. A record covering the United
-States as its subject and one covering it as a trade partner are both answers to a query naming
-it, so the two are alternatives to each other: each becomes an entry of its own, carrying the
-other axes too, rather than a second field of one entry, which would demand both at once.
 """
 
 import asyncio
@@ -451,18 +435,7 @@ class DiscoveryPreFilterBuilder:
     def _entries(
         channel: str, shared: _Assignments, alternatives: Sequence[_Assignments]
     ) -> list[GenericRagDocumentFilter]:
-        """The matcher's filter entries: one per alternative, each also carrying `shared`.
-
-        A field matches any of the values it carries and the fields of an entry are AND-ed, so
-        every axis that is a requirement of its own fits in one entry. Only the area axes are
-        not: covering an area as a subject and covering it as a partner are two ways of
-        satisfying "about this country", so each is an entry of its own - the service OR-s them -
-        instead of a demand for both at once. That bounds a matcher at two entries, however many
-        values each axis selected.
-
-        The channel scope is repeated in every entry: without it, one entry would let another
-        channel's documents through the whole matcher.
-        """
+        """The matcher's filter entries: one per alternative, each also carrying `shared`."""
         if not shared and not alternatives:
             return []
         # Validated from a mapping rather than spread into the constructor, whose typed signature

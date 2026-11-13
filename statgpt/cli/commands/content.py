@@ -424,11 +424,7 @@ async def _upload_discovery_datasets(
 ) -> None:
     """Upload every discovery file of a client to every channel the client declares.
 
-    The folder is the channel's collection, so its files go in one upsert request per
-    channel: all of them are loaded or none are, and a dataset described in two files is
-    refused instead of one silently overwriting the other. Upserted, so a file that is
-    unchanged leaves its records' statuses alone. Each channel is isolated and recorded: one
-    that refuses the batch does not stop the rest.
+    The folder is the channel's collection, so its files go in one upsert request per channel.
     """
     files = sorted(f for f in os.listdir(discovery_dir) if is_upload_file(f))
     if not files:

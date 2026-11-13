@@ -119,11 +119,7 @@ class DataQueryTool(BaseToolConfig):
 
 
 class DiscoveryDatasetsTool(BaseToolConfig):
-    """Discovery datasets: the publish target, and the chat-time lookup over what was published.
-
-    Not listed in `ChannelConfig.tool_fields` - the lookup is run by the data query tool, not the
-    Supreme Agent - so `enabled` gates only that lookup, never publishing or indexing.
-    """
+    """Discovery datasets: the publish target, and the chat-time lookup over what was published."""
 
     type: ToolTypes = ToolTypes.DISCOVERY_DATASETS
     details: DiscoveryDatasetsDetails

@@ -1,8 +1,7 @@
 """What the chat-time discovery datasets lookup works with and reports.
 
 A candidate is one retrieved document reassembled into a whole record: the metadata the search
-endpoint returns plus the description it does not. The eval attachment is what a reviewer needs
-to judge a run, and is deliberately not part of the tool state echoed back on later turns.
+endpoint returns plus the description it does not.
 """
 
 from typing import Any
@@ -12,10 +11,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from statgpt.common.schemas import DiscoveryDocumentMetadata, DiscoveryPreFilterAxis
 
 _PUBLISHING_METADATA_FIELDS = frozenset({"grade", "statgpt_channel"})
-"""Metadata that scopes publishing rather than describing a dataset.
-
-Kept out of both the prompt and the template context: it means nothing to a judge or a reader.
-"""
+"""Metadata that scopes publishing rather than describing a dataset."""
 
 
 class DiscoveryCandidateForLlm(BaseModel):
@@ -50,8 +46,7 @@ class DiscoveryCandidate(BaseModel):
     rank: int
     """1-based position among the documents this channel published.
 
-    The only relevance signal the endpoint gives - it returns no scores. Counted over the hits
-    that survived retrieval, so the numbers a user reads have no gaps.
+    The only relevance signal the endpoint gives - it returns no scores.
     """
 
     display_name: str = ""

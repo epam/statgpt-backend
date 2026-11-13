@@ -1,23 +1,5 @@
-"""Deriving the indicator list a discovery document is published with.
-
-A record's `indicators_coverage` is what its submitter authored: every indicator, each with its
-units of measure. Indexed as it is, a list of a few hundred indicators would drown the
-description a question is meant to match, so a run derives `indicators_summary` from it:
-
-- a units of measure every indicator shares is stated once, as a `Unit: ...` prefix, instead
-  of after every name;
-- a list that is still longer than the channel's threshold is collapsed by an LLM into
-  indicator groups. A list too long for one call is split between indicators, each part is
-  summarized on its own, and the parts' groups are merged by one more call. Units the indicators
-  do not share are summarized by the model: as one value for the whole list when they can be,
-  published as the same prefix, or along with each group otherwise.
-
-The prefix for a shared unit is added here, never by the model, so the shared unit a document
-states is the one the submitter wrote.
-
-An answer that does not fit the output limit is not simply asked for again: the conversation
-goes on with the answer and what is wrong with it, so the model corrects it rather than
-repeating it.
+"""Deriving `indicators_summary`, the indicator list a discovery document is published with, from
+a record's `indicators_coverage`.
 """
 
 import asyncio
@@ -438,11 +420,7 @@ class DiscoveryIndicatorSummarizer:
         calls: Sequence[schemas.DiscoverySummaryCall],
         source_hash: str,
     ) -> None:
-        """Write a derived summary to its record, outdating an indexed record it changes.
-
-        `missing_indicators` is cleared on the way: it is no longer derived, and what the old
-        template left in it would otherwise stay published.
-        """
+        """Write a derived summary to its record, outdating an indexed record it changes."""
         changed = (record.indicators_summary, record.missing_indicators) != (summary.text, "")
         record.indicators_summary = summary.text
         record.missing_indicators = ""
