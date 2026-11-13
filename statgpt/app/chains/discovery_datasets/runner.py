@@ -1,8 +1,7 @@
 """The chat-time lookup over a channel's published discovery datasets.
 
 Runs concurrently with the data query pipeline and contributes a block of relevant discovery
-datasets to its response. It is decoration on someone else's answer, so it never fails the turn:
-every failure is recorded on the eval attachment and in the debug stage, and produces no block.
+datasets to its response.
 """
 
 import logging
@@ -155,18 +154,7 @@ class DiscoveryDatasetsRunner:
         channel: str,
         pre_filter: DiscoveryPreFilter,
     ) -> list[GenericRagDocument]:
-        """Rank the documents the pre-filter allows, falling back to the channel's own.
-
-        A narrowed search can be rejected outright rather than simply matching nothing: the
-        service validates a filter value against the values the channel currently holds, and a
-        cached list of them can be a few minutes behind. So a rejection is retried unnarrowed
-        instead of being reported as a failed lookup - the pre-filter is an optimization, and a
-        stale cache must not cost a user their results.
-
-        The cached values go with it. A rejection is the only evidence that they are stale, and
-        keeping them would make the next lookup, and every one until the entry expired, pay the
-        same rejected search and the same fallback.
-        """
+        """Rank the documents the pre-filter allows, falling back to the channel's own."""
         if pre_filter.matcher is not None:
             try:
                 documents = await self._search_with(client, query, pre_filter.matcher)
@@ -190,13 +178,7 @@ class DiscoveryDatasetsRunner:
 
     @staticmethod
     def _own_documents_matcher(channel: str) -> GenericRagDocumentMatcher:
-        """Restrict the search to the documents this channel published.
-
-        One RAG channel is shared by both discovery grades and by several StatGPT channels, so
-        the scope has to be narrowed somewhere. Asking the service to do it beats dropping
-        foreign hits afterwards: the filter is applied before ranking, so `top_n` counts this
-        channel's own documents rather than everyone's.
-        """
+        """Restrict the search to the documents this channel published."""
         return GenericRagDocumentMatcher(
             filters=[GenericRagDocumentFilter(statgpt_channel=channel)]
         )
@@ -266,11 +248,7 @@ class DiscoveryDatasetsRunner:
     def _select(
         candidates: list[DiscoveryCandidate], response: DiscoveryRelevanceResponse
     ) -> list[SelectedDiscoveryDataset]:
-        """The candidates the model kept, in the search's rank order rather than the model's.
-
-        Verdicts on ids that were never offered are dropped: an id the model invented must not
-        be able to put a dataset in front of a user.
-        """
+        """The candidates the model kept, in the search's rank order rather than the model's."""
         by_id = {candidate.document_id: candidate for candidate in candidates}
         reasons: dict[int, str] = {}
         for item in response.items:

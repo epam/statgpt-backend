@@ -113,9 +113,7 @@ class AdminPortalDiscoveryIndexingJobService(DbServiceBase):
         """
         channel = await ChannelService(self._session).get_model_by_id(channel_id)
 
-        # Fail here rather than inside the run: a channel with nowhere to publish to is a
-        # configuration mistake the caller can fix, not a job worth recording.
-        self._rag_application_id(channel)
+        self._rag_application_id(channel)  # raises when the channel has no publish target
 
         if active := await self._get_active_job(channel_id):
             raise IndexingJobInProgressError(channel_id=channel_id, job_id=active.id)
@@ -338,13 +336,6 @@ class AdminPortalDiscoveryIndexingJobService(DbServiceBase):
         read, and a vocabulary channel found misconfigured afterwards would fail the job having
         already done every bit of its work - once per run, until someone fixed the
         configuration.
-
-        The vocabulary is published after the documents and never in place of them: it
-        describes what the discovery channel holds, so publishing it first would offer a label
-        for a document that does not exist yet. A failure there still fails the job. The records
-        are published either way - their statuses were committed by the publisher - but a
-        vocabulary that does not match them silently narrows queries away from datasets that do
-        cover what was asked, and that is not something a completed job should hide.
 
         The indexing status of each record is written by the publishers; this only owns the
         clients' lifetime, so the connection pools are closed when the run ends rather than

@@ -294,8 +294,7 @@ class DiscoveryDataset(DefaultBase):
     indicators_coverage: Mapped[list[dict[str, Any]]] = mapped_column(type_=postgresql.JSONB)
 
     # ~~~ Derived from `indicators_coverage` by an indexing job, never written by a submitter ~~~
-    # `indicators_summary` is what the published document carries; `missing_indicators` is no
-    # longer derived, and a run clears what the old template left in it.
+    # `indicators_summary` is what the published document carries.
     indicators_summary: Mapped[str] = mapped_column(default="")
     missing_indicators: Mapped[str] = mapped_column(default="")
     # sha256 of `indicators_coverage`, in its flat form, plus the summarization config that
