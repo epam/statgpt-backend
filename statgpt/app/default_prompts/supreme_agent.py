@@ -23,6 +23,7 @@ class SupremeAgentDefaultPrompts(DefaltPromptsBase):
     deep_research_report_answer_placeholder: str
     failed_turn_message_to_agent: str
     failed_turn_with_error_message_to_agent: str
+    interrupted_turn_message_to_agent: str
     default_user_ui_context_section: str
 
 

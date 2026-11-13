@@ -296,7 +296,10 @@ class History:
                     )
                 elif include_tool_messages and (note := self._failed_turn_note(msg)) is not None:
                     # Not the empty assistant message the client sends back for it: to the agent,
-                    # that reads as an answer of silence, which it then repeats.
+                    # that reads as an answer of silence, which it then repeats. Nor the part of
+                    # the answer streamed before the error alone: that reads as a complete answer.
+                    if msg.content:
+                        chat_history.append(self.dial_to_langchain_message(msg))
                     chat_history.append(SystemMessage(content=note))
                 else:
                     chat_history.append(self.dial_to_langchain_message(msg))
@@ -342,20 +345,31 @@ class History:
 
     @staticmethod
     def _failed_turn_note(message: DialMessage) -> str | None:
-        """The note to show the agent in place of this assistant message, if it is a turn that
-        failed before any answer was shown: with the error the user was shown, if known.
+        """The note to show the agent after the part of this assistant message the user was shown,
+        if it is a turn that failed: with the error the user was shown, if known.
 
         `ChannelCompletion` sets the error in the state of a failed turn and clears it on success;
         a turn cut off before its state was sent, e.g. by a dropped connection or a rejected
-        request, has no state."""
-        if message.content or message.tool_calls:
+        request, has no state. A turn the error stopped mid-answer gets a note only if the error
+        was shown as a DIAL error: otherwise the message itself ends with the error shown."""
+        if message.tool_calls:
             return None
         state = message.custom_content.state if message.custom_content is not None else None
         if not isinstance(state, dict):
+            if message.content:
+                # More likely a response the user stopped: it has no state either.
+                return None
             return supreme_agent_default_prompts.failed_turn_message_to_agent
         if not state.get(StateVarsConfig.ERROR):
             return None
-        if error := state.get(StateVarsConfig.ERROR_DISPLAY_MESSAGE):
+        error = state.get(StateVarsConfig.ERROR_DISPLAY_MESSAGE)
+        if message.content:
+            if not error:
+                return None
+            return supreme_agent_default_prompts.interrupted_turn_message_to_agent.format(
+                error=error
+            )
+        if error:
             return supreme_agent_default_prompts.failed_turn_with_error_message_to_agent.format(
                 error=error
             )
