@@ -68,7 +68,7 @@ class RateLimitException(DIALException):
         headers: dict[str, str] | None = None,
         **kwargs,
     ) -> None:
-        # Status 500, not 429: see openspec/specs/chat-error-handling: "Rate limits".
+        # Status 500, not 429 (see openspec/specs/chat-error-handling: "Rate limits").
         response_headers = {**(headers or {}), "x-should-retry": "false"}
         if retry_after is not None:
             response_headers["Retry-After"] = str(retry_after)

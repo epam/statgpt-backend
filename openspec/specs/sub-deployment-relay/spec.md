@@ -7,7 +7,7 @@ Defines how the streamed response of a DIAL sub-deployment that a tool calls (De
 ## Requirements
 
 ### Requirement: Stages are relayed
-The stages of a sub-deployment response SHALL be relayed when the tool's `stagesConfig.debugOnly` is false or the conversation shows debug stages. A stage SHALL be closed with the status the sub-deployment closed it with, so a step that failed downstream does not show as completed. Stages still open when the response ends SHALL be closed, children before parents.
+The stages of a sub-deployment response SHALL be relayed when the tool's `stagesConfig.debugOnly` is false or the conversation shows debug stages, and for Deep Research also when its `alwaysShowStages` is true. File RAG and Web Search define `alwaysShowStages` too, but ignore it. A stage SHALL be closed with the status the sub-deployment closed it with, so a step that failed downstream does not show as completed. Stages still open when the response ends SHALL be closed, children before parents.
 
 #### Scenario: Failed downstream step
 - **WHEN** the sub-deployment closes its stage "Searching sources" with status `failed`

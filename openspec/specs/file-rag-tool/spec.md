@@ -7,7 +7,14 @@ Answers questions from the channel's publications through a RAG DIAL application
 ## Requirements
 
 ### Requirement: RAG backends
-The tool's `version` SHALL select the backend: `GENERIC`, a Generic RAG DIAL application, or `DIAL`, the legacy DIAL RAG service. Both SHALL share the transport, pre-filter and response handling, differing only in the configuration payload. `deploymentId` SHALL name the RAG application and `metadataEndpoint` its metadata route (Generic RAG: `/v1/deployments/<app>/route/channel/metadata`). `DIAL` SHALL be deprecated, with a warning from the admin API and `content init` when a channel uses it.
+The tool's `version` SHALL select the backend: `GENERIC`, a Generic RAG DIAL application, or `DIAL`, the legacy DIAL RAG service. Both SHALL share the transport, pre-filter and response handling, differing only in the configuration payload. `deploymentId` SHALL name the RAG application and `metadataEndpoint` its metadata route (Generic RAG: `/v1/deployments/<app>/route/channel/metadata`).
+
+#### Scenario: Generic RAG channel
+- **WHEN** a channel's File RAG tool has `version: GENERIC` and `deploymentId: publications-rag`
+- **THEN** the tool calls the `publications-rag` application with the Generic RAG configuration payload
+
+### Requirement: Deprecated DIAL backend
+The `DIAL` backend SHALL be deprecated in favor of `GENERIC`: the admin backend SHALL log a warning when a channel using it is created or updated, and `content init` SHALL print one.
 
 #### Scenario: Deprecated backend
 - **WHEN** `content init` creates a channel whose File RAG tool has `version: DIAL`

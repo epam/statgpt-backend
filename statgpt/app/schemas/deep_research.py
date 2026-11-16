@@ -19,8 +19,7 @@ class DeepResearchTurn(BaseModel):
 
 
 class DeepResearchSession(BaseModel):
-    """Supreme Agent <-> Deep Research conversation, persisted in DIAL state while a run is in
-    progress."""
+    """Supreme Agent <-> Deep Research conversation, kept in DIAL state while a run is ongoing."""
 
     turns: list[DeepResearchTurn] = Field(default_factory=list)
 

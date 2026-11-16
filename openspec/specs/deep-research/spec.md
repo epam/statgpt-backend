@@ -21,7 +21,7 @@ Deep Research SHALL be available on a channel only when its `deep_research` tool
 - **THEN** the configuration endpoint lists no "Deep research" toggle
 
 ### Requirement: Availability per user
-When the tool sets `accessClaimValue`, Deep Research SHALL be available only to callers whose DIAL roles, resolved from their access token through DIAL's user-info endpoint, include that value. If a role is required but the roles cannot be resolved, access SHALL be denied. System users SHALL always have access, so evaluations can run without a user token.
+When the tool sets `accessClaimValue`, Deep Research SHALL be available only to callers whose DIAL roles, resolved from their access token through DIAL's user-info endpoint, include that value. If a role is required but the roles cannot be resolved, access SHALL be denied. System users SHALL always have access, so evaluations can run without a user token; they are disabled in production.
 
 #### Scenario: User without the required role forces the toggle
 - **WHEN** the tool has `accessClaimValue: deep-research-users` and a user without that role sends a request with `deep_research: true`
@@ -201,7 +201,7 @@ When the Deep Research deployment fails, before or during the stream, the turn S
 
 #### Scenario: Error with a display message
 - **WHEN** Deep Research fails with `display_message` "Research failed (ref 7f3a). Please retry."
-- **THEN** the user gets a DIAL error with that text and the conversation state is still saved
+- **THEN** the user gets a DIAL error with that text, and the conversation state is still saved, including the failed call and its notes in the tool messages
 
 ### Requirement: Failed turns can be resumed
 If Deep Research sent a state before failing, the failed turn SHALL be kept in the session with that state, so Deep Research's next call can decide whether to resume; otherwise the session SHALL be left as it was. The failed call SHALL be answered in the agent's history with an error tool response and, when a session is kept, a system note telling the agent to call the resume tool if the user asks to continue or retry. The history SHALL be saved with the failed turn.

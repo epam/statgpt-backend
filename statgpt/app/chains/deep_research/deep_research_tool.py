@@ -96,8 +96,7 @@ class DeepResearchRunner:
     def _build_request_messages(
         system_prompt: str | None, session: DeepResearchSession, user_message: str
     ) -> list[dict[str, Any]]:
-        """The DIAL messages sent to Deep Research: the replayed sub-conversation plus the new
-        user input."""
+        """The DIAL messages sent to Deep Research: the replayed turns plus the new user input."""
         messages: list[dict[str, Any]] = []
         if system_prompt:
             messages.append({'role': 'system', 'content': system_prompt})
@@ -115,7 +114,8 @@ class DeepResearchRunner:
 
     @staticmethod
     def _research_started(deep_research_state: dict[str, Any] | None) -> bool:
-        """Whether this response delivered the final report, per Deep Research's state.
+        """Whether Deep Research's state sets `preparation.research_started`, which marks the
+        response as the final report.
 
         See openspec/specs/deep-research: "Final-report contract"."""
         preparation = (deep_research_state or {}).get('preparation') or {}
@@ -162,8 +162,8 @@ class DeepResearchRunner:
             )
 
     async def run(self, inputs: dict, user_message: str) -> DeepResearchTurnResult:
-        """Run one Deep Research turn: route a clarification / plan back to the Supreme Agent, or
-        deliver the final report, and keep the session in step.
+        """Run one Deep Research turn: hand a clarification / plan back to the Supreme Agent and
+        save the session, or deliver the final report and drop the session.
 
         Deployment failures (`openai.APIError`) are raised as `DeepResearchFailedError`; other
         failures propagate to `ToolCaller.call_tool`."""
@@ -277,8 +277,7 @@ class ResumeDeepResearchTool(
         return self._resume_stages_config.tool_result_name or self.default_result_stage_name
 
     def _render_stage_name(self, name: str, args: dict, inputs: dict) -> str:
-        """Expose the session's original question, kept in the state, to the stage-name
-        templates."""
+        """Expose the session's original question, read from the state, to stage-name templates."""
         session = DeepResearchSession.from_state(ChainParameters.get_state(inputs))
         question = session.original_question if session else None
         if question is None:

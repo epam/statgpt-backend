@@ -417,7 +417,8 @@ class ChannelConfig(BaseYamlModel):
 
     async def is_deep_research_available_for(self, auth_context: AuthContext) -> bool:
         """Whether Deep Research is available to the caller behind ``auth_context``, gated on the
-        tool's `access_claim_value`."""
+        tool's `access_claim_value`.
+        """
         if not self.is_deep_research_available:
             return False
         assert self.deep_research is not None  # guaranteed by is_deep_research_available

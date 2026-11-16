@@ -124,8 +124,8 @@ class OpenAiToDialStreamer:
         """The source of every citation tag of the content, to append to a tool response for the
         agent. Empty if the content cites nothing.
 
-        The rest of the annotation, such as the cited file and page box, is left out to keep the
-        response small.
+        Only the tag id, the source title and the quote are kept; the cited file, page box and
+        other annotation fields are left out to keep the response small.
         """
         if not (citations := self.citations):
             return ''
@@ -210,7 +210,8 @@ class OpenAiToDialStreamer:
 
     def _process_annotations(self, annotations: list[dict[str, Any]]) -> None:
         """Relay the sub-deployment's annotations to `_choice`, never to `_target`, which is a
-        stage on some paths."""
+        stage on some paths.
+        """
         relayed = [
             self._renumber_annotation(self._rewrite_annotation(annotation))
             for annotation in annotations
@@ -232,6 +233,7 @@ class OpenAiToDialStreamer:
         """Move the annotation's `index` into the index space of the whole response.
 
         See openspec/specs/sub-deployment-relay: "Annotation indexes are unique per response".
+
         An annotation that arrives without an index keeps none: the array it belongs to is
         either fully indexed or not indexed at all.
 
@@ -277,7 +279,8 @@ class OpenAiToDialStreamer:
     def _open_stage(self, index: int, name: str, parent_index: int | None) -> None:
         """Open the relayed stage under the relayed stage the deployment nested it in, or at the
         root when that parent is unknown or closed: the SDK refuses to open a stage under such a
-        parent."""
+        parent.
+        """
         if parent_index is None:
             stage = self._choice.create_stage(name)
         elif parent_index in self._open_stages:
