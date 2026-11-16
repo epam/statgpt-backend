@@ -261,14 +261,7 @@ class ChannelCompletion(ChatCompletion):
         configuration: StatGPTConfiguration,
         choice: Choice,
     ) -> None:
-        """Reflect the "Deep research" toggle state back to the UI for the next turn.
-
-        The deployment configuration schema is static per deployment, so it cannot express the
-        current toggle state per conversation. Instead each turn drives the toggle through a
-        per-message `custom_content.form_schema` whose `deep_research` control (matching the
-        configuration field) carries the value the toggle should hold on the next request. Emitted
-        only when Deep Research is available to the caller, i.e. only when the toggle exists.
-        """
+        """Set the "Deep research" toggle for the next turn through the message's form schema."""
         if not await service.channel_config.is_deep_research_available_for(auth_context):
             return
         armed = cls._resolve_deep_research_toggle(state, configuration)
@@ -276,14 +269,7 @@ class ChannelCompletion(ChatCompletion):
 
     @staticmethod
     def _resolve_deep_research_toggle(state: dict, configuration: StatGPTConfiguration) -> bool:
-        """The value the "Deep research" toggle should hold on the next request.
-
-        - The final report was delivered this turn, or the query check answered this turn directly
-          instead of starting a run -> disarm, so the follow-up goes to the normal, cheap agent
-          instead of silently launching a fresh, expensive Deep Research run.
-        - A run is still in progress (clarification / plan-for-approval turn) -> stay armed.
-        - Otherwise mirror the user's current selection, so a deliberately re-armed toggle stays on.
-        """
+        """The value the "Deep research" toggle should hold on the next request."""
         if state.get(StateVarsConfig.DEEP_RESEARCH_REPORT_DELIVERED) or state.get(
             StateVarsConfig.DEEP_RESEARCH_AUTO_DEACTIVATED
         ):
@@ -318,8 +304,6 @@ class ChannelCompletion(ChatCompletion):
         if state := cls._latest_response_state(request.messages):
             if (show_debug_stages := state.get(StateVarsConfig.SHOW_DEBUG_STAGES)) is not None:
                 defaults[StateVarsConfig.SHOW_DEBUG_STAGES] = show_debug_stages
-            # Carry the Deep Research clarification session across turns so the Supreme
-            # Agent can resume the in-progress Deep Research run.
             if (dr_session := state.get(StateVarsConfig.DEEP_RESEARCH_SESSION)) is not None:
                 defaults[StateVarsConfig.DEEP_RESEARCH_SESSION] = dr_session
 

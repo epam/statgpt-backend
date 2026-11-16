@@ -416,15 +416,8 @@ class ChannelConfig(BaseYamlModel):
         return self.deep_research is not None and self.deep_research.enabled
 
     async def is_deep_research_available_for(self, auth_context: AuthContext) -> bool:
-        """Whether Deep Research is available to the caller behind ``auth_context``.
-
-        Extends `is_deep_research_available` with per-user gating: when the tool's
-        `access_claim_value` is set, the caller's DIAL roles (resolved from their access token
-        via DIAL's user-info endpoint) must include that value. Fails closed — if a role is
-        required but roles cannot be resolved, access is denied. System users (used for
-        evaluation, disabled in production) bypass the gate, since they carry no token yet must
-        be able to run evaluations.
-        """
+        """Whether Deep Research is available to the caller behind ``auth_context``, gated on the
+        tool's `access_claim_value`."""
         if not self.is_deep_research_available:
             return False
         assert self.deep_research is not None  # guaranteed by is_deep_research_available

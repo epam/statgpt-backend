@@ -21,16 +21,9 @@ class StateVarsConfig:
     OUT_OF_SCOPE_REASONING = "out_of_scope_reasoning"
     TOOL_MESSAGES = "tool_messages"
 
-    # Supreme Agent <-> Deep Research clarification session, carried across turns.
     DEEP_RESEARCH_SESSION = "deep_research_session"
-    # Set for exactly one turn: the turn on which Deep Research delivered its final report. Read
-    # when emitting the per-message Deep Research toggle form schema so the toggle disarms itself.
-    # One-shot by construction: `init_state` does not carry it forward to the next turn. On later
-    # turns, `History` reads it from the report message's state to keep the report out of the
-    # agent's history there, as the report's tool response already carries it.
+    # One-shot (`init_state` does not carry it forward): set on the turn that delivered the final
+    # report. Later turns read it from the report message's state (see `History`).
     DEEP_RESEARCH_REPORT_DELIVERED = "deep_research_report_delivered"
-    # Set for exactly one turn: the turn on which the user had Deep Research mode on, but the query
-    # check decided that the query does not suit Deep Research and deactivated the mode, so the
-    # query was answered as a normal turn. Disarms the toggle and is one-shot, like
-    # `DEEP_RESEARCH_REPORT_DELIVERED`.
+    # One-shot: set on the turn on which the query check rejected the query.
     DEEP_RESEARCH_AUTO_DEACTIVATED = "deep_research_auto_deactivated"

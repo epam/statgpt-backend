@@ -8,11 +8,8 @@ from statgpt.app.config.state import StateVarsConfig
 class DeepResearchTurn(BaseModel):
     """One Supreme Agent <-> Deep Research exchange, persisted in DIAL state.
 
-    Stored with neutral field names on purpose. The sub-conversation is *not* kept in
-    DIAL-message shape (``role``/``content``/``custom_content``): the DIAL chat client
-    strips ``custom_content`` from any message-shaped object it finds while round-tripping
-    state, which would drop Deep Research's own state and force a re-plan every turn.
-    The DIAL messages are rebuilt from these fields only when calling the deployment.
+    Not in DIAL-message shape on purpose (see openspec/specs/deep-research: "Session turns are not
+    stored as messages").
     """
 
     user_message: str
@@ -22,16 +19,8 @@ class DeepResearchTurn(BaseModel):
 
 
 class DeepResearchSession(BaseModel):
-    """Supreme Agent <-> Deep Research conversation, persisted in DIAL state.
-
-    Carries the multi-turn clarification flow across user turns as a list of
-    :class:`DeepResearchTurn`. Kept separate from the user-facing chat history so Deep
-    Research's intermediate turns do not pollute the Supreme Agent context.
-
-    The session lives in state only while the clarification flow is in progress; once Deep
-    Research delivers the final report the tool drops it, so its mere presence signals an
-    in-progress run.
-    """
+    """Supreme Agent <-> Deep Research conversation, persisted in DIAL state while a run is in
+    progress."""
 
     turns: list[DeepResearchTurn] = Field(default_factory=list)
 
