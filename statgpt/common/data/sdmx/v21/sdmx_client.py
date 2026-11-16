@@ -34,9 +34,7 @@ def init_sdmx(config: SdmxDataSourceConfig):
 class SdmxRequestTimeoutError(Exception):
     """Raised when an SDMX HTTP request times out after exhausting retries.
 
-    The message is safe to surface to callers (e.g. as an offline dataset status, or a
-    chat-facing error) so timeouts read as "the data source didn't respond in time"
-    instead of a generic failure.
+    See openspec/specs/sdmx-request-retries: "Exhausted timeouts raise a timeout error".
     """
 
 
@@ -414,8 +412,8 @@ class AsyncSdmxClient:
                         f"Retrying in {delay} seconds...\nRequest: {request_desc}"
                     )
                 except (httpx.NetworkError, httpx.RemoteProtocolError) as e:
-                    # Transient transport failures (connection reset or refused, TLS handshake
-                    # aborted by the peer, server closed a keep-alive connection, etc.).
+                    # Transient transport failures (see openspec/specs/sdmx-request-retries:
+                    # "Transient failures are retried").
                     if attempts == max_retries:
                         raise
                     logger.error(
@@ -439,9 +437,8 @@ class AsyncSdmxClient:
         """Render the exception and its causes on one line, e.g.
         ``httpx.ConnectError <- httpcore.ConnectError <- anyio.EndOfStream``.
 
-        httpx transport errors often have an empty message, and the actual reason
-        (e.g. an ``ssl.SSLError`` or a connection closed by the peer) is only visible
-        in the underlying cause.
+        See openspec/specs/sdmx-request-retries: "Retries and failures are logged with their
+        cause".
         """
         parts = []
         seen: set[int] = set()
@@ -492,7 +489,7 @@ class AsyncSdmxClient:
                 + f" and url {response.url}"
             ) from None
 
-        # sdmx1's JSON reader loses series and dataSet attributes, see `SdmxJsonDataReader`
+        # See openspec/specs/sdmx-json-data-parsing: "StatGPT's own reader reads SDMX-JSON".
         if reader_class is sdmx.reader.json.Reader:
             reader_class = SdmxJsonDataReader
 

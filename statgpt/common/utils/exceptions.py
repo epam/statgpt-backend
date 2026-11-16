@@ -3,12 +3,10 @@ class InvalidLLMStreamResponse(Exception):
 
 
 def format_exception_reason(exc: BaseException) -> str:
-    """Render an exception as a concise human-readable reason string.
+    """Render an exception as a concise human-readable reason string, unwrapping exception
+    groups into their leaf exceptions.
 
-    ``asyncio.TaskGroup()`` raises a ``BaseExceptionGroup`` whose ``str()`` is the
-    generic "unhandled errors in task group (N sub-exceptions)" message, hiding the
-    real cause. This unwraps groups recursively and joins the leaf exceptions as
-    "<ClassName>: <message>".
+    See openspec/specs/admin-background-jobs: "The failure reason names the real exception".
     """
     if isinstance(exc, BaseExceptionGroup):
         return "; ".join(format_exception_reason(sub) for sub in exc.exceptions)

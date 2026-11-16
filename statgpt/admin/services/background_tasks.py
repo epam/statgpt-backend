@@ -51,11 +51,9 @@ def background_task(
                     _log.warning(f"[{task_id}] Was cancelled")
                     raise
                 except TimeoutError:
-                    # Contain a per-task timeout at the decorator boundary: do NOT
-                    # re-raise. Otherwise the escaping TimeoutError aborts the
-                    # surrounding asyncio.gather (auto_update batch) or Starlette's
-                    # sequential BackgroundTasks runner, taking down sibling tasks
-                    # that should keep running.
+                    # Do NOT re-raise: an escaping TimeoutError aborts the surrounding
+                    # asyncio.gather or Starlette's sequential BackgroundTasks runner (see
+                    # openspec/specs/admin-background-jobs: "A timed-out task affects only itself").
                     if timeout_scope.expired():
                         _log.error(f"[{task_id}] Timed out after {_SETTINGS.task_timeout}s")
                     else:
