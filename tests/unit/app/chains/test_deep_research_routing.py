@@ -871,8 +871,8 @@ async def test_next_turn_sees_the_failure_and_replays_the_failed_turn(monkeypatc
     content = await SupremeAgentExecutor(_channel_config()).stream_response(next_inputs)
 
     assert content == "Final report."
-    # system prompt, then: the request, the failed turn's tool messages, the note that it failed
-    # (not its empty answer), "continue"
+    # system prompt, then: the request, the failed turn's tool messages, its empty answer, the note
+    # that it failed, "continue"
     assert [m.type for m in prompts[0]] == [
         "system",
         "human",
@@ -880,6 +880,7 @@ async def test_next_turn_sees_the_failure_and_replays_the_failed_turn(monkeypatc
         "ai",
         "tool",
         "system",
+        "ai",
         "system",
         "human",
     ]

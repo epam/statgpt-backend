@@ -294,15 +294,13 @@ class History:
                             content=supreme_agent_default_prompts.deep_research_report_answer_placeholder
                         )
                     )
-                elif include_tool_messages and (note := self._failed_turn_note(msg)) is not None:
-                    # Not the empty assistant message the client sends back for it: to the agent,
-                    # that reads as an answer of silence, which it then repeats. Nor the part of
-                    # the answer streamed before the error alone: that reads as a complete answer.
-                    if msg.content:
-                        chat_history.append(self.dial_to_langchain_message(msg))
-                    chat_history.append(SystemMessage(content=note))
                 else:
                     chat_history.append(self.dial_to_langchain_message(msg))
+                if (note := self._failed_turn_note(msg)) is not None:
+                    # Why the answer above is empty or cut short. Without it, an empty answer reads
+                    # to the agent as an answer of silence, which it then repeats, and a partial
+                    # one as complete. Shown with or without tool messages, as it relies on none.
+                    chat_history.append(SystemMessage(content=note))
             elif msg.role == Role.TOOL:
                 chat_history.append(self.dial_to_langchain_message(msg))
             elif msg.role == Role.SYSTEM:
@@ -345,8 +343,8 @@ class History:
 
     @staticmethod
     def _failed_turn_note(message: DialMessage) -> str | None:
-        """The note to show the agent after the part of this assistant message the user was shown,
-        if it is a turn that failed: with the error the user was shown, if known.
+        """The note to show after this assistant message, if it is a turn that failed: with the
+        error the user was shown, if known.
 
         `ChannelCompletion` sets the error in the state of a failed turn and clears it on success;
         a turn cut off before its state was sent, e.g. by a dropped connection or a rejected

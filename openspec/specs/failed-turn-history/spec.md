@@ -24,23 +24,23 @@ The notes about a failed turn SHALL quote `error_display_message` only, never th
 - **WHEN** a failed turn's `error` is `Error code: 429 - Hit cost rate limit. Day limit: $10.30 / $10.00` and its `error_display_message` is `You've exceeded your token limit. Please try again in 14 hours 30 minutes`
 - **THEN** the note quotes the display message, and the cost limit appears nowhere in the agent's prompt
 
-### Requirement: A turn that failed before any answer is shown as a note
-When the history is built with tool messages, an assistant message with no content and no tool calls SHALL be replaced by a system note if its state has `error` set, or if it has no state (the turn was cut off before its state was sent, or the request was rejected). The note SHALL be `failedTurnWithErrorMessageToAgent`, quoting `error_display_message`, if the state holds one, and `failedTurnMessageToAgent` otherwise.
+### Requirement: A turn that failed before any answer is followed by a note
+Every assistant message SHALL be kept in the history as it was sent. An assistant message with no content and no tool calls SHALL be followed by a system note if its state has `error` set, or if it has no state (the turn was cut off before its state was sent, or the request was rejected). The note SHALL be `failedTurnWithErrorMessageToAgent`, quoting `error_display_message`, if the state holds one, and `failedTurnMessageToAgent` otherwise.
 
 #### Scenario: Error shown to the user is known
 - **WHEN** an earlier assistant message is empty and its state holds `error` and `error_display_message`
-- **THEN** the agent sees, in its place, a system note saying no answer was given and quoting the error shown to the user
+- **THEN** the agent sees the empty answer, followed by a system note saying no answer was given and quoting the error shown to the user
 
 #### Scenario: Error shown to the user is not known
 - **WHEN** an earlier assistant message is empty and has no state, or its state holds `error` but no `error_display_message`
-- **THEN** the agent sees, in its place, a system note saying no answer was given, without an error
+- **THEN** the agent sees the empty answer, followed by a system note saying no answer was given, without an error
 
 #### Scenario: Empty successful turn
 - **WHEN** an earlier assistant message is empty and its state holds `error` = `None`
 - **THEN** the agent sees it as an empty answer, with no note
 
 ### Requirement: A turn an error stopped mid-answer is marked as stopped
-When the history is built with tool messages, an assistant message with content and no tool calls whose state holds `error` and `error_display_message` SHALL be kept as it is, and followed by the system note `interruptedTurnMessageToAgent`. The note SHALL say that an error stopped the response, that the user saw only the part above followed by the error, and SHALL quote `error_display_message`.
+An assistant message with content and no tool calls whose state holds `error` and `error_display_message` SHALL be followed by the system note `interruptedTurnMessageToAgent`. The note SHALL say that an error stopped the response, that the user saw only the part above followed by the error, and SHALL quote `error_display_message`.
 
 #### Scenario: Rate limit during streaming
 - **WHEN** a turn streamed `US GDP grew in 2023, from` and then failed with a rate limit
@@ -61,15 +61,15 @@ An assistant message with content and no state SHALL be kept as it is, with no n
 - **THEN** the agent sees it as its answer, with no note
 
 ### Requirement: The failed turn's tool messages come before the note
-The tool calls and responses a failed turn saved in its state SHALL be shown before the part of its answer that was shown and before its note, in the order they happened. A turn that fails in Deep Research saves them, so that later turns see the failed call; other failed turns save none.
+The tool calls and responses a failed turn saved in its state SHALL be shown before its answer and its note, in the order they happened. They are shown only when the history is built with tool messages. A turn that fails in Deep Research saves them, so that later turns see the failed call; other failed turns save none.
 
 #### Scenario: Deep Research call failed
 - **WHEN** a turn's Deep Research call failed with a Deep Research error and no answer was shown
-- **THEN** the agent sees the tool call, its error response, the note that the Deep Research call failed, and then the note quoting the error shown to the user
+- **THEN** the agent sees the tool call, its error response, the note that the Deep Research call failed, the empty answer, and then the note quoting the error shown to the user
 
-### Requirement: Guardrails see the history as it was sent
-The history built without tool messages, as used by the out-of-scope check and the Deep Research query check, SHALL show every assistant message as it was sent, with no notes about failed turns.
+### Requirement: Guardrails also see that a turn failed
+The history built without tool messages, as used by the out-of-scope check and the Deep Research query check, SHALL carry the same notes about failed turns: they rely on no tool message.
 
 #### Scenario: Out-of-scope check after a failed turn
 - **WHEN** the out-of-scope check runs after a turn that failed with an empty answer
-- **THEN** it sees that turn as an empty assistant message
+- **THEN** it sees that turn as an empty assistant message followed by the note, without the turn's tool messages

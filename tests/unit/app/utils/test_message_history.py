@@ -1,5 +1,5 @@
-"""How `History` shows earlier turns to the agent: a failed turn is not shown as an empty answer,
-nor a turn an error stopped mid-answer as a complete one (#805)."""
+"""How `History` shows earlier turns to the agent: a turn that failed, before or during its answer,
+is followed by a note saying so (#805)."""
 
 import pytest
 from aidial_sdk.chat_completion import CustomContent
@@ -25,7 +25,7 @@ def _history(answer: DialMessage) -> History:
     )
 
 
-def test_failed_turn_is_shown_as_a_note_with_the_error_shown_to_the_user():
+def test_failed_turn_is_followed_by_a_note_with_the_error_shown_to_the_user():
     state = {
         StateVarsConfig.ERROR: "Error code: 429 - {'error': {'message': 'Hit cost rate limit.'}}",
         StateVarsConfig.ERROR_DISPLAY_MESSAGE: _SHOWN_ERROR,
@@ -36,13 +36,14 @@ def test_failed_turn_is_shown_as_a_note_with_the_error_shown_to_the_user():
 
     messages = history.get_langchain_messages(include_tool_messages=True)
 
-    assert [m.type for m in messages] == ["human", "system", "human"]
-    assert messages[1] == SystemMessage(
+    assert [m.type for m in messages] == ["human", "ai", "system", "human"]
+    assert messages[1] == AIMessage(content="")
+    assert messages[2] == SystemMessage(
         content=supreme_agent_default_prompts.failed_turn_with_error_message_to_agent.format(
             error=_SHOWN_ERROR
         )
     )
-    assert "Hit cost rate limit" not in messages[1].content
+    assert "Hit cost rate limit" not in messages[2].content
 
 
 @pytest.mark.parametrize(
@@ -53,15 +54,16 @@ def test_failed_turn_is_shown_as_a_note_with_the_error_shown_to_the_user():
         pytest.param(None, id="no-custom-content"),
     ],
 )
-def test_failed_turn_with_an_unknown_error_is_shown_as_a_note(custom_content):
+def test_failed_turn_with_an_unknown_error_is_followed_by_a_note(custom_content):
     """The turn failed, but the error the user was shown is not known: e.g. the request was
     rejected, or the connection dropped."""
     history = _history(DialMessage(role=Role.ASSISTANT, content="", custom_content=custom_content))
 
     messages = history.get_langchain_messages(include_tool_messages=True)
 
-    assert [m.type for m in messages] == ["human", "system", "human"]
-    assert messages[1] == SystemMessage(content=_FAILED_TURN_MESSAGE)
+    assert [m.type for m in messages] == ["human", "ai", "system", "human"]
+    assert messages[1] == AIMessage(content="")
+    assert messages[2] == SystemMessage(content=_FAILED_TURN_MESSAGE)
 
 
 def test_failed_turn_keeps_its_tool_messages_before_the_note():
@@ -83,8 +85,9 @@ def test_failed_turn_keeps_its_tool_messages_before_the_note():
     )
     messages = history.get_langchain_messages(include_tool_messages=True)
 
-    assert [m.type for m in messages] == ["human", "ai", "tool", "system", "human"]
-    assert _SHOWN_ERROR in messages[3].content
+    assert [m.type for m in messages] == ["human", "ai", "tool", "ai", "system", "human"]
+    assert messages[3] == AIMessage(content="")
+    assert _SHOWN_ERROR in messages[4].content
 
 
 def test_turn_stopped_mid_answer_keeps_the_part_shown_before_the_note():
@@ -192,10 +195,24 @@ def test_other_answers_are_kept(answer):
     assert messages[1] == AIMessage(content=answer.content)
 
 
-def test_failed_turn_is_kept_without_tool_messages():
-    """The guardrails and the Deep Research query check see the conversation as it is."""
-    history = _history(DialMessage(role=Role.ASSISTANT, content=""))
+def test_failed_turn_note_is_shown_without_tool_messages():
+    """The guardrails and the Deep Research query check, which see no tool messages, also see that
+    the turn failed."""
+    turn = History.create_empty()
+    turn.add_tool_message(
+        AIMessage(content="", tool_calls=[{"name": "data_query", "args": {}, "id": "c1"}])
+    )
+    turn.add_tool_message(ToolMessage(content="data", tool_call_id="c1"))
+    state: dict = {}
+    turn.dump_state(state)
+    state[StateVarsConfig.ERROR] = "boom"
+    state[StateVarsConfig.ERROR_DISPLAY_MESSAGE] = _SHOWN_ERROR
 
+    history = _history(
+        DialMessage(role=Role.ASSISTANT, content="", custom_content=CustomContent(state=state))
+    )
     messages = history.get_langchain_messages(include_tool_messages=False)
 
+    assert [m.type for m in messages] == ["human", "ai", "system", "human"]
     assert messages[1] == AIMessage(content="")
+    assert _SHOWN_ERROR in messages[2].content
