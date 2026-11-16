@@ -22,8 +22,6 @@ from statgpt.common.schemas import ResumeStagesConfig, ToolTypes
 from statgpt.common.schemas.llm_call_duration import LLMCallDurationItem
 from statgpt.common.utils.llm_call_duration_context import get_llm_call_duration_manager
 
-# Placeholder exposing the question a Deep Research session was started with to the resume
-# tool's stage names (see `ResumeStagesConfig`).
 _ORIGINAL_QUESTION_KEY = 'original_question'
 
 
@@ -34,9 +32,8 @@ class DeepResearchArgs(ToolArgs):
 
 
 class ResumeDeepResearchArgs(ToolArgs):
-    # No `GuardrailInput`: this message is composed by the Supreme Agent while mediating the session,
-    # not free-text typed by the user. (Deep Research is never exposed via the MCP server, the only
-    # place the input guardrail runs, so the marker was inert here regardless.)
+    # No `GuardrailInput`: the Supreme Agent composes this message, and Deep Research is never
+    # exposed over MCP, where the guardrail runs.
     message: str = Field(
         description=(
             "The message to send to the active Deep Research session: the user's answers to its"
@@ -49,11 +46,8 @@ class ResumeDeepResearchArgs(ToolArgs):
 class DeepResearchTurnResult(NamedTuple):
     """Outcome of a single Deep Research turn.
 
-    ``report_delivered`` is True only when the deployment delivered its final report (research
-    complete). The report is already streamed to the user verbatim, so the Supreme Agent must end
-    the turn without repeating it. ``content`` is then the report plus the citations note meant for
-    the agent only, and ``report`` the report alone, as the user got it. Otherwise ``content`` is a
-    clarification / plan-for-approval that the Supreme Agent mediates."""
+    With ``report_delivered``, ``content`` is the report plus the agent-only citations note and
+    ``report`` the report as the user got it; otherwise ``content`` is a clarification or plan."""
 
     content: str
     report_delivered: bool
@@ -64,7 +58,7 @@ def _get_display_message(e: APIError) -> str | None:
     """The user-facing `display_message` of a DIAL error, if present.
 
     Mid-stream errors carry the error object as the body; HTTP error responses nest it under
-    ``error``. Only `display_message` is user-safe by DIAL contract, so `message` is never used."""
+    ``error``."""
     body = e.body if isinstance(e.body, dict) else {}
     error = body.get('error', body)
     display_message = error.get('display_message') if isinstance(error, dict) else None
@@ -87,22 +81,14 @@ def _build_deep_research_artifact(
 class DeepResearchRunner:
     """Runs a single Deep Research turn and owns the persisted session.
 
-    Holds the business logic shared by the start (`deep_research`) and resume
-    (`resume_deep_research`) tools: it calls the deployment, hands a clarification / plan back to the
-    Supreme Agent (buffered, not shown to the user) or delivers the final report verbatim, and
-    persists or drops the `DeepResearchSession`. Both tools construct a runner and call `run`; the
-    only difference between them is which message they forward and when the agent invokes them."""
+    Shared by the start and resume tools, which differ only in the message they forward."""
 
     def __init__(self, tool_config: DeepResearchToolConfig):
         self._tool_config = tool_config
 
     @staticmethod
     def _load_session(state: dict[str, Any]) -> DeepResearchSession:
-        """Load the active session from state, or start a fresh one.
-
-        A finished session is dropped from state (see `_drop_session`), so any session found
-        here is an in-progress run to resume; its absence starts a new investigation (the
-        finished report stays in the chat history)."""
+        """Load the in-progress session from state, or start a fresh one."""
         session = DeepResearchSession.from_state(state)
         return session if session is not None else DeepResearchSession()
 
@@ -110,9 +96,7 @@ class DeepResearchRunner:
     def _build_request_messages(
         system_prompt: str | None, session: DeepResearchSession, user_message: str
     ) -> list[dict[str, Any]]:
-        """The DIAL messages sent to Deep Research: the replayed sub-conversation plus the new
-        user input. Deep Research resumes from the `custom_content.state` it stored on the last
-        assistant message, so the DIAL shape is rebuilt here from the persisted turns."""
+        """The DIAL messages sent to Deep Research: the replayed turns plus the new user input."""
         messages: list[dict[str, Any]] = []
         if system_prompt:
             messages.append({'role': 'system', 'content': system_prompt})
@@ -130,13 +114,10 @@ class DeepResearchRunner:
 
     @staticmethod
     def _research_started(deep_research_state: dict[str, Any] | None) -> bool:
-        """Whether Deep Research has started the investigation, per its persisted state.
+        """Whether Deep Research's state sets `preparation.research_started`, which marks the
+        response as the final report.
 
-        CONTRACT: Deep Research sets ``preparation.research_started`` to ``True`` only once the
-        plan is approved AND it has fully streamed the final report within this same response.
-        We rely on that to treat the session as finished; if the deployment ever emits
-        ``research_started`` before the report is delivered, the session would be closed
-        prematurely and the report never resumed."""
+        See openspec/specs/deep-research: "Final-report contract"."""
         preparation = (deep_research_state or {}).get('preparation') or {}
         return bool(preparation.get('research_started'))
 
@@ -147,8 +128,7 @@ class DeepResearchRunner:
         assistant_content: str,
         deep_research_state: dict[str, Any],
     ) -> None:
-        """Record a user/assistant exchange (with Deep Research's own state) so the
-        sub-conversation can be replayed on the next call/turn."""
+        """Record a user/assistant exchange with Deep Research's own state."""
         session.turns.append(
             DeepResearchTurn(
                 user_message=user_message,
@@ -163,17 +143,12 @@ class DeepResearchRunner:
 
     @staticmethod
     def _drop_session(state: dict[str, Any]) -> None:
-        # Drop a finished session rather than persisting the (potentially large) report and
-        # accumulated state on every later turn — the report already lives in the chat history.
+        # The report already lives in the chat history; don't resend it with every turn's state.
         DeepResearchSession.drop_from_state(state)
 
     @staticmethod
     def _deliver_report(choice: ChoiceI, content: str, attachments: list[dict[str, Any]]) -> None:
-        """Stream Deep Research's final report to the user verbatim.
-
-        Delivered straight from the deployment output (content plus any attachments, e.g. a Canvas
-        document) so no tokens are re-spent and nothing is paraphrased. Content was buffered during
-        the run (see `run`), so it is appended here in one shot."""
+        """Append the buffered final report (content and attachments) to the user's answer."""
         if content:
             choice.append_content(content)
         for attachment in attachments:
@@ -187,18 +162,11 @@ class DeepResearchRunner:
             )
 
     async def run(self, inputs: dict, user_message: str) -> DeepResearchTurnResult:
-        """Run one Deep Research turn: call the deployment, then either hand a clarification / plan
-        back to the Supreme Agent (buffered, not shown to the user) or deliver the final report to
-        the user verbatim once research has started. Persist the session between clarifications and
-        drop it once the report is delivered.
+        """Run one Deep Research turn: hand a clarification / plan back to the Supreme Agent and
+        save the session, or deliver the final report and drop the session.
 
-        Deployment failures (`openai.APIError`) are raised as `DeepResearchFailedError`, which aborts
-        the turn and is delivered to the user as a DIAL error carrying the deployment's
-        `display_message`. Other failures propagate so `ToolCaller.call_tool` records them in the
-        tool state (an ERROR tool message) and the Supreme Agent surfaces the standard failure
-        message once. If Deep Research sent a state before a deployment failure, the failed turn is
-        kept with it, so Deep Research's next call sees it and decides whether to resume; otherwise
-        the session is left untouched for a retry."""
+        Deployment failures (`openai.APIError`) are raised as `DeepResearchFailedError`; other
+        failures propagate to `ToolCaller.call_tool`."""
         auth_context = ChainParameters.get_auth_context(inputs)
         choice = ChainParameters.get_choice(inputs)
         target = ChainParameters.get_target(inputs)
@@ -214,25 +182,16 @@ class DeepResearchRunner:
             state.get(StateVarsConfig.SHOW_DEBUG_STAGES, False) or details.always_show_stages
         )
 
-        # Keep `stream=True`. In a blocking response the DIAL SDK merges the chunks into one
-        # message and strips the `index` field from every annotation. The streamer below needs
-        # that field to renumber the annotations, and it cannot tell a stripped array from one
-        # that never had indexes, so the report's citations would silently break.
+        # Keep `stream=True`: a blocking response loses the annotation indexes the streamer
+        # renumbers (see openspec/specs/deep-research: "Requests are streamed").
         create_kwargs: dict[str, Any] = dict(model=deployment_id, stream=True, messages=messages)
-        # Deep Research reaches back into this app's MCP server to query data, so it needs the
-        # caller's access token (not just the API key) to authorize downstream data sources.
         client = openai.get_async_client(
             api_key=auth_context.api_key, access_token=auth_context.dial_access_token
         )
         time_start = time.monotonic()
         dial_streamer: OpenAiToDialStreamer | None = None
         try:
-            # Buffer content (`stream_content=False`) so it can be routed once the run ends:
-            # a clarification / plan is shown in the tool-result stage (like other tools) and
-            # handed back to the Supreme Agent to mediate, while the final report is delivered to
-            # the user's main answer verbatim. The two are indistinguishable until the deployment
-            # signals `research_started` (only after the report has streamed), so we cannot stream
-            # straight to a single target. Progress stages still stream live throughout.
+            # Buffered: a clarification and the report can be told apart only once the run ends.
             dial_streamer = OpenAiToDialStreamer(
                 choice,
                 choice,
@@ -251,42 +210,27 @@ class DeepResearchRunner:
             deep_research_state = dial_streamer.state
 
             if self._research_started(deep_research_state):
-                # Final report delivered: deliver it to the user's main answer verbatim, then drop
-                # the session instead of recording this turn.
                 self._deliver_report(choice, content, dial_streamer.attachments)
                 self._drop_session(state)
-                # Flag this one turn so the per-message toggle form schema disarms the "Deep
-                # research" toggle; set only after delivery succeeds, so a failure mid-run leaves
-                # the toggle armed for retry.
+                # Set only after delivery succeeds, so a failure leaves the toggle armed.
                 state[StateVarsConfig.DEEP_RESEARCH_REPORT_DELIVERED] = True
-                # The report stays in the agent's history as this tool response (`History` replaces
-                # the report message there with a placeholder, so the report is not repeated), and
-                # the note lets the agent answer follow-up questions about its sources. The user is
-                # not shown it, and the turn's answer is `report`, not this response. The note is
-                # built from the annotations relayed now rather than from those the client replays
-                # with the report message, so it is persisted with the tool response (a title and a
-                # quote per tag), and a report delivered before the note was introduced has none.
+                # The note is built from the annotations relayed now, so it is persisted with the
+                # tool response; a report delivered before the note was introduced has none.
                 return DeepResearchTurnResult(
                     content=content + dial_streamer.citations_note,
                     report_delivered=True,
                     report=content,
                 )
 
-            # Clarification / plan-for-approval: show it in the tool-result stage (like other tools)
-            # and hand the content back to the Supreme Agent, keeping the session so the next call can
-            # resume from Deep Research's own state.
+            # Clarification / plan-for-approval.
             target.append_content(content)
             self._append_turn(session, user_message, content, deep_research_state or {})
             self._save_session(state, session)
             return DeepResearchTurnResult(content=content, report_delivered=False)
         except APIError as e:
-            # Deep Research sends a state before the error, with its saved progress or only a record
-            # that the turn failed; keep it so its next call sees it.
             if dial_streamer is not None and dial_streamer.state:
                 self._append_turn(session, user_message, dial_streamer.content, dial_streamer.state)
                 self._save_session(state, session)
-            # Deep Research reports failures with a curated, user-safe `display_message` (carrying
-            # its error reference); deliver it to the user as a DIAL error.
             raise DeepResearchFailedError(_get_display_message(e)) from e
         finally:
             duration_s = time.monotonic() - time_start
@@ -314,10 +258,7 @@ class ResumeDeepResearchTool(
 ):
     """Resumes an in-progress Deep Research session with the user's next message.
 
-    Built on demand from the `deep_research` tool config (its name and description come from
-    `details.resume_tool_name` / `details.resume_tool_description`) and invoked only while a
-    session is in progress. Kept separate from the start tool so each has a clean, single-purpose
-    contract."""
+    Built on demand from the `deep_research` tool config."""
 
     @classmethod
     def get_args_schema(cls, tool_config: DeepResearchToolConfig) -> type[ResumeDeepResearchArgs]:
@@ -329,8 +270,6 @@ class ResumeDeepResearchTool(
 
     @property
     def stage_name(self) -> str:
-        """Resume calls get their own configured stage names: this tool is called with a `message`,
-        so the start tool's templates (built around its `query` argument) cannot be reused."""
         return self._resume_stages_config.tool_call_name or self.default_stage_name
 
     @property
@@ -338,11 +277,7 @@ class ResumeDeepResearchTool(
         return self._resume_stages_config.tool_result_name or self.default_result_stage_name
 
     def _render_stage_name(self, name: str, args: dict, inputs: dict) -> str:
-        """Expose the session's original question to the stage-name templates.
-
-        It lives in the conversation state, not in the tool arguments. When it cannot be read, a
-        template that needs it is replaced by the configured `missing_question_name` rather than
-        shown half-filled."""
+        """Expose the session's original question, read from the state, to stage-name templates."""
         session = DeepResearchSession.from_state(ChainParameters.get_state(inputs))
         question = session.original_question if session else None
         if question is None:
@@ -353,9 +288,7 @@ class ResumeDeepResearchTool(
 
     @classmethod
     def build(cls, tool_config: DeepResearchToolConfig, channel_config: ChannelConfig) -> Self:
-        """Construct the resume tool from the (start) Deep Research tool config. The name and
-        description are taken from the Deep Research tool config (`details.resume_tool_name` /
-        `details.resume_tool_description`) so they stay admin-configurable."""
+        """Construct the resume tool from the (start) Deep Research tool config."""
         details = tool_config.details
         return cls(
             tool_config=tool_config,
