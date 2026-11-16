@@ -53,7 +53,7 @@ A data query whose request fails with the timeout error SHALL produce a failed r
 - **THEN** the dataset's result is a failed request with the timeout message as its reason, not an empty result
 
 ### Requirement: Retries and failures are logged with their cause
-Each retry and each final failure SHALL be logged with the attempt number out of the maximum, the time elapsed since the first attempt, and the full chain of causes (e.g. `httpx.ConnectError <- httpcore.ConnectError <- anyio.EndOfStream`). Transport errors often have an empty message, and the real reason is visible only in the underlying cause. The final timeout log SHALL also show the client's timeout settings.
+Each retry SHALL be logged with the attempt number out of the maximum, and each final failure with the number of attempts made. Both SHALL show the time elapsed since the first attempt and the full chain of causes (e.g. `httpx.ConnectError <- httpcore.ConnectError <- anyio.EndOfStream`). Transport errors often have an empty message, and the real reason is visible only in the underlying cause. The final timeout log SHALL also show the client's timeout settings.
 
 #### Scenario: Empty error message
 - **WHEN** an attempt fails with a connect error whose message is empty

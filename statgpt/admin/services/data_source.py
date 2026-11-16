@@ -93,9 +93,9 @@ class AdminPortalDataSourceService(DataSourceService):
             return False, {}
 
     async def _enrich_with_external_details(self, items: Sequence[schemas.DataSource]) -> None:
-        """Populate the externally-owned part of each data source's `details` from its owner,
-        read live and once per owner. Keys of an unreachable owner are left absent.
+        """Populate the externally-owned part of each data source's `details` from its owner.
 
+        The value is read live and once per owner. Keys of an unreachable owner are left absent.
         See openspec/specs/sdmx-proxy-config: "The config server owns the configuration".
         """
 

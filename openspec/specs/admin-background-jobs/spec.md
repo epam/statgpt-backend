@@ -21,7 +21,7 @@ A task that exceeds the timeout SHALL be stopped without stopping any other task
 - **THEN** that job is cancelled, the other jobs finish, and the batch still runs deduplication and logs its summary
 
 ### Requirement: A cancelled job is marked failed
-When a dataset reindex or an auto-update job is cancelled, as the timeout does, its record SHALL be marked `FAILED` with the reason "Reindex cancelled (likely timed out)" or "Job cancelled (likely timed out)", even while the cancellation is propagating. Import, export and deduplication jobs are not marked when cancelled; they stay in their last status until stuck-job recovery fails them.
+When a dataset reindex or an auto-update job is cancelled, as the timeout does, its record SHALL be marked `FAILED` with the reason "Reindex cancelled (likely timed out)" or "Job cancelled (likely timed out)", even while the cancellation is propagating. A cancelled discovery indexing job is marked `FAILED` too (see `discovery-indexing`). Import, export and deduplication jobs are not marked when cancelled; they stay in their last status until stuck-job recovery fails them.
 
 #### Scenario: Reindex runs out of time
 - **WHEN** a dataset reindex is still indexing when the task timeout expires
@@ -39,7 +39,7 @@ A failed reindex, auto-update, import, export or discovery indexing job SHALL re
 - **THEN** `reason_for_failure` is "ValueError: a; KeyError: 'b'"
 
 ### Requirement: The advisory lock gives up before the task
-`PGVECTOR_ADVISORY_LOCK_TIMEOUT` (default 600 seconds) SHALL stay below `BACKGROUND_TASKS_TASK_TIMEOUT`, and deployments that raise one SHALL keep this order. A task waiting for a contended vector-store lock then fails with a lock timeout error that its job records, before the task itself is cancelled with a less specific reason.
+With the default timeouts (`PGVECTOR_ADVISORY_LOCK_TIMEOUT` 600 seconds, `BACKGROUND_TASKS_TASK_TIMEOUT` 3600 seconds), a task waiting for a contended vector-store lock SHALL fail with a lock timeout error that its job records, before the task itself is cancelled with a less specific reason. Nothing enforces this order: a deployment that changes either setting has to keep the lock timeout below the task timeout. With the task timeout disabled, only the lock timeout applies.
 
 #### Scenario: Contended lock
 - **WHEN** a reindex waits for a vector-store lock held by another task for longer than the lock timeout

@@ -3,9 +3,9 @@ class InvalidLLMStreamResponse(Exception):
 
 
 def format_exception_reason(exc: BaseException) -> str:
-    """Render an exception as a concise human-readable reason string, unwrapping exception
-    groups into their leaf exceptions.
+    """Render an exception as a concise human-readable reason string.
 
+    Exception groups are unwrapped into their leaf exceptions.
     See openspec/specs/admin-background-jobs: "The failure reason names the real exception".
     """
     if isinstance(exc, BaseExceptionGroup):
