@@ -1,8 +1,7 @@
 """SDMX-JSON data message reader for SDMX 2.1 and both proxy and standard SDMX 3.0 APIs.
 
-Replaces :class:`sdmx.reader.json.Reader`, which resolves series attributes from the
-``dataSet`` attribute array, never attaches ``dataSet`` attributes, and discards
-attributes without values (shifting the positions of the following ones).
+Replaces :class:`sdmx.reader.json.Reader`; see openspec/specs/sdmx-json-data-parsing for the
+rules it follows and why.
 
 Both the ``dimensionGroup`` attribute category and the ``dimensionGroupAttributes``
 data container are part of the standard SDMX-JSON 2.0.0 data schema — the schema
@@ -40,9 +39,7 @@ therefore supports both variants seen in practice:
    - The message has top-level ``header``, ``structure`` and ``dataSets`` instead of
      ``meta`` and ``data``.
    - Like the standard 2.0.0 variant, attributes related to a subset of the series
-     dimensions are listed under ``series``.  Some servers (e.g. IMF) list their values
-     in the structure but leave ``null`` in every series data array; such an attribute
-     is applied to all series when it has a single value (see
+     dimensions are listed under ``series`` (see
      :meth:`SdmxJsonDataReader._make_unreferenced_series_attrs`).
 
 The reader normalises all variants so that downstream consumers receive
@@ -329,10 +326,8 @@ class SdmxJsonDataReader(Reader):
     ) -> dict[str, AttributeValue]:
         """Resolve ``series`` attributes that no series data array references.
 
-        Some servers (e.g. IMF) list the value of an attribute related to a subset of the
-        series dimensions in the structure, but leave ``null`` at its position in every
-        series data array.  When such an attribute has exactly one coded value, that value
-        is the only one present in the message and is applied to every series.
+        See openspec/specs/sdmx-json-data-parsing: "Single-valued attributes that no series
+        references apply to every series".
         """
         attrs = [a for a in self.msg.structure.attributes if self._attr_level[a] == "series"]
         referenced = {

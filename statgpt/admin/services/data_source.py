@@ -95,10 +95,8 @@ class AdminPortalDataSourceService(DataSourceService):
     async def _enrich_with_external_details(self, items: Sequence[schemas.DataSource]) -> None:
         """Populate the externally-owned part of each data source's `details` from its owner.
 
-        The owning system holds the value, so it is always read live instead of being cached or
-        persisted. Data sources sharing an owner are read once. When an owner cannot be reached
-        the keys are left absent - a data source must stay readable when its owner is down, and
-        absent keys tell the admin portal not to offer those fields for editing.
+        The value is read live and once per owner. Keys of an unreachable owner are left absent.
+        See openspec/specs/sdmx-proxy-config: "The config server owns the configuration".
         """
 
         targets = [(item, owner) for item in items if (owner := self._external_details_owner(item))]
@@ -122,12 +120,10 @@ class AdminPortalDataSourceService(DataSourceService):
     async def _push_external_details(config: DataSourceConfig) -> dict[str, Any] | None:
         """Send the externally-owned part of the submitted `details` back to its owner.
 
-        Returns the value the owner confirmed it stored.
-
-        None when the submitted `details` carry no externally-owned value: that means "leave the
-        owning system alone", so a data source can be updated while its owner is unreachable
-        without wiping the stored value. Once a value *is* submitted the owner is the only place
-        it can live, so a failed push fails the whole write rather than dropping it silently.
+        Returns the value the owner confirmed it stored, or None when the submitted `details`
+        carry no externally-owned value and the owner was left alone. A failed push fails the
+        whole write (see openspec/specs/sdmx-proxy-config: "A failed configuration write saves
+        nothing").
         """
 
         try:
