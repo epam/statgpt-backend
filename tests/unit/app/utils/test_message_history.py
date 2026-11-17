@@ -216,3 +216,30 @@ def test_failed_turn_note_is_shown_without_tool_messages():
     assert [m.type for m in messages] == ["human", "ai", "system", "human"]
     assert messages[1] == AIMessage(content="")
     assert _SHOWN_ERROR in messages[2].content
+
+
+@pytest.mark.parametrize(
+    "note",
+    [
+        pytest.param(_FAILED_TURN_MESSAGE, id="failed"),
+        pytest.param(
+            supreme_agent_default_prompts.failed_turn_with_error_message_to_agent.format(
+                error=_SHOWN_ERROR
+            ),
+            id="failed-with-error",
+        ),
+        pytest.param(
+            supreme_agent_default_prompts.interrupted_turn_message_to_agent.format(
+                error=_SHOWN_ERROR
+            ),
+            id="interrupted",
+        ),
+    ],
+)
+def test_failed_turn_note_invites_a_retry(note):
+    """Without it, a quoted "Please try again in 14 hours" reads to the agent as still in force, so
+    on "continue" it repeated the error instead of answering, after the limit had been lifted."""
+    text = " ".join(note.split())  # the prompts wrap their lines
+
+    assert "affected only that attempt" in text
+    assert "if the user asks to continue or to retry" in text

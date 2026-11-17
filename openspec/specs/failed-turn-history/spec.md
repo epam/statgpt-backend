@@ -46,6 +46,13 @@ An assistant message with content and no tool calls whose state holds `error` an
 - **WHEN** a turn streamed `US GDP grew in 2023, from` and then failed with a rate limit
 - **THEN** on later turns the agent sees that text as its answer, followed by a system note saying the response was stopped by an error and quoting the error shown to the user
 
+### Requirement: A failed turn's note invites a retry
+The notes `failedTurnMessageToAgent`, `failedTurnWithErrorMessageToAgent` and `interruptedTurnMessageToAgent` SHALL say that the error affected only that attempt and may have been resolved since, and SHALL tell the agent that if the user asks to continue or to retry, it answers the message now (gives the full response, for a turn stopped mid-answer) instead of repeating the error. The notes that quote an error SHALL say this holds even if the error said to try again later.
+
+#### Scenario: Continue after an error that said to try again later
+- **WHEN** a Deep Research turn failed, the next turn failed with `You've exceeded your daily token limit for the underlying deployment. Please try again in 1 day`, and the user then sends `continue` after the limit was lifted
+- **THEN** the note after the failed turn tells the agent to answer the user's message now instead of repeating the error, so the agent resumes Deep Research rather than replying that it cannot continue for a day
+
 ### Requirement: An answer that shows its own error has no note
 An assistant message with content whose state holds `error` but no `error_display_message` SHALL be kept as it is, with no note: the error was shown in the message itself, e.g. `An error occurred while processing your request.` appended after an unexpected exception, or the explanation sent for a command-only message.
 
