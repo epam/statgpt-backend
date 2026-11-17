@@ -1,7 +1,7 @@
 SRC_DIRS = statgpt scripts tests
 MYPY_DIRS = statgpt scripts
 POETRY ?= poetry
-PYTHON ?= python3
+PYTHON ?= python3.13
 
 -include .env
 export
