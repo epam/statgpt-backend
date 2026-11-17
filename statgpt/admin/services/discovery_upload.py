@@ -7,12 +7,6 @@ where it can be unit-tested without a session or an HTTP app. Callers run it thr
 openpyxl is used directly rather than ``pandas.read_excel``: pandas coerces column dtypes
 (``1960`` arrives as ``1960.0``), turns blanks into ``NaN``, mangles repeated headers, and
 discards the cell coordinates the error report needs.
-
-A workbook is two shapes at once. The `Datasets` sheet holds one row per dataset, and each
-dataset's indicators live on a sheet of their own, named with the dataset's ID; a sheet no
-dataset names is ignored, and never read. A CSV stays flat: the indicators arrive as one
-column holding them as a JSON list of `{name, units}`, which is also how the export writes
-them.
 """
 
 import csv
@@ -89,12 +83,8 @@ _WORKBOOK_HEADERS: dict[str, str] = {
 """How the template spells each header. `indicators_coverage` is a CSV column only."""
 
 _RETIRED_FIELDS: tuple[str, ...] = ("excluded_regional_values", "missing_indicators")
-"""Columns the current template dropped, on every format.
-
-They are resolved rather than ignored, so a file that still carries one is refused by name:
-the values are authored, and accepting the file while dropping the column would be
-indistinguishable from data loss.
-"""
+"""Columns the current template dropped, on every format; resolved so a file carrying one is
+refused by name."""
 
 _RETIRED_WORKBOOK_HEADERS: dict[str, str] = {
     "excluded regional values": "excluded_regional_values",
@@ -289,11 +279,7 @@ def _coerce_cell(value: Any) -> str:
 def _retired_header_error(
     text: str, index: int, field_name: str, file_format: _DiscoveryFileFormat
 ) -> DiscoveryUploadFormatError:
-    """Refuse a file that still carries a column the current template dropped.
-
-    The whole file goes rather than the column: the submitter authored those values, and an
-    upload that silently ignored them would look like data loss.
-    """
+    """Refuse a file that still carries a column the current template dropped."""
     where = "The 'Datasets' sheet" if file_format is _DiscoveryFileFormat.XLSX else "The file"
     expected = ", ".join(FIELD_LABELS[name] for name in _FORMAT_FIELDS[file_format])
     hint = (
@@ -401,9 +387,8 @@ def _build_rows(
             if index < len(cells)
         }
         if not any(values.values()):
-            # The template ships hundreds of formatted-but-empty rows, and `ws.max_row`
-            # is inflated in read-only mode, so blanks are passed over rather than stopped
-            # at. They are not data, so they are dropped silently, not counted.
+            # `ws.max_row` is inflated in read-only mode, so blanks are passed over rather
+            # than stopped at.
             continue
         rows.append(ParsedRow(row_number=row_number, values=values))
         if len(rows) > max_rows:
@@ -440,13 +425,11 @@ def _check_dataset_ids(
 ) -> list[schemas.DiscoveryPayloadProblem]:
     """Report a dataset ID a template sheet already holds, or another agency's row claimed.
 
-    Workbook-wide, across agencies, unlike the natural key: the ID names a sheet, so two
-    records whose IDs agree cannot both carry indicators in one workbook however different
-    the datasets are. A row repeating an earlier row's agency too is left alone - it is a
-    duplicate of the natural key, which `_duplicate_problems` reports on every format, and
-    reporting it here as well would put two problems on one cell. Length and forbidden
-    characters are not checked here - the schema's key type does that on every write path,
-    and its violations already reach the per-cell report.
+    A row repeating an earlier row's agency too is left alone - it is a duplicate of the
+    natural key, which `_duplicate_problems` reports on every format, and reporting it here as
+    well would put two problems on one cell. Length and forbidden characters are not checked
+    here - the schema's key type does that on every write path, and its violations already
+    reach the per-cell report.
     """
     problems: list[schemas.DiscoveryPayloadProblem] = []
     first_seen: dict[str, ParsedRow] = {}
@@ -616,8 +599,7 @@ def _apply_indicator_sheets(
 
     A dataset row with no sheet and one whose sheet holds nothing both get an empty list:
     the parser records how many indicators a dataset has, and validation decides whether
-    that is allowed. A sheet no row names is ignored - a misspelt one leaves its dataset with
-    no indicators, which validation reports against the dataset.
+    that is allowed. A sheet no row names is ignored.
     """
     result: list[ParsedRow] = []
     problems: list[schemas.DiscoveryPayloadProblem] = []

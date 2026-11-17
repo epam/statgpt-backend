@@ -330,17 +330,7 @@ class AdminPortalDiscoveryDatasetService(DiscoveryDatasetService):
 
     @staticmethod
     def _reset_derived_state(item: models.DiscoveryDataset) -> None:
-        """Forget verdicts that describe the record as it was before this edit.
-
-        `validation_status` is reset rather than recomputed: recomputing would run the
-        semantic check set on the write path, which is exactly what it must not do.
-        A record that was published now has a stale document in the index, which is what
-        `OUTDATED` exists to make visible.
-
-        A previous publish failure described the old content, so it is cleared and the record
-        goes back to awaiting its first attempt. That keeps the invariant the UI relies on:
-        `index_error` is set exactly while `indexing_status` is FAILED.
-        """
+        """Forget verdicts that describe the record as it was before this edit."""
         item.validation_status = schemas.DiscoveryValidationStatus.NOT_VALIDATED
         item.validation_issues = None
         item.validated_at = None
@@ -367,10 +357,7 @@ class AdminPortalDiscoveryDatasetService(DiscoveryDatasetService):
         absent column from a cell the submitter deliberately cleared. On an edit, `None`
         means "not provided" too, so it is dropped rather than written.
 
-        With `ignore_key_case`, a key field differing only in case is left as it is: a
-        workbook resubmitting 'bi' against a stored 'BI' describes the same dataset, and
-        rewriting it would mark the record outdated and republish an unchanged document.
-        A deliberate single-record edit is a correction, so it does rewrite the casing.
+        With `ignore_key_case`, a key field differing only in case is left as it is.
         """
         changed = False
         # Not `exclude_unset`: it applies to nested models too, and an indicator submitted
@@ -561,20 +548,13 @@ class AdminPortalDiscoveryDatasetService(DiscoveryDatasetService):
     async def _clear_reference_areas(self, channel_id: int) -> None:
         """Delete the channel's whole reference-area vocabulary.
 
-        Only the whole-channel path does this, and it does it wholesale rather than by label.
-        A label belongs to the channel's records as a set: which labels a partial deletion
-        leaves behind depends on every record that remains, so pruning one would mean
-        reconciling the entire vocabulary inside this transaction.
+        Only the whole-channel path does this; a partial deletion leaves pruning to the next
+        indexing run.
 
-        Not worth it, because a label left over only widens the list the chat-time pre-filter
-        offers a model, and a value the discovery channel no longer holds is dropped before it
-        can reach a search. The next indexing run removes it. Clearing a channel is different:
-        no record remains to derive anything from, so nothing would ever prune it.
-
-        Which is also why this runs after the rows are gone and why a failure is logged rather
-        than raised, unlike the documents the rows point at. The vocabulary is derived: leaving
-        it behind is the harmless direction, while clearing it and then failing to delete the
-        rows would strip the pre-filter of both area axes for records that still exist.
+        It runs after the rows are gone, and a failure is logged rather than raised, unlike the
+        documents the rows point at. The vocabulary is derived: leaving it behind is the harmless
+        direction, while clearing it and then failing to delete the rows would strip the
+        pre-filter of both area axes for records that still exist.
         """
         channel_db = await ChannelService(self._session).get_model_by_id(channel_id)
         channel_schema = ChannelSerializer.db_to_schema(channel_db)
@@ -836,7 +816,6 @@ class AdminPortalDiscoveryDatasetService(DiscoveryDatasetService):
 
         requested = set(filters.ids)
         records = await self.get_record_models_by_channel_and_ids(channel_id, requested)
-        # Refused rather than dropped: a report missing a selected row looks complete.
         if missing := requested - {item.id for item in records}:
             raise DiscoveryDatasetsNotInChannelError(channel_id, list(missing))
         return records

@@ -8,11 +8,6 @@ so how discoverable a dataset is stays a property of the source's own metadata r
 an algorithm here. The one field the record itself derives - the published form of the
 indicator list - is derived by the run before this stage (see `discovery_summarization`) and
 read from its own column.
-
-The split between the document's body and its metadata is decided by how the application
-indexes them: its indexes are document-level and span the metadata fields alongside the
-content, so every field is searchable from where it is carried. The body is therefore the
-description alone, and repeating a field in it would only index the same text twice.
 """
 
 import asyncio
@@ -85,11 +80,6 @@ _INDEXING_FAILED = (
 
 def render_document_body(record: DiscoveryRecord) -> str:
     """Render a record as the document the RAG channel indexes: its description.
-
-    The one field that is prose, and the only one the body carries. Everything else travels
-    as metadata, which the application's document-level indexes cover in its own right, so
-    rendering it here as well would index the same text twice and dilute what a question
-    matches against.
 
     A record is only published once it validates, and validation requires a description, so
     this is never empty for a document that reaches the channel.

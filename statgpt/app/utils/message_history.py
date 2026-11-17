@@ -285,10 +285,7 @@ class History:
                 if include_tool_messages:
                     chat_history.extend(self._extract_tool_messages_from_message(msg))
                 if include_tool_messages and self._is_deep_research_report(msg):
-                    # The report's tool response, just added, already carries the report, so do not
-                    # repeat it here. The tool response is the copy to keep: the agent answers
-                    # follow-up questions from a tool response, but checks its own earlier answer
-                    # again, e.g. by searching for the source of a figure in the report.
+                    # The report's tool response, just added, already carries the report.
                     chat_history.append(
                         AIMessage(
                             content=supreme_agent_default_prompts.deep_research_report_answer_placeholder

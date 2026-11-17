@@ -40,7 +40,7 @@ The MCP server is mounted at `/api/v1/{deployment_id}/mcp`. The `{deployment_id}
 
 The Data Query tool's result is split by reader: the text and resources in `content`, the queries the calling model reads in `structuredContent`, and one payload per client audience in `result._meta`.
 
-- [Data Query MCP response](MCP_DATA_QUERY_RESPONSE.md) — the contract, the `_meta` configuration, and an example of every pipeline status.
+- [Data Query MCP response](MCP_DATA_QUERY_RESPONSE.md) — the field reference and an example of every pipeline status. The rules and config are specified in [`data-query-mcp-response`](../../openspec/specs/data-query-mcp-response/spec.md).
 - [Migrating from version 2 to version 3](MCP_DATA_QUERY_RESPONSE_MIGRATION.md) — where each version 2 field went.
 
 ### Tool Names and Descriptions

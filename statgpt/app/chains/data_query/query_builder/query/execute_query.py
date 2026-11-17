@@ -78,9 +78,7 @@ class ExecuteQueryChain:
             )
             return "The following queries were executed:\n\n" + formatted_queries
 
-        # The stage is read by the user and the response by the model, so each surface gets its
-        # own explorer link policy - and its own rendering when the two differ. The second pass
-        # is pure string building, and is skipped anyway when both surfaces agree.
+        # Rendered once per distinct explorer link policy of the stage and the response.
         stage_policy = self._explorer_link.stage
         response_policy = (
             self._mcp_explorer_link
@@ -94,9 +92,7 @@ class ExecuteQueryChain:
         )
 
         target.append_content(stage_content)
-        # append message to be shown to agent only (not to user) if it's configured.
-        # the wording differs per audience: the agent shows the data in DIAL attachments,
-        # an MCP client shows it in the UI widget.
+        # append message to be shown to the model only (not to user) if it's configured.
         executed_message = self._messages.get_data_query_executed(
             ChainParameters.get_invocation_source(inputs)
         )
@@ -121,10 +117,8 @@ class ExecuteQueryChain:
     def _execution_status(data_responses: dict[str, DataResponse | None] | None) -> DataQueryStatus:
         """Classify the outcome of executed queries.
 
-        Rows win: a partially failed fan-out that still returned data is reported as
-        ``data_available``. Otherwise a fetch or parse failure, partial or not, is reported as
-        ``failed`` rather than as an empty result — ``Sdmx21DataSet.query`` swallows those errors
-        and returns an empty response, so row count alone cannot tell them apart.
+        ``Sdmx21DataSet.query`` swallows fetch and parse errors and returns an empty response, so
+        the statuses are checked as well as the row count.
         """
         responses = [r for r in (data_responses or {}).values() if r is not None]
         if any(not response.is_empty for response in responses):

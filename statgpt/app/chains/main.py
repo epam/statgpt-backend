@@ -84,8 +84,7 @@ class MainChainFactory:
                 data_query_artifacts[tool_msg.tool_call_id] = artifact
 
         if data_query_artifacts:
-            # Eval attachments only: a direct caller renders the data itself from the tool
-            # message, so the data attachments (table, plotly, CSV, python) would be noise.
+            # Eval attachments only, no data attachments.
             eval_displayer = DataQueryEvalAttachmentsDisplayer(
                 choice=ChainParameters.get_choice(inputs),
                 auth_context=ChainParameters.get_auth_context(inputs),

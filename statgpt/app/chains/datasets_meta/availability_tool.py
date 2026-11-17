@@ -24,8 +24,7 @@ class AvailabilityQueryArgs(ToolArgs):
     dataset_id: str = Field(
         description="Dataset ID (URN) in the format 'agency_id:resource_id(version)'."
     )
-    # A list of typed filters rather than a free-form map: OpenAI strict function calling rejects
-    # objects without declared properties.
+    # Typed filters rather than a map, so the schema is valid under strict function calling.
     partial_query: list[DimensionFilter] = Field(
         default_factory=list,
         description=(

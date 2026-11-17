@@ -19,19 +19,14 @@ class AvailableDatasetsOutcome:
     """Indicator count per dataset entity id, when the tool is configured to compute it."""
     metadata_only_counts: dict[str, int] | None
     """The channel's metadata-only (discovery, Grade C) datasets per agency, when
-    `counts_metadata_only_datasets`: they are counted, never listed, as their values cannot be
-    queried."""
+    `counts_metadata_only_datasets`."""
 
 
 def counts_metadata_only_datasets(
     details: AvailableDatasetsDetails, channel_config: ChannelConfig
 ) -> bool:
-    """Whether the tool counts the channel's metadata-only datasets.
-
-    Only while the channel's discovery lookup runs as well: only that lookup can refer a user to
-    a metadata-only dataset, so without it counting them would only mislead. The one place this
-    is decided, so what a tool returns and the shape it advertises cannot disagree.
-    """
+    """Whether the tool counts the channel's metadata-only datasets: the single decision behind
+    both the result and the advertised MCP output schema."""
     return details.include_metadata_only_datasets and channel_config.is_discovery_lookup_available
 
 

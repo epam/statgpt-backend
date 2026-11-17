@@ -41,7 +41,10 @@ def _dataset_level_attribute_map_from_data_message(msg: DataMessage) -> dict[str
 
 
 def proxy_structure_extra_headers(dsd_urn: str | None) -> dict[str, str] | None:
-    """Headers for proxy structure requests (disambiguates artefacts that share identity)."""
+    """Headers for proxy structure requests.
+
+    See openspec/specs/sdmx-data-sources: "Proxy structure requests name their data structure".
+    """
     return {"X-Source-Artefact-Urn": dsd_urn} if dsd_urn else None
 
 

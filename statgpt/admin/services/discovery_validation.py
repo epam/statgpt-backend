@@ -88,12 +88,7 @@ class DiscoveryCheck:
 
 
 def _check_frequency_coverage(record: DiscoveryRecord) -> Iterable[DiscoveryValidationIssue]:
-    """Column I must name at least one frequency, each from the template's vocabulary.
-
-    An empty cell is an issue rather than absent information: the chat-time pre-filter narrows
-    the candidate set by frequency, and a record that names none is a record that no query
-    asking about one can reach - so it would be published and then never surfaced.
-    """
+    """Column I must name at least one frequency, each from the template's vocabulary."""
     values = split_cell(record.frequency_coverage)
     if not values:
         yield DiscoveryValidationIssue(
@@ -118,13 +113,7 @@ def _allowed_frequencies() -> str:
 
 
 def _check_reference_area(record: DiscoveryRecord) -> Iterable[DiscoveryValidationIssue]:
-    """Column A must name at least one reference area.
-
-    Not checked against any vocabulary - the template explicitly allows group labels such as
-    'Euro area' or 'World', and those are values in their own right. Only emptiness is
-    rejected, and for the same reason as an empty frequency: the pre-filter narrows by
-    reference area, so a record naming none cannot be reached by a query that names one.
-    """
+    """Column A must name at least one reference area."""
     if not split_cell(record.reference_area):
         yield DiscoveryValidationIssue(
             field="reference_area",
@@ -155,10 +144,6 @@ def _check_url(record: DiscoveryRecord) -> Iterable[DiscoveryValidationIssue]:
 
 def _check_indicators_coverage(record: DiscoveryRecord) -> Iterable[DiscoveryValidationIssue]:
     """The dataset's indicator list must name at least one indicator.
-
-    An empty list clears the same bar an empty frequency does: a record that names no
-    indicator is one that no question about an indicator can reach, so it would be published
-    and then never surfaced.
 
     The only place emptiness is caught. No write path refuses it, so this one check covers a
     dataset whose indicators sheet is missing or holds only its header, a CSV without the
@@ -204,12 +189,7 @@ def _check_indicator_units(record: DiscoveryRecord) -> Iterable[DiscoveryValidat
 
 
 def _check_description(record: DiscoveryRecord) -> Iterable[DiscoveryValidationIssue]:
-    """Column F must say something, because it is the whole of the published document.
-
-    Every other field travels as document metadata; the description is the document's
-    content. A record without one is published as an empty document, which retrieval can
-    return but nothing in it can be read - so it is not fit to be indexed.
-    """
+    """Column F must say something, because it is the whole of the published document."""
     if not record.description:
         yield DiscoveryValidationIssue(
             field="description",
@@ -225,20 +205,7 @@ DEFAULT_CHECKS: tuple[DiscoveryCheck, ...] = (
     DiscoveryCheck(name="indicator_units", run=_check_indicator_units),
     DiscoveryCheck(name="url", run=_check_url),
 )
-"""The check set as it stands.
-
-Deliberately minimal. There is no severity axis, so a check must only emit an issue when
-the record genuinely should not be indexed - an advisory nitpick has nowhere to live and
-would silently make records unindexable. `reference_area` is therefore checked for being
-present, never against ISO codes: the template explicitly allows group labels such as
-'Euro area' or 'World'.
-
-Five things clear that bar rather than being nitpicks. An absent description leaves the
-published document with nothing in it. An absent reference area, frequency or indicator list
-leaves the record outside every pre-filtered search, so it would be indexed and never
-surfaced - a worse outcome than telling the submitter which cell to fill in. An indicator
-without its units of measure is one a referral cannot describe.
-"""
+"""The check set as it stands."""
 
 
 class DiscoveryValidator:

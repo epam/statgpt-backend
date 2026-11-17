@@ -121,12 +121,11 @@ class OpenAiToDialStreamer:
 
     @property
     def citations_note(self) -> str:
-        """The source of every citation tag of the content, to append to a tool response so the
-        agent can tell which source backs a statement. Empty if the content cites nothing.
+        """The source of every citation tag of the content, to append to a tool response for the
+        agent. Empty if the content cites nothing.
 
-        A citation that quotes no passage, or names no source, leaves the field out; the rest of
-        the annotation, such as the cited file and page box, is left out to keep the response
-        small. The annotations relayed to the client are not affected.
+        Only the tag id, the source title and the quote are kept; the cited file, page box and
+        other annotation fields are left out to keep the response small.
         """
         if not (citations := self.citations):
             return ''
@@ -210,11 +209,8 @@ class OpenAiToDialStreamer:
             )
 
     def _process_annotations(self, annotations: list[dict[str, Any]]) -> None:
-        """Relay the sub-deployment's annotations to the user's message.
-
-        They go to `_choice` and never to `_target`, which is a stage on some paths: an
-        annotation claims a marker tag in a message, and a stage is not a message. Every field
-        is relayed unchanged except `index` and the fields modified by the `rewriter`.
+        """Relay the sub-deployment's annotations to `_choice`, never to `_target`, which is a
+        stage on some paths.
         """
         relayed = [
             self._renumber_annotation(self._rewrite_annotation(annotation))
@@ -236,18 +232,10 @@ class OpenAiToDialStreamer:
     def _renumber_annotation(self, annotation: dict[str, Any]) -> dict[str, Any]:
         """Move the annotation's `index` into the index space of the whole response.
 
-        Each sub-deployment numbers its own annotations from zero, and several of them run
-        concurrently in one response (the Supreme Agent and the direct-tool-calls chain both
-        dispatch tool calls with `asyncio.gather`), so the incoming numbers collide. The client
-        compares indexes before it consults the tag id, and two annotations that share an index
-        are read as one entry — which would hide the sources of a pill that cites several.
+        See openspec/specs/sub-deployment-relay: "Annotation indexes are unique per response".
 
         An annotation that arrives without an index keeps none: the array it belongs to is
         either fully indexed or not indexed at all.
-
-        `_annotation_indexes` maps this streamer's incoming indexes and no one else's, so an
-        index that two sub-deployments both used stays two separate entries. Keeping the
-        numbers those entries resolve to apart is the shared counter's job.
 
         This lookup deliberately contains no `await`, so concurrent tool calls cannot interleave
         inside it and it needs no lock. Keep it synchronous for that reason.
@@ -283,19 +271,15 @@ class OpenAiToDialStreamer:
                     reference_type=attachment.get('reference_type'),
                 )
 
-        # Relay the status the deployment closed the stage with: a stage left open here would be
-        # closed as `completed` on exit, so a step that failed downstream would show as done.
+        # A stage left open here would be closed as `completed` on exit.
         if (status := stage.get('status')) is not None:
             self._stages[index].close(Status(status))
             self._open_stages.discard(index)
 
     def _open_stage(self, index: int, name: str, parent_index: int | None) -> None:
-        """Open the relayed stage under the relayed stage the deployment nested it in.
-
-        A stage the deployment opened at the root opens at the root of the choice. So does a
-        stage whose parent this streamer never relayed or has already closed: the SDK refuses to
-        open a stage under such a parent, and a stage out of place is better than a failed
-        response.
+        """Open the relayed stage under the relayed stage the deployment nested it in, or at the
+        root when that parent is unknown or closed: the SDK refuses to open a stage under such a
+        parent.
         """
         if parent_index is None:
             stage = self._choice.create_stage(name)

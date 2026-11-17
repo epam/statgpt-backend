@@ -159,43 +159,13 @@ statgpt> discovery upload -c my-channel --file data/ --file extra.csv --mode rep
 statgpt> discovery upload -c my-channel --file "data/*.xlsx"
 ```
 
-`--file` takes every value that follows it up to the next option, and can be repeated, so a
-glob the shell expands (`--file data/*`) arrives whole. A directory stands for the `.xlsx` and
-`.csv` files directly inside it, leaving out Excel lock files (`~$...`) and hidden files; a
-quoted glob is expanded by the CLI the same way. The paths are de-duplicated, sorted, and sent
-in one request. A path that does not exist, or a directory or pattern that holds no upload
-file, is reported before anything is sent. With no `--file`, the CLI asks for one file or
-directory.
+`--file` takes files, directories and globs, and can be repeated; all of them are sent in one
+all-or-nothing request. With no `--file`, the CLI asks for one file or directory.
 
-All the files are reconciled with the channel as one payload, all or nothing: `--mode` applies
-to their union, so `replace` deletes only the records no file mentions. A problem in any file -
-including one that cannot be read or is over the size or row limit - refuses the whole batch,
-and the problem table names the file of each problem. The same dataset described in two files
-is refused too, naming both files and rows, and so are two files with the same name. After a
-successful upload of several files, the results list the rows read from each.
-
-A workbook holds one row per dataset on its `Datasets` sheet, columns A-I: reference area,
-regional coverage, agency, dataset ID, name, description, URL, time coverage and frequency
-coverage. Each dataset's indicators live on a sheet of their own, named with that dataset's
-ID, with an `Indicator` column and a `Units of measure` column. A sheet no dataset ID names
-is ignored. A dataset ID is therefore also a sheet name: at most 31 characters, none of
-`: \ / ? * [ ]`, not starting or ending with `'`, not `History`, `Datasets` or `Instructions`,
-and unique across the workbook - across agencies too, so two agencies using the same ID have
-to be uploaded as separate files.
-
-Every indicator needs its units: a record with an indicator missing them is stored, then
-reported invalid by the next indexing run.
-
-A file still carrying a column the current template dropped - `Excluded regional values`,
-`Indicators coverage` on the `Datasets` sheet, or `Relevant indicators not present` - is
-refused in full, naming the column: those values were authored, and accepting the file while
-dropping them would be indistinguishable from data loss.
-
-A CSV stays flat. It carries the nine sheet columns plus one `indicators_coverage` column
-holding the indicators as a JSON list, `[{"name": "Broad money (M2)", "units": "billions of
-Rp"}]`. That is the shape the channel export writes, so an export can be uploaded to another
-channel unchanged. The flat `name (units); ...` text that earlier versions wrote is refused:
-export the records again, or upload them as a workbook.
+A workbook follows the discovery template: a `Datasets` sheet with one row per dataset, and
+one indicators sheet per dataset named with its dataset ID. A CSV carries the same columns plus
+`indicators_coverage` as a JSON list, the shape the export writes. The formats are specified in
+the `discovery-dataset-upload` spec.
 
 | Option          | Description                                                                   |
 |-----------------|-------------------------------------------------------------------------------|
@@ -203,12 +173,9 @@ export the records again, or upload them as a workbook.
 | `-f, --file`    | `.xlsx` / `.csv` files, directories or globs; repeatable (prompts if omitted) |
 | `--mode`        | `upsert` (default) keeps records no file mentions; `replace` deletes them     |
 
-Uploading does not publish anything: run `discovery reindex` afterwards. That goes for what
-`--mode replace` deletes too - its documents are withdrawn by the next indexing run, not by
-the upload. Only an explicit `discovery clear` withdraws documents itself. A batch whose cells
-cannot be read is refused in full - nothing is saved - and every offending row is listed with
-its file and cell reference, with a non-zero exit code. See [Batch Summaries and Exit
-Codes](#batch-summaries-and-exit-codes).
+Uploading does not publish anything, not even the removals of `--mode replace`: run
+`discovery reindex` afterwards. A refused batch lists every problem with its file and cell
+reference and exits non-zero. See [Batch Summaries and Exit Codes](#batch-summaries-and-exit-codes).
 
 ### discovery reindex
 
@@ -229,13 +196,8 @@ statgpt> discovery reindex -c my-channel --force summarization,publishing
 | `-c, --channel`    | Channel deployment ID (interactive if omitted)                                        |
 | `--force <stages>` | Comma-separated stages to redo even if nothing changed: `summarization`, `publishing` |
 
-`--force summarization` re-summarizes every indicator list, even one already derived from the
-same list and configuration; a record whose summary comes out different is republished.
 `--force publishing` rebuilds every document; each rebuilt record is briefly absent from the
-index.
-
-Requires a `discoveryDatasets` block in the channel configuration, and refuses to start while
-another job for the channel is running.
+index. See the `discovery-indexing` spec for what a run does.
 
 ### discovery clear
 
@@ -252,22 +214,14 @@ statgpt> discovery clear -c my-channel -y        # scripted, no prompt
 | `-c, --channel` | Channel deployment ID (interactive if omitted) |
 | `-y, --yes`     | Skip the confirmation prompt                   |
 
-No reindex is needed afterwards: the documents are withdrawn as part of the delete. If the RAG
-application cannot be reached the command fails and nothing is deleted, so a record never
-outlives its document. A channel with no `discoveryDatasets` block simply has its records deleted -
-it never published anything.
+No reindex is needed afterwards: the documents are withdrawn as part of the delete. See the
+`discovery-dataset-records` spec.
 
 ### discovery summary-report
 
 Writes an Excel workbook of a channel's indicator summaries, to review what the LLM made of each
-indicator list. The `Summaries` sheet has one row per record: its statuses, the indicator count,
-the coverage and summary lengths, how many answers the summarization took and how many were
-rejected, the models, tokens, cost and LLM time they took, and both lists in full. A last row
-totals the answers, tokens, cost and time of the channel. The dataset ID links to a sheet of the
-record's own holding every LLM answer - its model, tokens, cost and time, reasoning, units,
-groups, and why a rejected answer was rejected - with the calls of a failed last run after those
-of the summary. A cost DIAL has no pricing for is shown as `cost n/a`, and so is any total it
-is part of.
+indicator list: one row per record with its usage and cost, linked to a sheet of every LLM
+answer it took. The layout is specified in the `discovery-indicator-summarization` spec.
 
 ```
 statgpt> discovery summary-report -c my-channel
@@ -279,9 +233,6 @@ statgpt> discovery summary-report -c my-channel -o summaries.xlsx --all
 | `-c, --channel` | Channel deployment ID (interactive if omitted)                            |
 | `-o, --output`  | Workbook path (default: `discovery-summaries-<channel>-<timestamp>.xlsx`) |
 | `--all`         | Also report records whose indicator list was not summarized by an LLM     |
-
-Without `--all`, only records summarized by an LLM, or whose last summarization failed, are
-reported. Text longer than an Excel cell holds is cut with a `… [truncated]` marker.
 
 ### content init
 

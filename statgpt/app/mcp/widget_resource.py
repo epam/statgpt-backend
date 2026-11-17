@@ -46,9 +46,8 @@ async def _fetch_html(url: str) -> str:
 class WidgetResource(Resource):
     """A FastMCP resource that serves widget HTML proxied verbatim from an external endpoint.
 
-    The backend stores no HTML: ``read()`` fetches it from the configured internal endpoint and
-    caches it for ``cache_ttl_seconds``. The CSP (``resourceDomains``) and MIME type come from the
-    resource ``meta`` / ``mime_type`` and are propagated to the host by FastMCP.
+    The CSP (``resourceDomains``) and MIME type come from the resource ``meta`` / ``mime_type``
+    and are propagated to the host by FastMCP.
     """
 
     _html_url: str = PrivateAttr()

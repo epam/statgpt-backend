@@ -17,16 +17,8 @@ async def enforce_input_guardrail(
     channel_config: ChannelConfig,
     auth_context: AuthContext,
 ) -> None:
-    """Screen a free-text MCP tool argument (``query``) with the out-of-scope guardrail.
-
-    Mirrors the out-of-scope check the chat completion endpoint runs before the
-    Supreme Agent, applied here to a single stateless MCP tool call. Raises
-    ``ToolError`` when the request is out of scope or — fail-closed — when the
-    guardrail check itself cannot be completed. Does nothing for tools that take
-    no arbitrary natural-language input (``query`` is ``None``), or when guardrails
-    are disabled (globally via ``SKIP_OUT_OF_SCOPE_CHECK`` or per-channel when
-    ``out_of_scope`` is unset).
-    """
+    """Screen a free-text MCP tool argument with the out-of-scope guardrail; raise ``ToolError``
+    when it is out of scope or the check cannot be completed."""
     if dial_app_settings.skip_out_of_scope_check:
         return
     if channel_config.out_of_scope is None:
@@ -41,8 +33,7 @@ async def enforce_input_guardrail(
         checker_chain = checker.build_checker_chain(messages, auth_context)
         decision = await checker_chain.ainvoke({})
     except Exception:
-        # Fail-closed: if the guardrail check cannot run, block the tool call
-        # rather than letting an unscreened request through.
+        # Fail-closed: block the call when the check cannot run.
         _log.exception("Out-of-scope guardrail failed for MCP tool %s", tool_name)
         raise ToolError("Request blocked: the safety check could not be completed.") from None
 

@@ -1,12 +1,5 @@
-"""Client for the StatGPT SDMX proxy configuration server.
-
-The config server (``epam/statgpt-sdmx-proxy``, module ``sdmx-proxy-config-server``) exposes the
-proxy's registry/agency routing configuration on a single endpoint:
-
-* ``GET`` returns the current configuration, ``404`` when nothing has been stored yet (cold start)
-  and ``503`` when its storage backend is unavailable.
-* ``POST`` replaces the configuration and answers with the configuration it stored, or returns
-  ``400``/``422`` when its validator rejects the payload.
+"""Client for the StatGPT SDMX proxy configuration server (``epam/statgpt-sdmx-proxy``, module
+``sdmx-proxy-config-server``). See openspec/specs/sdmx-proxy-config.
 
 The payload is passed through verbatim as a JSON object: its schema is maintained in the proxy
 repository, and the config server is the authority on what is valid.
@@ -21,8 +14,8 @@ from statgpt.common.utils import ManagedHttpClient
 
 _log = logging.getLogger(__name__)
 
-# A data source is read on every Admin Portal page load, so the configuration must not be worth
-# waiting for: the field is optional and the page renders without it.
+# Short on purpose (see openspec/specs/sdmx-proxy-config: "An unavailable config server leaves
+# the field out").
 _HTTP_TIMEOUT = httpx.Timeout(3.0)
 proxy_config_http_client = ManagedHttpClient(_HTTP_TIMEOUT)
 

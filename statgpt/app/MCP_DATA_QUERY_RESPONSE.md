@@ -1,86 +1,74 @@
 # Data Query MCP response
 
-The Data Query tool answers one `tools/call` with three surfaces, each written for a different
-reader:
+Field reference and examples for version 3 of the Data Query tool's MCP response. The rules
+behind it (which surface carries what, when a field is present, the config toggles and their
+defaults, how `queryId` and the resource URIs are built) are specified in
+[`data-query-mcp-response`](../../openspec/specs/data-query-mcp-response/spec.md).
+See [the migration guide](MCP_DATA_QUERY_RESPONSE_MIGRATION.md) for what changed from version 2.
 
-| Surface | Reader | Contents |
-|---|---|---|
-| `content` | the model, and the user through it | The `structuredContent` serialized as JSON text, one `text/csv` and/or `text/markdown` resource per dataset (see [`mcpResources`](README.md#mcp-server)), then the discovery datasets block, when there is one. |
-| `structuredContent` | the calling model | The outcome, with the queries the pipeline produced, or what a follow-up query would need when it produced none. Validated against the tool's declared `outputSchema`. |
-| `result._meta` | the clients | One namespaced payload per audience: the MCP-App widget and programmatic clients (e.g. Deep Research). |
-
-The whole response carries one version number, `3`, in every `_meta` payload.
-`structuredContent` is not versioned: it is read by the model, which has nothing to do with a
-version number. See [the migration guide](MCP_DATA_QUERY_RESPONSE_MIGRATION.md) for what changed
-from version 2.
+A result has three surfaces: `content` (the `structuredContent` as JSON text, the `text/csv` and
+`text/markdown` resources, then the discovery datasets block), `structuredContent` (for the
+calling model) and `result._meta` (for the MCP-App widget and programmatic clients).
 
 ## `structuredContent`
+
+Null fields are omitted.
 
 | Field | Notes |
 |---|---|
 | `status` | The pipeline outcome; see [Examples](#examples) for each one. |
-| `message` | What the model should know about the outcome: the configured `*McpOnly` message (`dataQueryExecutedMcpOnly`, `multipleDatasetsMcpOnly`, `noDataMcpOnly`, `invalidTimePeriodMcpOnly`, with their non-MCP fallbacks), the default text when none is configured, or the question the pipeline asks about missing dimensions. |
-| `executedAt` | When the queries were executed, for the executed statuses. |
+| `message` | What the model should know about the outcome. |
+| `executedAt` | When the queries were executed (ISO 8601, UTC). |
 | `queries[].queryId` | Short id of the query within the response. Joins it to its resources and to the `_meta` payloads. |
 | `queries[].datasetUrn` | URN of the queried dataset. |
 | `queries[].datasetName` | Dataset name, when known. |
-| `queries[].isOfficial` | Whether the dataset is official. Only reported when `isOfficial` is enabled (see below). |
+| `queries[].isOfficial` | Whether the dataset is official. |
 | `queries[].provider` / `datasetLastUpdated` / `datasetUrl` | The dataset's provider, last-updated date (ISO 8601) and link. |
 | `queries[].querySummary` | A short summary of what the query asks for. |
 | `queries[].executed` | `false` for a query that was constructed but never ran. |
-| `queries[].filters[]` | One entry per filtered dimension: `dimensionId`, `dimensionName`, `operator`, `values[].id` / `values[].name`. `values` is complete - it is what the query asked for. A dimension with no filter is not listed - every one of its values is included. |
+| `queries[].filters[]` | One entry per filtered dimension: `dimensionId`, `dimensionName`, `operator`, `values[].id` / `values[].name`. A dimension with no filter is not listed. |
 | `queries[].filters[].isIndicator` | Whether the dimension is one of the dataset's indicators. |
 | `queries[].filters[].isDefault` | Whether the filter is the dimension's default, applied because the user did not specify it. |
 | `queries[].filters[].valueCount` | How many values the filter applies. |
-| `queries[].requestedPeriod` | `startPeriod` / `endPeriod`, named after the SDMX REST query parameters, and `isDefault` when the dataset's default period was applied. The time period is reported here, not as another filter. |
-| `queries[].invalidity` | For `invalid_time_period`: why each constructed query cannot run. `reason` is `invalid_time_period` or `missing_dimensions`, with an `explanation` in words, and the `rejectedPeriod` (`rejectedBound`, its `requestedValue`, the `availablePeriod`) or the `missingDimensions` (as in the top-level `missingDimensions`). A rejected period is never applied, so `requestedPeriod` does not carry it. |
+| `queries[].requestedPeriod` | `startPeriod` / `endPeriod`, named after the SDMX REST query parameters, and `isDefault` when the dataset's default period was applied. |
+| `queries[].invalidity` | Why a constructed query cannot run: `reason` (`invalid_time_period` or `missing_dimensions`), an `explanation` in words, and the `rejectedPeriod` (`rejectedBound`, its `requestedValue`, the `availablePeriod`) or the `missingDimensions` (as in the top-level `missingDimensions`). |
 | `queries[].factualPeriod` | The period the returned data actually covers. |
-| `queries[].seriesCount` | Number of series returned, absent when the query returned no data. |
-| `queries[].execution` | How the execution went: `result` (`data_received`, `partially_parsed`, `parsing_failed`, `request_failed`, `no_data`), with a `reason` and an `advice` unless the data was received. The advice for a parse failure mentions the widget only when the tool binds one. |
+| `queries[].seriesCount` | Number of series returned. |
+| `queries[].execution` | How the execution went: `result` (`data_received`, `partially_parsed`, `parsing_failed`, `request_failed`, `no_data`), with a `reason` and an `advice` unless the data was received. |
 | `queries[].dataExplorerUrl` | Deep link to the query's data. |
-| `missingDimensions` | The dimensions a follow-up query must specify, with `totalValues` and up to 10 `sampleValues` each. |
-| `candidateDatasets[]` | Datasets to narrow the query to, as `id` / `name` / `isOfficial` (when enabled), with the `query` that would run against each. |
-
-Null fields are omitted. The python snippet, the companion tool names and the response version are
-not here: the clients read them from `_meta`.
-
-Some fields can be turned off per tool:
-
-```yaml
-details:
-  mcpStructuredContent:
-    executedAt: true        # `executedAt`
-    provider: true          # `queries[].provider`
-    datasetUrl: true        # `queries[].datasetUrl`
-    dataExplorerUrl: always # `queries[].dataExplorerUrl` and the widget `message`: always | only_when_no_data | never
-    isOfficial: false       # `isOfficial`, everywhere; enable only for channels that mark official datasets
-```
+| `missingDimensions` | `datasetUrn` and the `dimensions` a follow-up query must specify: `dimensionId`, `name`, `totalValues` and `sampleValues`. |
+| `candidateDatasets[]` | Datasets to narrow the query to: `id`, `name`, `isOfficial`, and the `query` that would run against it. |
 
 ## `result._meta`
 
-Two payloads, each under a namespaced key:
+Each payload sits under a namespaced key, `statgpt.dialx.ai/...` by default, and carries
+`version` (`3`).
 
-```yaml
-details:
-  mcpMeta:
-    namespace: "statgpt.dialx.ai"       # supports $env:{VAR}
-    client:
-      enabledStr: "True"                # off by default
-```
+### `{namespace}/mcp-app`
 
-- **`{namespace}/mcp-app`** - what the UI widget renders and edits: the pipeline `status`, the
-  `message`, the SDMX query model (`urn`, `filters`, `metadata`, `sdmx1Source`, `disabled`) with its
-  `queryId`, the full `candidateDatasets` / `missingDimensions` value lists, the reproducible
-  `pythonCode`, and the companion `tools`. Null fields are kept, so the payload's shape does not
-  change with the outcome. Carried exactly when the tool binds a widget through
-  [`mcp_app_resource_uri`](README.md#mcp-apps-ui-widgets) - without one nothing can render it, so
-  it has no toggle of its own.
-- **`{namespace}/client`** - what a programmatic client needs to present and navigate the result:
-  the `status`, and per query the `dataExplorerUrl`, the `datasetUrl`, the `resourceUris` and the
-  `seriesCount`. Null fields are omitted. Off by default; enable it for a channel whose callers are
-  programmatic.
+What the UI widget renders and edits. Null fields are kept.
 
-`_meta` is omitted entirely when neither payload applies.
+| Field | Notes |
+|---|---|
+| `status` | The pipeline outcome. |
+| `message` | The pipeline's full response text, as the agent would read it. |
+| `queries[]` | The SDMX query model: `urn`, `filters[]` (`componentCode`, `operator`, `values`, the time period included), `metadata`, `sdmx1Source`, `disabled`, and its `queryId`. |
+| `candidateDatasets[]` | `id`, `name`, `description`, `isOfficial`. |
+| `missingDimensions` | The missing dimensions with every available value. |
+| `pythonCode` | A reproducible sdmx1 snippet for the queries. |
+| `tools.sdmxProxy` | Name of the channel's SDMX proxy tool. |
+
+### `{namespace}/client`
+
+What a programmatic client needs to present and navigate the result. Null fields are omitted.
+
+| Field | Notes |
+|---|---|
+| `status` | The pipeline outcome. |
+| `queries[].queryId` / `urn` / `datasetName` | The query and its dataset. |
+| `queries[].dataExplorerUrl` / `datasetUrl` | Deep link to the query's data, and the dataset link. |
+| `queries[].resourceUris` | URIs of the resources `content` carries for the query. |
+| `queries[].seriesCount` | Number of series returned. |
 
 ## Resource values
 
@@ -114,18 +102,11 @@ fractionToPercent:
 decimalPlaces: 3
 ```
 
-## Resource URIs
-
-A resource URI is `statgpt://data_query/{dataset}/{queryId}.{csv|md}`, so a client can join a table
-to the query that produced it. The `queryId` is derived from the query itself plus the date it ran:
-the same query executed again on the same date gets the same id, while the same query a month later
-- which may well return different data - gets a new one. A response that carries no query keeps a
-timestamp stem instead.
-
 ## Examples
 
 One per pipeline status. The `content` blocks are omitted for brevity; `resourceUris` lists the
-resources `content` carries.
+resources `content` carries. `…` marks text shortened here. The examples show a channel with a
+widget, the client payload enabled and `dataQueryExecutedMcpOnly` configured.
 
 ### `data_available`
 
@@ -202,7 +183,7 @@ The queries ran and returned data.
   "_meta": {
     "statgpt.dialx.ai/mcp-app": {
       "status": "data_available",
-      "message": null,
+      "message": "The following queries were executed:\n\n…\n\nDo not reproduce the returned table: the user already sees the data in the widget.\n[Data Query executed at 2026-09-23T10:00:00.000000+00:00]",
       "queries": [
         {
           "urn": "IMF.RES:WEO(9.0.0)",
@@ -355,7 +336,7 @@ The queries ran and returned nothing. The model still sees what was asked, and `
   "_meta": {
     "statgpt.dialx.ai/mcp-app": {
       "status": "executed_no_data",
-      "message": null,
+      "message": "The following queries were executed:\n\n…\n\nDo not reproduce the returned table: the user already sees the data in the widget.\n[Data Query executed at 2026-09-23T10:00:00.000000+00:00]",
       "queries": [
         {
           "urn": "IMF.RES:WEO(9.0.0)",
@@ -500,7 +481,7 @@ The fetch or the parsing failed. Also the default status, in which case there ar
   "_meta": {
     "statgpt.dialx.ai/mcp-app": {
       "status": "failed",
-      "message": null,
+      "message": "The following queries were executed:\n\n…\n\nDo not reproduce the returned table: the user already sees the data in the widget.\n[Data Query executed at 2026-09-23T10:00:00.000000+00:00]",
       "queries": [
         {
           "urn": "IMF.RES:WEO(9.0.0)",
@@ -629,7 +610,7 @@ The queries were constructed but never ran: `executed` is `false`, and there is 
   "_meta": {
     "statgpt.dialx.ai/mcp-app": {
       "status": "not_executed",
-      "message": null,
+      "message": "data queries constructed. queries were not executed, their status (valid/invalid) is unknown, because data query post-processing is disabled in config",
       "queries": [
         {
           "urn": "IMF.RES:WEO(9.0.0)",
@@ -755,7 +736,7 @@ The query matched several datasets. The model gets the ids to narrow it down, ea
   "_meta": {
     "statgpt.dialx.ai/mcp-app": {
       "status": "dataset_selection_required",
-      "message": "Several datasets match your query. Which one should I use?",
+      "message": "Relevant data can be pulled from the following datasets:\n…\n\n**Important**: at that point **no data is provided either to you or to user**, only query info. You may select one of the datasets without user's input, whenever you think it's possible, or ask user to select one of the datasets to proceed with query execution. When user selected something, call the same tool mentioning the dataset name or id in the tool call arguments.",
       "queries": [],
       "candidateDatasets": [
         {
@@ -854,7 +835,7 @@ The query is incomplete. The model gets a bounded sample of each dimension's val
   "_meta": {
     "statgpt.dialx.ai/mcp-app": {
       "status": "missing_dimensions",
-      "message": "Your query is missing the required dimension \"Country\".",
+      "message": "Which country are you interested in? For example: Country 0, Country 1 or Country 2.",
       "queries": [],
       "candidateDatasets": [],
       "missingDimensions": {
@@ -946,7 +927,7 @@ The query is incomplete. The model gets a bounded sample of each dimension's val
 
 ### `invalid_time_period`
 
-The requested period is outside the dataset's range. The model gets the constructed queries, each with the `invalidity` that keeps it from running: a rejected period was never applied, so `requestedPeriod` is absent and `invalidity.rejectedPeriod` carries it instead. A query that also misses a required dimension reports `missing_dimensions` there instead. The widget gets no queries.
+The requested period is outside the dataset's range. The model gets the constructed queries, each with the `invalidity` that keeps it from running: a rejected period was never applied, so `requestedPeriod` is absent and `invalidity.rejectedPeriod` carries it instead. A query that misses a required dimension reports `missing_dimensions` there instead. The widget gets no queries.
 
 ```json
 {
@@ -998,7 +979,7 @@ The requested period is outside the dataset's range. The model gets the construc
   "_meta": {
     "statgpt.dialx.ai/mcp-app": {
       "status": "invalid_time_period",
-      "message": "The selected end date (2030) is outside the available range.",
+      "message": "## Result of query construction\n\nThe created query contains data according to the selected filters, but the values are only available for a different time period. Please adjust the time period or modify the query.\n\n## Constructed queries for datasets\n\n…",
       "queries": [],
       "candidateDatasets": [],
       "missingDimensions": null,
@@ -1025,14 +1006,14 @@ Nothing relevant was found, and no query was built.
 {
   "structuredContent": {
     "status": "no_data",
-    "message": "No relevant data was found for the provided query.",
+    "message": "No relevant data found for the query. Try to change the query.",
     "queries": [],
     "candidateDatasets": []
   },
   "_meta": {
     "statgpt.dialx.ai/mcp-app": {
       "status": "no_data",
-      "message": "No relevant data was found for the provided query.",
+      "message": "No relevant data found for the query. Try to change the query.",
       "queries": [],
       "candidateDatasets": [],
       "missingDimensions": null,

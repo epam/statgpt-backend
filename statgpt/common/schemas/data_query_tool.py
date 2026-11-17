@@ -41,14 +41,7 @@ _MCP_ONLY_SUFFIX = (
 
 
 class DataQueryMessages(BaseYamlModel):
-    """Configurable data query messages, with optional MCP-specific variants.
-
-    The Supreme Agent and an MCP client show the user the query result on different
-    surfaces (DIAL attachments vs. the UI widget), so the wording that tells the model
-    where the data is displayed has to differ per audience. Every message therefore has
-    an optional `*_mcp_only` twin; when it is not configured the non-MCP message is used
-    for both flows, which keeps existing configs working unchanged.
-    """
+    """Configurable data query messages, with optional MCP-specific variants."""
 
     no_data_for_country: str | None = Field(
         default=None,
@@ -187,10 +180,7 @@ class McpResource(ToggleableConfig):
 
 
 class DataQueryMcpResources(BaseYamlModel):
-    """Payloads the MCP data query response carries, each toggleable independently.
-
-    The defaults reproduce the behavior that predates this config: the CSV resource only.
-    """
+    """Payloads the MCP data query response carries, each toggleable independently."""
 
     csv: McpResource = Field(
         default_factory=lambda: McpResource(enabled_str="True"),
@@ -229,12 +219,7 @@ class DataQueryMcpStructuredContent(BaseYamlModel):
 class DataQueryMcpMeta(McpMeta):
     """Audience-specific payloads the MCP data query result carries in `result._meta`.
 
-    Each payload is published under its own namespaced `_meta` key - `{namespace}/mcp-app` and
-    `{namespace}/client` - because the two audiences read different fields: the widget needs the
-    SDMX query model it renders and edits, a programmatic client needs links and resource URIs.
-
-    The MCP-App payload has no toggle of its own: it is carried exactly when the tool binds a
-    widget through `mcp_app_resource_uri`, which is what makes it readable in the first place.
+    The MCP-App payload has no toggle: it is carried when the tool sets `mcp_app_resource_uri`.
     """
 
     client: ToggleableConfig = Field(
@@ -253,11 +238,6 @@ class DataQueryMcpMeta(McpMeta):
 
 class DataQueryExplorerLink(BaseYamlModel):
     """When each surface of the Supreme Agent flow carries the data explorer deep link.
-
-    The surfaces are configured separately because they have different audiences: the stage is
-    read by the user, who may well want to go and look at the source, while the tool response is
-    read by the model, which tends to copy any link it is given into its answer.
-    The defaults reproduce the behavior that predates this config - the link everywhere.
 
     The MCP path is governed by `mcp_structured_content.data_explorer_url` instead.
     """

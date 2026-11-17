@@ -31,10 +31,7 @@ class DeepResearchQueryCheckResponse(BaseModel):
 
 
 class DeepResearchQueryChecker:
-    """Decides whether the user's query suits Deep Research, before a new session is started.
-
-    A cheap LLM call that keeps queries which are not research questions (e.g. "What can you do?")
-    from launching a slow, expensive Deep Research run while Deep Research mode is on."""
+    """Decides whether the user's query suits Deep Research, before a new session is started."""
 
     def __init__(self, config: DeepResearchQueryCheckConfig):
         self._config = config
@@ -74,9 +71,7 @@ class DeepResearchQueryChecker:
     async def suits_deep_research(self, inputs: dict) -> bool:
         """Whether the query of this turn suits Deep Research, judged from the conversation.
 
-        Fails open: the check only spares an unnecessary run, so if any part of it fails or it
-        does not finish within `timeout_seconds`, the user's explicit choice of Deep Research is
-        honored."""
+        Fails open (see openspec/specs/deep-research: "Query check fails open")."""
         try:
             return await self._suits_deep_research(inputs)
         except Exception:
@@ -96,8 +91,7 @@ class DeepResearchQueryChecker:
             choice, "[DEBUG] Deep Research: Query Check", enabled=show_debug_stages
         ) as stage:
             try:
-                # The deadline bounds the whole check, including the model client's retries and
-                # their backoff, so a slow or unavailable model cannot hold the turn up.
+                # Bounds the whole check, including the model client's retries.
                 async with asyncio.timeout(self._config.timeout_seconds):
                     response = await self.build_chain(messages, auth_context).ainvoke({})
             except TimeoutError:

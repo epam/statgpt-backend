@@ -12,9 +12,8 @@ from statgpt.common.utils.async_utils import catch_and_log_async
 class DataQueryEvalAttachmentsDisplayer:
     """Attaches the Data Query eval (debug) files to the choice.
 
-    Kept apart from `DataQueryArtifactDisplayer` because it needs nothing from the channel's
-    attachments config: the direct tool calls path returns these files without any of the data
-    attachments, and need not have the data query tool configured at all.
+    Needs nothing from the channel's attachments config, so the direct tool calls path can use it
+    without the data query tool configured.
     """
 
     def __init__(self, choice: ChoiceI, auth_context: AuthContext, enabled: bool):
@@ -24,11 +23,7 @@ class DataQueryEvalAttachmentsDisplayer:
 
     @catch_and_log_async(logger)
     async def display(self, artifacts: dict[str, DataQueryArtifact]) -> None:
-        """Attach one eval file per tool call, plus a discovery file where the lookup ran.
-
-        Debug-only output must never cost the user their answer, so the whole method is
-        wrapped: a failure to reach the attachments storage is logged and dropped.
-        """
+        """Attach one eval file per tool call, plus a discovery file where the lookup ran."""
         if not self._enabled or not artifacts:
             return
 

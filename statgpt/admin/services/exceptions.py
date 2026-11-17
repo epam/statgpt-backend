@@ -227,13 +227,7 @@ class DiscoveryMetadataSchemaError(AdminServiceError):
 
 
 class DiscoveryReferenceAreaIndexingError(AdminServiceError):
-    """The reference-area vocabulary channel accepted a document and failed to index it.
-
-    Fails the run, unlike a discovery record that cannot be indexed. A record's failure costs
-    that one dataset its place in the results, while a missing vocabulary entry silently
-    narrows away every dataset covering that area, for every query naming it - so it must not
-    be reported as a completed job.
-    """
+    """The reference-area vocabulary channel accepted a document and failed to index it."""
 
     def __init__(self, values: Sequence[str]) -> None:
         listed = ", ".join(repr(value) for value in values)
