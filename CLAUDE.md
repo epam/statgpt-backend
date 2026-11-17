@@ -68,11 +68,13 @@ Local setup is in `README.md`; environment variables are documented in the `Envi
 
 ## Related Repositories
 
-| Repository | What it is | Check it when |
-|---|---|---|
-| [StatGPT Admin Frontend](https://github.com/epam/statgpt-admin-frontend) | Admin UI (React/Next.js) | changing admin API endpoints or schemas |
-| [StatGPT Portal Frontend](https://github.com/epam/statgpt-portal-frontend) | User portal UI library | changing chat response format, attachments or custom content |
-| [StatGPT Helm](https://github.com/epam/statgpt-helm) | Kubernetes deployment charts | adding, renaming or removing environment variables or services |
-| [DIAL Deep Research](https://github.com/epam/ai-dial-deep-research-backend) | DIAL deep research app behind the Deep Research tool | changing the Deep Research tool or what it sends |
-| [DIAL Core](https://github.com/epam/ai-dial-core) | DIAL platform gateway that StatGPT runs behind | debugging routing, auth, rate limits or how DIAL Core passes app errors |
-| [DIAL Chat](https://github.com/epam/ai-dial-chat) | DIAL chat UI | changing how responses, stages or attachments render |
+| Repository | Check it when |
+|---|---|
+| [StatGPT Admin Frontend](https://github.com/epam/statgpt-admin-frontend) | changing admin API endpoints or schemas |
+| [StatGPT Portal Frontend](https://github.com/epam/statgpt-portal-frontend) | changing chat response format, attachments or custom content |
+| [StatGPT Helm](https://github.com/epam/statgpt-helm) | adding, renaming or removing environment variables or services |
+| [StatGPT SDMX Proxy](https://github.com/epam/statgpt-sdmx-proxy) | changing the `statgpt_sdmx_proxy` data source or its proxy configuration |
+| [DIAL Deep Research](https://github.com/epam/ai-dial-deep-research-backend) | changing the Deep Research tool or what it sends |
+| [DIAL Generic RAG](https://github.com/epam/ai-dial-generic-rag-backend) | changing discovery indexing, Generic RAG ingestion, or tools that call Generic RAG apps |
+| [DIAL Core](https://github.com/epam/ai-dial-core) | debugging routing, auth, rate limits or how DIAL Core passes app errors |
+| [DIAL Chat](https://github.com/epam/ai-dial-chat) | changing how responses, stages or attachments render |
