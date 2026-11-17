@@ -75,4 +75,4 @@ Local setup is in `README.md`; environment variables are documented in the `Envi
 | [StatGPT Helm](https://github.com/epam/statgpt-helm) | Kubernetes deployment charts | adding, renaming or removing environment variables or services |
 | [DIAL Deep Research](https://github.com/epam/ai-dial-deep-research-backend) | DIAL deep research app behind the Deep Research tool | changing the Deep Research tool or what it sends |
 | [DIAL Core](https://github.com/epam/ai-dial-core) | DIAL platform gateway that StatGPT runs behind | debugging routing, auth, rate limits or how DIAL Core passes app errors |
-| [DIAL Chat](https://github.com/epam/ai-dial-chat) | DIAL chat UI | changing how responses, stages or attachments render
+| [DIAL Chat](https://github.com/epam/ai-dial-chat) | DIAL chat UI | changing how responses, stages or attachments render |

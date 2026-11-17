@@ -359,5 +359,7 @@ TEST_DATABASE_HOST=localhost TEST_DATABASE_PORT=5433 TEST_DATABASE=test_db make 
 docker compose -f docker-compose.test.yml down
 ```
 
-The `TEST_DATABASE_*` variables can also be set in `.env`; the test targets in the `Makefile` use them
-in place of the `PGVECTOR_*` connection settings.
+The test targets in the `Makefile` use the `TEST_DATABASE_*` variables in place of the `PGVECTOR_*`
+connection settings. `.env.template` sets them to the values above, so with them in `.env` the second
+command is just `make test_integration`. `docker-compose.test.yml` reads `TEST_DATABASE_PORT` and
+`TEST_DATABASE` from `.env` too, so keep them in sync with the values you pass to `make`.
