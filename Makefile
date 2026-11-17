@@ -6,6 +6,10 @@ PYTHON ?= python3
 -include .env
 export
 
+# .env is already loaded above. Stop poetry-plugin-dotenv (if installed) from re-loading it on
+# `poetry run` and overriding target-specific variables, e.g. the test database settings.
+export POETRY_PLUGIN_DOTENV_IGNORE=true
+
 # AI DIAL SDK: pydantic v2 mode
 export PYDANTIC_V2=True
 
