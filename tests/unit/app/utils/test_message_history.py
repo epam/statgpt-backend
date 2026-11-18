@@ -242,4 +242,5 @@ def test_failed_turn_note_invites_a_retry(note):
     text = " ".join(note.split())  # the prompts wrap their lines
 
     assert "affected only that attempt" in text
-    assert "if the user asks to continue or to retry" in text
+    assert "A request to continue or to retry asks again for" in text
+    assert "not for the error" in text

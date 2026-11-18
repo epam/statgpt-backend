@@ -2,20 +2,9 @@
 
 ## Purpose
 
-Shows the Supreme Agent, on later turns, which earlier turns failed and what the user was shown, so that it neither repeats a failed turn's empty answer nor takes the part of an answer an error stopped for a complete one.
+Shows the Supreme Agent, on later turns, which earlier turns failed and what the user was shown, so that it neither repeats a failed turn's empty answer nor takes the part of an answer an error stopped for a complete one. How a failing turn is reported and what it saves in the state (`error`, `error_display_message`) belongs to `chat-error-handling`; the notes on a failed Deep Research call belong to `deep-research`.
 
 ## Requirements
-
-### Requirement: A failed turn records its error in the state
-`ChannelCompletion` SHALL set `error` in the state of a turn that fails, and SHALL set it to `None` on a turn that succeeds. A turn that ends with a DIAL error raised to the client (a Deep Research failure, a rate limit, a forbidden deployment) SHALL also save the error's `display_message` as `error_display_message`.
-
-#### Scenario: Rate limit
-- **WHEN** a turn fails with an `openai.RateLimitError`
-- **THEN** its state holds the raw error as `error`, and the message shown to the user as `error_display_message`
-
-#### Scenario: Successful turn
-- **WHEN** a turn completes without an error
-- **THEN** its state holds `error` = `None`
 
 ### Requirement: The agent sees only the error shown to the user
 The notes about a failed turn SHALL quote `error_display_message` only, never the raw `error`, which can carry internal details such as cost limits.
@@ -47,11 +36,18 @@ An assistant message with content and no tool calls whose state holds `error` an
 - **THEN** on later turns the agent sees that text as its answer, followed by a system note saying the response was stopped by an error and quoting the error shown to the user
 
 ### Requirement: A failed turn's note invites a retry
-The notes `failedTurnMessageToAgent`, `failedTurnWithErrorMessageToAgent` and `interruptedTurnMessageToAgent` SHALL say that the error affected only that attempt and may have been resolved since, and SHALL tell the agent that if the user asks to continue or to retry, it answers the message now (gives the full response, for a turn stopped mid-answer) instead of repeating the error. The notes that quote an error SHALL say this holds even if the error said to try again later.
+The notes `failedTurnMessageToAgent`, `failedTurnWithErrorMessageToAgent` and `interruptedTurnMessageToAgent` SHALL say that the error affected only that attempt and may have been resolved since, and that a request to continue or to retry asks again for an answer to that message (for the full response, for a turn stopped mid-answer), not for the error. The notes that quote an error SHALL say the error may have been resolved even if it said to try again later.
 
 #### Scenario: Continue after an error that said to try again later
 - **WHEN** a Deep Research turn failed, the next turn failed with `You've exceeded your daily token limit for the underlying deployment. Please try again in 1 day`, and the user then sends `continue` after the limit was lifted
-- **THEN** the note after the failed turn tells the agent to answer the user's message now instead of repeating the error, so the agent resumes Deep Research rather than replying that it cannot continue for a day
+- **THEN** the note after the failed turn says that `continue` asks again for an answer to the user's message, not for the error, so the agent resumes Deep Research rather than replying that it cannot continue for a day
+
+### Requirement: The notes state facts, not instructions
+The notes about a failed turn SHALL describe the conversation rather than instruct the agent, because the guardrails, which only classify the conversation, read the same notes.
+
+#### Scenario: Out-of-scope check reads the note
+- **WHEN** the out-of-scope check runs on `continue` after a failed turn
+- **THEN** the note tells it that `continue` asks again for an answer to the earlier message, and gives it nothing to do but classify
 
 ### Requirement: An answer that shows its own error has no note
 An assistant message with content whose state holds `error` but no `error_display_message` SHALL be kept as it is, with no note: the error was shown in the message itself, e.g. `An error occurred while processing your request.` appended after an unexpected exception, or the explanation sent for a command-only message.

@@ -243,16 +243,16 @@ deepResearchReportAnswerPlaceholder: |-
 
 failedTurnMessageToAgent: |-
   An error occurred while generating the response to the user's message above, so no answer was
-  given. The error affected only that attempt and may have been resolved since: if the user asks
-  to continue or to retry, answer that message now.
+  given. The error affected only that attempt and may have been resolved since. A request to
+  continue or to retry asks again for an answer to that message, not for the error.
 
 failedTurnWithErrorMessageToAgent: |-
   An error occurred while generating the response to the user's message above, so no answer was
   given. The error shown to the user: {error}
 
   The error affected only that attempt and may have been resolved since, even if it said to try
-  again later: if the user asks to continue or to retry, answer that message now instead of
-  repeating the error.
+  again later. A request to continue or to retry asks again for an answer to that message, not
+  for the error.
 
 interruptedTurnMessageToAgent: |-
   An error occurred while generating the response above and stopped it, so it was not fully shown
@@ -260,5 +260,5 @@ interruptedTurnMessageToAgent: |-
   user: {error}
 
   The error affected only that attempt and may have been resolved since, even if it said to try
-  again later: if the user asks to continue or to retry, give the full response now instead of
-  repeating the error.
+  again later. A request to continue or to retry asks again for the full response, not for the
+  error.
