@@ -12,6 +12,9 @@ class StateVarsConfig:
     CMD_SKIP_DATA_QUERY_SUMMARIZATION = "cmd_skip_data_query_summarization"
     CMD_SKIP_TOOLS_EXECUTION = "cmd_skip_tools_execution"
     ERROR = 'error'
+    # The error the user was shown instead of an answer: `History` shows it to the agent on later
+    # turns. Unlike `ERROR`, safe to show, as it is the `display_message` of the DIAL error.
+    ERROR_DISPLAY_MESSAGE = 'error_display_message'
     LLM_CALL_DURATIONS = "llm_call_durations"
     RECEIVED_MESSAGES = "received_messages"
 

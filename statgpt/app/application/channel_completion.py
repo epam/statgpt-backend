@@ -248,6 +248,8 @@ class ChannelCompletion(ChatCompletion):
             await cls._emit_deep_research_form_schema(
                 service, auth_context, state, configuration, choice
             )
+            if dial_exception:
+                state[StateVarsConfig.ERROR_DISPLAY_MESSAGE] = dial_exception.display_message
             cls.set_dial_state(state, choice)
             if dial_exception:
                 raise dial_exception
