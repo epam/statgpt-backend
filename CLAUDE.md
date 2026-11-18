@@ -36,7 +36,7 @@ How requests reach the backends in this repository:
 ## Development Workflow
 
 1. Before writing or changing code, read and follow `CODE_STYLE.md`; follow existing patterns in neighboring files.
-2. Before changing existing behavior, check the relevant specs in `openspec/specs/` (the source of truth, managed with [OpenSpec](https://github.com/Fission-AI/OpenSpec)) and keep them in sync with the implementation.
+2. Specs in `openspec/specs/` are the source of truth for behavior. Before changing existing behavior, check the relevant specs. Substantial behavior changes should go through the OpenSpec workflow (suggest it if the user hasn't); otherwise, update the affected specs in the same change.
 3. When changing models, follow [Database Changes](#database-changes).
 4. Run `make format` and make sure `make lint` passes.
 5. Run the tests relevant to the change.
