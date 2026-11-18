@@ -2,18 +2,15 @@ import functools
 import inspect
 import logging
 from collections.abc import Callable, Coroutine
-from typing import Any, ParamSpec, TypeVar
+from typing import Any
 
 from statgpt.app.mcp.exceptions import MissingDeploymentIdError
 from statgpt.app.security.exceptions import AuthenticationError, AuthorizationError
 
-P = ParamSpec("P")
-T = TypeVar("T")
-
-AsyncHandler = Callable[P, Coroutine[Any, Any, T]]
+type AsyncHandler[**P, T] = Callable[P, Coroutine[Any, Any, T]]
 
 
-def guard_channel_resolution(
+def guard_channel_resolution[**P, T](
     *, default: Any, log_prefix: str, detail_arg: str | None = None
 ) -> Callable[[AsyncHandler[P, T]], AsyncHandler[P, T]]:
     """Degrade gracefully when an MCP handler cannot resolve its channel context.

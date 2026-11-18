@@ -4,44 +4,11 @@ import pytest
 
 from statgpt.common.utils.misc import (
     argparse_parse_int_or_none,
-    batched,
     crc32_hash,
     crc32_hash_incremental,
     create_base64_uuid,
     str2bool,
 )
-
-# ---------------------------------------------------------------------------
-# batched
-# ---------------------------------------------------------------------------
-
-
-class TestBatched:
-    def test_exact_batches(self):
-        result = list(batched("ABCDEF", 3))
-        assert result == [["A", "B", "C"], ["D", "E", "F"]]
-
-    def test_last_batch_shorter(self):
-        result = list(batched("ABCDEFG", 3))
-        assert result == [["A", "B", "C"], ["D", "E", "F"], ["G"]]
-
-    def test_batch_size_one(self):
-        result = list(batched([1, 2, 3], 1))
-        assert result == [[1], [2], [3]]
-
-    def test_batch_size_larger_than_input(self):
-        result = list(batched([1, 2], 10))
-        assert result == [[1, 2]]
-
-    def test_empty_iterable(self):
-        result = list(batched([], 3))
-        assert result == []
-
-    def test_works_with_generator(self):
-        gen = (x for x in range(5))
-        result = list(batched(gen, 2))
-        assert result == [[0, 1], [2, 3], [4]]
-
 
 # ---------------------------------------------------------------------------
 # crc32_hash

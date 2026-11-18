@@ -1,3 +1,4 @@
+import itertools
 import typing as t
 from abc import abstractmethod
 
@@ -7,7 +8,6 @@ from statgpt.app.chains.parameters import ChainParameters
 from statgpt.app.config import ChainParametersConfig
 from statgpt.app.schemas import BatchedSelectionOutputBase
 from statgpt.app.services.chat_facade import ScoredDimensionCandidate
-from statgpt.common import utils
 
 from .chain_factory import ChainFactory
 
@@ -45,12 +45,12 @@ class CandidatesSelectionBatchedChainFactory:
         auth_context = ChainParameters.get_auth_context(inputs)
 
         candidates: list[ScoredDimensionCandidate] = inputs[self._candidates_key]
-        candidates_batched = utils.batched(candidates, n=self._batch_size)
+        candidates_batched = itertools.batched(candidates, self._batch_size)
         batch_inputs = [
             {
                 self.BATCH_IX_KEY: ix,
                 self.BATCH_SIZE_KEY: self._batch_size,
-                self._candidates_key: batch,
+                self._candidates_key: list(batch),
                 'normalized_query': inputs['normalized_query'],
                 ChainParametersConfig.AUTH_CONTEXT: auth_context,
             }

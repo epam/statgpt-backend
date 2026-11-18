@@ -42,7 +42,6 @@ from .http_client import ManagedHttpClient
 from .interval_processor import IntervalProcessor
 from .media_types import MediaTypes
 from .misc import (
-    batched,
     crc32_hash,
     crc32_hash_incremental,
     crc32_hash_incremental_async,

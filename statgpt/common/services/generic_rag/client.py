@@ -6,7 +6,7 @@ key they authenticate with. That common half lives here so neither module has to
 """
 
 import logging
-from typing import Any, Self, TypeVar
+from typing import Any, Self
 
 import httpx
 from pydantic import BaseModel, SecretStr
@@ -25,8 +25,6 @@ _MAX_DETAIL_CHARS = 500
 The reason ends up in `index_error` or `reason_for_failure`, or in a chat-time debug stage, so an
 HTML error page must not arrive there in full.
 """
-
-_ModelT = TypeVar("_ModelT", bound=BaseModel)
 
 
 class GenericRagChannelError(Exception):
@@ -109,7 +107,9 @@ class BaseGenericRagChannelClient:
         raise GenericRagChannelError(operation, self._detail(response.text), response.status_code)
 
     @staticmethod
-    def _parse(model: type[_ModelT], response: httpx.Response, operation: str) -> _ModelT:
+    def _parse[ModelT: BaseModel](
+        model: type[ModelT], response: httpx.Response, operation: str
+    ) -> ModelT:
         """Validate a response body, reporting a surprise as a failure of that operation.
 
         A body that does not parse means the caller cannot proceed, and it is far more
