@@ -278,7 +278,7 @@ This command will set up the git hook scripts.
 > It is *always* necessary to manually review and correct the **candidate migrations** that autogenerate produces.
 
 **(!)** After creating a new migration, it is necessary to update the `ALEMBIC_TARGET_VERSION` in the
-`statgpt/common/config/version.py` file to the new version.
+`statgpt/common/config/versions.py` file to the new version.
 
  ```bash
  make db_autogenerate MESSAGE="Your message"
@@ -348,8 +348,18 @@ The project uses GNU gettext for internationalizing dataset formatters. Use thes
     make test_integration
     ```
 
-⚠️ **WARNING:** Integration tests require a database and Elasticsearch instance.
-Consider using separate test instances instead of the ones from `docker-compose.yml`
-because tests truncate tables during execution, which may result in **DATA LOSS**.
-Configure `TEST_DATABASE_*` environment variables accordingly.
-See [Common environment variables](statgpt/common/README.md#environment-variables) for details.
+⚠️ **WARNING:** Integration tests require a PostgreSQL (pgvector) database.
+Do not point them at the database from `docker-compose.yml`:
+tests truncate tables during execution, which may result in **DATA LOSS**.
+Use the isolated test database from `docker-compose.test.yml` instead; it can run alongside the main one:
+
+```bash
+docker compose -f docker-compose.test.yml up -d --wait
+TEST_DATABASE_HOST=localhost TEST_DATABASE_PORT=5433 TEST_DATABASE=test_db make test_integration
+docker compose -f docker-compose.test.yml down
+```
+
+The test targets in the `Makefile` use the `TEST_DATABASE_*` variables in place of the `PGVECTOR_*`
+connection settings. `.env.template` sets them to the values above, so with them in `.env` the second
+command is just `make test_integration`. `docker-compose.test.yml` reads `TEST_DATABASE_PORT` and
+`TEST_DATABASE` from `.env` too, so keep them in sync with the values you pass to `make`.

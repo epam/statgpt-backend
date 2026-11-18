@@ -79,9 +79,6 @@ env:
   PGVECTOR_USER: ${{ secrets.PGVECTOR_TEST_USER }}
   PGVECTOR_PASSWORD: ${{ secrets.PGVECTOR_TEST_PASSWORD }}
 
-  # Elastic
-  ELASTIC_CONNECTION_STRING: http://localhost:9200
-
   # Python
   PIP_CACHE_DIR: "${{ github.workspace }}/.cache/pip"
   VENV_DIR: "${{ github.workspace }}/.venv"
@@ -165,22 +162,6 @@ jobs:
           --health-timeout 5s
           --health-retries 5
 
-      elasticsearch:
-        image: docker.elastic.co/elasticsearch/elasticsearch:8.14.0
-        env:
-          xpack.security.enabled: false
-          xpack.security.enrollment.enabled: false
-          discovery.type: single-node
-          node.name: es-node-01
-          ES_JAVA_OPTS: "-Xms512m -Xmx512m"
-        ports:
-          - 9200:9200
-        options: >-
-          --health-cmd "curl -s http://localhost:9200/_cluster/health | grep -q '\"status\":\"green\"'"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 10
-
     steps:
       - name: Maximize build space
         uses: nepalevov/maximize-build-space@046c48361370e2f3fa758bd2f10c6ce29109ef62 # v1.1.0
@@ -232,12 +213,6 @@ jobs:
             sleep 2
           done
 
-          # Wait for Elasticsearch
-          until curl -s http://localhost:9200/_cluster/health | grep -q '"status":"green"'; do
-            echo "Waiting for Elasticsearch..."
-            sleep 2
-          done
-
           echo "All services are ready!"
 
       - name: Run code checks (tests)
@@ -249,7 +224,6 @@ jobs:
           TEST_DATABASE: ${{ env.TEST_DATABASE }}
           PGVECTOR_USER: ${{ env.PGVECTOR_USER }}
           PGVECTOR_PASSWORD: ${{ env.PGVECTOR_PASSWORD }}
-          ELASTIC_CONNECTION_STRING: ${{ env.ELASTIC_CONNECTION_STRING }}
         run: |
           make test
 
