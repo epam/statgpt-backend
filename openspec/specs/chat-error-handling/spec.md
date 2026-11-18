@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Defines how a chat completion request to a channel reports failures: which ones become DIAL errors with which status, code and user-facing `display_message`, which ones are answered with a plain message instead, and what the response still carries when a turn fails. Deep Research's own failure rules belong to `deep-research`.
+Defines how a chat completion request to a channel reports failures: which ones become DIAL errors with which status, code and user-facing `display_message`, which ones are answered with a plain message instead, and what the response still carries when a turn fails. Deep Research's own failure rules belong to `deep-research`; how later turns show a failed turn to the agent belongs to `failed-turn-history`.
 
 ## Requirements
 
@@ -19,6 +19,17 @@ When a turn fails with an error that is reported as a DIAL error after the turn 
 #### Scenario: Rate limit mid-turn
 - **WHEN** the Supreme Agent's model hits a rate limit after other model calls of the turn succeeded
 - **THEN** the response carries the usage stage and the state, then the rate-limit error
+
+### Requirement: A failed turn records its error in the state
+The state of a turn that fails SHALL hold the raw error as `error`, and the state of a turn that succeeds SHALL hold `error` = `None`. A turn that ends with a DIAL error raised to the client after the turn started (a Deep Research failure, a rate limit, a forbidden deployment) SHALL also save the error's `display_message` as `error_display_message`. Only `error_display_message` is safe to show: the raw `error` can carry internal details such as cost limits.
+
+#### Scenario: Rate limit
+- **WHEN** a turn fails with a rate-limit error from the Supreme Agent's model
+- **THEN** its state holds the raw error as `error`, and the message shown to the user as `error_display_message`
+
+#### Scenario: Successful turn
+- **WHEN** a turn completes without an error
+- **THEN** its state holds `error` = `None`
 
 ### Requirement: Failures inside a tool call
 A failure inside a tool call, including a rate-limit, permission-denied or content-filter error from a model or application the tool calls, SHALL be handed to the agent as an error tool response and SHALL NOT become a DIAL error. The only exception SHALL be a Deep Research deployment failure, which follows `deep-research`, whatever its status or code.
