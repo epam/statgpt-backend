@@ -7,6 +7,7 @@ from aidial_sdk.chat_completion import Message as DialMessage
 from aidial_sdk.chat_completion import Role
 from langchain_core.messages import AIMessage, SystemMessage, ToolMessage
 
+from statgpt.app.application.channel_completion import CONTINUE_NOTE
 from statgpt.app.config import StateVarsConfig
 from statgpt.app.default_prompts import supreme_agent_default_prompts
 from statgpt.app.utils.message_history import History
@@ -14,10 +15,7 @@ from statgpt.app.utils.message_history import History
 _FAILED_TURN_MESSAGE = supreme_agent_default_prompts.failed_turn_message_to_agent
 _SHOWN_ERROR = (
     "You've exceeded your token limit for the underlying deployment."
-    " The limit resets in 14 hours 30 minutes.\n\n"
-    'Press "Continue" (or type "continue") to pick up from where the response stopped:'
-    ' what was already done is kept. "Try again" starts over from your last message and repeats'
-    " that work, so the response takes longer and uses more tokens."
+    f" The limit resets in 14 hours 30 minutes.\n\n{CONTINUE_NOTE}"
 )
 
 

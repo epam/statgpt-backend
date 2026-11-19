@@ -84,7 +84,7 @@ def test_toggle_only_schema_is_unchanged() -> None:
             }
         },
         "required": ["deep_research"],
-        "title": "DeepResearchToggleForm",
+        "title": "MessageForm",
         "type": "object",
     }
 

@@ -15,7 +15,7 @@ from aidial_sdk.exceptions import HTTPException as DIALException
 from langchain_core.messages import AIMessage, ToolMessage
 
 from statgpt.app.application import channel_completion as channel_completion_module
-from statgpt.app.application.channel_completion import ChannelCompletion
+from statgpt.app.application.channel_completion import CONTINUE_NOTE, ChannelCompletion
 from statgpt.app.chains.deep_research import DeepResearchFailedError
 from statgpt.app.config import ChainParametersConfig as ParamsConfig
 from statgpt.app.config import StateVarsConfig
@@ -100,11 +100,6 @@ _RATE_LIMIT_ERROR = openai.RateLimitError(
 )
 
 
-_CONTINUE_NOTE = (
-    'Press "Continue" (or type "continue") to pick up from where the response stopped:'
-    ' what was already done is kept. "Try again" starts over from your last message and repeats'
-    " that work, so the response takes longer and uses more tokens."
-)
 _RATE_LIMIT_SHOWN = (
     "You've exceeded your token limit for the underlying deployment."
     " The limit resets in 14 hours 30 minutes."
@@ -215,7 +210,7 @@ async def test_failed_turn_keeps_the_error_shown_to_the_user(monkeypatch, error,
     turn = await _run_turn()
 
     assert turn.state[StateVarsConfig.ERROR] == str(error)
-    assert turn.state[StateVarsConfig.ERROR_DISPLAY_MESSAGE] == f"{shown}\n\n{_CONTINUE_NOTE}"
+    assert turn.state[StateVarsConfig.ERROR_DISPLAY_MESSAGE] == f"{shown}\n\n{CONTINUE_NOTE}"
 
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~ the "Continue" button (#831) ~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -247,7 +242,7 @@ async def test_streamed_resumable_failure_carries_the_button_and_the_note(
     assert _has_continue_button(turn.form_schema)
     assert "deep_research" in turn.form_schema["properties"]
     assert turn.error is not None
-    assert turn.error.display_message == f"{shown}\n\n{_CONTINUE_NOTE}"
+    assert turn.error.display_message == f"{shown}\n\n{CONTINUE_NOTE}"
     assert turn.state[StateVarsConfig.ERROR_DISPLAY_MESSAGE] == turn.error.display_message
 
 
@@ -298,7 +293,7 @@ async def test_forbidden_deployment_has_no_button(monkeypatch) -> None:
 
     assert not _has_continue_button(turn.form_schema)
     assert turn.error is not None
-    assert _CONTINUE_NOTE not in turn.error.display_message
+    assert CONTINUE_NOTE not in turn.error.display_message
 
 
 async def test_successful_turn_has_no_button(monkeypatch) -> None:

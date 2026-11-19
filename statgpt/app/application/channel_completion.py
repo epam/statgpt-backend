@@ -55,7 +55,7 @@ _COMMAND_ONLY_MESSAGE = (
     "Your message contains only commands. Please add your question and send it again."
 )
 # Ends the error of a turn that carries the "Continue" button (see `chat-error-handling`).
-_CONTINUE_NOTE = (
+CONTINUE_NOTE = (
     'Press "Continue" (or type "continue") to pick up from where the response stopped:'
     ' what was already done is kept. "Try again" starts over from your last message and repeats'
     " that work, so the response takes longer and uses more tokens."
@@ -262,7 +262,7 @@ class ChannelCompletion(ChatCompletion):
             continuable = resumable_failure and bool(request.stream)
             if dial_exception and continuable:
                 dial_exception.display_message = (
-                    f"{dial_exception.display_message}\n\n{_CONTINUE_NOTE}"
+                    f"{dial_exception.display_message}\n\n{CONTINUE_NOTE}"
                 )
             await cls._emit_form_schema(
                 service,

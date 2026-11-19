@@ -93,12 +93,12 @@ def build_message_form_schema(
 
     namespace: dict[str, Any] = {
         "__module__": __name__,
-        "__qualname__": "DeepResearchToggleForm",
+        "__qualname__": "MessageForm",
         "__annotations__": annotations,
         **fields,
     }
     form_cls: type[BaseModel] = FormMetaclass(  # type: ignore[assignment]
-        "DeepResearchToggleForm", (BaseModel,), namespace
+        "MessageForm", (BaseModel,), namespace
     )
     return form_cls.model_json_schema()
 

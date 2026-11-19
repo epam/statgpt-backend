@@ -102,7 +102,7 @@ The mediation loop SHALL end when the agent writes to the user or Deep Research 
 
 #### Scenario: Cap reached
 - **WHEN** 50 mediation iterations pass without the agent writing to the user or a report being delivered
-- **THEN** the answer ends with "Deep Research could not complete this request." and the session stays in the state
+- **THEN** the answer ends with "Deep Research could not complete this request. Please try again." and the session stays in the state
 
 ### Requirement: Session persistence
 The sub-conversation with Deep Research SHALL be stored in the conversation state as a list of turns (`user_message`, `assistant_content`, `deep_research_state`) and carried over from the latest assistant message that has a state. It SHALL be replayed to Deep Research as DIAL messages with each assistant turn's `custom_content.state`, so Deep Research resumes from its own state. A session SHALL be saved once Deep Research answers and dropped once the report is delivered.
@@ -238,7 +238,7 @@ A streamed turn that ends with a Deep Research deployment failure SHALL carry th
 - **THEN** the answer ends with the standard failure text and has no "Continue" button
 
 ### Requirement: Other failures append the standard text
-A failure of a Deep Research tool call other than a deployment error SHALL be recorded as an error tool response, and the turn SHALL end with "Deep Research could not complete this request." appended to the answer once.
+A failure of a Deep Research tool call other than a deployment error SHALL be recorded as an error tool response, and the turn SHALL end with the standard failure text, "Deep Research could not complete this request. Please try again.", appended to the answer once. Unlike the text of a deployment failure, it SHALL tell the user to try again: the turn raises no DIAL error, so it has neither the Continue note nor the "Try again" button.
 
 #### Scenario: Unexpected exception
 - **WHEN** the tool raises an exception that is not a deployment error

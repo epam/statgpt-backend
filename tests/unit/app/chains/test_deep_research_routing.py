@@ -35,6 +35,7 @@ from openai.types.chat import ChatCompletionChunk
 from statgpt.app.chains import supreme_agent as supreme_agent_module
 from statgpt.app.chains.deep_research import (
     DEEP_RESEARCH_ERROR_MESSAGE,
+    DEEP_RESEARCH_ERROR_TEXT,
     DeepResearchFailedError,
     DeepResearchQueryChecker,
 )
@@ -714,7 +715,7 @@ async def test_deployment_error_without_display_message_uses_standard_text(monke
             _inputs({StateVarsConfig.SHOW_DEBUG_STAGES: False}, "research US GDP")
         )
 
-    assert exc_info.value.display_message == DEEP_RESEARCH_ERROR_MESSAGE.strip()
+    assert exc_info.value.display_message == DEEP_RESEARCH_ERROR_TEXT
 
 
 # ~~~~~~~~~~~~~~~~~~~~~~ failed turn kept for resume (#760) ~~~~~~~~~~~~~~~~~~~~~~
