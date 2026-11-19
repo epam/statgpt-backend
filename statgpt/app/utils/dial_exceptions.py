@@ -111,18 +111,20 @@ class RateLimitException(DIALException):
 
     @classmethod
     def _get_display_message(cls, exceeded_limits: list[str], retry_after: str | None) -> str:
-        try:
-            retry_hint = f"in {cls._format_duration(int(retry_after))}" if retry_after else "later"
-        except (ValueError, TypeError):
-            retry_hint = "later"
+        labels = f" {', '.join(exceeded_limits)}" if exceeded_limits else ""
+        return (
+            f"You've exceeded your{labels} token limit for the underlying deployment."
+            f" {cls._get_reset_hint(retry_after)}"
+        )
 
-        if exceeded_limits:
-            labels = ", ".join(exceeded_limits)
-            return (
-                f"You've exceeded your {labels} token limit for the underlying deployment."
-                f" Please try again {retry_hint}"
-            )
-        return f"You've exceeded your token limit for the underlying deployment. Please try again {retry_hint}"
+    @classmethod
+    def _get_reset_hint(cls, retry_after: str | None) -> str:
+        try:
+            if retry_after:
+                return f"The limit resets in {cls._format_duration(int(retry_after))}."
+        except (ValueError, TypeError):
+            pass
+        return "Please wait for the limit to reset."
 
     @staticmethod
     def _format_duration(total_seconds: int) -> str:

@@ -20,7 +20,7 @@ from statgpt.app.application.channel_completion import ChannelCompletion
 from statgpt.app.config import StateVarsConfig
 from statgpt.app.schemas import DeepResearchSession, DeepResearchTurn
 from statgpt.app.schemas.dial_app_configuration import StatGPTConfiguration
-from statgpt.app.services.chat_facade import build_deep_research_form_schema
+from statgpt.app.services.chat_facade import build_message_form_schema
 
 
 def _session_state(*turns: DeepResearchTurn) -> dict:
@@ -37,7 +37,7 @@ def _session_state(*turns: DeepResearchTurn) -> dict:
 def test_form_schema_reuses_configuration_field_name_and_title() -> None:
     """The control must reuse the configuration field's name and title so the frontend updates the
     existing toggle rather than rendering a separate control."""
-    schema = build_deep_research_form_schema(True)
+    schema = build_message_form_schema(deep_research=True, continue_button=False)
 
     prop = schema["properties"]["deep_research"]
     assert prop["title"] == "Deep research"
@@ -46,17 +46,84 @@ def test_form_schema_reuses_configuration_field_name_and_title() -> None:
 
 
 def test_form_schema_carries_on_value_via_const() -> None:
-    schema = build_deep_research_form_schema(True)
+    schema = build_message_form_schema(deep_research=True, continue_button=False)
 
     options = schema["properties"]["deep_research"]["oneOf"]
     assert [opt["const"] for opt in options] == [True]
 
 
 def test_form_schema_carries_off_value_via_const() -> None:
-    schema = build_deep_research_form_schema(False)
+    schema = build_message_form_schema(deep_research=False, continue_button=False)
 
     options = schema["properties"]["deep_research"]["oneOf"]
     assert [opt["const"] for opt in options] == [False]
+
+
+def test_toggle_only_schema_is_unchanged() -> None:
+    """The toggle-only schema stays exactly what the frontend has been getting (#683)."""
+    schema = build_message_form_schema(deep_research=True, continue_button=False)
+
+    assert schema == {
+        "additionalProperties": False,
+        "properties": {
+            "deep_research": {
+                "dial:widget": "buttons",
+                "oneOf": [
+                    {
+                        "const": True,
+                        "dial:widgetOptions": {
+                            "confirmationMessage": None,
+                            "populateText": None,
+                            "submit": False,
+                        },
+                        "title": "Deep research",
+                    }
+                ],
+                "title": "Deep research",
+                "type": "boolean",
+            }
+        },
+        "required": ["deep_research"],
+        "title": "DeepResearchToggleForm",
+        "type": "object",
+    }
+
+
+def _continue_option(schema: dict) -> dict:
+    prop = schema["properties"]["button"]
+    assert prop["type"] == "string"
+    assert prop["dial:widget"] == "buttons"
+    assert "description" not in prop
+    [option] = prop["oneOf"]
+    return option
+
+
+def test_button_only_schema() -> None:
+    """DIAL Chat renders buttons only from a `button` or `starter` property (#831)."""
+    schema = build_message_form_schema(deep_research=None, continue_button=True)
+
+    assert list(schema["properties"]) == ["button"]
+    assert _continue_option(schema) == {
+        "const": "continue",
+        "title": "Continue",
+        "dial:widgetOptions": {
+            "confirmationMessage": None,
+            "populateText": "Continue",
+            "submit": True,
+        },
+    }
+
+
+def test_toggle_and_button_share_one_schema() -> None:
+    schema = build_message_form_schema(deep_research=False, continue_button=True)
+
+    assert list(schema["properties"]) == ["deep_research", "button"]
+    assert schema["properties"]["deep_research"]["oneOf"][0]["const"] is False
+    assert _continue_option(schema)["const"] == "continue"
+
+
+def test_no_schema_without_toggle_or_button() -> None:
+    assert build_message_form_schema(deep_research=None, continue_button=False) is None
 
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ toggle resolution ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -121,12 +188,13 @@ async def test_emits_form_schema_when_available() -> None:
     choice = MagicMock()
     state = _session_state(DeepResearchTurn(user_message="q", assistant_content="a"))
 
-    await ChannelCompletion._emit_deep_research_form_schema(
+    await ChannelCompletion._emit_form_schema(
         _service(available=True),
         auth_context=MagicMock(),
         state=state,
         configuration=StatGPTConfiguration(deep_research=True),
         choice=choice,
+        continue_button=False,
     )
 
     choice.set_form_schema.assert_called_once()
@@ -135,15 +203,17 @@ async def test_emits_form_schema_when_available() -> None:
 
 
 async def test_skips_emission_when_deep_research_unavailable() -> None:
-    """No toggle exists in the UI when Deep Research is unavailable, so nothing is emitted."""
+    """No toggle exists in the UI when Deep Research is unavailable, so without the "Continue"
+    button nothing is emitted."""
     choice = MagicMock()
 
-    await ChannelCompletion._emit_deep_research_form_schema(
+    await ChannelCompletion._emit_form_schema(
         _service(available=False),
         auth_context=MagicMock(),
         state={},
         configuration=StatGPTConfiguration(deep_research=False),
         choice=choice,
+        continue_button=False,
     )
 
     choice.set_form_schema.assert_not_called()

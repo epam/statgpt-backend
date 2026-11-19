@@ -250,15 +250,15 @@ failedTurnWithErrorMessageToAgent: |-
   An error occurred while generating the response to the user's message above, so no answer was
   given. The error shown to the user: {error}
 
-  The error affected only that attempt and may have been resolved since, even if it said to try
-  again later: if the user asks to continue or to retry, answer that message now instead of
-  repeating the error.
+  The error affected only that attempt and may have been resolved since, even if it said to wait
+  or to try again later: if the user asks to continue or to retry, answer that message now
+  instead of repeating the error.
 
 interruptedTurnMessageToAgent: |-
   An error occurred while generating the response above and stopped it, so it was not fully shown
   to the user: the user saw only the part above, followed by the error. The error shown to the
   user: {error}
 
-  The error affected only that attempt and may have been resolved since, even if it said to try
-  again later: if the user asks to continue or to retry, give the full response now instead of
-  repeating the error.
+  The error affected only that attempt and may have been resolved since, even if it said to wait
+  or to try again later: if the user asks to continue or to retry, give the full response now
+  instead of repeating the error.

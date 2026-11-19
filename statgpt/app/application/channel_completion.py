@@ -19,7 +19,7 @@ from statgpt.app.config import StateVarsConfig
 from statgpt.app.schemas import DeepResearchSession
 from statgpt.app.schemas.dial_app_configuration import StatGPTConfiguration
 from statgpt.app.security import create_auth_context
-from statgpt.app.services.chat_facade import ChannelServiceFacade, build_deep_research_form_schema
+from statgpt.app.services.chat_facade import ChannelServiceFacade, build_message_form_schema
 from statgpt.app.settings.dial_app import dial_app_settings
 from statgpt.app.utils.dial_exceptions import ForbiddenDeploymentException, RateLimitException
 from statgpt.app.utils.dial_stages import optional_timed_stage
@@ -53,6 +53,12 @@ _INVALID_HISTORY_MESSAGE = (
 )
 _COMMAND_ONLY_MESSAGE = (
     "Your message contains only commands. Please add your question and send it again."
+)
+# Ends the error of a turn that carries the "Continue" button (see `chat-error-handling`).
+_CONTINUE_NOTE = (
+    'Press "Continue" (or type "continue") to pick up from where the response stopped:'
+    ' what was already done is kept. "Try again" starts over from your last message and repeats'
+    " that work, so the response takes longer and uses more tokens."
 )
 
 
@@ -119,6 +125,8 @@ class ChannelCompletion(ChatCompletion):
         main_chain_factory = MainChainFactory(service.channel_config)
         chain = await main_chain_factory.create_chain()
         dial_exception: DIALException | None = None
+        # The turn failed in a way the user can resume from with "Continue".
+        resumable_failure = False
         with response.create_choice() as choice:
             try:
                 auth_context = await create_auth_context(
@@ -202,10 +210,15 @@ class ChannelCompletion(ChatCompletion):
                         status_code=500,
                         display_message=e.display_message,
                     )
+                    resumable_failure = True
                 except openai.RateLimitError as e:
                     _log.warning("openai.RateLimitError", exc_info=e)
+                    if ParamsConfig.HISTORY in inputs:
+                        # keep the finished tool calls, so "Continue" doesn't run them again
+                        ChainParameters.get_history(inputs).dump_state(state)
                     state[StateVarsConfig.ERROR] = str(e)
                     dial_exception = RateLimitException.from_openai_error(e)
+                    resumable_failure = True
                 except openai.PermissionDeniedError as e:
                     _log.warning("openai.PermissionDeniedError", exc_info=e)
                     state[StateVarsConfig.ERROR] = str(e)
@@ -245,8 +258,19 @@ class ChannelCompletion(ChatCompletion):
                     table = TokenUsageDisplayer.as_markdown_table(priced_usage)
                     stage.append_content(table)
 
-            await cls._emit_deep_research_form_schema(
-                service, auth_context, state, configuration, choice
+            # A non-streaming response holds only the error, so there is nothing to continue.
+            continuable = resumable_failure and bool(request.stream)
+            if dial_exception and continuable:
+                dial_exception.display_message = (
+                    f"{dial_exception.display_message}\n\n{_CONTINUE_NOTE}"
+                )
+            await cls._emit_form_schema(
+                service,
+                auth_context,
+                state,
+                configuration,
+                choice,
+                continue_button=continuable,
             )
             if dial_exception:
                 state[StateVarsConfig.ERROR_DISPLAY_MESSAGE] = dial_exception.display_message
@@ -255,19 +279,27 @@ class ChannelCompletion(ChatCompletion):
                 raise dial_exception
 
     @classmethod
-    async def _emit_deep_research_form_schema(
+    async def _emit_form_schema(
         cls,
         service: ChannelServiceFacade,
         auth_context: AuthContext,
         state: dict,
         configuration: StatGPTConfiguration,
         choice: Choice,
+        *,
+        continue_button: bool,
     ) -> None:
-        """Set the "Deep research" toggle for the next turn through the message's form schema."""
-        if not await service.channel_config.is_deep_research_available_for(auth_context):
-            return
-        armed = cls._resolve_deep_research_toggle(state, configuration)
-        choice.set_form_schema(build_deep_research_form_schema(armed))
+        """Set the message's form schema: the "Deep research" toggle for the next turn, where Deep
+        Research is available, and the "Continue" button. The SDK allows one form schema per choice.
+        """
+        deep_research: bool | None = None
+        if await service.channel_config.is_deep_research_available_for(auth_context):
+            deep_research = cls._resolve_deep_research_toggle(state, configuration)
+        form_schema = build_message_form_schema(
+            deep_research=deep_research, continue_button=continue_button
+        )
+        if form_schema is not None:
+            choice.set_form_schema(form_schema)
 
     @staticmethod
     def _resolve_deep_research_toggle(state: dict, configuration: StatGPTConfiguration) -> bool:

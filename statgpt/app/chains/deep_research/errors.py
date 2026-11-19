@@ -1,6 +1,6 @@
 from statgpt.app.utils.dial_stages import ChoiceI
 
-_DEEP_RESEARCH_ERROR_TEXT = "Deep Research could not complete this request. Please try again."
+_DEEP_RESEARCH_ERROR_TEXT = "Deep Research could not complete this request."
 
 DEEP_RESEARCH_ERROR_MESSAGE = f"\n\n{_DEEP_RESEARCH_ERROR_TEXT}"
 
