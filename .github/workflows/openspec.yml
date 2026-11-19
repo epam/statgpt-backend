@@ -1,0 +1,31 @@
+name: OpenSpec
+
+on:
+  pull_request:
+    branches: [development, release-*, integration-*]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  OPENSPEC_VERSION: "2.0.0"
+
+jobs:
+  openspec-validate:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "22"
+
+      - name: Validate changes and specs
+        run: npx --yes "@fission-ai/openspec@${OPENSPEC_VERSION}" validate --all --strict --no-interactive
+
+      - name: Check archived changes have all tasks completed
+        run: npx --yes "@fission-ai/openspec@${OPENSPEC_VERSION}" validate --archived
