@@ -10,8 +10,8 @@ Shows the Supreme Agent, on later turns, which earlier turns failed and what the
 The notes about a failed turn SHALL quote `error_display_message` only, never the raw `error`, which can carry internal details such as cost limits.
 
 #### Scenario: Raw error kept out of the prompt
-- **WHEN** a failed turn's `error` is `Error code: 429 - Hit cost rate limit. Day limit: $10.30 / $10.00` and its `error_display_message` is `You've exceeded your token limit. Please try again in 14 hours 30 minutes`
-- **THEN** the note quotes the display message, and the cost limit appears nowhere in the agent's prompt
+- **WHEN** a failed turn's `error` is `Error code: 429 - Hit cost rate limit. Day limit: $10.30 / $10.00` and its `error_display_message` is `You've exceeded your token limit for the underlying deployment. The limit resets in 14 hours 30 minutes.` followed by the Continue note (see `chat-error-handling`)
+- **THEN** the note quotes the display message, Continue note included, and the cost limit appears nowhere in the agent's prompt
 
 ### Requirement: A turn that failed before any answer is followed by a note
 Every assistant message SHALL be kept in the history as it was sent. An assistant message with no content and no tool calls SHALL be followed by a system note if its state has `error` set, or if it has no state (the turn was cut off before its state was sent, or the request was rejected). The note SHALL be `failedTurnWithErrorMessageToAgent`, quoting `error_display_message`, if the state holds one, and `failedTurnMessageToAgent` otherwise.
@@ -36,10 +36,10 @@ An assistant message with content and no tool calls whose state holds `error` an
 - **THEN** on later turns the agent sees that text as its answer, followed by a system note saying the response was stopped by an error and quoting the error shown to the user
 
 ### Requirement: A failed turn's note invites a retry
-The notes `failedTurnMessageToAgent`, `failedTurnWithErrorMessageToAgent` and `interruptedTurnMessageToAgent` SHALL say that the error affected only that attempt and may have been resolved since, and SHALL tell the agent that if the user asks to continue or to retry, it answers the message now (gives the full response, for a turn stopped mid-answer) instead of repeating the error. The notes that quote an error SHALL say this holds even if the error said to try again later.
+The notes `failedTurnMessageToAgent`, `failedTurnWithErrorMessageToAgent` and `interruptedTurnMessageToAgent` SHALL say that the error affected only that attempt and may have been resolved since, and SHALL tell the agent that if the user asks to continue or to retry, it answers the message now (gives the full response, for a turn stopped mid-answer) instead of repeating the error. The notes that quote an error SHALL say this holds even if the error said to wait or to try again later.
 
 #### Scenario: Continue after an error that said to try again later
-- **WHEN** a Deep Research turn failed, the next turn failed with `You've exceeded your daily token limit for the underlying deployment. Please try again in 1 day`, and the user then sends `continue` after the limit was lifted
+- **WHEN** a Deep Research turn failed, the next turn failed with `You've exceeded your daily token limit for the underlying deployment. The limit resets in 1 day.`, and the user then sends `continue` after the limit was lifted
 - **THEN** the note after the failed turn tells the agent to answer the user's message now instead of repeating the error, so the agent resumes Deep Research rather than replying that it cannot continue for a day
 
 #### Scenario: Two failed turns in a row
@@ -61,11 +61,15 @@ An assistant message with content and no state SHALL be kept as it is, with no n
 - **THEN** the agent sees it as its answer, with no note
 
 ### Requirement: The failed turn's tool messages come before the note
-The tool calls and responses a failed turn saved in its state SHALL be shown before its answer and its note, in the order they happened. They are shown only when the history is built with tool messages. A turn that fails in Deep Research saves them, so that later turns see the failed call; other failed turns save none.
+The tool calls and responses a failed turn saved in its state SHALL be shown before its answer and its note, in the order they happened. They are shown only when the history is built with tool messages. A turn that fails in Deep Research or with a rate-limit DIAL error saves them, so that later turns see the finished calls; other failed turns save none.
 
 #### Scenario: Deep Research call failed
 - **WHEN** a turn's Deep Research call failed with a Deep Research error and no answer was shown
 - **THEN** the agent sees the tool call, its error response, the note that the Deep Research call failed, the empty answer, and then the note quoting the error shown to the user
+
+#### Scenario: Rate limit after a tool call
+- **WHEN** a turn ran a data query tool, streamed `US GDP grew in 2023, from` and then failed with a rate limit
+- **THEN** on later turns the agent sees the tool call and its response, then that text as its answer, then the note saying the response was stopped by an error and quoting the error shown to the user
 
 ### Requirement: Guardrails also see that a turn failed
 The history built without tool messages, as used by the out-of-scope check and the Deep Research query check, SHALL carry the same notes about failed turns: they rely on no tool message.
