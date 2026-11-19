@@ -164,6 +164,16 @@ services:
 #      # OpenTelemetry
 #      OTEL_SDK_DISABLED: "true"
 
+## Uncomment the lines below to test the Deep Research tool locally.
+## DIAL Core reaches it at http://deep-research:5000 through the Deep Research application type in
+## `dial/core/config/config.json`; point a channel at an application of that type with
+## `details.deploymentId` of its `DEEP_RESEARCH` tool.
+#  deep-research:
+#    image: epam/ai-dial-deep-research-backend:development
+#    environment:
+#      DIAL_URL: "http://ai-dial-core:8080"
+#      ENABLE_ANNOTATIONS_DEMO: true
+
 volumes:
   postgres-data:
   elastic-data:
