@@ -275,24 +275,28 @@ class ResumeStagesConfig(ToolStageNames):
     deployment are still governed by `stages_config`."""
 
     tool_call_name: str | None = Field(
-        default="Researching: {original_question}",
+        default="Researching: {query}",
         description=(
-            "The stage name of the resume tool call."
-            " Supports the {original_question} and {message} placeholders."
+            "The stage name of the resume tool call, named from the session as it was before the"
+            " call. Supports the {query} (Deep Research's latest research query, or the original"
+            " question if it stored none), {original_question} (the question the session was"
+            " started with) and {message} placeholders."
         ),
     )
     tool_result_name: str | None = Field(
-        default="Research result: {original_question}",
+        default="Research result: {query}",
         description=(
-            "The stage name of the resume tool result."
-            " Supports the {original_question} and {message} placeholders."
+            "The stage name of the resume tool result, named from the session as it is after the"
+            " call. Supports the {query} (Deep Research's latest research query, or the original"
+            " question if it stored none), {original_question} (the question the session was"
+            " started with) and {message} placeholders."
         ),
     )
     missing_question_name: str = Field(
         default="Continue researching",
         description=(
-            "The stage name used instead of a template that references {original_question}"
-            " when the original question cannot be retrieved from the session."
+            "The stage name used instead of a template that references {query} or"
+            " {original_question} when neither can be retrieved from the session."
         ),
     )
 
@@ -387,8 +391,13 @@ class DeepResearchDetails(BaseToolDetails, RewriteRulesMixin):
     resume_tool_description: str = Field(
         default=(
             "Resume the active Deep Research session by sending it the answers to its clarifying"
-            " questions (answered from the conversation context where you can) or the user's"
-            " approval of the plan. Do not invent answers the user has not provided."
+            " questions (answered from the conversation context where you can), the user's"
+            " approval of the plan, or the user's requested changes to the query or plan (e.g."
+            " steps, sources or scope to add, remove or change). Only Deep Research can change its"
+            " query and plan, so never rewrite a plan yourself. Deep Research does not see the chat:"
+            " resolve the user's references to the earlier conversation, including turns from"
+            " before Deep Research mode was turned on, into concrete details (e.g. the exact title"
+            " of a publication mentioned earlier). Do not invent answers the user has not provided."
         ),
         description=(
             "Description of the internal tool that resumes an in-progress Deep Research session."
