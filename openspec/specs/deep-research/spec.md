@@ -155,7 +155,7 @@ Each assistant message SHALL carry a `custom_content.form_schema` whose `deep_re
 - **THEN** the frontend falls back to the configuration default, off
 
 #### Scenario: Deep Research unavailable
-- **WHEN** a streamed turn fails with a rate limit on a channel where Deep Research is unavailable to the caller
+- **WHEN** a streamed turn runs a data query and then fails with a rate limit, on a channel where Deep Research is unavailable to the caller
 - **THEN** its `form_schema` has the "Continue" button and no `deep_research` control
 
 ### Requirement: Report and its sources stay in the agent's history

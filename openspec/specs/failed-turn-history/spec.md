@@ -36,7 +36,7 @@ An assistant message with content and no tool calls whose state holds `error` an
 - **THEN** on later turns the agent sees that text as its answer, followed by a system note saying the response was stopped by an error and quoting the error shown to the user
 
 ### Requirement: A failed turn's note invites a retry
-The notes `failedTurnMessageToAgent`, `failedTurnWithErrorMessageToAgent` and `interruptedTurnMessageToAgent` SHALL say that the error affected only that attempt and may have been resolved since, and SHALL tell the agent that if the user asks to continue or to retry, it answers the message now (gives the full response, for a turn stopped mid-answer) instead of repeating the error. The notes that quote an error SHALL say this holds even if the error said to wait or to try again later.
+The notes `failedTurnMessageToAgent`, `failedTurnWithErrorMessageToAgent` and `interruptedTurnMessageToAgent` SHALL say that the error affected only that attempt and may have been resolved since, and SHALL tell the agent that if the user asks to continue or to retry, it answers the message now instead of repeating the error. For a turn stopped mid-answer, the note SHALL tell the agent to go on from where the response stopped when the user asks to continue, without repeating the part the user already saw, and to give the full response when the user asks to retry. The agent MAY start again an unfinished sentence, table, list or code block. The notes that quote an error SHALL say this holds even if the error said to wait or to try again later.
 
 #### Scenario: Continue after an error that said to try again later
 - **WHEN** a Deep Research turn failed, the next turn failed with `You've exceeded your daily token limit for the underlying deployment. The limit resets in 1 day.`, and the user then sends `continue` after the limit was lifted
@@ -45,6 +45,14 @@ The notes `failedTurnMessageToAgent`, `failedTurnWithErrorMessageToAgent` and `i
 #### Scenario: Two failed turns in a row
 - **WHEN** two turns in a row failed before any answer, and the user then sends `continue`
 - **THEN** the agent answers the user's earlier message rather than replying with an empty answer
+
+#### Scenario: Continue after an answer stopped near its end
+- **WHEN** a turn streamed three paragraphs of its answer, failed with a rate limit in the last sentence, and the user then sends `Continue`
+- **THEN** the note tells the agent to go on from where the response stopped, so the agent writes the rest of the answer and does not repeat the three paragraphs
+
+#### Scenario: Retry after an answer stopped mid-way
+- **WHEN** a turn streamed part of its answer, failed with a rate limit, and the user then writes `retry`
+- **THEN** the note tells the agent to give the full response
 
 ### Requirement: An answer that shows its own error has no note
 An assistant message with content whose state holds `error` but no `error_display_message` SHALL be kept as it is, with no note: the error was shown in the message itself, e.g. `An error occurred while processing your request.` appended after an unexpected exception, or the explanation sent for a command-only message.
