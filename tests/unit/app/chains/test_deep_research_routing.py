@@ -22,6 +22,7 @@ import json
 from unittest.mock import AsyncMock, MagicMock
 
 import httpx
+import openai
 import pytest
 from aidial_sdk.chat_completion import CustomContent
 from aidial_sdk.chat_completion import Message as DialMessage
@@ -34,6 +35,7 @@ from openai.types.chat import ChatCompletionChunk
 from statgpt.app.chains import supreme_agent as supreme_agent_module
 from statgpt.app.chains.deep_research import (
     DEEP_RESEARCH_ERROR_MESSAGE,
+    DEEP_RESEARCH_ERROR_TEXT,
     DeepResearchFailedError,
     DeepResearchQueryChecker,
 )
@@ -153,20 +155,24 @@ def _text_chunk(text: str) -> AIMessageChunk:
 
 
 def _patch_scripted_agent(
-    monkeypatch, responses: list[AIMessageChunk], prompts: list | None = None
+    monkeypatch, responses: list[AIMessageChunk | Exception], prompts: list | None = None
 ) -> None:
     """Drive the Supreme Agent LLM with a scripted sequence of responses, one per agent run.
 
     A single shared model instance is returned for every ``get_chat_model`` call so the script is
     consumed in order across the forced-start and free mediation agents. If ``prompts`` is given,
-    the messages each agent run was prompted with are appended to it."""
+    the messages each agent run was prompted with are appended to it. An exception in the script is
+    raised by that agent run."""
 
     scripted = iter(responses)
 
     def _respond(prompt_value):
         if prompts is not None:
             prompts.append(prompt_value.to_messages())
-        return next(scripted)
+        response = next(scripted)
+        if isinstance(response, Exception):
+            raise response
+        return response
 
     class _SharedModel:
         def bind_tools(self, tools, **kwargs):
@@ -709,7 +715,7 @@ async def test_deployment_error_without_display_message_uses_standard_text(monke
             _inputs({StateVarsConfig.SHOW_DEBUG_STAGES: False}, "research US GDP")
         )
 
-    assert exc_info.value.display_message == DEEP_RESEARCH_ERROR_MESSAGE.strip()
+    assert exc_info.value.display_message == DEEP_RESEARCH_ERROR_TEXT
 
 
 # ~~~~~~~~~~~~~~~~~~~~~~ failed turn kept for resume (#760) ~~~~~~~~~~~~~~~~~~~~~~
@@ -892,6 +898,52 @@ async def test_next_turn_sees_the_failure_and_replays_the_failed_turn(monkeypatc
         {"role": "assistant", "content": "", "custom_content": {"state": _SAVED_PROGRESS}},
         {"role": "user", "content": "continue"},
     ]
+
+
+_AGENT_RATE_LIMIT_ERROR = openai.RateLimitError(
+    "Error code: 429 - Day limit: 120000 / 100000 tokens",
+    response=httpx.Response(
+        429,
+        request=httpx.Request("POST", "http://dial/openai/deployments/gpt/chat/completions"),
+    ),
+    body=None,
+)
+
+
+async def test_rate_limit_after_deep_research_replied_keeps_the_exchange(monkeypatch):
+    """Deep Research returned a clarifying question, and the agent's model then hit a rate limit
+    before showing it (#831). The session holds Deep Research's new turn, and the resume call with
+    its response is in the history that `ChannelCompletion` saves, so on "Continue" the agent sees
+    the pending question instead of passing "Continue" on to Deep Research."""
+    _patch_scripted_agent(
+        monkeypatch,
+        [
+            _tool_call_chunk("resume_deep_research", {"message": "Annual data."}),
+            _AGENT_RATE_LIMIT_ERROR,
+        ],
+    )
+    _patch_dr_deployment(monkeypatch, [_clarification("Which region?")], {})
+
+    prior = DeepResearchTurn(user_message="give me GDP", assistant_content="Which frequency?")
+    state = _session_state(prior)
+    inputs = _inputs(state, "annual")
+    with pytest.raises(openai.RateLimitError):
+        await SupremeAgentExecutor(_channel_config()).stream_response(inputs)
+    # as `ChannelCompletion` does on a rate limit
+    inputs[ChainParametersConfig.HISTORY].dump_state(state)
+
+    session = DeepResearchSession.from_state(state)
+    assert session is not None
+    assert [(t.user_message, t.assistant_content) for t in session.turns] == [
+        ("give me GDP", "Which frequency?"),
+        ("Annual data.", "Which region?"),
+    ]
+    call, response = state[StateVarsConfig.TOOL_MESSAGES]
+    assert call["type"] == "ai"
+    assert [tc["name"] for tc in call["tool_calls"]] == ["resume_deep_research"]
+    assert response["type"] == "tool"
+    assert response["tool_call_id"] == call["tool_calls"][0]["id"]
+    assert "Which region?" in response["content"]
 
 
 async def test_deep_research_exchange_is_persisted_to_cross_turn_tool_state(monkeypatch):

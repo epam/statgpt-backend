@@ -55,28 +55,50 @@ _INDICATORS_TOTAL_TOKEN = "{indicators_total}"
 
 # Shared between the static deployment `configuration` field and the per-message toggle form schema:
 # the frontend only updates the existing toggle when the per-message control reuses the exact same
-# property name and title as the configuration field (see `build_deep_research_form_schema`).
+# property name and title as the configuration field (see `build_message_form_schema`).
 _DEEP_RESEARCH_FIELD = "deep_research"
 _DEEP_RESEARCH_TITLE = "Deep research"
 
 
-def build_deep_research_form_schema(value: bool) -> dict[str, Any]:
-    """Build the per-message ``custom_content.form_schema`` that drives the "Deep research" toggle.
+_CONTINUE_BUTTON_FIELD = "button"
+_CONTINUE_BUTTON = Button(const="continue", title="Continue", submit=True, populateText="Continue")
 
-    The ``deep_research`` control reuses the configuration field's name and title and carries the
-    toggle's next value via ``const`` (the buttons widget the frontend already renders).
+
+def build_message_form_schema(
+    *, deep_research: bool | None, continue_button: bool
+) -> dict[str, Any] | None:
+    """Build the per-message ``custom_content.form_schema``, or ``None`` if it would be empty.
+
+    ``deep_research`` is the value the "Deep research" toggle should have on the next request, or
+    ``None`` when Deep Research is unavailable to the caller. The control reuses the configuration
+    field's name and title and carries that value via ``const`` (the buttons widget the frontend
+    already renders).
+
+    ``continue_button`` adds a submit button that sends "Continue". DIAL Chat renders buttons only
+    from a ``button`` or ``starter`` property.
     """
+    annotations: dict[str, Any] = {}
+    fields: dict[str, Any] = {}
+    if deep_research is not None:
+        annotations[_DEEP_RESEARCH_FIELD] = bool
+        fields[_DEEP_RESEARCH_FIELD] = DialField(
+            title=_DEEP_RESEARCH_TITLE,
+            buttons=[Button(const=deep_research, title=_DEEP_RESEARCH_TITLE)],
+        )
+    if continue_button:
+        annotations[_CONTINUE_BUTTON_FIELD] = str
+        fields[_CONTINUE_BUTTON_FIELD] = DialField(buttons=[_CONTINUE_BUTTON])
+    if not fields:
+        return None
+
     namespace: dict[str, Any] = {
         "__module__": __name__,
-        "__qualname__": "DeepResearchToggleForm",
-        "__annotations__": {_DEEP_RESEARCH_FIELD: bool},
-        _DEEP_RESEARCH_FIELD: DialField(
-            title=_DEEP_RESEARCH_TITLE,
-            buttons=[Button(const=value, title=_DEEP_RESEARCH_TITLE)],
-        ),
+        "__qualname__": "MessageForm",
+        "__annotations__": annotations,
+        **fields,
     }
     form_cls: type[BaseModel] = FormMetaclass(  # type: ignore[assignment]
-        "DeepResearchToggleForm", (BaseModel,), namespace
+        "MessageForm", (BaseModel,), namespace
     )
     return form_cls.model_json_schema()
 
