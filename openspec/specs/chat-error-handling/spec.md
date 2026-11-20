@@ -46,7 +46,7 @@ A rate-limit error from a model called outside a tool call SHALL be reported as 
 - **THEN** the response has HTTP status 500, code "429" and the header `x-should-retry: false`
 
 ### Requirement: Rate-limit message
-The rate-limit `display_message` SHALL name the exceeded limits (minute, daily, weekly, monthly) when the deployment's message reveals them, and say when the limit resets, from `Retry-After` when present. It SHALL NOT tell the user to try again, as that would point at the "Try again" button the Continue note warns against on a turn that carries the note. The error SHALL carry `underlying_deployment`, the deployment id taken from the failed request's URL, and the original error body. On a turn that carries the "Continue" button the Continue note follows the message.
+The rate-limit `display_message` SHALL name the exceeded limits (minute, daily, weekly, monthly) when the deployment's message reveals them, and say when the limit resets, from `Retry-After` when present. It SHALL NOT tell the user to try again, as that would point at the "Try again" button the Continue note warns against on a turn that carries the note. On a turn that carries the "Continue" button the Continue note follows the message.
 
 #### Scenario: Daily limit
 - **WHEN** the Supreme Agent's model returns 429 with "Day limit: 120000 / 100000 tokens" and `Retry-After: 3700` on a non-streaming request
@@ -64,12 +64,22 @@ The rate-limit `display_message` SHALL name the exceeded limits (minute, daily, 
 - **WHEN** the Supreme Agent's model returns 429 without `Retry-After` on a non-streaming request
 - **THEN** the user gets "You've exceeded your token limit for the underlying deployment. Please wait for the limit to reset."
 
+### Requirement: Rate-limit error details
+The rate-limit DIAL error SHALL carry `underlying_deployment`, the deployment id taken from the failed request's URL, and the original error body.
+
+#### Scenario: Agent model hits its limit
+- **WHEN** the request to `http://core/openai/deployments/gpt-4.1/chat/completions` returns 429
+- **THEN** the error carries `underlying_deployment` = `gpt-4.1` and the deployment's original error body
+
 ### Requirement: Continue button after a rate limit
-A streamed turn that ends with a rate-limit DIAL error and has something to continue (see "A turn has something to continue") SHALL carry, in its message's `form_schema`, a `button` property with a single submit button titled "Continue". The button SHALL send the user message "Continue". The button SHALL NOT depend on Deep Research: where Deep Research is unavailable to the caller, the `form_schema` SHALL hold only the button; where the Deep Research toggle is shown, the same `form_schema` SHALL keep the `deep_research` control next to the button.
+A streamed turn that ends with a rate-limit DIAL error and has something to continue (see "A turn has something to continue") SHALL carry, in its message's `form_schema`, a `button` property with a single submit button titled "Continue". The button SHALL send the user message "Continue".
 
 #### Scenario: Button next to the error
 - **WHEN** a streamed turn runs a data query, streams part of an answer and then fails with a rate limit from the Supreme Agent's model
 - **THEN** the response carries the partial answer, a `form_schema` with the "Continue" button, and then the rate-limit error
+
+### Requirement: The Continue button doesn't depend on Deep Research
+The "Continue" button SHALL NOT depend on Deep Research: where Deep Research is unavailable to the caller, the `form_schema` SHALL hold only the button; where the Deep Research toggle is shown, the same `form_schema` SHALL keep the `deep_research` control next to the button.
 
 #### Scenario: Button and Deep Research toggle together
 - **WHEN** a streamed turn on a channel with Deep Research available runs a data query and then fails with a rate limit
