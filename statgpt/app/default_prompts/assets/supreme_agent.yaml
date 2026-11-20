@@ -260,5 +260,7 @@ interruptedTurnMessageToAgent: |-
   user: {error}
 
   The error affected only that attempt and may have been resolved since, even if it said to wait
-  or to try again later: if the user asks to continue or to retry, give the full response now
-  instead of repeating the error.
+  or to try again later: if the user asks to continue or to retry, answer now instead of
+  repeating the error. If the user asks to continue, go on from where the response above stopped
+  and don't repeat the part the user already saw; you may start an unfinished sentence, table,
+  list or code block again. If the user asks to retry, give the full response.

@@ -12,7 +12,7 @@ from aidial_sdk.chat_completion import CustomContent
 from aidial_sdk.chat_completion import Message as DialMessage
 from aidial_sdk.chat_completion import Role
 from aidial_sdk.exceptions import HTTPException as DIALException
-from langchain_core.messages import AIMessage, ToolMessage
+from langchain_core.messages import AIMessage, SystemMessage, ToolMessage
 
 from statgpt.app.application import channel_completion as channel_completion_module
 from statgpt.app.application.channel_completion import CONTINUE_NOTE, ChannelCompletion
@@ -116,17 +116,40 @@ _TOOL_CALL = AIMessage(
     tool_calls=[{"id": "call-1", "name": "data_query", "args": {"query": "US GDP"}}],
 )
 _TOOL_RESPONSE = ToolMessage(content="US GDP: 27.7T", tool_call_id="call-1")
+_TOOL_ERROR_RESPONSE = ToolMessage(
+    content="Error: the data source is unavailable.", tool_call_id="call-1", status="error"
+)
+_DEEP_RESEARCH_CALL = AIMessage(
+    content="",
+    tool_calls=[{"id": "call-dr", "name": "deep_research", "args": {"query": "US GDP"}}],
+)
+_DEEP_RESEARCH_ERROR_RESPONSE = ToolMessage(
+    content="Deep Research failed.", tool_call_id="call-dr", status="error"
+)
+_SYSTEM_NOTE = SystemMessage(content="Deep Research is enabled for this turn.")
+_REFUSAL_REASONING = "The question is about cooking, not statistics."
 
 
 def _patch_chain(
-    monkeypatch, error: Exception | None, *, tool_messages: list | None = None
+    monkeypatch,
+    error: Exception | None,
+    *,
+    tool_messages: list | None = None,
+    content: str | None = None,
+    out_of_scope: bool | None = None,
 ) -> None:
-    """Patch the main chain to add `tool_messages` to the history and then raise `error`."""
+    """Patch the main chain to run the out-of-scope check if `out_of_scope` is given, add
+    `tool_messages` to the history, append `content` to the choice and then raise `error`."""
 
     async def ainvoke(inputs: dict, config: dict) -> dict:
+        if out_of_scope is not None:
+            inputs[ParamsConfig.OUT_OF_SCOPE] = out_of_scope
+            inputs[ParamsConfig.OUT_OF_SCOPE_REASONING] = _REFUSAL_REASONING
         history = inputs[ParamsConfig.HISTORY]
         for message in tool_messages or []:
             history.add_tool_message(message)
+        if content is not None:
+            inputs[ParamsConfig.CHOICE].append_content(content)
         if error is not None:
             raise error
         return inputs
@@ -183,6 +206,13 @@ async def _run_turn(
     return _Turn(choice.set_state.call_args.args[0], error, form_schema)
 
 
+def _tool_messages_before(error: Exception) -> list:
+    """The tool messages a turn holds when it fails with `error` after the agent called a tool."""
+    if isinstance(error, DeepResearchFailedError):
+        return [_DEEP_RESEARCH_CALL, _DEEP_RESEARCH_ERROR_RESPONSE]
+    return [_TOOL_CALL, _TOOL_RESPONSE]
+
+
 def _has_continue_button(form_schema: dict | None) -> bool:
     if form_schema is None or "button" not in form_schema["properties"]:
         return False
@@ -205,7 +235,7 @@ def _has_continue_button(form_schema: dict | None) -> bool:
     ],
 )
 async def test_failed_turn_keeps_the_error_shown_to_the_user(monkeypatch, error, shown) -> None:
-    _patch_chain(monkeypatch, error)
+    _patch_chain(monkeypatch, error, tool_messages=_tool_messages_before(error))
 
     turn = await _run_turn()
 
@@ -235,7 +265,7 @@ async def test_failed_turn_keeps_the_error_shown_to_the_user(monkeypatch, error,
 async def test_streamed_resumable_failure_carries_the_button_and_the_note(
     monkeypatch, error, shown
 ) -> None:
-    _patch_chain(monkeypatch, error)
+    _patch_chain(monkeypatch, error, tool_messages=_tool_messages_before(error))
 
     turn = await _run_turn(stream=True)
 
@@ -247,7 +277,8 @@ async def test_streamed_resumable_failure_carries_the_button_and_the_note(
 
 
 async def test_deep_research_failure_with_a_session_kept_carries_the_button(monkeypatch) -> None:
-    _patch_chain(monkeypatch, DeepResearchFailedError())
+    error = DeepResearchFailedError()
+    _patch_chain(monkeypatch, error, tool_messages=_tool_messages_before(error))
 
     turn = await _run_turn(earlier_messages=(_user("q"), _answer({_SESSION_KEY: _SESSION})))
 
@@ -257,7 +288,7 @@ async def test_deep_research_failure_with_a_session_kept_carries_the_button(monk
 
 
 async def test_rate_limit_without_deep_research_gets_a_button_only_schema(monkeypatch) -> None:
-    _patch_chain(monkeypatch, _RATE_LIMIT_ERROR)
+    _patch_chain(monkeypatch, _RATE_LIMIT_ERROR, tool_messages=[_TOOL_CALL, _TOOL_RESPONSE])
 
     turn = await _run_turn(stream=True, deep_research_available=False)
 
@@ -277,7 +308,7 @@ async def test_rate_limit_without_deep_research_gets_a_button_only_schema(monkey
     ],
 )
 async def test_non_streaming_failure_has_no_button_and_no_note(monkeypatch, error, shown) -> None:
-    _patch_chain(monkeypatch, error)
+    _patch_chain(monkeypatch, error, tool_messages=_tool_messages_before(error))
 
     turn = await _run_turn(stream=False)
 
@@ -287,7 +318,7 @@ async def test_non_streaming_failure_has_no_button_and_no_note(monkeypatch, erro
 
 
 async def test_forbidden_deployment_has_no_button(monkeypatch) -> None:
-    _patch_chain(monkeypatch, _FORBIDDEN_ERROR)
+    _patch_chain(monkeypatch, _FORBIDDEN_ERROR, tool_messages=[_TOOL_CALL, _TOOL_RESPONSE])
 
     turn = await _run_turn(stream=True)
 
@@ -297,7 +328,7 @@ async def test_forbidden_deployment_has_no_button(monkeypatch) -> None:
 
 
 async def test_successful_turn_has_no_button(monkeypatch) -> None:
-    _patch_chain(monkeypatch, None)
+    _patch_chain(monkeypatch, None, tool_messages=[_TOOL_CALL, _TOOL_RESPONSE])
 
     turn = await _run_turn(stream=True)
 
@@ -311,6 +342,80 @@ async def test_successful_turn_without_deep_research_has_no_form_schema(monkeypa
     turn = await _run_turn(stream=True, deep_research_available=False)
 
     assert turn.form_schema is None
+
+
+async def test_rate_limit_after_a_tool_call_with_an_error_response_carries_the_button(
+    monkeypatch,
+) -> None:
+    _patch_chain(monkeypatch, _RATE_LIMIT_ERROR, tool_messages=[_TOOL_CALL, _TOOL_ERROR_RESPONSE])
+
+    turn = await _run_turn(stream=True)
+
+    assert _has_continue_button(turn.form_schema)
+    assert turn.error is not None
+    assert turn.error.display_message == f"{_RATE_LIMIT_SHOWN}\n\n{CONTINUE_NOTE}"
+
+
+@pytest.mark.parametrize(
+    "tool_messages, content",
+    [
+        pytest.param([], None, id="nothing-done"),
+        pytest.param([], "US GDP grew by", id="content-only"),
+        pytest.param([_SYSTEM_NOTE], None, id="system-note-only"),
+    ],
+)
+async def test_rate_limit_without_an_agent_tool_call_has_no_button_and_no_note(
+    monkeypatch, tool_messages, content
+) -> None:
+    _patch_chain(monkeypatch, _RATE_LIMIT_ERROR, tool_messages=tool_messages, content=content)
+
+    turn = await _run_turn(stream=True)
+
+    assert not _has_continue_button(turn.form_schema)
+    assert turn.error is not None
+    assert turn.error.display_message == _RATE_LIMIT_SHOWN
+    assert turn.state[StateVarsConfig.ERROR_DISPLAY_MESSAGE] == _RATE_LIMIT_SHOWN
+
+
+async def test_rate_limit_before_the_history_was_built_has_no_button(monkeypatch) -> None:
+    _patch_chain(monkeypatch, None)
+    monkeypatch.setattr(
+        History, "from_dial_with_interceptors", AsyncMock(side_effect=_RATE_LIMIT_ERROR)
+    )
+
+    turn = await _run_turn(stream=True)
+
+    assert not _has_continue_button(turn.form_schema)
+    assert turn.error is not None
+    assert turn.error.display_message == _RATE_LIMIT_SHOWN
+
+
+# ~~~~~~~~~~~~~~~~~~~~~~ the out-of-scope result of a failed turn ~~~~~~~~~~~~~~~~~~~~~~
+
+
+async def test_stopped_out_of_scope_refusal_keeps_the_result_and_has_no_button(
+    monkeypatch,
+) -> None:
+    _patch_chain(
+        monkeypatch, _RATE_LIMIT_ERROR, out_of_scope=True, content="Sorry, I can only help with"
+    )
+
+    turn = await _run_turn(stream=True)
+
+    assert turn.state[StateVarsConfig.OUT_OF_SCOPE] is True
+    assert turn.state[StateVarsConfig.OUT_OF_SCOPE_REASONING] == _REFUSAL_REASONING
+    assert not _has_continue_button(turn.form_schema)
+    assert turn.error is not None
+    assert CONTINUE_NOTE not in turn.error.display_message
+
+
+async def test_rate_limit_before_the_out_of_scope_check_saves_no_result(monkeypatch) -> None:
+    _patch_chain(monkeypatch, _RATE_LIMIT_ERROR)
+
+    turn = await _run_turn(stream=True)
+
+    assert turn.state[StateVarsConfig.OUT_OF_SCOPE] is None
+    assert turn.state[StateVarsConfig.OUT_OF_SCOPE_REASONING] is None
 
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~ tool messages of a rate-limited turn ~~~~~~~~~~~~~~~~~~~~~~~~

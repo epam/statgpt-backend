@@ -269,3 +269,13 @@ def test_note_quoting_an_error_covers_an_error_that_said_to_wait(note):
     text = " ".join(note.split())
 
     assert "even if it said to wait or to try again later" in text
+
+
+def test_interrupted_turn_note_continues_on_continue_and_repeats_on_retry():
+    """On "Continue" the agent goes on without repeating the part shown; on "retry" it gives
+    the full response (#831)."""
+    text = " ".join(supreme_agent_default_prompts.interrupted_turn_message_to_agent.split())
+
+    assert "If the user asks to continue, go on from where the response above stopped" in text
+    assert "don't repeat the part the user already saw" in text
+    assert "If the user asks to retry, give the full response." in text

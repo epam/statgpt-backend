@@ -10,6 +10,7 @@ from aidial_sdk.chat_completion import ChatCompletion, Choice, Message, Request,
 from aidial_sdk.deployment.configuration import ConfigurationRequest, ConfigurationResponse
 from aidial_sdk.exceptions import HTTPException as DIALException
 from aidial_sdk.exceptions import InternalServerError
+from langchain_core.messages import AIMessage
 
 from statgpt.app.chains import MainChainFactory
 from statgpt.app.chains.deep_research import DeepResearchFailedError
@@ -54,7 +55,8 @@ _INVALID_HISTORY_MESSAGE = (
 _COMMAND_ONLY_MESSAGE = (
     "Your message contains only commands. Please add your question and send it again."
 )
-# Ends the error of a turn that carries the "Continue" button (see `chat-error-handling`).
+# Ends the error of a turn that carries the "Continue" button: a streamed turn that failed
+# in a resumable way after the agent called a tool (see `chat-error-handling`).
 CONTINUE_NOTE = (
     'Press "Continue" (or type "continue") to pick up from where the response stopped:'
     ' what was already done is kept. "Try again" starts over from your last message and repeats'
@@ -125,7 +127,7 @@ class ChannelCompletion(ChatCompletion):
         main_chain_factory = MainChainFactory(service.channel_config)
         chain = await main_chain_factory.create_chain()
         dial_exception: DIALException | None = None
-        # The turn failed in a way the user can resume from with "Continue".
+        # The turn failed in a way "Continue" can resume from, if the turn has something to continue.
         resumable_failure = False
         with response.create_choice() as choice:
             try:
@@ -240,6 +242,13 @@ class ChannelCompletion(ChatCompletion):
                     choice.append_content("An error occurred while processing your request.")
                     state[StateVarsConfig.ERROR] = str(e)
 
+                # A failed turn never reaches the chain's own state update; keep the check's
+                # result, so a stopped refusal still counts on later turns.
+                state[StateVarsConfig.OUT_OF_SCOPE] = ChainParameters.is_out_of_scope(inputs)
+                state[StateVarsConfig.OUT_OF_SCOPE_REASONING] = (
+                    ChainParameters.get_out_of_scope_reasoning(inputs)
+                )
+
                 priced_usage = await cls._calc_token_usage_costs(token_usage_manager)
 
                 if duration_manager is not None:
@@ -259,7 +268,9 @@ class ChannelCompletion(ChatCompletion):
                     stage.append_content(table)
 
             # A non-streaming response holds only the error, so there is nothing to continue.
-            continuable = resumable_failure and bool(request.stream)
+            continuable = (
+                resumable_failure and bool(request.stream) and cls._has_work_to_continue(inputs)
+            )
             if dial_exception and continuable:
                 dial_exception.display_message = (
                     f"{dial_exception.display_message}\n\n{CONTINUE_NOTE}"
@@ -277,6 +288,20 @@ class ChannelCompletion(ChatCompletion):
             cls.set_dial_state(state, choice)
             if dial_exception:
                 raise dial_exception
+
+    @staticmethod
+    def _has_work_to_continue(inputs: dict) -> bool:
+        """Whether the turn holds a tool call of the agent, which "Try again" would discard.
+
+        Configured tool calls and system notes don't count, nor does content sent to the user.
+        """
+        if ParamsConfig.HISTORY not in inputs:
+            return False
+        history = ChainParameters.get_history(inputs)
+        return any(
+            isinstance(message, AIMessage) and message.tool_calls
+            for message in history.get_tool_messages()
+        )
 
     @classmethod
     async def _emit_form_schema(
