@@ -132,7 +132,6 @@ class TestAstreamWithRetry:
             httpx.ReadError(""),
             httpx.RemoteProtocolError(""),
             openai.APIError("boom", _REQUEST, body={"type": "server_error", "code": None}),
-            openai.APIError("slow down", _REQUEST, body={"code": "rate_limit_exceeded"}),
         ],
         ids=lambda error: type(error).__name__,
     )
@@ -151,14 +150,21 @@ class TestAstreamWithRetry:
         [
             ValueError("bug"),
             openai.APIError("filtered", _REQUEST, body={"code": "content_filter"}),
-            # Raised before the stream starts, and already retried by the openai client.
+            # A mid-stream rate limit carries no `Retry-After`: the user gets the message at once.
+            openai.APIError("slow down", _REQUEST, body={"code": "rate_limit_exceeded"}),
+            # Raised before the stream starts; the shared HTTP client decides on its retry.
             openai.RateLimitError(
                 "slow down",
                 response=httpx.Response(429, request=_REQUEST),
                 body={"code": "rate_limit_exceeded"},
             ),
         ],
-        ids=["ValueError", "APIError-content_filter", "RateLimitError"],
+        ids=[
+            "ValueError",
+            "APIError-content_filter",
+            "APIError-rate_limit_exceeded",
+            "RateLimitError",
+        ],
     )
     async def test_does_not_retry_other_errors(self, clock, sleeps, error):
         runnable = _ScriptedRunnable(clock, ([], error))

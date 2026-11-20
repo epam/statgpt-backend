@@ -1,6 +1,7 @@
 """Unit tests for the shared HTTP connection pools."""
 
 import httpx
+import openai
 import pytest
 
 from statgpt.common.utils import http_pool
@@ -99,3 +100,108 @@ class TestSharedHttpClientsContext:
                 raise RuntimeError("boom")
 
         assert client.is_closed
+
+
+class TestRateLimitPolicy:
+    """The shared LLM client lets the openai SDK retry a 429 only for a short `Retry-After`."""
+
+    @staticmethod
+    def _client(*responses: httpx.Response) -> tuple[openai.AsyncOpenAI, list[httpx.Request]]:
+        requests: list[httpx.Request] = []
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            requests.append(request)
+            return responses[min(len(requests), len(responses)) - 1]
+
+        http_client = httpx.AsyncClient(
+            transport=httpx.MockTransport(handler),
+            event_hooks={"response": [http_pool._enforce_rate_limit_policy]},
+        )
+        client = openai.AsyncOpenAI(
+            api_key="test", base_url="http://dial.test", max_retries=3, http_client=http_client
+        )
+        return client, requests
+
+    @staticmethod
+    async def _create(client: openai.AsyncOpenAI) -> None:
+        await client.chat.completions.create(
+            model="gpt", messages=[{"role": "user", "content": "Hello!"}]
+        )
+
+    @pytest.fixture(autouse=True)
+    def _no_sleep(self, monkeypatch: pytest.MonkeyPatch) -> list[float]:
+        sleeps: list[float] = []
+
+        async def fake_sleep(delay: float) -> None:
+            sleeps.append(delay)
+
+        monkeypatch.setattr(openai._base_client.anyio, "sleep", fake_sleep)
+        return sleeps
+
+    async def test_shared_client_has_the_hook(self) -> None:
+        hooks = http_pool.get_shared_llm_http_client().event_hooks["response"]
+
+        assert http_pool._enforce_rate_limit_policy in hooks
+
+    @pytest.mark.parametrize(
+        "headers",
+        [{"retry-after": "53932"}, {"retry-after": "61"}, {}, {"retry-after": "soon"}],
+        ids=["long", "over-limit", "missing", "unparseable"],
+    )
+    async def test_fails_fast_without_a_short_retry_after(self, headers, _no_sleep) -> None:
+        client, requests = self._client(httpx.Response(429, headers=headers, json=_ERROR))
+
+        with pytest.raises(openai.RateLimitError):
+            await self._create(client)
+
+        assert len(requests) == 1
+        assert _no_sleep == []
+
+    @pytest.mark.parametrize(
+        "headers, expected_sleep",
+        [({"retry-after": "1"}, 1.0), ({"retry-after-ms": "500"}, 0.5)],
+        ids=["retry-after", "retry-after-ms"],
+    )
+    async def test_waits_and_retries_a_short_retry_after(
+        self, headers, expected_sleep, _no_sleep
+    ) -> None:
+        client, requests = self._client(
+            httpx.Response(429, headers=headers, json=_ERROR), httpx.Response(200, json=_COMPLETION)
+        )
+
+        await self._create(client)
+
+        assert len(requests) == 2
+        assert _no_sleep == [expected_sleep]
+
+    async def test_retries_at_the_limit(self, _no_sleep) -> None:
+        client, requests = self._client(
+            httpx.Response(429, headers={"retry-after": "60"}, json=_ERROR),
+            httpx.Response(200, json=_COMPLETION),
+        )
+
+        await self._create(client)
+
+        assert len(requests) == 2
+        assert _no_sleep == [60.0]
+
+    async def test_still_retries_server_errors(self) -> None:
+        client, requests = self._client(
+            httpx.Response(500, json=_ERROR), httpx.Response(200, json=_COMPLETION)
+        )
+
+        await self._create(client)
+
+        assert len(requests) == 2
+
+
+_ERROR = {"error": {"message": "Hit cost rate limit.", "code": "429"}}
+_COMPLETION = {
+    "id": "1",
+    "object": "chat.completion",
+    "created": 0,
+    "model": "gpt",
+    "choices": [
+        {"index": 0, "finish_reason": "stop", "message": {"role": "assistant", "content": "Hi"}}
+    ],
+}
