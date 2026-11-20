@@ -1,31 +1,38 @@
 # Tasks
 
-## 1. Track content sent to the user
+## 1. Decide the button by the agent's tool calls
 
-- [ ] 1.1 In `statgpt/app/utils/dial_stages.py`, add a helper that wraps a choice's `append_content` and reports whether non-empty content was sent (see `design.md`, "Tracking content").
-  - The wrapped choice behaves as before for every caller.
-  - Verify: unit tests next to the existing `dial_stages` tests cover: no content, empty text only, and non-empty text. `make test_unit` passes.
-
-## 2. Decide the button by what the turn holds
-
-- [ ] 2.1 In `ChannelCompletion._channel_completion` (`statgpt/app/application/channel_completion.py`), install the content tracker right after the choice is created.
-
-- [ ] 2.2 Add a helper in the same file that says whether the turn has something to continue.
-  - True when `History.get_tool_messages()` holds an `AIMessage` with `tool_calls`, if `ParamsConfig.HISTORY` is in `inputs`.
-  - True when the tracker says content was sent.
+- [ ] 1.1 In `ChannelCompletion._channel_completion` (`statgpt/app/application/channel_completion.py`), add a helper that says whether the turn has something to continue.
+  - True when `ParamsConfig.HISTORY` is in `inputs` and `History.get_tool_messages()` holds an `AIMessage` with `tool_calls`.
   - Use it in `continuable`: streamed, a rate limit or a Deep Research deployment failure, and something to continue.
   - Update the comment on `resumable_failure` and on `CONTINUE_NOTE` to match.
 
-- [ ] 2.3 Extend `_patch_chain` / `_run_turn` in `tests/unit/app/application/test_channel_completion_state.py` so a failing turn can first add tool messages to the history and append content to the choice. Verify with tests in that file:
+- [ ] 1.2 Extend `_patch_chain` / `_run_turn` in `tests/unit/app/application/test_channel_completion_state.py` so a failing turn can first add tool messages to the history and append content to the choice. Verify with tests in that file:
   - streamed rate limit after an agent tool call: button, note, and the full text in `error_display_message`;
   - streamed rate limit after a tool call with an error response: button;
-  - streamed rate limit after content only: button;
+  - streamed rate limit after content only: no button, no note;
   - streamed rate limit with no tool call and no content: no button, no note, and `error_display_message` holds the rate-limit text alone;
   - streamed rate limit with only a system note in the tool messages: no button;
   - streamed rate limit before the history was built: no button;
+  - streamed out-of-scope refusal stopped by a rate limit: no button;
   - streamed Deep Research deployment failure, with and without a session: button (the failed call is in the history);
   - the existing tests that expect the button after a bare rate limit are updated to add a tool call first;
   - non-streaming, forbidden deployment and successful turns: unchanged.
+  - `make test_unit` passes.
+
+## 2. The out-of-scope result on a failed turn
+
+- [ ] 2.1 In `statgpt/app/chains/parameters.py`, make `ChainParameters.is_out_of_scope` and `get_out_of_scope_reasoning` read with `.get`, so a check that didn't run gives `None`.
+
+- [ ] 2.2 In `_channel_completion`, write `out_of_scope` and `out_of_scope_reasoning` into the state of every failed turn that sends its state, in one place after the `except` branches (see `design.md`).
+
+- [ ] 2.3 Verify with tests in `tests/unit/app/application/test_channel_completion_state.py`:
+  - a rate limit after the check rejected the message: the state holds `out_of_scope` = `True` and the reasoning, and there is no button;
+  - a rate limit before the check: both are `None`.
+
+- [ ] 2.4 Add unit tests for the two getters, in the existing test file for `statgpt/app/chains/parameters.py`, or a new one if there is none:
+  - the key was never set: both return `None`;
+  - the check ran: both return the saved values.
   - `make test_unit` passes.
 
 ## 3. The stopped-answer note
@@ -43,11 +50,9 @@
 - [ ] 4.2 Check through local DIAL Core (`statgpt-sample`, streamed requests) and record the results in the PR description:
   - a rate limit after a data query: the button and the note are there;
   - a rate limit on the first model call: the plain rate-limit error, no button;
-  - "Continue" after an answer stopped mid-way: the new answer goes on and does not repeat the shown part.
+  - "Continue" after an answer stopped mid-way after a data query: the new answer goes on and does not repeat the shown part.
   - If a rate limit can't be forced locally, say so in the PR and rely on the unit tests.
-
-- [ ] 4.3 Update the description of PR #832 and the text of issue #831: the button appears only when the turn has a tool call or content, and "Continue" picks up a stopped answer. Verify the texts name no client.
 
 ## Workflow follow-up
 
-- Archive the change after review, so the deltas are merged into `chat-error-handling` and `failed-turn-history`.
+- Archive the change after review, so the deltas are merged into `chat-error-handling`, `failed-turn-history` and `deep-research`.
