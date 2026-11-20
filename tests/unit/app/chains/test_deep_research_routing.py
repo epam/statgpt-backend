@@ -136,6 +136,31 @@ class _StageRecordingChoice(_RecordingChoice):
         return _RecordingStage()
 
 
+class _NamedStageRecordingChoice(_RecordingChoice):
+    """A recording choice that keeps each created stage's name and content, in creation order."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.stages: list[tuple[str, list[str]]] = []
+
+    def create_stage(self, name: str | None = None, *args, **kwargs):
+        content: list[str] = []
+        self.stages.append((name or "", content))
+
+        class _RecordingStage(DummyStage):
+            def append_content(self, text: str) -> None:
+                content.append(text)
+
+            def __bool__(self) -> bool:
+                return True
+
+        return _RecordingStage()
+
+    def stage_content(self, name: str) -> list[str]:
+        """The content of every stage with this name, one string per stage."""
+        return ["".join(content) for stage_name, content in self.stages if stage_name == name]
+
+
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~ Supreme Agent (LLM) fake ~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 
@@ -459,6 +484,151 @@ async def test_resume_keeps_session_focused_on_unrelated_request(monkeypatch):
     assert "Deep Research session is in progress" in content
     assert calls["count"] == 0  # no resume forwarded to the deployment
     assert DeepResearchSession.from_state(state) is not None  # session kept
+
+
+async def test_resume_forwards_plan_amendment_and_presents_the_new_plan(monkeypatch):
+    """A requested change to a pending plan is forwarded through the resume tool, not answered by
+    the agent itself, and the plan Deep Research returns becomes the answer (#835)."""
+    new_plan = "Plan:\n1. Retrieve the forecast.\n2. Search the annual risk reports."
+    amendment = "Add a plan step to check the annual risk reports."
+    _patch_scripted_agent(
+        monkeypatch,
+        [
+            _tool_call_chunk("resume_deep_research", {"message": amendment}),
+            _text_chunk(new_plan),
+        ],
+    )
+    captured: dict = {}
+    _patch_dr_deployment(monkeypatch, [_clarification(new_plan)], captured)
+
+    prior = DeepResearchTurn(user_message="compare the forecasts", assistant_content="Plan: 1.")
+    state = _session_state(prior)
+
+    content = await SupremeAgentExecutor(_channel_config()).stream_response(
+        _inputs(state, "please also check the annual risk reports")
+    )
+
+    assert content == new_plan
+    assert captured["messages"] == [
+        [
+            {"role": "user", "content": "compare the forecasts"},
+            {"role": "assistant", "content": "Plan: 1.", "custom_content": {"state": {}}},
+            {"role": "user", "content": amendment},
+        ]
+    ]
+    session = DeepResearchSession.from_state(state)
+    assert session is not None
+    assert [turn.assistant_content for turn in session.turns] == ["Plan: 1.", new_plan]
+
+
+async def test_resume_resolves_a_reference_to_the_chat_before_deep_research(monkeypatch):
+    """The user refers to a publication discussed before Deep Research was turned on. The agent
+    sees that earlier chat, Deep Research does not, so the forwarded message names the
+    publication itself (#835)."""
+    resolved = 'Add a plan step to review the publication "Global Outlook 2026" (economic outlook).'
+    prompts: list = []
+    _patch_scripted_agent(
+        monkeypatch,
+        [_tool_call_chunk("resume_deep_research", {"message": resolved}), _text_chunk("Plan.")],
+        prompts,
+    )
+    captured: dict = {}
+    _patch_dr_deployment(monkeypatch, [_clarification("Plan.")], captured)
+
+    prior = DeepResearchTurn(user_message="forecast vs consensus", assistant_content="Plan: 1.")
+    inputs = _inputs(_session_state(prior), "unused")
+    inputs[ChainParametersConfig.HISTORY] = History(
+        messages=[
+            DialMessage(role=Role.USER, content="What is the latest economic outlook?"),
+            DialMessage(role=Role.ASSISTANT, content='The latest one is "Global Outlook 2026".'),
+            DialMessage(role=Role.USER, content="forecast vs consensus"),
+            DialMessage(role=Role.ASSISTANT, content="Plan: 1."),
+            DialMessage(role=Role.USER, content="add the publication i asked about to the list"),
+        ]
+    )
+
+    await SupremeAgentExecutor(_channel_config()).stream_response(inputs)
+
+    # The mediating agent was prompted with the chat from before Deep Research was turned on...
+    first_prompt = "\n".join(str(message.content) for message in prompts[0])
+    assert 'The latest one is "Global Outlook 2026".' in first_prompt
+    # ...while Deep Research gets only its session and the agent's self-contained message.
+    assert captured["messages"] == [
+        [
+            {"role": "user", "content": "forecast vs consensus"},
+            {"role": "assistant", "content": "Plan: 1.", "custom_content": {"state": {}}},
+            {"role": "user", "content": resolved},
+        ]
+    ]
+
+
+async def test_mediation_debug_stages_show_the_agents_decision(monkeypatch):
+    """With debug stages on, each mediation run's stage shows the tool call and its arguments, or
+    that the agent answered the user directly (#835)."""
+    amendment = "Añade un paso: revisar los informes anuales de riesgos."
+    _patch_scripted_agent(
+        monkeypatch,
+        [
+            _tool_call_chunk("resume_deep_research", {"message": amendment}),
+            _text_chunk("New plan."),
+        ],
+    )
+    _patch_dr_deployment(monkeypatch, [_clarification("New plan.")], {})
+
+    state = _session_state(DeepResearchTurn(user_message="q", assistant_content="Plan: 1."))
+    state[StateVarsConfig.SHOW_DEBUG_STAGES] = True
+    choice = _NamedStageRecordingChoice()
+    await SupremeAgentExecutor(_channel_config()).stream_response(
+        _inputs(state, "please also check the annual risk reports", choice=choice)
+    )
+
+    [first_run] = choice.stage_content("[DEBUG] Deep Research mediation run 1")
+    assert "`resume_deep_research`" in first_run
+    # The arguments are shown as JSON, non-ASCII text kept readable.
+    assert json.dumps({"message": amendment}, ensure_ascii=False, indent=2) in first_run
+    [second_run] = choice.stage_content("[DEBUG] Deep Research mediation run 2")
+    assert second_run == "No tool call: the agent answered the user directly."
+
+
+async def test_resume_stages_are_named_after_the_query_before_and_after_the_call(monkeypatch):
+    """The call stage shows the query as it was before the call and the result stage the query
+    Deep Research rewrote in it, not the question the session started with (#835)."""
+    _patch_scripted_agent(
+        monkeypatch,
+        [_tool_call_chunk("resume_deep_research", {"message": "any"}), _text_chunk("Plan: 1.")],
+    )
+    new_state = {"preparation": {"research_started": False, "current_query": "New query."}}
+    _patch_dr_deployment(
+        monkeypatch, [[_dr_chunk(content="Plan: 1."), _dr_chunk(state=new_state)]], {}
+    )
+
+    prior = DeepResearchTurn(
+        user_message="start question",
+        assistant_content="Which source?",
+        deep_research_state={"preparation": {"current_query": "Old query."}},
+    )
+    choice = _NamedStageRecordingChoice()
+    await SupremeAgentExecutor(_channel_config()).stream_response(
+        _inputs(_session_state(prior), "any", choice=choice)
+    )
+
+    stage_names = [name for name, _ in choice.stages]
+    assert "Researching: Old query." in stage_names
+    assert choice.stage_content("Research result: New query.") == ["Plan: 1."]
+    assert not [name for name in stage_names if "start question" in name]
+
+
+async def test_mediation_debug_stages_are_hidden_without_debug(monkeypatch):
+    _patch_scripted_agent(monkeypatch, [_text_chunk("Please answer the pending plan.")])
+    _patch_dr_deployment_counting(monkeypatch)
+
+    state = _session_state(DeepResearchTurn(user_message="q", assistant_content="Plan: 1."))
+    choice = _NamedStageRecordingChoice()
+    await SupremeAgentExecutor(_channel_config()).stream_response(
+        _inputs(state, "what's the weather?", choice=choice)
+    )
+
+    assert not [name for name, _ in choice.stages if "mediation run" in name]
 
 
 async def test_toggle_off_mid_session_abandons_and_routes_normally():

@@ -23,11 +23,16 @@ from statgpt.common.schemas.llm_call_duration import LLMCallDurationItem
 from statgpt.common.utils.llm_call_duration_context import get_llm_call_duration_manager
 
 _ORIGINAL_QUESTION_KEY = 'original_question'
+_QUERY_KEY = 'query'
 
 
 class DeepResearchArgs(ToolArgs):
     query: Annotated[str, GuardrailInput] = Field(
-        description="The natural language question to research in depth."
+        description=(
+            "The natural language question to research in depth. Make it self-contained: Deep"
+            " Research does not see the chat, so resolve references to the earlier conversation"
+            " into concrete details (e.g. the exact title of a publication mentioned earlier)."
+        )
     )
 
 
@@ -37,8 +42,10 @@ class ResumeDeepResearchArgs(ToolArgs):
     message: str = Field(
         description=(
             "The message to send to the active Deep Research session: the user's answers to its"
-            " clarifying questions (answered from context where possible) or their approval of the"
-            " plan."
+            " clarifying questions (answered from context where possible), their approval of the"
+            " plan, or their requested changes to the query or plan. Make it self-contained: Deep"
+            " Research does not see the chat, so resolve references to the earlier conversation"
+            " into concrete details (e.g. the exact title of a publication mentioned earlier)."
         )
     )
 
@@ -222,10 +229,11 @@ class DeepResearchRunner:
                     report=content,
                 )
 
-            # Clarification / plan-for-approval.
-            target.append_content(content)
+            # Clarification / plan-for-approval. Saved before the content opens the result stage,
+            # so the stage is named after the query Deep Research may have rewritten in this call.
             self._append_turn(session, user_message, content, deep_research_state or {})
             self._save_session(state, session)
+            target.append_content(content)
             return DeepResearchTurnResult(content=content, report_delivered=False)
         except APIError as e:
             if dial_streamer is not None and dial_streamer.state:
@@ -277,14 +285,18 @@ class ResumeDeepResearchTool(
         return self._resume_stages_config.tool_result_name or self.default_result_stage_name
 
     def _render_stage_name(self, name: str, args: dict, inputs: dict) -> str:
-        """Expose the session's original question, read from the state, to stage-name templates."""
+        """Expose the session's original question and latest query, read from the state, to
+        stage-name templates."""
         session = DeepResearchSession.from_state(ChainParameters.get_state(inputs))
         question = session.original_question if session else None
-        if question is None:
-            if f"{{{_ORIGINAL_QUESTION_KEY}}}" in name:
+        # The latest query falls back to the original question, so both are missing together.
+        query = session.latest_query if session else None
+        if question is None or query is None:
+            if any(f"{{{key}}}" in name for key in (_ORIGINAL_QUESTION_KEY, _QUERY_KEY)):
                 return self._resume_stages_config.missing_question_name
             return super()._render_stage_name(name, args, inputs)
-        return super()._render_stage_name(name, args | {_ORIGINAL_QUESTION_KEY: question}, inputs)
+        session_values = {_ORIGINAL_QUESTION_KEY: question, _QUERY_KEY: query}
+        return super()._render_stage_name(name, args | session_values, inputs)
 
     @classmethod
     def build(cls, tool_config: DeepResearchToolConfig, channel_config: ChannelConfig) -> Self:

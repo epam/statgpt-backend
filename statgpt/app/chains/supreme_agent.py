@@ -1,5 +1,6 @@
 import asyncio
 import copy
+import json
 from copy import deepcopy
 from datetime import datetime
 from enum import StrEnum
@@ -96,9 +97,16 @@ class ToolCaller:
 
         choice = ChainParameters.get_choice(inputs)
 
-        args = tool_call['args']
+        # Copied: `inputs` is injected into the call's args below, before the result-stage name is
+        # rendered.
+        args = dict(tool_call['args'])
         tool_call_name = f"{prefix}{tool.render_stage_name(args, inputs)}"
-        tool_result_name = f"{prefix}{tool.render_result_stage_name(args, inputs)}"
+        name_inputs = inputs  # `inputs` is rebound to a copy below
+
+        def tool_result_name() -> str:
+            # Rendered when the result stage opens, so it reflects the state the call updated, e.g.
+            # a Deep Research query rewritten during the call.
+            return f"{prefix}{tool.render_result_stage_name(args, name_inputs)}"
 
         with optional_timed_stage(choice=choice, name=tool_call_name, enabled=show_stage):
             logger.debug(f"Calling tool: {tool.name}")
@@ -316,6 +324,21 @@ class SupremeAgent:
 def _content_to_str(content: Any) -> str:
     """Coerce message content (a ``str`` or a list of content parts) to a plain string."""
     return content if isinstance(content, str) else str(content)
+
+
+def _describe_mediation_decision(response: _SupremeAgentResponse) -> str:
+    """What the agent decided in one Deep Research mediation run, for its debug stage: the tool
+    calls with their arguments (e.g. the message sent to Deep Research), or that it wrote to the
+    user."""
+    if tool_calls := response.resp.tool_calls:
+        return "\n\n".join(
+            f"**Tool call:** `{tool_call['name']}`\n\n"
+            f"```json\n{json.dumps(tool_call['args'], ensure_ascii=False, indent=2)}\n```"
+            for tool_call in tool_calls
+        )
+    if response.finished:
+        return "No tool call: the agent answered the user directly."
+    return "No tool call: the agent's response was cut off, so the agent runs again."
 
 
 class _DeepResearchMode(StrEnum):
@@ -554,9 +577,11 @@ class SupremeAgentExecutor:
             agent = forced_agent if forced_agent is not None and i == 0 else free_agent
             with optional_timed_stage(
                 choice=choice, name=f"[DEBUG] Deep Research mediation run {i + 1}", enabled=debug
-            ):
+            ) as mediation_stage:
                 response = await agent.run(history, configuration)
                 logger.info(f"Deep Research mediation response: {response.resp!r}")
+                if debug:
+                    mediation_stage.append_content(_describe_mediation_decision(response))
 
             if tool_calls := response.resp.tool_calls:
                 # Any user-facing preamble on a tool-call response already streamed to the choice via
