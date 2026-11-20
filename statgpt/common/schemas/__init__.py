@@ -83,6 +83,7 @@ from .enums import (
     AttachmentsTarget,
     AuditActionType,
     AuditEntityType,
+    AuditScope,
     AutoUpdateResult,
     ChannelDatasetUpdateStatus,
     ChannelIndexStatusScope,
