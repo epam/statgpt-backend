@@ -1,6 +1,5 @@
 import datetime
 import typing as t
-from typing import Generic, TypeVar
 
 from langchain_core.prompts import ChatPromptTemplate
 from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, alias_generators, field_validator
@@ -23,10 +22,7 @@ class DbDefaultBase(BaseModel):
     updated_at: datetime.datetime
 
 
-ItemT = TypeVar("ItemT")
-
-
-class ListResponse(BaseModel, Generic[ItemT]):
+class ListResponse[ItemT](BaseModel):
     data: list[ItemT]
 
     limit: int

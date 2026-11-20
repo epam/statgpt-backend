@@ -46,7 +46,7 @@ on:
       python-version:
         type: string
         description: Python version to use
-        default: "3.11"
+        default: "3.13"
       poetry-version:
         type: string
         description: Poetry version to use

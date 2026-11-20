@@ -1,7 +1,7 @@
 ############################
 # Builder stage
 ############################
-FROM python:3.11-alpine AS builder
+FROM python:3.13-alpine AS builder
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
@@ -33,7 +33,7 @@ RUN .venv/bin/pip install "setuptools==84.2.1" "wheel==0.46.2"
 ############################
 # Runtime stage
 ############################
-FROM python:3.11-alpine AS server
+FROM python:3.13-alpine AS server
 
 # Security patches (consolidated into single layer)
 # CVE-2023-52425 (libexpat), CVE-2025-6965 (sqlite-libs), libcrypto3/libssl3
@@ -68,11 +68,11 @@ COPY --chown=appuser --from=builder $APP_HOME .
 # the ones from their vendored/bundled deps (pip's msgpack, setuptools' wheel and
 # jaraco.context). Do not install into the system interpreter, it gets emptied here.
 # The venv keeps its own pinned & patched setuptools/wheel.
-RUN rm -rf /usr/local/lib/python3.11/ensurepip \
-           /usr/local/lib/python3.11/site-packages/* \
+RUN rm -rf /usr/local/lib/python3.13/ensurepip \
+           /usr/local/lib/python3.13/site-packages/* \
            /usr/local/bin/pip* /usr/local/bin/wheel \
- && rm -rf /home/app/.venv/lib/python3.11/site-packages/pip \
-           /home/app/.venv/lib/python3.11/site-packages/pip-*.dist-info \
+ && rm -rf /home/app/.venv/lib/python3.13/site-packages/pip \
+           /home/app/.venv/lib/python3.13/site-packages/pip-*.dist-info \
            /home/app/.venv/bin/pip*
 
 COPY --chmod=755 ./docker/scripts/admin_docker_entrypoint.sh /docker_entrypoint.sh

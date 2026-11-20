@@ -24,7 +24,6 @@ from statgpt.admin.settings.exim import ExImSettings, JobsConfig
 from statgpt.common import utils
 from statgpt.common.auth.auth_context import AuthContext
 from statgpt.common.data import base
-from statgpt.common.data.base.dataset import DataSetConfigType
 from statgpt.common.hybrid_indexer import Indexer
 from statgpt.common.schemas import (
     AuditActionType,
@@ -630,7 +629,7 @@ class AdminPortalDataSetService(DataSetService):
 
     async def _parse_details_field(
         self, handler: base.DataSourceHandler, details: dict[str, Any]
-    ) -> DataSetConfigType:
+    ) -> base.DataSetConfig:
         try:
             parsed_config = handler.parse_data_set_config(details)
         except ValidationError as e:

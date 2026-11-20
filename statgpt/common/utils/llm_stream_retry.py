@@ -2,7 +2,7 @@ import asyncio
 import itertools
 import time
 from collections.abc import AsyncIterator
-from typing import Any, TypeVar
+from typing import Any
 
 import httpx
 import openai
@@ -10,8 +10,6 @@ from langchain_core.messages import BaseMessage
 from langchain_core.runnables import Runnable
 
 from statgpt.common.config import multiline_logger as logger
-
-_ChunkT = TypeVar('_ChunkT', bound=BaseMessage)
 
 # A stream that stalls or drops after the response headers arrived fails with one of these. The
 # openai client's `max_retries` covers only failures before the response starts, so a stream needs
@@ -34,9 +32,9 @@ _RETRY_BUDGET_SECONDS = 120.0
 _INITIAL_DELAY_SECONDS = 2.0
 
 
-async def astream_with_retry(
-    runnable: Runnable[Any, _ChunkT], inputs: Any, *, name: str
-) -> AsyncIterator[_ChunkT]:
+async def astream_with_retry[ChunkT: BaseMessage](
+    runnable: Runnable[Any, ChunkT], inputs: Any, *, name: str
+) -> AsyncIterator[ChunkT]:
     """Stream `runnable`, retrying a transient failure that happens before any text content.
 
     Chunks without text content (e.g. tool call deltas) are held back until the first chunk with
@@ -45,7 +43,7 @@ async def astream_with_retry(
     """
     first_failure: float | None = None
     for attempt in itertools.count(1):
-        held_back: list[_ChunkT] = []
+        held_back: list[ChunkT] = []
         content_started = False
         try:
             async for chunk in runnable.astream(inputs):

@@ -40,7 +40,7 @@ class CompositeQueryConstructor(BaseQueryConstructor):
         for i, constructor in enumerate(self._constructors):
             constructor_name = constructor.__class__.__name__
             _log.info(
-                f'[{dataset_id}] CompositeQueryConstructor: trying constructor {i+1}/{len(self._constructors)}: '
+                f'[{dataset_id}] CompositeQueryConstructor: trying constructor {i + 1}/{len(self._constructors)}: '
                 f'{constructor_name}'
             )
             result = await constructor.construct_query(

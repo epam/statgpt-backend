@@ -5,10 +5,8 @@ from .base import BaseEntity, EntityType
 from .category import Category
 from .enums import AttributeType
 
-AttributeValueType = t.TypeVar("AttributeValueType")
 
-
-class Attribute(BaseEntity, t.Generic[AttributeValueType], ABC):
+class Attribute[AttributeValueType](BaseEntity, ABC):
     def __init__(self):
         BaseEntity.__init__(self)
 
@@ -26,10 +24,7 @@ class Attribute(BaseEntity, t.Generic[AttributeValueType], ABC):
         pass
 
 
-CategoryType = t.TypeVar("CategoryType", bound=Category)
-
-
-class CategoricalAttribute(Attribute[CategoryType], t.Generic[CategoryType], ABC):
+class CategoricalAttribute[CategoryType: Category](Attribute[CategoryType], ABC):
     def __init__(self):
         super().__init__()
 

@@ -1,17 +1,15 @@
 import asyncio
 import time
 from collections.abc import Awaitable, Callable
-from typing import Generic, NamedTuple, TypeVar
-
-T = TypeVar('T')
+from typing import NamedTuple
 
 
-class _CacheEntry(NamedTuple, Generic[T]):
+class _CacheEntry[T](NamedTuple):
     value: T
     expires_at: float
 
 
-class AsyncLoadingCache(Generic[T]):
+class AsyncLoadingCache[T]:
     """A cache that loads values asynchronously on cache miss,
     with optional validation and TTL-based expiration.
 

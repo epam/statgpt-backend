@@ -10,6 +10,7 @@ from statgpt.app.chains.data_query.parameters import DataQueryParameters
 from statgpt.app.chains.data_query.query_builder.query.execute_query import ExecuteQueryChain
 from statgpt.app.config import ChainParametersConfig
 from statgpt.app.services.chat_facade import ChannelServiceFacade, VersionedDataSet
+from statgpt.app.utils.dial_stages import ChoiceI
 from statgpt.common.auth.auth_context import AuthContext
 from statgpt.common.data.base import DataSet, DataSetQuery
 from statgpt.common.data.base.dataset import DataResponseStatus
@@ -79,7 +80,7 @@ def _inputs(source: InvocationSource, has_data: bool = True) -> dict:
 
     return {
         "auth_context": Mock(spec=AuthContext),
-        "choice": Mock(),
+        "choice": Mock(spec=ChoiceI),
         "target": _FakeTarget(),
         "state": {},
         "data_service": data_service,

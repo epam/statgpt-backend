@@ -95,11 +95,6 @@ class DataSourceConfig(BaseModel, ABC):
         return None
 
 
-DataSourceConfigType = t.TypeVar("DataSourceConfigType", bound=DataSourceConfig)
-DataSetType = t.TypeVar("DataSetType", bound=DataSet)
-DataSetConfigType = t.TypeVar("DataSetConfigType", bound=DataSetConfig)
-
-
 class DataSourceType(BaseModel):
     type_id: str = Field(description="The ID of the data source type")
     name: str = Field(description="The name of the data source type")
@@ -109,9 +104,11 @@ class DataSourceType(BaseModel):
         return hash(self.type_id)
 
 
-class DataSourceHandler(
-    BaseEntity, t.Generic[DataSourceConfigType, DataSetType, DataSetConfigType], ABC
-):
+class DataSourceHandler[
+    DataSourceConfigType: DataSourceConfig,
+    DataSetType: DataSet,
+    DataSetConfigType: DataSetConfig,
+](BaseEntity, ABC):
     def __init__(self, config: DataSourceConfigType):
         super().__init__()
         self._config = config

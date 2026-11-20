@@ -5,9 +5,6 @@ from sdmx.model import common
 
 from statgpt.common.data.base import BaseEntity
 
-IdentifiableArtefactType = t.TypeVar("IdentifiableArtefactType", bound=common.IdentifiableArtefact)
-NameableArtefactType = t.TypeVar("NameableArtefactType", bound=common.NameableArtefact)
-
 
 class FullUrn(t.NamedTuple):
     agency_id: str | None
@@ -63,7 +60,9 @@ class FullUrn(t.NamedTuple):
             return cls(agency_id=None, resource_id=artefact.id, version=None, item_id=None)
 
 
-class BaseIdentifiableArtefact(BaseEntity, t.Generic[IdentifiableArtefactType], ABC):
+class BaseIdentifiableArtefact[IdentifiableArtefactType: common.IdentifiableArtefact](
+    BaseEntity, ABC
+):
     _artefact: IdentifiableArtefactType
     _full_urn: FullUrn
     _short_urn: str
@@ -83,10 +82,8 @@ class BaseIdentifiableArtefact(BaseEntity, t.Generic[IdentifiableArtefactType], 
         return self._short_urn
 
 
-class BaseNameableArtefact(
-    BaseIdentifiableArtefact[NameableArtefactType],
-    t.Generic[NameableArtefactType],
-    ABC,
+class BaseNameableArtefact[NameableArtefactType: common.NameableArtefact](
+    BaseIdentifiableArtefact[NameableArtefactType], ABC
 ):
     _locale: str
 

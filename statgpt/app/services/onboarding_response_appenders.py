@@ -1,7 +1,7 @@
 import json
 import logging
 from abc import ABC, abstractmethod
-from typing import Generic, TypeVar, overload
+from typing import overload
 
 from aidial_sdk.chat_completion import Choice
 
@@ -14,15 +14,13 @@ from statgpt.common.utils import MediaTypes
 
 from .chat_facade import ChannelServiceFacade
 
-_T = TypeVar("_T", PredefinedTextResponse, PredefinedDataQueryResponse, None)
-
 _log = logging.getLogger(__name__)
 
 
-class BaseResponseAppender(Generic[_T], ABC):
+class BaseResponseAppender[T: (PredefinedTextResponse, PredefinedDataQueryResponse, None)](ABC):
 
-    def __init__(self, response: _T) -> None:
-        self._response: _T = response
+    def __init__(self, response: T) -> None:
+        self._response: T = response
 
     @abstractmethod
     async def append_to_response(

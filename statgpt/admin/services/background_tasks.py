@@ -2,12 +2,8 @@ import asyncio
 import functools
 import logging
 from collections.abc import Awaitable, Callable
-from typing import ParamSpec, TypeVar
 
 from statgpt.admin.settings.background_tasks import BackgroundTasksSettings
-
-Param = ParamSpec("Param")
-RetType = TypeVar("RetType")
 
 _log = logging.getLogger(__name__)
 
@@ -16,13 +12,11 @@ _MAX_BACKGROUND_TASKS_SEMAPHORE = asyncio.Semaphore(_SETTINGS.max_concurrent)
 _task_counter = 0
 
 
-def background_task(
-    func: Callable[Param, Awaitable[RetType]],
-) -> Callable[Param, Awaitable[RetType]]:
+def background_task[**P, R](func: Callable[P, Awaitable[R]]) -> Callable[P, Awaitable[R]]:
     """Limit the amount of background tasks to `MAX_BACKGROUND_TASKS`."""
 
     @functools.wraps(func)
-    async def wrapper(*args: Param.args, **kwargs: Param.kwargs) -> RetType:
+    async def wrapper(*args: P.args, **kwargs: P.kwargs) -> R:
         global _task_counter
         _task_counter += 1
         task_id = f"{func.__name__}_{_task_counter}"

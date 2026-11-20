@@ -2,9 +2,7 @@ import asyncio
 import functools
 import logging
 from collections.abc import Callable
-from typing import Any, TypeVar
-
-T = TypeVar('T')
+from typing import Any
 
 
 def catch_and_log_async(logger: logging.Logger | None = None):
@@ -29,7 +27,7 @@ def catch_and_log_async(logger: logging.Logger | None = None):
 
     def decorator(func: Callable) -> Callable:
         @functools.wraps(func)
-        async def wrapper(*args, **kwargs) -> T | None:
+        async def wrapper(*args, **kwargs) -> Any:
             _logger = logger or logging.getLogger(func.__module__)
             try:
                 return await func(*args, **kwargs)

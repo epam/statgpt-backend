@@ -1,5 +1,6 @@
 import hashlib
 import io
+import itertools
 import json
 import logging
 import os
@@ -31,7 +32,6 @@ from statgpt.common.models import (
 from statgpt.common.schemas.llm_call_duration import LLMCallDurationItem
 from statgpt.common.settings.database import PostgresSettings
 from statgpt.common.settings.document import DimensionValueDocumentMetadataFields
-from statgpt.common.utils import batched
 from statgpt.common.utils.llm_call_duration_context import get_llm_call_duration_manager
 from statgpt.common.utils.timer import debug_timer
 from statgpt.common.vectorstore.base import DedupCounts, EmbeddinglessVectorStore, VectorStore
@@ -563,8 +563,8 @@ class PgVectorStore(PgEmbeddinglessVectorStore, VectorStore):
         self, documents: Iterable[Document], dataset_id: uuid.UUID, version_id: int
     ) -> None:
         # Phase 1: Compute ALL embeddings outside any session
-        batches_with_embeddings: list[tuple[list[Document], list[list[float]]]] = []
-        for batch in batched(documents, self._postgres_settings.batch_size):
+        batches_with_embeddings: list[tuple[tuple[Document, ...], list[list[float]]]] = []
+        for batch in itertools.batched(documents, self._postgres_settings.batch_size):
             embeddings = await self._embedding_model.model.aembed_documents(
                 [doc.page_content for doc in batch]
             )

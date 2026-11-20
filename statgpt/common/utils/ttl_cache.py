@@ -1,15 +1,13 @@
 import time
-from typing import Generic, NamedTuple, TypeVar
-
-T = TypeVar('T')
+from typing import NamedTuple
 
 
-class CacheItem(NamedTuple, Generic[T]):
+class CacheItem[T](NamedTuple):
     value: T
     expiry: float
 
 
-class TtlCache(Generic[T]):
+class TtlCache[T]:
     def __init__(self, ttl: int = 3600):
         self._cache: dict[str, CacheItem[T]] = {}
         self._ttl = ttl
