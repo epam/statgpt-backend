@@ -46,7 +46,7 @@ When neither the latest query nor the original question can be read from the ses
 ## ADDED Requirements
 
 ### Requirement: Query and plan changes go through Deep Research
-While a session is in progress, the agent SHALL forward through the resume tool every message about the pending question, query or plan: answers, approval, amendments (adding, removing or changing steps, sources, scope or the question) and questions about the plan. When unsure whether a message is about the session, the agent SHALL forward it. The agent SHALL NOT write, edit or re-present a plan itself: a plan shown to the user SHALL be one Deep Research returned in the same turn.
+While a session is in progress, the agent SHALL forward through the resume tool every message about the pending question, query or plan: answers, approval, amendments and questions about the plan. When unsure, the agent SHALL forward it. Only Deep Research can update both the query and the plan, so the agent SHALL NOT write, edit or re-present either itself: a plan shown to the user SHALL be one Deep Research returned in the same turn.
 
 #### Scenario: Plan amendment phrased as an addition
 - **WHEN** a plan awaits approval and the user writes "please also check the annual risk reports"

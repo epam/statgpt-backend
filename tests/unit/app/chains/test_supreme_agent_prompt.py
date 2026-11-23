@@ -77,7 +77,8 @@ def test_deep_research_section_forwards_plan_changes_to_deep_research():
     section = supreme_agent_default_prompts.deep_research_section
 
     assert "**requested changes**" in section
-    assert "**Never write a plan yourself.**" in section
+    assert "**Never write a query or plan yourself.**" in section
+    assert "Only Deep Research can update **both** the research" in section
     # A plan amendment is not an "unrelated" request to redirect.
     assert "is a requested change to the plan, so forward it." in section
     assert "in doubt whether a message is about the research, forward it." in section
@@ -88,5 +89,5 @@ def test_deep_research_section_resolves_references_from_the_conversation():
     section = supreme_agent_default_prompts.deep_research_section
 
     assert "**Make every message to Deep Research self-contained.**" in section
-    assert "including turns from before Deep Research mode was turned on," in section
-    assert 'asked about to the list", send a message that names that publication' in section
+    assert "including earlier turns, with the concrete details" in section
+    assert '"add the publication I asked about", name that publication.' in section

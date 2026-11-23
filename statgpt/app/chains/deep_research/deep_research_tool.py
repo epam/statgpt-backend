@@ -288,14 +288,14 @@ class ResumeDeepResearchTool(
         """Expose the session's original question and latest query, read from the state, to
         stage-name templates."""
         session = DeepResearchSession.from_state(ChainParameters.get_state(inputs))
-        question = session.original_question if session else None
+        original_question = session.original_question if session else None
         # The latest query falls back to the original question, so both are missing together.
-        query = session.latest_query if session else None
-        if question is None or query is None:
+        latest_query = session.latest_query if session else None
+        if original_question is None or latest_query is None:
             if any(f"{{{key}}}" in name for key in (_ORIGINAL_QUESTION_KEY, _QUERY_KEY)):
                 return self._resume_stages_config.missing_question_name
             return super()._render_stage_name(name, args, inputs)
-        session_values = {_ORIGINAL_QUESTION_KEY: question, _QUERY_KEY: query}
+        session_values = {_ORIGINAL_QUESTION_KEY: original_question, _QUERY_KEY: latest_query}
         return super()._render_stage_name(name, args | session_values, inputs)
 
     @classmethod

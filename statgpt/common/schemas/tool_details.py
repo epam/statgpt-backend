@@ -394,7 +394,7 @@ class DeepResearchDetails(BaseToolDetails, RewriteRulesMixin):
             " questions (answered from the conversation context where you can), the user's"
             " approval of the plan, or the user's requested changes to the query or plan (e.g."
             " steps, sources or scope to add, remove or change). Only Deep Research can change its"
-            " query and plan, so never rewrite a plan yourself. Deep Research does not see the chat:"
+            " query and plan, so never rewrite the query or plan yourself. Deep Research does not see the chat:"
             " resolve the user's references to the earlier conversation, including turns from"
             " before Deep Research mode was turned on, into concrete details (e.g. the exact title"
             " of a publication mentioned earlier). Do not invent answers the user has not provided."
