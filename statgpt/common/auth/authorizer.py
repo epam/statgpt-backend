@@ -97,7 +97,7 @@ class SystemUserAuthorizer(SystemUserAuthorizerI):
 class TokenRefreshDecorator[T: AuthorizeConfig](AuthorizerI[T]):
     def __init__(
         self,
-        authorizer: AuthorizerI,
+        authorizer: AuthorizerI[T],
         token_refresh: TokenRefreshI,
         token_cache=TokenCache(),
     ):

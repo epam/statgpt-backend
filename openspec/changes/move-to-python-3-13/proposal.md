@@ -7,7 +7,8 @@ StatGPT is pinned to Python 3.11 (`requires-python = ">=3.11,<3.12"`). 3.11 only
 ## What Changes
 
 - The project requires Python `>=3.13,<3.14`. Local virtualenvs, CI, and the chat and admin images all run on 3.13.
-- The chat and admin images are built on `python:3.13-alpine`. The step that removes pip and setuptools from the runtime image points at the `python3.13` paths.
+- The chat and admin images are built on `python:3.13-alpine`. The step that removes pip from the runtime image points at the `python3.13` paths. The builder no longer reinstalls `setuptools`/`wheel` into the venv, and the runtime cleanup no longer mentions them, because on 3.13 neither the base image nor the venv ships them. The `krb5-libs` pin is removed, because the 3.13 base image no longer contains `krb5-libs`, so the pin would install it instead of patching it.
+- The `setuptools` floor in `pyproject.toml` is raised to `>=84.2.1`, the version that fixes the advisories the builder's reinstall used to cover.
 - The `pr.yml`, `release.yml` and `test.yml` workflows use Python 3.13.
 - `numpy` moves from 1.26 to 2.x, because 1.26 has no Python 3.13 wheels. `asyncpg` moves from 0.29 to 0.30, the first release that supports 3.13. No other locked dependency changes version. Four backport packages drop out because 3.13 doesn't need them.
 - The Makefile's default interpreter becomes `python3.13`, so `make` targets build the venv with the version the project accepts.
@@ -33,7 +34,7 @@ None. This change is about the runtime and toolchain and doesn't change system b
 
 ## Impact
 
-- Packaging: `pyproject.toml` (`requires-python`, black `target-version`, `numpy` and `asyncpg` constraints), `poetry.lock`.
+- Packaging: `pyproject.toml` (`requires-python`, black `target-version`, `numpy`, `asyncpg` and `setuptools` constraints), `poetry.lock`.
 - Images: `docker/chat.Dockerfile`, `docker/admin.Dockerfile`.
 - CI: `.github/workflows/pr.yml`, `.github/workflows/release.yml`, `.github/workflows/test.yml`.
 - Tooling and docs: `Makefile`, `README.md`.

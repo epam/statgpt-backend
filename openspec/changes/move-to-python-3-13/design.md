@@ -58,7 +58,7 @@ Our helper reimplemented `itertools.batched` (added in 3.12), and its docstring 
 The helper, its re-export from `statgpt.common.utils` and its tests are removed. Tests of the stdlib function would add nothing.
 
 ### Move type parameters to PEP 695 syntax
-Every module-level `TypeVar`/`ParamSpec` plus `Generic[...]` base becomes an inline type parameter list: `class DataSet[DataSetConfigType: DataSetConfig, ...](BaseEntity, ABC)`, `def background_task[**P, R](...)`, `type AsyncHandler[**P, T] = ...`.
+Every module-level `TypeVar`/`ParamSpec` plus `Generic[...]` base becomes an inline type parameter list: `class DataSet[DataSetConfigType: DataSetConfig, ...](BaseEntity, ABC)`, `def background_task[**Param, RetType](...)`, `type AsyncHandler[**P, T] = ...`.
 - **Names stay the same**, so class and function bodies don't change. Only the `_` prefix is dropped (`_T` → `T`), because the parameter is no longer a module global.
 - **Each class declares its own parameters.** A module TypeVar that several classes reused (`CategoryType` in the attribute and dimension modules, `T` in the authorizers and caches) becomes a separate parameter on each class.
 - **Forward-referenced bounds need no quotes.** PEP 695 evaluates bounds lazily, so `DataSourceHandlerType: DataSourceHandler` works even though `DataSourceHandler` is imported only under `TYPE_CHECKING`.
@@ -72,8 +72,14 @@ Every module-level `TypeVar`/`ParamSpec` plus `Generic[...]` base becomes an inl
 ### Keep `t.TypeAlias` aliases
 A `type X = ...` statement creates a `TypeAliasType`, which pydantic writes as a `$defs` entry plus a `$ref` instead of inlining it. We verified this. Aliases like `DatasetAvailabilityQueriesType` are fields of models used as LLM structured-output schemas, so converting them would change the schemas OpenAI strict mode validates (see #769). Converting only the aliases that pydantic never sees would leave two styles side by side for no real gain.
 
-### Leave the image cleanup step as it is
-The runtime images delete `ensurepip`, pip and the system `site-packages`. Only the version segment of those paths changes. The logic and the patched `setuptools`/`wheel` pins in the venv stay the same.
+The one exception is the generic alias `AsyncHandler` in `statgpt/app/mcp/decorators.py`. It was a bare `Callable[P, Coroutine[Any, Any, T]]` built from module-level `P`/`T`, and with those removed a `type AsyncHandler[**P, T] = ...` statement is the only way to keep it generic. pydantic never sees it.
+
+### Drop the image workarounds that 3.13 makes unnecessary
+On 3.11, the venv Poetry creates was seeded with old `setuptools` and `wheel`, and the base image installed both into the system `site-packages`. Two image steps dealt with that, and on 3.13 they are no longer needed:
+- **The builder's `.venv/bin/pip install "setuptools==84.2.1" "wheel==0.46.2"` is removed**, along with its CVE list (CVE-2026-23949, CVE-2026-24049, CVE-2026-59890, GHSA-xmj3-9gf7-h52w). Since 3.12, `venv`/`virtualenv` seed only pip. `setuptools` is a direct main dependency already locked at 84.2.1, which fixes all four advisories (two are in copies vendored inside setuptools). Its `pyproject.toml` floor is raised from `>=84.1.0` to `>=84.2.1` and commented as a security floor, so the fix no longer depends on the lock alone. Nothing pulls in `wheel`, so the step would only have added a package the service doesn't use.
+- **The runtime cleanup no longer mentions `setuptools`/`wheel`.** The 3.12+ base images install only pip, and `ensurepip` bundles only the pip wheel, so `/usr/local/bin/wheel` is dropped from the `rm` and the comment now names pip only. The rest of the step stays: it removes pip, `ensurepip` and the system `site-packages`, which clears pip's CVEs and those of its vendored deps.
+- **The `krb5-libs` pin and its CVE list are removed.** The official image computes its runtime packages with `scanelf` from what the compiled modules link. On 3.11, the `nis` module linked `libnsl` → `libtirpc`, and `libtirpc` depends on `libgssapi_krb5` from `krb5-libs`. Python 3.13 removed `nis` (PEP 594), so `krb5-libs` is no longer in the base image, and `apk add --upgrade "krb5-libs>=..."` would *install* it (plus `krb5-conf`, `libverto`, `keyutils-libs`) rather than patch it. Nothing else needs it: no code uses Kerberos, and the `psycopg-binary` wheels bundle their own libraries.
+- **The other `apk` upgrades stay.** `libuuid` is still linked by `_uuid`, and musl, libexpat, sqlite, zlib and OpenSSL by the interpreter and its modules. These packages come from the Alpine release under the image, not from the Python version, and `python:3.11-alpine` and `python:3.13-alpine` both use Alpine 3.24. Whether each pin is still needed is a question for the Trivy scan, not for this migration.
 
 ## Risks / Trade-offs
 

@@ -55,7 +55,8 @@ Direct installation:
 * [MacOS, using Homebrew](https://formulae.brew.sh/formula/python@3.13) - `brew install python@3.13`
 * [Windows or MacOS, using official repository](https://www.python.org/downloads/)
 * [Windows, using Chocolatey](https://community.chocolatey.org/packages/python313)
-* Make sure that `python3` or `python3.13` is in the PATH and works properly (run `python3.13 --version`).
+* Make sure that `python3.13` is in the PATH and works properly (run `python3.13 --version`). The `make` targets
+  call `python3.13` by default; to use another executable name, pass it explicitly, e.g. `make install_dev PYTHON=python3`.
 
 Alternative: use [pyenv](https://github.com/pyenv/pyenv?tab=readme-ov-file#installation):
 

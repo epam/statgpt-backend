@@ -18,7 +18,7 @@ dependencies = [
     'sdmx1 (>=2.26.0,<3.0.0)',                   # SDMX data format support
     'pandas (>=2.2.3,<3.0.0)',                   # Data manipulation
     'openpyxl (>=3.1.5,<4.0.0)',                 # Excel reading (discovery dataset uploads)
-    'numpy (>=2.1.0,<3.0.0)',                     # >=2.1 required for Python 3.13 wheels
+    'numpy (>=2.1.0,<3.0.0)',                    # >=2.1 required for Python 3.13 wheels
     'plotly (>=5.21.0,<6.0.0)',                  # Data visualization
 
     # Database & Vector storage
@@ -59,7 +59,7 @@ dependencies = [
     'async-lru (>=2.0.5,<3.0.0)',                # Async LRU cache
     'tabulate (>=0.9.0,<0.10.0)',                # Table formatting
     'markdown (>=3.7,<4.0)',                     # Markdown processing
-    'setuptools (>=84.1.0,<85.0.0)',             # Package management
+    'setuptools (>=84.2.1,<85.0.0)',             # Security floor: CVE-2026-59890, GHSA-xmj3-9gf7-h52w
     'babel (>=2.17.0,<3.0.0)',                   # Internationalization
     'aiofiles (>=25.1.0,<26.0.0)',               # Async file operations
     'pyarrow (>=23.0.1,<24.0.0)',                # Parquet support for import/export

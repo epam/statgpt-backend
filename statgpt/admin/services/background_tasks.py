@@ -12,11 +12,13 @@ _MAX_BACKGROUND_TASKS_SEMAPHORE = asyncio.Semaphore(_SETTINGS.max_concurrent)
 _task_counter = 0
 
 
-def background_task[**P, R](func: Callable[P, Awaitable[R]]) -> Callable[P, Awaitable[R]]:
+def background_task[**Param, RetType](
+    func: Callable[Param, Awaitable[RetType]],
+) -> Callable[Param, Awaitable[RetType]]:
     """Limit the amount of background tasks to `MAX_BACKGROUND_TASKS`."""
 
     @functools.wraps(func)
-    async def wrapper(*args: P.args, **kwargs: P.kwargs) -> R:
+    async def wrapper(*args: Param.args, **kwargs: Param.kwargs) -> RetType:
         global _task_counter
         _task_counter += 1
         task_id = f"{func.__name__}_{_task_counter}"

@@ -25,10 +25,6 @@ COPY ./statgpt/app $APP_HOME/statgpt/app
 COPY ./statgpt/common $APP_HOME/statgpt/common
 RUN poetry install --no-interaction --no-ansi --no-cache --no-root --only main -E mcp
 
-# CVE-2026-23949 (jaraco.context vendored in setuptools), CVE-2026-24049 (wheel vendored in setuptools),
-# CVE-2026-59890 (setuptools sdist MANIFEST.in exclusion bypass), GHSA-xmj3-9gf7-h52w (setuptools Windows path escape)
-RUN .venv/bin/pip install "setuptools==84.2.1" "wheel==0.46.2"
-
 ############################
 # Runtime stage
 ############################
@@ -38,10 +34,9 @@ FROM python:3.13-alpine AS server
 # CVE-2023-52425 (libexpat), CVE-2025-6965 (sqlite-libs), libcrypto3/libssl3
 # CVE-2026-40200 (musl)
 # CVE-2026-53612/53613/53614/76642/78408/78409/78410 (libuuid/util-linux)
-# CVE-2026-40355/40356/71199/71200/107364/107708/107778/107884/111423/112314-112323/118380/119079 (krb5-libs)
 RUN apk update && apk upgrade --no-cache \
     libcrypto3 libssl3 libexpat sqlite-libs zlib musl musl-utils \
-  && apk add --no-cache --upgrade "libuuid>=2.42.3-r1" "krb5-libs>=1.22.3-r0" \
+  && apk add --no-cache --upgrade "libuuid>=2.42.3-r1" \
   && apk add --no-cache ca-certificates \
   && update-ca-certificates \
   && rm -rf /var/cache/apk/*
@@ -63,13 +58,13 @@ COPY --chown=appuser --from=builder $APP_HOME .
 
 # The service runs from the prebuilt venv and never invokes pip/venv at runtime,
 # and the venv does not expose system site-packages. The base image installs only
-# pip/setuptools/wheel there, so it is wiped wholesale: that clears their CVEs plus
-# the ones from their vendored/bundled deps (pip's msgpack, setuptools' wheel and
-# jaraco.context). Do not install into the system interpreter, it gets emptied here.
-# The venv keeps its own pinned & patched setuptools/wheel.
+# pip there, so it is wiped wholesale together with the pip wheel bundled in ensurepip:
+# that clears pip's CVEs and those of its vendored deps (e.g. msgpack). Do not install
+# into the system interpreter, it gets emptied here. setuptools in the venv comes from
+# poetry.lock.
 RUN rm -rf /usr/local/lib/python3.13/ensurepip \
            /usr/local/lib/python3.13/site-packages/* \
-           /usr/local/bin/pip* /usr/local/bin/wheel \
+           /usr/local/bin/pip* \
  && rm -rf /home/app/.venv/lib/python3.13/site-packages/pip \
            /home/app/.venv/lib/python3.13/site-packages/pip-*.dist-info \
            /home/app/.venv/bin/pip*
