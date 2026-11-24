@@ -7,7 +7,7 @@ Discovery dataset export currently returns either a file or an error from the sa
 - Add synchronous preparation for discovery CSV/XLSX exports, with the existing selection parameters and error statuses/texts, returning an opaque identifier and expiration only after the complete file is stored.
 - Persist prepared-download metadata in PostgreSQL and generated files in the existing DIAL storage; identifiers belong to the requesting user and channel and expire one hour after preparation.
 - Add an authenticated file endpoint that checks ownership, channel and expiration and allows repeated downloads before expiry without regenerating the export.
-- Preserve the existing direct-export GET endpoint and channel archive import/export behavior.
+- Retain the existing direct-export GET endpoint as a deprecated compatibility endpoint, mark it deprecated in OpenAPI and recommend the preparation/download flow; preserve its runtime behavior and channel archive import/export behavior.
 - Add expired-download cleanup to the existing `fix_statuses` maintenance entry point, also used during initialization, without coupling cleanup failures to status recovery. The deployed daily schedule remains unchanged.
 - Document the backend API and its error contract. Frontend investigation, implementation and end-to-end UI verification are out of scope; this change delivers the backend portion of #833 only.
 
@@ -19,7 +19,7 @@ None.
 
 ### Modified Capabilities
 
-- `discovery-dataset-records`: Add preparation and retrieval of user/channel-scoped discovery exports with a one-hour download window while retaining direct export.
+- `discovery-dataset-records`: Add preparation and retrieval of user/channel-scoped discovery exports with a one-hour download window while retaining direct export as a deprecated compatibility endpoint.
 - `admin-background-jobs`: Extend the existing maintenance entry point with safe, retryable cleanup of expired prepared downloads, independent of stuck-job recovery.
 
 ## Impact

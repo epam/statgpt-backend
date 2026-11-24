@@ -100,8 +100,13 @@ A successful download SHALL return 200 with the stored bytes, the corresponding 
 - **THEN** opened storage resources are closed and the interrupted response is not replaced with a JSON error
 
 ### Requirement: Two-step export preserves direct-export compatibility
-The existing `GET /channels/{channel_id}/discovery-datasets/export` SHALL retain its direct-file response, query parameters, defaults, filenames, media types, rendering behavior and existing error statuses/texts. The new endpoints SHALL NOT change channel archive export/import behavior.
+The existing `GET /channels/{channel_id}/discovery-datasets/export` SHALL remain available as a deprecated compatibility endpoint and retain its direct-file response, query parameters, defaults, filenames, media types, rendering behavior and existing error statuses/texts. Its OpenAPI operation SHALL declare `deprecated: true`; its operation description and API documentation SHALL recommend the preparation/download flow. The preparation and prepared-download operations SHALL NOT be deprecated. Deprecation SHALL NOT introduce a removal deadline or additional response headers. The new endpoints SHALL NOT change channel archive export/import behavior.
 
 #### Scenario: Existing client downloads directly
 - **WHEN** an existing client calls the direct-export endpoint without query parameters
 - **THEN** it receives the same CSV download response rather than preparation JSON
+
+#### Scenario: OpenAPI identifies the deprecated direct export
+- **WHEN** a caller reads the generated OpenAPI schema
+- **THEN** the direct-export GET operation declares `deprecated: true` and its description recommends the preparation/download flow
+- **AND** the preparation and prepared-download operations are not marked deprecated

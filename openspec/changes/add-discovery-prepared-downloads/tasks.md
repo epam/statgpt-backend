@@ -33,3 +33,8 @@
 - [x] 5.1 Document the two-step backend contract in `statgpt/admin/README.md`, including endpoint parameters, one-hour deadline, authentication, retry/expiry errors, storage cleanup and the OIDC-disabled identity limitation; explicitly leave frontend adoption out of scope.
 - [x] 5.2 Run `make format`, `make lint` and relevant unit/integration tests; use the equivalent Poetry formatter/linter commands if the local platform cannot run the Makefile targets, and report any failures or unavailable prerequisites.
 - [x] 5.3 Validate the OpenSpec change and check implementation against both delta specs, retaining direct-export and channel archive compatibility without unrelated changes.
+
+## 6. Legacy direct-export deprecation
+
+- [x] 6.1 Mark the direct-export GET operation as deprecated in OpenAPI and recommend the preparation/download flow in its operation description and `statgpt/admin/README.md`; preserve availability and the existing runtime contract, without a removal deadline or additional response headers.
+- [x] 6.2 Extend router/OpenAPI tests to assert the legacy GET's deprecation flag and replacement guidance, non-deprecated preparation/download operations and unchanged direct-file behavior; run relevant tests, formatting/lint checks and OpenSpec validation.

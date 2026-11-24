@@ -45,7 +45,7 @@ the [common README file](../common/README.md).
 
 ## Discovery exports
 
-Discovery dataset exports support two request flows. The existing `GET /channels/{channel_id}/discovery-datasets/export` continues to return a CSV/XLSX file directly. The two-step flow separates preparation errors from the file request:
+Discovery dataset exports support two request flows. The existing `GET /channels/{channel_id}/discovery-datasets/export` is **deprecated** but remains available with unchanged CSV/XLSX behavior for compatibility. No removal deadline is announced. Use the preparation/download flow for new integrations; it separates preparation errors from the file request:
 
 1. Call `POST /channels/{channel_id}/discovery-datasets/exports` with query parameters and no request body. Preparation renders and stores the complete file synchronously; there is no background job or polling endpoint.
 2. On a `201 Created` response, use its `id` to call `GET /channels/{channel_id}/discovery-datasets/exports/{id}/download`. This returns the prepared snapshot, not a regenerated export.

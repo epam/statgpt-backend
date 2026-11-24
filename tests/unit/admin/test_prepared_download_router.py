@@ -365,3 +365,25 @@ def test_openapi_declares_descriptor_file_types_and_errors(api: PreparedApi) -> 
     assert set(download["responses"]["200"]["content"]) == set(router._EXPORT_MEDIA_TYPES.values())
     descriptor_schema = schema["components"]["schemas"]["PreparedDownloadResponse"]
     assert set(descriptor_schema["properties"]) == {"id", "expiresAt"}
+
+
+def test_only_legacy_direct_export_is_deprecated_with_replacement_guidance(
+    api: PreparedApi,
+) -> None:
+    paths = api.app.openapi()["paths"]
+    direct = paths["/channels/{channel_id}/discovery-datasets/export"]["get"]
+    preparation = paths["/channels/{channel_id}/discovery-datasets/exports"]["post"]
+    download = paths["/channels/{channel_id}/discovery-datasets/exports/{download_id}/download"][
+        "get"
+    ]
+
+    assert direct["deprecated"] is True
+    assert "Deprecated compatibility endpoint" in direct["description"]
+    assert "preparation/download flow" in direct["description"]
+    assert "POST /channels/{channel_id}/discovery-datasets/exports" in direct["description"]
+    assert (
+        "GET /channels/{channel_id}/discovery-datasets/exports/{download_id}/download"
+        in direct["description"]
+    )
+    assert not preparation.get("deprecated", False)
+    assert not download.get("deprecated", False)

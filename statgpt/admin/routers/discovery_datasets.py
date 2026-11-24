@@ -198,6 +198,7 @@ def _get_export_filters(
 
 @channel_discovery_datasets_router.get(
     "/export",
+    deprecated=True,
     response_class=Response,
     responses={
         status.HTTP_200_OK: {
@@ -217,7 +218,13 @@ async def export_channel_discovery_datasets(
     session: AsyncSession = Depends(models.get_session),
     _=Depends(cancel_on_disconnect),
 ) -> Response:
-    """Download the channel's discovery datasets as a file the upload endpoint reads back.
+    """Deprecated compatibility endpoint; prefer the preparation/download flow.
+
+    Use `POST /channels/{channel_id}/discovery-datasets/exports`, followed by
+    `GET /channels/{channel_id}/discovery-datasets/exports/{download_id}/download`, for new
+    integrations. This direct-export endpoint remains available with unchanged runtime behavior.
+
+    Download the channel's discovery datasets as a file the upload endpoint reads back.
 
     With the defaults, byte-for-byte the archive's `discovery_datasets.csv`, so the download
     goes straight into `POST /{channel_id}/discovery-datasets/upload` on another channel.
