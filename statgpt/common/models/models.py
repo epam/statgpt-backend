@@ -78,6 +78,20 @@ class Channel(DefaultBase):
         return f"{_elasticsearch_settings.indicators_index}_{self.id}"
 
 
+class PreparedDownload(DateMixin, Base):
+    __tablename__ = "prepared_downloads"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        type_=postgresql.UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    owner_user_id: Mapped[str]
+    channel_id: Mapped[int | None] = mapped_column(ForeignKey("channels.id", ondelete="SET NULL"))
+    file_path: Mapped[str]
+    filename: Mapped[str]
+    media_type: Mapped[str]
+    expires_at: Mapped[datetime.datetime] = mapped_column(DateTime(timezone=True), index=True)
+
+
 class DataSourceType(DefaultBase):
     __tablename__ = "data_source_types"
 

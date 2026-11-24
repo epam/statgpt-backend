@@ -5,6 +5,7 @@ uploaded together, so what matters is the expansion - and that a mistake in it c
 """
 
 import datetime
+import shlex
 from collections.abc import Sequence
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -118,8 +119,17 @@ async def test_a_repeated_flag_is_one_deduplicated_request(
     client: _StubAdminClient, data_dir: Path
 ) -> None:
     args = upload_command.parse_args(
-        f"-c {_DEPLOYMENT_ID} --file {data_dir / 'b.csv'} {data_dir / 'a.xlsx'}"
-        f" --file {data_dir / 'a.xlsx'}"
+        shlex.join(
+            [
+                "-c",
+                _DEPLOYMENT_ID,
+                "--file",
+                str(data_dir / "b.csv"),
+                str(data_dir / "a.xlsx"),
+                "--file",
+                str(data_dir / "a.xlsx"),
+            ]
+        )
     )
 
     await upload_handler(**args)

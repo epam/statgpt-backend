@@ -19,6 +19,10 @@ from statgpt.admin.services.exceptions import (
     DiscoveryRagNotConfiguredError,
     DiscoveryUploadFormatError,
     IndexingJobInProgressError,
+    PreparedDownloadChannelNotFoundError,
+    PreparedDownloadExpiredError,
+    PreparedDownloadNotFoundError,
+    PreparedDownloadStorageError,
 )
 from statgpt.common import schemas
 from statgpt.common.services import GenericRagIngestionError
@@ -96,6 +100,36 @@ def register_exception_handlers(app: FastAPI) -> None:
         """
         _log.warning(f"Generic RAG call failed while serving a request: {exc}")
         return JSONResponse(status_code=status.HTTP_502_BAD_GATEWAY, content={"detail": str(exc)})
+
+    @app.exception_handler(PreparedDownloadChannelNotFoundError)
+    @app.exception_handler(PreparedDownloadNotFoundError)
+    async def _prepared_not_found(
+        _: Request, exc: PreparedDownloadChannelNotFoundError | PreparedDownloadNotFoundError
+    ) -> JSONResponse:
+        return JSONResponse(
+            status_code=status.HTTP_404_NOT_FOUND,
+            content=schemas.PreparedDownloadErrorResponse(detail=str(exc)).model_dump(),
+            headers={"Cache-Control": "no-store"},
+        )
+
+    @app.exception_handler(PreparedDownloadExpiredError)
+    async def _prepared_expired(_: Request, exc: PreparedDownloadExpiredError) -> JSONResponse:
+        return JSONResponse(
+            status_code=status.HTTP_410_GONE,
+            content=schemas.PreparedDownloadErrorResponse(detail=str(exc)).model_dump(),
+            headers={"Cache-Control": "no-store"},
+        )
+
+    @app.exception_handler(PreparedDownloadStorageError)
+    async def _prepared_storage_error(
+        _: Request, exc: PreparedDownloadStorageError
+    ) -> JSONResponse:
+        _log.exception("Prepared-download storage operation failed.")
+        return JSONResponse(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            content=schemas.PreparedDownloadErrorResponse(detail=str(exc)).model_dump(),
+            headers={"Cache-Control": "no-store"},
+        )
 
     @app.exception_handler(Exception)
     async def _unhandled(request: Request, exc: Exception) -> PlainTextResponse:

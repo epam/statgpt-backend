@@ -43,6 +43,64 @@ the [common README file](../common/README.md).
 | OTEL_APP_SERVICE_NAME                       | No                                                                      | OpenTelemetry service name for the admin application                                                                                                                                                                                   |                  | `statgpt-admin-backend` |
 | BETA_MCP_ENABLED                            | No                                                                      | Enables MCP support for StatGPT(dataset config generation/test creation). Requires `mcp` dependencies to be installed.                                                                                                                 | `true`, `false`  | `false`                 |
 
+## Discovery exports
+
+Discovery dataset exports support two request flows. The existing `GET /channels/{channel_id}/discovery-datasets/export` continues to return a CSV/XLSX file directly. The two-step flow separates preparation errors from the file request:
+
+1. Call `POST /channels/{channel_id}/discovery-datasets/exports` with query parameters and no request body. Preparation renders and stores the complete file synchronously; there is no background job or polling endpoint.
+2. On a `201 Created` response, use its `id` to call `GET /channels/{channel_id}/discovery-datasets/exports/{id}/download`. This returns the prepared snapshot, not a regenerated export.
+
+Both export flows accept the same parameters:
+
+| Parameter | Default | Meaning |
+|-----------|---------|---------|
+| `format` | `csv` | `csv` or `xlsx`; the download is named `discovery_datasets.csv` or `discovery_datasets.xlsx`. |
+| `include_validation` | `false` | Include the stored validation verdict and, for XLSX, workbook validation highlighting. No new validation runs during export. |
+| `validation_status` | Unset | Filter by `NOT_VALIDATED`, `VALID`, or `INVALID`. |
+| `indexing_status` | Unset | Filter by `NEW`, `OUTDATED`, `INDEXED`, or `FAILED`. |
+| `agency` | Unset | Match agency ignoring case and whitespace. Combine these filters with AND. |
+| `id` | Unset | Repeat to select specific record IDs, up to 500 occurrences. Cannot be combined with the other filters. |
+
+For example, `POST /channels/7/discovery-datasets/exports?format=xlsx&include_validation=true&validation_status=INVALID` returns a descriptor shaped as follows:
+
+```json
+{
+  "id": "10f90c65-3e73-47d5-b1ac-ff51f0a90523",
+  "expiresAt": "2026-11-24T13:00:00Z"
+}
+```
+
+The descriptor contains only an opaque UUID and a UTC deadline, never file content, credentials, or a DIAL storage URL. Success is returned only after storage upload and metadata commit. Preparation and successful file responses use `Cache-Control: no-store`.
+
+### Authentication and download lifetime
+
+Preparation and retrieval use the existing admin authentication. With OIDC enabled, send `Authorization: Bearer <token>` on both requests. A download belongs to the preparing user's verified stable identity and the requested channel. Refreshed credentials for that same identity remain valid; knowing another user's UUID does not grant access. With `OIDC_AUTH_ENABLED=false`, all requests use the existing `Anonymous` identity, so this development mode does **not** provide per-user isolation.
+
+The deadline is fixed at one hour after the complete file is uploaded. Repeated downloads do not consume the identifier or extend that deadline. Retrieval checks the server's UTC time before opening storage, and equality with `expiresAt` counts as expired. A transfer already admitted is not aborted merely because its deadline passes, but storage cleanup or a transport failure can still interrupt it.
+
+Source record edits or deletions do not change an existing snapshot. Deleting its channel prevents further retrieval. Metadata is stored in PostgreSQL and bytes in the system user's resolved DIAL bucket/appdata namespace, so another backend replica or a restarted backend can serve the same snapshot.
+
+### Errors and retries
+
+| Status | Meaning |
+|--------|---------|
+| `400` | XLSX cannot represent the selected records, such as an invalid/conflicting sheet name or a cell exceeding 32,767 characters. Preparation preserves the direct-export error detail. Correct the records/selection or use CSV. |
+| `401` / `403` | Existing admin authentication or authorization rejection. Refresh credentials or resolve the access restriction. |
+| `404` | Unknown channel, selected IDs outside the channel, unknown/cleaned-up download, owner/channel mismatch, deleted channel, or missing stored file. For retrieval, prepare a new export if appropriate. |
+| `410` | A matching download still has metadata but has expired. The JSON detail is `Prepared download has expired. Prepare a new export.` |
+| `422` | Invalid query parameters or an invalid combination, such as `id` with `agency`. Existing validation details are preserved. |
+| `502` | Preparation storage or opening the stored download is unavailable. The JSON detail is sanitized; retry after storage recovers. Failed preparation does not issue an identifier. |
+
+Unrelated database/internal failures retain their existing error handling. Failures after file response headers have been sent interrupt the stream and cannot be replaced by a JSON error response. Opened storage resources are closed on completion, disconnect, cancellation, and send/iterator failure.
+
+### Storage cleanup and scope
+
+Files use the dedicated `prepared-downloads` namespace, separate from channel archive exports/imports. Existing `ADMIN_MODE=FIX_STATUSES` maintenance and the maintenance phase of `ADMIN_MODE=INIT` remove expired files before their metadata. Missing files count as already removed; failed deletions retain metadata for retry without blocking status recovery or later cleanup items. The existing daily maintenance schedule is unchanged, and the API enforces expiration even when physical deletion is delayed.
+
+Maintenance also incrementally reclaims recognized generated UUID CSV/XLSX files that have no metadata reference and a known storage timestamp older than 24 hours. Recent, referenced, unknown-age, and unrelated files are preserved. This orphan grace period does not extend the one-hour download window. Failed metadata persistence triggers best-effort upload compensation; aged abandoned uploads remain recoverable by maintenance. Apply the admin database migration before serving the new endpoints or running updated maintenance.
+
+This is the backend portion of the two-step flow only. Frontend adoption, notification/session-error presentation, and end-to-end UI verification are separate work; channel archive export/import and existing direct-export clients remain unchanged.
+
 ## Discovery indexing (Grade C)
 
 A discovery indexing job publishes a channel's discovery dataset records into a Generic RAG

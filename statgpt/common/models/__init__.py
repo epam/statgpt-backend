@@ -23,4 +23,5 @@ from .models import (
     DiscoveryIndexingJob,
     GlossaryTerm,
     Job,
+    PreparedDownload,
 )

@@ -73,34 +73,40 @@ class AttachmentsStorage:
         self._dial = dial
 
     async def get_files_in_folder(self, folder: str, bucket: str | None = None) -> list[FileItem]:
-        """Return a list of files in the specified folder. If the folder does not exist, return an empty list."""
+        """Return all files in the folder, or an empty list if it does not exist."""
+        return [file async for file in self.iter_files_in_folder(folder, bucket)]
 
+    async def iter_files_in_folder(
+        self, folder: str, bucket: str | None = None, *, page_size: int = 100
+    ) -> AsyncIterator[FileItem]:
+        """Yield files one page at a time; a missing folder ends the listing."""
+        if page_size <= 0:
+            raise ValueError("page_size must be positive")
         if not bucket:
             bucket = await resolve_bucket(self._dial)
 
         folder = folder.strip('/')
         # The trailing "/" is required: DIAL treats "example/" as a folder and "example" as a file.
         url = f"files/{bucket}/{folder}/"
-        files: list[FileItem] = []
         token: str | None = None
 
         while True:
             try:
                 metadata = await self._dial.files.metadata.get(
-                    resource="files", relative_url=url, limit=100, token=token
+                    resource="files", relative_url=url, limit=page_size, token=token
                 )
             except DialException as e:
                 if e.status_code == HTTPStatus.NOT_FOUND:
-                    return files
+                    return
                 raise
 
-            files.extend(metadata.items or [])
+            for file in metadata.items or []:
+                yield file
 
             token = metadata.next_token
+            del metadata
             if not token:
-                break
-
-        return files
+                return
 
     async def delete_file(self, url: str) -> None:
         """Delete the file at the specified URL.

@@ -9,9 +9,12 @@ Records are shaped like glossary terms: the channel-scoped routes below cover a 
 collection, while a single record is addressed globally under `/discovery-datasets`.
 """
 
+from http import HTTPStatus
 from pathlib import PurePath
 from typing import Annotated, Any
+from uuid import UUID
 
+from aidial_client import DialException
 from fastapi import (
     APIRouter,
     BackgroundTasks,
@@ -27,14 +30,23 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 import statgpt.common.models as models
 import statgpt.common.schemas as schemas
-from statgpt.admin.auth.user import require_jwt_auth
+from statgpt.admin.auth.auth_context import SystemUserAuthContext
+from statgpt.admin.auth.user import User, require_jwt_auth
+from statgpt.admin.responses import ClosingStreamingResponse
 from statgpt.admin.services import AdminPortalDiscoveryDatasetService as DiscoveryDatasetService
 from statgpt.admin.services import AdminPortalDiscoveryIndexingJobService as IndexingJobService
 from statgpt.admin.services.discovery_upload import PYDANTIC_VALUE_ERROR_PREFIX
+from statgpt.admin.services.exceptions import (
+    PreparedDownloadNotFoundError,
+    PreparedDownloadStorageError,
+)
+from statgpt.admin.services.prepared_downloads import PreparedDownloadService
 from statgpt.admin.settings.exim import JobsConfig
 from statgpt.common.models import get_session_context_manager
+from statgpt.common.settings.dial import dial_settings
 from statgpt.common.utils import MediaTypes
 from statgpt.common.utils.cancel_dependency import cancel_on_disconnect
+from statgpt.common.utils.dial.client import open_file_stream
 
 channel_discovery_datasets_router = APIRouter(
     prefix="/{channel_id}/discovery-datasets",
@@ -132,6 +144,57 @@ _EXPORT_MEDIA_TYPES: dict[schemas.DiscoveryExportFormat, str] = {
 
 _EXPORT_FILE_STEM = PurePath(JobsConfig.DISCOVERY_DATASETS_FILE).stem
 
+_PREPARED_ERROR_RESPONSES: dict[int | str, dict[str, Any]] = {
+    status.HTTP_401_UNAUTHORIZED: {"model": schemas.PreparedDownloadErrorResponse},
+    status.HTTP_403_FORBIDDEN: {"model": schemas.PreparedDownloadErrorResponse},
+    status.HTTP_404_NOT_FOUND: {"model": schemas.PreparedDownloadErrorResponse},
+    status.HTTP_502_BAD_GATEWAY: {"model": schemas.PreparedDownloadErrorResponse},
+}
+
+_ExportFormat = Annotated[
+    schemas.DiscoveryExportFormat,
+    Query(alias="format", description="The file to download: `csv` or `xlsx`."),
+]
+_IncludeValidation = Annotated[
+    bool,
+    Query(
+        description=(
+            "Append the verdict of the last indexing job: validation status, when it was"
+            " evaluated, and its issues, one per line."
+        )
+    ),
+]
+
+
+def _get_export_filters(
+    validation_status: schemas.DiscoveryValidationStatus | None = None,
+    indexing_status: schemas.DiscoveryIndexingStatus | None = None,
+    agency: str | None = None,
+    ids: Annotated[
+        list[int] | None,
+        Query(
+            alias="id",
+            max_length=_MAX_EXPORT_IDS,
+            description=(
+                "Export exactly these records, by database id. Repeat the parameter for"
+                f" several, up to {_MAX_EXPORT_IDS}. Cannot be combined with the other filters."
+            ),
+        ),
+    ] = None,
+) -> schemas.DiscoveryExportFilters:
+    try:
+        return schemas.DiscoveryExportFilters(
+            validation_status=validation_status,
+            indexing_status=indexing_status,
+            agency=agency,
+            ids=ids,
+        )
+    except ValidationError as e:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=str(e.errors()[0]["msg"]).removeprefix(PYDANTIC_VALUE_ERROR_PREFIX),
+        ) from e
+
 
 @channel_discovery_datasets_router.get(
     "/export",
@@ -148,33 +211,9 @@ _EXPORT_FILE_STEM = PurePath(JobsConfig.DISCOVERY_DATASETS_FILE).stem
 )
 async def export_channel_discovery_datasets(
     channel_id: int,
-    export_format: Annotated[
-        schemas.DiscoveryExportFormat,
-        Query(alias="format", description="The file to download: `csv` or `xlsx`."),
-    ] = schemas.DiscoveryExportFormat.CSV,
-    include_validation: Annotated[
-        bool,
-        Query(
-            description=(
-                "Append the verdict of the last indexing job: validation status, when it was"
-                " evaluated, and its issues, one per line."
-            )
-        ),
-    ] = False,
-    validation_status: schemas.DiscoveryValidationStatus | None = None,
-    indexing_status: schemas.DiscoveryIndexingStatus | None = None,
-    agency: str | None = None,
-    ids: Annotated[
-        list[int] | None,
-        Query(
-            alias="id",
-            max_length=_MAX_EXPORT_IDS,
-            description=(
-                "Export exactly these records, by database id. Repeat the parameter for"
-                f" several, up to {_MAX_EXPORT_IDS}. Cannot be combined with the other filters."
-            ),
-        ),
-    ] = None,
+    export_format: _ExportFormat = schemas.DiscoveryExportFormat.CSV,
+    include_validation: _IncludeValidation = False,
+    filters: schemas.DiscoveryExportFilters = Depends(_get_export_filters),
     session: AsyncSession = Depends(models.get_session),
     _=Depends(cancel_on_disconnect),
 ) -> Response:
@@ -204,19 +243,6 @@ async def export_channel_discovery_datasets(
     Synchronous, unlike the channel export: one channel's records are small enough to
     return in the response, so there is no job to poll.
     """
-    try:
-        filters = schemas.DiscoveryExportFilters(
-            validation_status=validation_status,
-            indexing_status=indexing_status,
-            agency=agency,
-            ids=ids,
-        )
-    except ValidationError as e:
-        # Built from validated query parameters, so only the model's own rules can fail.
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail=str(e.errors()[0]["msg"]).removeprefix(PYDANTIC_VALUE_ERROR_PREFIX),
-        ) from e
     content = await DiscoveryDatasetService(session).export_discovery_datasets(
         channel_id, filters, export_format, include_validation
     )
@@ -225,6 +251,86 @@ async def export_channel_discovery_datasets(
         content=content,
         media_type=_EXPORT_MEDIA_TYPES[export_format],
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@channel_discovery_datasets_router.post(
+    "/exports",
+    status_code=status.HTTP_201_CREATED,
+    response_model=schemas.PreparedDownloadResponse,
+    responses={
+        **_PREPARED_ERROR_RESPONSES,
+        status.HTTP_400_BAD_REQUEST: {"model": schemas.PreparedDownloadErrorResponse},
+    },
+)
+async def prepare_channel_discovery_datasets(
+    channel_id: int,
+    response: Response,
+    export_format: _ExportFormat = schemas.DiscoveryExportFormat.CSV,
+    include_validation: _IncludeValidation = False,
+    filters: schemas.DiscoveryExportFilters = Depends(_get_export_filters),
+    user: User = Depends(require_jwt_auth),
+) -> schemas.PreparedDownloadResponse:
+    """Prepare a stored snapshot for authenticated retrieval within one hour."""
+    async with get_session_context_manager() as session:
+        await PreparedDownloadService(session).ensure_channel_exists(channel_id)
+        content = await DiscoveryDatasetService(session).export_discovery_datasets(
+            channel_id, filters, export_format, include_validation
+        )
+    async with get_session_context_manager() as session:
+        prepared = await PreparedDownloadService(session).prepare(
+            channel_id=channel_id,
+            user=user,
+            auth_context=SystemUserAuthContext(),
+            content=content,
+            filename=f"{_EXPORT_FILE_STEM}.{export_format}",
+            media_type=_EXPORT_MEDIA_TYPES[export_format],
+        )
+    response.headers["Cache-Control"] = "no-store"
+    return prepared
+
+
+@channel_discovery_datasets_router.get(
+    "/exports/{download_id}/download",
+    status_code=status.HTTP_200_OK,
+    response_class=ClosingStreamingResponse,
+    responses={
+        **_PREPARED_ERROR_RESPONSES,
+        status.HTTP_200_OK: {
+            "content": {
+                media_type: {"schema": {"type": "string", "format": "binary"}}
+                for media_type in _EXPORT_MEDIA_TYPES.values()
+            }
+        },
+        status.HTTP_410_GONE: {"model": schemas.PreparedDownloadErrorResponse},
+    },
+)
+async def download_channel_discovery_datasets(
+    channel_id: int,
+    download_id: UUID,
+    user: User = Depends(require_jwt_auth),
+) -> ClosingStreamingResponse:
+    """Stream the requesting user's unexpired prepared snapshot without regenerating it."""
+    async with get_session_context_manager() as session:
+        record = await PreparedDownloadService(session).get_download(download_id, channel_id, user)
+    try:
+        chunks, _, close = await open_file_stream(
+            dial_settings.url, SystemUserAuthContext().api_key, record.file_path
+        )
+    except DialException as exc:
+        if exc.status_code == HTTPStatus.NOT_FOUND:
+            raise PreparedDownloadNotFoundError() from exc
+        raise PreparedDownloadStorageError() from exc
+    except Exception as exc:
+        raise PreparedDownloadStorageError() from exc
+    return ClosingStreamingResponse(
+        content=chunks,
+        close=close,
+        media_type=record.media_type,
+        headers={
+            "Content-Disposition": f'attachment; filename="{record.filename}"',
+            "Cache-Control": "no-store",
+        },
     )
 
 
