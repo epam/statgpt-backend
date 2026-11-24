@@ -1,7 +1,7 @@
 ## ADDED Requirements
 
 ### Requirement: Maintenance removes expired prepared downloads independently of status recovery
-`ADMIN_MODE=FIX_STATUSES` and the maintenance phase of `ADMIN_MODE=INIT` SHALL remove prepared-download files and metadata whose explicit expiration deadline has passed, without changing existing stuck-job recovery rules. Cleanup SHALL use bounded batches, preserve unexpired downloads and unrelated import/export files, and process each expired file before removing its metadata. A missing file SHALL count as already removed. Failed file deletions SHALL retain their metadata for retry on a later run; one failed deletion SHALL NOT prevent other eligible downloads from being cleaned. A cleanup failure SHALL be logged and SHALL NOT prevent status recovery. File access expiration SHALL remain independent of this cleanup, and this change SHALL NOT introduce a new scheduler or change the existing daily maintenance schedule.
+`ADMIN_MODE=FIX_STATUSES` and `ADMIN_MODE=INIT` maintenance SHALL clean expired prepared downloads in bounded batches, deleting files before metadata. Missing files SHALL count as removed; failed deletions SHALL retain metadata for retry without blocking other items or status recovery. Cleanup failures SHALL be logged. Active downloads, unrelated import/export files, recovery rules and the daily schedule SHALL remain unchanged. Access expiry SHALL remain independent of cleanup.
 
 #### Scenario: Daily cleanup of an expired download
 - **WHEN** maintenance runs after a prepared download's expiration
@@ -27,8 +27,12 @@
 - **WHEN** `ADMIN_MODE=INIT` runs with no expired prepared downloads
 - **THEN** existing status recovery completes and active downloads remain unchanged
 
+#### Scenario: Existing maintenance entry points and schedule
+- **WHEN** prepared-download cleanup is deployed
+- **THEN** it runs through existing `FIX_STATUSES` and `INIT` maintenance without introducing a new scheduler or changing the daily schedule or stuck-job recovery rules
+
 ### Requirement: Maintenance reclaims abandoned prepared-export files conservatively
-Maintenance SHALL also reclaim generated prepared-export files left without retrieval metadata by interrupted preparation or failed compensation. It SHALL restrict this sweep to the dedicated prepared-download storage namespace and known generated filename pattern, require an available file timestamp older than 24 hours, and confirm the file has no metadata reference before deletion. Listing and processing SHALL be incremental, with memory bounded by the current page/batch rather than the total number of files in the namespace. Files referenced by any metadata, recent files, files without an available age and unrelated files SHALL NOT be removed by the orphan sweep. The 24-hour orphan grace period SHALL NOT extend the one-hour download window.
+Maintenance SHALL incrementally reclaim unreferenced generated UUID CSV/XLSX files only from the prepared-download namespace, using memory bounded by the current page/batch. Deletion SHALL require a known storage timestamp older than 24 hours and an immediate check that no metadata references the file. Recent, referenced, unknown-age and unrelated files SHALL be preserved. This orphan grace SHALL NOT extend the one-hour access window.
 
 #### Scenario: Upload completed before preparation crashed
 - **WHEN** maintenance finds a prepared-export file older than 24 hours with no retrieval metadata

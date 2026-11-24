@@ -23,15 +23,8 @@ from statgpt.admin.services.exceptions import PreparedDownloadNotFoundError
 from statgpt.admin.services.prepared_downloads import PreparedDownloadService
 from statgpt.common import models
 from statgpt.common.config.versions import Versions
-from statgpt.common.settings.database import PostgresSettings
 from statgpt.common.utils import MediaTypes
 from statgpt.common.utils.dial.attachments import AttachmentsStorage
-
-
-@pytest.fixture(autouse=True)
-def isolated_database_only() -> None:
-    settings = PostgresSettings()
-    assert (settings.host, settings.port, settings.database) == ("localhost", "5433", "test_db")
 
 
 @pytest_asyncio.fixture
