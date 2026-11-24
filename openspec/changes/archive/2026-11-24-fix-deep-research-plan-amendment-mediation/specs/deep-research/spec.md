@@ -3,7 +3,7 @@
 ## MODIFIED Requirements
 
 ### Requirement: Supreme Agent mediates clarifications and the plan
-A clarification or plan SHALL be shown in the tool-result stage and handed back to the agent, which SHALL answer the clarifying questions it can from the conversation context through the resume tool, surface to the user only the questions it cannot answer, and present a plan verbatim, approving it only once the user does. When the user asks for something unrelated to the research session during a session, the agent SHALL ask them to answer the pending question or to turn the mode off. A request to change the query or plan SHALL NOT count as unrelated.
+A clarification or plan SHALL be shown in the tool-result stage and handed back to the agent, which SHALL answer the clarifying questions it can from the conversation context through the resume tool, surface to the user only the questions it cannot answer, and present a plan verbatim, approving it only once the user does. When the user asks for something unrelated during a session, the agent SHALL ask them to answer the pending question or to turn the mode off.
 
 #### Scenario: Questions partly answered from context
 - **WHEN** Deep Research asks for the countries and the period, and the user already named the countries earlier in the chat
@@ -18,19 +18,11 @@ A clarification or plan SHALL be shown in the tool-result stage and handed back 
 - **THEN** the agent does not call the resume tool and asks the user to answer the pending plan or to turn Deep Research mode off
 
 ### Requirement: Resume stage names
-The resume tool's stage names SHALL come from `resumeStagesConfig` (`toolCallName`, default "Researching: {query}"; `toolResultName`, default "Research result: {query}"), never from the start tool's stage names, because the resume tool takes a `message` argument instead of `query`. They SHALL support the `{query}` placeholder, the session's latest research query, as well as `{original_question}`, the question the session was started with, and `{message}`. The latest query SHALL be the `preparation.current_query` of the latest Deep Research state stored in the session, falling back to the original question when no stored state carries one. The tool-call stage SHALL be named from the session as it was before the call, and the tool-result stage from the session as it is after the call, so the result stage reflects a query Deep Research rewrote in that call.
+The resume tool's stage names SHALL come from `resumeStagesConfig` (`toolCallName`, default "Researching: {query}"; `toolResultName`, default "Research result: {query}"), never from the start tool's stage names, because the resume tool takes a `message` argument instead of `query`. They SHALL support the `{query}` placeholder, the session's latest research query, as well as `{original_question}`, the question the session was started with, and `{message}`.
 
 #### Scenario: Resume call
 - **WHEN** a session started with "Drivers of inflation in Europe" is resumed and Deep Research has stored no query
 - **THEN** the stage is named "Researching: Drivers of inflation in Europe"
-
-#### Scenario: Query rewritten by Deep Research
-- **WHEN** a session started with "Compare the provider's US policy rates forecast for 2027 versus the consensus." and Deep Research's latest stored state has `preparation.current_query` "Compare the provider's US policy-rate forecast for 2027 versus a suitable consensus forecast source."
-- **THEN** the resume call stage is named "Researching: Compare the provider's US policy-rate forecast for 2027 versus a suitable consensus forecast source."
-
-#### Scenario: Query rewritten during the call
-- **WHEN** the resume call makes Deep Research rewrite its query from A to B
-- **THEN** the tool-call stage is named after A and the tool-result stage after B
 
 #### Scenario: Original question placeholder
 - **WHEN** a channel configures `toolCallName` "Researching: {original_question}" and Deep Research has rewritten the query
@@ -44,6 +36,20 @@ When neither the latest query nor the original question can be read from the ses
 - **THEN** its stage is named "Continue researching"
 
 ## ADDED Requirements
+
+### Requirement: Latest query of a session
+The latest query of a session SHALL be the `preparation.current_query` of the latest Deep Research state stored in the session, falling back to the original question when no stored state carries one.
+
+#### Scenario: Query rewritten by Deep Research
+- **WHEN** a session started with "Compare the provider's US policy rates forecast for 2027 versus the consensus." and Deep Research's latest stored state has `preparation.current_query` "Compare the provider's US policy-rate forecast for 2027 versus a suitable consensus forecast source."
+- **THEN** the resume call stage is named "Researching: Compare the provider's US policy-rate forecast for 2027 versus a suitable consensus forecast source."
+
+### Requirement: Resume stages are named before and after the call
+The resume tool-call stage SHALL be named from the session as it was before the call, and the tool-result stage from the session as it is after the call, so the result stage reflects a query Deep Research rewrote in that call.
+
+#### Scenario: Query rewritten during the call
+- **WHEN** the resume call makes Deep Research rewrite its query from A to B
+- **THEN** the tool-call stage is named after A and the tool-result stage after B
 
 ### Requirement: Query and plan changes go through Deep Research
 While a session is in progress, the agent SHALL forward through the resume tool every message about the pending question, query or plan: answers, approval, amendments and questions about the plan. When unsure, the agent SHALL forward it. Only Deep Research can update both the query and the plan, so the agent SHALL NOT write, edit or re-present either itself: a plan shown to the user SHALL be one Deep Research returned in the same turn.
