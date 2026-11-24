@@ -1,0 +1,28 @@
+# Isolated database for integration tests. Safe to run alongside docker-compose.yml:
+# separate compose project, separate host port, and no persistent volume (data lives in tmpfs).
+#
+#   docker compose -f docker-compose.test.yml up -d --wait
+#   TEST_DATABASE_HOST=localhost TEST_DATABASE_PORT=5433 TEST_DATABASE=test_db make test_integration
+#   docker compose -f docker-compose.test.yml down
+
+name: statgpt-test
+
+services:
+  vectordb-test:
+    image: pgvector/pgvector:pg14
+    ports:
+      - "${TEST_DATABASE_PORT:-5433}:5432"
+    environment:
+      POSTGRES_DB: ${TEST_DATABASE:-test_db}
+      POSTGRES_USER: ${PGVECTOR_USER}
+      POSTGRES_PASSWORD: ${PGVECTOR_PASSWORD}
+      POSTGRES_HOST_AUTH_METHOD: trust
+    volumes:
+      - ./scripts/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    tmpfs:
+      - /var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
+      interval: 2s
+      timeout: 5s
+      retries: 15
