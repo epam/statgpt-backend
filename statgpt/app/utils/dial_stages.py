@@ -312,9 +312,20 @@ def timed_stage(choice: ChoiceI, *args, **kwargs):
 
 
 @contextmanager
-def delayed_timed_stage(choice: ChoiceI, *args, **kwargs):
-    """Context manager for creating a delayed timed stage."""
-    stage_generator = DelayedStage(lambda: choice.create_stage(*args, **kwargs))
+def delayed_timed_stage(
+    choice: ChoiceI, *args, name: str | Callable[[], str] | None = None, **kwargs
+):
+    """Context manager for creating a delayed timed stage.
+
+    ``name`` may be a callable, called only when the stage opens, so the name can reflect what
+    happened before the first content arrived."""
+
+    def create_stage():
+        if name is None:
+            return choice.create_stage(*args, **kwargs)
+        return choice.create_stage(*args, name=name() if callable(name) else name, **kwargs)
+
+    stage_generator = DelayedStage(create_stage)
     with _add_timing_to_stage(stage_generator) as stage:
         yield stage
 

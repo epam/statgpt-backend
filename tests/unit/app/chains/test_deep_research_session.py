@@ -76,6 +76,50 @@ class TestFromState:
         assert session.turns[0].assistant_content == "a"
 
 
+def _turn(user_message: str, deep_research_state: dict | None = None) -> DeepResearchTurn:
+    return DeepResearchTurn(
+        user_message=user_message,
+        assistant_content="a",
+        deep_research_state=deep_research_state or {},
+    )
+
+
+def _query_state(query) -> dict:
+    return {"preparation": {"current_query": query}}
+
+
+class TestLatestQuery:
+    def test_newest_turn_wins(self):
+        session = DeepResearchSession(
+            turns=[_turn("start", _query_state("first")), _turn("more", _query_state("second"))]
+        )
+        assert session.latest_query == "second"
+
+    def test_older_turn_used_when_newest_has_no_query(self):
+        session = DeepResearchSession(
+            turns=[_turn("start", _query_state("first")), _turn("more", {"preparation": {}})]
+        )
+        assert session.latest_query == "first"
+
+    def test_malformed_state_is_ignored(self):
+        session = DeepResearchSession(
+            turns=[
+                _turn("start", _query_state("first")),
+                _turn("a", {"preparation": "not a dict"}),
+                _turn("b", _query_state(42)),
+                _turn("c", _query_state("   ")),
+            ]
+        )
+        assert session.latest_query == "first"
+
+    def test_falls_back_to_the_original_question(self):
+        session = DeepResearchSession(turns=[_turn("start"), _turn("more")])
+        assert session.latest_query == "start"
+
+    def test_empty_session_has_no_query(self):
+        assert DeepResearchSession().latest_query is None
+
+
 class TestDropFromState:
     def test_removes_session(self):
         state = {

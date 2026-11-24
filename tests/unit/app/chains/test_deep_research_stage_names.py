@@ -1,8 +1,8 @@
 """Stage names of the Deep Research tools.
 
 The resume tool is built from the start tool's config but is called with a `message`, so it has its
-own `resumeStagesConfig` templates and exposes the session's original question — which lives in the
-conversation state, not in the tool arguments.
+own `resumeStagesConfig` templates and exposes the session's original question and Deep Research's
+latest query — which live in the conversation state, not in the tool arguments.
 """
 
 import pytest
@@ -61,8 +61,8 @@ def _resume_tool(details_overrides: dict | None = None) -> ResumeDeepResearchToo
 class TestResumeStagesConfigDefaults:
     def test_defaults_applied_when_block_is_omitted(self):
         config = _resume_tool()._resume_stages_config
-        assert config.tool_call_name == "Researching: {original_question}"
-        assert config.tool_result_name == "Research result: {original_question}"
+        assert config.tool_call_name == "Researching: {query}"
+        assert config.tool_result_name == "Research result: {query}"
         assert config.missing_question_name == "Continue researching"
 
     def test_camel_case_overrides_parse(self):
@@ -89,6 +89,45 @@ class TestResumeStageNames:
         assert call_name == "Researching: GDP of Ukraine"
         assert result_name == "Research result: GDP of Ukraine"
 
+    def test_query_is_the_latest_query_deep_research_stored(self):
+        session = DeepResearchSession(
+            turns=[
+                DeepResearchTurn(
+                    user_message="forecast vs consensus",
+                    assistant_content="Which consensus?",
+                    deep_research_state={
+                        "preparation": {"current_query": "Forecast vs consensus."}
+                    },
+                ),
+                DeepResearchTurn(
+                    user_message="any",
+                    assistant_content="Plan: ...",
+                    deep_research_state={
+                        "preparation": {"current_query": "Forecast vs a suitable consensus source."}
+                    },
+                ),
+            ]
+        )
+        call_name, result_name = _render(_resume_tool(), {"message": "m"}, _inputs(session))
+        assert call_name == "Researching: Forecast vs a suitable consensus source."
+        assert result_name == "Research result: Forecast vs a suitable consensus source."
+
+    def test_original_question_placeholder_keeps_the_start_question(self):
+        session = DeepResearchSession(
+            turns=[
+                DeepResearchTurn(
+                    user_message="forecast vs consensus",
+                    assistant_content="Plan: ...",
+                    deep_research_state={"preparation": {"current_query": "Rewritten query."}},
+                )
+            ]
+        )
+        tool = _resume_tool(
+            {"resumeStagesConfig": {"toolCallName": "Researching: {original_question}"}}
+        )
+        call_name, _ = _render(tool, {"message": "m"}, _inputs(session))
+        assert call_name == "Researching: forecast vs consensus"
+
     def test_message_placeholder_renders_the_tool_argument(self):
         tool = _resume_tool({"resumeStagesConfig": {"toolCallName": "Resuming: {message}"}})
         call_name, _ = _render(tool, {"message": "yes, go ahead"}, _inputs(_session("q")))
@@ -102,6 +141,16 @@ class TestResumeStageNames:
         call_name, result_name = _render(tool, {"message": "m"}, _inputs(session))
         assert call_name == "Carrying on"
         assert result_name == "Carrying on"
+
+    @pytest.mark.parametrize(
+        "template", ["Researching: {query}", "Researching: {original_question}"]
+    )
+    def test_missing_question_replaces_either_placeholder(self, template: str):
+        tool = _resume_tool(
+            {"resumeStagesConfig": {"toolCallName": template, "missingQuestionName": "Carrying on"}}
+        )
+        call_name, _ = _render(tool, {"message": "m"}, _inputs(None))
+        assert call_name == "Carrying on"
 
     def test_fallback_leaves_templates_without_the_question_alone(self):
         tool = _resume_tool(
