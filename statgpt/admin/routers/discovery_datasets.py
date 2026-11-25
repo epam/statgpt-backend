@@ -31,7 +31,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 import statgpt.common.models as models
 import statgpt.common.schemas as schemas
 from statgpt.admin.auth.auth_context import SystemUserAuthContext
-from statgpt.admin.auth.user import User, require_jwt_auth
+from statgpt.admin.auth.schemas import User
+from statgpt.admin.auth.user import require_jwt_auth
 from statgpt.admin.responses import ClosingStreamingResponse
 from statgpt.admin.services import AdminPortalDiscoveryDatasetService as DiscoveryDatasetService
 from statgpt.admin.services import AdminPortalDiscoveryIndexingJobService as IndexingJobService

@@ -12,7 +12,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from statgpt.admin.auth.auth_context import SystemUserAuthContext
-from statgpt.admin.auth.user import User
+from statgpt.admin.auth.schemas import User
 from statgpt.admin.services import prepared_downloads
 from statgpt.admin.services.exceptions import (
     PreparedDownloadChannelNotFoundError,
