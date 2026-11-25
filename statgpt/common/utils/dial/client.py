@@ -6,6 +6,8 @@ from typing import BinaryIO
 from aidial_client import AsyncDial
 from pydantic import SecretStr
 
+from statgpt.common.utils.async_utils import await_cancellation_safe
+
 _log = logging.getLogger(__name__)
 
 
@@ -78,7 +80,7 @@ async def open_file_stream(
         dial = await stack.enter_async_context(dial_client_factory(base_url, api_key))
         download = await stack.enter_async_context(dial.files.stream_download(url))
     except BaseException:
-        await stack.aclose()
+        await await_cancellation_safe(stack.aclose())
         raise
 
     content_type = download.content_type or 'application/octet-stream'

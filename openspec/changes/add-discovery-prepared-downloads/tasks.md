@@ -38,3 +38,8 @@
 
 - [x] 6.1 Mark the direct-export GET operation as deprecated in OpenAPI and recommend the preparation/download flow in its operation description and `statgpt/admin/README.md`; preserve availability and the existing runtime contract, without a removal deadline or additional response headers.
 - [x] 6.2 Extend router/OpenAPI tests to assert the legacy GET's deprecation flag and replacement guidance, non-deprecated preparation/download operations and unchanged direct-file behavior; run relevant tests, formatting/lint checks and OpenSpec validation.
+
+## 7. Opening-phase cancellation cleanup
+
+- [x] 7.1 Protect the shared streaming helper's opening-failure cleanup against repeated cancellation and add a regression test that verifies closure before cancellation propagates.
+- [x] 7.2 Run relevant unit tests, formatting/lint checks and OpenSpec validation.

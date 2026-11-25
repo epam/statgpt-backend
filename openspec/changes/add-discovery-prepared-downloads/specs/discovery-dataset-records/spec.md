@@ -119,6 +119,10 @@ A storage outage while opening a download SHALL answer 502 rather than success. 
 - **WHEN** a client disconnects during retrieval or the response task is cancelled after storage resources have opened
 - **THEN** those resources are closed despite the disconnect or cancellation
 
+#### Scenario: Repeated cancellation while opening storage
+- **WHEN** retrieval is cancelled after the storage client opens but before the file stream opens, and cancellation repeats while closing the client
+- **THEN** client cleanup completes before cancellation propagates, even though no streaming response has been constructed
+
 #### Scenario: Response send fails before the first body chunk
 - **WHEN** storage resources have opened but sending the response fails before the first body chunk
 - **THEN** those resources are closed even though body iteration did not complete
