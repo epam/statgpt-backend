@@ -31,8 +31,8 @@
 
 - [x] 5.1 Run `make lint` and `make test_unit` on Python 3.13; verify both pass (flake8, black, isort, autoflake, mypy, import check; all unit tests)
 - [x] 5.2 Smoke-test the entry points with `PYDANTIC_V2=True`: import `statgpt.app.app` and run `python -m statgpt.cli help`; verify both start without errors and report numpy 2.x and asyncpg 0.30
-- [ ] 5.3 On PR #827, verify that CI builds both images on `python:3.13-alpine`, the Trivy scan passes, and the integration tests (`make test_integration` against the test DB containers) pass
-- [ ] 5.4 Check [statgpt-helm](https://github.com/epam/statgpt-helm) for hard-coded `python3.11` paths or interpreter assumptions; verify a search of the chart finds none, or open a follow-up issue there
+- [x] 5.3 On PR #827, verify that CI builds both images on `python:3.13-alpine`, the Trivy scan passes, and the integration tests (`make test_integration` against the test DB containers) pass
+- [x] 5.4 Check [statgpt-helm](https://github.com/epam/statgpt-helm) for hard-coded `python3.11` paths or interpreter assumptions; verify a search of the chart finds none, or open a follow-up issue there
 
 ## Workflow follow-up
 
