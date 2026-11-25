@@ -6,11 +6,13 @@ Sets failed status for any records that were left in a non-final state.
 import asyncio
 import logging
 
+from statgpt.admin.auth.auth_context import SystemUserAuthContext
 from statgpt.admin.services import (
     AdminPortalChannelService,
     AdminPortalDataSetService,
     AdminPortalDiscoveryIndexingJobService,
 )
+from statgpt.admin.services.prepared_downloads import PreparedDownloadService
 from statgpt.common.models import get_session_context_manager, optional_msi_token_manager_context
 
 _log = logging.getLogger(__name__)
@@ -61,6 +63,15 @@ async def _fix_discovery_indexing_jobs() -> None:
         _log.exception("Error fixing discovery indexing job statuses:")
 
 
+async def _cleanup_prepared_downloads() -> None:
+    try:
+        async with get_session_context_manager() as session:
+            service = PreparedDownloadService(session)
+            await service.cleanup(auth_context=SystemUserAuthContext())
+    except Exception:
+        _log.exception("Error cleaning up prepared downloads:")
+
+
 async def fix_statuses() -> None:
     """Fix statuses from previous runs by setting failed status for stuck records."""
     await _fix_channel_dataset_versions()
@@ -68,6 +79,7 @@ async def fix_statuses() -> None:
     await _fix_auto_update_jobs()
     await _fix_deduplication_jobs()
     await _fix_discovery_indexing_jobs()
+    await _cleanup_prepared_downloads()
 
 
 async def main():
