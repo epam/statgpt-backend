@@ -15,7 +15,8 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from statgpt.admin.auth.auth_context import SystemUserAuthContext
-from statgpt.admin.auth.user import User, require_jwt_auth
+from statgpt.admin.auth.schemas import User
+from statgpt.admin.auth.user import require_jwt_auth
 from statgpt.admin.exception_handlers import register_exception_handlers
 from statgpt.admin.routers import discovery_datasets as router
 from statgpt.admin.services import prepared_downloads

@@ -9,7 +9,7 @@ from sqlalchemy import and_, delete, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from statgpt.admin.auth.user import User
+from statgpt.admin.auth.schemas import User
 from statgpt.admin.services.exceptions import (
     PreparedDownloadChannelNotFoundError,
     PreparedDownloadExpiredError,
