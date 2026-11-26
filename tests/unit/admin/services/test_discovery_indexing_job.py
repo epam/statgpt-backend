@@ -116,8 +116,8 @@ def _record(**overrides: Any) -> models.DiscoveryDataset:
 class _Spy:
     """The collaborators `process_job` reaches for, replaced wholesale.
 
-    `commits` records the state of the job row and of the records at every commit, which is
-    the only way to assert that the verdicts were durable *before* the network stage ran.
+    `commits` records the state of the job row and of the records at every commit, so the
+    orchestration tests can assert that commits happen before the next network stage.
     """
 
     def __init__(
@@ -140,6 +140,7 @@ class _Spy:
         self.counts = counts or PublishCounts(upserted=1)
         self.area_counts = area_counts or PublishCounts(upserted=2, deleted=1, skipped=3)
         self.commits: list[dict[str, Any]] = []
+        self.commits_before_vocabulary: list[dict[str, Any]] = []
         self.published: list[dict[str, Any]] = []
         self.area_records: list[models.DiscoveryDataset] = []
         self.stages: list[str] = []
@@ -252,6 +253,7 @@ class _Spy:
         )
 
     async def _publish_areas(self, records: list[models.DiscoveryDataset]) -> PublishCounts:
+        self.commits_before_vocabulary = list(self.commits)
         if self._area_error is not None:
             raise self._area_error
         self.stages.append("reference-areas")
@@ -590,6 +592,10 @@ async def test_the_vocabulary_is_published_after_the_documents(
     assert spy.applications == [_APPLICATION, _AREA_APPLICATION]
     assert spy.area_publisher_channel == "statgpt-gtdc"
     assert spy.area_publisher_force is True
+    record_results = spy.commits_before_vocabulary[-1]
+    assert record_results["job_status"] is schemas.PreprocessingStatusEnum.IN_PROGRESS
+    assert record_results["published_calls"] == 1
+    assert record_results["indexing"] == [schemas.DiscoveryIndexingStatus.INDEXED]
     assert spy.job.status is schemas.PreprocessingStatusEnum.COMPLETED
     assert spy.job.details is not None
     assert "Reference-area vocabulary: published 2, removed 1, unchanged 3." in spy.job.details
@@ -605,6 +611,10 @@ async def test_a_channel_without_a_vocabulary_skips_the_stage(
 
     assert spy.stages == ["summarize", "verify:documents", "documents"]
     assert spy.applications == [_APPLICATION]
+    record_results = spy.commits[-2]
+    assert record_results["job_status"] is schemas.PreprocessingStatusEnum.IN_PROGRESS
+    assert record_results["published_calls"] == 1
+    assert record_results["indexing"] == [schemas.DiscoveryIndexingStatus.INDEXED]
     assert spy.job.status is schemas.PreprocessingStatusEnum.COMPLETED
     assert spy.job.details is not None
     assert "Reference-area vocabulary" not in spy.job.details
@@ -623,9 +633,36 @@ async def test_a_failed_vocabulary_fails_the_job(monkeypatch: pytest.MonkeyPatch
     assert spy.job.status is schemas.PreprocessingStatusEnum.FAILED
     assert spy.job.reason_for_failure is not None
     assert "vocabulary channel unreachable" in spy.job.reason_for_failure
-    # The records were published all the same, and their statuses were committed.
     assert spy.stages == ["summarize", "verify:documents", "verify:reference-areas", "documents"]
-    assert spy.records[0].indexing_status is schemas.DiscoveryIndexingStatus.INDEXED
+    record_results = spy.commits_before_vocabulary[-1]
+    assert record_results["job_status"] is schemas.PreprocessingStatusEnum.IN_PROGRESS
+    assert record_results["published_calls"] == 1
+    assert record_results["indexing"] == [schemas.DiscoveryIndexingStatus.INDEXED]
+    spy.session.rollback.assert_awaited_once()
+
+
+@pytest.mark.parametrize("reference_areas", [False, True])
+async def test_a_failed_record_commit_stops_the_run_before_vocabulary_publishing(
+    monkeypatch: pytest.MonkeyPatch, reference_areas: bool
+) -> None:
+    spy = _Spy(monkeypatch, channel=_channel(reference_areas=reference_areas))
+
+    async def commit() -> None:
+        if spy.published and spy.job.status is schemas.PreprocessingStatusEnum.IN_PROGRESS:
+            raise RuntimeError("record publishing commit failed")
+        await spy._on_commit()
+
+    spy.session.commit.side_effect = commit
+
+    await spy.service.process_job(job_id=42)
+
+    assert spy.job.status is schemas.PreprocessingStatusEnum.FAILED
+    assert spy.job.reason_for_failure is not None
+    assert "record publishing commit failed" in spy.job.reason_for_failure
+    assert len(spy.published) == 1
+    assert spy.commits_before_vocabulary == []
+    assert "reference-areas" not in spy.stages
+    spy.session.rollback.assert_awaited_once()
 
 
 async def test_the_vocabulary_covers_only_records_with_a_live_document(

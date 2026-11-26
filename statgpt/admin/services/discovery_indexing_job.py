@@ -337,9 +337,9 @@ class AdminPortalDiscoveryIndexingJobService(DbServiceBase):
         already done every bit of its work - once per run, until someone fixed the
         configuration.
 
-        The indexing status of each record is written by the publishers; this only owns the
-        clients' lifetime, so the connection pools are closed when the run ends rather than
-        held for as long as the process lives.
+        The record publisher writes indexing results in place; this commits them before
+        publishing the vocabulary, so a vocabulary failure cannot roll them back. It also
+        owns the clients' lifetime, closing their connection pools when the run ends.
         """
         async with GenericRagIngestionClient.for_application(
             self._rag_application_id(channel)
@@ -349,7 +349,9 @@ class AdminPortalDiscoveryIndexingJobService(DbServiceBase):
 
             if vocabulary_application_id is None:
                 await publisher.verify_metadata_schema()
-                return await publisher.publish(records, held=held), None
+                counts = await publisher.publish(records, held=held)
+                await self._session.commit()
+                return counts, None
 
             async with GenericRagIngestionClient.for_application(
                 vocabulary_application_id
@@ -361,6 +363,7 @@ class AdminPortalDiscoveryIndexingJobService(DbServiceBase):
                 await vocabulary_publisher.verify_metadata_schema()
 
                 counts = await publisher.publish(records, held=held)
+                await self._session.commit()
                 return counts, await vocabulary_publisher.publish(
                     _with_live_document(records, held)
                 )
