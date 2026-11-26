@@ -124,6 +124,7 @@ from .glossary_of_terms import (
 )
 from .jobs import ClearJobsResult, Job
 from .model_config import EmbeddingsModelConfig, LLMModelConfig
+from .prepared_downloads import PreparedDownloadErrorResponse, PreparedDownloadResponse
 from .tool_details import (
     DeepResearchQueryCheckConfig,
     FakeCall,

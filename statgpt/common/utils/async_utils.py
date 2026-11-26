@@ -1,8 +1,24 @@
 import asyncio
 import functools
 import logging
-from collections.abc import Callable
+from collections.abc import Callable, Coroutine
 from typing import Any
+
+
+async def await_cancellation_safe[T](coro: Coroutine[Any, Any, T]) -> T:
+    """Finish cleanup before propagating cancellation, including repeated cancellation."""
+    task = asyncio.create_task(coro)
+    cancellation: asyncio.CancelledError | None = None
+    try:
+        while not task.done():
+            try:
+                await asyncio.shield(task)
+            except asyncio.CancelledError as exc:
+                cancellation = exc
+        return task.result()
+    finally:
+        if cancellation is not None:
+            raise cancellation
 
 
 def catch_and_log_async(logger: logging.Logger | None = None):

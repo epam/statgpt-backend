@@ -48,6 +48,8 @@ def test_the_defaults_are_todays_csv(client: TestClient, export: AsyncMock) -> N
     response = client.get(_URL)
 
     assert response.status_code == 200
+    assert response.content == b"content"
+    assert set(response.headers) == {"content-type", "content-length", "content-disposition"}
     assert response.headers["content-type"].startswith(MediaTypes.CSV)
     assert 'filename="discovery_datasets.csv"' in response.headers["content-disposition"]
     channel_id, filters, export_format, include_validation = _call_args(export)
@@ -61,6 +63,8 @@ def test_a_workbook_is_labelled_as_one(client: TestClient, export: AsyncMock) ->
     response = client.get(_URL, params={"format": "xlsx", "include_validation": "true"})
 
     assert response.status_code == 200
+    assert response.content == b"content"
+    assert set(response.headers) == {"content-type", "content-length", "content-disposition"}
     assert response.headers["content-type"] == MediaTypes.XLSX
     assert 'filename="discovery_datasets.xlsx"' in response.headers["content-disposition"]
     _, _, export_format, include_validation = _call_args(export)

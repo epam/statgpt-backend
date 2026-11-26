@@ -44,6 +44,26 @@ class AdminServiceError(Exception):
     """Base class for admin service errors mapped to HTTP responses in routers."""
 
 
+class PreparedDownloadNotFoundError(AdminServiceError):
+    def __init__(self) -> None:
+        super().__init__("Prepared download not found.")
+
+
+class PreparedDownloadChannelNotFoundError(AdminServiceError):
+    def __init__(self, channel_id: int) -> None:
+        super().__init__(f"Channel {channel_id} not found.")
+
+
+class PreparedDownloadExpiredError(AdminServiceError):
+    def __init__(self) -> None:
+        super().__init__("Prepared download has expired. Prepare a new export.")
+
+
+class PreparedDownloadStorageError(AdminServiceError):
+    def __init__(self) -> None:
+        super().__init__("Prepared download storage is unavailable. Please try again.")
+
+
 def _is_unique_violation(e: IntegrityError) -> bool:
     return getattr(e.orig, "sqlstate", None) == _UNIQUE_VIOLATION_SQLSTATE
 

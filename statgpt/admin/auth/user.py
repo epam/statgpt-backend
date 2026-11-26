@@ -1,24 +1,16 @@
-from dataclasses import dataclass
-
 from fastapi import Depends, HTTPException
 from fastapi.security import OAuth2PasswordBearer
 from jwt import InvalidTokenError
 
 from statgpt.admin.audit.context import set_audit_context
 from statgpt.admin.auth.oidc import JwtTokenVerifier, TokenValidationError, TokenValidator
+from statgpt.admin.auth.schemas import User
 from statgpt.admin.settings.oidc_auth import oidc_auth_settings
 from statgpt.common.config import logger
 
 oauth2_scheme = OAuth2PasswordBearer(
     tokenUrl="token", auto_error=oidc_auth_settings.oidc_auth_enabled
 )
-
-
-@dataclass(frozen=True)
-class User:
-    id: str
-    username: str
-    name: str
 
 
 async def _require_jwt_auth(token: str = Depends(oauth2_scheme)) -> User:
