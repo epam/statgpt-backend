@@ -1,15 +1,23 @@
 import datetime
 import uuid
 from types import SimpleNamespace
-from typing import Any
+from typing import Any, cast
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from fastapi import HTTPException
+from pytest_mock import MockerFixture
 
 from statgpt.admin.services.dataset import AdminPortalDataSetService
 from statgpt.common import models, schemas
 from statgpt.common.auth.auth_context import AuthContext
+from statgpt.common.data.base.config import (
+    IndicatorDimensionConfig,
+    NonIndicatorDimensionConfig,
+    SpecialDimensionConfig,
+    TimePeriodDimensionConfig,
+)
+from statgpt.common.data.base.enums import SpecialNonIndicatorDimensions
 from statgpt.common.data.sdmx.common.config import SdmxDataSetConfig
 from statgpt.common.schemas.dataset import Status
 
@@ -138,6 +146,54 @@ async def test_metadata_and_null_updates_preserve_stored_config(service, mocker,
     )
 
     assert stored.details == original
+
+
+@pytest.mark.parametrize("replace_existing", [False, True])
+async def test_typed_dimension_discriminators_survive_persistence(
+    service: AdminPortalDataSetService, mocker: MockerFixture, replace_existing: bool
+) -> None:
+    details = {
+        "urn": _DETAILS["urn"],
+        "dimensions": {
+            "INDICATOR": IndicatorDimensionConfig(),
+            "TIME_PERIOD": TimePeriodDimensionConfig(),
+            "FREQ": NonIndicatorDimensionConfig(subtype=SpecialNonIndicatorDimensions.FREQUENCY),
+            "SPECIAL": SpecialDimensionConfig(processor_id="test"),
+        },
+    }
+    expected = {
+        **_DETAILS,
+        "dimensions": {
+            **_DETAILS["dimensions"],
+            "SPECIAL": {"dimensionType": "SPECIAL", "processorId": "test"},
+        },
+    }
+    auth = MagicMock(spec=AuthContext)
+
+    if replace_existing:
+        stored = _stored_dataset({**_DETAILS, "isOfficial": True})
+        service.get_model_by_id = AsyncMock(return_value=stored)
+        mocker.patch(
+            "statgpt.admin.services.dataset.DataSetSerializer.db_to_schema",
+            return_value=_dataset_schema(stored, expected),
+        )
+        await AdminPortalDataSetService.update.__wrapped__(
+            service, stored.id, schemas.DataSetUpdateRequest(details=details), auth
+        )
+    else:
+        request = schemas.DataSetBase(title="Test", data_source_id=3, details=details)
+        await AdminPortalDataSetService.create_dataset.__wrapped__(service, request, auth)
+        stored = cast(MagicMock, service._session).add.call_args.args[0]
+
+    assert stored.details == expected
+    assert (
+        SdmxDataSetConfig.model_validate(stored.details).model_dump(
+            mode="json", by_alias=True, exclude_unset=True
+        )
+        == expected
+    )
+    get_handler = cast(AsyncMock, service._get_handler)
+    assert get_handler.return_value.get_dataset.call_args.kwargs["config"] == expected
 
 
 async def test_invalid_config_is_rejected_before_persistence(service):

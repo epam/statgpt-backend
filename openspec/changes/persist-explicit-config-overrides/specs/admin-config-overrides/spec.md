@@ -29,6 +29,11 @@ Required discriminator tags SHALL survive sparse persistence and config exchange
 - **THEN** the persisted response and config response retain the discriminator identifying that variant
 - **AND** the serialized config can be validated again without adding unrelated omitted defaults
 
+#### Scenario: Typed dataset dimensions use their defaulted tags
+- **WHEN** a valid dataset config contains typed indicator, non-indicator, time-period, or special dimension variants constructed without explicitly passing `dimension_type`
+- **THEN** sparse persistence and config exchange retain each variant's `dimensionType` discriminator
+- **AND** the serialized config can be validated again without adding unrelated omitted defaults or accepting untagged JSON dimensions
+
 ### Requirement: Explicit default values remain overrides
 The system SHALL retain explicitly supplied config values even when they equal the current default. Accepted explicit nulls, false values, zero values, empty strings, empty lists, and empty objects SHALL NOT be removed merely because of their value.
 

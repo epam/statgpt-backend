@@ -15,6 +15,8 @@
 - [x] 2.6 Document the sparse live-config and replacement contract in the admin documentation; verify examples distinguish an omitted key, an explicit default, an omitted top-level `details`, and a required structural discriminator.
 - [x] 2.7 Add model-local normalization in `statgpt/common/schemas/onboarding.py` so typed `PredefinedTextResponse` and `PredefinedDataQueryResponse` construction records their defaulted `response_type` tags as supplied; verify typed channel create/replacement, sparse response/export serialization, and revalidation retain the tags without adding unrelated defaults or relaxing JSON discriminator validation.
 
+- [x] 2.8 Retain defaulted `dimension_type` discriminators for typed dataset dimension variants through model-local normalization in `statgpt/common/data/base/config.py`; add regression tests for sparse dump/revalidation, create/replacement, all four dimension variants, and unchanged rejection of untagged JSON without materializing unrelated defaults.
+
 ## 3. Config reads, exports, and import round trips
 
 - [x] 3.1 Add JSON-mode sparse serialization for typed channel `details` on the entity envelope without changing runtime attribute access or non-config fields; verify single/list/nested HTTP responses and CLI model reserialization omit only absent config keys and retain current aliases.

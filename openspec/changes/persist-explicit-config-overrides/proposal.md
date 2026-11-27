@@ -6,7 +6,7 @@ Channel, data-source, and dataset JSON configs currently materialize Pydantic de
 
 ## What Changes
 
-- Persist validated channel, data-source, and dataset `details` using recursive `exclude_unset=True`; retain explicit values even when they equal a default, including accepted explicit nulls. Preserve required union discriminators as structural metadata through model-local normalization of typed responses.
+- Persist validated channel, data-source, and dataset `details` using recursive `exclude_unset=True`; retain explicit values even when they equal a default, including accepted explicit nulls. Preserve required union discriminators as structural metadata through model-local normalization of typed onboarding responses and dataset dimension variants.
 - Keep submitted configs as whole-object replacements, not nested patches; an omitted top-level `details` continues to leave the stored config unchanged.
 - **BREAKING**: Config reads, write responses, and config exports expose explicit stored overrides rather than filling absent config fields with defaults. Runtime config models still resolve defaults before use.
 - Emit archive version 3 and support imports of versions 1, 2, and 3, retaining existing version-1 discovery restrictions. Older importers reject the new archive version rather than silently materialize omitted defaults.
