@@ -62,6 +62,14 @@ With `--update-unchanged`, the normal config replacement SHALL remove stored ove
 - **WHEN** initialization runs with `--update-unchanged` and an existing database item has no selected config file entry
 - **THEN** that item is neither updated nor deleted by the flag
 
+### Requirement: Existing data-source initialization validates before comparison
+For existing data sources, initialization SHALL validate required inputs before deciding whether to compare or update. A missing `details` key SHALL fail with or without `--update-unchanged`. Creation behavior, accepted empty/null handling, and valid backend metadata-only updates SHALL remain unchanged.
+
+#### Scenario: Existing data-source initialization entry omits details
+- **WHEN** a selected existing data source's initialization entry has no `details` key, whether or not `--update-unchanged` is enabled
+- **THEN** initialization reports that item failed without sending an update request
+- **AND** independent valid items continue to be processed through normal batch failure isolation
+
 ### Requirement: Refresh does not bypass normal safeguards
 `--update-unchanged` SHALL NOT imply `--yes`, bypass config validation or authentication, override processing restrictions, or force reindexing. Dataset updates SHALL retain normal config-propagation results and reporting. External proxy config SHALL retain the `sdmx-proxy-config` ownership and write rules.
 

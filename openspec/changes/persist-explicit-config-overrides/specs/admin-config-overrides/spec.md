@@ -7,7 +7,7 @@ Defines explicit override storage and exchange for channel, data-source, and dat
 ## ADDED Requirements
 
 ### Requirement: Live configs persist only explicit overrides
-Creating or replacing a channel, data-source, or dataset JSON `details` config SHALL persist only explicitly supplied fields after existing validation and normalization. This rule SHALL apply recursively to nested config objects, including objects inside lists and mappings.
+Creating or replacing a channel, data-source, or dataset JSON `details` config SHALL persist only explicitly supplied fields after validation and normalization, except that required union discriminators SHALL remain as structural metadata. This rule SHALL apply recursively to nested config objects, including objects inside lists and mappings.
 
 #### Scenario: Optional channel setting is omitted
 - **WHEN** a valid channel config is saved without `locale`
@@ -18,8 +18,16 @@ Creating or replacing a channel, data-source, or dataset JSON `details` config S
 - **THEN** the stored URN object contains no `version` key
 
 #### Scenario: Defaulted field inside a config collection is omitted
-- **WHEN** an accepted config contains a list or mapping of config objects and a defaulted field is absent from one object
-- **THEN** the persisted object contains no key for that field
+- **WHEN** an accepted config contains a list or mapping of config objects and a defaulted setting other than a required discriminator is absent from one object
+- **THEN** the persisted object contains no key for that setting
+
+### Requirement: Required union discriminators survive sparse serialization
+Required discriminator tags SHALL survive sparse persistence and config exchange even when inferred from a valid typed variant. Model-local normalization SHALL record the tag as supplied without materializing unrelated defaults or relaxing existing discriminator requirements for untyped JSON input.
+
+#### Scenario: Typed onboarding response uses its defaulted tag
+- **WHEN** a valid channel config contains a typed predefined-text or predefined-data-query onboarding response constructed without explicitly passing `response_type`
+- **THEN** the persisted response and config response retain the discriminator identifying that variant
+- **AND** the serialized config can be validated again without adding unrelated omitted defaults
 
 ### Requirement: Explicit default values remain overrides
 The system SHALL retain explicitly supplied config values even when they equal the current default. Accepted explicit nulls, false values, zero values, empty strings, empty lists, and empty objects SHALL NOT be removed merely because of their value.
@@ -33,11 +41,11 @@ The system SHALL retain explicitly supplied config values even when they equal t
 - **THEN** that setting remains present as null in storage and config exchange
 
 #### Scenario: Empty nested override object is supplied
-- **WHEN** a valid config explicitly supplies an empty object for a nested block whose fields all have defaults
+- **WHEN** a valid config explicitly supplies an empty object for a non-discriminated nested block whose fields all have defaults
 - **THEN** the nested block remains present as an empty object without materialized child defaults
 
 ### Requirement: Submitted configs replace existing overrides
-A supplied, accepted JSON `details` config SHALL replace the existing stored config rather than merge into it. Keys absent from the replacement SHALL be removed recursively. Omitting the top-level `details` field SHALL leave the existing stored config unchanged; existing explicit-null handling SHALL remain unchanged.
+A supplied, accepted JSON `details` config SHALL replace the existing stored config rather than merge into it. Keys absent after validation and structural-discriminator normalization SHALL be removed recursively. Omitting the top-level `details` field SHALL leave the existing stored config unchanged; existing explicit-null handling SHALL remain unchanged.
 
 #### Scenario: Override is removed from a replacement
 - **WHEN** an existing config contains an explicit `locale` and a valid replacement omits it
@@ -78,7 +86,7 @@ Read and write responses exposing persisted channel, data-source, or dataset con
 - **THEN** previously absent default keys remain absent
 
 ### Requirement: Config exports preserve explicitness
-Channel config archives SHALL export only explicit overrides for included live channel, data-source, and dataset configs. Importing the exported config into a new item SHALL preserve absent default keys, accepted explicit defaults, and accepted explicit nulls.
+Channel config archives SHALL export explicit overrides and required structural discriminators for included live channel, data-source, and dataset configs without materializing unrelated defaults. Importing the exported config into a new item SHALL preserve absent default keys, accepted explicit defaults, and accepted explicit nulls.
 
 #### Scenario: Export and import a sparse config
 - **WHEN** a valid dataset config omits `isOfficial`, is exported, and is imported as a new dataset
@@ -87,6 +95,25 @@ Channel config archives SHALL export only explicit overrides for included live c
 #### Scenario: Export an explicit default
 - **WHEN** a valid dataset config explicitly stores `isOfficial: false` and is exported and imported
 - **THEN** the explicit false value remains present through the round trip
+
+### Requirement: Archives version sparse-config semantics
+New archives SHALL declare export version 3. The updated backend SHALL support importing versions 1, 2, and 3 while retaining the existing restriction that version-1 archives containing discovery datasets are rejected. Unsupported archive versions SHALL be rejected before any import changes are applied. Existing keys in supported older archives SHALL be treated as explicit rather than inferred to be unset.
+
+#### Scenario: Sparse archive declares its format version
+- **WHEN** the updated backend exports a channel archive
+- **THEN** its metadata declares export version 3
+
+#### Scenario: Older importer receives a sparse archive
+- **WHEN** an importer supporting only archive versions 1 and 2 receives a version-3 archive
+- **THEN** version validation rejects it before importing any records
+
+#### Scenario: Supported older archive is imported
+- **WHEN** the updated backend imports a version-2 archive or a version-1 archive without discovery datasets
+- **THEN** the archive remains accepted and its present config keys remain explicit, including default-valued keys
+
+#### Scenario: Version-1 discovery restriction remains in effect
+- **WHEN** the updated backend receives a version-1 archive containing discovery datasets
+- **THEN** the existing format validation rejects it before importing any records
 
 ### Requirement: Legacy stored keys are not inferred to be unset
 Existing stored config keys SHALL be treated as explicit until the config is replaced. Reads and exports SHALL NOT remove a stored key merely because its value equals a current default. Deploying sparse persistence SHALL NOT trigger a bulk rewrite of existing configs.
@@ -107,11 +134,20 @@ Sparse serialization SHALL be limited to live configuration JSON. Generated iden
 - **THEN** creation retains the existing scalar description behavior rather than omitting a required database column
 
 ### Requirement: Historical resolved configs remain snapshots
-Historical resolved-config JSON and its existing exports SHALL retain their snapshot contract rather than apply the live-config omission policy. APIs deliberately exposing resolved version configs or generated config templates SHALL retain their existing contracts.
+Historical resolved-config JSON and its existing exports SHALL retain their snapshot contract rather than apply the live-config omission policy. Newly created resolved snapshots SHALL record the complete effective config, including defaulted settings and the resolved URN. Existing historical records SHALL NOT be rewritten. APIs deliberately exposing resolved version configs or generated config templates SHALL retain their existing contracts.
 
 #### Scenario: Export includes a resolved version
 - **WHEN** an archive contains both a sparse live dataset config and a historical resolved version config
 - **THEN** the live config stays sparse and the resolved snapshot retains its recorded fields
+
+#### Scenario: Legacy version receives a sparse live-config refresh
+- **WHEN** a dataset's last completed version has no resolved snapshot and propagation of a sparse live config determines that reindexing is not needed
+- **THEN** the new completed pointer version records a complete resolved config, including omitted settings' effective defaults and the resolved URN
+- **AND** the existing legacy version and sparse live config remain unchanged by snapshot creation
+
+#### Scenario: Application default changes after snapshot creation
+- **WHEN** an application default changes after a resolved snapshot has recorded that setting's effective value
+- **THEN** interpreting that historical snapshot continues to use its recorded value rather than the new default
 
 #### Scenario: Metadata selects a resolved version config
 - **WHEN** a metadata endpoint deliberately exposes the last completed version's resolved config

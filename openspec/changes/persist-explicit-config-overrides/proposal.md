@@ -6,13 +6,14 @@ Channel, data-source, and dataset JSON configs currently materialize Pydantic de
 
 ## What Changes
 
-- Persist validated channel, data-source, and dataset `details` using recursive `exclude_unset=True`; retain explicit values even when they equal a default, including accepted explicit nulls.
+- Persist validated channel, data-source, and dataset `details` using recursive `exclude_unset=True`; retain explicit values even when they equal a default, including accepted explicit nulls. Preserve required union discriminators as structural metadata through model-local normalization of typed responses.
 - Keep submitted configs as whole-object replacements, not nested patches; an omitted top-level `details` continues to leave the stored config unchanged.
 - **BREAKING**: Config reads, write responses, and config exports expose explicit stored overrides rather than filling absent config fields with defaults. Runtime config models still resolve defaults before use.
-- Preserve database-owned/generated identities, required scalar values, historical resolved configs, discovery records, and non-config payload serialization.
+- Emit archive version 3 and support imports of versions 1, 2, and 3, retaining existing version-1 discovery restrictions. Older importers reject the new archive version rather than silently materialize omitted defaults.
+- Preserve database-owned/generated identities, required scalar values, existing historical resolved configs, discovery records, and non-config payload serialization. When propagating a sparse live config from a legacy version without a snapshot, reuse the already complete resolved config for the new snapshot.
 - Preserve the existing external ownership, enrichment, and write rules for proxy `proxyConfig`.
 - Add `statgpt content init --update-unchanged` to update selected existing channels, data sources, and datasets even when ordinary change detection would skip them. Replacing their configs removes stored overrides absent from the assembled config files.
-- Keep ordinary initialization idempotent with sparse configs; the new flag does not bypass validation, skip prompts, delete absent records, or force reindexing.
+- Keep ordinary initialization idempotent with sparse configs; separate existing data-source initialization validation from comparison so the new flag does not bypass validation, skip prompts, delete absent records, or force reindexing.
 - Do not bulk rewrite existing database configs; administrators can explicitly refresh selected configured items with the new flag.
 
 ## Capabilities
@@ -28,7 +29,7 @@ None. Existing `sdmx-proxy-config` ownership and external-config behavior, SDMX 
 
 ## Impact
 
-- Backend: admin channel/data-source/dataset write and import/export services, shared channel response serialization, data-source storage serialization, and config comparison paths.
+- Backend: admin channel/data-source/dataset write and import/export services, archive version settings, onboarding response normalization, shared channel response serialization, data-source storage serialization, config comparison paths, and legacy dataset snapshot propagation.
 - CLI: `content init` argument registration and handler/helper plumbing, change detection, help/documentation, and batch tests.
 - API consumers: the Admin Frontend and config/evaluation tooling must tolerate omitted config keys without writing inferred defaults back during unchanged round trips.
 - Related-repository branches were checked and fast-forward pulls completed; source inspection is blocked by this session's allowed-directory settings. Compatibility checks remain an explicit implementation prerequisite; no related-repository edits are authorized here.
