@@ -22,11 +22,11 @@ class ChainParameters:
 
     @staticmethod
     def is_out_of_scope(inputs: dict) -> bool | None:
-        return inputs[ChainParametersConfig.OUT_OF_SCOPE]
+        return inputs.get(ChainParametersConfig.OUT_OF_SCOPE)
 
     @staticmethod
     def get_out_of_scope_reasoning(inputs: dict) -> str | None:
-        return inputs[ChainParametersConfig.OUT_OF_SCOPE_REASONING]
+        return inputs.get(ChainParametersConfig.OUT_OF_SCOPE_REASONING)
 
     @staticmethod
     def get_request(data: dict) -> Request:

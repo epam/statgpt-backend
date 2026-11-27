@@ -7,12 +7,16 @@ from aidial_sdk.chat_completion import Message as DialMessage
 from aidial_sdk.chat_completion import Role
 from langchain_core.messages import AIMessage, SystemMessage, ToolMessage
 
+from statgpt.app.application.channel_completion import CONTINUE_NOTE
 from statgpt.app.config import StateVarsConfig
 from statgpt.app.default_prompts import supreme_agent_default_prompts
 from statgpt.app.utils.message_history import History
 
 _FAILED_TURN_MESSAGE = supreme_agent_default_prompts.failed_turn_message_to_agent
-_SHOWN_ERROR = "You've exceeded your token limit. Please try again in 14 hours 30 minutes"
+_SHOWN_ERROR = (
+    "You've exceeded your token limit for the underlying deployment."
+    f" The limit resets in 14 hours 30 minutes.\n\n{CONTINUE_NOTE}"
+)
 
 
 def _history(answer: DialMessage) -> History:
@@ -118,6 +122,8 @@ def test_turn_stopped_mid_answer_keeps_the_part_shown_before_the_note():
 
 
 def test_turn_stopped_mid_answer_keeps_its_tool_messages_first():
+    """A rate-limited turn saves its tool messages (#831): the agent sees the finished data query
+    first, then the part of the answer shown, then the note quoting the error."""
     turn = History.create_empty()
     turn.add_tool_message(
         AIMessage(content="", tool_calls=[{"name": "data_query", "args": {}, "id": "c1"}])
@@ -138,8 +144,14 @@ def test_turn_stopped_mid_answer_keeps_its_tool_messages_first():
     messages = history.get_langchain_messages(include_tool_messages=True)
 
     assert [m.type for m in messages] == ["human", "ai", "tool", "ai", "system", "human"]
+    assert messages[1].tool_calls[0]["id"] == "c1"
+    assert messages[2] == ToolMessage(content="data", tool_call_id="c1")
     assert messages[3] == AIMessage(content="US GDP grew in 2023, from")
-    assert _SHOWN_ERROR in messages[4].content
+    assert messages[4] == SystemMessage(
+        content=supreme_agent_default_prompts.interrupted_turn_message_to_agent.format(
+            error=_SHOWN_ERROR
+        )
+    )
 
 
 @pytest.mark.parametrize(
@@ -237,9 +249,33 @@ def test_failed_turn_note_is_shown_without_tool_messages():
     ],
 )
 def test_failed_turn_note_invites_a_retry(note):
-    """Without it, a quoted "Please try again in 14 hours" reads to the agent as still in force, so
+    """Without it, a quoted "The limit resets in 14 hours" reads to the agent as still in force, so
     on "continue" it repeated the error instead of answering, after the limit had been lifted."""
     text = " ".join(note.split())  # the prompts wrap their lines
 
     assert "affected only that attempt" in text
     assert "if the user asks to continue or to retry" in text
+
+
+@pytest.mark.parametrize(
+    "note",
+    [
+        supreme_agent_default_prompts.failed_turn_with_error_message_to_agent,
+        supreme_agent_default_prompts.interrupted_turn_message_to_agent,
+    ],
+)
+def test_note_quoting_an_error_covers_an_error_that_said_to_wait(note):
+    """The rate-limit message tells the user to wait for the limit to reset (#831)."""
+    text = " ".join(note.split())
+
+    assert "even if it said to wait or to try again later" in text
+
+
+def test_interrupted_turn_note_continues_on_continue_and_repeats_on_retry():
+    """On "Continue" the agent goes on without repeating the part shown; on "retry" it gives
+    the full response (#831)."""
+    text = " ".join(supreme_agent_default_prompts.interrupted_turn_message_to_agent.split())
+
+    assert "If the user asks to continue, go on from where the response above stopped" in text
+    assert "don't repeat the part the user already saw" in text
+    assert "If the user asks to retry, give the full response." in text

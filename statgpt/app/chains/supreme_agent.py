@@ -397,57 +397,71 @@ class SupremeAgentExecutor:
 
         skip_tools_execution = state.get(StateVarsConfig.CMD_SKIP_TOOLS_EXECUTION, False)
 
-        for i in range(self._channel_config.supreme_agent.max_agent_iterations):
-            name = f"[DEBUG] Supreme Agent run {i + 1}"
-            with optional_timed_stage(choice=choice, name=name, enabled=debug):
-                response = await supreme_agent.run(history, configuration)
-                logger.info(f"Response: {response.resp!r}")
+        try:
+            for i in range(self._channel_config.supreme_agent.max_agent_iterations):
+                name = f"[DEBUG] Supreme Agent run {i + 1}"
+                with optional_timed_stage(choice=choice, name=name, enabled=debug):
+                    response = await supreme_agent.run(history, configuration)
+                    logger.info(f"Response: {response.resp!r}")
 
-            tool_data_query_artifacts: list[DataQueryArtifact] = []
+                tool_data_query_artifacts: list[DataQueryArtifact] = []
 
-            if tool_calls := response.resp.tool_calls:
-                history.add_chunk_as_tool_message(response.resp)
+                if tool_calls := response.resp.tool_calls:
+                    history.add_chunk_as_tool_message(response.resp)
 
-                res: list[ToolMessage] = await asyncio.gather(
-                    *(tool_executor.call_tool(tool_call, inputs) for tool_call in tool_calls)
-                )
-
-                for tool_msg in res:
-                    history.add_tool_message(tool_msg)
-
-                    artifact = tool_msg.artifact
-                    if artifact and isinstance(artifact, DataQueryArtifact):
-                        tool_data_query_artifacts.append(artifact)
-                        data_query_artifacts[tool_msg.tool_call_id] = artifact
-
-                if tool_data_query_artifacts:
-                    # await data_displayer.display(tool_data_query_artifacts)
-                    content = await data_displayer.get_system_message_content(
-                        tool_data_query_artifacts
+                    res: list[ToolMessage] = await asyncio.gather(
+                        *(tool_executor.call_tool(tool_call, inputs) for tool_call in tool_calls)
                     )
-                    history.add_tool_message(SystemMessage(content=content))
 
-                if skip_tools_execution:
-                    logger.info(
-                        "Further supreme agent runs are skipped due to tools execution skip"
-                    )
-                    return ""
-            elif response.finished:
-                if response.first_token_time is not None:
-                    self._log_performance(inputs, response.start_time, response.first_token_time)
+                    for tool_msg in res:
+                        history.add_tool_message(tool_msg)
 
-                if data_query_artifacts:
-                    await data_displayer.display(data_query_artifacts)
+                        artifact = tool_msg.artifact
+                        if artifact and isinstance(artifact, DataQueryArtifact):
+                            tool_data_query_artifacts.append(artifact)
+                            data_query_artifacts[tool_msg.tool_call_id] = artifact
 
-                return _content_to_str(response.resp.content)
+                    if tool_data_query_artifacts:
+                        content = await data_displayer.get_system_message_content(
+                            tool_data_query_artifacts
+                        )
+                        history.add_tool_message(SystemMessage(content=content))
+
+                    if skip_tools_execution:
+                        logger.info(
+                            "Further supreme agent runs are skipped due to tools execution skip"
+                        )
+                        return ""
+                elif response.finished:
+                    if response.first_token_time is not None:
+                        self._log_performance(
+                            inputs, response.start_time, response.first_token_time
+                        )
+                    answer = _content_to_str(response.resp.content)
+                    break
+                else:
+                    # Not finished due to error and no tool calls
+                    # Let's add the chunk to history and try again (if retries are left)
+                    history.add_chunk_as_tool_message(response.resp)
             else:
-                # Not finished due to error and no tool calls
-                # Let's add the chunk to history and try again (if retries are left)
-                history.add_chunk_as_tool_message(response.resp)
+                answer = (
+                    '\n\n[WARNING] Maximum number of agent loop iterations reached.'
+                    ' Please enter "continue" to proceed.'
+                )
+                choice.append_content(answer)
+        except Exception:
+            # A later turn ("Continue") can answer from the saved tool responses without running
+            # the queries again, so their data is attached to this failed turn.
+            if data_query_artifacts:
+                try:
+                    await data_displayer.display(data_query_artifacts)
+                except Exception:
+                    logger.exception("Failed to add the data attachments of a failed turn")
+            raise
 
-        warning_msg = '\n\n[WARNING] Maximum number of agent loop iterations reached. Please enter "continue" to proceed.'
-        choice.append_content(warning_msg)
-        return warning_msg
+        if data_query_artifacts:
+            await data_displayer.display(data_query_artifacts)
+        return answer
 
     async def _resolve_deep_research_mode(self, inputs: dict) -> _DeepResearchMode | None:
         """Decide whether this turn is a Deep Research turn, and which kind.

@@ -1,15 +1,17 @@
 from statgpt.app.utils.dial_stages import ChoiceI
 
-_DEEP_RESEARCH_ERROR_TEXT = "Deep Research could not complete this request. Please try again."
+# Without "try again": the Continue note that follows the DIAL error warns against "Try again".
+DEEP_RESEARCH_ERROR_TEXT = "Deep Research could not complete this request."
 
-DEEP_RESEARCH_ERROR_MESSAGE = f"\n\n{_DEEP_RESEARCH_ERROR_TEXT}"
+# Appended to an answer that otherwise succeeds, so it has no Continue button or note.
+DEEP_RESEARCH_ERROR_MESSAGE = f"\n\n{DEEP_RESEARCH_ERROR_TEXT} Please try again."
 
 
 class DeepResearchFailedError(Exception):
     """The Deep Research deployment failed; mapped to a DIAL error by `ChannelCompletion`."""
 
     def __init__(self, display_message: str | None = None):
-        self.display_message = display_message or _DEEP_RESEARCH_ERROR_TEXT
+        self.display_message = display_message or DEEP_RESEARCH_ERROR_TEXT
         super().__init__(self.display_message)
 
 
