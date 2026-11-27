@@ -45,10 +45,14 @@ class StatGptSdmxProxyDataSourceConfig(SdmxDataSourceConfig):
         return config_utils.replace_env(self.config_url)
 
     def dump_for_storage(self) -> dict[str, Any]:
-        return self.model_dump(mode='json', by_alias=True, exclude={'proxy_config'})
+        return self.model_dump(
+            mode='json', by_alias=True, exclude_unset=True, exclude={'proxy_config'}
+        )
 
     def matches_stored(self, stored: DataSourceConfig) -> bool:
-        if self.dump_for_storage() != stored.dump_for_storage():
+        if self.model_dump(
+            mode='json', by_alias=True, exclude={'proxy_config'}
+        ) != stored.model_dump(mode='json', by_alias=True, exclude={'proxy_config'}):
             return False
         if self.proxy_config is None:
             # The incoming config leaves the proxy configuration to the config server, so the

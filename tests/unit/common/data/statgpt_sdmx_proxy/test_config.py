@@ -63,9 +63,70 @@ def test_proxy_config_is_not_persisted() -> None:
     assert config.model_dump(mode='json', by_alias=True)["proxyConfig"] == {"agencies": []}
 
 
+@pytest.mark.parametrize("config_class", [SdmxDataSourceConfig, StatGptSdmxProxyDataSourceConfig])
+@pytest.mark.parametrize(
+    "overrides",
+    [
+        {},
+        {"locale": "en", "dataExplorerUrl": None, "defaultValueCodes": []},
+        {"rateLimits": {}},
+        {
+            "sdmxConfig": {
+                "id": "proxy",
+                "url": "https://example.invalid",
+                "name": "proxy",
+                "supports": {"preview": False},
+            }
+        },
+    ],
+)
+def test_storage_preserves_explicit_nested_overrides(config_class, overrides) -> None:
+    details = {
+        "sdmxConfig": {"id": "proxy", "url": "https://example.invalid", "name": "proxy"},
+        **overrides,
+    }
+    config = config_class.model_validate(details)
+
+    assert config.dump_for_storage() == details
+    assert config.locale == "en"
+    assert config.sdmx_config.data_content_type == "JSON"
+
+
+def test_sparse_proxy_storage_still_excludes_external_fields() -> None:
+    config = _proxy_config(proxy_config={"agencies": []}, locale="en")
+
+    assert config.dump_for_storage() == {
+        "sdmxConfig": {"id": "proxy", "url": "https://example.invalid", "name": "proxy"},
+        "locale": "en",
+    }
+
+
 def test_proxy_config_is_exposed_in_the_json_schema() -> None:
     """The admin portal renders its editor from this schema."""
     assert "proxyConfig" in StatGptSdmxProxyDataSourceConfig.model_json_schema()["properties"]
+
+
+@pytest.mark.parametrize("config_class", [SdmxDataSourceConfig, StatGptSdmxProxyDataSourceConfig])
+def test_effective_equality_is_independent_of_sparse_storage(config_class) -> None:
+    incoming = config_class.model_validate(
+        {"sdmxConfig": {"id": "proxy", "url": "https://example.invalid", "name": "proxy"}}
+    )
+    stored = config_class.model_validate(incoming.model_dump(mode="json", by_alias=True))
+
+    assert incoming.dump_for_storage() != stored.dump_for_storage()
+    assert incoming.matches_stored(stored)
+    assert stored.matches_stored(incoming)
+
+
+def test_proxy_effective_equality_compares_external_config_only_when_incoming_supplies_it() -> None:
+    incoming = _proxy_config()
+    stored = StatGptSdmxProxyDataSourceConfig.model_validate(
+        _proxy_config(proxy_config={"agencies": []}).model_dump(mode="json", by_alias=True)
+    )
+
+    assert incoming.matches_stored(stored)
+    assert not stored.matches_stored(incoming)
+    assert _proxy_config(proxy_config={"agencies": []}).matches_stored(stored)
 
 
 def test_matches_stored_ignores_proxy_config_when_incoming_omits_it() -> None:

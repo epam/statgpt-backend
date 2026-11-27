@@ -15,7 +15,13 @@ import yaml
 
 from statgpt.cli.commands.content import _process_datasets, _verify_datasets
 from statgpt.cli.shared.batch_report import BatchReport
-from statgpt.common.schemas import Channel, DataSet, DataSource, DataSourceType
+from statgpt.common.schemas import (
+    Channel,
+    DataSet,
+    DataSetUpdateResponse,
+    DataSource,
+    DataSourceType,
+)
 from statgpt.common.schemas.dataset import Status
 
 _NOW = datetime.datetime(2026, 1, 1)
@@ -71,6 +77,7 @@ class _StubAdminClient:
     def __init__(self, failing_titles: set[str] | None = None):
         self._failing_titles = failing_titles or set()
         self.created: list[str] = []
+        self.updated: list[str] = []
         self.linked: list[tuple[int, int]] = []
         self.all_datasets: list[DataSet] = []
 
@@ -80,6 +87,15 @@ class _StubAdminClient:
             raise RuntimeError(f"unsupported DSD for {title}")
         self.created.append(title)
         return _dataset(title)
+
+    async def update_dataset(
+        self, dataset_id: int, ds_cfg: dict[str, Any]
+    ) -> DataSetUpdateResponse:
+        title = ds_cfg["title"]
+        if title in self._failing_titles:
+            raise RuntimeError(f"unsupported DSD for {title}")
+        self.updated.append(title)
+        return DataSetUpdateResponse(dataset=_dataset(title))
 
     async def get_channel_datasets(self, channel_id: int) -> list[Any]:
         return []
@@ -107,6 +123,9 @@ async def _run(
     channels: dict[str, Any] | None = None,
     data_sources: dict[str, DataSource] | None = None,
     link_channels: bool = True,
+    update_unchanged: bool = False,
+    existing_datasets: dict[str, DataSet] | None = None,
+    dataset_ids: set[str] | None = None,
 ) -> tuple[BatchReport, list[tuple[str, DataSet]]]:
     _write_configs(os.path.join(str(tmp_path), "datasets"), configs)
     report = BatchReport(title="Summary")
@@ -118,9 +137,10 @@ async def _run(
         str(tmp_path),
         {_SOURCE_TITLE: _data_source()} if data_sources is None else data_sources,
         {"channel-a": _channel()} if channels is None else channels,
-        {},
-        None,
+        existing_datasets or {},
+        dataset_ids,
         link_channels=link_channels,
+        update_unchanged=update_unchanged,
     )
     return report, touched
 
@@ -326,3 +346,56 @@ async def test_verification_is_quiet_when_every_dataset_is_online() -> None:
     )
 
     assert not report.items
+
+
+@pytest.mark.asyncio
+async def test_a_failed_refresh_does_not_stop_independent_existing_or_new_datasets(
+    tmp_path,
+) -> None:
+    client = _StubAdminClient(failing_titles={"DF_B"})
+    existing = {str(dataset.id_): dataset for dataset in [_dataset("DF_A"), _dataset("DF_B")]}
+    configs = [_dataset_cfg(name) for name in ["DF_A", "DF_B", "DF_C"]]
+    for config in configs[:2]:
+        config["id_"] = str(_dataset(config["title"]).id_)
+
+    report, touched = await _run(
+        tmp_path,
+        {"datasets.yaml": configs},
+        client=client,
+        update_unchanged=True,
+        existing_datasets=existing,
+        link_channels=False,
+    )
+
+    assert client.updated == ["DF_A"]
+    assert client.created == ["DF_C"]
+    assert [item.item_id for item in report.failed] == ["AG:DF_B(1.0)"]
+    assert [dataset.title for _, dataset in touched] == ["DF_A", "DF_C"]
+    assert report.has_failures
+
+
+@pytest.mark.asyncio
+async def test_refresh_leaves_unselected_and_unlisted_datasets_untouched(tmp_path) -> None:
+    client = _StubAdminClient()
+    existing = {
+        str(dataset.id_): dataset
+        for dataset in [_dataset("DF_A"), _dataset("DF_B"), _dataset("DF_C")]
+    }
+    configs = [_dataset_cfg(name) for name in ["DF_A", "DF_B"]]
+    for config in configs:
+        config["id_"] = str(_dataset(config["title"]).id_)
+
+    report, touched = await _run(
+        tmp_path,
+        {"datasets.yaml": configs},
+        client=client,
+        update_unchanged=True,
+        existing_datasets=existing,
+        dataset_ids={"AG:DF_A(1.0)"},
+        link_channels=False,
+    )
+
+    assert client.updated == ["DF_A"]
+    assert client.created == []
+    assert [dataset.title for _, dataset in touched] == ["DF_A"]
+    assert [item.item_id for item in report.items] == ["AG:DF_A(1.0)"]

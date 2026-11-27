@@ -657,7 +657,7 @@ class AdminPortalDataSetService(DataSetService):
             id_=data.id_,
             title=data.title,
             source_id=data.data_source_id,
-            details=dataset_config.model_dump(mode='json', by_alias=True),
+            details=dataset_config.model_dump(mode='json', by_alias=True, exclude_unset=True),
         )
 
         self._session.add(item)
@@ -734,7 +734,7 @@ class AdminPortalDataSetService(DataSetService):
         handler = await self._get_handler(item.source_id)
         if data.details is not None:
             dataset_config = await self._parse_details_field(handler, data.details)  # type: ignore
-            item.details = dataset_config.model_dump(mode='json', by_alias=True)
+            item.details = dataset_config.model_dump(mode='json', by_alias=True, exclude_unset=True)
 
         item.updated_at = func.now()
         await self._session.flush()
@@ -999,7 +999,7 @@ class AdminPortalDataSetService(DataSetService):
         last completed version.
         """
         if last_completed.resolved_config is None:
-            new_resolved_config = dict(current_config)
+            new_resolved_config = dict(resolved_config)
         else:
             new_resolved_config = handler.merge_config_with_resolved(
                 current_config=current_config,

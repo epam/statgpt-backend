@@ -1,9 +1,14 @@
 import datetime
+import uuid
+from copy import deepcopy
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+import yaml
 
 from statgpt.admin.services.dataset import AdminPortalDataSetService
+from statgpt.admin.settings.exim import JobsConfig
+from statgpt.common.data.sdmx.common.config import SdmxDataSetConfig
 from statgpt.common.schemas import (
     ChannelDatasetUpdateStatus,
     ChannelDatasetVersion,
@@ -209,9 +214,75 @@ class TestClassifyConfigUpdate:
 
 
 class TestApplyConfigInternalUrnInvariant:
-    """Verifies that _apply_config_internal preserves the resolved URN (regression guard:
-    PR #399 removed IndexingField from urn, so merge_config_with_resolved now takes urn
-    from current_config — which may still be "latest")."""
+    """Resolved snapshots retain defaults and canonical URNs when live configs are sparse."""
+
+    async def test_sparse_legacy_refresh_records_complete_snapshot(self, tmp_path) -> None:
+        current = {
+            'urn': {'agencyId': 'TEST', 'resourceId': 'DATA'},
+            'dimensions': {
+                'INDICATOR': {'dimensionType': 'INDICATOR'},
+                'TIME_PERIOD': {'dimensionType': 'TIME_PERIOD'},
+                'FREQ': {'dimensionType': 'NON_INDICATOR', 'subtype': 'FREQUENCY'},
+            },
+        }
+        original_current = deepcopy(current)
+        effective = SdmxDataSetConfig.model_validate(current)
+        resolved_model = effective.model_copy(deep=True)
+        resolved_model.urn.version = '1.0'
+        resolved = resolved_model.model_dump(mode='json', by_alias=True)
+        original_resolved = deepcopy(resolved)
+        handler = _make_handler(
+            indexing_hash=effective.indexing_hash,
+            structure_hash='struct_hash',
+            resolve_returns=resolved,
+        )
+        handler.parse_data_set_config = SdmxDataSetConfig.model_validate
+        last = _make_last_completed(
+            resolved_config=None, indexing_config_hash=effective.indexing_hash
+        )
+        original_last = last.model_dump(mode='json')
+        status, resolved_config, reasons = await AdminPortalDataSetService._classify_config_update(
+            handler=handler,
+            current_config=current,
+            last_completed=last,
+            auth_context=MagicMock(),
+        )
+        assert status is ChannelDatasetUpdateStatus.AUTO_UPDATED
+        assert reasons == []
+        session = MagicMock()
+        session.flush = AsyncMock()
+
+        async def refresh(item):
+            item.id = 99
+            item.version = 2
+            item.created_at = datetime.datetime(2026, 1, 1)
+            item.updated_at = item.created_at
+
+        session.refresh = AsyncMock(side_effect=refresh)
+        service = AdminPortalDataSetService(session)
+        result = await service._apply_config_internal(
+            MagicMock(id=1), last, handler, current, resolved_config
+        )
+        assert result.resolved_config == original_resolved
+        assert result.resolved_config['isOfficial'] is False
+        assert result.resolved_config['urn']['version'] == '1.0'
+        assert result.resolved_config['dimensions']['INDICATOR']['isRequired'] is False
+        assert result.pointer_to == last.version_data_id
+        assert result.indexing_config_hash == effective.indexing_hash
+        assert (
+            SdmxDataSetConfig.model_validate(original_resolved).indexing_hash
+            == effective.indexing_hash
+        )
+        assert current == original_current
+        assert resolved == original_resolved
+        assert last.model_dump(mode='json') == original_last
+        handler.resolve_config.assert_awaited_once()
+        handler.reresolve_config.assert_not_awaited()
+        handler.merge_config_with_resolved.assert_not_called()
+        dataset_id = uuid.uuid4()
+        service._export_versions({dataset_id: result}, str(tmp_path))
+        exported = yaml.safe_load((tmp_path / JobsConfig.VERSIONS_FILE).read_text())
+        assert exported['data'][str(dataset_id)]['resolved_config'] == original_resolved
 
     @pytest.mark.asyncio
     async def test_new_version_resolved_config_has_resolved_urn(self) -> None:

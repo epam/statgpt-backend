@@ -1,8 +1,17 @@
 from collections import Counter
-from typing import Literal
+from typing import Any, Literal
 from urllib.parse import urlsplit
 
-from pydantic import AliasChoices, BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import (
+    AliasChoices,
+    BaseModel,
+    ConfigDict,
+    Field,
+    FieldSerializationInfo,
+    field_serializer,
+    field_validator,
+    model_validator,
+)
 
 from statgpt.common.auth.auth_context import AuthContext
 from statgpt.common.config import utils as config_utils
@@ -493,6 +502,21 @@ class ChannelUpdate(BaseModel):
 
 
 class Channel(DbDefaultBase, ChannelBase, Auditable):
+    @field_serializer("details", when_used="json")
+    def _serialize_details(
+        self, details: ChannelConfig, info: FieldSerializationInfo
+    ) -> dict[str, Any]:
+        return details.model_dump(
+            mode="json",
+            by_alias=info.by_alias,
+            include=info.include,  # type: ignore[arg-type]
+            exclude=info.exclude,  # type: ignore[arg-type]
+            exclude_unset=True,
+            exclude_defaults=info.exclude_defaults,
+            exclude_none=info.exclude_none,
+            context=info.context,
+        )
+
     def get_entity_id(self) -> str:
         return self.deployment_id
 

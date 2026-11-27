@@ -10,9 +10,9 @@ from statgpt.admin.services import AdminPortalDataSetService as DataSetService
 from statgpt.admin.services import AdminPortalDataSourceDeletionService as DataSourceDeletionService
 from statgpt.admin.services import AdminPortalDataSourceService as DataSourceService
 from statgpt.admin.services.exceptions import DatasetInUseError
-from statgpt.common import schemas
+from statgpt.common import models, schemas
+from statgpt.common.data.quanthub.config import QuanthubSdmxDataSourceConfig
 from statgpt.common.data.sdmx import Sdmx21DataSourceHandler, SdmxDataSourceConfig
-from statgpt.common.data.sdmx.common.config import SdmxHeaders, SdmxSupport
 from statgpt.common.models import DataSourceType
 from statgpt.common.services import DataSourceTypeService
 
@@ -89,19 +89,20 @@ async def test_add_data_source_with_defaults(session):
     assert data_source.type.id == ds_type.id
     assert data_source.type.name == 'QH_SDMX21'
 
-    assert data_source.details.get('description') == ''
-    assert data_source.details.get('apiKeyHeader') == 'Ocp-Apim-Subscription-Key'
-    assert data_source.details.get('apiKey') == 'test_key'
-    assert data_source.details.get('locale') == 'en'
-
-    assert data_source.details.get('sdmxConfig', {}).get('id') == 'test_id'
-    assert data_source.details.get('sdmxConfig', {}).get('dataContentType') == 'JSON'
-    assert data_source.details.get('sdmxConfig', {}).get('name') == 'test_name'
-    assert data_source.details.get('sdmxConfig', {}).get('url') == 'https://example.com/sdmx.url'
-    assert isinstance(data_source.details.get('sdmxConfig', {}).get('headers'), dict)
-    assert len(data_source.details.get('sdmxConfig', {}).get('headers')) == 10
-    assert isinstance(data_source.details.get('sdmxConfig', {}).get('supports'), dict)
-    assert len(data_source.details.get('sdmxConfig', {}).get('supports')) == 11
+    assert data_source.details == {
+        'apiKey': 'test_key',
+        'sdmxConfig': {
+            'id': 'test_id',
+            'name': 'test_name',
+            'url': 'https://example.com/sdmx.url',
+        },
+    }
+    effective = QuanthubSdmxDataSourceConfig.model_validate(data_source.details)
+    assert effective.locale == 'en'
+    assert effective.api_key_header == 'Ocp-Apim-Subscription-Key'
+    assert effective.sdmx_config.data_content_type == 'JSON'
+    assert len(effective.sdmx_config.headers.model_dump()) == 10
+    assert len(effective.sdmx_config.supports.model_dump()) == 11
 
     res = await service.get_schema_by_id(data_source.id)
     assert res == data_source
@@ -146,16 +147,11 @@ async def test_add_data_source_with_custom_values(session):
     assert data_source.details.get('sdmxConfig', {}).get('name') == 'Name 002'
     assert data_source.details.get('sdmxConfig', {}).get('url') == 'https://example.com/002'
 
-    target_headers = SdmxHeaders().model_dump(mode='json')  # Get default headers
-    target_headers['data'] = {"accept": "test/type"}
-    target_headers['dataflow'] = {"accept": "other/type"}
-    assert data_source.details.get('sdmxConfig', {}).get('headers') == target_headers
-
-    target_supports = SdmxSupport().model_dump(mode='json')  # Get default supports
-    target_supports['data'] = True
-    target_supports['dataflow'] = False
-
-    assert data_source.details.get('sdmxConfig', {}).get('supports') == target_supports
+    assert data_source.details['sdmxConfig']['headers'] == {
+        'data': {'accept': 'test/type'},
+        'dataflow': {'accept': 'other/type'},
+    }
+    assert data_source.details['sdmxConfig']['supports'] == {'data': True, 'dataflow': False}
 
     # Check if the data source really has this values in the database:
     res = await service.get_schema_by_id(data_source.id)
@@ -272,6 +268,47 @@ async def test_update_data_source(session):
     # Check if the data source really has this values in the database:
     res = await service.get_schema_by_id(data_source.id)
     assert res == data_source_updated
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "overrides",
+    [{}, {"locale": "en", "dataExplorerUrl": None, "defaultValueCodes": [], "rateLimits": {}}],
+)
+async def test_data_source_sparse_round_trip_and_replacement(session, clear_all, overrides):
+    service = DataSourceService(session)
+    config = {'id': 'test', 'name': 'Test', 'url': 'https://example.invalid'}
+    legacy = {
+        'sdmxConfig': {**config, 'dataContentType': 'JSON', 'supports': {'preview': True}},
+        'locale': 'en',
+    }
+    source = await service.create_data_source(
+        schemas.DataSourceBase(title='sparse-source', type_id=1, details=legacy)
+    )
+    replacement = {'sdmxConfig': config, **overrides}
+    await service.update(source.id, schemas.DataSourceUpdate(details=replacement))
+    await session.commit()
+    assert (
+        await session.scalar(
+            select(models.DataSource.details).where(models.DataSource.id == source.id)
+        )
+        == replacement
+    )
+    read = await service.get_schema_by_id(source.id)
+    assert read.details == replacement
+    await service.update(
+        source.id, schemas.DataSourceUpdate.model_validate(read.model_dump(mode='json'))
+    )
+    await session.commit()
+    await service.update(source.id, schemas.DataSourceUpdate(title='Renamed'))
+    await session.commit()
+    assert (
+        await session.scalar(
+            select(models.DataSource.details).where(models.DataSource.id == source.id)
+        )
+        == replacement
+    )
+    assert (await service.get_schema_by_id(source.id)).type_id == source.type_id
 
 
 @pytest.mark.asyncio

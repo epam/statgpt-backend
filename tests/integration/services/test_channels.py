@@ -1,9 +1,10 @@
 import pytest
 from fastapi import HTTPException
+from sqlalchemy import select
 from sqlalchemy.exc import NoResultFound
 
 from statgpt.admin.services import AdminPortalChannelService as ChannelService
-from statgpt.common import schemas
+from statgpt.common import models, schemas
 from statgpt.common.schemas.data_query_tool import DataQueryPrompts
 from statgpt.common.settings.langchain import langchain_settings
 
@@ -246,6 +247,55 @@ async def test_update_channel(session, clear_channels):
     # it is very important to check that the object was updated in the database:
     res3 = await channel_service.get_schema_by_id(res.id)
     assert res3 == res2
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "overrides",
+    [{}, {"locale": "en", "outOfScope": None, "tokenUsage": {}, "namedEntityTypes": []}],
+)
+async def test_channel_sparse_config_round_trip_and_replacement(session, clear_channels, overrides):
+    service = ChannelService(session)
+    agent = {"name": "Test", "domain": "Statistics", "terminologyDomain": "Statistics"}
+    legacy = {"supremeAgent": {**agent, "maxAgentIterations": 5}, "locale": "en"}
+    channel = await service.create_channel(
+        schemas.ChannelBase(
+            title="Test",
+            deployment_id="sparse-test",
+            llm_model="test-model",
+            details=schemas.ChannelConfig.model_validate(legacy),
+        )
+    )
+    identity = channel.id
+    replacement = {"supremeAgent": agent, **overrides}
+    await service.update(
+        identity, schemas.ChannelUpdate(details=schemas.ChannelConfig.model_validate(replacement))
+    )
+    await session.commit()
+    stored = await session.scalar(
+        select(models.Channel.details).where(models.Channel.id == identity)
+    )
+    assert stored == replacement
+
+    read = await service.get_schema_by_id(identity)
+    assert read.model_dump(mode="json", by_alias=True)["details"] == replacement
+    listed = await service.get_channels_schemas(10, 0)
+    assert listed[0].model_dump(mode="json", by_alias=True)["details"] == replacement
+    await service.update(
+        identity, schemas.ChannelUpdate.model_validate(read.model_dump(mode="json", by_alias=True))
+    )
+    await session.commit()
+    await service.update(identity, schemas.ChannelUpdate(title="Renamed"))
+    await session.commit()
+    assert (
+        await session.scalar(select(models.Channel.details).where(models.Channel.id == identity))
+        == replacement
+    )
+    final = await service.get_schema_by_id(identity)
+    assert final.id == identity
+    assert final.deployment_id == "sparse-test"
+    assert final.title == "Renamed"
+    assert final.details.supreme_agent.max_agent_iterations == 5
 
 
 # @pytest.mark.asyncio

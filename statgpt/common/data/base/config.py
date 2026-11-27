@@ -148,6 +148,11 @@ class BaseDimensionConfig(BaseModel, IndexingHashMixin):
     )
     default_queries: list[Query] | None = Field(default=None)
 
+    @model_validator(mode='after')
+    def _retain_dimension_type(self) -> Self:
+        self.model_fields_set.add('dimension_type')
+        return self
+
     @property
     def type(self) -> DimensionType:
         if self.dimension_type is None:

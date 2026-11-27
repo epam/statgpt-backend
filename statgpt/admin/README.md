@@ -7,6 +7,26 @@ This feature is disabled by default and requires installing additional dependenc
 
 For setup instructions, see [MCP README](mcp/README.md).
 
+## Live configuration overrides
+
+Channel, data-source, and dataset `details` store only supplied configuration fields after validation and normalization, recursively. Omitted settings inherit the current application defaults at runtime. Explicit values remain overrides even when they equal a default, including accepted nulls, false values, empty lists, and empty objects. For example, omitting `locale` from a channel lets it inherit the default; supplying `"locale": "en"` pins that value. A dataset URN such as `{"agencyId": "TEST", "resourceId": "DATA"}` does not acquire a stored `version` key, while `"isOfficial": false` remains stored when supplied.
+
+A supplied, accepted `details` replaces the whole live config, rather than patching nested fields. Removing a key from the replacement removes its stored override. An update such as `{"title": "Renamed"}` that omits top-level `details` leaves the config unchanged. Existing validation and explicit-null handling are unchanged; null is not a universal instruction to clear a config.
+
+Required union discriminators are structural metadata, not inherited settings. For example, an onboarding response retains `{"response_type": "predefined_text", "text": "Welcome"}`, even when a typed `PredefinedTextResponse` constructor defaults the tag. Untyped JSON still needs the discriminator. Other absent onboarding defaults, such as `completionButtonTitle`, are not stored.
+
+Existing persisted keys are treated as explicit until replaced, even when they were materialized by an older backend. There is no automatic database cleanup. Use the CLI's scoped [`content init --update-unchanged`](../cli/README.md) to replace selected legacy configs from their assembled source files; include any value that should remain deliberately pinned.
+
+### Responses and archive compatibility
+
+**Breaking change:** single-item, list, nested entity, and write responses expose stored live overrides, not a fully defaulted config. Config exports follow the same policy. Consumers must tolerate omitted keys and must not inject inferred defaults when saving an unchanged response. For example, a sparse channel response does not add `locale` or `tokenUsage`, while an explicitly stored `"locale": "en"` remains present. Non-config envelope fields, generated identities, and runtime typed attribute access keep their existing behavior.
+
+New archives declare export version **3**. Importers supporting versions 1 and 2 reject them before applying changes; do not relabel a version-3 archive as version 2. This backend accepts versions **1, 2, and 3**, treating every key present in older archives as explicit. Version-1 archives containing discovery datasets remain unsupported; the discovery indicators JSON format still starts at version 2. Version-3 export/import into new items preserves absent settings, explicit defaults, accepted nulls, and required discriminators. Proxy `proxyConfig` remains externally owned and follows its existing read/export enrichment and incoming-only write rules.
+
+Historical resolved configs are complete effective snapshots, not live overrides. Their existing exports and metadata endpoints that deliberately select a completed version retain recorded fields, including defaults and resolved URNs. Refreshing a legacy version with no snapshot creates a complete new snapshot without rewriting the old version. Generated SDMX config templates, discovery records, and non-config payloads are not made sparse.
+
+Deploy compatible backend and CLI/models together, verify unchanged consumer edit/save and archive round trips, and coordinate config tooling's pinned backend dependency before rollout. A refresh uses normal update behavior and can affect timestamps or propagation versions; it does not automatically reindex.
+
 ## Environment variables
 
 Below are the environment variables specific to the Admin Application. Other required variables can be found in
