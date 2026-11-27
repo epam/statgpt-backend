@@ -13,7 +13,7 @@ Observed implementation boundaries:
 - Config exports reuse these entity models. Import paths revalidate config and may skip unchanged items using effective-value comparisons.
 - `statgpt/cli/commands/content.py` assembles tool/onboarding config before channel writes. It skips unchanged items and currently normalizes incoming dataset config differently from stored config.
 - `statgpt/common/data/sdmx/v21/datasource.py` produces full resolved version configs. `statgpt/app/services/channel_datasets_metadata.py` deliberately exposes those snapshots when available.
-- Related frontend/config repository branches are up to date, but source reads were blocked by session directory permissions. Their compatibility is not yet verified.
+- Related frontend/config repository branches are up to date and read-only source access is available. Consumer compatibility findings are recorded below; related-repository writes remain outside this change's scope.
 
 ## Goals / Non-Goals
 
@@ -74,6 +74,16 @@ Apply the flag only to selected channel/data-source/dataset processing, includin
 
 Without the flag, effective-equivalent legacy configs can remain unchanged. This is intentional: the refresh flag is the explicit mechanism for removing previously materialized defaults that ordinary equality cannot distinguish from omitted settings.
 
+### 5. Consumer compatibility
+
+Read-only Admin Frontend source inspection found no required sparse-config compatibility change. The shared `EditDataEntity` editor initializes YAML directly from `entity.details` and submits the parsed YAML as replacement `details`; `useYamlParser` performs syntax parsing without schema-default injection. Channel/data-source/dataset API wrappers forward the supplied objects without expanding config fields, and the models allow missing config keys. Nested channel datasets use the same editor with their live `dataset` object. Archive import/export is delegated to the backend without frontend archive-version interpretation.
+
+Evidence in StatGPT Admin Frontend: `apps/statgpt-admin-frontend/src/components/EditDataEntity/EditDataEntity.tsx`, `src/hooks/use-yaml-parser.ts`, `src/components/ListView/ActionColumn/utils.ts`, and `src/server/{api,channels-api,data-sources-api,data-sets-api}.ts` under the same app directory. This verifies the source-level absence of default materialization, not a live browser/backend round trip; no related-repository builds, tests, or scripts were run.
+
+Read-only configuration/evaluation tooling inspection found no independent channel/data-source/dataset round-trip serializer requiring a sparse-policy change. Initialization delegates to the backend CLI, whose YAML loading and AdminClient write preparation preserve supplied nested keys; tool/onboarding assembly and source-ID resolution remain intentional transformations. Dataset metadata consumption validates configs through source-specific typed models without writing the resolved defaults back. YAML merge/anchor values become supplied keys and remain explicit overrides; unrelated DIAL metadata generators and generated SDMX templates retain their current serialization contracts.
+
+Coordinate the tooling's backend dependency and lockfile separately before rollout: the dependency names `development`, but its lockfile resolves a fixed backend revision. The installed CLI/models must include this change, particularly `--update-unchanged`; deploying only the backend service is insufficient. Evidence in the configuration/evaluation repository: `scripts/README.md`, `pyproject.toml`, `poetry.lock`, and `statgpt_eval/core/testcase_runner.py`. Installed dependency identity, flag execution, archive imports/exports, and end-to-end field-set preservation were not verified by execution.
+
 ## Risks / Trade-offs
 
 - Missing keys in editable config responses can break consumers or cause them to save inferred defaults back -> validate frontend/config-tooling sparse round trips before rollout; coordinate any required consumer changes separately.
@@ -86,8 +96,8 @@ Without the flag, effective-equivalent legacy configs can remain unchanged. This
 ## Migration Plan
 
 1. Implement and test backend sparse persistence/exchange with ordinary comparison and snapshot regressions, alongside CLI support and documentation.
-2. Verify consumers accept omitted config keys and preserve sparse overrides in unchanged edit/save and export/import workflows. Related source access requires adding the read-only directories to the session; related writes remain outside this change's scope.
-3. Deploy compatible backend/CLI and any separately coordinated consumer changes. No schema migration or startup cleanup is introduced.
+2. Verify consumers accept omitted config keys and preserve sparse overrides in unchanged edit/save and export/import workflows. Read-only source assessment does not replace live round-trip verification against the implemented backend; related writes remain outside this change's scope.
+3. Deploy compatible backend/CLI and any separately coordinated consumer changes, including the configuration tooling's backend dependency/lockfile revision. No schema migration or startup cleanup is introduced.
 4. Refresh selected existing configs, for example `statgpt content init --client-id sample --only channels,datasources,datasets --update-unchanged -y`. Use config files as the source of explicit overrides; include a value explicitly when it must stay pinned.
 5. Check refreshed JSON, runtime loading, propagation results, and the batch summary before deciding whether a reported reindex is needed.
 

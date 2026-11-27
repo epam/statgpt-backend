@@ -2,8 +2,8 @@
 
 ## 1. Consumer compatibility
 
-- [ ] 1.1 Once read-only directory access is available, check the Admin Frontend config editor's handling of absent keys and unchanged edit/save round trips; record verified compatibility or concrete separately scoped consumer changes in the design before rollout.
-- [ ] 1.2 Check config/evaluation tooling's channel/data-source/dataset serialization and initialization inputs read-only; verify omitted keys and explicit defaults survive its round trips, without changing or executing the related repository's tooling.
+- [x] 1.1 Once read-only directory access is available, check the Admin Frontend config editor's handling of absent keys and unchanged edit/save round trips; record verified compatibility or concrete separately scoped consumer changes in the design before rollout.
+- [x] 1.2 Check config/evaluation tooling's channel/data-source/dataset serialization and initialization inputs read-only; verify omitted keys and explicit defaults survive its round trips, without changing or executing the related repository's tooling.
 
 ## 2. Sparse live-config persistence
 

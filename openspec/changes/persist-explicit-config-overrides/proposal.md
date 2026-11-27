@@ -32,6 +32,6 @@ None. Existing `sdmx-proxy-config` ownership and external-config behavior, SDMX 
 - Backend: admin channel/data-source/dataset write and import/export services, archive version settings, onboarding response normalization, shared channel response serialization, data-source storage serialization, config comparison paths, and legacy dataset snapshot propagation.
 - CLI: `content init` argument registration and handler/helper plumbing, change detection, help/documentation, and batch tests.
 - API consumers: the Admin Frontend and config/evaluation tooling must tolerate omitted config keys without writing inferred defaults back during unchanged round trips.
-- Related-repository branches were checked and fast-forward pulls completed; source inspection is blocked by this session's allowed-directory settings. Compatibility checks remain an explicit implementation prerequisite; no related-repository edits are authorized here.
+- Read-only frontend and configuration/evaluation tooling source checks are complete; compatibility findings and required backend dependency/lockfile coordination are recorded in the design. Live round-trip verification remains a rollout prerequisite; no related-repository edits are authorized here.
 - Tests: service persistence/read/export/import coverage, nested-field serialization, runtime and resolved-config regressions, proxy ownership, and CLI selection/idempotence/failure isolation.
 - No database schema migration, new environment variable, new dependency, backend force parameter, or automatic reindex operation is required.
