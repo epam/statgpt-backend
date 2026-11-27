@@ -1,6 +1,5 @@
 import asyncio
 import base64
-import itertools
 import re
 import subprocess
 import uuid
@@ -8,20 +7,6 @@ import zlib
 from collections.abc import Generator, Iterable
 
 _WHITESPACE_RE = re.compile(r"\s+")
-
-
-def batched(iterable: Iterable, n: int):
-    """Batch data from the iterable into tuples of length n. The last batch may be shorter than n.
-
-    In Python 3.12 and later, use the built-in `itertools.batched` function.
-
-    Example:
-        batched('ABCDEFG', 3) → ['A', 'B', 'C'], ['D', 'E', 'F'], ['G']
-    """
-
-    iterator = iter(iterable)
-    while batch := list(itertools.islice(iterator, n)):
-        yield batch
 
 
 def get_last_commit_hash_for(path: str) -> str:

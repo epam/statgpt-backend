@@ -3,7 +3,7 @@ name = "statgpt"
 version = "0.0.0"
 description = "StatGPT: Platform for talking to Official Statistics data & SDMX"
 readme = "README.md"
-requires-python = ">=3.11,<3.12"
+requires-python = ">=3.13,<3.14"
 license = "MIT"
 license-files = ["LICENSE"]
 dependencies = [
@@ -18,12 +18,12 @@ dependencies = [
     'sdmx1 (>=2.26.0,<3.0.0)',                   # SDMX data format support
     'pandas (>=2.2.3,<3.0.0)',                   # Data manipulation
     'openpyxl (>=3.1.5,<4.0.0)',                 # Excel reading (discovery dataset uploads)
-    'numpy (>=1.26.4,<2.0.0)',                   # Pinned to 1.x: CVE-2018-1999024 is a false positive (MathJax XSS); avoid breaking 2.x major
+    'numpy (>=2.1.0,<3.0.0)',                    # >=2.1 required for Python 3.13 wheels
     'plotly (>=5.21.0,<6.0.0)',                  # Data visualization
 
     # Database & Vector storage
     'sqlalchemy (>=2.0.45,<3.0.0)',              # ORM and async database toolkit
-    'asyncpg (>=0.29.0,<0.30.0)',                # Async PostgreSQL driver
+    'asyncpg (>=0.30.0,<0.31.0)',                # Async PostgreSQL driver; >=0.30 required for Python 3.13
     'pgvector (>=0.2.5,<0.3.0)',                 # Vector similarity search
     'alembic (>=1.13.1,<2.0.0)',                 # Database migrations
     'psycopg[binary,pool] (>=3.1.18,<4.0.0)',    # PostgreSQL adapter
@@ -59,7 +59,7 @@ dependencies = [
     'async-lru (>=2.0.5,<3.0.0)',                # Async LRU cache
     'tabulate (>=0.9.0,<0.10.0)',                # Table formatting
     'markdown (>=3.7,<4.0)',                     # Markdown processing
-    'setuptools (>=84.1.0,<85.0.0)',             # Package management
+    'setuptools (>=84.2.1,<85.0.0)',             # Security floor: CVE-2026-59890, GHSA-xmj3-9gf7-h52w
     'babel (>=2.17.0,<3.0.0)',                   # Internationalization
     'aiofiles (>=25.1.0,<26.0.0)',               # Async file operations
     'pyarrow (>=23.0.1,<24.0.0)',                # Parquet support for import/export
@@ -92,7 +92,7 @@ src_paths = ["statgpt"]
 [tool.black]
 line-length = 100
 skip-string-normalization = true
-target-version = ["py310", "py311"]
+target-version = ["py313"]
 include = '\.pyi?$'
 exclude = '''
 /(

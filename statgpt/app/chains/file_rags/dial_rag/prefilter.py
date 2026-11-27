@@ -1,5 +1,4 @@
 from datetime import date
-from typing import TypeVar
 
 from langchain_core.prompts import (
     ChatPromptTemplate,
@@ -28,8 +27,6 @@ from statgpt.app.schemas.file_rags.dial_rag import (
 from statgpt.common import utils
 from statgpt.common.config import multiline_logger as logger
 
-FilterBuilderResultType = TypeVar("FilterBuilderResultType", bound=SingleFilterLLMOutput)
-
 
 class SingleFilterChainBuilder:
 
@@ -37,7 +34,7 @@ class SingleFilterChainBuilder:
     def create_chain(
         llm,
         system_prompt: str,
-        output_type: type[FilterBuilderResultType],
+        output_type: type[SingleFilterLLMOutput],
         partials: dict | None = None,
     ) -> RunnableSerializable:
         """Returns the runnable chain for this filter builder."""

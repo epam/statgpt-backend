@@ -7,10 +7,8 @@ from .category import Category, VirtualDimensionCategory
 from .config import VirtualDimensionConfig
 from .enums import DimensionDataType, QueryOperator
 
-DimensionValueType = t.TypeVar("DimensionValueType")
 
-
-class Dimension(BaseEntity, t.Generic[DimensionValueType], ABC):
+class Dimension[DimensionValueType](BaseEntity, ABC):
     def __init__(self):
         BaseEntity.__init__(self)
 
@@ -50,10 +48,7 @@ class Dimension(BaseEntity, t.Generic[DimensionValueType], ABC):
         return json.dumps([op.value for op in self.available_operators()])
 
 
-CategoryType = t.TypeVar("CategoryType", bound=Category)
-
-
-class CategoricalDimension(Dimension[CategoryType], t.Generic[CategoryType], ABC):
+class CategoricalDimension[CategoryType: Category](Dimension[CategoryType], ABC):
     def __init__(self):
         super().__init__()
 

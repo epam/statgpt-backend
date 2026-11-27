@@ -14,7 +14,7 @@ import asyncio
 import json
 import logging
 from abc import ABC, abstractmethod
-from typing import Any, ClassVar, Generic, TypeVar
+from typing import Any, ClassVar
 from uuid import uuid4
 
 from fastmcp.apps import AppConfig, app_config_to_meta_dict
@@ -31,9 +31,6 @@ from statgpt.common.auth.auth_context import AuthContext
 from statgpt.common.schemas import BaseToolConfig, ChannelConfig, ToolTypes
 
 _log = logging.getLogger(__name__)
-
-ToolConfigType = TypeVar("ToolConfigType", bound=BaseToolConfig)
-ArgsType = TypeVar("ArgsType", bound=ToolArgs)
 
 _DEFAULT_ANNOTATIONS = ToolAnnotations(
     readOnlyHint=True, destructiveHint=False, openWorldHint=False
@@ -64,7 +61,7 @@ def tool_app_config(tool_config: BaseToolConfig) -> AppConfig | None:
     )
 
 
-class StatGptMcpTool(Tool, ABC, Generic[ToolConfigType, ArgsType]):
+class StatGptMcpTool[ToolConfigType: BaseToolConfig, ArgsType: ToolArgs](Tool, ABC):
     """A FastMCP Tool serving one StatGPT tool config. See the module docstring."""
 
     tool_type: ClassVar[ToolTypes | None] = None

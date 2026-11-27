@@ -34,7 +34,7 @@ jobs:
       ort-version: "92.5.0"
       ort-config-repository: ${{ vars.ORT_CONFIG_VCS_URL || 'https://github.com/epam/ai-dial-ort-config.git' }}
       ort-config-revision: ${{ vars.ORT_CONFIG_VCS_REVISION || '92.5.0' }}
-      python-version: "3.11"
+      python-version: "3.13"
       poetry-version: "2.1.1"
       python-package-manager: "poetry"
       uv-version: "0.11.30"

@@ -1,10 +1,6 @@
-from typing import TypeVar
-
 from sdmx.model.common import Version
 
 from .schemas import Urn
-
-T = TypeVar("T")
 
 
 def is_wildcarded_version(version: Version | str | None) -> bool:
@@ -16,7 +12,7 @@ def is_wildcarded_version(version: Version | str | None) -> bool:
     return False
 
 
-def lookup_urn(artifacts: dict[Urn, T], urn: Urn) -> T:
+def lookup_urn[T](artifacts: dict[Urn, T], urn: Urn) -> T:
     """Look up an artifact by URN, resolving wildcarded versions if needed.
 
     Direct lookup when the version is concrete; falls back to
@@ -27,7 +23,7 @@ def lookup_urn(artifacts: dict[Urn, T], urn: Urn) -> T:
     return resolve_wildcarded_urn(artifacts, urn)
 
 
-def resolve_wildcarded_urn(artifacts: dict[Urn, T], wildcarded_urn: Urn) -> T:
+def resolve_wildcarded_urn[T](artifacts: dict[Urn, T], wildcarded_urn: Urn) -> T:
     """Find the latest non-wildcarded artifact matching a wildcarded URN.
 
     Searches for URNs with the same agency_id and resource_id whose

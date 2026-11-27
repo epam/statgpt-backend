@@ -7,7 +7,7 @@ the [documentation repository](https://github.com/epam/statgpt).
 
 ## Technological stack
 
-Application is written in Python 3.11 and uses the following main technologies:
+Application is written in Python 3.13 and uses the following main technologies:
 
 | Technology                                                   | Purpose                                                  |
 |--------------------------------------------------------------|----------------------------------------------------------|
@@ -48,22 +48,23 @@ files:
 * [Windows, using Chocolatey](https://community.chocolatey.org/packages/make)
 * Make sure that `make` is in the PATH (run `which make`).
 
-#### 2. Install Python 3.11
+#### 2. Install Python 3.13
 
 Direct installation:
 
-* [MacOS, using Homebrew](https://formulae.brew.sh/formula/python@3.11) - `brew install python@3.11`
+* [MacOS, using Homebrew](https://formulae.brew.sh/formula/python@3.13) - `brew install python@3.13`
 * [Windows or MacOS, using official repository](https://www.python.org/downloads/)
-* [Windows, using Chocolatey](https://community.chocolatey.org/packages/python311)
-* Make sure that `python3` or `python3.11` is in the PATH and works properly (run `python3.11 --version`).
+* [Windows, using Chocolatey](https://community.chocolatey.org/packages/python313)
+* Make sure that `python3.13` is in the PATH and works properly (run `python3.13 --version`). The `make` targets
+  call `python3.13` by default; to use another executable name, pass it explicitly, e.g. `make install_dev PYTHON=python3`.
 
 Alternative: use [pyenv](https://github.com/pyenv/pyenv?tab=readme-ov-file#installation):
 
 * `pyenv` allows to manage different python versions on the same machine
 * execute following from the repository root folder:
   ```bash
-  pyenv install 3.11
-  pyenv local 3.11  # use Python 3.11 for the current project
+  pyenv install 3.13
+  pyenv local 3.13  # use Python 3.13 for the current project
   ```
 
 #### 3. Install [Poetry](https://python-poetry.org/docs/#installation)

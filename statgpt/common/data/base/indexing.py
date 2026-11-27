@@ -1,13 +1,11 @@
 import json
 from collections.abc import Generator
-from typing import Any, Self, TypeVar
+from typing import Any, Self
 
 from pydantic import BaseModel
 from pydantic.fields import FieldInfo
 
 from statgpt.common.utils import crc32_hash
-
-_T = TypeVar("_T", bound=BaseModel)
 
 
 class IndexingField:
@@ -156,7 +154,7 @@ class IndexingHashMixin:
         return _merge_models(resolved=self, current=source)  # type: ignore[return-value]
 
 
-def _merge_models(*, resolved: _T, current: _T) -> _T:
+def _merge_models[T: BaseModel](*, resolved: T, current: T) -> T:
     """Merge two model instances based on IndexingField markers.
 
     - IndexingField-marked fields: taken from resolved

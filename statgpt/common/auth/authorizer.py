@@ -1,5 +1,3 @@
-import typing as t
-
 from pydantic import BaseModel
 
 from statgpt.common.auth.base import AuthGrantI, OboFlowI, TokenRefreshI, TokenResponseI
@@ -11,10 +9,7 @@ class AuthorizeConfig(BaseModel):
     pass
 
 
-T = t.TypeVar('T', bound=AuthorizeConfig)
-
-
-class AuthorizerI(t.Generic[T]):
+class AuthorizerI[T: AuthorizeConfig]:
     async def authorize(self, config: T) -> TokenResponseI:
         raise NotImplementedError()
 
@@ -99,10 +94,10 @@ class SystemUserAuthorizer(SystemUserAuthorizerI):
         return await self.grant.authorize()
 
 
-class TokenRefreshDecorator(AuthorizerI[T]):
+class TokenRefreshDecorator[T: AuthorizeConfig](AuthorizerI[T]):
     def __init__(
         self,
-        authorizer: AuthorizerI,
+        authorizer: AuthorizerI[T],
         token_refresh: TokenRefreshI,
         token_cache=TokenCache(),
     ):

@@ -1,0 +1,4 @@
+schema: spec-driven
+created: 2026-11-18
+goal: "Run StatGPT on Python 3.13 instead of 3.11 (issue #826)"
+skip_specs: true

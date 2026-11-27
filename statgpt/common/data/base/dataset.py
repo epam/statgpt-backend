@@ -4,7 +4,7 @@ import uuid
 from abc import ABC, abstractmethod
 from collections.abc import Sequence
 from datetime import datetime, timezone
-from typing import TYPE_CHECKING, Generic, TypeVar
+from typing import TYPE_CHECKING
 
 import numpy as np
 import pandas as pd
@@ -250,11 +250,9 @@ class DataResponse(ABC):
         """Number of data series in this response, for user-facing text (e.g. chat formatters)."""
 
 
-DataSetConfigType = TypeVar("DataSetConfigType", bound=DataSetConfig)
-DataSourceHandlerType = TypeVar("DataSourceHandlerType", bound='DataSourceHandler')
-
-
-class DataSet(BaseEntity, Generic[DataSetConfigType, DataSourceHandlerType], ABC):
+class DataSet[DataSetConfigType: DataSetConfig, DataSourceHandlerType: DataSourceHandler](
+    BaseEntity, ABC
+):
     _config: DataSetConfigType
     _datasource: DataSourceHandlerType
 
@@ -421,7 +419,9 @@ class DataSet(BaseEntity, Generic[DataSetConfigType, DataSourceHandlerType], ABC
         return None
 
 
-class OfflineDataSet(DataSet, Generic[DataSetConfigType, DataSourceHandlerType], ABC):
+class OfflineDataSet[DataSetConfigType: DataSetConfig, DataSourceHandlerType: DataSourceHandler](
+    DataSet[DataSetConfigType, DataSourceHandlerType], ABC
+):
     """Class for cases where dataset loading failed"""
 
     def __init__(

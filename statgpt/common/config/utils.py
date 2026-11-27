@@ -1,6 +1,5 @@
 import os
 import re
-from typing import TypeVar
 
 from pydantic import SecretStr
 
@@ -64,10 +63,7 @@ def replace_env(value: str, prefix: str | None = None) -> str:
     return _replace_envs_str(value, prefix)
 
 
-T = TypeVar('T', str, dict)
-
-
-def replace_envs(value: T, prefix: str | None = None) -> T:
+def replace_envs[T: (str, dict)](value: T, prefix: str | None = None) -> T:
     """
     Replaces environment variables in either a string or a dictionary.
     For strings: replaces patterns like $env:{env_name} with their environment variable values

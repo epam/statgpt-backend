@@ -1,11 +1,9 @@
 import asyncio
 from collections.abc import Awaitable, Callable
-from typing import Generic, Self, TypeVar
-
-ValueType = TypeVar("ValueType")
+from typing import Self
 
 
-class ValueUpdater(Generic[ValueType]):
+class ValueUpdater[ValueType]:
     def __init__(self, async_get_value: Callable[[], Awaitable[ValueType]], timeout: int = 3600):
         """
         ValueManager is a class that updates a value at a specified interval.
