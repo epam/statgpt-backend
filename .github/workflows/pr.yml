@@ -85,7 +85,7 @@ jobs:
         with:
           lfs: true
 
-      - uses: epam/ai-dial-ci/actions/build_docker@4.13.2
+      - uses: epam/ai-dial-ci/actions/build_docker@5.1.0
         with:
           image-names: ghcr.io/${{ matrix.image-name }}
           image-tags: test
