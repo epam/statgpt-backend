@@ -1,6 +1,8 @@
 """Tests for the SDMX proxy configuration exposed through a data source's `details` field."""
 
 import datetime
+import io
+import zipfile
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
@@ -8,6 +10,7 @@ import pytest
 import yaml
 from fastapi import HTTPException
 
+import statgpt.common.models as models
 import statgpt.common.schemas as schemas
 from statgpt.admin.services.data_source import AdminPortalDataSourceService
 from statgpt.admin.settings.exim import JobsConfig
@@ -250,7 +253,113 @@ class TestWriteResult:
         fetch.assert_awaited_once_with(_URL)
 
 
+class TestSparsePersistence:
+    async def test_create_keeps_sparse_storage_and_enriches_only_the_response(
+        self, service, mocker
+    ) -> None:
+        details = {"sdmxConfig": {"id": "proxy", "url": "https://example.invalid", "name": "proxy"}}
+        now = datetime.datetime(2026, 1, 1)
+        source_type = models.DataSourceType(
+            id=3, created_at=now, updated_at=now, name="PROXY_SDMX30", description=""
+        )
+        service._parse_details_field = AsyncMock(return_value=_proxy_config())
+        service._session.flush = AsyncMock()
+
+        async def refresh(item, **kwargs):
+            item.id = 1
+            item.created_at = now
+            item.updated_at = now
+            item.type = source_type
+
+        service._session.refresh = AsyncMock(side_effect=refresh)
+        push = mocker.patch(
+            "statgpt.common.data.statgpt_sdmx_proxy.config.push_proxy_config", AsyncMock()
+        )
+        mocker.patch(
+            "statgpt.common.data.statgpt_sdmx_proxy.config.fetch_proxy_config",
+            AsyncMock(return_value=_STORED_CONFIG),
+        )
+
+        result = await AdminPortalDataSourceService.create_data_source.__wrapped__(
+            service, schemas.DataSourceBase(title="proxy", type_id=3, details=details)
+        )
+
+        stored = service._session.add.call_args.args[0]
+        assert stored.details == details
+        assert stored.description == ""
+        assert result.details == {**details, "proxyConfig": _STORED_CONFIG}
+        push.assert_not_awaited()
+
+    async def test_replacement_preserves_sparse_config_and_external_ownership(
+        self, service, mocker
+    ) -> None:
+        details = {
+            "sdmxConfig": {"id": "proxy", "url": "https://example.invalid", "name": "proxy"},
+            "locale": "en",
+        }
+        stored = _data_source(details={**details, "description": "Legacy default"})
+        service._get_item_or_raise = AsyncMock(return_value=stored)
+        service._parse_details_field = AsyncMock(return_value=_proxy_config(locale="en"))
+        service._session.execute = AsyncMock(return_value=MagicMock())
+        service._session.execute.return_value.scalar_one.return_value = stored
+        service._session.flush = AsyncMock()
+        service._session.refresh = AsyncMock()
+        mocker.patch(
+            "statgpt.admin.services.data_source.DataSourceSerializer.db_to_schema",
+            return_value=_data_source(details=details),
+        )
+        push = mocker.patch(
+            "statgpt.common.data.statgpt_sdmx_proxy.config.push_proxy_config", AsyncMock()
+        )
+        mocker.patch(
+            "statgpt.common.data.statgpt_sdmx_proxy.config.fetch_proxy_config",
+            AsyncMock(return_value=_STORED_CONFIG),
+        )
+
+        result = await AdminPortalDataSourceService.update.__wrapped__(
+            service, stored.id, schemas.DataSourceUpdate(details=details)
+        )
+
+        assert service._session.execute.call_args.args[0].compile().params["details"] == details
+        assert result.details == {**details, "proxyConfig": _STORED_CONFIG}
+        push.assert_not_awaited()
+
+
 class TestImportChangeDetection:
+    async def test_repeated_sparse_import_does_not_update_or_write_external_config(
+        self, service, mocker
+    ) -> None:
+        stored = _data_source(
+            details={
+                **_proxy_config().model_dump(mode="json", by_alias=True),
+                "proxyConfig": _STORED_CONFIG,
+            }
+        )
+        incoming = {
+            "sdmxConfig": {"id": "proxy", "url": "https://example.invalid", "name": "proxy"}
+        }
+        service.get_data_sources_schemas_with_external_details = AsyncMock(return_value=[stored])
+        service.update = AsyncMock()
+        service.create_data_source = AsyncMock()
+        push = mocker.patch(
+            "statgpt.common.data.statgpt_sdmx_proxy.config.push_proxy_config", AsyncMock()
+        )
+        buffer = io.BytesIO()
+        with zipfile.ZipFile(buffer, "w") as archive:
+            archive.writestr(
+                JobsConfig.DATA_SOURCES_FILE,
+                yaml.safe_dump(
+                    {"dataSources": [{"title": "proxy", "type_id": 3, "details": incoming}]}
+                ),
+            )
+        buffer.seek(0)
+        with zipfile.ZipFile(buffer) as archive:
+            await service.import_data_sources_from_zip(archive, update_data_sources=True)
+            await service.import_data_sources_from_zip(archive, update_data_sources=True)
+        service.update.assert_not_awaited()
+        service.create_data_source.assert_not_awaited()
+        push.assert_not_awaited()
+
     def test_a_payload_without_a_proxy_config_is_unchanged(self, service) -> None:
         stored = _data_source(details={"sdmxConfig": _SDMX_CONFIG, "proxyConfig": _STORED_CONFIG})
 

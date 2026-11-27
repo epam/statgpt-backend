@@ -55,7 +55,7 @@ class DataSourceConfig(BaseModel, ABC):
         Subclasses override this to drop fields that are owned by an external system
         rather than by the database.
         """
-        return self.model_dump(mode='json', by_alias=True)
+        return self.model_dump(mode='json', by_alias=True, exclude_unset=True)
 
     def matches_stored(self, stored: "DataSourceConfig") -> bool:
         """Whether this incoming config is equivalent to a `stored` one, for change detection.

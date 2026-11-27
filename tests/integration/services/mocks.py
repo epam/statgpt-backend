@@ -24,6 +24,7 @@ class AsyncSdmxClientMock:
         mock_dataflows = {
             '3.0.1': "dataflow_IMF.STA-CPI(3.0.1).xml",
             '4.0.0': "dataflow_IMF.STA-CPI(4.0.0).xml",
+            'latest': "dataflow_IMF.STA-CPI(4.0.0).xml",
         }
 
         short_urn = f"{agency_id}:{resource_id}({version})"

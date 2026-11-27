@@ -1,6 +1,6 @@
-from typing import Literal
+from typing import Literal, Self
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from .base import BaseYamlModel
 from .query import JsonQuery
@@ -14,6 +14,11 @@ class PredefinedTextResponse(BaseModel):
     )
     text: str = Field(description="The predefined text response in markdown format.")
 
+    @model_validator(mode="after")
+    def _retain_response_type(self) -> Self:
+        self.model_fields_set.add("response_type")
+        return self
+
 
 class PredefinedDataQueryResponse(BaseModel):
 
@@ -23,6 +28,11 @@ class PredefinedDataQueryResponse(BaseModel):
     )
     text: str = Field(description="Text response in markdown format.")
     query: JsonQuery = Field(description="A predefined data query to be executed.")
+
+    @model_validator(mode="after")
+    def _retain_response_type(self) -> Self:
+        self.model_fields_set.add("response_type")
+        return self
 
 
 Response = PredefinedTextResponse | PredefinedDataQueryResponse

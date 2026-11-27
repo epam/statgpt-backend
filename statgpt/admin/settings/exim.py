@@ -21,14 +21,15 @@ class ExImSettings(BaseSettings):
 class JobsConfig:
     """Import/Export jobs configuration."""
 
-    CURRENT_EXPORT_VERSION: int = 2
+    CURRENT_EXPORT_VERSION: int = 3
     """Increment when making breaking changes to the export archive format.
 
     2: the discovery datasets' `indicators_coverage` column holds a JSON list of
     `{name, units}` instead of the flat `name (units); ...` text.
+    3: live channel, data-source, and dataset configs preserve only explicit overrides.
     """
 
-    SUPPORTED_EXPORT_VERSIONS: set[int] = {1, 2}
+    SUPPORTED_EXPORT_VERSIONS: set[int] = {1, 2, 3}
     """Set of archive versions that this application can import.
 
     A version 1 archive is imported only when it carries no discovery datasets.

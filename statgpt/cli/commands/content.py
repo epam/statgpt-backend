@@ -152,6 +152,7 @@ async def init_handler(
     only: str | None = None,
     yes: bool = False,
     verify: bool = False,
+    update_unchanged: bool = False,
 ) -> None:
     """Initialize content (channels, data sources, datasets, glossaries, discovery)."""
     config_dir = cli_settings.config_dir
@@ -280,6 +281,7 @@ async def init_handler(
                         existing_datasets=existing_datasets,
                         dataset_ids=dataset_ids,
                         components=components,
+                        update_unchanged=update_unchanged,
                     )
                 )
             except Exception as e:
@@ -312,6 +314,7 @@ async def _process_client(
     existing_datasets: dict[str, DataSet],
     dataset_ids: set[str] | None,
     components: set[str],
+    update_unchanged: bool = False,
 ) -> list[tuple[str, DataSet]]:
     """Process a single client configuration.
 
@@ -346,6 +349,7 @@ async def _process_client(
             onboarding_cfg,
             process_glossaries,
             glossaries_dir,
+            update_unchanged=update_unchanged,
         )
 
     # Upload discovery datasets. After the channels block, so a channel created by this run
@@ -362,7 +366,9 @@ async def _process_client(
     data_sources: dict[str, DataSource] = {}
     if "datasources" in components:
         data_sources_cfg = utils.read_yaml(f"{client_config_dir}/data_sources.yaml")
-        data_sources = await _process_data_sources(admin_client, report, data_sources_cfg)
+        data_sources = await _process_data_sources(
+            admin_client, report, data_sources_cfg, update_unchanged=update_unchanged
+        )
 
     # Process datasets
     if "datasets" not in components:
@@ -378,6 +384,7 @@ async def _process_client(
         existing_datasets,
         dataset_ids,
         link_channels="channels" in components,
+        update_unchanged=update_unchanged,
     )
 
 
@@ -543,10 +550,6 @@ def _channel_changed(incoming_cfg: dict[str, Any], existing: Channel) -> bool:
 
 def _data_source_changed(incoming_cfg: dict[str, Any], existing: DataSource) -> bool:
     """Return True if data source config differs from what is stored."""
-    if 'details' not in incoming_cfg:
-        title = incoming_cfg.get('title', existing.title)
-        raise ValueError(f"Data source '{title}' is missing required 'details' configuration")
-
     try:
         config_class = DataManager.get_config_class(existing.type.name)
         incoming_config = config_class.model_validate(incoming_cfg['details'])
@@ -581,12 +584,15 @@ def _dataset_changed(
         if data_source is not None:
             handler_class = DataManager.get_data_source_handler_class(data_source.type.name)
             parsed_config = handler_class.parse_data_set_config(incoming_details)
+            stored_config = handler_class.parse_data_set_config(existing.details)
             normalized_details = parsed_config.model_dump(mode='json', by_alias=True)
+            stored_details = stored_config.model_dump(mode='json', by_alias=True)
             # When the data source manages the title automatically, skip title comparison
             # to avoid an update loop (CLI sets YAML title → source restores its own title).
             use_title_from_src = parsed_config.model_dump().get('use_title_from_src', False)
         else:
             normalized_details = incoming_details
+            stored_details = existing.details
             use_title_from_src = False
         exclude_fields = {'title'} if use_title_from_src else set()
         normalized = DataSetBase.model_validate({**incoming_cfg, 'details': normalized_details})
@@ -595,9 +601,10 @@ def _dataset_changed(
             by_alias=True,
             exclude=exclude_fields,
         )
-        existing_dump = DataSetBase.model_validate(
-            existing.model_dump(mode='json', by_alias=True)
-        ).model_dump(mode='json', by_alias=True, exclude=exclude_fields)
+        stored = DataSetBase.model_validate(existing.model_dump(mode='json', by_alias=True))
+        existing_dump = stored.model_copy(update={'details': stored_details}).model_dump(
+            mode='json', by_alias=True, exclude=exclude_fields
+        )
         return incoming_dump != existing_dump
     except (ValidationError, KeyError, AttributeError) as exc:
         _warn_change_detection_skipped('dataset', str(dataset_id), exc)
@@ -612,6 +619,7 @@ async def _process_channels(
     onboarding_cfg: dict[str, Any] | None,
     process_glossaries: bool,
     glossaries_dir: str,
+    update_unchanged: bool = False,
 ) -> dict[str, Channel]:
     """Process channel configurations.
 
@@ -637,7 +645,7 @@ async def _process_channels(
 
             if deployment_id in existing:
                 existing_ch = existing[deployment_id]
-                if _channel_changed(ch_cfg, existing_ch):
+                if update_unchanged or _channel_changed(ch_cfg, existing_ch):
                     _warn_if_deprecated_rag(ch_cfg)
                     channel = await client.update_channel(existing_ch.id, ch_cfg)
                     print_info(f"  Updated channel: {deployment_id}")
@@ -810,6 +818,7 @@ async def _process_data_sources(
     client: AdminClient,
     report: BatchReport,
     data_sources_cfg: dict[str, Any],
+    update_unchanged: bool = False,
 ) -> dict[str, DataSource]:
     """Process data source configurations.
 
@@ -837,7 +846,11 @@ async def _process_data_sources(
 
             if title in existing:
                 existing_ds = existing[title]
-                if _data_source_changed(ds_cfg, existing_ds):
+                if "details" not in ds_cfg:
+                    raise ValueError(
+                        f"Data source '{title}' is missing required 'details' configuration"
+                    )
+                if update_unchanged or _data_source_changed(ds_cfg, existing_ds):
                     ds = await client.update_data_source(existing_ds.id, ds_cfg)
                     print_info(f"  Updated data source: {title}")
                     report.record_ok("data source", title)
@@ -898,6 +911,7 @@ async def _process_datasets(
     existing_datasets: dict[str, DataSet],
     dataset_ids: set[str] | None,
     link_channels: bool = True,
+    update_unchanged: bool = False,
 ) -> list[tuple[str, DataSet]]:
     """Process dataset configurations.
 
@@ -966,7 +980,7 @@ async def _process_datasets(
             if dataset_id_str and dataset_id_str in existing_datasets:
                 existing_dataset = existing_datasets[dataset_id_str]
                 linked_ds = data_sources.get(ds_name) if ds_name else None
-                if _dataset_changed(ds_cfg, existing_dataset, linked_ds):
+                if update_unchanged or _dataset_changed(ds_cfg, existing_dataset, linked_ds):
                     response = await client.update_dataset(existing_dataset.id, ds_cfg)
                     dataset = response.dataset
                     print_info(f"  Updated dataset: {urn}")
@@ -1097,6 +1111,15 @@ init_command = Command(
             name="yes",
             short_name="y",
             description="Skip confirmation prompt",
+            is_flag=True,
+        ),
+        CommandArg(
+            name="update-unchanged",
+            description=(
+                "Update selected existing channels, data sources and datasets even when"
+                " unchanged, replacing configs from files. May change timestamps or propagation"
+                " versions; does not skip prompts, delete unlisted items or start reindexing"
+            ),
             is_flag=True,
         ),
         CommandArg(

@@ -3,6 +3,7 @@ from datetime import datetime
 
 import pytest
 import pytest_asyncio  # noqa: F401
+from sqlalchemy import select
 
 from statgpt.admin.auth.auth_context import SystemUserAuthContext
 from statgpt.admin.services import AdminPortalChannelService as ChannelService
@@ -111,8 +112,8 @@ async def test_create_dataset(session, clear_all, sdmx_clint_mock):
     assert dataset.id_ == random_uuid
     assert dataset.data_source_id == data_source.id
     assert dataset.details['urn'] == URN_CPI_4_0_0
-    assert dataset.details['citation'] is None
-    assert dataset.details['indexer'] is None
+    assert 'citation' not in dataset.details
+    assert 'indexer' not in dataset.details
 
     assert len(dataset.details['dimensions']) == len(DIMENSIONS)
     for dim_id, dim_config in DIMENSIONS.items():
@@ -171,7 +172,7 @@ async def test_update_dataset(session, clear_all, sdmx_clint_mock):
     assert dataset.title == 'CPI'
     assert dataset.data_source_id == data_source.id
     assert dataset.details['urn'] == URN_CPI_4_0_0
-    assert dataset.details['citation'] is None
+    assert 'citation' not in dataset.details
 
     citation = DatasetCitation(
         provider="International Monetary Fund",
@@ -220,6 +221,59 @@ async def test_update_dataset(session, clear_all, sdmx_clint_mock):
     )[-1]
     assert audit_log.state_after is not None
     assert "data_source" not in audit_log.state_after
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    'overrides',
+    [
+        {},
+        {'isOfficial': False, 'citation': None, 'pinnedColumns': [], 'indexer': {'indicator': {}}},
+    ],
+)
+async def test_dataset_sparse_round_trip_generated_identity_and_replacement(
+    session, clear_all, sdmx_clint_mock, overrides
+):
+    source = await get_data_source(session)
+    service = DataSetService(session)
+    auth = SystemUserAuthContext()
+    legacy = {
+        'urn': URN_CPI_4_0_0,
+        'dimensions': DIMENSIONS,
+        'isOfficial': False,
+        'useTitleFromSrc': False,
+    }
+    request = schemas.DataSetBase(title='CPI', data_source_id=source.id, details=legacy)
+    dataset = await service.create_dataset(request, auth)
+    assert dataset.id_ == request.id_
+    assert 'id_' not in request.model_fields_set
+    replacement = {
+        'urn': {'agencyId': 'IMF.STA', 'resourceId': 'CPI'},
+        'dimensions': DIMENSIONS,
+        **overrides,
+    }
+    await service.update(dataset.id, schemas.DataSetUpdateRequest(details=replacement), auth)
+    await session.commit()
+    assert (
+        await session.scalar(select(models.DataSet.details).where(models.DataSet.id == dataset.id))
+        == replacement
+    )
+    read = await service.get_schema_by_id(dataset.id, auth_context=auth)
+    assert read.details == replacement
+    assert read.id_ == dataset.id_
+    await service.update(
+        dataset.id, schemas.DataSetUpdateRequest.model_validate(read.model_dump(mode='json')), auth
+    )
+    await session.commit()
+    await service.update(dataset.id, schemas.DataSetUpdateRequest(title='Renamed'), auth)
+    await session.commit()
+    assert (
+        await session.scalar(select(models.DataSet.details).where(models.DataSet.id == dataset.id))
+        == replacement
+    )
+    final = await service.get_schema_by_id(dataset.id, auth_context=auth)
+    assert final.id_ == dataset.id_
+    assert final.data_source_id == source.id
 
 
 @pytest.mark.asyncio

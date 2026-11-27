@@ -77,7 +77,7 @@ class AdminPortalChannelService(ChannelService):
             title=data.title,
             description=data.description,
             deployment_id=data.deployment_id,
-            details=data.details.model_dump(mode="json", by_alias=True),
+            details=data.details.model_dump(mode="json", by_alias=True, exclude_unset=True),
             llm_model=data.llm_model,
         )
 
@@ -102,12 +102,14 @@ class AdminPortalChannelService(ChannelService):
 
         if data.details is not None:
             self._warn_if_deprecated_rag(data.details)
-            data.details = data.details.model_dump(mode="json", by_alias=True)  # type: ignore
 
         query = (
             update(models.Channel)
             .where(models.Channel.id == item.id)
-            .values(**data.model_dump(mode="json", exclude_unset=True), updated_at=func.now())
+            .values(
+                **data.model_dump(mode="json", by_alias=True, exclude_unset=True),
+                updated_at=func.now(),
+            )
             .returning(models.Channel)
         )
         try:

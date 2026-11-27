@@ -251,6 +251,7 @@ statgpt> content init --datasets urn1,urn2        # specific datasets only
 | `-o, --only`  | Components: `channels`, `datasources`, `datasets`, `glossaries`, `files`, `discovery` |
 | `-y, --yes`   | Skip all confirmation prompts and process ALL available content                       |
 | `--verify`    | After processing, check each dataset can be loaded from its data source               |
+| `--update-unchanged` | Update selected existing channels, data sources, and datasets even when effectively unchanged |
 
 **Notes:**
 
@@ -270,6 +271,27 @@ statgpt> content init --datasets urn1,urn2        # specific datasets only
   ```bash
   statgpt --non-interactive content init --client-id my-client --datasets urn1,urn2 -y
   ```
+
+### Refreshing explicit config overrides
+
+Ordinary initialization compares effective configs and skips unchanged items. Use `--update-unchanged` to replace selected existing live configs from their source files even when their effective values are unchanged. This is the opt-in cleanup path for defaults materialized by older versions: omitted keys are removed recursively from stored overrides, while explicit values remain pinned, including values equal to current defaults. Channel tools and onboarding settings are assembled from their separate files before replacement. New items still use normal creation.
+
+```bash
+# Refresh only configured channels for one configuration directory
+statgpt content init --client-id sample --only channels --update-unchanged -y
+
+# Refresh selected datasets and their existing configured data-source dependencies
+statgpt content init --client-id sample --only datasets --datasets 'AG:DF_A(1.0)' --update-unchanged -y
+
+# Refresh all configured live configs, without selecting files, glossaries, or discovery
+statgpt content init --client-id sample --only channels,datasources,datasets --update-unchanged -y
+```
+
+- The flag is false by default and is independent of `-y/--yes`: it does not skip confirmations, validation, authentication, or processing restrictions. Existing data-source initialization entries must still supply `details`; this does not change valid metadata-only updates through the Admin API.
+- `--client-id`, the configured root directory, `--only`, and `--datasets` keep their existing selection behavior. Selecting datasets includes configured data sources as a dependency; the dataset filter does not further narrow that data-source processing. Unselected or unlisted channels, data sources, and datasets are neither refreshed nor deleted by this flag. Files, glossaries, and discovery keep their normal behavior if selected.
+- Normal updates may change timestamps or create dataset propagation versions. The CLI reports datasets requiring reindexing but does not start reindexing; review the summary before deciding to reindex separately. Identities and relationships retain normal update behavior, and historical resolved-config snapshots are not cleaned up by live replacement.
+- A proxy source without incoming `proxyConfig` leaves its external config untouched. Supplying `proxyConfig` explicitly retains the normal external-config write behavior.
+- Independent items continue after a failed refresh. Successful updates remain applied, and the usual batch summary and failure exit code still apply. `--verify` remains a separate opt-in status check.
 
 ## Batch Summaries and Exit Codes
 
